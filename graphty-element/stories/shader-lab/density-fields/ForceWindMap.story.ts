@@ -11,7 +11,7 @@
  * pass each frame (ping-pong); the particles are drawn as short segments from their previous to
  * their new position into a trail buffer that fades a little every frame.
  */
-import { type GraphArgs, graphArgs, graphArgTypes, labMeta, mountLab, range } from "../harness";
+import { type GraphArgs, graphArgs, graphArgTypes, labMeta, mountLab, QUALITY_SETTINGS, range } from "../harness";
 import {
     autoRender,
     boundsUniforms,
@@ -243,7 +243,9 @@ export const ForceWindMap = {
                         uvs[(y * n + x) * 2 + 1] = (y + 0.5) / n;
                     }
                 }
-                const frame = makeTarget(ctx, "wind-frame", { size: 1, type: "half" });
+                // full resolution at high quality; the post ratio of the quality below that
+                const frameSize = QUALITY_SETTINGS[ctx.quality].postRatio;
+                const frame = makeTarget(ctx, "wind-frame", { size: frameSize, type: "half" });
                 const particles = splat(ctx, [frame], {
                     name: "particles",
                     count: n * n,
@@ -259,7 +261,7 @@ export const ForceWindMap = {
                 particles.material.setTexture("field", field);
                 autoRender(ctx, frame);
 
-                const acc = new PingPong(ctx, "wind-acc", { size: 1, type: "half" });
+                const acc = new PingPong(ctx, "wind-acc", { size: frameSize, type: "half" });
                 const renderer = effectRenderer(ctx);
                 const init = makePass(ctx, renderer, "init", INIT, [], []);
                 const update = makePass(

@@ -25,6 +25,23 @@ its knobs.
 Run it with the shader-lab Storybook (config in `graphty-element/.storybook-shader-lab/`; story
 files end in `.story.ts`, so the main Storybook and the visual review ignore them).
 
+## Quality, cost and tablets
+
+Every story has a **quality** box in its corner: low, medium or high, or auto (high on a desktop,
+medium on an iPad, low on a phone), remembered in the browser. Quality caps the drawing buffer at
+0.75x, 1.25x or 1.5x the CSS pixels (an iPad screen is 2x), runs post-processes at half, three
+quarters or full size, uses 3, 4 or 5 noise octaves, and cuts edge segments and the loop counts
+of the heaviest shaders. A frame guard watches every story: when frames average over 50 ms for a
+second it drops a level and says so, and when frames still average over 200 ms at low it pauses
+the animation, with a button to resume.
+
+Every manifest entry has a **cost** (light, medium or heavy: the per-frame GPU cost on a weak
+tablet GPU), shown and filterable on the Overview. Heavy stories loop many times per pixel,
+ray-march, or run several full-screen passes; each one's `costNote` says why.
+
+Switching stories loses the old WebGL context at once (`loseContextOnDispose`), so the lab never
+holds more than one, which matters on Safari, which refuses new contexts after a few.
+
 ## The categories
 
 Every shader is tagged with one of five categories:

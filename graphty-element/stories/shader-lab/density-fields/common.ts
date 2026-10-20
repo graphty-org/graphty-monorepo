@@ -310,7 +310,7 @@ export function makePass(
     const wrapper = new EffectWrapper({
         engine: ctx.engine,
         name,
-        fragmentShader: `precision highp float;\nvarying vec2 vUV;\n${GLSL_LIBRARY}\n${fragment}`,
+        fragmentShader: `precision highp float;\nvarying vec2 vUV;\n${ctx.defines}${GLSL_LIBRARY}\n${fragment}`,
         uniformNames: uniforms,
         samplerNames: samplers,
     });

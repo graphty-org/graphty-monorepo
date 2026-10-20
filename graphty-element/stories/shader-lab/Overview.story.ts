@@ -16,6 +16,9 @@ interface Idea {
     category: string;
     purpose: string;
     wow: number;
+    /** Per-frame GPU cost on a weak tablet GPU. */
+    cost: "light" | "medium" | "heavy";
+    costNote?: string;
     what: string;
     status: string;
     story: string | null;
@@ -36,6 +39,8 @@ const CATEGORY_COLORS: Record<string, string> = {
     "edge-effect": "#edc948",
     "whole-graph": "#b07aa1",
 };
+
+const COST_COLORS: Record<string, string> = { light: "#3f7d4f", medium: "#9a7a2c", heavy: "#a1453e" };
 
 const STYLE = `
 .lab-ov { font: 14px/1.45 system-ui, sans-serif; color: #e8e8ee; background: #0b0d14; min-height: 100vh; padding: 24px 32px; box-sizing: border-box; }
@@ -71,7 +76,7 @@ function render(): HTMLElement {
     const batches = manifest.batches as { id: string; title: string; ideas: Idea[] }[];
     const total = batches.reduce((s, b) => s + b.ideas.length, 0);
     const head = document.createElement("div");
-    head.innerHTML = `<h1>Shader Lab</h1><p class="sub">${total} shader ideas for drawing nodes and edges and adding effects. Hover a node in any story to highlight it, click to select it. Click a card to open its story; gold cards are the standouts. Screenshots come from a software renderer, so open the story to see it move.</p>`;
+    head.innerHTML = `<h1>Shader Lab</h1><p class="sub">${total} shader ideas for drawing nodes and edges and adding effects. Hover a node in any story to highlight it, click to select it. Click a card to open its story; gold cards are the standouts. Screenshots come from a software renderer, so open the story to see it move. The cost tag is the per-frame GPU cost on a tablet. Every story starts at a quality chosen for the screen (medium on an iPad), drops a level when frames get slow and pauses if even low is too slow; the box in a story's corner picks the quality.</p>`;
     root.appendChild(head);
 
     const filters = document.createElement("div");
@@ -107,6 +112,10 @@ function render(): HTMLElement {
             "edge",
             "edge-effect",
             "whole-graph",
+            "|",
+            "cost: light",
+            "cost: medium",
+            "cost: heavy",
         ]) {
             if (f === "|") {
                 const sep = document.createElement("span");
@@ -131,6 +140,9 @@ function render(): HTMLElement {
                 }
                 if (filter === "standouts") {
                     return idea.standout === true;
+                }
+                if (filter.startsWith("cost: ")) {
+                    return idea.cost === filter.slice(6);
                 }
                 if (filter.startsWith("wow ")) {
                     return idea.wow >= parseInt(filter.slice(4), 10);
@@ -175,7 +187,15 @@ function render(): HTMLElement {
                 const status = document.createElement("span");
                 status.className = "tag";
                 status.textContent = idea.status;
-                tags.append(cat, purpose, wow, status);
+                const cost = document.createElement("span");
+                cost.className = "tag";
+                cost.style.background = COST_COLORS[idea.cost];
+                cost.style.color = "#fff";
+                cost.textContent = `${idea.cost} cost`;
+                if (idea.costNote) {
+                    cost.title = idea.costNote;
+                }
+                tags.append(cat, purpose, wow, cost, status);
                 if (idea.standout) {
                     const star = document.createElement("span");
                     star.className = "tag star";

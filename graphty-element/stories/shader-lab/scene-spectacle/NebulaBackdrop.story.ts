@@ -72,7 +72,11 @@ void main() {
     float t = time * drift * 0.05;
     // three-deep domain warp (Inigo Quilez, "warp")
     vec3 q = vec3(fbm(p + vec3(0.0, t, 0.0)), fbm(p + vec3(5.2, 1.3, 2.8 - t)), fbm(p + vec3(1.7, 9.2, t)));
+#if LAB_QUALITY == 0
+    vec3 r = q;   // low quality: two levels of warp instead of three
+#else
     vec3 r = vec3(fbm(p + warp * 4.0 * q + vec3(1.7, 9.2, 0.0)), fbm(p + warp * 4.0 * q + vec3(8.3, 2.8, 0.0)), 0.0);
+#endif
     float f = fbm(p + warp * 4.0 * r + t);
     vec3 gas = mix(gasA, gasB, clamp(f * f * 3.0, 0.0, 1.0));
     gas = mix(gas, gasC, clamp(length(q) * 0.9 - 0.3, 0.0, 1.0));

@@ -40,13 +40,14 @@ void main() {
     if (bloom <= 0.0) { gl_FragColor = vec4(base.rgb, 1.0); return; }
     vec3 acc = vec3(0.0);
     vec2 px = pixelRatio / resolution;
-    for (int i = 0; i < 16; i++) {
-        float fi = float(i);
+    const int TAPS = LAB_Q(6, 10, 16);
+    for (int i = 0; i < TAPS; i++) {
+        float fi = float(i) * 16.0 / float(TAPS);
         float ang = fi * 2.39996;
         vec2 o = vec2(cos(ang), sin(ang)) * sqrt(fi + 0.5) * bloomRadius * px;
         vec3 s = texture2D(textureSampler, vUV + o).rgb;
         acc += max(s - vec3(0.3), 0.0) * (1.0 - fi / 18.0);
     }
-    gl_FragColor = vec4(base.rgb + acc / 9.0 * bloom, 1.0);
+    gl_FragColor = vec4(base.rgb + acc * (16.0 / float(TAPS)) / 9.0 * bloom, 1.0);
 }
 `;

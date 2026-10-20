@@ -170,25 +170,28 @@ void main() {
 }`,
     watercolor: `
 void main() {
-    vec2 px = pixelRatio * max(cell * 0.25, 1.0) / resolution;
+    // Kuwahara radius R (taps 4 (R+1)^2), spacing stretched so the footprint stays the same
+    const int R = LAB_Q(2, 3, 4);
+    const float N = float((R + 1) * (R + 1));
+    vec2 px = pixelRatio * max(cell * 0.25, 1.0) / resolution * 4.0 / float(R);
     vec2 uv = vUV + (vec2(fbm(vUV * 12.0), fbm(vUV * 12.0 + 5.0)) - 0.5) * 0.006 * amount;
     vec3 m0 = vec3(0.0); vec3 m1 = vec3(0.0); vec3 m2 = vec3(0.0); vec3 m3 = vec3(0.0);
     vec3 s0 = vec3(0.0); vec3 s1 = vec3(0.0); vec3 s2 = vec3(0.0); vec3 s3 = vec3(0.0);
-    for (int y = 0; y <= 4; y++) for (int x = 0; x <= 4; x++) {
+    for (int y = 0; y <= R; y++) for (int x = 0; x <= R; x++) {
         vec2 o = vec2(float(x), float(y)) * px;
         vec3 a = S(uv + vec2(-o.x, -o.y)); m0 += a; s0 += a * a;
         vec3 b = S(uv + vec2(o.x, -o.y)); m1 += b; s1 += b * b;
         vec3 c = S(uv + vec2(o.x, o.y)); m2 += c; s2 += c * c;
         vec3 d = S(uv + vec2(-o.x, o.y)); m3 += d; s3 += d * d;
     }
-    m0 /= 25.0; m1 /= 25.0; m2 /= 25.0; m3 /= 25.0;
-    float v0 = dot(s0 / 25.0 - m0 * m0, vec3(1.0)); float v1 = dot(s1 / 25.0 - m1 * m1, vec3(1.0));
-    float v2 = dot(s2 / 25.0 - m2 * m2, vec3(1.0)); float v3 = dot(s3 / 25.0 - m3 * m3, vec3(1.0));
+    m0 /= N; m1 /= N; m2 /= N; m3 /= N;
+    float v0 = dot(s0 / N - m0 * m0, vec3(1.0)); float v1 = dot(s1 / N - m1 * m1, vec3(1.0));
+    float v2 = dot(s2 / N - m2 * m2, vec3(1.0)); float v3 = dot(s3 / N - m3 * m3, vec3(1.0));
     vec3 c = m0; float v = v0;
     if (v1 < v) { v = v1; c = m1; } if (v2 < v) { v = v2; c = m2; } if (v3 < v) { v = v3; c = m3; }
     vec2 p = gl_FragCoord.xy / pixelRatio;
     // paint is transparent: it darkens the paper (multiply), pooling darker at wash edges
-    float edge = smoothstep(0.03, 0.25, sobel(uv, px * 1.5));
+    float edge = smoothstep(0.03, 0.25, sobel(uv, px * 1.5 * float(R) / 4.0));
     float gran = fbm(p * 0.35) * 0.5 + noise(p * 2.0) * 0.5;
     vec3 pigment = mix(vec3(1.0), c * 1.6 + 0.05, smoothstep(0.02, 0.25, luminance(c)));
     pigment = mix(pigment, pigment * pigment, edge * 0.7 + gran * 0.25 * amount);

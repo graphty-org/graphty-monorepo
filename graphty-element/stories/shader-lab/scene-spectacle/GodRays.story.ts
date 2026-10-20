@@ -139,12 +139,14 @@ void main() {
     gl_FragColor = vec4(light * l * (1.0 - occ), 1.0);
 }`,
                 });
-                // 2: radial blur toward the sun
+                // 2: radial blur toward the sun (ratio 0.5: the light source above is written at
+                // half resolution)
                 addPass(ctx, {
+                    ratio: 0.5,
                     uniforms: { ...common, density: () => live.density, decay: () => live.decay },
                     fragment: `
 void main() {
-    const int N = 72;
+    const int N = LAB_Q(24, 40, 72);
     vec2 delta = (vUV - sun) * density / float(N);
     vec2 uv = vUV;
     float w = 1.0;
@@ -154,13 +156,14 @@ void main() {
     for (int i = 0; i < N; i++) {
         uv -= delta;
         sum += texture2D(textureSampler, uv).rgb * w;
-        w *= decay;
+        w *= pow(decay, 72.0 / float(N));
     }
     gl_FragColor = vec4(sum / float(N) * 4.0, 1.0);
 }`,
                 });
                 // 3: add the shafts over the original scene
                 addPass(ctx, {
+                    ratio: 0.5,
                     uniforms: { exposure: () => live.exposure },
                     samplers: { sceneSampler: () => ({ input: occlude }) },
                     fragment: `

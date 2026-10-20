@@ -10,6 +10,7 @@ import {
     Constants,
     Effect,
     Engine,
+    EngineStore,
     Mesh,
     PostProcess,
     Scene,
@@ -22,6 +23,91 @@ import {
 
 import { GLSL_AA, GLSL_LIBRARY } from "./glsl";
 import { communityColor, type GraphKind, hopsFrom, type LabGraph, makeGraph } from "./graphs";
+
+/**
+ * How much the lab spends per frame. Each level caps the drawing buffer (device pixels per CSS
+ * pixel), sizes the post-processes, sets the fbm octave count and gives shaders `LAB_QUALITY`
+ * (0, 1, 2) and `LAB_Q(low, medium, high)` to pick their own loop bounds and step counts.
+ */
+export type Quality = "low" | "medium" | "high";
+export const QUALITIES: Quality[] = ["low", "medium", "high"];
+
+interface QualitySettings {
+    /** Most device pixels per CSS pixel the drawing buffer gets. */
+    maxPixelRatio: number;
+    /** Post-process input size relative to the drawing buffer. */
+    postRatio: number;
+    fbmOctaves: number;
+    antialias: boolean;
+    /** Pieces of every edge strip and instance strip, relative to what the story asked for. */
+    segmentScale: number;
+}
+
+export const QUALITY_SETTINGS: Record<Quality, QualitySettings> = {
+    low: { maxPixelRatio: 0.75, postRatio: 0.5, fbmOctaves: 3, antialias: false, segmentScale: 0.5 },
+    medium: { maxPixelRatio: 1.25, postRatio: 0.75, fbmOctaves: 4, antialias: true, segmentScale: 0.75 },
+    high: { maxPixelRatio: 1.5, postRatio: 1, fbmOctaves: 5, antialias: true, segmentScale: 1 },
+};
+
+/**
+ * The GLSL defines of a quality level. Every lab shader gets them; a story that builds its own
+ * effect prepends `ctx.defines`.
+ * @param quality - the level
+ * @returns `#define` lines
+ */
+export function qualityDefines(quality: Quality): string {
+    return `#define LAB_QUALITY ${QUALITIES.indexOf(quality)}
+#define LAB_Q(lo, med, hi) (LAB_QUALITY == 0 ? (lo) : (LAB_QUALITY == 1 ? (med) : (hi)))
+#define LAB_FBM_OCTAVES ${QUALITY_SETTINGS[quality].fbmOctaves}
+`;
+}
+
+/**
+ * The quality to start at: medium on a tablet (iPadOS Safari says "Macintosh" but has touch
+ * points), low on a phone, high elsewhere.
+ * @returns the level
+ */
+export function defaultQuality(): Quality {
+    const ua = navigator.userAgent;
+    if (/iPhone|iPod|Android.+Mobile/.test(ua)) {
+        return "low";
+    }
+    if (/iPad|Android/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+        return "medium";
+    }
+    return "high";
+}
+
+const QUALITY_KEY = "shader-lab-quality";
+/** The viewer's choice ("auto" = {@link defaultQuality}), remembered in this browser. */
+function chosenQuality(): Quality | "auto" {
+    try {
+        const v = localStorage.getItem(QUALITY_KEY);
+        return v === "low" || v === "medium" || v === "high" ? v : "auto";
+    } catch {
+        return "auto";
+    }
+}
+function storeQuality(v: Quality | "auto"): void {
+    try {
+        localStorage.setItem(QUALITY_KEY, v);
+    } catch {
+        // private mode: the choice lasts for this page only
+    }
+}
+let sessionQuality: Quality | "auto" | undefined;
+function effectiveQuality(): Quality {
+    const c = sessionQuality ?? chosenQuality();
+    return c === "auto" ? defaultQuality() : c;
+}
+
+/** Frame-time guard: drop a level when frames average over this for a second... */
+const SLOW_FRAME_MS = 50;
+/** ...and pause the animation when they still average over this at the lowest level. */
+const STALL_FRAME_MS = 200;
+
+// For leak checks: how many Babylon engines are alive.
+(globalThis as { __shaderLabEngines?: () => number }).__shaderLabEngines = () => EngineStore.Instances.length;
 
 /** A uniform value: a number (float), a boolean (float 0/1), 2-4 numbers (vec2-vec4) or "#rrggbb" (vec3). */
 export type UniformValue = number | boolean | number[] | string;
@@ -134,6 +220,10 @@ export interface LabContext {
     overlay: HTMLElement;
     /** Seconds since mount. */
     readonly time: number;
+    /** The quality this view was built at; scale particle counts and render target sizes by it. */
+    readonly quality: Quality;
+    /** The quality's GLSL defines, for effects a story compiles itself. */
+    readonly defines: string;
     /** Set a uniform on every material and post-process (declare it in `uniforms` first). */
     set(name: string, value: UniformValue): void;
     /** Run every frame before rendering. */
@@ -361,26 +451,95 @@ export function mountLab(options: LabOptions): HTMLElement {
 
     const root = document.createElement("div");
     root.style.cssText = "position:relative;width:100%;height:100vh;overflow:hidden;background:#000";
-    const canvas = document.createElement("canvas");
-    canvas.style.cssText = "width:100%;height:100%;display:block;outline:none;touch-action:none";
-    root.appendChild(canvas);
     const overlay = document.createElement("div");
     overlay.style.cssText =
         "position:absolute;left:8px;top:8px;padding:4px 8px;font:12px/1.4 monospace;color:#ddd;background:rgba(0,0,0,0.55);border-radius:4px;pointer-events:none;white-space:pre";
     root.appendChild(overlay);
     const status = document.createElement("div");
-    overlay.appendChild(status);
+    const controls = document.createElement("label");
+    controls.style.cssText = "pointer-events:auto;display:block;margin-top:2px";
+    controls.textContent = "quality ";
+    const select = document.createElement("select");
+    select.style.cssText = "font:inherit;background:#1b1f2c;color:#dde;border:1px solid #2c3246";
+    for (const v of ["auto", ...QUALITIES]) {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = v === "auto" ? `auto (${defaultQuality()})` : v;
+        select.appendChild(o);
+    }
+    select.value = sessionQuality ?? chosenQuality();
+    controls.appendChild(select);
+    const notice = document.createElement("div");
+    notice.style.cssText = "color:#ffd166;pointer-events:auto;white-space:normal;max-width:320px";
+    overlay.append(status, controls, notice);
 
-    const cleanups: (() => void)[] = [];
+    let uniforms: Uniforms = uniformsIn;
+    let quality = effectiveQuality();
+    let canvas: HTMLCanvasElement | undefined;
+    let view: BuiltView | undefined;
+    const stopView = (): void => {
+        view?.dispose();
+        view = undefined;
+        canvas?.remove();
+        canvas = undefined;
+    };
+    const startView = (): void => {
+        stopView();
+        // a fresh canvas: a context lost on dispose cannot be created again on the same one
+        canvas = document.createElement("canvas");
+        canvas.style.cssText = "width:100%;height:100%;display:block;outline:none;touch-action:none";
+        root.insertBefore(canvas, overlay);
+        view = build(options, graph, uniforms, canvas, overlay, status, quality, onSlow);
+    };
+    // The frame-time guard: a level down while frames are slow, a pause when even low stalls.
+    function onSlow(meanMs: number, worstMs: number): void {
+        if (quality !== "low") {
+            const from = quality;
+            quality = worstMs > 1000 ? "low" : QUALITIES[QUALITIES.indexOf(quality) - 1];
+            notice.textContent = `quality ${from} -> ${quality}: frames took ${meanMs.toFixed(0)} ms`;
+            setTimeout(() => {
+                if (view) {
+                    startView();
+                }
+            }, 0);
+            return;
+        }
+        if (meanMs > STALL_FRAME_MS) {
+            view?.pause();
+            notice.textContent = `paused: frames took ${meanMs.toFixed(0)} ms even at low quality `;
+            const resume = document.createElement("button");
+            resume.textContent = "resume";
+            resume.style.cssText = "font:inherit";
+            resume.onclick = () => {
+                notice.textContent = "resumed with the frame guard off";
+                view?.resume();
+            };
+            notice.appendChild(resume);
+        }
+    }
+    select.onchange = () => {
+        sessionQuality = select.value as Quality | "auto";
+        storeQuality(sessionQuality);
+        quality = effectiveQuality();
+        notice.textContent = "";
+        startView();
+    };
+
     let started = false;
     const start = (): void => {
         if (started) {
             return;
         }
         started = true;
-        const view = build(options, graph, uniformsIn, canvas, overlay, status);
-        cleanups.push(view.dispose);
-        lastView = { key, element: root, setUniforms: view.setUniforms };
+        startView();
+        lastView = {
+            key,
+            element: root,
+            setUniforms: (u) => {
+                uniforms = u;
+                view?.setUniforms(u);
+            },
+        };
     };
 
     // Babylon needs the canvas in the page to size it; start once connected, dispose once removed.
@@ -389,9 +548,7 @@ export function mountLab(options: LabOptions): HTMLElement {
             start();
         } else if (started) {
             observer.disconnect();
-            cleanups.forEach((fn) => {
-                fn();
-            });
+            stopView();
             if (lastView?.element === root) {
                 lastView = undefined;
             }
@@ -406,6 +563,15 @@ export function mountLab(options: LabOptions): HTMLElement {
     return root;
 }
 
+interface BuiltView {
+    dispose: () => void;
+    setUniforms: (u: Uniforms) => void;
+    /** Stop the render loop (the frame guard's last resort). */
+    pause: () => void;
+    /** Start it again with the frame guard off. */
+    resume: () => void;
+}
+
 function build(
     options: LabOptions,
     graph: LabGraph,
@@ -413,9 +579,22 @@ function build(
     canvas: HTMLCanvasElement,
     overlay: HTMLElement,
     status: HTMLElement,
-): { dispose: () => void; setUniforms: (u: Uniforms) => void } {
+    quality: Quality,
+    onSlow: (meanMs: number, worstMs: number) => void,
+): BuiltView {
     viewCount++;
-    const engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, antialias: true }, true);
+    const settings = QUALITY_SETTINGS[quality];
+    const defines = qualityDefines(quality);
+    // loseContextOnDispose: without it every story switch leaves a live WebGL context behind
+    // until garbage collection, and Safari stops creating new ones after a handful.
+    const engine = new Engine(
+        canvas,
+        settings.antialias,
+        { preserveDrawingBuffer: false, stencil: true, antialias: settings.antialias, loseContextOnDispose: true },
+        false,
+    );
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, settings.maxPixelRatio);
+    engine.setHardwareScalingLevel(1 / pixelRatio);
     const scene = new Scene(engine);
     scene.clearColor = hexColor(options.background ?? "#0b0d14");
     const flat = (options.camera ?? (graph.dim === 2 ? "flat" : "orbit")) === "flat";
@@ -482,7 +661,7 @@ function build(
             stage === "fragment"
                 ? "#extension GL_OES_standard_derivatives : enable\n#extension GL_EXT_frag_depth : enable\n"
                 : ""
-        }precision highp float;\n${MATRIX_UNIFORMS.map((n) => `uniform mat4 ${n};`).join("\n")}\n${uniformDecl}\n${GLSL_LIBRARY}\n${stage === "fragment" ? GLSL_AA : ""}\n`;
+        }precision highp float;\n${defines}${MATRIX_UNIFORMS.map((n) => `uniform mat4 ${n};`).join("\n")}\n${uniformDecl}\n${GLSL_LIBRARY}\n${stage === "fragment" ? GLSL_AA : ""}\n`;
 
     const addInstances = (o: InstanceOptions): LabLayer => {
         const mesh = new Mesh(o.name, scene);
@@ -491,7 +670,7 @@ function build(
             data.positions = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
             data.indices = [0, 1, 2, 0, 2, 3];
         } else {
-            const segs = Math.max(1, Math.floor(o.geometry));
+            const segs = Math.max(1, Math.round(Math.floor(o.geometry) * settings.segmentScale));
             const positions: number[] = [];
             const indices: number[] = [];
             for (let i = 0; i <= segs; i++) {
@@ -658,8 +837,8 @@ function build(
     const addPost = (fragment: string): PostProcess => {
         const name = `lab${viewCount}_post${posts.length}`;
         Effect.ShadersStore[`${name}FragmentShader`] =
-            `precision highp float;\nvarying vec2 vUV;\nuniform sampler2D textureSampler;\n${uniformDecl}\n${GLSL_LIBRARY}\n${GLSL_AA}\n${fragment}`;
-        const pp = new PostProcess(name, name, uniformNames, null, 1, camera);
+            `precision highp float;\n${defines}varying vec2 vUV;\nuniform sampler2D textureSampler;\n${uniformDecl}\n${GLSL_LIBRARY}\n${GLSL_AA}\n${fragment}`;
+        const pp = new PostProcess(name, name, uniformNames, null, settings.postRatio, camera);
         pp.onApply = (effect) => {
             for (const [n, v] of values) {
                 setOnEffect(effect, n, v);
@@ -823,6 +1002,8 @@ function build(
         get time() {
             return now;
         },
+        quality,
+        defines,
         set(n, v) {
             values.set(n, toFloats(v));
         },
@@ -849,25 +1030,55 @@ function build(
     io.observe(canvas);
     let frames = 0;
     let lastStat = performance.now();
-    engine.runRenderLoop(() => {
+    // frame guard: mean time between frames over about a second, after two warm-up frames
+    // (shader compiles); a single frame over a second ends the window at once
+    // `__shaderLabNoGuard` (set before load) turns the guard off, to measure a fixed quality
+    let guardOn = !(globalThis as { __shaderLabNoGuard?: boolean }).__shaderLabNoGuard;
+    let prevFrame = 0;
+    let warmup = 2;
+    let winMs = 0;
+    let winFrames = 0;
+    let worst = 0;
+    const loop = (): void => {
         if (!visible || document.hidden) {
+            prevFrame = 0;
             return;
         }
         scene.render();
         frames++;
         const t = performance.now();
+        if (guardOn && prevFrame > 0) {
+            if (warmup > 0) {
+                warmup--;
+            } else {
+                const d = t - prevFrame;
+                winMs += d;
+                winFrames++;
+                worst = Math.max(worst, d);
+                if (winMs >= 1000) {
+                    const mean = winMs / winFrames;
+                    const w = worst;
+                    winMs = winFrames = worst = 0;
+                    if (mean > SLOW_FRAME_MS) {
+                        onSlow(mean, w);
+                    }
+                }
+            }
+        }
+        prevFrame = t;
         if (t - lastStat > 500) {
             const fps = (frames * 1000) / (t - lastStat);
             frames = 0;
             lastStat = t;
             const drawCalls = scene.getActiveMeshes().length + posts.length;
-            status.textContent = `${fps.toFixed(0)} fps  ${graph.n} nodes  ${graph.m} edges  ~${drawCalls} draws${
+            status.textContent = `${fps.toFixed(0)} fps  ${graph.n} nodes  ${graph.m} edges  ~${drawCalls} draws\n${quality} quality, ${pixelRatio.toFixed(2)}x pixels (${engine.getRenderWidth()}x${engine.getRenderHeight()})${
                 hover >= 0
                     ? `\nhover #${hover} deg ${graph.degree[hover].toFixed(2)} rank ${graph.rank[hover].toFixed(2)} value ${graph.value[hover].toFixed(2)}`
                     : ""
             }${selected >= 0 ? `\nselected #${selected}` : ""}`;
         }
-    });
+    };
+    engine.runRenderLoop(loop);
     const onResize = (): void => {
         engine.resize();
     };
@@ -876,6 +1087,14 @@ function build(
 
     return {
         setUniforms,
+        pause: () => {
+            engine.stopRenderLoop();
+        },
+        resume: () => {
+            guardOn = false;
+            engine.stopRenderLoop();
+            engine.runRenderLoop(loop);
+        },
         dispose: () => {
             savedCameras.set(camKey, {
                 alpha: camera.alpha,

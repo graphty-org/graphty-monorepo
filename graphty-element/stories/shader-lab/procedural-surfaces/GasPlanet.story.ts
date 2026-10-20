@@ -78,12 +78,12 @@ void main() {
         float b = lat2 * bands + turbulence * (warp * 2.0 - 1.0) * 2.5
                 + 0.8 * fbm(vec3(lat2 * bands * 0.5, wp.xz * 0.6));
         float stripe = 0.5 + 0.5 * sin(b);
-        float fine = fbm(vec3(lat2 * bands * 2.5, ps.xz * 5.0) + warp * 2.0);
+        float fine = detailFbm(vec3(lat2 * bands * 2.5, ps.xz * 5.0) + warp * 2.0);
         vec3 tint = palette(rnd * 0.25 + hueShift + vData.w * 0.11,
             vec3(0.62, 0.52, 0.42), vec3(0.32, 0.28, 0.22), vec3(1.0), vec3(0.0, 0.1, 0.2));
         vec3 base = mix(vColor.rgb, tint, 0.5);
         col = mix(base * 0.55, mix(base, vec3(1.0, 0.95, 0.85), 0.35), smoothstep(0.1, 0.9, stripe));
-        col = mix(col, base * vec3(1.1, 0.9, 0.8), 0.35 * smoothstep(0.55, 0.8, fbm(vec3(lat2 * 3.0, wp.xz))));
+        col = mix(col, base * vec3(1.1, 0.9, 0.8), 0.35 * smoothstep(0.55, 0.8, detailFbm(vec3(lat2 * 3.0, wp.xz))));
         col *= 0.78 + 0.45 * fine;
 
         float eye = stormOn * smoothstep(sr * 0.75, sr * 0.3, ds);

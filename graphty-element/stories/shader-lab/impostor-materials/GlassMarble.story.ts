@@ -22,7 +22,7 @@ interface Args extends GraphArgs {
 }
 
 const NODE_FRAGMENT = `${LIGHTING}
-const int STEPS = 28;
+const int STEPS = LAB_Q(12, 20, 28);
 void main() {
     vec3 n = labSphereNormal();
     vec3 rd = labEyeRay(n);

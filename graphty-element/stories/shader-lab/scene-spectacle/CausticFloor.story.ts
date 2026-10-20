@@ -31,17 +31,21 @@ float caustic(vec2 uv, float t) {
     vec2 i = p;
     float c = 1.0;
     float inten = 0.005;
-    for (int n = 0; n < 5; n++) {
+    const int ITER = LAB_Q(3, 4, 5);
+    for (int n = 0; n < ITER; n++) {
         float tt = t * (1.0 - (3.5 / float(n + 1)));
         i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
         c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten)));
     }
-    c /= 5.0;
+    c /= float(ITER);
     c = 1.17 - pow(c, 1.4);
     return pow(abs(c), causticPower);
 }
 vec3 causticRGB(vec2 uv, float t) {
     float s = dispersion * 0.006;
+#if LAB_QUALITY == 0
+    return vec3(caustic(uv, t));
+#endif
     return vec3(caustic(uv + vec2(s, 0.0), t), caustic(uv, t), caustic(uv - vec2(s, 0.0), t));
 }
 `;

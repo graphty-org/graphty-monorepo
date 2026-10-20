@@ -40,7 +40,7 @@ void main() {
     float escaped = 0.0;
     float trap = 10.0;
     for (int i = 0; i < 96; i++) {
-        if (float(i) >= iterations) break;
+        if (float(i) >= min(iterations, LAB_Q(24.0, 40.0, 96.0))) break;
         z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + cc;
         trap = min(trap, min(abs(length(z) - 0.5), min(abs(z.x), abs(z.y)) * 1.5));   // ring + cross trap: filaments inside
         if (dot(z, z) > 256.0) { escaped = 1.0; break; }

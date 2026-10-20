@@ -11,7 +11,7 @@
  */
 import type { RenderTargetTexture } from "@babylonjs/core";
 
-import { type GraphArgs, graphArgs, graphArgTypes, labMeta, mountLab, range } from "../harness";
+import { type GraphArgs, graphArgs, graphArgTypes, labMeta, mountLab, type Quality, range } from "../harness";
 import {
     autoRender,
     effectRenderer,
@@ -35,7 +35,9 @@ interface Args extends GraphArgs {
     saturation: number;
 }
 
-const SCALE = 0.5;
+/** Jump-flood target size relative to the canvas: a quarter at low quality, else a half. */
+const SCALE_GLSL = "LAB_Q(0.25, 0.5, 0.5)";
+const scaleFor = (q: Quality): number => (q === "low" ? 0.25 : 0.5);
 
 // seed texel: (screen uv of the node, community, index + 1); alpha 0 means "no seed here"
 const SEED_VERTEX = `
@@ -44,7 +46,7 @@ void main() {
     vSeed = c.xy / c.w * 0.5 + 0.5;
     vCommunity = nodeData.x;
     vIndex = nodeData.y;
-    gl_Position = c + vec4(position.xy * 2.0 / (resolution * ${SCALE.toFixed(2)}) * c.w, 0.0, 0.0);
+    gl_Position = c + vec4(position.xy * 2.0 / (resolution * ${SCALE_GLSL}) * c.w, 0.0, 0.0);
 }
 `;
 const SEED_FRAGMENT = `
@@ -184,7 +186,8 @@ export const VoronoiTerritory = {
             edgeLayer: { fragment: EDGE },
             setup: (ctx) => {
                 const g = ctx.graph;
-                const seeds = makeTarget(ctx, "seeds", { size: SCALE, type: "float", nearest: true });
+                const scale = scaleFor(ctx.quality);
+                const seeds = makeTarget(ctx, "seeds", { size: scale, type: "float", nearest: true });
                 const data = new Float32Array(g.n * 2);
                 for (let i = 0; i < g.n; i++) {
                     data[i * 2] = g.community[i];
@@ -199,9 +202,9 @@ export const VoronoiTerritory = {
                     fragment: SEED_FRAGMENT,
                 });
                 autoRender(ctx, seeds);
-                const a = makeTarget(ctx, "jfa-a", { size: SCALE, type: "float", nearest: true });
-                const b = makeTarget(ctx, "jfa-b", { size: SCALE, type: "float", nearest: true });
-                const result = makeTarget(ctx, "jfa-result", { size: SCALE, type: "float", nearest: true });
+                const a = makeTarget(ctx, "jfa-a", { size: scale, type: "float", nearest: true });
+                const b = makeTarget(ctx, "jfa-b", { size: scale, type: "float", nearest: true });
+                const result = makeTarget(ctx, "jfa-result", { size: scale, type: "float", nearest: true });
                 const renderer = effectRenderer(ctx);
                 const pass = makePass(ctx, renderer, "jfa", JFA, ["stepPx", "texSize"], ["src"]);
                 const stop = everyFrame(ctx, () => {

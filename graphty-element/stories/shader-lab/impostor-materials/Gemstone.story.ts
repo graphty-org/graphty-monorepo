@@ -89,7 +89,17 @@ vec3 gem(vec3 nw, vec3 iw, vec3 body, float diamond) {
     vec3 fn = fromObj(fo.xyz, ra, rb);
     float disp = dispersion * (1.0 + diamond * 1.5);
     vec3 iorC = ior + disp * vec3(-1.0, 0.0, 1.0);
+    // one ray per color channel is the expensive part: medium traces red and blue and blends
+    // green, low traces one ray for all three
+#if LAB_QUALITY == 0
+    vec3 inside = fire(nw, iw, fn, iorC.y, ra, rb);
+#elif LAB_QUALITY == 1
+    vec3 fr = fire(nw, iw, fn, iorC.x, ra, rb);
+    vec3 fb = fire(nw, iw, fn, iorC.z, ra, rb);
+    vec3 inside = vec3(fr.r, 0.5 * (fr.g + fb.g), fb.b);
+#else
     vec3 inside = vec3(fire(nw, iw, fn, iorC.x, ra, rb).r, fire(nw, iw, fn, iorC.y, ra, rb).g, fire(nw, iw, fn, iorC.z, ra, rb).b);
+#endif
     float ndv = max(dot(fn, -iw), 0.0);
     float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
     float fres = f0 + (1.0 - f0) * pow(1.0 - ndv, 5.0);

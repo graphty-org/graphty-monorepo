@@ -13,7 +13,7 @@ import {
     ShaderMaterial,
 } from "@babylonjs/core";
 
-import { GLSL_LIBRARY, type LabContext, type LabLayer } from "../harness";
+import { GLSL_LIBRARY, type LabContext, type LabLayer, QUALITY_SETTINGS } from "../harness";
 
 const AA = `
 float fill(float d) { float w = fwidth(d); return 1.0 - smoothstep(-w, w, d); }
@@ -63,7 +63,7 @@ uniform vec2 texel;
 uniform vec2 resolution;
 uniform float pixelRatio;
 ${declared.join("\n")}
-${GLSL_LIBRARY}
+${ctx.defines}${GLSL_LIBRARY}
 ${AA}
 ${o.fragment}`;
     const pp = new PostProcess(
@@ -71,10 +71,12 @@ ${o.fragment}`;
         name,
         ["time", "texel", "resolution", "pixelRatio", ...Object.keys(uniforms)],
         samplerNames,
-        o.ratio ?? 1,
+        // quality: low and medium shrink every pass input
+        (o.ratio ?? 1) * QUALITY_SETTINGS[ctx.quality].postRatio,
         ctx.camera,
     );
-    if (o.samples) {
+    // MSAA on a pass input is a full extra resolve; low quality skips it
+    if (o.samples && ctx.quality !== "low") {
         pp.samples = o.samples;
     }
     pp.onApply = (effect) => {
@@ -211,7 +213,7 @@ export function offscreen(
 ): RenderTargetTexture {
     const rtt = new RenderTargetTexture(
         `glowRtt${++passCount}`,
-        { ratio: opts.ratio ?? 1 },
+        { ratio: (opts.ratio ?? 1) * QUALITY_SETTINGS[ctx.quality].postRatio },
         ctx.scene,
         false,
         true,

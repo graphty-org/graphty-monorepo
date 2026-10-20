@@ -25,16 +25,18 @@ vec3 screenPerp(vec3 a, vec3 b) {
 export const BLOOM_POST = `
 void main() {
     vec4 base = texture2D(textureSampler, vUV);
+    if (bloom <= 0.0) { gl_FragColor = vec4(base.rgb, 1.0); return; }
     vec2 px = 1.0 / resolution;
     vec3 acc = vec3(0.0);
-    for (int i = 0; i < 16; i++) {
-        float fi = float(i);
+    const int TAPS = LAB_Q(6, 10, 16);
+    for (int i = 0; i < TAPS; i++) {
+        float fi = float(i) * 16.0 / float(TAPS);
         float r = sqrt((fi + 0.5) / 16.0) * bloomRadius * pixelRatio;
         vec2 o = vec2(cos(fi * 2.39996), sin(fi * 2.39996)) * r * px;
         vec3 s = texture2D(textureSampler, vUV + o).rgb;
         acc += max(s - bloomThreshold, 0.0) * (1.0 - fi / 20.0);
     }
-    gl_FragColor = vec4(base.rgb + acc / 9.0 * bloom, 1.0);
+    gl_FragColor = vec4(base.rgb + acc * (16.0 / float(TAPS)) / 9.0 * bloom, 1.0);
 }
 `;
 

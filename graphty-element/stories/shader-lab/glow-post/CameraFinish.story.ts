@@ -59,11 +59,12 @@ void main() {
     float y = vUV.y;
     float dist = max(abs(y - focusY) - focusBand * 0.5, 0.0);
     float rpx = tiltShift * 14.0 * pixelRatio * smoothstep(0.0, 0.35, dist);
-    vec2 step1 = ${dir} * texel * rpx / 4.0;
+    const int K = LAB_Q(2, 3, 4);
+    vec2 step1 = ${dir} * texel * rpx / float(K);
     vec3 acc = vec3(0.0); float wsum = 0.0;
-    for (int i = -4; i <= 4; i++) {
+    for (int i = -K; i <= K; i++) {
         float fi = float(i);
-        float w = exp(-fi * fi / 8.0);
+        float w = exp(-fi * fi / (0.5 * float(K * K)));
         acc += texture2D(textureSampler, vUV + step1 * fi).rgb * w;
         wsum += w;
     }
@@ -79,8 +80,9 @@ void main() {
 const STREAK_BLUR = (spacing: number): string => `
 void main() {
     vec3 acc = vec3(0.0); float wsum = 0.0;
-    for (int i = -12; i <= 12; i++) {
-        float fi = float(i);
+    const int K = LAB_Q(6, 9, 12);
+    for (int i = -K; i <= K; i++) {
+        float fi = float(i) * 12.0 / float(K);
         float w = exp(-abs(fi) / 5.0);
         acc += texture2D(textureSampler, vUV + vec2(fi * ${spacing.toFixed(1)} * texel.x, 0.0)).rgb * w;
         wsum += w;

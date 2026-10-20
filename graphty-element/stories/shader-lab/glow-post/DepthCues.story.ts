@@ -87,26 +87,28 @@ void main() {
     if ((edl > 0.5 || show > 3.5) && !edgePx) {
         float ld = log2(min(d, 1e4));
         float resp = 0.0;
-        for (int i = 0; i < 8; i++) {
-            float a = float(i) * TAU / 8.0;
+        const int EDL_TAPS = LAB_Q(4, 6, 8);
+        for (int i = 0; i < EDL_TAPS; i++) {
+            float a = float(i) * TAU / float(EDL_TAPS);
             vec2 o = vec2(cos(a), sin(a)) * edlRadius * pixelRatio * px;
             resp += max(0.0, ld - log2(min(D(vUV + o), 1e4)));
         }
-        edlShade = exp(-resp / 8.0 * 25.0 * edlStrength);
+        edlShade = exp(-resp / float(EDL_TAPS) * 25.0 * edlStrength);
     }
     // ---- ambient occlusion from depth alone: neighbors well in front of us within range
     float occ = 0.0;
     if ((ao > 0.5 || show > 2.5 && show < 3.5) && !bg) {
         float rpx = aoRadius * pixelRatio * 700.0 / max(d, 1.0);
-        for (int i = 0; i < 16; i++) {
-            float fi = float(i);
+        const int AO_TAPS = LAB_Q(6, 10, 16);
+        for (int i = 0; i < AO_TAPS; i++) {
+            float fi = float(i) * 16.0 / float(AO_TAPS);
             float r = sqrt((fi + 0.5) / 16.0) * rpx;
             float a = fi * 2.39996;
             float dn = D(vUV + vec2(cos(a), sin(a)) * r * px);
             float delta = d - dn;
             occ += step(0.15, delta) * smoothstep(aoRadius * 4.0, 0.0, delta);
         }
-        occ = clamp(occ / 16.0 * aoStrength * 1.6, 0.0, 0.9);
+        occ = clamp(occ / float(AO_TAPS) * aoStrength * 1.6, 0.0, 0.9);
     }
     if (show > 2.5 && show < 3.5) { gl_FragColor = vec4(vec3(1.0 - occ), 1.0); return; }
     if (show > 3.5) { gl_FragColor = vec4(vec3(edlShade), 1.0); return; }

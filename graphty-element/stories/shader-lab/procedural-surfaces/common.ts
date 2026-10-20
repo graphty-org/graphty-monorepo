@@ -15,6 +15,12 @@ vec2 unpackNeighbor(float v) { return vec2(floor(v) / 1000.0 * TAU - PI, fract(v
 
 /** GLSL for node fragments (needs the node varyings). Light and view directions are in view space. */
 export const SURFACE_GLSL = `
+// secondary detail layers: one noise instead of a full fbm at low quality
+#if LAB_QUALITY == 0
+#define detailFbm(p) noise(p)
+#else
+#define detailFbm(p) fbm(p)
+#endif
 const vec3 LIGHT_DIR = vec3(-0.48, 0.56, -0.67);
 // view-space direction to world space (the view matrix is a rotation plus a translation)
 vec3 toWorld(vec3 n) { return vec3(dot(view[0].xyz, n), dot(view[1].xyz, n), dot(view[2].xyz, n)); }

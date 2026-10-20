@@ -59,12 +59,13 @@ void main() {
     vec3 acc = vec3(0.0);
     float wsum = 0.0;
     vec2 px = 1.0 / resolution;
-    for (int i = 0; i < 40; i++) {
+    const int TAPS = LAB_Q(12, 24, 40);
+    for (int i = 0; i < TAPS; i++) {
         float fi = float(i) + 0.5;
-        float r = sqrt(fi / 40.0) * bloomRadius * pixelRatio;
+        float r = sqrt(fi / float(TAPS)) * bloomRadius * pixelRatio;
         float a = fi * 2.39996;
         vec3 s = texture2D(textureSampler, vUV + vec2(cos(a), sin(a)) * r * px).rgb;
-        float w = 1.0 - 0.8 * fi / 40.0;
+        float w = 1.0 - 0.8 * fi / float(TAPS);
         acc += max(s - vec3(0.35), 0.0) * w;
         wsum += w;
     }

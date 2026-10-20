@@ -16,6 +16,10 @@ export {
     type LabOptions,
     mountLab,
     type NodeLayerOptions,
+    QUALITIES,
+    type Quality,
+    QUALITY_SETTINGS,
+    qualityDefines,
     type Uniforms,
     type UniformValue,
 } from "./lab";

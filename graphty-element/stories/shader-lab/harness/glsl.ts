@@ -4,8 +4,11 @@
  * GLSL ES 3.00 on WebGL2. Unused functions cost nothing.
  */
 
-/** Hashes, value noise, fbm, Worley / Voronoi. */
+/** Hashes, value noise, fbm (LAB_FBM_OCTAVES octaves, set by the lab's quality), Worley / Voronoi. */
 export const GLSL_NOISE = `
+#ifndef LAB_FBM_OCTAVES
+#define LAB_FBM_OCTAVES 5
+#endif
 float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec2 hash22(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
@@ -20,8 +23,8 @@ float noise(vec3 p) {
     return mix(mix(mix(hash13(i), hash13(i + vec3(1, 0, 0)), u.x), mix(hash13(i + vec3(0, 1, 0)), hash13(i + vec3(1, 1, 0)), u.x), u.y),
                mix(mix(hash13(i + vec3(0, 0, 1)), hash13(i + vec3(1, 0, 1)), u.x), mix(hash13(i + vec3(0, 1, 1)), hash13(i + vec3(1, 1, 1)), u.x), u.y), u.z);
 }
-float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return v; }
-float fbm(vec3 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return v; }
+float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < LAB_FBM_OCTAVES; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return v; }
+float fbm(vec3 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < LAB_FBM_OCTAVES; i++) { v += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; } return v; }
 // Worley: x = distance to nearest feature point (F1), y = second nearest (F2). Cell size 1.
 vec2 voronoi(vec2 p) {
     vec2 i = floor(p); vec2 f = fract(p); float d1 = 8.0; float d2 = 8.0;

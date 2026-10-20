@@ -25,7 +25,7 @@ void main() {
     float rnd = vInfo.x;
     float load = pickData(encode);
     vec3 p = w * crackScale + rnd * 40.0;
-    p += 0.45 * vec3(fbm(p * 0.5 + time * flow * 0.12), fbm(p * 0.5 + 5.2 - time * flow * 0.1), fbm(p * 0.5 + 9.1));
+    p += 0.45 * vec3(fbm(p * 0.5 + time * flow * 0.12), detailFbm(p * 0.5 + 5.2 - time * flow * 0.1), detailFbm(p * 0.5 + 9.1));
     vec2 v = voronoiTri(p, w);
     float edge = v.y - v.x;
     float width = 0.025 + veinWidth * load;

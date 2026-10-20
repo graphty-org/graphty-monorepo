@@ -30,7 +30,7 @@ void main() {
     float a = time * 0.05 + rnd * 6.0;
     w.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * w.xz;
     vec3 p = w * granuleScale + rnd * 50.0;
-    vec3 warp = vec3(fbm(p * 0.4 + time * boil * 0.2), fbm(p * 0.4 + 7.3 - time * boil * 0.17), fbm(p * 0.4 + 3.1 + time * boil * 0.13));
+    vec3 warp = vec3(fbm(p * 0.4 + time * boil * 0.2), detailFbm(p * 0.4 + 7.3 - time * boil * 0.17), detailFbm(p * 0.4 + 3.1 + time * boil * 0.13));
     vec2 v = voronoiTri(p + warp * 1.6, w);
     float cell = 1.0 - smoothstep(0.0, 0.85, v.x);
     float lane = smoothstep(0.0, 0.35, v.y - v.x);
@@ -50,7 +50,7 @@ void main() {
     float umb = smoothstep(0.76 - spots * 0.12, 0.79 - spots * 0.12, sp) * step(0.01, spots);
     col *= 1.0 - (0.55 * pen + 0.4 * umb) * detail;
     // faculae: bright mottling near the limb
-    col += hot * 0.25 * smoothstep(0.55, 0.7, fbm(p * 0.5)) * (1.0 - facing);
+    col += hot * 0.25 * smoothstep(0.55, 0.7, detailFbm(p * 0.5)) * (1.0 - facing);
     col *= mix(vec3(1.0), vec3(0.7, 0.85, 1.25), smoothstep(0.75, 1.0, temp));
     col *= 1.0 + 0.35 * vState.x + 0.35 * vState.y;
     // soft shoulder so hot stars keep their granulation instead of clipping to white

@@ -16,38 +16,41 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-19, fourth review) Round 1 build 1fa51e2b0b is docs-only over 52cb47a85a (same app
-  code). It was named "the round 1 build, no bar changed" with no dry-run pass meeting the exit
-  test: the pilot on it stopped about 23:51 on 2026-10-18 after 33 walks (T37 to T42 B only);
-  T42 A and T43 to T51 have none, T39 A only its pointer walk. T40 B's pilot found a success-path
-  defect: letters typed right after choosing "Starts with" are discarded (pilot T40B 12.png).
-- (2026-10-19) `real.mjs --gate` keys a pilot by the walk folder's own name
-  (`basename(dir)`), so `pilot/T40B/b1fa-pointer/` never counts as T40B; only a session.json
-  directly in `pilot/<half>/` does, and one walk with any png passes the half. Preflight 4's three
-  walks and keyboard-only mode are not enforced. Two "keyboard" walks on 1fa51 were started
-  without `--keys` (T37A/success-keyboard, T40B/b1fa-keyboard).
-- (2026-10-19) Round 1 folder has no plan.md, no bars/, no vocabulary.json: preflight 6, 7, 9 not
-  run on the frozen build. wording.mjs's stem does not join draw/drawn/draws.
-- (2026-10-18) Closed since: exit test in preflight 4; bar 4 a fixed 10; expert findings confirmed
-  by repro or measurement only; T46-T48 any community analysis; T48 B filtered = around; T44 A
-  `id`; T49 graded by the drawing; T46/T50 dropped "drawn".
-- (2026-10-17) Closed since: T47 and T48 bulk route bar (score.mjs ROUTE_TASKS T47, T48;
-  BULK_ROUTES folder, several); bar 4 excludes --keys and counts not-S/SD as never.
+- (2026-10-20, fifth review) The named build 3ef9e6c1ec predates the golden merge f9d8b44b9
+  (`git merge-base --is-ancestor` fails); HEAD 604e690a9 differs from it in 1472 app files, yet
+  the change log and decided.md say the build "includes golden". Refreeze or strike; every walk
+  on 3ef9 then stops counting (preflight 1).
+- (2026-10-20) Still unbuilt, owed since 10-19: gateCheck keys by `basename(dir)` (no half
+  folder, no three walks, no keyboardOnlyMode, no build equivalence, no bar 6 screen coverage);
+  bars.mjs has no spoken.json, no "Starts with" typing check, none of the five 10-18 screens;
+  wording.mjs's stem still joins only plurals, so tasks.md's "draw" keep reason is false.
+- (2026-10-20) The dry run on 3ef9 walked T37 A and B again (6 of 34 walks) while T43, T45 to
+  T51 (core T47, T48 included) got none. The "planned halves only" rule has no refusal.
+- (2026-10-20) answers.md names 3ef9 nowhere; its paths and reference values were read on
+  e3c5bca8e6 (86 app files differ from 3ef9). T50 B's summary-reading grade is still "left to
+  the Director".
+- (2026-10-20) One round only: with T42, T44 unjudged it cannot pass by bar 1, and T37 is never
+  scheduled, so no round can. Report per bar; drop T37 from the judged set.
+- (2026-10-20) Session-ready bar sends keyboard-only problems to backlog, but bar 7 gates on
+  Sam's 4 sessions (T39 A, T40 A, T47 B, T48 A): a keyboard block on those halves is a blocked
+  task. Backlog rows need a severity so a known severity 3 counts in bar 5.
+- (2026-10-20) "Any dark green", "any orange", "bright red" are judged by eye; B's Group 5 is
+  crimson BE0032 beside red. Score the asked color by a hue band set before the round.
+- (2026-10-19) T40 B: letters typed right after "Starts with" were discarded (decided.md now
+  says focus goes to the value box; the bar 6 check for it is still unbuilt).
 - (2026-10-17) Kept-on-purpose words silence wording.mjs forever (`ownKept`, `everywhere`). Keep
   lines must be re-checked against each build's vocabulary.
-- (2026-10-17) vocabulary.json holds words at rest and control names only; info-circle text is
-  missed.
 - (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
   "Mlle" (reported per half); bar 8 screens over budget reported as severity 2, not gated; T47's
-  "around" route (Everything's shape) is S and counts against the bulk bar.
-- (2026-10-16) Bulk field whose layers differ draws BoundValue with the purple Layer token. Still to
-  attack: "Update <run> layer" on a selected folder adds a second folder of the same name.
+  "around" route is S and counts against the bulk bar; volunteers and sources share one shape.
 - (2026-10-12) One name per question, reuse first. No disabled vary buttons. A layer painting both
   kinds is breaking: owner list.
 - Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
   every "unprompted" count. A process rule without a refusing gate is a wish: check the refusal.
-- Standing: fix by removing, not adding; one change per problem; words at rest never rise; rejected
-  stays rejected without new evidence; never re-set a limit from data.
+- Standing: after a rule is adopted, read the next freeze entry, the gate code and the tool, not
+  the rule. Fifth review in a row where the owed list was carried, not done.
+- Standing: fix by removing, not adding; one change per problem; words at rest never rise;
+  rejected stays rejected without new evidence; never re-set a limit from data.
 
 ## Priorities and values
 
@@ -97,6 +100,16 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-10-20, fifth tier 3 criteria review:** proposed 8 changes: refreeze on the commit
+  that holds golden (or strike the golden entry) and re-read answers.md on it; make preflight 9's
+  refusals real (half folder, three walks, `--keys`, bar 6 screen coverage, spoken.json) and the
+  gate's missing list the pilot queue; build the owed bars.mjs and wording.mjs items or report
+  T43, T47, T51 as primed; drop T37 from the judged set and report round 1 per bar; a keyboard
+  block on Sam's halves is a blocked task, and backlog rows carry a severity counted in bar 5;
+  experts feed bars 5 and 7 only, and the key-and-drawing check runs by script after sessions;
+  settle T50 B's summary reading; score asked colors by hue bands. Reason: each is a rule written
+  and not run, or a judgment left to one grader's eye, on a one-round study.
+
 - **2026-10-19, fourth tier 3 criteria review:** proposed 7 changes: the round 1 build is not
   ready until a full pass on 1fa51e2b0b meets the exit test (T40 B's discarded letters after
   "Starts with" is on a success path); the gate counts a half only with a success, detours and
@@ -142,6 +155,12 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-10-20 -- Fourth review's proposals: partly adopted in the text (gate by half, three
+  walks, spoken.json, irregular forms, T50 "color them", T51 judged). Did not work: none of the
+  tool parts was built (gateCheck, bars.mjs, wording.mjs unchanged), and the build was refrozen
+  twice more and then overtaken by the golden merge. Checking `git merge-base --is-ancestor` of
+  the change log's merge against the first line's build caught the contradiction in one command.
+
 - 2026-10-19 -- Third review's proposals: worked -- all seven adopted in criteria.md (exit test,
   bar 4 fixed 10, repro-only confirmation, the four grading calls, "drawn" dropped). Did not
   work: the exit test was written but the build was renamed "round 1" before a pass met it, and
@@ -181,6 +200,12 @@ served at `/?next`.
 
 ## Sources
 
+- criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
+  entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
+  `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`
+  stem; `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec` (false); session.json commits under
+  `tier3/rounds/` (34 on 3ef9, all in r1d1: T37-T41A); golden commit c2757912e (marks for routes,
+  not communities) (2026-10-20)
 - criteria.md first line and change log (1fa51e2b0b), `tier3/rounds/r1/pilot/` (session.json
   commits: 33 on 1fa51e2b0b, 94 on 58556989e8; T40B/report.md defects 1-10), `tool/real.mjs`
   gateCheck lines 523-571, `tool/wording.mjs` stem lines 29-34, `git diff 52cb47a85a 1fa51e2b0`

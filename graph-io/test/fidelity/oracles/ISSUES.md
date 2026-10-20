@@ -2470,7 +2470,9 @@ Not fixed, and why:
   `yed.table.header.color.main`, then each `y:Row` top to bottom (or `y:Column` left to right) at its own height in
   `yed.table.lane.color.main` and `.alternating` by turns, then the opposite inset. A color the table leaves unset
   is the node's `y:Fill` color (one lane color unset is the other). So a 90-tall pool now draws as a 30 header and
-  two 30 lanes in the file's colors, where it drew one gradient box. Still open: the lines between lanes and around
+  two 30 lanes in the file's colors, where it drew one gradient box. Even against the stand-in, the node body
+  raster score rose 0.81 to 0.94 (`groups`) and 0.75 to 0.93 (`groups-p2`); the bands are new graphty shapes the
+  stand-in has nothing under (`stray.extra` 0 and 0.061, floored). Still open: the lines between lanes and around
   the header (`yed.table.section.color`; graphty-element has no band divider), row and column headers
   (`yed.table.header.color.alternating`, row and column `y:Insets`), a table with both several rows and several
   columns (bands run one way only; its rows are drawn), and yEd's own defaults for an unset color, which are not

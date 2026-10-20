@@ -32,6 +32,19 @@ an explicit domain, and the documented `above` count), so it is not made. Ways f
 
 Until then a value beyond a written domain is drawn at the domain's end, as it always has been.
 
+## 2026-10-19 -- Decided by the team: a list says when typed letters match nothing (compact-mantine)
+
+Additive. compact-mantine's labels gain an optional `listNoMatch(typed)`, default
+`No option starts with "<typed>"`, overridable through `LabelsProvider` like every other string.
+When the letters typed into an open select's list start no option, the line at the list's foot
+shows it in place of the letters, and a polite status region inside the list says it; nothing is
+highlighted and Enter picks nothing, as before. The words name what was typed and say "option",
+not the field's own noun, so they fit every list. The list's keyboard runs on the document,
+outside React, so the provider hands it the words (one set per page).
+
+Also: a single-choice list with nothing chosen opens below its field as wide as the field (it was
+16px wider, which put a field at the window's right edge on its list's edge).
+
 ## 2026-10-19 -- Decided by the team: the key never moves the drawing (graphty app)
 
 Graphty app, no API change. This reverses the arrival frame in the entry below ("the key's room

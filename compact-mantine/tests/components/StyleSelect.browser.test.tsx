@@ -152,7 +152,12 @@ describe("StyleSelect grid", () => {
         await userEvent.keyboard("cube");
         expect(highlighted()).toBe("");
         expect(document.querySelector("[data-combobox-selected]")).toBeNull();
-        expect(document.querySelector(".cm-listbox-typed")?.textContent).toBe("cube");
+        expect(document.querySelector(".cm-listbox-typed")?.textContent).toBe('No option starts with "cube"');
+        await waitFor(() => {
+            expect(document.querySelector('.cm-listbox [role="status"]')?.textContent).toBe(
+                'No option starts with "cube"',
+            );
+        });
         await userEvent.keyboard("{Enter}");
         expect(onChange).not.toHaveBeenCalled();
     });

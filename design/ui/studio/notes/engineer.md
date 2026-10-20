@@ -16,27 +16,28 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, tooltips only for the control the reader is on, compact-mantine 423fb38cc)
-   Two causes, both in `overlayBehavior.ts`. (a) Its rules found a tooltip's trigger only by
-   `aria-describedby`, and a Mantine text input writes its own over it (`Input.mjs` spreads
-   `ariaAttributes` after `rest`), as does a child passing its own (InfoCircle's ActionIcon;
-   floating-ui merges user props last). Such tooltips skipped every rule: the label line's markup
-   tooltip opened unasked when Ctrl+Z brought the text field back under the pointer resting on
-   "Show all labels". Fix: `tooltipFlip` records floating -> reference in a WeakMap
-   (`tooltipTrigger`, not exported from the package), `triggerOf` reads it first. (b) A tooltip
-   now mounts dismissed while its trigger's own pop-up is open
-   (`[aria-expanded="true"][aria-haspopup]`): About Degree's explanation opens on hover, its
-   name tooltip a second later over it. Tests (red before): "a text field that comes under a
-   resting pointer shows no tooltip until the pointer moves", "a tooltip stays shut while its
-   trigger's own pop-up is open" in `tests/figma/overlays.browser.test.tsx`. Walk on a fresh
-   build (`design/ui/studio/tmp/r1-dry1-tooltips-own-control/b`): Undo opens no tooltip (11),
-   a real hover still does (12); About Degree hover, click, leave and hover again: one popup
-   (17-19). NOT changed, on purpose: the "Shape box" tooltip after Tab (T47A) is the BIND
-   button's own keyboard-focus tooltip ("Node shape by attribute", 28), shown after 1 s as
-   decided; the reader is on that button. What is wrong there is placement (it covers the Shape
-   box, or in the pilot the "Shape: 6 changed / Undo" line), the backlog's placement item. The
-   frozen build reproduced all three first (`.../a`, 11 and 14). 12 compact-mantine failures
-   (axe FieldChooser, CompactColorInput swatches, Tree toggles, select AA) are the same on HEAD.
+0. (2026-10-19, lists say when typing matches nothing, and stay inside the window; compact-mantine
+   `inputs/listbox.tsx`) Typed letters that start no option: the foot line shows
+   `listNoMatch(typed)` (new optional label, default `No option starts with "cube"`) in place of
+   the letters, and a `role=status` region INSIDE the list surface (`.cm-listbox-said`, made on
+   the first miss, words a frame later so they are announced) says it. Not a page-level region:
+   one in `document.body` made every `getByRole("status")` on the page ambiguous (broke
+   CompactColorInput's Escape test). Words reach the document-level keyboard code through
+   `setListNoMatchLabel`, called by `LabelsProvider`. Width: a single-choice list with nothing
+   checked opened below, flush left but 16px wider than its field (`listboxMinWidth`), so a
+   field at the window's right edge put the list on the edge; it is now the field's width
+   (`selectedOption` shared with the offset). Tests red before: StyleSelect "highlights nothing
+   and writes nothing ...", inputs "with nothing selected, opens below as wide as its field ...".
+   Walk on a fresh build (`design/ui/studio/tmp/r1-dry1-lists-no-match-in-window/`): shape grid
+   `cube` shows the line, Enter writes nothing (shape/12-13); filter step's attribute list
+   1209-1417 under its field (filter/07). Not walked by screen reader (sr mode is keyboard only,
+   long route); the unit test reads the region. 13 compact-mantine failures, all on HEAD too
+   (axe FieldChooser x4, CompactColorInput swatches x3, Tree toggles x3, select AA).
+   0b. (2026-10-19, tooltips only for the control the reader is on, compact-mantine 423fb38cc)
+   `overlayBehavior.ts` finds a tooltip's trigger through a WeakMap `tooltipFlip` fills, not
+   `aria-describedby` (Mantine inputs overwrite it); a tooltip mounts dismissed while its
+   trigger's own pop-up is open. In full: `git show b824a5e61:design/ui/studio/notes/engineer.md`,
+   Top of mind 0.
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
@@ -163,59 +164,11 @@ color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/n
   set and bound would be a large rewrite; a line that takes focus back whenever its own focused
   control leaves the page covers every swap (first value, Undo to a binding, any later one) in
   one place. It acts only when focus fell to the page, so a caller that placed focus wins.
-- (2026-10-18) **A tooltip avoids its own section's title by weighting, not by a new default
-  side.** In a column of section headers every side covers something (the neighbor's "+" above
-  and below, the window edge right, the title left), so the least-covered side won and that was
-  the title. Headings now count by their words, and the trigger's own heading ten times, so a
-  neighbor's "+" is covered before the title the reader is reading. Shared, so every "+" at a
-  section's end gets it.
-- (2026-10-18) Labels on the drawing (names off nodes as the app's default, the label clearing the
-  ring, the declutter pass forcing world matrices): in full in
-  `git show bdd01700e:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
-
-- (2026-10-18) The key's room and its one framing, Frame selection keeping the angle, the hover
-  ending on `pointerleave`, `selection:hover-changed`: in full in
-  `git show bdd01700e:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
-- Four find-box and Escape decisions of 2026-10-18 (the "name == 'value'" example, two-line rows
-  in compact-mantine, the list sized to the panel, Escape in inspector fields):
-  `git show 10800b21b:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) **The filter step reuses the condition card instead of its own condition row.**
-  One job, one component: the step's own row took one value and offered only "is" on text,
-  while the card already took several and offered contains. Reusing `CardBody` gave the step
-  every card fix at once and let two files go. **A new step applies only when added**: a reader
-  who never pressed Add step did not confirm it (a pilot left for the Graph place and the drawing
-  dropped to 3 of 24 silently). Edits to an existing step still save on leaving, as decided
-  earlier; Escape in a typed box first puts the box back, as in every card, then closes.
-- (2026-10-18) **Highest above the count is refused, not capped.** Refusing uses the card's
-  existing refusal path (text kept, nothing written, reason under the boxes); a silent cap would
-  write a number the reader did not type. The inline "There are only N, so this keeps all of
-  them" line stays for a stored count above the total (a smaller graph opened later). Switching
-  to Highest starts at min(10, total).
-- (2026-10-18) **Every chip's count names its noun**, not only Highest's: a bare trailing number
-  read as part of any card's words ("donations 10000 to 250000, 9"). No test asserted the bare
-  form.
-
-- (2026-10-18) **The other kind's line has one button, "Edit edges", in every state.** Three
-  wordings ("Edit edges", "Style edges", "Edges: 0 styles / Edit") read as three controls. The
-  state is the text before it ("not styled", "2 styles", "nothing set"); turning a kind on is the
-  Edge tab's own "Style edges" switch, one click further, so the line no longer writes anything.
-- (2026-10-18) **A condition change is named "changing the conditions on <layer>".** "Which nodes"
-  (the step's old label) names a panel, not an act; "changing which nodes 3 nodes styles" read
-  badly when a layer is named by its count. The pattern matches "changing node size on Hubs".
-- (2026-10-18) **A bulk step counts the layers its write changes.** A Vary-by-layer table edit
-  merges into one step that keeps its first label (no element API renames a step), so a second
-  group changed in the same open still reads "1 layer". Marked `ponytail:` in MultiRowPanel.
-- (2026-10-18) **`pickColor` lowers a label's capital in compact-mantine, not in the app.** Every
-  caller passes a title-case label; fixing it where the sentence is made fixes every swatch.
-  Recorded under "decided by the team" as a fix of wrong output.
-- (2026-10-18) **The open sample is read from `session.data.source().config.url`,** the element's
-  record of the import, not the project's name, which a reader can rename.
-- (2026-10-18) **A canvas click already said the drop.** On build 5bd16cda6e the canvas click
-  unmounts the cards and the notice shows and is announced (T41A detours/35, and a probe on the
-  frozen build); the pilot's 36 is a later click on the layer row. No change; every close path
-  unmounts `Cards`, whose cleanup says it.
-- (2026-10-18) **Rows show counts at the cost of name room.** The count column cut "Picked by hand
-  and name" in the list; the default name budget follows the list (17), the narrowest place.
+- (2026-10-18) Further dated decisions (tooltip weighting, labels on the drawing, the key's
+  room, the filter step reusing the condition card, refusing Highest above the count, chip
+  nouns, "Edit edges", condition-change names, bulk-step counts, `pickColor` casing, the open
+  sample's URL, canvas-click drops, counts versus name room) in full in
+  `git show b824a5e61:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
 - (2026-10-18) **Staging a shared file by HEAD line numbers, never `git apply --cached -U0`.** A
   zero-context hunk applied after a skipped foreign hunk landed 18 lines off (StylePanel would
   not parse). `hunks2.py` in `tmp/r1-dry2-r1-3-10` rewrites HEAD's lines bottom-up and stages
@@ -244,6 +197,9 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-19) A page-level live region for a list's message. DID NOT WORK: any always-present
+  `role=status` in `document.body` collides with consumers' own `getByRole("status")`. Put the
+  region in the open surface it belongs to, made lazily, words one frame later.
 - (2026-10-19) Reproducing a pilot screenshot on the frozen build BEFORE fixing showed that one of
   three tooltip findings was misread (the Tab-out "Shape box" tooltip belonged to the next
   button). WORKED. A rule keyed on an ARIA link silently skips every control that overwrites

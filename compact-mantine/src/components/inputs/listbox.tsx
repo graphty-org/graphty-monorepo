@@ -8,6 +8,7 @@ import type { ComboboxLikeRenderOptionInput, ComboboxProps } from "@mantine/core
 import React from "react";
 
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
+import { defaultLabels } from "../../i18n/labels";
 import { UiGlyph } from "../../icons";
 
 /** The list's inset: its top padding, and how far it starts before the trigger. */
@@ -67,11 +68,7 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     const { floating } = state.elements;
     const boxes = anchorBoxes(state);
     const rtl = getComputedStyle(floating).direction === "rtl";
-    // The checked option, not the keyboard's: Mantine's store moves aria-selected with the
-    // highlight, while data-checked stays on the value.
-    const selected =
-        floating.querySelector<HTMLElement>("[data-checked]") ??
-        floating.querySelector<HTMLElement>('[aria-selected="true"]');
+    const selected = selectedOption(floating);
     if (!boxes) {
         return { mainAxis: LISTBOX_BELOW_GAP, alignmentAxis: 0 };
     }
@@ -103,12 +100,28 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
 }
 
 /**
- * The list is 16px wider than its field at least, and grows to its longest option.
+ * The option a single-choice list lines up on its field. The checked option, not the keyboard's:
+ * Mantine's store moves aria-selected with the highlight, while data-checked stays on the value.
+ * @param floating - the list
+ * @returns the option, or null
+ */
+function selectedOption(floating: HTMLElement): HTMLElement | null {
+    return (
+        floating.querySelector<HTMLElement>("[data-checked]") ??
+        floating.querySelector<HTMLElement>('[aria-selected="true"]')
+    );
+}
+
+/**
+ * The list is 16px wider than its field at least (8px each side of an option on the field), and
+ * grows to its longest option. A list with nothing selected opens below, flush with the field, so
+ * it is the field's width at least: 16px more would run past a field at the window's edge.
  * @param state - floating-ui's size middleware state
  */
 function listboxMinWidth(state: ListState): void {
     const width = anchorBoxes(state)?.anchor.width ?? state.rects.reference.width;
-    state.elements.floating.style.minWidth = `${String(width + LISTBOX_EXTRA_WIDTH)}px`;
+    const extra = selectedOption(state.elements.floating) ? LISTBOX_EXTRA_WIDTH : 0;
+    state.elements.floating.style.minWidth = `${String(width + extra)}px`;
 }
 
 /**
@@ -298,6 +311,45 @@ const TYPEAHEAD_RESET_MS = 500;
 
 let keyboardTracked = false;
 
+let { listNoMatch } = defaultLabels;
+
+/**
+ * The words of the line an open list shows and speaks when the letters typed start no option
+ * (`listNoMatch` of `LabelsProvider`, which calls this).
+ * @param label - the line, given the letters typed
+ */
+export function setListNoMatchLabel(label: (typed: string) => string): void {
+    listNoMatch = label;
+}
+
+/**
+ * Says a line to a screen reader through a polite status region in the open list's surface, which
+ * goes when the list closes. A region added with its words is announced by nothing, so a region
+ * made now gets its words a frame later.
+ * @param list - the open list
+ * @param words - what to say, or "" to clear
+ */
+function speak(list: HTMLElement, words: string): void {
+    const surface = list.closest<HTMLElement>(".cm-listbox") ?? list;
+    const region = surface.querySelector<HTMLElement>(":scope > .cm-listbox-said");
+    if (region === null) {
+        if (words === "") {
+            return;
+        }
+        const made = surface.ownerDocument.createElement("div");
+        made.className = "cm-listbox-said cm-visually-hidden";
+        made.setAttribute("role", "status");
+        surface.append(made);
+        made.dataset.say = words;
+        requestAnimationFrame(() => {
+            made.textContent = made.dataset.say ?? "";
+        });
+        return;
+    }
+    region.dataset.say = words;
+    region.textContent = words;
+}
+
 /**
  * The open list of a select-only trigger (a read-only `cm-input-wrapper` input), or null.
  * @param input - the event target
@@ -393,7 +445,9 @@ export function consumeListEscape(event: React.KeyboardEvent<HTMLElement>): void
  *   that start with it). A letter typed on the closed trigger opens the list and types ahead.
  *   The run is drawn in a line at the foot of the list while the list is open. When no option
  *   starts with the whole run, nothing is highlighted and Enter writes nothing, so a reader who
- *   types a name the list does not hold never gets the option that shared its first letter.
+ *   types a name the list does not hold never gets the option that shared its first letter; the
+ *   line then names what was typed as matching nothing (`listNoMatch`), and a screen reader
+ *   hears it.
  *
  * Installed once, by the Select theme resolver; applies to read-only triggers only (an editable
  * combobox keeps Home / End for its caret and has no checked option to announce), and does
@@ -509,26 +563,33 @@ export function ensureListboxKeyboard(): void {
         // A new run starts after the highlight; a longer run may stay on it.
         const from = typed.length === 1 || repeated ? current + 1 : Math.max(current, 0);
         const count = options.length;
-        showRun(list);
         for (let i = 0; i < count; i++) {
             const option = options[(from + i) % count];
             if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
                 missOn = null;
+                showRun(list, typed);
+                speak(list, "");
                 walkHighlight(input, list, option);
                 return;
             }
         }
-        // No option starts with the run: no highlight. Mantine's store keeps its index (only
-        // its own handlers move it), so the miss also holds back Enter until the next move.
+        // No option starts with the run: no highlight, and a line saying so, shown and spoken.
+        // Mantine's store keeps its index (only its own handlers move it), so the miss also holds
+        // back Enter until the next move.
         missOn = input;
+        const words = listNoMatch(typed);
+        showRun(list, words);
+        speak(list, words);
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
     };
     /**
-     * Draws the run in a line at the foot of the open list, so the reader sees what was typed.
+     * Draws a line at the foot of the open list: the run while it matches, so the reader sees what
+     * was typed, or the no-match line.
      * @param list - the open list
+     * @param text - the line
      */
-    const showRun = (list: HTMLElement): void => {
+    const showRun = (list: HTMLElement, text: string): void => {
         const surface = list.closest<HTMLElement>(".cm-listbox") ?? list;
         let line = surface.querySelector<HTMLElement>(":scope > .cm-listbox-typed");
         if (line === null) {
@@ -537,7 +598,7 @@ export function ensureListboxKeyboard(): void {
             line.setAttribute("aria-hidden", "true");
             surface.append(line);
         }
-        line.textContent = typed;
+        line.textContent = text;
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(

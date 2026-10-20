@@ -424,6 +424,16 @@ export interface CompactMantineLabels {
      * @returns The number spelled as an ordinal
      */
     ordinal: (value: string, rule: Intl.LDMLPluralRule) => string;
+
+    // Select lists (ensureListboxKeyboard)
+
+    /**
+     * Shown at the foot of a select's open list, and spoken, when the letters
+     * typed ahead start no option's name; Enter then picks nothing.
+     * @param typed - The letters typed, as typed
+     * @returns The line, such as `No option starts with "cube"`
+     */
+    listNoMatch?: (typed: string) => string;
 }
 
 /**
@@ -539,6 +549,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     quickActions: "Quick actions",
     searchActions: "Search actions",
     noResults: "No results",
+    listNoMatch: (typed: string): string => `No option starts with "${typed}"`,
 
     passwordReveal: "Show the password",
 

@@ -651,6 +651,27 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(Math.abs(s.left + 8 - t.left)).toBeLessThanOrEqual(1);
     });
 
+    // A field at the window's right edge with nothing chosen (a filter step's attribute): the list
+    // opens below, flush with the field, and stays inside the window.
+    it("with nothing selected, opens below as wide as its field and stays inside the window", async () => {
+        await page.viewport(600, 400);
+        const { container } = await renderFigma(
+            <div style={{ position: "fixed", right: 6, top: 40, width: 200 }}>
+                <Select aria-label="Attribute" data={["name", "kind", "email"]} placeholder="Choose" searchable />
+            </div>,
+        );
+        const trigger = field(container);
+        await drive(part(container, "input"), "open");
+        const dropdown = await listbox();
+        await settle();
+        const t = trigger.getBoundingClientRect();
+        const d = dropdown.getBoundingClientRect();
+        expect(d.top).toBeGreaterThanOrEqual(t.bottom);
+        expect(Math.abs(d.left - t.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(d.right - t.right)).toBeLessThanOrEqual(1);
+        expect(d.right).toBeLessThanOrEqual(window.innerWidth - 6 + 0.5);
+    });
+
     it("clamps inside the viewport minus 6px", async () => {
         await page.viewport(600, 300);
         const data = Array.from({ length: 30 }, (_, i) => `Item ${String(i + 1)}`);

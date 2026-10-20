@@ -616,14 +616,16 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     length: (size, width) => 15 * size + 3 * width,
                     aspect: 0.6,
                     // its bar is 0.15 of the arrow's length deep and as wide as the arrow is long; its box is 0.6 of the
-                    // length square, and its curve and inv_curve arcs have a radius of 0.4 of it
+                    // length square, its circle 0.8 of the length across, and its curve and inv_curve arcs have a
+                    // radius of 0.4 of it
                     shapes: {
                         tee: { length: 0.15, aspect: 1 / 0.15 },
                         square: { length: 0.6, aspect: 1 },
+                        circle: { length: 0.8, aspect: 1 },
                         "other:curve": { length: 0.4, aspect: 2 },
                         "other:inv-curve": { length: 0.4, aspect: 2 },
                     },
-                    source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar, Box, Curve, InvertedCurve (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
+                    source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar, Box, Circle, Curve, InvertedCurve (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
                 },
                 nodeBorderOnScreen: v(
                     true,

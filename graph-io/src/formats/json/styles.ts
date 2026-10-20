@@ -606,6 +606,10 @@ const VIS_GROUP_PALETTE: readonly (readonly [string, string])[] = [
     ["#EE0000", "#990000"],
 ];
 
+/** vis-network's node colors where nothing sets them (vis-network 9.1.9 `NodesHandler` defaults `color`). */
+const VIS_NODE_FILL = "#97C2FC";
+const VIS_NODE_BORDER = "#2B7CE9";
+
 /** vis-network's edge color when an edge inherits none (vis-network 10.1.2, `color.color`). */
 const VIS_EDGE_COLOR = "#848484";
 
@@ -696,6 +700,8 @@ interface VisLayer {
     fontColor?: unknown;
     fontSize?: unknown;
     fontFace?: unknown;
+    /** `font.vadjust`: how far down the label's text is drawn */
+    fontVadjust?: unknown;
     margin?: unknown;
     /** `widthConstraint` (a number) or its `maximum`: the width the label's lines wrap at */
     wrapWidth?: unknown;
@@ -964,6 +970,7 @@ function visFontLayer(font: unknown, set: SetLayer): void {
         set("fontColor", font.color);
         set("fontSize", font.size);
         set("fontFace", font.face);
+        set("fontVadjust", font.vadjust);
     } else if (typeof font === "string") {
         const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(font.slice(0, 256));
         if (m !== null) {
@@ -1003,7 +1010,7 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     };
     if (target === "node") {
         color("fill", "fillOpacity", layer.fill);
-        color("borderColor", null, layer.border);
+        color("borderColor", "borderOpacity", layer.border);
         visNodeValues(layer, sized, put, site);
     } else {
         color("color", "opacity", layer.edgeColor);
@@ -1074,6 +1081,11 @@ function visLabelValues(
     if (layer.title !== undefined) {
         put("tooltip", canonText(layer.title, site("tooltip")));
     }
+    // a label drawn under `scaling.label.drawThreshold - 1` px on screen is not drawn (Label.draw)
+    const threshold = isJsonObject(layer.scalingLabel) ? layer.scalingLabel.drawThreshold : undefined;
+    if (typeof threshold === "number" && Number.isFinite(threshold)) {
+        put("labelMinScreenSize", Math.max(0, threshold - 1));
+    }
     visLabelLook(layer, target, put, color, site);
 }
 
@@ -1096,13 +1108,23 @@ function visLabelLook(
     color("labelColor", null, layer.fontColor);
     // font.background "none" (vis-network's default) draws no box
     color("labelBackground", null, layer.fontBackground === "none" ? undefined : layer.fontBackground);
-    color("labelOutlineColor", null, layer.fontStrokeColor);
+    // a stroke with no color of its own is vis-network's default, white (font.strokeColor "#ffffff")
+    const stroked = typeof layer.fontStrokeWidth === "number" && layer.fontStrokeWidth > 0;
+    color("labelOutlineColor", null, layer.fontStrokeColor ?? (stroked ? "#ffffff" : undefined));
     if (layer.fontStrokeWidth !== undefined) {
         put("labelOutlineWidth", canonNumber(layer.fontStrokeWidth, site("labelOutlineWidth")));
     }
     if (target === "edge" && typeof layer.fontAlign === "string") {
         // vis-network draws an edge label on the line ("horizontal", "middle"), above it ("top") or below it ("bottom")
         put("labelPosition", layer.fontAlign === "top" || layer.fontAlign === "bottom" ? layer.fontAlign : "center");
+    } else if (target === "node" && typeof layer.fontAlign === "string") {
+        // a node label's lines are centered on one another, or flush left or right in the label's box (Label._drawText:
+        // any align but center and right draws flush left); an edge label's lines are always centered
+        put("labelTextAlign", { center: "center", right: "right" }[layer.fontAlign] ?? "left");
+    }
+    // the text is drawn `font.vadjust` lower than its place (Label._drawText: y + block.vadjust)
+    if (typeof layer.fontVadjust === "number" && Number.isFinite(layer.fontVadjust) && layer.fontVadjust !== 0) {
+        put("labelOffsetY", layer.fontVadjust);
     }
 }
 
@@ -1451,17 +1473,20 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     // what vis-network draws per node: its own keys over its group over options.nodes
     const node = valuesOf(n);
     const shapes: string[] = [];
-    const records = nodeRecords(snapshot);
+    const rawRecords = elementRaw(snapshot, "node");
+    const records = (i: number): VisLayer => visLayer(rawRecords(i), "node");
     const rawShape = (layer: VisLayer): string | null => (typeof layer.shape === "string" ? layer.shape : null);
     const range = visValueRange(n, (i) => {
         const g = groupOf(i);
         const value = records(i).value ?? (g === null ? undefined : groupLayers.get(g)?.value) ?? nodeDefaults.value;
         return typeof value === "number" && Number.isFinite(value) ? value : null;
     });
+    const ownGroup = visOwnGroup(groupLayers, visGroupDefs(src, options));
     for (let i = 0; i < n; i++) {
         const g = groupOf(i);
-        const own = records(i);
-        const group = g === null ? {} : (groupLayers.get(g) ?? {});
+        const raw = rawRecords(i);
+        const own = visLayer(raw, "node");
+        const group = g === null ? {} : ownGroup(g, raw);
         const shape = rawShape(own) ?? rawShape(group) ?? rawShape(nodeDefaults) ?? "ellipse";
         shapes.push(shape);
         const site = (property: string): CanonSite => ({
@@ -1471,14 +1496,24 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             element: i,
             budget: context.budget,
         });
-        const merged = { ...nodeDefaults, ...group, ...own };
+        const merged: VisLayer = { ...nodeDefaults, ...group, ...own };
+        if (g !== null && raw.color !== undefined) {
+            // a color of the node's own fills its gaps from options.nodes and vis-network's defaults, never its group's
+            merged.fill ??= VIS_NODE_FILL;
+            merged.border ??= VIS_NODE_BORDER;
+        }
         const row = visValues(merged, "node", site, VIS_SIZED.has(shape));
-        Object.assign(
-            row,
-            VIS_SIZED.has(shape)
-                ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
-                : visFitShape(merged, shape),
-        );
+        const shaped = VIS_SIZED.has(shape)
+            ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
+            : visFitShape(merged, shape);
+        // the shape's own label place, then font.vadjust below it
+        for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+            const [a, b] = [row[p], shaped[p]];
+            if (typeof a === "number" && typeof b === "number") {
+                shaped[p] = a + b;
+            }
+        }
+        Object.assign(row, shaped);
         const labelSize = visLabelScaled(merged, range);
         if (labelSize !== null) {
             row.labelSize = labelSize;
@@ -1614,6 +1649,9 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
     const minH = length(layer.heightMin) ?? 0;
     let padX: number;
     let padY: number;
+    // a box or text node draws its label its left and top margins in from its corner (Box.draw, Text.draw), off
+    // center by half the difference of opposite margins
+    const offset: Row = {};
     if (fit.ellipse) {
         padX = padY = Math.max(lines * fontSize, minH) / 2;
     } else {
@@ -1621,6 +1659,12 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
         const side = (key: string): number => (isJsonObject(m) ? length(m[key]) : length(m)) ?? VIS_MARGIN;
         padX = (side("left") + side("right")) / 2;
         padY = (side("top") + side("bottom")) / 2;
+        if (!fit.square && side("left") !== side("right")) {
+            offset.labelOffsetX = (side("left") - side("right")) / 2;
+        }
+        if (!fit.square && side("top") !== side("bottom")) {
+            offset.labelOffsetY = (side("top") - side("bottom")) / 2;
+        }
     }
     // a node with no label text is sized as if its label were 14 x 14 (NodeBase.getDimensionsFromLabel)
     const empty = typeof layer.label !== "string" || layer.label === "";
@@ -1629,6 +1673,7 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
         padX = padY = boxH / 2;
     }
     const row: Row = {
+        ...offset,
         labelFit: "bounds",
         labelPaddingX: padX,
         labelPaddingY: padY,
@@ -1806,6 +1851,42 @@ function visGroupLayers(
         }
     }
     return { groupLayers, paletteRows };
+}
+
+/**
+ * vis.js: the group layer one node takes. vis-network merges a group's options into a node only for the keys the node
+ * does not set itself, each key whole (vis-network 9.1.9 `Node.updateGroupOptions`: every option of the node's own is
+ * skipped, `font` always), so a node with a `color` of its own takes none of its group's colors, not even a border it
+ * leaves out.
+ * @param groupLayers - each group's whole layer (visGroupLayers)
+ * @param groupDefs - the group definitions the file gives
+ * @returns the layer of a group for a node of the given own keys
+ */
+function visOwnGroup(
+    groupLayers: ReadonlyMap<string, VisLayer>,
+    groupDefs: Record<string, unknown>,
+): (g: string, own: Record<string, unknown>) => VisLayer {
+    const cache = new Map<string, VisLayer>();
+    return (g, own) => {
+        const whole = groupLayers.get(g) ?? {};
+        const def = Object.hasOwn(groupDefs, g) ? groupDefs[g] : null;
+        // a group the file does not define is vis-network's palette color, which a color of the node's own replaces
+        const skip = Object.keys(own).filter(
+            (k) => k !== "font" && (isJsonObject(def) ? Object.hasOwn(def, k) : k === "color"),
+        );
+        if (skip.length === 0) {
+            return whole;
+        }
+        const key = `${g}\u0000${skip.join("\u0000")}`;
+        let layer = cache.get(key);
+        if (layer === undefined) {
+            layer = isJsonObject(def)
+                ? visLayer(Object.fromEntries(Object.entries(def).filter(([k]) => !skip.includes(k))), "node")
+                : {};
+            cache.set(key, layer);
+        }
+        return layer;
+    };
 }
 
 /**
@@ -2270,21 +2351,23 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
 };
 
 /**
- * Each node's own vis.js keys as a layer.
- * @param snapshot - the graph
- * @returns the layer of a node
- */
-function nodeRecords(snapshot: GraphSnapshot): (i: number) => VisLayer {
-    return elementRecords(snapshot, "node");
-}
-
-/**
  * Each element's own vis.js keys as a layer, read from the graph's columns.
  * @param snapshot - the graph
  * @param target - nodes or edges
  * @returns the layer of an element
  */
 function elementRecords(snapshot: GraphSnapshot, target: StyleTarget): (i: number) => VisLayer {
+    const raw = elementRaw(snapshot, target);
+    return (i) => visLayer(raw(i), target);
+}
+
+/**
+ * Each element's own vis.js keys as the file gives them, read from the graph's columns.
+ * @param snapshot - the graph
+ * @param target - nodes or edges
+ * @returns the keys of an element
+ */
+function elementRaw(snapshot: GraphSnapshot, target: StyleTarget): (i: number) => Record<string, unknown> {
     const readers = VIS_KEYS[target]
         .map((name) => [name, cells(snapshot, target, name)] as const)
         .filter((x): x is readonly [string, (i: number) => unknown] => x[1] !== null);
@@ -2296,7 +2379,7 @@ function elementRecords(snapshot: GraphSnapshot, target: StyleTarget): (i: numbe
                 record[name] = v;
             }
         }
-        return visLayer(record, target);
+        return record;
     };
 }
 

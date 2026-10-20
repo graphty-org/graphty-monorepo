@@ -1068,12 +1068,16 @@ function enforceCap(
         if (cands.length === 0) {
             break;
         }
+        // the tool's defaults (its rule over every element) go last of the tool's rules: the copy holds only the
+        // file's own values, so folding them would leave every element the file does not style with no value at all
+        const everyone = (r: Draft): number => (r.origin === "tool" && "all" in r.where ? 1 : 0);
         cands.sort((a, b) => {
             const pa = a.role === "passthrough" ? 1 : 0;
             const pb = b.role === "passthrough" ? 1 : 0;
             return (
                 pa - pb ||
                 (FOLD_ORDER[a.origin] ?? 1) - (FOLD_ORDER[b.origin] ?? 1) ||
+                everyone(a) - everyone(b) ||
                 ruleSize(b) - ruleSize(a) ||
                 drafts.indexOf(b) - drafts.indexOf(a)
             );

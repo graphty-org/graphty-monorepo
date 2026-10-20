@@ -19,6 +19,7 @@ import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
+import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
@@ -28,6 +29,10 @@ import type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    JoinChoices,
+    JoinReport,
+    JoinShape,
+    JoinSuggestion,
     LoadChoices,
     LoadDraft,
     LoadMapping,
@@ -51,6 +56,19 @@ interface DraftHost {
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
     released(draft: Draft): void;
+    /** For a draft prepared `onto: "graph"`: the graph as a join reads it. */
+    joinGraph?(): JoinGraph;
+    /**
+     * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
+     * onto the graph as one step.
+     */
+    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape) => Promise<void>;
+}
+
+/** A table to join, with the source it was read from. */
+export interface JoinedTable extends JoinTable {
+    /** The source, as `data.sources()` describes it. */
+    readonly source: ImportSource;
 }
 
 /** One table as the draft holds it. */
@@ -127,7 +145,7 @@ function badCommand(message: string, details: Record<string, unknown>): GraphtyE
  * @param name - The key.
  * @returns The expression.
  */
-function keyExpression(name: string): string {
+export function keyExpression(name: string): string {
     return /^[A-Za-z_]\w*$/.test(name) ? name : JSON.stringify(name);
 }
 
@@ -409,6 +427,8 @@ export class Draft implements LoadDraft {
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
+    /** `suggestJoin()`'s answer, read once. */
+    private suggestion: JoinSuggestion | null = null;
 
     /**
      * Hold what was read.
@@ -539,7 +559,76 @@ export class Draft implements LoadDraft {
      * @returns Settles once the rows are in the graph.
      */
     async load(choices: LoadChoices = {}): Promise<void> {
+        if (choices.join !== undefined) {
+            // Taken before the first await, as the importer is.
+            const join = this.joinHost("load").joiner?.();
+            const { table, shape } = this.joinTable("load", choices.join);
+            await join?.(table, choices.join, shape);
+            this.dispose();
+            return;
+        }
+
         await this.loadVia(this.host.importer(), choices);
+    }
+
+    /**
+     * How the table most likely joins onto the graph.
+     * @returns The suggestion.
+     */
+    suggestJoin(): JoinSuggestion {
+        const host = this.joinHost("suggestJoin");
+        const read = this.live("suggestJoin");
+        if (this.suggestion === null) {
+            const held = joinedHeld(read);
+            const roles = this.mapping.tables[held.table.id];
+            const endpoints =
+                roles.source === undefined || roles.target === undefined
+                    ? undefined
+                    : { source: roles.source.column, target: roles.target.column };
+            this.suggestion = suggestJoin(tableOf(read, held), host.joinGraph?.() ?? NO_GRAPH, endpoints);
+        }
+
+        return this.suggestion;
+    }
+
+    /**
+     * What `load({ join: choices })` would do, counted.
+     * @param choices - The join.
+     * @returns The counts.
+     */
+    joinReport(choices: JoinChoices): JoinReport {
+        const host = this.joinHost("joinReport");
+        const { table, shape } = this.joinTable("joinReport", choices);
+        return joinReport(table, host.joinGraph?.() ?? NO_GRAPH, choices, shape);
+    }
+
+    /**
+     * The host's join half, or a refusal for a draft not prepared onto the graph.
+     * @param verb - The method asked.
+     * @returns The host.
+     */
+    private joinHost(verb: string): DraftHost {
+        this.live(verb);
+        if (this.host.joinGraph === undefined) {
+            throw badCommand(`draft.${verb}() joins onto the graph: prepare the source with { onto: "graph" }.`, {
+                reason: "not-onto-graph",
+                verb,
+            });
+        }
+
+        return this.host;
+    }
+
+    /**
+     * The table a join reads, and its shape when the choices give none.
+     * @param verb - The method asked.
+     * @param choices - The join.
+     * @returns The table and the shape.
+     */
+    private joinTable(verb: string, choices: JoinChoices): { table: JoinedTable; shape: JoinShape } {
+        const read = this.live(verb);
+        const shape = choices.shape ?? this.suggestJoin().shape;
+        return { table: tableOf(read, joinedHeld(read)), shape };
     }
 
     /**
@@ -566,6 +655,7 @@ export class Draft implements LoadDraft {
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
             mode: choices.mode ?? "replace",
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
+            ...(choices.existing === undefined ? {} : { existing: choices.existing }),
             ...(choices.styles === undefined ? {} : { styles: choices.styles }),
             ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
             held: plan.held,
@@ -815,6 +905,35 @@ export class Draft implements LoadDraft {
         });
         return picked;
     }
+}
+
+/** A graph with nothing in it, for a host that lends none. */
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map() };
+
+/**
+ * The table a join reads: the first table with rows, a table of the reader's own before a
+ * format's (whose nodes table comes first).
+ * @param read - The rows.
+ * @returns The table.
+ */
+function joinedHeld(read: ReadSource): HeldTable {
+    const tables = [...read.tables].sort((a, b) => Number(a.table.fixed) - Number(b.table.fixed));
+    return tables.find((held) => held.rows.length > 0) ?? tables[0];
+}
+
+/**
+ * A held table as a join reads it.
+ * @param read - The rows.
+ * @param held - The table.
+ * @returns The table.
+ */
+function tableOf(read: ReadSource, held: HeldTable): JoinedTable {
+    return {
+        name: read.source.name ?? held.table.name,
+        columns: held.order,
+        rows: held.rows,
+        source: read.source,
+    };
 }
 
 /**

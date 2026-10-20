@@ -1195,7 +1195,8 @@ class Writer implements GraphWriter {
         const map = (target === "node" ? this.graph.slice.nodes : this.graph.slice.edges) as Map<NodeId, GraphRecord>;
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
-        if (prior === undefined) {
+        // A node an edge made has a row and no record yet: the write gives it one.
+        if (prior === undefined && !(target === "node" && this.store.builder.hasNode(key))) {
             return false;
         }
 
@@ -1204,6 +1205,7 @@ class Writer implements GraphWriter {
         // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
         // bump would cost a deep equality per field for no correctness gain.
         if (
+            prior !== undefined &&
             (!replace || Object.keys(prior).length === Object.keys(values).length) &&
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),

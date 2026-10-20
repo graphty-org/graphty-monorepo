@@ -1210,8 +1210,11 @@ function isLoadedSource(value: unknown): value is LoadedSource {
         return false;
     }
 
-    const { tableRows } = value;
+    const { tableRows, join } = value;
     return (
+        // A joined table's join carries the table it joins again from.
+        (join === undefined ||
+            (isObject(join) && isObject(join.table) && Array.isArray(join.table.rows) && isObject(join.choices))) &&
         (tableRows === undefined ||
             (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
         typeof value.added.nodes === "number" &&

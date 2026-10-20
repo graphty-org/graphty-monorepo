@@ -385,6 +385,58 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/** The table the `editJoin` door joins onto one node. */
+const DOOR_JOIN_CSV = "name,score\ndoor-j1,5\n";
+
+/** The join the `editJoin` door edits, as `data.joins()` lists it. */
+const DOOR_JOIN = {
+    source: "s1",
+    onto: null,
+    shape: "node-values",
+    choices: { keys: [{ file: "name", graph: "id" }], shape: "node-values" },
+    rows: 1,
+    matched: 1,
+    columns: ["score"],
+    table: { name: "door-join.csv", columns: ["name", "score"], rows: [{ name: "door-j1", score: 5 }] },
+    before: { "door-j1": { score: null } },
+} as const;
+
+/** What `data.editJoin("s1", ...)` dispatches inside its batch. */
+const EDIT_JOIN_STEPS: readonly SessionCommand[] = [
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "update-rows",
+            target: "node",
+            rows: [{ id: "door-j1", values: { id: "door-j1" } }],
+            replace: true,
+        },
+    },
+    {
+        op: "data.apply",
+        mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-j1", values: { score: 5 } }] },
+    },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-join.csv", config: {} },
+        sources: [
+            {
+                type: "csv",
+                name: "door-join.csv",
+                config: {},
+                key: "s1",
+                kind: "join",
+                join: DOOR_JOIN,
+                tables: ["door-join.csv"],
+                tableRows: ["nodes"],
+                added: { nodes: 0, edges: 0 },
+                counts: { nodes: 1, edges: 0 },
+            },
+        ],
+        provenance: { s1: { nodes: ["door-j1"], edges: [] } },
+    },
+];
+
 /** What `data.fix("padded-space:node:doorName", "trim")` dispatches inside its batch. */
 const TRIM_STEP: SessionCommand = {
     op: "data.apply",
@@ -1814,6 +1866,44 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            joins: READ,
+            // The values the join wrote go back, and the table joins anew, as one batch.
+            editJoin: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", { keys: [{ file: "name", graph: "id" }] }],
+                    around: async (target) => {
+                        const data = target as {
+                            addNodes(records: unknown[]): Promise<void>;
+                            prepare(
+                                source: unknown,
+                                options: unknown,
+                            ): Promise<{ load(choices: unknown): Promise<void> }>;
+                        };
+                        await data.addNodes([{ id: "door-j1" }]);
+                        const draft = await data.prepare(
+                            { type: "csv", config: { data: DOOR_JOIN_CSV }, name: "door-join.csv" },
+                            { onto: "graph" },
+                        );
+                        await draft.load({ join: { keys: [{ file: "name", graph: "id" }] } });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Joined again door-join.csv",
+                        fact: {
+                            code: "data.edit-join",
+                            params: { key: "s1", name: "door-join.csv", shape: "node-values", matched: 1 },
+                        },
+                        steps: EDIT_JOIN_STEPS,
+                    },
+                    ...EDIT_JOIN_STEPS,
+                ],
+            },
             // Network sources (experimental). The probe and the search ask a service and change nothing;
             // the records and the waiting loads are read from the session.
             testSource: READ,
@@ -2008,6 +2098,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             report: READ,
             rows: READ,
             styles: READ,
+            suggestJoin: READ,
+            joinReport: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],

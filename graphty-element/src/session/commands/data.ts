@@ -43,7 +43,14 @@ import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply"
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, LoadedSource, LoadedSourceKind, NodeRecordInput, RowUpdate } from "../types";
+import type {
+    HistoryCode,
+    JoinRecord,
+    LoadedSource,
+    LoadedSourceKind,
+    NodeRecordInput,
+    RowUpdate,
+} from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
@@ -171,6 +178,10 @@ export interface DataImportCommand {
     readonly origin?: LoadedSourceKind;
     /** For a joined table: the load it was joined onto. */
     readonly joinedOnto?: SourceKey;
+    /** For a joined table: the join, kept with the load in `data.sources()`. */
+    readonly join?: JoinRecord;
+    /** The load's key, in place of the next one: an edited join keeps its key. */
+    readonly key?: SourceKey;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */

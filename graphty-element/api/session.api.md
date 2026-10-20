@@ -1813,7 +1813,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1913,6 +1913,68 @@ export type ItemKey = {
     readonly field: string;
     readonly value: string | number | boolean;
 };
+
+// @public
+export interface JoinChoices {
+    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly columns?: readonly string[];
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly keys: readonly JoinKey[];
+    readonly repeated?: "first" | "both";
+    readonly shape?: JoinShape;
+    readonly via?: SourceKey;
+}
+
+// @public
+export interface JoinKey {
+    readonly file: string;
+    readonly graph: Path;
+}
+
+// @public
+export interface JoinRecord {
+    readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+    readonly choices: JoinChoices;
+    readonly columns: readonly string[];
+    readonly matched: number;
+    readonly onto: SourceKey | null;
+    readonly rows: number;
+    readonly shape: JoinShape;
+    readonly source: SourceKey;
+    readonly table: {
+        readonly name: string;
+        readonly columns: readonly string[];
+        readonly rows: readonly Readonly<Record<string, unknown>>[];
+    };
+}
+
+// @public
+export interface JoinReport {
+    readonly clashes: readonly {
+        readonly column: string;
+        readonly code: "clash";
+    }[];
+    readonly extraIgnoringCase: number;
+    readonly extraIgnoringSpaces: number;
+    readonly matched: number;
+    readonly newEdges: number;
+    readonly newNodes: number;
+    readonly notInGraph: number;
+    readonly repeatedKeys: number;
+    readonly updatedNodes: number;
+    readonly withoutValue: number;
+}
+
+// @public
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+
+// @public
+export interface JoinSuggestion {
+    readonly confident: boolean;
+    readonly keys: readonly JoinKey[];
+    readonly shape: JoinShape;
+}
 
 // @public
 export interface JournalApi {
@@ -2144,6 +2206,8 @@ export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
 export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    readonly existing?: "keep" | "update";
+    readonly join?: JoinChoices;
     readonly mapping?: LoadMapping;
     readonly styleOptions?: FileStyleOptions;
     readonly styles?: "file" | "none";
@@ -2153,6 +2217,7 @@ export interface LoadChoices extends ImportOptions {
 // @public
 export interface LoadDraft {
     dispose(): void;
+    joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
     readonly mapping: LoadMappingRead;
     missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
@@ -2163,6 +2228,7 @@ export interface LoadDraft {
         readonly declared: boolean;
         readonly summary: FileStyleSummary;
     } | null;
+    suggestJoin(): JoinSuggestion;
     readonly tables: readonly DraftTable[];
     readonly type: string;
 }
@@ -2177,6 +2243,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly join?: JoinRecord;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
     readonly kind: LoadedSourceKind;
@@ -3747,6 +3814,7 @@ export interface SessionDataApi {
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
+    editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
@@ -3757,6 +3825,7 @@ export interface SessionDataApi {
     issues(options?: {
         readonly includeIgnored?: boolean;
     }): readonly DataIssue[];
+    joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
@@ -3777,6 +3846,7 @@ export interface SessionDataApi {
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
+        readonly onto?: "graph";
     }): Promise<LoadDraft>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;

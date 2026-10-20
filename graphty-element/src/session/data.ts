@@ -51,11 +51,12 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    describeSource,
     type ImportSource,
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { Draft, draftStyles, readSource } from "./draft";
+import { Draft, draftStyles, type JoinedTable, keyExpression, readSource } from "./draft";
 import {
     type DataIssue,
     findIssues,
@@ -67,6 +68,7 @@ import {
     type IssueState,
     NO_ISSUE_STATE,
 } from "./issues";
+import { frozen, type JoinGraph, type JoinPlan, planJoin } from "./join";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -94,7 +96,7 @@ import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
-import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource } from "./sources/provenance";
+import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -118,6 +120,9 @@ import type {
     FindResult,
     GraphStatistics,
     ImportOptions,
+    JoinChoices,
+    JoinRecord,
+    JoinShape,
     LoadChoices,
     LoadedSource,
     LoadedSourceKind,
@@ -951,10 +956,14 @@ export class SessionData implements SessionDataApi {
      * @param source - What `import` takes.
      * @param options - How to read it.
      * @param options.signal - Abandons the read.
+     * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
      * @returns The draft.
      * @throws What `import` would reject with while reading, with the same code.
      */
-    async prepare(source: DataSourceInput, options: { readonly signal?: AbortSignal } = {}): Promise<Draft> {
+    async prepare(
+        source: DataSourceInput,
+        options: { readonly signal?: AbortSignal; readonly onto?: "graph" } = {},
+    ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
         const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
@@ -974,6 +983,15 @@ export class SessionData implements SessionDataApi {
                         this.draft = null;
                     }
                 },
+                ...(options.onto === "graph"
+                    ? {
+                          joinGraph: () => this.joinGraph(),
+                          joiner: () => {
+                              const send = this.sender("join a table");
+                              return (table, choices, shape) => this.applyJoin(send, table, choices, shape);
+                          },
+                      }
+                    : {}),
             },
             styles,
         );
@@ -1943,6 +1961,323 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Every table joined onto the graph and still loaded, oldest first.
+     * @returns the joins
+     */
+    joins(): readonly JoinRecord[] {
+        this.requireLive("joins");
+        return Object.freeze(this.sources().flatMap((each) => (each.join === undefined ? [] : [each.join])));
+    }
+
+    /**
+     * Join a joined table again with other choices, as one undoable step.
+     * @param source - the joined table's load
+     * @param choices - the join
+     * @returns settles once the step is recorded
+     */
+    async editJoin(source: SourceKey, choices: JoinChoices): Promise<void> {
+        this.requireLive("editJoin");
+        const send = this.sender("edit a join");
+        const previous = this.storedSources().find((each) => each.key === source && each.join !== undefined);
+        if (previous?.join === undefined) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No joined table still in the graph has key ${JSON.stringify(source)}.`,
+                source: "data",
+                details: { key: source, known: this.joins().map((each) => each.source) },
+            });
+        }
+
+        const { table, shape } = previous.join;
+        await this.applyJoin(
+            send,
+            { ...table, source: describeSource(previous) },
+            choices,
+            choices.shape ?? shape,
+            previous,
+        );
+    }
+
+    /**
+     * The session's dispatch, taken now, or a refusal for a session that cannot dispatch.
+     * @param verb - the verb asking, for the error
+     * @returns the dispatch
+     */
+    private sender(verb: string): (command: SessionCommand) => Promise<unknown> {
+        const send = this.writes.send?.bind(this.writes);
+        if (send === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `This session cannot dispatch commands, so it cannot ${verb}.`,
+                source: "data",
+            });
+        }
+
+        return send;
+    }
+
+    /**
+     * The loads as the graph slice stores them.
+     * @returns the loads
+     */
+    private storedSources(): readonly LoadedSource[] {
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+    }
+
+    /**
+     * Every node or edge with its attributes as they arrived, in the graph's order.
+     * @param kind - nodes or edges
+     * @returns the rows
+     */
+    private joinRows(kind: "node" | "edge"): { readonly id: NodeId | EdgeId; readonly data: SessionAttributes }[] {
+        const snapshot = this.current();
+        if (kind === "node") {
+            return Array.from({ length: snapshot.nodeCount }, (_unused, index) => {
+                const id = snapshot.ids.idOf(index);
+                return { id, data: this.records?.nodeAttributes(index, id) ?? {} };
+            });
+        }
+
+        const space = edgeSpaceOf(snapshot);
+        return Array.from({ length: snapshot.edgeCount }, (_unused, index) => ({
+            id: space.idOf(index),
+            data: this.records?.edgeAttributes(index) ?? {},
+        }));
+    }
+
+    /**
+     * The graph as a join reads it, with some elements' values replaced and some left out.
+     * @param restored - values to read in place of an element's own, by `<kind>:<id>`
+     * @param gone - elements to leave out, by `<kind>:<id>`
+     * @returns the graph
+     */
+    private joinGraph(
+        restored: ReadonlyMap<string, Readonly<Record<string, unknown>>> = new Map(),
+        gone: ReadonlySet<string> = new Set(),
+    ): JoinGraph {
+        const read = (kind: "node" | "edge"): JoinGraph["nodes"] =>
+            this.joinRows(kind)
+                .filter((row) => !gone.has(`${kind}:${String(row.id)}`))
+                .map((row) => ({ id: row.id, data: restored.get(`${kind}:${String(row.id)}`) ?? row.data }));
+        const joins = new Map<SourceKey, JoinRecord>();
+        for (const each of this.storedSources()) {
+            if (each.join !== undefined) {
+                joins.set(each.key, each.join);
+            }
+        }
+
+        return { nodes: read("node"), edges: read("edge"), joins };
+    }
+
+    /**
+     * What taking a join back takes: its edges and the nodes only it made removed, the values it
+     * wrote put back as they were.
+     * @param previous - the joined table's load
+     * @returns the steps, and the restored values and the elements that go, for planning anew
+     */
+    private unjoin(previous: LoadedSource): {
+        steps: SessionCommand[];
+        restored: Map<string, Readonly<Record<string, unknown>>>;
+        gone: Set<string>;
+    } {
+        const { join } = previous;
+        const restored = new Map<string, Readonly<Record<string, unknown>>>();
+        const gone = new Set<string>();
+        if (join?.shape === "edges") {
+            const provenance = this.provenance();
+            const index = provenanceIndex(provenance);
+            const only = (keys: readonly SourceKey[] | undefined): boolean =>
+                keys?.every((each) => each === previous.key) !== false;
+            const edges = (provenance?.[previous.key]?.edges ?? []).filter((id) => only(index.edges.get(id)));
+            const nodes = (provenance?.[previous.key]?.nodes ?? []).filter((id) => only(index.nodes.get(id)));
+            edges.forEach((id) => gone.add(`edge:${id}`));
+            nodes.forEach((id) => gone.add(`node:${String(id)}`));
+            return {
+                steps: [
+                    { op: "data.apply", mutation: { kind: "remove-edges", ids: edges } },
+                    { op: "data.apply", mutation: { kind: "remove-nodes", ids: nodes } },
+                ],
+                restored,
+                gone,
+            };
+        }
+
+        const kind = join?.shape === "edge-values" ? "edge" : "node";
+        const held = new Map(this.joinRows(kind).map((row) => [String(row.id), row]));
+        const rows: RowUpdate<NodeId | EdgeId>[] = [];
+        for (const [id, values] of Object.entries(join?.before ?? {})) {
+            const row = held.get(id);
+            if (row === undefined) {
+                continue;
+            }
+
+            const record = Object.fromEntries(
+                Object.entries({ ...row.data, ...values }).filter(([name]) => values[name] !== null),
+            );
+
+            rows.push({ id: row.id, values: record });
+            restored.set(`${kind}:${id}`, record);
+        }
+
+        return {
+            steps:
+                rows.length === 0
+                    ? []
+                    : [{ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows, replace: true } }],
+            restored,
+            gone,
+        };
+    }
+
+    /**
+     * Join a table onto the graph as one undoable step, taking an earlier join of it back first.
+     * @param send - the dispatch, taken when the verb was called
+     * @param table - the table and its source
+     * @param choices - the join
+     * @param shape - the shape when the choices give none
+     * @param previous - the joined table's load, when the join is being edited
+     * @returns settles once the step is recorded
+     */
+    private async applyJoin(
+        send: (command: SessionCommand) => Promise<unknown>,
+        table: JoinedTable,
+        choices: JoinChoices,
+        shape: JoinShape,
+        previous?: LoadedSource,
+    ): Promise<void> {
+        const undo = previous === undefined ? undefined : this.unjoin(previous);
+        const graph = this.joinGraph(undo?.restored, undo?.gone);
+        const planned = planJoin(table, graph, choices, shape);
+        const { plan } = planned;
+        if (plan.kind === "rows") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Rows read as ${planned.shape} are a load, not a join: load the draft with a mode instead.`,
+                source: "data",
+                details: { reason: "not-a-join", shape: planned.shape },
+            });
+        }
+
+        const stored = this.storedSources();
+        const provenance = this.provenance();
+        const key = previous?.key ?? nextSourceKey(stored, provenance);
+        const onto = previous === undefined ? this.ontoOf(plan, graph) : (previous.join?.onto ?? null);
+        const record: JoinRecord = frozen({
+            source: key,
+            onto,
+            shape: planned.shape,
+            choices: { ...choices, shape: planned.shape },
+            rows: table.rows.length,
+            matched: planned.matched,
+            columns: plan.columns,
+            table: { name: table.name, columns: [...table.columns], rows: [...table.rows] },
+            ...(plan.kind === "values" ? { before: plan.before } : {}),
+        });
+        const left = stored.filter((each) => each.key !== key);
+        const leftProvenance = withoutSource(provenance, key);
+        const described = describeSource(table.source);
+        const steps: SessionCommand[] = [...(undo?.steps ?? [])];
+        if (plan.kind === "edges") {
+            if (previous !== undefined) {
+                steps.push({
+                    op: "data.setSource",
+                    source: this.source() ?? described,
+                    sources: left,
+                    provenance: leftProvenance,
+                });
+            }
+
+            steps.push({
+                op: "data.import",
+                source: described,
+                mode: "merge",
+                held: {
+                    nodes: [],
+                    edges: plan.edges,
+                    declaredDirection: null,
+                    errors: [],
+                    errorLimit: 100,
+                    source: keyExpression(plan.source),
+                    target: keyExpression(plan.target),
+                },
+                origin: "join",
+                ...(onto === null ? {} : { joinedOnto: onto }),
+                join: record,
+                key,
+                tables: [table.name],
+                tableRows: ["edges"],
+            });
+        } else {
+            if (plan.rows.length > 0) {
+                steps.push({
+                    op: "data.apply",
+                    mutation: { kind: "update-rows", target: plan.target, rows: plan.rows },
+                });
+            }
+
+            const nodes = plan.target === "node" ? (plan.matchedIds as NodeId[]) : [];
+            const edges = plan.target === "edge" ? plan.matchedIds.map(String) : [];
+            const entry: LoadedSource = frozen({
+                ...described,
+                key,
+                kind: "join" as const,
+                ...(onto === null ? {} : { joinedOnto: onto }),
+                join: record,
+                tables: [table.name],
+                tableRows: [plan.target === "node" ? ("nodes" as const) : ("edges" as const)],
+                added: { nodes: 0, edges: 0 },
+                counts: { nodes: nodes.length, edges: edges.length },
+            });
+            steps.push({
+                op: "data.setSource",
+                source: this.source() ?? described,
+                sources: [...left, entry],
+                provenance: withSupplied(leftProvenance, key, { nodes, edges }),
+            });
+        }
+
+        await send({
+            op: "batch",
+            label: `${previous === undefined ? "Joined" : "Joined again"} ${table.name}`,
+            fact: {
+                code: previous === undefined ? "data.join" : "data.edit-join",
+                params: { key, name: table.name, shape: planned.shape, matched: planned.matched },
+            },
+            steps,
+        });
+    }
+
+    /**
+     * The load a join is joined onto: the one that supplied most of what it matched.
+     * @param plan - the join's plan
+     * @param graph - the graph it was planned against
+     * @returns the load's key, or null when no load supplied any of it
+     */
+    private ontoOf(plan: Exclude<JoinPlan, { kind: "rows" }>, graph: JoinGraph): SourceKey | null {
+        const index = provenanceIndex(this.provenance());
+        const counts = new Map<SourceKey, number>();
+        const count = (keys: readonly SourceKey[] | undefined): void =>
+            keys?.forEach((key) => counts.set(key, (counts.get(key) ?? 0) + 1));
+        if (plan.kind === "edges") {
+            const nodes = new Set(graph.nodes.map((node) => String(node.id)));
+            for (const edge of plan.edges) {
+                for (const end of [edge[plan.source], edge[plan.target]]) {
+                    if (nodes.has(String(end))) {
+                        count(index.nodes.get(end as NodeId));
+                    }
+                }
+            }
+        } else {
+            for (const id of plan.matchedIds) {
+                count(plan.target === "edge" ? index.edges.get(String(id)) : index.nodes.get(id));
+            }
+        }
+
+        const best = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+        return best ?? this.storedSources().at(-1)?.key ?? null;
+    }
+
+    /**
      * The `provenance` graph value: what each load supplied.
      * @returns the value, or undefined when no load recorded one
      */
@@ -2735,4 +3070,18 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * The key the next load takes: one past the highest a load in the list or the provenance has.
+ * @param stored - the loads
+ * @param provenance - what each load supplied
+ * @returns the key
+ */
+function nextSourceKey(stored: readonly LoadedSource[], provenance: Provenance | undefined): SourceKey {
+    const serials = [...stored.map((each) => each.key), ...Object.keys(provenance ?? {})].map((key) => {
+        const match = /^s(\d+)$/.exec(key);
+        return match === null ? 0 : Number(match[1]);
+    });
+    return `s${String(Math.max(0, ...serials) + 1)}`;
 }

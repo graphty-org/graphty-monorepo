@@ -533,13 +533,14 @@ export class Ingest<K extends KnownEdge> {
             );
             const after = this.heldCounts();
             const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
-            const key: SourceKey = `s${String(++this.sourceSerial)}`;
+            const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
             const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
             const loaded: LoadedSource = Object.freeze({
                 ...described,
                 key,
                 kind,
                 ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
+                ...(command.join === undefined ? {} : { join: command.join }),
                 tables: Object.freeze([...(command.tables ?? [])]),
                 ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
                 added,

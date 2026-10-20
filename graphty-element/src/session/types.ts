@@ -1228,9 +1228,33 @@ export interface SessionDataApi {
      * @param source - What `import` takes.
      * @param options - How to read it.
      * @param options.signal - Abandons the read.
+     * @param options.onto - `"graph"` reads the source as a table to join onto the graph:
+     *     `draft.suggestJoin()`, `draft.joinReport()` and `draft.load({ join })` then work.
      * @returns The draft.
      */
-    prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
+    prepare(
+        source: DataSourceInput,
+        options?: { readonly signal?: AbortSignal; readonly onto?: "graph" },
+    ): Promise<LoadDraft>;
+    /**
+     * Every table joined onto the graph and still loaded, oldest first: the join each was made
+     * with. Saved with the project.
+     * @returns The joins.
+     * @since 3.30.0
+     */
+    joins(): readonly JoinRecord[];
+    /**
+     * Join a joined table again with other choices, as one undoable step: the values or edges the
+     * join made are taken back, the values it wrote over put back, and the table joined anew
+     * onto the graph as it is now. With the record's own choices, this applies a join again after
+     * the graph changed (a refresh, a replaced source).
+     * @param source - The joined table's load, from {@link SessionDataApi.joins}.
+     * @param choices - The join.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key no join has.
+     * @since 3.30.0
+     */
+    editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     /**
      * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
      * with its parameters (each one left out takes its catalogue default). The same name and
@@ -1315,6 +1339,29 @@ export interface LoadDraft {
      * @returns Settles once the rows are in the graph.
      */
     load(choices?: LoadChoices): Promise<void>;
+    /**
+     * How the table most likely joins onto the graph: its shape and key pairs. Needs a draft
+     * prepared with `{ onto: "graph" }`.
+     *
+     * ```ts
+     * const draft = await session.data.prepare({ config: { file } }, { onto: "graph" });
+     * const suggestion = draft.suggestJoin(); // { shape: "node-values", keys: [{ file: "symbol", graph: "id" }], confident: true }
+     * const report = draft.joinReport({ keys: suggestion.keys }); // { matched: 52, notInGraph: 10, ... }
+     * await draft.load({ join: { keys: suggestion.keys, ignoreCase: true } });
+     * ```
+     * @returns The suggestion.
+     * @throws `E_BAD_COMMAND` (`details.reason: "not-onto-graph"`) for a draft prepared without `onto`.
+     * @since 3.30.0
+     */
+    suggestJoin(): JoinSuggestion;
+    /**
+     * What `load({ join: choices })` would do, counted, changing nothing.
+     * @param choices - The join.
+     * @returns The counts.
+     * @throws `E_BAD_COMMAND` for a draft prepared without `onto`, or a key column the table lacks.
+     * @since 3.30.0
+     */
+    joinReport(choices: JoinChoices): JoinReport;
     /** Let go of the held rows. */
     dispose(): void;
     /**
@@ -1486,6 +1533,19 @@ export interface LoadChoices extends ImportOptions {
      * OPEN UNION: later releases may add policies.
      */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /**
+     * For `mode: "merge"`: a node the graph already holds keeps its attributes (`"keep"`, the
+     * default) or takes the incoming row's values over them (`"update"`).
+     * @since 3.30.0
+     */
+    readonly existing?: "keep" | "update";
+    /**
+     * Join the rows onto the graph instead of loading them as they are: needs a draft prepared
+     * with `{ onto: "graph" }`. Every other choice is then ignored. One undoable step; the table
+     * stays a source and the join is listed by `data.joins()`.
+     * @since 3.30.0
+     */
+    readonly join?: JoinChoices;
     /** Writes `data.directed` in the same step. */
     readonly directed?: boolean | "auto";
     /**
@@ -1563,6 +1623,143 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * For a joined table (`kind: "join"`): the join, as {@link SessionDataApi.joins} lists it.
+     * @since 3.30.0
+     */
+    readonly join?: JoinRecord;
+}
+
+/**
+ * What the rows of a table joined onto the graph are, as `draft.suggestJoin()` reads them:
+ *
+ * - `"node-values"`: one row per node, matched by a key; its columns become node attributes.
+ * - `"edge-values"`: one row per edge, matched by a key on the edges; its columns become edge attributes.
+ * - `"edges"`: edges between nodes, a source key and a target key per row; an end the graph
+ *   lacks becomes a new node.
+ * - `"rows"`: rows of the same kind the graph already holds, added as a plain merge.
+ * - `"replace"`: a newer copy of a loaded source (decided by the reader; never suggested here).
+ *
+ * OPEN UNION: shapes may be added in a minor release.
+ * @since 3.30.0
+ */
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+
+/**
+ * One pair of a join's key: a column of the incoming table and the graph value it matches.
+ * @since 3.30.0
+ */
+export interface JoinKey {
+    /** The incoming table's column. */
+    readonly file: string;
+    /** The graph value: `"id"` (the node id, or the edge id) or `"data.<column>"`. */
+    readonly graph: Path;
+}
+
+/**
+ * What `draft.suggestJoin()` reads the incoming table as.
+ * @since 3.30.0
+ */
+export interface JoinSuggestion {
+    /** What the rows are. */
+    readonly shape: JoinShape;
+    /** The key pairs: one for values (more make a compound key), source then target for edges. */
+    readonly keys: readonly JoinKey[];
+    /** Whether most of the key's values match the graph; ask the reader when false. */
+    readonly confident: boolean;
+}
+
+/**
+ * How a table joins onto the graph: what `draft.joinReport` and `draft.load({ join })` take.
+ * @since 3.30.0
+ */
+export interface JoinChoices {
+    /** The key pairs; see {@link JoinSuggestion.keys}. */
+    readonly keys: readonly JoinKey[];
+    /** What the rows are; the suggestion's shape when absent. */
+    readonly shape?: JoinShape;
+    /** Match keys whatever their letter case. Default false. */
+    readonly ignoreCase?: boolean;
+    /** Match keys whatever spaces they hold (leading, trailing, inside). Default false. */
+    readonly ignoreSpaces?: boolean;
+    /** The incoming columns to bring; every column but the keys when absent. */
+    readonly columns?: readonly string[];
+    /**
+     * A column the graph already has: `"keep"` the graph's value where it has one, `"overwrite"`
+     * it, or keep `"both"` (the default), the incoming one as `<column> (<table name>)`.
+     */
+    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    /**
+     * Several rows with one key: `"first"` (the default) takes the first row; `"both"` keeps
+     * every row, as a list of values for values, as one edge each for edges.
+     */
+    readonly repeated?: "first" | "both";
+    /**
+     * A mapping table: a joined table (`sources()` key) with one column holding the incoming
+     * keys and one holding the graph's, through which incoming keys are translated first.
+     */
+    readonly via?: SourceKey;
+}
+
+/**
+ * What a join would do, counted: what `draft.joinReport(choices)` returns. For values, matches
+ * count nodes (or edges); for `"edges"`, they count rows.
+ * @since 3.30.0
+ */
+export interface JoinReport {
+    /** Nodes (edges for `"edge-values"`, rows for `"edges"`) the key matches. */
+    readonly matched: number;
+    /** Rows whose key matches nothing, even ignoring case and spaces. */
+    readonly notInGraph: number;
+    /** Nodes (or edges) no row gives a value; for `"edges"`, nodes no new edge touches. */
+    readonly withoutValue: number;
+    /** Keys (source and target pairs for `"edges"`) that more than one row holds. */
+    readonly repeatedKeys: number;
+    /** How many more would match with `ignoreCase`; 0 when it is on. */
+    readonly extraIgnoringCase: number;
+    /** How many more would match with `ignoreSpaces`; 0 when it is on. */
+    readonly extraIgnoringSpaces: number;
+    /** Nodes the join would make: an edge end the graph lacks. */
+    readonly newNodes: number;
+    /** Edges the join would make. */
+    readonly newEdges: number;
+    /** Nodes given values, or, for `"edges"`, nodes a new edge touches. */
+    readonly updatedNodes: number;
+    /** The incoming columns the graph already has. */
+    readonly clashes: readonly { readonly column: string; readonly code: "clash" }[];
+}
+
+/**
+ * One table joined onto the graph: what `data.joins()` lists. Saved with the project, so the
+ * join is listed after a reopen and `data.editJoin` can apply it again.
+ * @since 3.30.0
+ */
+export interface JoinRecord {
+    /** The joined table's load. */
+    readonly source: SourceKey;
+    /** The load it was joined onto, or null when the graph had none. */
+    readonly onto: SourceKey | null;
+    /** What the rows were read as. */
+    readonly shape: JoinShape;
+    /** The choices it was made with, its shape filled in. */
+    readonly choices: JoinChoices;
+    /** How many rows the table holds. */
+    readonly rows: number;
+    /** How many the join matched, as {@link JoinReport.matched}. */
+    readonly matched: number;
+    /** The names the join wrote its values under, after any `"both"` clash rename. */
+    readonly columns: readonly string[];
+    /** The joined table as read: its name, columns and rows. */
+    readonly table: {
+        readonly name: string;
+        readonly columns: readonly string[];
+        readonly rows: readonly Readonly<Record<string, unknown>>[];
+    };
+    /**
+     * For values: each element's values before the join wrote over them, by id, null for a value
+     * it did not have, so editing the join can put them back.
+     */
+    readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
 /** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
@@ -1865,6 +2062,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
  * | `data.remove-source` | `key`: the load's key; `name`: its name, or null |
+ * | `data.join` | `key`: the joined table's load; `name`: its name, or null; `shape`; `matched` |
+ * | `data.edit-join` | `key`; `name`; `shape`; `matched` |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -1926,6 +2125,8 @@ export type HistoryCode =
     | "data.declare"
     | "data.set-source"
     | "data.remove-source"
+    | "data.join"
+    | "data.edit-join"
     | "data.label"
     | "data.set-file-styles"
     | "style.add-layer"

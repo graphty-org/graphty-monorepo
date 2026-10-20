@@ -168,6 +168,7 @@ export const EdgeOutlineTypes: z.ZodEnum<{
     solid: "solid";
     dot: "dot";
     dash: "dash";
+    "dash-dot": "dash-dot";
 }>;
 
 // @public
@@ -762,6 +763,7 @@ export const EdgeStyle: z.ZodObject<{
                 solid: "solid";
                 dot: "dot";
                 dash: "dash";
+                "dash-dot": "dash-dot";
             }>>;
         }, z.core.$strict>>;
         underlay: z.ZodOptional<z.ZodObject<{

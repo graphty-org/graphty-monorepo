@@ -1459,6 +1459,7 @@ export const EdgeStyle: z.ZodObject<{
                 solid: "solid";
                 dot: "dot";
                 dash: "dash";
+                "dash-dot": "dash-dot";
             }>>;
         }, z.core.$strict>>;
         underlay: z.ZodOptional<z.ZodObject<{

@@ -759,7 +759,7 @@ const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpo
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
     "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
-    "vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash or dot). Drawn only " +
+    "vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash, dot or dash-dot). Drawn only " +
     "with a width above 0, and under solid lines: a dotted " +
     "or dashed line drawn as separate pieces has none.";
 

@@ -220,6 +220,32 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("draws a vis-network edge background in its own dashes: dotted, dashed or dash-dot", async () => {
+        const edge = (id: string, dashes: number[]): object => ({
+            id,
+            from: "s",
+            to: "t",
+            smooth: { enabled: true, type: "curvedCW" },
+            background: { enabled: true, dashes },
+        });
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "s", x: 0, y: 0 },
+                { id: "t", x: 100, y: 0 },
+            ],
+            edges: [edge("dot", [6, 4]), edge("dash", [30, 10]), edge("dash-dot", [30, 5, 6, 5])],
+            options: { physics: false },
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.deepEqual(
+            session.data.edges().map((record) => drawn(session, { edge: record.id }, "edge.outlineStyle")),
+            ["dot", "dash", "dash-dot"],
+        );
+        session.dispose();
+    });
+
     it("draws each node's own opacity on its border when rules by id set them", async () => {
         const doc = JSON.stringify({
             elements: [{ data: { id: "p" } }, { data: { id: "q" } }, { data: { id: "r" } }],

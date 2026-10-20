@@ -85,6 +85,7 @@ export const OUTLINE_STYLES: ReadonlyMap<string, string> = new Map([
     ["dashed", "dash"],
     ["dotted", "dot"],
     ["long-dash", "dash"],
+    ["dash-dot", "dash-dot"],
 ]);
 
 /** The line styles drawn as the nearest pattern rather than exactly. */

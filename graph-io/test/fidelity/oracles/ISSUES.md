@@ -1495,7 +1495,12 @@ node-sizes-opacity 3 -> 2. Still open, and why:
   Fixed in fix round 3: graph-io reads `background.dashes` as the neutral `outlineStyle` (the band's dashes at its
   `size`, butt caps), graphty-element draws `line.outline.type` "dash" or "dot" (channel `edge.outlineStyle`), and the
   comparator reads a dashed band under a line as that edge's outline with its line class. edges-lines-p3 passes every
-  row.
+  row. Still open: its `raster.edge` falls from 0.9225 (band drawn solid) to 0.9198, under the 0.92 floor, because of
+  this fix: `background.dashes` [6, 4] on a 10-wide band is blocks 6 long with butt ends, 10 px apart, which the
+  neutral `dotted` names; graphty-element draws a `dot` band as round dots about 15 px apart. The class is right and
+  the pattern's own geometry is not carried; it needs a dash length and gap the outline (and a line) can be drawn
+  with (graph-io and graphty-element). A background whose dashes read as dash-dot is drawn as `dash-dot` since
+  the verification of fix round 3 (before it, graphty-element dropped the value and drew the band solid).
 - A small label below a node sized by `size` (`labels` `font-size-6`, label.offset 25.1 against 21.7) and
   `font.background` (`font-background`, 28.6 against 22.0): vis-network hangs the text's top 4 + size / 2 below the
   outline (ShapeBase._drawShape, Label.calculateLabelSize), lower than a neutral `bottom` label, by more the larger the

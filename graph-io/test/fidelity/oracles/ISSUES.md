@@ -2462,3 +2462,61 @@ Still open, and why:
 - The `stray.present` floors of the Cytoscape specimen sheets are no longer judged in this worktree with or without
   this batch's changes (no unassociated oracle shape is left); the floors are kept for whoever finds which change took
   the strays away.
+
+## Specimen sheets: CX settings graph-io now reads, and the CX rows still open (fix round 2, 2026-10-19)
+
+Measured with the oracle report on every `cx-` sample after rebuilding graph-io (34 of 51 still fail the verdict).
+
+Fixed:
+
+- Passthrough `NODE_LABEL_FONT_FACE` (`cx-specimen-mappings-bypass-p19`, `passthrough-font-face`, `Serif,bold,12`):
+  graphty drew it bold, Cytoscape plain. Cytoscape 3.10.5 takes a face's bold from a `.bold` suffix on the name only
+  and never reads the style word after it (`FontVisualProperty.parseSerializableString`, its regexes
+  `(\.[bB]old)?,[a-zA-Z]+,\d+(\.\d+)?` and `(?i).*\.bold,[a-zA-Z]+,.*`, read from the 3.10.5 api-bundle). graph-io
+  now reads the face the same way for every Cytoscape desktop format, and the Cytoscape writer puts bold and italic
+  on the name as a Java face suffix (`SansSerif.bold,bold,12`) as desktop itself writes them. NDEx files written by
+  other tools (`cx2js/UD-294.cx`, `Dialog,bold,12`) are now drawn plain, as Cytoscape draws them. The sheet passes.
+  Test: `graph-io/test/formats/cx/fix-round-2.test.ts`.
+- `ARROW` caps, `HAYSTACK` edges and curved-false parallel edges: fixed for all four Cytoscape desktop formats by the
+  XGMML round (`bbdf7ce71`); `cx-specimen-arrows` and `-edges-lines` no longer fail on them.
+- Label background size: graphty's box now measures 27.2 x 11.73 against Cytoscape's 27.2 x 11.74 (`labels`,
+  `edge-labels`, `mappings-bypass-p6`, `-p13`); only the ROUND_RECTANGLE shape still fails there (the corner radius is
+  an eighth of the box's height in Cytoscape's SVG, 1.455 of 11.64; a label corner radius slot is being added by the
+  sibling round for all Cytoscape formats).
+- `OPEN_HALF_CIRCLE` is now read as a cap on both sides (`edge.arrow` passes); `T`, `CIRCLE`, `HALF_*` routes pass.
+
+Still open, and why:
+
+- `parallel-2` (`cx-specimen-mappings-bypass-p10`, and `edges-lines` of XGMML, CX2 and sessions): Cytoscape bows the
+  one fanned edge of a two-edge bundle to opposite sides in files whose node and edge order is identical
+  (`cx-specimen-edges-lines` up, `cx-specimen-mappings-bypass-p10` down, both written with the `-t` node before the
+  `-s` node and the edges in the same order). Nothing in the file decides the side, so no import rule can match both;
+  walking the fan back from the newest (straight) edge fixed `edges-lines` and broke the other six sheets, and was
+  not kept. Left to the comparator (accept either side for a lone fanned edge whose side the file cannot decide) or
+  to a regenerated oracle.
+- `OPEN_HALF_CIRCLE` route (`arrows`, `mappings-bypass-p11`): graphty's scene line ends at the arc's open side (124.4)
+  while both drawings stop the line at the arc's back (118.6); being fixed in `drawn-primitives.ts` by the sibling
+  comparator round.
+- `CROSS_DELTA`, `CROSS_OPEN_DELTA` (`arrowShape`, graphty-element-render): unchanged.
+- Chart labels (`images-charts-p5`, `-p7`, `mappings-bypass-p18`): not fixed. Pie item labels need a neutral slot
+  (`cy_itemLabels`, `cy_itemLabelsColumn`, `cy_itemLabelFontSize`, drawn by Cytoscape in Tahoma `#404040` inside each
+  slice) and graphty-element to draw text on a pie, which it cannot (pies are flat geometry, `nodeDecoration.ts`).
+  The bar, line, heat map and box chart labels (domain and range axis labels, `cy_domainLabelPosition`,
+  `cy_axisLabelFontSize`) cannot be judged before graphty-element draws those charts at all (`node-custom-graphics`).
+- Pie and ring slices judged as annotations (`images-charts` `stray.extra`, 2 of 12): a graphty slice is scored by its
+  box against the oracle's unassociated shapes; on `ring-hole-0-7` the oracle's blue slice is drawn (`#1f77b4` path at
+  the node) but is not among the oracle's strays (the association took it into another element), so graphty's
+  matching slice is reported extra. Comparator (`annotation-scoring`).
+- `cx-polygenic-sle` (93 `edge.arrow`, 98 `stray.present`): the style has no arrows. The oracle's "arrows" and strays
+  are the stringApp enhancedGraphics label every node carries (`NODE_CUSTOMGRAPHICS_3` passthrough of
+  `stringdb::enhancedLabel Passthrough`, `label: attribute="display name" labelsize=12 labelAlignment=left
+outline=true outlineColor=white outlineTransparency=95 outlineWidth=10`, placed NE by
+  `NODE_CUSTOMGRAPHICS_POSITION_3`): Cytoscape draws a second label per node as glyph paths with a white halo, which
+  the comparator reads as caps where it crosses an edge's end. graph-io does not read enhancedGraphics labels and
+  graphty-element has no second node label to draw it with (graph-io-import and graphty-element-render, not
+  comparator).
+- `cx-syn-mappings`, `cx-syn-bypass` patterned edges: 141 and 22 `edge.arrow` failures, all `o=false g=true` on edges
+  whose oracle line is slashes (41), arrows (30), dashed (17), double (16), dash-dot, zigzag, dotted or sine: the
+  oracle reader does not find the caps at the end of a line drawn in pieces (`comparator-edge-association`).
+- `cx-ndex-90f78bcd` node `304542`: Cytoscape shows two lines ("Various" / "neuronal") of a six-line wrapped label at
+  size 25; graphty shows all six. Not yet explained.

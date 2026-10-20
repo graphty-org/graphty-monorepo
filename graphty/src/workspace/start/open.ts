@@ -193,7 +193,7 @@ async function drawFirst(workspace: WorkspaceStore, session: GraphSession, sourc
  * @param key - the source the copy replaces.
  * @param incoming - the copy.
  */
-async function replaceWith(
+export async function replaceWith(
     workspace: WorkspaceStore,
     session: GraphSession,
     key: SourceKey,
@@ -246,7 +246,19 @@ async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming
         return;
     }
     const draft = await session.data.prepare(incoming.source, { onto: "graph", guess: "values" });
-    workspace.set({ joining: { name: incoming.name, draft } });
+    workspace.set({ joining: { name: incoming.name, draft, source: incoming.source } });
+}
+
+/**
+ * Opens a source as a new project of its own, drawn as a first file is (the join screen's Open as
+ * a separate graph).
+ * @param workspace - the workspace store.
+ * @param incoming - the source.
+ */
+export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
+    openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
+        drawFirst(workspace, next, incoming.source),
+    );
 }
 
 /**
@@ -260,9 +272,7 @@ async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming
  */
 export function addSource({ workspace, session }: CommandContext, incoming: Incoming): void {
     if (workspace.get().project === null || session === null) {
-        openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-            drawFirst(workspace, next, incoming.source),
-        );
+        openSeparate(workspace, incoming);
         return;
     }
     const work =

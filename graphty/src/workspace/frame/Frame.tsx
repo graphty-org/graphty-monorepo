@@ -10,6 +10,7 @@ import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { Inspector } from "../inspector/Inspector";
+import { JoinScreen } from "../join/JoinScreen";
 import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
@@ -110,6 +111,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             <TableDock />
                         </section>
                     ) : null}
+                    <JoinScreen />
                 </main>
                 <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
                     <Inspector />

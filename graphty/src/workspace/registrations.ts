@@ -12,6 +12,7 @@ import { registration as exportDialog } from "./export/commands";
 import { registration as frame } from "./frame/commands";
 import { registration as graphPlace } from "./graph-place/commands";
 import { registration as inspector } from "./inspector/commands";
+import { registration as join } from "./join/commands";
 import { registration as layout } from "./layout/commands";
 import { registration as privacy } from "./privacy/commands";
 import { registration as project } from "./project/commands";
@@ -35,6 +36,7 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     inspector,
     style,
     table,
+    join,
     exportDialog,
     dataPage,
     project,

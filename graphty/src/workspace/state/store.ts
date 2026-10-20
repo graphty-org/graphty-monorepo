@@ -8,7 +8,7 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession, LoadDraft } from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, LoadDraft, SourceKey } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
@@ -64,7 +64,14 @@ export interface WorkspaceState {
      * file dropped, picked, pasted or chosen in Samples while the graph holds data. The join screen
      * loads or disposes the draft and sets this back to null.
      */
-    readonly joining: { readonly name: string; readonly draft: LoadDraft } | null;
+    readonly joining: {
+        readonly name: string;
+        readonly draft: LoadDraft;
+        /** What the draft was read from, for Replace data and Open as a separate graph. */
+        readonly source?: DataSourceInput;
+    } | null;
+    /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
+    readonly editingJoin: SourceKey | null;
     /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
     readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
@@ -114,6 +121,7 @@ const INITIAL: WorkspaceState = {
     dockOpen: false,
     dockMaximized: false,
     joining: null,
+    editingJoin: null,
     timelineOpen: false,
     legendShown: true,
     exportOn: "image",

@@ -194,10 +194,11 @@ audit see only what the walk shows, so a missing screen would read as a clean on
 
 ## Round plan
 
-- **Rounds:** as many as it takes to meet the bars, stopped only by "When the study stops". Round 1
-  runs every task but T37, T42 and T44 (see Size). A later round re-runs every task below its bar
-  at full size, the core tasks at full size always, and each task a fix touched at 4 or more; T42
-  and T44 run at 4 in round 2.
+- **Rounds:** ONE round for now: round 1 runs, is scored and reported, and the study then stops
+  for the owner. A further round runs only on the owner's go (2026-10-20). Round 1 runs every task
+  but T37, T42 and T44 (see Size). A later round, once the owner allows one, re-runs every task
+  below its bar at full size, the core tasks at full size always, and each task a fix touched at 4
+  or more; T42 and T44 run at 4 in round 2.
 - **Core tasks** (decide the stall rule): T39 (first styled graph), T40 (picking by data, two
   domains), T47 (several layers at once; its successes counted on the folder or several route
   only) and T48 (a card added to several layers at once, where bulk editing and picking meet).
@@ -250,17 +251,17 @@ audit see only what the walk shows, so a missing screen would read as a clean on
    `session.json` records `keyboardOnlyMode: true` (started with `--keys`). The dry run walks
    only the halves the round plans: halves whose last pass found a blocking defect first, then the
    core tasks, then the rest. A pass that stops partway is finished, not started again; its walks
-   on the frozen build stand. Each pass is triaged against `decided.md`, the tier's binding decisions: a complaint
-   against a decided behavior is no change, and a reversal needs a new entry there with its reason
-   and evidence. Blocking and confusing defects are fixed (a defect on two screens or in two passes
-   once, in its shared part); cosmetic ones go to `backlog.md`; every fix row records its origin
-   (new, a regression of the last pass's fixes, a repeat, another instance of one shared part).
-   The build is frozen again and the dry run repeated until a pass meets the **exit test**: no
-   blocking defect on any task's success path or listed detours; regressions of the last pass's
-   fixes under 10% of the fix list; no reversed decision. A pass at about 40% regressions stops
-   the full passes: the shared parts are fixed first and the routes they touch walked again, then
-   a full pass. Confusing moments off the success paths that remain go to the sessions, which
-   exist to find them.
+   on the frozen build stand. Each pass is triaged against `decided.md`, the tier's binding
+   decisions: a complaint against a decided behavior is no change, and a reversal needs a new entry
+   there with its reason and evidence. The dry run goes to the **session-ready bar** and no
+   further: no crash, no blocked task and no grading-spoiling wrong result on any task's success
+   path or listed detours, re-walked after fixing. Only those are fixed (a defect on two screens
+   once, in its shared part); friction, wording, cosmetic and keyboard-only or screen-reader-only
+   problems go to `backlog.md` (accessibility items also to the accessibility expert's walk) and
+   are fixed between rounds. At most two fix passes; a re-pilot after a fix pass walks only the
+   success paths and the routes the fixes touched. If the bar still fails after two passes, the
+   dry run stops for the owner with the remaining blockers. Confusing moments that remain go to
+   the sessions, which exist to find them.
 5. Every reference value in `answers.md` is read on the frozen build; the run-dependent ones
    (the clusters) are run twice to show they repeat. T46 to T48 accept any community analysis the
    analysis list offers (Louvain, Leiden, Label propagation, Markov, Spectral, Hierarchical), so
@@ -320,6 +321,22 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-20 (before any session; nothing has started):
+    - The round plan runs ONE round. Further rounds need the owner's go. Reason: the owner asked
+      for one round to start.
+    - Preflight 4's dry-run exit test (regressions of the last pass's fixes under 10% of the fix
+      list, the full passes stopped at about 40%, repeated until it holds) is replaced by the
+      session-ready bar of the design-studio skill: fix only crashes, blocked tasks and
+      grading-spoiling wrong results on the success paths and listed detours; friction, wording,
+      cosmetic and keyboard-only problems go to `backlog.md`; at most two passes, then stop for the
+      owner. Reason: five dry-run passes never converged. Their fix-now lists ran 344, 217, 151,
+      129 and 124 rows, of which only 2 were crashes and 76-88% friction, wording or cosmetic
+      (analysis in `tmp/tier3-dryrun-severity/`).
+    - The build now includes golden: origin/golden was merged into the studio branch (merge
+      f9d8b44b9). Two behaviors follow golden and are recorded in `decided.md` (2026-10-20): the
+      camera glides to center every pick, and an algorithm's result is painted as ordinary layers
+      in its own result color. No bar changed.
 
 - 2026-10-19: round 1 dry run 1 frozen on 3ef9e6c1ec (`.study-builds/tier3-r1d1-3ef9e6c1ec`),
   replacing e3c5bca8e6 (`.study-builds/tier3-r1-e3c5bca8e6`). No bar changed.

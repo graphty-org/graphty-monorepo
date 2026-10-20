@@ -174,3 +174,19 @@ Each entry below is new unless it says what it narrows, corrects or reverses.
   warning**, with no confirmation, because a load can be undone. (2026-10-19.)
 - **Turning label decluttering on or off stays outside undo** until the owner answers (open item
   in `owner-decisions.md`, 2026-10-18).
+
+## Added 2026-10-20 (owner decisions, on the build that includes golden, merge f9d8b44b9)
+
+- **The camera glides to center a picked node, even one already on screen**, as golden does
+  (graphty-element's `camera.pivotOnSelection`, from the owner's issue #2293): a pick from Find, a
+  click or a shift-click makes the selection the point the camera turns about. (2026-10-20, the
+  owner.) REVERSES the tier 3 rule that a pick already on screen leaves the camera alone. A pick is
+  the reader asking, so this narrows "the drawing moves only when the reader asks" (2026-10-19)
+  rather than breaking it. Reason: golden made this the app's behavior for every pick, and keeping
+  the studio's exception would put a second camera rule in front of participants.
+- **An algorithm's result is painted as ordinary style layers in its fixed result color**
+  (vermilion `#D55E00`, chosen edges three times the default width), as golden does (commit
+  c2757912e), not in the app's highlight color. (2026-10-20, the owner.) REVERSES the studio's own
+  route color (`APP_HIGHLIGHT_COLOR`, which now colors only explicit highlights). Reason: as layers,
+  algorithm pictures stack -- a route over a spanning tree keeps both -- where a highlight swept
+  every other highlight away.

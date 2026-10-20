@@ -135,6 +135,7 @@ export const STYLE_PROPERTIES: {
         ["imageRepeat", "text"],
         ["imageClip", "text"],
         ["imageSmoothing", "boolean"],
+        ["imageAutoSize", "text"],
         ["imageOpacity", "opacity"],
         ["glyph", "text"],
         ["glyphFont", "text"],

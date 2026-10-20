@@ -421,6 +421,11 @@ export interface NodeStyleValues {
     readonly imageClip: string;
     /** Whether the image's pixels are smoothed when it is scaled; false draws them as squares. Unset, true. */
     readonly imageSmoothing: boolean;
+    /**
+     * How an image whose `imageFit` is `none` fills the side `imageWidth` or `imageHeight` leaves unset: `proportional`
+     * (unset) keeps its proportions to the side given; `natural` draws it at its own pixels (Cytoscape.js's `auto`).
+     */
+    readonly imageAutoSize: string;
     /** The image's opacity, 0..1. */
     readonly imageOpacity: number;
     /**

@@ -565,6 +565,34 @@ describe("the cascade", () => {
         expect(tag.node.values.shapePoints?.[0]).toBe("-1,-1 0.25,-1 1,0 0.25,1 -1,1");
     });
 
+    it("sizes a background image against the node's padding box unless it is relative to its inner box", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        width: 36,
+                        height: 36,
+                        padding: "8px",
+                        "background-image": "pic.png",
+                        "background-width": "100%",
+                    },
+                },
+                { selector: "#b", style: { "background-width-relative-to": "inner" } },
+                { selector: "#c", style: { "background-height": "50%", "background-height-relative-to": "inner" } },
+            ],
+        });
+        const at = (p: StyleProperty, id: string): unknown => r.node.values[p]?.[["a", "b", "c", "d"].indexOf(id)];
+        // 100% of 36 and 8 on each side (cytoscape.js 3.34.3 drawInscribedImage: include-padding is the default)
+        expect(at("imageWidth", "a")).toBe(52);
+        expect(at("imageWidth", "b")).toBe(36);
+        // its height left `auto` is the picture's own, not in proportion to its width
+        expect(at("imageAutoSize", "a")).toBe("natural");
+        expect(at("imageHeight", "c")).toBe(18);
+        expect(at("imageAutoSize", "c")).toBeNull();
+    });
+
     it("draws a hollow arrow as its outline shape, at every end", () => {
         const r = evaluateCytoscapeJs({
             elements: SMALL.elements,

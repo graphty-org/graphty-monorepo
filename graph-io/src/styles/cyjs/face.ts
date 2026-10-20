@@ -1,6 +1,6 @@
 /**
  * What Cytoscape.js draws over a node's face: its background image (`background-image`, `-fit`, `-width`,
- * `-height`, `-position-x`/`-y`, `-offset-x`/`-y`, `-repeat`, `-clip`, `background-image-smoothing`,
+ * `-height`, `-width-relative-to`, `-height-relative-to`, `-position-x`/`-y`, `-offset-x`/`-y`, `-repeat`, `-clip`, `background-image-smoothing`,
  * `background-image-opacity`), its pie (`pie-size`, `pie-hole`, `pie-start-angle`, `pie-N-background-*`) and its
  * stripes (`stripe-size`, `stripe-direction`, `stripe-N-background-*`), read as parts and combined per element into
  * the neutral `image*`, `pie*` and `stripe*` properties (https://js.cytoscape.org/#style/background-image,
@@ -22,6 +22,8 @@ export const CYJS_FACE_PROPERTIES: readonly [string, CyjsPropertySpec][] = [
     ["background-fit", text("_bgFit")],
     ["background-width", text("_bgWidth")],
     ["background-height", text("_bgHeight")],
+    ["background-width-relative-to", text("_bgWidthRel")],
+    ["background-height-relative-to", text("_bgHeightRel")],
     ["background-position-x", text("_bgPosX")],
     ["background-position-y", text("_bgPosY")],
     ["background-offset-x", text("_bgOffX")],
@@ -75,6 +77,20 @@ function length(word: string | null | undefined, of: number | null): number | nu
         out = m[0];
     }
     return out === null || out < 0 ? null : r6(out);
+}
+
+/**
+ * A node's padding in pixels: a percentage is drawn as its fraction in pixels on a node that is no compound parent
+ * (cytoscape.js 3.34.3 `padding()` returns the property's `pfValue`, 0.2 for `20%`).
+ * @param word - the padding as Cytoscape.js spells it, or null
+ * @returns the pixels, 0 for none
+ */
+function paddingPixels(word: string | null): number {
+    const x = Number.parseFloat(word ?? "");
+    if (!Number.isFinite(x) || x <= 0) {
+        return 0;
+    }
+    return (word ?? "").trim().endsWith("%") ? x / 100 : x;
 }
 
 /**
@@ -181,6 +197,10 @@ export function combineFace(
         // Cytoscape.js's default node is 30 x 30
         const w = num("width", i) ?? 30;
         const h = num("height", i) ?? 30;
+        // a percentage is of the node's padding box (`-relative-to: include-padding`, the default), its padding on both
+        // sides taken in, or of its inner box (`inner`) (cytoscape.js 3.34.3 drawInscribedImage: `nodeTW`)
+        const pad = paddingPixels(word("_padding", i));
+        const of = (rel: string | null, side: number): number => (rel === "inner" ? side : side + 2 * pad);
         const image = firstImage(word("_bgImage", i));
         if (image !== null) {
             col("image")[i] = image;
@@ -189,13 +209,18 @@ export function combineFace(
             // a repeated picture is tiled at its own size whatever its width and height say (Cytoscape.js 3.34
             // `drawInscribedImage`: a canvas pattern of the picture as loaded)
             const tiled = ["repeat", "repeat-x", "repeat-y"].includes(word("_bgRepeat", i) ?? "");
-            const bw = tiled ? null : length(word("_bgWidth", i), w);
-            const bh = tiled ? null : length(word("_bgHeight", i), h);
+            const bw = tiled ? null : length(word("_bgWidth", i), of(word("_bgWidthRel", i), w));
+            const bh = tiled ? null : length(word("_bgHeight", i), of(word("_bgHeightRel", i), h));
             if (bw !== null) {
                 col("imageWidth")[i] = bw;
             }
             if (bh !== null) {
                 col("imageHeight")[i] = bh;
+            }
+            // a side left `auto` is the picture's own (Cytoscape.js's `auto`: "uses the width of the image"), not in
+            // proportion to the side given
+            if ((bw === null) !== (bh === null)) {
+                col("imageAutoSize")[i] = "natural";
             }
             const px = fraction(word("_bgPosX", i));
             const py = fraction(word("_bgPosY", i));

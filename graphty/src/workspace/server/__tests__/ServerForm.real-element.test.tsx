@@ -202,10 +202,17 @@ describe("server sources on the real element", () => {
         });
 
         const row = await screen.findByRole("listitem", { name: /^People server/ });
+        // The load takes focus to its new row.
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
+        });
+        await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "Load more" }));
         await waitFor(() => {
             assert.lengthOf(session.data.nodes(), 2 * PAGE);
         });
+        // A receipt names what Load more brought.
+        await screen.findByText(`+${String(PAGE)} nodes`);
 
         // The node menu: Expand... with its rows, then Collapse.
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });

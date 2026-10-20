@@ -62,24 +62,49 @@
 }
 
 .dp-source-name {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: 4em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* Load more, Refresh and "..." show on hover and on keyboard focus. */
+/* The counts give way before the name does. */
+.dp-source-main .dp-quiet {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dp-source-chips {
+    display: inline-flex;
+    flex: none;
+    gap: 4px;
+}
+
+/*
+ * Load more, Refresh and "..." take the chips' place on hover, on keyboard focus, while the row's
+ * menu is open and while one of them runs, so they are never drawn over the chips. Folded to no
+ * width rather than removed, so a keyboard and a screen reader still reach them.
+ */
 .dp-source-actions {
     display: inline-flex;
     flex: none;
     gap: 2px;
+    max-width: 0;
+    overflow: hidden;
     opacity: 0;
 }
 
-.dp-source:hover .dp-source-actions,
-.dp-source:focus-within .dp-source-actions {
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions {
+    max-width: none;
+    overflow: visible;
     opacity: 1;
+}
+
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-chips {
+    display: none;
 }
 
 .dp-rename {

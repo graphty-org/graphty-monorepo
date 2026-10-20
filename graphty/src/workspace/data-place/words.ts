@@ -4,7 +4,7 @@
  * (`data.sources()`, `data.loads()`, `data.attributes()`); this file only words and orders it.
  */
 
-import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
+import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
 import type {
     ColumnRole,
     Endpoint,
@@ -14,6 +14,28 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber } from "../inspector/words";
+
+/** What a load is called when the reader gave it no name and its source has none. */
+const KIND_NAMES: Readonly<Record<LoadedSource["kind"], string>> = {
+    file: "File",
+    server: "Server",
+    sample: "Sample",
+    join: "Joined table",
+};
+
+/**
+ * A Sources row's name: the reader's name for the load, else its network source's catalog name,
+ * else a word for its kind -- never the internal key.
+ * @param source - the load.
+ * @returns the name.
+ */
+export function sourceName(source: LoadedSource): string {
+    if (source.name !== undefined && source.name !== "") {
+        return source.name;
+    }
+    const id = source.type?.replace(/^source:/, "");
+    return sourceDescriptors().find((each) => each.id === id)?.descriptor.plainName ?? KIND_NAMES[source.kind];
+}
 
 /**
  * A server load's count beside its name: how many nodes it brought of how many the source holds.

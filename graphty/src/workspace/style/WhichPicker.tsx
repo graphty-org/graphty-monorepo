@@ -24,6 +24,7 @@ import {
 import { Circle, Minus, Plus } from "lucide-react";
 import React, { useState } from "react";
 
+import { sourceName } from "../data-place/words";
 import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -253,7 +254,7 @@ export function CardBody({
             const side = card.field.on;
             const data = session.data.sources().map((source) => ({
                 value: source.key,
-                label: `${source.name ?? source.key} (${formatNumber(side === "node" ? source.counts.nodes : source.counts.edges)})`,
+                label: `${sourceName(source)} (${formatNumber(side === "node" ? source.counts.nodes : source.counts.edges)})`,
             }));
             return (
                 <MultiSelect

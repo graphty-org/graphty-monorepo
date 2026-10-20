@@ -14,6 +14,7 @@ import type {
 import React from "react";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { sourceName } from "../data-place/words";
 import { type Incoming, incomingFiles, pickFiles } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { ReplaceReceipt } from "./ReplaceReceipt";
@@ -66,7 +67,8 @@ export async function replaceWith(
     key: SourceKey,
     incoming: Incoming,
 ): Promise<void> {
-    const before = session.data.sources().find((each) => each.key === key)?.name ?? key;
+    const replaced = session.data.sources().find((each) => each.key === key);
+    const before = replaced === undefined ? key : sourceName(replaced);
     const report = await session.data.replaceSource(key, incoming.source);
     const [first] = report.unbound;
     workspace.set({

@@ -10,6 +10,7 @@ import {
     loadValue,
     roleHolder,
     serverCount,
+    sourceName,
     tableRoles,
 } from "../words";
 
@@ -55,6 +56,13 @@ describe("the Data place's words", () => {
         const joined = { ...LOG, kind: "join", join: { matched: 52, rows: 70 } } as unknown as LoadedSource;
         assert.equal(joinMatch(joined), "52/70");
         assert.isNull(joinMatch(LOG));
+    });
+
+    it("names a load the reader's way, never by its internal key", () => {
+        assert.equal(sourceName(LOG), "auth-log.csv");
+        const { name: _name, ...unnamed } = LOG;
+        assert.equal(sourceName(unnamed), "File");
+        assert.equal(sourceName({ ...unnamed, kind: "server", type: "source:no-such-source" }), "Server");
     });
 
     it("lists the special fields in spec order, the node roles first", () => {

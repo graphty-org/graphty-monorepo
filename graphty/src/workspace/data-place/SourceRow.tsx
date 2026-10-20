@@ -8,7 +8,7 @@ import type { SourceRowCommand } from "../commands/registry";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { loadOf } from "./commands";
-import { joinMatch, serverCount } from "./words";
+import { joinMatch, serverCount, sourceName } from "./words";
 
 const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
     file: <FileText size={14} aria-hidden />,
@@ -83,9 +83,9 @@ function RenameInput({
 }
 
 /**
- * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips; a joined
- * table's link and matched rows; a server load's "500 of 40,000" and, on hover, Load more and
- * Refresh. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
+ * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips (none for
+ * a count of 0); a joined table's link and matched rows; a server load's "500 of 40,000". On hover
+ * or focus, Load more, Refresh and "..." take the chips' place, and a running one stays drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
  * that applies, and Rename.
  * @param props - Component props
  * @param props.source - the load
@@ -101,7 +101,9 @@ export function SourceRow({
     const workspace = useWorkspace();
     const { session, registry, store } = workspace;
     const [renaming, setRenaming] = useState(false);
-    const name = source.name ?? source.key;
+    // The hover action still running (Load more, Refresh), drawn busy until it settles.
+    const [busy, setBusy] = useState<string | null>(null);
+    const name = sourceName(source);
     const commands = registry.sourceRow.filter((command) => command.shown?.(workspace, source) ?? true);
     const items: { id: string; label: string; order: number; run: () => void }[] = [
         ...commands.map((command) => ({
@@ -145,6 +147,7 @@ export function SourceRow({
                     className="dp-source"
                     data-source={source.key}
                     data-selected={selected ? "" : undefined}
+                    data-busy={busy === null ? undefined : ""}
                     role="listitem"
                     aria-label={name}
                 >
@@ -162,8 +165,14 @@ export function SourceRow({
                             {load === undefined ? null : (
                                 <span className="dp-quiet">{serverCount(source.counts.nodes, load.total)}</span>
                             )}
-                            <EntityChip kind="node">{formatNumber(source.counts.nodes)}</EntityChip>
-                            <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                            <span className="dp-source-chips">
+                                {source.counts.nodes === 0 ? null : (
+                                    <EntityChip kind="node">{formatNumber(source.counts.nodes)}</EntityChip>
+                                )}
+                                {source.counts.edges === 0 ? null : (
+                                    <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                                )}
+                            </span>
                         </button>
                     )}
                     <span className="dp-source-actions">
@@ -176,8 +185,13 @@ export function SourceRow({
                                               variant="subtle"
                                               size="sm"
                                               aria-label={command.label}
+                                              loading={busy === command.id}
+                                              disabled={busy !== null}
                                               onClick={() => {
-                                                  void command.run(workspace, source);
+                                                  setBusy(command.id);
+                                                  void Promise.resolve(command.run(workspace, source)).finally(() => {
+                                                      setBusy(null);
+                                                  });
                                               }}
                                           >
                                               {HOVER_ICONS[command.icon]}

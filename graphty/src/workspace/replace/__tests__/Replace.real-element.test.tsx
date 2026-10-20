@@ -160,6 +160,7 @@ describe("Replace with file on the real element", () => {
         const shownBefore = session.visibility.summary.visibleNodes;
 
         const row = await screen.findByRole("listitem", { name: "ships-to-2024-09.csv" }, { timeout: TIMEOUT_MS });
+        await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "ships-to-2024-09.csv menu" }));
         const october = await fixture("ships-to-2024-10.csv");
         await commands.chooseNextFile(october.name, "text/csv", await october.text());

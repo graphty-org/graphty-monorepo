@@ -3,6 +3,7 @@ import type { GraphSession, LoadedSource } from "@graphty/graphty-element/sessio
 
 import { type CommandContext, defineRegistration, type SourceRowCommand } from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
+import { selectRule } from "./filterSteps";
 import { remap } from "./words";
 
 /** One network load, as `data.loads()` records it. */
@@ -72,14 +73,29 @@ function hasMore(ctx: CommandContext, source: LoadedSource): boolean {
  * @param ctx - the command context.
  * @param verb - the verb.
  * @param failed - the notice's words.
+ * @returns settles once the verb has, so the row can show it busy until then.
  */
-function attempt(ctx: CommandContext, verb: (session: GraphSession) => Promise<unknown>, failed: string): void {
+async function attempt(
+    ctx: CommandContext,
+    verb: (session: GraphSession) => Promise<unknown>,
+    failed: string,
+): Promise<void> {
     if (ctx.session === null) {
         return;
     }
-    verb(ctx.session).catch(() => {
+    await verb(ctx.session).catch(() => {
         ctx.workspace.set({ notice: { message: failed } });
     });
+}
+
+/**
+ * How many nodes a load supplies that the graph still holds.
+ * @param session - the element's session.
+ * @param key - the load's key.
+ * @returns the count, 0 once the load is gone.
+ */
+function nodesOf(session: GraphSession, key: LoadedSource["key"]): number {
+    return session.data.sources().find((each) => each.key === key)?.counts.nodes ?? 0;
 }
 
 /** The Data place's own Sources row commands; other packages add theirs by registering more. */
@@ -90,9 +106,17 @@ export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         order: 10,
         icon: "more",
         shown: hasMore,
-        run: (ctx, source) => {
-            attempt(ctx, (session) => session.data.more({ load: source.loadKey }), "Nothing more loaded");
-        },
+        run: (ctx, source) =>
+            attempt(
+                ctx,
+                async (session) => {
+                    const before = nodesOf(session, source.key);
+                    await session.data.more({ load: source.loadKey });
+                    const added = nodesOf(session, source.key) - before;
+                    ctx.workspace.set({ notice: { message: `+${String(added)} nodes` } });
+                },
+                "Nothing more loaded",
+            ),
     },
     {
         id: "source.refresh",
@@ -103,9 +127,9 @@ export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         run: (ctx, source) => {
             const load = source.loadKey;
             if (load === undefined) {
-                return;
+                return undefined;
             }
-            attempt(
+            return attempt(
                 ctx,
                 async (session) => {
                     const { added, removed, updated } = await session.data.refresh(load);
@@ -120,12 +144,21 @@ export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         },
     },
     {
+        id: "source.select-nodes",
+        label: "Select nodes",
+        order: 30,
+        run: (ctx, source) =>
+            attempt(
+                ctx,
+                (session) => selectRule(session, { kind: "source", sources: [source.key], side: "nodes" }),
+                "Not selected",
+            ),
+    },
+    {
         id: "source.remove",
         label: "Remove",
         order: 90,
-        run: (ctx, source) => {
-            attempt(ctx, (session) => session.data.removeSource(source.key), "Not removed");
-        },
+        run: (ctx, source) => attempt(ctx, (session) => session.data.removeSource(source.key), "Not removed"),
     },
 ];
 

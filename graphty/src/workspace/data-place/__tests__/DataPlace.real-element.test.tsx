@@ -313,6 +313,7 @@ describe("the Data place's sidebar on the real element", () => {
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
 
+        await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "auth-log.csv menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
         // The field opens focused on the name.
@@ -333,5 +334,68 @@ describe("the Data place's sidebar on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.data.sources(), 0);
         });
+    });
+
+    it("draws no chip for a count of 0, keeps the name readable, and swaps the chips for the actions on hover", async () => {
+        await openDataPlace();
+        const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
+        drop(new File([HOSTS_CSV], name));
+        const row: HTMLElement = await place().findByRole("listitem", { name }, { timeout: TIMEOUT_MS });
+        // A drop takes focus to the new row.
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
+        });
+        assert.isNotNull(row.querySelector('[data-kind="node"]'));
+        assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
+        const label = row.querySelector<HTMLElement>(".dp-source-name");
+        assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
+
+        await userEvent.hover(row);
+        const chips = row.querySelector<HTMLElement>(".dp-source-chips");
+        const menu = within(row).getByRole("button", { name: `${name} menu` });
+        await waitFor(() => {
+            assert.equal(chips === null ? "" : getComputedStyle(chips).display, "none");
+            assert.isAbove(menu.getBoundingClientRect().width, 0);
+        });
+    });
+
+    it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        const row: HTMLElement = await place().findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+        const [, hosts] = session.data.sources();
+
+        const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        await waitFor(() => {
+            assert.include(fieldsGroup().textContent, "auth-log.csv");
+        });
+        assert.lengthOf(session.selection.nodes, 0, "a press picks the row; it selects nothing");
+
+        await userEvent.hover(row);
+        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select nodes" }));
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["web1", "db1"]);
+            assert.lengthOf(session.selection.nodes, hosts.counts.nodes);
+        });
+    });
+
+    it("hands focus to the dialog a + menu item opens, by keyboard", async () => {
+        await openDataPlace();
+        const add = await place().findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS });
+        add.focus();
+        await userEvent.keyboard("{Enter}");
+        const item = await screen.findByRole("menuitem", { name: "Samples..." });
+        for (let step = 0; step < 10 && document.activeElement !== item; step++) {
+            await userEvent.keyboard("{ArrowDown}");
+        }
+        await userEvent.keyboard("{Enter}");
+        const dialog = await screen.findByRole("dialog", { name: "Samples" });
+        await waitFor(() => {
+            assert.isTrue(dialog.contains(document.activeElement), "focus is in the dialog");
+        });
+        await userEvent.keyboard("{Escape}");
     });
 });

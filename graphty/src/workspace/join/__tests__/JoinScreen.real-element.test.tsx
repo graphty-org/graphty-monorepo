@@ -177,6 +177,7 @@ describe("the join screen on the real element", () => {
         });
 
         const row = await screen.findByRole("listitem", { name: "tumor-expression.tsv" });
+        await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "tumor-expression.tsv menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Edit join" }));
         join = await screen.findByRole("region", { name: "Join" });

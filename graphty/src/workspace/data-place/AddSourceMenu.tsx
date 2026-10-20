@@ -26,8 +26,10 @@ export function AddSourceMenu(): React.JSX.Element | null {
     if (doors.length === 0) {
         return null;
     }
+    // Each item opens a dialog, a pop-over or the file chooser that takes focus; handing focus back
+    // to "+" as the menu closes would take it from them.
     return (
-        <Menu position="bottom-end">
+        <Menu position="bottom-end" returnFocus={false}>
             <Menu.Target>
                 <Tooltip label="Add source">
                     <ActionIcon variant="subtle" size="sm" aria-label="Add source">

@@ -5,6 +5,7 @@ import {
     PanelField,
     PanelLabelsProvider,
     Popout,
+    PopoutManager,
     ResetButton,
 } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
@@ -560,30 +561,34 @@ export function OptionsForm({
             )}
             {advanced.length > 0 || more !== undefined ? (
                 // The rare settings behind an Advanced button that opens a pop-out (compact-mantine
-                // draws no folds inside a panel).
-                <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
-                    <Popout.Trigger>
-                        <AdvancedButton
-                            label={advancedLabel}
-                            changed={advanced.some((o) => values[o.name] !== undefined)}
-                            aria-haspopup="dialog"
-                            aria-expanded={advancedOpen}
-                        />
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={264}
-                        placement="left"
-                        alignment="start"
-                        header={{ variant: "title", title: advancedLabel }}
-                    >
-                        <Popout.Content>
-                            <Stack gap={8}>
-                                {advanced.map(field)}
-                                {more}
-                            </Stack>
-                        </Popout.Content>
-                    </Popout.Panel>
-                </Popout>
+                // draws no folds inside a panel). The form brings its own floating layer, whose
+                // panels render in place: inside a Mantine popover (Analyze, Layout) a panel in the
+                // page's layer would be a click outside that popover, which closes it under the click.
+                <PopoutManager>
+                    <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
+                        <Popout.Trigger>
+                            <AdvancedButton
+                                label={advancedLabel}
+                                changed={advanced.some((o) => values[o.name] !== undefined)}
+                                aria-haspopup="dialog"
+                                aria-expanded={advancedOpen}
+                            />
+                        </Popout.Trigger>
+                        <Popout.Panel
+                            width={264}
+                            placement="left"
+                            alignment="start"
+                            header={{ variant: "title", title: advancedLabel }}
+                        >
+                            <Popout.Content>
+                                <Stack gap={8}>
+                                    {advanced.map(field)}
+                                    {more}
+                                </Stack>
+                            </Popout.Content>
+                        </Popout.Panel>
+                    </Popout>
+                </PopoutManager>
             ) : null}
         </>
     );

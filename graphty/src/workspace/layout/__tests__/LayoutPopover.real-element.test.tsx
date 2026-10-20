@@ -168,7 +168,9 @@ describe("the Layout popover", () => {
             // Reshuffle applies a new seed at once.
             const before = session.layout.options.seed;
             await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
-            await userEvent.click(within(popover).getByRole("button", { name: "Reshuffle" }));
+            // The Advanced settings open in a pop-out of their own, outside the Layout popover.
+            const advanced = await screen.findByRole("dialog", { name: "Advanced" });
+            await userEvent.click(within(advanced).getByRole("button", { name: "Reshuffle" }));
             await waitFor(() => {
                 assert.notStrictEqual(session.layout.options.seed, before);
             });

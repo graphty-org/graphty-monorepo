@@ -89,6 +89,8 @@
 .ws-main {
     position: relative;
     display: grid;
+    /* The column never grows to a wide table's width, which would push the canvas under the inspector. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0;
     min-height: 0;

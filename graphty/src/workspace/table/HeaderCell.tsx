@@ -1,9 +1,9 @@
 import type { DataIssue } from "@graphty/graphty-element/session";
-import { HoverCard, Popover, TextInput } from "@mantine/core";
+import { HoverCard, Popover, TextInput, VisuallyHidden } from "@mantine/core";
 import { KeyRound, Link, Shapes, Sigma, TriangleAlert } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
-import { ROLE_WORDS, type TableColumnChoice } from "./columns";
+import { issueLabel, ROLE_WORDS, type TableColumnChoice } from "./columns";
 import { IssueRow } from "./IssuesList";
 import { TYPE_ICONS } from "./typeIcons";
 
@@ -39,7 +39,8 @@ export function HeaderIcons({ column }: Readonly<{ column: TableColumnChoice }>)
 
 /**
  * The warning on a header: hover shows each issue as a short label with its count, its fixes and
- * Ignore. The header's menu offers the same, for the keyboard.
+ * Ignore. The header's menu offers the same, for the keyboard and touch; a screen reader hears the
+ * warning's name and, as its description, each issue's label, without hovering.
  * @param props - Component props
  * @param props.header - the column's name
  * @param props.issues - the column's issues
@@ -49,11 +50,18 @@ export function HeaderWarning({
     header,
     issues,
 }: Readonly<{ header: string; issues: readonly DataIssue[] }>): React.JSX.Element {
+    const described = useId();
     return (
         <HoverCard openDelay={100} closeDelay={250} position="bottom-start" shadow="md">
             <HoverCard.Target>
-                <span className="ws-th-warning" role="img" aria-label={`Issues in ${header}`}>
+                <span
+                    className="ws-th-warning"
+                    role="img"
+                    aria-label={`Issues in ${header}`}
+                    aria-describedby={described}
+                >
                     <TriangleAlert size={ICON} aria-hidden />
+                    <VisuallyHidden id={described}>{issues.map(issueLabel).join(", ")}</VisuallyHidden>
                 </span>
             </HoverCard.Target>
             <HoverCard.Dropdown>

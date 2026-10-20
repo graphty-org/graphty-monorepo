@@ -138,7 +138,9 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * reading the values where no header names them. A table it reads as edges without finding their
  * ends cannot load as edges, so its rows load as nodes and Fields opens on Rows are: edges with
  * Source and Target to pick, which reads the load again as edges. A file with problems, or with
- * ends to pick, also opens the table dock maximized.
+ * ends to pick, opens the table dock: maximized only when the load could not draw (ends to pick),
+ * beside the Data place; a file that drew with problems opens it docked, its warnings in the
+ * headers.
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param source - what to load.
@@ -156,8 +158,10 @@ async function drawFirst(workspace: WorkspaceStore, session: GraphSession, sourc
     if (lone && load !== undefined) {
         workspace.set({ ends: { load: load.key, source: null, target: null } });
     }
-    if (!ready || session.data.issues().length > 0) {
-        workspace.set({ dockOpen: true, dockMaximized: true });
+    if (!ready) {
+        workspace.set({ dockOpen: true, dockMaximized: true, place: "data" });
+    } else if (session.data.issues().length > 0) {
+        workspace.set({ dockOpen: true });
     }
 }
 

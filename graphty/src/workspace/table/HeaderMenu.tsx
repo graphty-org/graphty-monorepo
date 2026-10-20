@@ -31,7 +31,7 @@ export interface HeaderMenuActions {
     readonly rename: () => void;
     readonly hide: () => void;
     readonly hideOthers: () => void;
-    readonly unhideAll: () => void;
+    readonly unhide: (columns: readonly TableColumnChoice[]) => void;
 }
 
 /** Props for HeaderMenu. */
@@ -40,8 +40,8 @@ interface HeaderMenuProps {
     readonly kind: RecordKind;
     /** The issues whose warning this header carries. */
     readonly issues: readonly DataIssue[];
-    /** Whether any column of the table is hidden, for Unhide all. */
-    readonly anyHidden: boolean;
+    /** The table's hidden columns, for Unhide. */
+    readonly hidden: readonly TableColumnChoice[];
     readonly actions: HeaderMenuActions;
 }
 
@@ -101,19 +101,20 @@ function failWords(session: GraphSession, ref: ColumnRef, type: ValueType): stri
 
 /**
  * A header's menu (spec section 3.5.2), one level, with Type and Role as short pick lists: first
- * each issue's fixes and Ignore, so the keyboard reaches what the warning's hover shows; then
- * Type, Role, Rename..., Hide, Hide others, Unhide all (only when something is hidden), the
+ * each issue's fixes (the one the data shows checked) and Ignore, so the keyboard reaches what the warning's hover shows; then
+ * Type, Role, Rename..., Hide, Hide others, Unhide (each hidden column, then all; only when something
+ * is hidden), the
  * commands other packages register for a column (Match on this, in join mode), and the sorts.
  * Items whose precondition is missing are absent.
  * @param props - Component props
  * @param props.column - the column
  * @param props.kind - nodes or edges
  * @param props.issues - the column's issues
- * @param props.anyHidden - whether anything is hidden
+ * @param props.hidden - the hidden columns
  * @param props.actions - the table's own arrangement
  * @returns the menu's items
  */
-export function HeaderMenu({ column, kind, issues, anyHidden, actions }: HeaderMenuProps): React.JSX.Element {
+export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenuProps): React.JSX.Element {
     const workspace = useWorkspace();
     const { session, store, registry } = workspace;
     const fail = (): void => {
@@ -131,15 +132,17 @@ export function HeaderMenu({ column, kind, issues, anyHidden, actions }: HeaderM
                 : issues.map((issue) => (
                       <React.Fragment key={issue.id}>
                           <Menu.Label>{issueLabel(issue)}</Menu.Label>
-                          {issue.fixes.map((fix) => (
-                              <Menu.Item
+                          {[...(issue.current === undefined ? [] : [issue.current]), ...issue.fixes].map((fix) => (
+                              <MenuCheckItem
                                   key={fix}
+                                  radio
+                                  checked={fix === issue.current}
                                   onClick={() => {
                                       session.data.fix(issue, fix).catch(fail);
                                   }}
                               >
                                   {fixLabel(fix)}
-                              </Menu.Item>
+                              </MenuCheckItem>
                           ))}
                           <Menu.Item
                               onClick={() => {
@@ -208,7 +211,33 @@ export function HeaderMenu({ column, kind, issues, anyHidden, actions }: HeaderM
             )}
             <Menu.Item onClick={actions.hide}>Hide</Menu.Item>
             <Menu.Item onClick={actions.hideOthers}>Hide others</Menu.Item>
-            {anyHidden ? <Menu.Item onClick={actions.unhideAll}>Unhide all</Menu.Item> : null}
+            {hidden.length === 0 ? null : (
+                <Menu.Sub>
+                    <Menu.Sub.Target>
+                        <Menu.Sub.Item>Unhide</Menu.Sub.Item>
+                    </Menu.Sub.Target>
+                    <Menu.Sub.Dropdown mah={320} style={{ overflowY: "auto" }}>
+                        {hidden.map((each) => (
+                            <Menu.Item
+                                key={each.id}
+                                onClick={() => {
+                                    actions.unhide([each]);
+                                }}
+                            >
+                                {each.header}
+                            </Menu.Item>
+                        ))}
+                        <Menu.Divider />
+                        <Menu.Item
+                            onClick={() => {
+                                actions.unhide(hidden);
+                            }}
+                        >
+                            Unhide all
+                        </Menu.Item>
+                    </Menu.Sub.Dropdown>
+                </Menu.Sub>
+            )}
             {registered.map((command) => (
                 <Menu.Item
                     key={command.id}

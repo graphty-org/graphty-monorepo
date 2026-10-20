@@ -10,6 +10,7 @@ import {
     headerIconsLabel,
     issueLabel,
     issuePlace,
+    keyColumnOf,
     sortCaption,
     type TableColumnChoice,
     valueTypeOf,
@@ -87,6 +88,7 @@ describe("the table dock's words and sorts", () => {
         assert.equal(issueLabel(issue("refused-row", 1, { lines: [412] })), "row 412 refused");
         assert.equal(issueLabel(issue("refused-row", 2, { lines: [4, 9] })), "2 rows refused");
         assert.equal(issueLabel(issue("something-new", 2)), "2 something-new");
+        assert.equal(issueLabel(issue("repeated-edge", 5)), "5 repeated edges");
         assert.equal(fixLabel("read-decimal-comma"), "Read as decimals");
     });
 
@@ -109,5 +111,13 @@ describe("the table dock's words and sorts", () => {
         assert.equal(valueTypeOf({ type: "integer" } as never), "number");
         assert.equal(valueTypeOf({ type: "time" } as never), "date");
         assert.isUndefined(valueTypeOf({ type: "mixed" } as never));
+    });
+
+    it("puts a key column's issue on the loaded column that holds the keys", () => {
+        const account: TableColumnChoice = { ...NAME, id: "a:account", header: "account", role: "key" };
+        const from: TableColumnChoice = { ...NAME, id: "a:from", header: "from", role: "source" };
+        assert.equal(keyColumnOf("id", [account, NAME]), "a:account");
+        assert.equal(keyColumnOf("source", [from, NAME]), "a:from");
+        assert.equal(keyColumnOf("id", [{ id: "id", header: "Id", group: "key", numeric: false }, account]), "id");
     });
 });

@@ -53,14 +53,32 @@ export interface TableColumnChoice {
     readonly hidden?: boolean;
 }
 
-/** The key columns: frozen on the left. */
-const KEYS: Readonly<Record<RecordKind, readonly TableColumnChoice[]>> = {
-    node: [{ id: "id", header: "Id", group: "key", numeric: false }],
+/**
+ * The key columns graphty-element's records always carry, each with the role whose column holds
+ * the same values: drawn only when no loaded column carries that role.
+ */
+const KEYS: Readonly<Record<RecordKind, readonly (TableColumnChoice & { keyRole: ColumnRole })[]>> = {
+    node: [{ id: "id", header: "Id", group: "key", numeric: false, keyRole: "key" }],
     edge: [
-        { id: "source", header: "From", group: "key", numeric: false },
-        { id: "target", header: "To", group: "key", numeric: false },
+        { id: "source", header: "From", group: "key", numeric: false, keyRole: "source" },
+        { id: "target", header: "To", group: "key", numeric: false, keyRole: "target" },
     ],
 };
+
+/**
+ * The column a key column's issue shows on: the key column itself, else the loaded column that
+ * carries its role (the node ids' column, the edges' source column).
+ * @param id - the key column's id: `id` or `source`.
+ * @param choices - the table's columns.
+ * @returns the column's id.
+ */
+export function keyColumnOf(id: string, choices: readonly TableColumnChoice[]): string {
+    if (choices.some((choice) => choice.id === id)) {
+        return id;
+    }
+    const role = KEYS.node.find((key) => key.id === id)?.keyRole ?? KEYS.edge.find((key) => key.id === id)?.keyRole;
+    return choices.find((choice) => choice.role !== undefined && choice.role === role)?.id ?? id;
+}
 
 /** The roles a load reads each kind's rows with, in the header menu's order. */
 const LOAD_TABLE: Readonly<Record<RecordKind, "nodes" | "edges">> = { node: "nodes", edge: "edges" };
@@ -99,14 +117,9 @@ function roleOf(
  */
 export function columnChoices(session: GraphSession, kind: RecordKind, roles = headerRoles(kind)): TableColumnChoice[] {
     const sources = session.data.sources();
-    const attributes = session.data
+    const loaded = session.data
         .attributes()
-        .filter(
-            (attribute) =>
-                attribute.kind === kind &&
-                attribute.origin !== "result" &&
-                !KEYS[kind].some((key) => key.id === attribute.name),
-        )
+        .filter((attribute) => attribute.kind === kind && attribute.origin !== "result")
         .map((attribute): TableColumnChoice => {
             const role = roleOf(attribute, sources, roles);
             return {
@@ -137,7 +150,15 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
             },
         ];
     });
-    return [...KEYS[kind], ...attributes, ...results];
+    // A key column whose values a loaded column holds (its role says so) is that column, first.
+    const keys = KEYS[kind]
+        .filter((key) => !loaded.some((column) => column.role === key.keyRole))
+        .map((key): TableColumnChoice => ({ id: key.id, header: key.header, group: key.group, numeric: key.numeric }));
+    const keyed = loaded.filter((column) => KEYS[kind].some((key) => key.keyRole === column.role));
+    const attributes = loaded.filter(
+        (column) => !keyed.includes(column) && !keys.some((key) => key.id === column.attribute),
+    );
+    return [...keys, ...keyed, ...attributes, ...results];
 }
 
 /**
@@ -256,13 +277,14 @@ const ISSUE_WORDS: Readonly<Record<string, readonly [one: string, many: string]>
     "not-a-number": ["not a number", "not numbers"],
     "decimal-comma": ["decimal comma", "decimal commas"],
     "unknown-end": ["unknown end", "unknown ends"],
-    "repeated-edge": ["repeated", "repeated"],
+    "repeated-edge": ["repeated edge", "repeated edges"],
     "repeated-id": ["repeated id", "repeated ids"],
     "padded-space": ["padded spaces", "padded spaces"],
     "case-variant": ["case variant", "case variants"],
     "blank-id": ["blank id", "blank ids"],
     "refused-row": ["row refused", "rows refused"],
     "mixed-type": ["mixed types", "mixed types"],
+    "could-be-yes-no": ["value could be yes/no", "values could be yes/no"],
 };
 
 /**
@@ -291,6 +313,7 @@ const FIX_WORDS: Readonly<Record<string, string>> = {
     "merge-rows": "Merge rows",
     trim: "Trim",
     "merge-case": "Merge case",
+    "read-yes-no": "Read as yes/no",
 };
 
 /**

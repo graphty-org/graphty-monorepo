@@ -1,6 +1,12 @@
 import "./table.css";
 
-import { type DataTableColumn, type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
+import {
+    type DataTableColumn,
+    type DataTableSort,
+    MenuCheckItem,
+    SegmentedControl,
+    UiGlyph,
+} from "@graphty/compact-mantine";
 import type { DataIssue, GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
@@ -17,6 +23,7 @@ import {
     headerIconsLabel,
     headerWidth,
     issuePlace,
+    keyColumnOf,
     type RecordKind,
     sortCaption,
     type TableColumnChoice,
@@ -62,14 +69,23 @@ interface Members {
 
 const EMPTY_VIEW: View = { hidden: [], sort: null };
 
-/** The reader's arrangement of the dock: its tab, each table's view, and the members chip. */
+/**
+ * The reader's arrangement of the dock: its tab, each table's view, the members chip, and whether
+ * a filtered graph lists every record (`all`) or only the shown ones.
+ */
 interface Arrangement {
     readonly tab: string;
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
+    readonly all: boolean;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = { tab: "nodes", views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
+const FIRST_ARRANGEMENT: Arrangement = {
+    tab: "nodes",
+    views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
+    members: null,
+    all: false,
+};
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
@@ -259,13 +275,16 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
 }
 
 /**
- * The record table's key: a new table, scrolled to the top, for each kind and each group shown.
+ * The record table's key: a new table, scrolled to the top, for each kind, each group shown, and
+ * each change of what a filter shows.
  * @param kind - nodes or edges.
  * @param members - the group the Nodes tab is narrowed to, or null.
+ * @param shown - how many records the filters show, or null when the table lists them all.
  * @returns the key.
  */
-function tableKey(kind: RecordKind, members: Members | null): string {
-    return members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
+function tableKey(kind: RecordKind, members: Members | null, shown: number | null): string {
+    const base = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
+    return shown === null ? base : `${base}:shown:${String(shown)}`;
 }
 
 /**
@@ -300,7 +319,8 @@ interface HeaderCellProps {
     readonly kind: RecordKind;
     /** The issues whose warning this header carries, ignored ones left out. */
     readonly issues: readonly DataIssue[];
-    readonly anyHidden: boolean;
+    /** The table's hidden columns, for Unhide. */
+    readonly hidden: readonly TableColumnChoice[];
     /** Whether the column's name is being edited. */
     readonly renaming: boolean;
     /** Takes the new name, or null to stop renaming. */
@@ -322,7 +342,7 @@ type HeaderParts = Pick<
  * @returns the header's parts of the table column
  */
 function headerCell(props: HeaderCellProps): HeaderParts {
-    const { column, kind, issues, anyHidden, renaming, onRenamed, actions } = props;
+    const { column, kind, issues, hidden, renaming, onRenamed, actions } = props;
     const end =
         issues.length === 0 && !renaming ? undefined : (
             <>
@@ -336,23 +356,29 @@ function headerCell(props: HeaderCellProps): HeaderParts {
         iconLabel: headerIconsLabel(column),
         ...(column.descriptor === undefined ? {} : { headerTooltip: columnSummary(column.descriptor) }),
         ...(end === undefined ? {} : { headerEnd: end }),
-        menu: <HeaderMenu column={column} kind={kind} issues={issues} anyHidden={anyHidden} actions={actions} />,
+        menu: <HeaderMenu column={column} kind={kind} issues={issues} hidden={hidden} actions={actions} />,
     };
 }
 
 /**
  * The issues each header of a table carries, by column id: the element's issues not ignored, each
- * at its place.
+ * at its place; a key column's issue on the loaded column that holds the keys.
  * @param session - the element's session.
  * @param kind - nodes or edges.
+ * @param choices - the table's columns.
  * @returns the issues by column id.
  */
-function issuesByColumn(session: GraphSession, kind: RecordKind): Map<string, DataIssue[]> {
+function issuesByColumn(
+    session: GraphSession,
+    kind: RecordKind,
+    choices: readonly TableColumnChoice[],
+): Map<string, DataIssue[]> {
     const byColumn = new Map<string, DataIssue[]>();
     for (const issue of session.data.issues()) {
         const place = issuePlace(issue, session);
         if (place.kind === kind) {
-            byColumn.set(place.column, [...(byColumn.get(place.column) ?? []), issue]);
+            const column = keyColumnOf(place.column, choices);
+            byColumn.set(column, [...(byColumn.get(column) ?? []), issue]);
         }
     }
     return byColumn;
@@ -388,13 +414,15 @@ function MaximizeButton({
             globalThis.removeEventListener("keydown", onKeyDown, true);
         };
     }, [store, maximized]);
+    // One name, pressed or not: a toggle's name never changes with its state.
     return (
         <ActionIcon
             variant="subtle"
-            aria-label={maximized ? "Minimize table" : "Maximize table"}
+            aria-label="Maximize table"
             aria-pressed={maximized}
             onClick={() => {
-                store.set({ dockMaximized: !maximized });
+                // Maximized, the configuration (Sources, Fields, Filters) is the Data place's.
+                store.set(maximized ? { dockMaximized: false } : { dockMaximized: true, place: "data" });
             }}
         >
             {maximized ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
@@ -406,8 +434,9 @@ function MaximizeButton({
  * The table dock (data prototype spec section 3.5): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; Maximize and Close. Every
  * column's configuration is in its header: type, role, warning and origin icons, the issue's
- * fixes on hover, and the header menu. Maximized, it fills the canvas area with Sources, Fields
- * and the Issues list beside the table; Esc minimizes. Canvas, table and inspector share
+ * fixes on hover, and the header menu. Maximized, it fills the canvas area with the Issues list
+ * beside the table, and the left panel shows the Data place's Sources, Fields and Filters; Esc
+ * minimizes. A filter that hides records narrows the table to the shown ones (Shown / All). Canvas, table and inspector share
  * graphty-element's one selection.
  * @returns The dock's contents
  */
@@ -421,7 +450,7 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { tab, views, members } = arrangement;
+    const { tab, views, members, all } = arrangement;
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
@@ -451,8 +480,11 @@ export function TableDock(): React.JSX.Element {
 
     // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
     const groups = groupRuns(session);
-    // A group tab whose run went away (undo, remove) falls back to Nodes.
-    const active = groups.some((run) => `g:${run.id}` === tab) || !tab.startsWith("g:") ? tab : "nodes";
+    // No Edges tab for a graph without edges.
+    const hasEdges = recordTotal(session, "edge", "graph") > 0;
+    // A group tab whose run went away (undo, remove), or Edges once none are left, falls back to Nodes.
+    const known = tab.startsWith("g:") ? groups.some((run) => `g:${run.id}` === tab) : tab !== "edges" || hasEdges;
+    const active = known ? tab : "nodes";
     const kind: RecordKind = active === "edges" ? "edge" : "node";
     const choices = columnChoices(session, kind);
     const groupRun = groups.find((run) => `g:${run.id}` === active);
@@ -463,9 +495,15 @@ export function TableDock(): React.JSX.Element {
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     // A chip whose run went away (undo, remove) goes with it.
     const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "graph";
+    // A filter that hides records narrows the table to the shown ones, unless the reader asks for all.
+    const { summary } = session.visibility;
+    const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
+    const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
+    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
+    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
-    const issues = issuesByColumn(session, kind);
+    const issues = issuesByColumn(session, kind, choices);
+    const hiddenChoices = choices.filter(isHidden);
 
     const setView = (change: Partial<View>): void => {
         setArrangement((now) => ({ ...now, views: { ...now.views, [kind]: { ...now.views[kind], ...change } } }));
@@ -498,8 +536,8 @@ export function TableDock(): React.JSX.Element {
                 true,
             );
         },
-        unhideAll: () => {
-            hide(choices.filter(isHidden), false);
+        unhide: (columns) => {
+            hide(columns, false);
         },
     });
     const header = (column: TableColumnChoice): HeaderParts =>
@@ -507,7 +545,7 @@ export function TableDock(): React.JSX.Element {
             column,
             kind,
             issues: issues.get(column.id) ?? [],
-            anyHidden: hiddenIds.length > 0,
+            hidden: hiddenChoices,
             renaming: renaming === column.id,
             onRenamed: (name) => {
                 setRenaming(null);
@@ -537,7 +575,7 @@ export function TableDock(): React.JSX.Element {
                 >
                     <Tabs.List>
                         <Tabs.Tab value="nodes">Nodes</Tabs.Tab>
-                        <Tabs.Tab value="edges">Edges</Tabs.Tab>
+                        {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
                         {groups.map((run) => (
                             <Tabs.Tab key={run.id} value={`g:${run.id}`}>
                                 {run.label}
@@ -553,6 +591,20 @@ export function TableDock(): React.JSX.Element {
                         members={shownMembers}
                         onRemove={() => {
                             arrange({ members: null });
+                        }}
+                    />
+                ) : null}
+                {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
+                    <SegmentedControl
+                        size="xs"
+                        aria-label="Records"
+                        value={all ? "all" : "shown"}
+                        data={[
+                            { value: "shown", label: "Shown" },
+                            { value: "all", label: "All" },
+                        ]}
+                        onChange={(value) => {
+                            arrange({ all: value === "all" });
                         }}
                     />
                 ) : null}
@@ -576,7 +628,7 @@ export function TableDock(): React.JSX.Element {
             <div className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={tableKey(kind, shownMembers)}
+                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null)}
                         session={session}
                         kind={kind}
                         columns={visible}

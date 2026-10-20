@@ -1,4 +1,4 @@
-import { ControlSection } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip } from "@graphty/compact-mantine";
 import type { DataIssue, FixCode, GraphSession } from "@graphty/graphty-element/session";
 import { Button, Text } from "@mantine/core";
 import { TriangleAlert } from "lucide-react";
@@ -35,7 +35,9 @@ function setIgnored(session: GraphSession, store: WorkspaceStore, issue: DataIss
 }
 
 /**
- * One issue's buttons: each fix the element offers, then Ignore (Restore for an ignored one).
+ * One issue's buttons: the fix the data already shows, pressed (a click keeps it and settles the
+ * issue); each other fix the element offers; then Ignore (Restore for an ignored one). A fixed
+ * issue shows the fix that settled it, pressed, and nothing to click.
  * @param props - Component props
  * @param props.issue - the issue
  * @returns the buttons
@@ -46,6 +48,19 @@ function IssueActions({ issue }: Readonly<{ issue: DataIssue }>): React.JSX.Elem
         return null;
     }
     const label = issueLabel(issue);
+    if (issue.status === "fixed") {
+        return issue.fixedBy === undefined ? null : (
+            <Button
+                size="compact-xs"
+                variant="filled"
+                aria-pressed
+                disabled
+                aria-label={`${fixLabel(issue.fixedBy)}: ${label}`}
+            >
+                {fixLabel(issue.fixedBy)}
+            </Button>
+        );
+    }
     if (issue.ignored) {
         return (
             <Button
@@ -60,13 +75,28 @@ function IssueActions({ issue }: Readonly<{ issue: DataIssue }>): React.JSX.Elem
             </Button>
         );
     }
+    const { current } = issue;
     return (
         <>
+            {current === undefined ? null : (
+                <Button
+                    size="compact-xs"
+                    variant="filled"
+                    aria-pressed
+                    aria-label={`${fixLabel(current)}: ${label}`}
+                    onClick={() => {
+                        applyFix(session, store, issue, current);
+                    }}
+                >
+                    {fixLabel(current)}
+                </Button>
+            )}
             {issue.fixes.map((fix) => (
                 <Button
                     key={fix}
                     size="compact-xs"
-                    variant="light"
+                    variant="default"
+                    aria-pressed={false}
                     aria-label={`${fixLabel(fix)}: ${label}`}
                     onClick={() => {
                         applyFix(session, store, issue, fix);
@@ -89,22 +119,29 @@ function IssueActions({ issue }: Readonly<{ issue: DataIssue }>): React.JSX.Elem
     );
 }
 
+/** Where an issue is: its table, and the column (or "nodes" or "edges") it is named by. */
+interface IssueWhere {
+    readonly kind: "node" | "edge";
+    readonly name: string;
+}
+
 /**
- * One issue's row: the warning icon, where it is, its label with the count, its buttons.
+ * One issue's row: the warning icon, where it is as a node or edge chip, its label with the count,
+ * its buttons.
  * @param props - Component props
  * @param props.issue - the issue
- * @param props.where - the column, or "nodes" or "edges"
+ * @param props.where - the table and the column, or "nodes" or "edges"
  * @returns the row
  */
-export function IssueRow({ issue, where }: Readonly<{ issue: DataIssue; where?: string }>): React.JSX.Element {
+export function IssueRow({ issue, where }: Readonly<{ issue: DataIssue; where?: IssueWhere }>): React.JSX.Element {
     return (
-        <li className="ws-issue" data-ignored={issue.ignored ? "" : undefined}>
+        <li
+            className="ws-issue"
+            data-ignored={issue.ignored ? "" : undefined}
+            data-fixed={issue.status === "fixed" ? "" : undefined}
+        >
             <TriangleAlert size={14} className="ws-issue-icon" aria-hidden />
-            {where === undefined ? null : (
-                <Text size="xs" fw={600} className="ws-issue-where">
-                    {where}
-                </Text>
-            )}
+            {where === undefined ? null : <EntityChip kind={where.kind}>{where.name}</EntityChip>}
             <Text size="xs" className="ws-issue-label">
                 {issueLabel(issue)}
             </Text>
@@ -116,41 +153,80 @@ export function IssueRow({ issue, where }: Readonly<{ issue: DataIssue; where?: 
 }
 
 /**
+ * A toggle that lists a group of issues again: "Ignored 2", "Resolved 3".
+ * @param props - Component props
+ * @param props.label - the group's name
+ * @param props.count - how many it holds
+ * @param props.shown - whether it is listed
+ * @param props.onToggle - lists it or stops
+ * @returns the toggle, or null for an empty group
+ */
+function GroupToggle({
+    label,
+    count,
+    shown,
+    onToggle,
+}: Readonly<{ label: string; count: number; shown: boolean; onToggle: () => void }>): React.JSX.Element | null {
+    if (count === 0) {
+        return null;
+    }
+    return (
+        <Button size="compact-xs" variant="subtle" aria-pressed={shown} onClick={onToggle}>
+            {`${label} ${String(count)}`}
+        </Button>
+    );
+}
+
+/**
  * The maximized table's Issues list (spec section 3.5.3): every issue graphty-element counts,
- * flat, one row each with its fixes and Ignore; at the end an "Ignored 2" toggle that lists the
- * ignored ones again with Restore. Nothing when there is nothing to show.
+ * flat, one row each with its table and column as a chip, the fix the data shows pressed, the
+ * other fixes and Ignore; at the end "Ignored 2", which lists the ignored ones again with Restore,
+ * and "Resolved 3", which lists the fixed ones with the fix that settled each. Nothing when there
+ * is nothing to show.
  * @returns the section
  */
 export function IssuesList(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [showIgnored, setShowIgnored] = useState(false);
+    const [showResolved, setShowResolved] = useState(false);
     if (session === null) {
         return null;
     }
-    const all = session.data.issues({ includeIgnored: true });
-    const open = all.filter((issue) => !issue.ignored);
-    const ignored = all.filter((issue) => issue.ignored);
-    const row = (issue: DataIssue): React.JSX.Element => (
-        <IssueRow key={issue.id} issue={issue} where={issuePlace(issue, session).name} />
-    );
+    const all = session.data.issues({ includeIgnored: true, includeFixed: true });
+    const resolved = all.filter((issue) => issue.status === "fixed");
+    const open = all.filter((issue) => issue.status !== "fixed" && !issue.ignored);
+    const ignored = all.filter((issue) => issue.status !== "fixed" && issue.ignored);
+    const row = (issue: DataIssue): React.JSX.Element => {
+        const { kind, name } = issuePlace(issue, session);
+        return <IssueRow key={issue.id} issue={issue} where={{ kind, name }} />;
+    };
     return (
         <ControlSection label="Issues" empty={all.length === 0}>
             <ul className="ws-issues" aria-label="Issues">
                 {open.map(row)}
                 {showIgnored ? ignored.map(row) : null}
             </ul>
-            {ignored.length === 0 ? null : (
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    aria-pressed={showIgnored}
-                    onClick={() => {
-                        setShowIgnored((now) => !now);
-                    }}
-                >
-                    {`Ignored ${String(ignored.length)}`}
-                </Button>
-            )}
+            <GroupToggle
+                label="Ignored"
+                count={ignored.length}
+                shown={showIgnored}
+                onToggle={() => {
+                    setShowIgnored((now) => !now);
+                }}
+            />
+            {showResolved ? (
+                <ul className="ws-issues" aria-label="Resolved">
+                    {resolved.map(row)}
+                </ul>
+            ) : null}
+            <GroupToggle
+                label="Resolved"
+                count={resolved.length}
+                shown={showResolved}
+                onToggle={() => {
+                    setShowResolved((now) => !now);
+                }}
+            />
         </ControlSection>
     );
 }

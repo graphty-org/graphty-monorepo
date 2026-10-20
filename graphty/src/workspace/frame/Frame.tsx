@@ -78,7 +78,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     />
                 </aside>
                 <main className="ws-main" aria-label="Graph" hidden={!panels}>
-                    <div className="ws-canvas">
+                    {/* Under the maximized table, the canvas and its tools take no input or focus. */}
+                    <div className="ws-canvas" inert={dockOpen && dockMaximized}>
                         <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />

@@ -1,10 +1,14 @@
 /**
  * The table dock's configuration on the REAL graphty-element (data prototype spec section 3.5),
- * with the fraud fixture: the node and edge files dropped together open the table maximized
- * beside Sources, Fields and the Issues list; every issue the element counts is in the list and in
- * a header (its hover and its menu), each with Ignore; a fix and an Ignore change the element;
- * Hide others leaves one column and Unhide all brings the rest back; Esc minimizes. The body holds
- * records only. Every assertion reads what the element reports or what the page draws from it.
+ * with the fraud fixture: the node and edge files dropped together draw, so the table opens docked,
+ * not maximized; the loaded key columns (account, from, to) are the key columns, with no made-up
+ * Id, From or To beside them. Maximized, the Issues list is beside the table and the left panel is
+ * the Data place (Sources, Fields, Filters), each shown once, and the canvas under it is inert.
+ * Every issue the element counts is in the list (with a node or edge chip) and in a header (its
+ * hover, its description and its menu), each with Ignore; a fix and an Ignore change the element,
+ * and a fixed issue is listed under Resolved; Hide others leaves one column and Unhide brings one
+ * back, then all; a filter narrows the table to the shown records (Shown / All); Esc minimizes.
+ * The body holds records only. Every assertion reads what the element reports or what the page draws from it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -24,10 +28,11 @@ const TIMEOUT_MS = 60_000;
 
 /** The fraud fixture's issues as the element counts them, and the header that carries each. */
 const ISSUES: readonly { label: string; tab: "Nodes" | "Edges"; header: string }[] = [
-    { label: "18 unknown ends", tab: "Edges", header: "From" },
-    { label: "2 repeated ids", tab: "Nodes", header: "Id" },
-    { label: "row 412 refused", tab: "Edges", header: "From" },
-    { label: "5 repeated", tab: "Edges", header: "From" },
+    { label: "18 unknown ends", tab: "Edges", header: "from" },
+    { label: "2 repeated ids", tab: "Nodes", header: "account" },
+    { label: "row 412 refused", tab: "Edges", header: "from" },
+    { label: "5 repeated edges", tab: "Edges", header: "from" },
+    { label: "298 values could be yes/no", tab: "Nodes", header: "flagged" },
     { label: "3 decimal commas", tab: "Edges", header: "amount" },
     { label: "1 not a number", tab: "Edges", header: "amount" },
 ];
@@ -121,20 +126,56 @@ describe("the table dock's configuration", () => {
         await waitFor(
             () => {
                 assert.lengthOf(session.data.issues(), ISSUES.length);
-                assert.isTrue(store.get().dockMaximized);
+                assert.isTrue(store.get().dockOpen);
             },
             { timeout: TIMEOUT_MS },
         );
-
-        // Maximized: the configuration column beside the table, with every issue, each with Ignore.
+        // The files drew: issues that do not stop the drawing leave the dock docked.
+        assert.isFalse(store.get().dockMaximized);
         const dock = await screen.findByRole("region", { name: "Table" });
+        // The loaded key columns are the keys: no made-up Id, From or To.
+        await waitFor(() => {
+            assert.strictEqual(headerNames("Nodes")[0], "account");
+        });
+        assert.notInclude(headerNames("Nodes"), "Id");
+
+        // The toggle keeps one name, pressed or not.
+        const maximize = within(dock).getByRole("button", { name: "Maximize table" });
+        assert.strictEqual(maximize.getAttribute("aria-pressed"), "false");
+        await userEvent.click(maximize);
+        await waitFor(() => {
+            assert.isTrue(store.get().dockMaximized);
+        });
+        assert.strictEqual(
+            within(dock).getByRole("button", { name: "Maximize table" }).getAttribute("aria-pressed"),
+            "true",
+        );
+        // Under the maximized table the canvas takes no input.
+        assert.isTrue(document.querySelector<HTMLElement>(".ws-canvas")?.inert);
+
+        // Maximized: the Issues list beside the table; Sources, Fields and Filters once, in the
+        // Data place on the left.
         const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
-        within(config).getByRole("list", { name: "Sources" });
+        assert.isNull(within(config).queryByRole("list", { name: "Sources" }));
+        const left = screen.getByRole("complementary", { name: "Left panel" });
+        assert.lengthOf(screen.getAllByRole("list", { name: "Sources" }), 1);
+        within(left).getByRole("list", { name: "Sources" });
         const list = within(config).getByRole("list", { name: "Issues" });
-        for (const { label } of ISSUES) {
-            within(list).getByText(label);
+        for (const { label, tab } of ISSUES) {
+            const item = within(list).getByText(label).closest("li");
+            assert.isNotNull(item);
+            // Each row names its table with a node or edge chip.
+            assert.strictEqual(
+                item?.querySelector(".cm-entity-chip")?.getAttribute("data-kind"),
+                tab === "Nodes" ? "node" : "edge",
+            );
             within(list).getByRole("button", { name: `Ignore ${label}` });
         }
+        // The fix the data already shows is pressed: the made nodes are kept.
+        assert.strictEqual(
+            within(list).getByRole("button", { name: "Add nodes: 18 unknown ends" }).getAttribute("aria-pressed"),
+            "true",
+        );
 
         // Every issue is in its header: the warning's hover lists it with its buttons, and the
         // header's menu offers the same fixes and Ignore for the keyboard.
@@ -142,6 +183,10 @@ describe("the table dock's configuration", () => {
             await userEvent.click(within(dock).getByRole("tab", { name: tab }));
             for (const issue of ISSUES.filter((each) => each.tab === tab)) {
                 const cell = await waitFor(() => headerCell(issue.header));
+                // Without hovering, a screen reader hears each issue as the warning's description.
+                const warning = within(cell).getByRole("img", { name: `Issues in ${issue.header}` });
+                const description = document.getElementById(warning.getAttribute("aria-describedby") ?? "");
+                assert.include(description?.textContent, issue.label);
                 await userEvent.hover(within(cell).getByRole("img", { name: `Issues in ${issue.header}` }));
                 const hover = await screen.findByRole("list", { name: `Issues in ${issue.header}` });
                 within(hover).getByRole("button", { name: `Ignore ${issue.label}` });
@@ -168,18 +213,22 @@ describe("the table dock's configuration", () => {
             assert.isUndefined(session.data.issues().find((issue) => issue.code === "not-a-number"));
         });
         await userEvent.unhover(within(amount).getByRole("img", { name: "Issues in amount" }));
+        // The fixed issue is listed under Resolved, with the fix that settled it.
+        await userEvent.click(await within(config).findByRole("button", { name: "Resolved 1" }));
+        const resolved = within(config).getByRole("list", { name: "Resolved" });
+        within(resolved).getByRole("button", { name: "Make blank: 1 not a number" });
 
         // Ignore in the list: the issue leaves the list and the headers, and the toggle brings it back.
-        await userEvent.click(within(list).getByRole("button", { name: "Ignore 5 repeated" }));
+        await userEvent.click(within(list).getByRole("button", { name: "Ignore 5 repeated edges" }));
         await waitFor(() => {
             assert.isUndefined(session.data.issues().find((issue) => issue.code === "repeated-edge"));
             assert.isTrue(
                 session.data.issues({ includeIgnored: true }).some((issue) => issue.code === "repeated-edge"),
             );
         });
-        assert.isNull(within(list).queryByText("5 repeated"));
+        assert.isNull(within(list).queryByText("5 repeated edges"));
         await userEvent.click(within(config).getByRole("button", { name: "Ignored 1" }));
-        await within(list).findByRole("button", { name: "Restore 5 repeated" });
+        await within(list).findByRole("button", { name: "Restore 5 repeated edges" });
 
         // The body holds records only: every control of the grid is in its header row.
         const grid = screen.getByRole("grid", { name: "Edges" });
@@ -189,7 +238,7 @@ describe("the table dock's configuration", () => {
             assert.lengthOf(within(row).queryAllByRole("button"), 0);
         }
 
-        // Hide others on holder leaves one column; Unhide all brings the rest back.
+        // Hide others on holder leaves one column; Unhide brings one back, then all the rest.
         await userEvent.click(within(dock).getByRole("tab", { name: "Nodes" }));
         const before = await waitFor(() => {
             const names = headerNames("Nodes");
@@ -203,10 +252,27 @@ describe("the table dock's configuration", () => {
         });
         assert.isTrue(session.data.attributes().some((a) => a.name === "opened" && a.hidden === true));
         await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Unhide" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "opened" }));
+        await waitFor(() => {
+            assert.deepEqual(headerNames("Nodes"), ["holder", "opened"]);
+        });
+        await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Unhide" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Unhide all" }));
         await waitFor(() => {
             assert.deepEqual(headerNames("Nodes"), before);
         });
+
+        // A filter narrows the table to the shown nodes; All lists every node again.
+        const { total } = session.data.nodePage({ limit: 0 });
+        await session.visibility.set({ kind: "categories", attribute: "data.flagged", values: ["yes"] });
+        const shown = session.visibility.summary.visibleNodes;
+        assert.isBelow(shown, total);
+        await within(dock).findByText(`${String(shown)} nodes`);
+        await userEvent.click(within(dock).getByText("All"));
+        await within(dock).findByText(`${String(total)} nodes`);
+        await session.visibility.set(null);
 
         // Esc minimizes back to the dock, and the drawing shows again.
         await userEvent.keyboard("{Escape}");
@@ -214,6 +280,7 @@ describe("the table dock's configuration", () => {
             assert.isFalse(store.get().dockMaximized);
         });
         assert.isNull(within(dock).queryByRole("complementary", { name: "Table configuration" }));
+        assert.isFalse(document.querySelector<HTMLElement>(".ws-canvas")?.inert);
         assert.isTrue(store.get().dockOpen);
         await userEvent.click(within(dock).getByRole("button", { name: "Maximize table" }));
         await waitFor(() => {
@@ -228,7 +295,7 @@ describe("the table dock's configuration", () => {
         const session = await elementSession();
         await waitFor(
             () => {
-                assert.isTrue(store.get().dockMaximized);
+                assert.isTrue(store.get().dockOpen);
             },
             { timeout: TIMEOUT_MS },
         );

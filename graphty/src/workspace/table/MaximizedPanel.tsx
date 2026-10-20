@@ -1,28 +1,21 @@
-import "../data-place/data-place.css";
+import React from "react";
 
-import type { SourceKey } from "@graphty/graphty-element/session";
-import React, { useState } from "react";
-
-import { Fields } from "../data-place/Fields";
-import { Sources } from "../data-place/Sources";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "./IssuesList";
 
 /**
- * The maximized table's configuration column (spec section 3.5): the same Sources and Fields the
- * Data place shows, then the flat Issues list. The selected source is the reader's pick, the
- * newest load until they pick one.
- * @returns the column
+ * The maximized table's configuration column (spec section 3.5): the Issues list. Sources, Fields
+ * and Filters are the Data place's, in the left panel beside it, so each shows once. Nothing when
+ * the data has no issues, open, ignored or fixed.
+ * @returns the column, or null
  */
-export function MaximizedPanel(): React.JSX.Element {
+export function MaximizedPanel(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const [picked, setPicked] = useState<SourceKey | undefined>(undefined);
-    const sources = session?.data.sources() ?? [];
-    const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
+    if (session === null || session.data.issues({ includeIgnored: true, includeFixed: true }).length === 0) {
+        return null;
+    }
     return (
         <aside className="ws-table-config" aria-label="Table configuration">
-            <Sources sources={sources} selected={selected?.key} onSelect={setPicked} />
-            <Fields source={selected} />
             <IssuesList />
         </aside>
     );

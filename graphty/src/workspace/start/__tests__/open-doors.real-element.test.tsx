@@ -1,7 +1,8 @@
 /**
  * The loading doors on the REAL graphty-element (data prototype spec sections 2.1 and 6): every
  * fixture file draws its counts when dropped and when chosen in Samples; a clean file draws with
- * nothing opened over it, a file with problems opens the table maximized, a second file waits for
+ * nothing opened over it, a file with problems opens the table docked, one whose ends are still
+ * to pick opens it maximized beside the Data place, a second file waits for
  * the join screen, and a newer copy of a loaded file replaces it with Undo. Every count is read
  * from the element.
  */
@@ -28,16 +29,36 @@ declare module "vitest/browser" {
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
-/** What each fixture draws alone, and whether it opens the table maximized. */
-const EXPECTED: Readonly<Record<string, { nodes: number; edges: number; maximized: boolean }>> = {
-    "tp53-interactions.tsv": { nodes: 60, edges: 120, maximized: false },
-    "tumor-expression.tsv": { nodes: 69, edges: 0, maximized: true },
-    "suppliers.csv": { nodes: 40, edges: 0, maximized: true },
-    "ships-to-2024-09.csv": { nodes: 40, edges: 150, maximized: false },
-    "ships-to-2024-10.csv": { nodes: 40, edges: 159, maximized: false },
-    "accounts.csv": { nodes: 298, edges: 0, maximized: true },
-    "transfers.csv": { nodes: 316, edges: 449, maximized: true },
-    "auth-log.csv": { nodes: 19, edges: 400, maximized: true },
+/** How the table dock stands after a load. */
+type Dock = "closed" | "docked" | "maximized";
+
+/**
+ * How the table dock stands.
+ * @param state - the workspace state.
+ * @param state.dockOpen - whether the dock is open.
+ * @param state.dockMaximized - whether it fills the canvas area.
+ * @returns closed, docked or maximized.
+ */
+function dockOf(state: { dockOpen: boolean; dockMaximized: boolean }): Dock {
+    if (!state.dockOpen) {
+        return "closed";
+    }
+    return state.dockMaximized ? "maximized" : "docked";
+}
+
+/**
+ * What each fixture draws alone, and how it leaves the table dock: maximized only when the load
+ * could not draw (ends to pick), docked for problems that did not stop it.
+ */
+const EXPECTED: Readonly<Record<string, { nodes: number; edges: number; dock: Dock }>> = {
+    "tp53-interactions.tsv": { nodes: 60, edges: 120, dock: "closed" },
+    "tumor-expression.tsv": { nodes: 69, edges: 0, dock: "docked" },
+    "suppliers.csv": { nodes: 40, edges: 0, dock: "docked" },
+    "ships-to-2024-09.csv": { nodes: 40, edges: 150, dock: "closed" },
+    "ships-to-2024-10.csv": { nodes: 40, edges: 159, dock: "closed" },
+    "accounts.csv": { nodes: 298, edges: 0, dock: "docked" },
+    "transfers.csv": { nodes: 316, edges: 449, dock: "docked" },
+    "auth-log.csv": { nodes: 19, edges: 400, dock: "docked" },
 };
 
 /**
@@ -145,7 +166,7 @@ describe("the loading doors on the real element", () => {
         const expected = EXPECTED[name];
         await holds(session, expected.nodes, expected.edges);
         await waitFor(() => {
-            assert.strictEqual(store.get().dockMaximized, expected.maximized);
+            assert.strictEqual(dockOf(store.get()), expected.dock);
         });
         assert.isNull(store.get().dialog, "no dialog opens over a dropped file");
         assert.deepEqual(
@@ -160,7 +181,7 @@ describe("the loading doors on the real element", () => {
         const expected = EXPECTED[name];
         await holds(session, expected.nodes, expected.edges);
         await waitFor(() => {
-            assert.strictEqual(store.get().dockMaximized, expected.maximized);
+            assert.strictEqual(dockOf(store.get()), expected.dock);
             assert.isNull(store.get().dialog);
         });
     });
@@ -194,8 +215,8 @@ describe("the loading doors on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isTrue(store.get().dockOpen);
-        assert.isTrue(store.get().dockMaximized);
+        // The files drew: their problems open the table docked, not over the drawing.
+        assert.strictEqual(dockOf(store.get()), "docked");
     });
 
     it("holds a second file for the join screen, with the matches the element counts", async () => {

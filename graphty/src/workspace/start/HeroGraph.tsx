@@ -22,10 +22,9 @@ export interface HeroSample {
 
 /**
  * Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks.
- * Drawn on demand, as the workspace's element is (issue #1943): paused, hovered or still, the
- * graph is not drawn again on every animation frame, which on a software GPU held the page's main
- * thread for tens of milliseconds a frame and made every button on the page slow to answer. The
- * turning still draws every frame, because a moving camera asks for one.
+ * Paused, the still graph is not drawn again on every animation frame: on a software GPU each
+ * frame held the page for tens of milliseconds, so every click on the page's buttons waited
+ * behind them (the workspace's element does the same, issue #1943).
  */
 const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" }, rendering: { onDemand: true } } as const;
 

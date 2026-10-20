@@ -36,7 +36,7 @@ All studio work happens in the studio worktree (today `.worktrees/design-studio-
 | `report.md`                       | The tier 1 report                                                                                                                                                    |
 | `tier<N>/`                        | One tier: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `rounds/`, `report.md`                                                                               |
 | `tier<N>/decided.md`              | The tier's binding decisions: each settled behavior (what a key does on a control, a Tab stop, a count) with its date, reason and evidence; every triage cites it    |
-| `tier<N>/backlog.md`              | Cosmetic defects kept out of the freeze loop, fixed later in batches with tests                                                                                      |
+| `tier<N>/backlog.md`              | Defects below the session-ready bar (friction, wording, cosmetic, keyboard or screen-reader only), fixed between rounds by the decide-and-fix loop                   |
 
 Frozen builds are copied to `<repo>/.study-builds/tier<N>-<round>-<sha>/` and never changed.
 
@@ -98,7 +98,7 @@ Read the preflight's problems, fix them, then launch for real with the same args
 | `startRound`, `skipPrepare` | `1`, `false`                                                       | Continue at a later round in a fresh run (see below)                                          |
 | `maxSessions`               | `56`                                                               | Sessions per round                                                                            |
 | `browserSlots`              | `4`                                                                | Browser-driving agents alive at once; values above 4 are cut to 4                             |
-| `dryRunPasses`              | `4`                                                                | Fix-and-re-pilot passes before each round                                                     |
+| `dryRunPasses`              | `2`                                                                | Most fix-and-re-pilot passes before each round; still not session-ready after them, it stops  |
 | `maxDecisions`              | `15`                                                               | Changes the director may decide per round                                                     |
 | `team`, `teamRemove`        | the eleven roles                                                   | Add or rename roles (`{ steward: "Ontology Steward" }`) or drop optional ones                 |
 | `experts`                   | Figma, visual, accessibility walkthroughs and the screenshot audit | `[[role, what]]` pairs, one expert agent each per round                                       |
@@ -116,13 +116,15 @@ true` rather than resuming the old one (see the lessons below).
    that the starting round's session folder is empty, and the browser count. It returns before
    anything costly if one fails.
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
-   criteria once; the director applies the reviews and **freezes** them; a build is frozen and
-   served; every task is piloted three ways (the success path, its commonest detours, and by
-   keyboard), and a pilot that skipped a route is run again; the **dry run** triages what the
-   pilots found against `decided.md`, fixes the blocking and confusing defects (repeated ones in
-   their shared component), re-walks the routes each fix group touched and reverts a group that
-   regresses, lands the pass, freezes a new build, and re-pilots with the same detours until the
-   exit test passes. It stops the studio when a pass is still about 40% regressions.
+   criteria once; the director applies the reviews and **freezes** them; origin/golden is merged
+   into the studio branch and a build is frozen and served; every task is piloted three ways (the
+   success path, its commonest detours, and by keyboard), and a pilot that skipped a route is run
+   again; the **dry run** triages what the pilots found against `decided.md` and the
+   session-ready bar (see the lessons), fixes only crashes, blocked tasks and grading-spoiling
+   results, sends everything else to `backlog.md`, re-walks the routes each fix group touched and
+   reverts a group that regresses, lands the pass, freezes a new build, and re-pilots only the
+   success paths and the touched routes. It exits as soon as the bar holds, and after
+   `dryRunPasses` (2) fix passes that still leave blockers it stops for the owner with the list.
 3. **Rounds** -- the researcher plans sessions (`real.mjs --brief` writes each participant's
    briefing in a folder outside the studio's files, and a session that read anything else is
    void); the
@@ -132,8 +134,9 @@ true` rather than resuming the old one (see the lessons below).
    screenshot audit run beside them; the researcher scores; two skeptics try to refute every
    finding; verified insights go to the owner; a verdict decides whether to stop. If not: every
    role proposes, the red team attacks, the director decides (with a generality check), engineers
-   fix in the owning package with tests, the fixes land, a new build is frozen and served, the dry
-   run runs again,
+   fix in the owning package with tests (the round's decisions plus backlog items, grouped by
+   shared component; the accessibility expert also checks the backlog's accessibility items), the
+   fixes land, origin/golden is merged in, a new build is frozen and served, the dry run runs again,
    every designer updates their notes, and the documents are committed.
 4. **Report** -- the director writes `tier<N>/report.md`; the branch is made ready to land.
 
@@ -169,13 +172,21 @@ owner decision, and only once per item.
 
 Each rule below exists because breaking it cost a run.
 
-- **Dry run before every round's sessions.** Pilot every task on the frozen build, triage what the
-  pilots find into implementation or polish defects versus open design questions, fix the first
-  kind, freeze again and re-pilot until clean (at most 4 passes). The first tier 2 launch used the
-  pilots only to correct the answer key; 120 pilot defects (clipped text, typing landing in the
-  wrong field, filters hiding their own settings, missing units) went straight to participants,
-  and the round was stopped after five sessions. Participants exist to answer design questions,
-  not to rediscover bugs.
+- **Dry run before every round's sessions, to the session-ready bar and no further.** A build is
+  ready for sessions when it has no crash and no blocked task or grading-spoiling wrong result on
+  any task's success path or listed detours, re-walked after fixing. The dry run fixes only those;
+  friction, wording, cosmetic and keyboard or screen-reader-only problems go to `backlog.md`
+  (accessibility items also to the accessibility expert's walkthrough) and are fixed between
+  rounds by the decide-and-fix loop. At most 2 fix passes; a re-pilot after a fix pass walks only
+  the success paths and the routes the fixes touched; if the bar still fails after 2, stop for the
+  owner with the remaining blockers. Tier 3 ran five full passes over about three days with no
+  session: of fix-now lists of 344, 217, 151, 129 and 124 rows only 2 were crashes, 76-88% were
+  friction, wording or cosmetic, and round 1 could have started after pass 2 or 3. The opposite
+  failure is real too: the first tier 2 launch used the pilots only to correct the answer key, and
+  defects that blocked or misled participants stopped the round after five sessions.
+- **Merge origin/golden before every freeze of a round's build.** Before a tier's first build and
+  before each round's build, origin/golden is merged into the studio branch, so the study never
+  runs on a stale app.
 - **A dry run that passes on the answer key's route is necessary but not sufficient; it also walks
   each task's commonest detours.** Tier 2 round 1's dry run walked every success path on four
   builds and no participant met a broken control there -- but participants who took common detours
@@ -292,22 +303,15 @@ Each rule below exists because breaking it cost a run.
   only check. After each fix group, the routes its diff touches are walked again (Enter, Escape
   and Tab on every changed control included), and a group that regresses is reverted and handed
   to the next triage.
-- **Only blocking or confusing defects gate a round.** Of tier 3's sampled pilot defects 93% were
-  real, but only 1 in 40 blocked and about 40% were polish; polish in the freeze loop kept every
-  pass busy. Cosmetic defects go to `tier<N>/backlog.md` and are fixed in batches with tests.
 - **A pass is not complete while any task or keyboard route was skipped.** Tier 3 pilots skipped
   tasks when no browser slot was free, and a skipped route reads as a clean one. No slot is a
-  reason to wait, never to skip; a pilot that skipped is run again, and later passes walk the same
-  detours as the first so their counts compare.
+  reason to wait, never to skip; a pilot that skipped is run again, and a targeted re-pilot walks
+  each touched route exactly as the first pass did.
 - **Land every pass.** 526 product fix commits on the tier 3 branch never reached master, so no
   CI, SonarQube or screenshot review saw them and no consumer got them, and pass 2's work was
   committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
   reproduces is invalid), merge origin/master into the studio branch every pass, land through
   `node tools/land.mjs land <branch>` (see "Landing"), and commit the pilot reports and triage.
-- **Exit test for a dry-run loop: zero blocking rows, regressions under 10% of the "fix now" list,
-  no reversed decision.** Tier 3's passes shrank 344, 217, 151, 129 rows without converging,
-  because "no defects left" never came. A pass still at about 40% regressions stops the full
-  passes: fix the shared parts first, then pilot again.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
   copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
   `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing

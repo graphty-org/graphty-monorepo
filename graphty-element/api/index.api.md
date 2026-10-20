@@ -257,6 +257,96 @@ export interface AnimationResult {
 }
 
 // @public
+export interface AutosaveApi {
+    discard(): Promise<void>;
+    flush(): Promise<void>;
+    list(): Promise<readonly AutosaveEntry[]>;
+    readonly ready: Promise<AutosaveRestored | null>;
+    remove(id: string): Promise<void>;
+    removeAll(): Promise<void>;
+    requestPersistence(): Promise<boolean>;
+    restore(id: string, options?: {
+        readonly discard?: boolean;
+    }): Promise<ProjectOpenReport>;
+    readonly restored: AutosaveRestored | null;
+    stash(name: string, value: unknown): void;
+    stashed(name: string): unknown;
+    readonly status: AutosaveStatus;
+}
+
+// @public
+export type AutosaveAtRisk = CodedFact<"W_AUTOSAVE_ORIGIN_EPHEMERAL">;
+
+// @public
+export interface AutosaveAvailable {
+    readonly entry: AutosaveEntry;
+    readonly problem: CodedFact | null;
+    readonly reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual";
+}
+
+// @public
+export type AutosaveCode = "E_AUTOSAVE_UNAVAILABLE" | "E_AUTOSAVE_KEY_AMBIGUOUS" | "E_AUTOSAVE_QUOTA" | "E_AUTOSAVE_STALLED" | "E_AUTOSAVE_CONNECTION_LOST" | "E_AUTOSAVE_TOO_LARGE" | "E_AUTOSAVE_FAILED" | "E_AUTOSAVE_ENTRY_TAKEN" | "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_FORMAT_NEWER" | "E_AUTOSAVE_RESTORE_CRASHED" | "W_AUTOSAVE_ORIGIN_EPHEMERAL";
+
+// @public
+export interface AutosaveEntry {
+    readonly createdAt: string;
+    readonly dirty: boolean;
+    readonly edges: number;
+    readonly ended?: "replaced";
+    readonly id: string;
+    readonly key: string;
+    readonly live: boolean;
+    readonly name: string;
+    readonly nodes: number;
+    readonly revision: number;
+    readonly savedAt: string;
+}
+
+// @public
+export interface AutosaveOptions {
+    readonly dataMaxWaitMs: number;
+    readonly delayMs: number;
+    readonly keep: number;
+    readonly key: string;
+    readonly maxWaitMs: number;
+    readonly persist: boolean;
+    readonly restore: "auto" | "manual";
+    readonly store: AutosaveStore;
+    readonly unloadGuard: "pending" | "unexported" | "off";
+}
+
+// @public
+export interface AutosaveRestored {
+    readonly copiedFrom: string | null;
+    readonly entry: AutosaveEntry;
+    readonly navigationType: string | null;
+    readonly others: number;
+    readonly pageOverrides: readonly string[];
+    readonly report: ProjectOpenReport;
+    readonly revision: number;
+    readonly savedAt: string;
+    readonly wasDiscarded: boolean | null;
+}
+
+// @public
+export interface AutosaveStatus {
+    readonly entry: string | null;
+    readonly ephemeral: "likely" | "unknown";
+    readonly persisted: boolean | null;
+    readonly problem: CodedFact<AutosaveCode> | null;
+    readonly revision: number;
+    readonly savedAt: string | null;
+    readonly state: "off" | "saved" | "pending" | "failing";
+    readonly storage: {
+        readonly usage: number;
+        readonly quota: number;
+        readonly entries: number;
+        readonly bytes: number;
+    } | null;
+    readonly unexported: boolean;
+}
+
+// @public
 export interface BaseDataSourceConfig {
     // (undocumented)
     chunkSize?: number;
@@ -1994,6 +2084,13 @@ export class Graphty extends LitElement {
     asyncFirstUpdated(): Promise<void>;
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
+    get autosave(): string | null;
+    set autosave(value: string | boolean | null | undefined);
+    get autosaveOptions(): Partial<AutosaveOptions>;
+    set autosaveOptions(value: Partial<AutosaveOptions> | null | undefined);
+    get autosaver(): AutosaveApi;
+    get autosaveRestore(): "auto" | "manual";
+    set autosaveRestore(value: "auto" | "manual" | null | undefined);
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
@@ -2432,6 +2529,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNSAVED_CHANGES"
 /**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
@@ -2819,7 +2926,14 @@ export type GraphtyWarningCode =
 * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
 * `params.options` lists the names it ignored and `params.available` the names it takes.
 */
-| "W_UNKNOWN_OPTION";
+| "W_UNKNOWN_OPTION"
+/**
+* A layout was given a dimension option (such as `dim: 3`) while the graph is in 2D mode, and
+* was computed in 2D instead: a 2D view always draws a 2D layout. Emitted as a `layout-warning`
+* event. `params.requested` holds the options as given and `params.used` the values used, by
+* name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
+*/
+| "W_DIMENSION_OVERRIDDEN";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -4230,6 +4344,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 // @public
 export interface RendererStatus {
     readonly active: ActiveRenderer;
+    readonly drawing: boolean;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }

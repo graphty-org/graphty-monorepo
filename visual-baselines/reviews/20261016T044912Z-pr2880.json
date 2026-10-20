@@ -1,0 +1,189 @@
+{
+  "version": 2,
+  "pr": 2880,
+  "subject": {
+    "builtMerge": "39905c8e695ea72c8ceac6bac7a45261bbfd358d",
+    "head": "ec41477bd762514404d346dec58f3913eac45e71",
+    "runId": 38849074617,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "39905c8e695ea72c8ceac6bac7a45261bbfd358d"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.dark.png",
+      "from": "ed4c958accf3ac987fb17d37ed11c42dbb92d7266ead6267e7e5e29b12063448",
+      "to": "daba0e0baa90e703b45ab6da8ad6e20be1d4f0b67dd987810fdc0c3b35a3ea7d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--graph-file.light.png",
+      "from": "9fd7b837b8a82306e0eb6fddf873e69fa07e978725a24751bf40b3ce79dedc2f",
+      "to": "5decf06852739e919533442dee412826108812474aa6a152a280255f6ded8b9a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.dark.png",
+      "from": "3105a9607f9bbc9631171bad43671875e851753d981bdf1d2592b7b10da39c68",
+      "to": "b0937f5b731aafa65737db466295af2311b3cc559eeca0164efdc5c672827487",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--json-plain.light.png",
+      "from": "27af5de5eb7c8222930effe7beee8666d8af033a4cad22059cb8fc0bcd99bb9f",
+      "to": "8cfd10879f71c76946659ba327dc4dec2c953149b37930734e3c786315f1a3b5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "a0f4495f78010674699663bdb08f81e6dee0c110ec794513ba84cbebca565af3",
+      "to": "521eedd46ed25815a4f0ffc94d8eab423bf7258b546d15fa71d9c7a4e3779286",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "3dedd641beb4a4a89c4712475a7b2ce9f4ebcf933a5f6aa0cdecbacfc3b564b3",
+      "to": "bf391cf6eab6d674e9ee184d5d83b1cbf6aab894176c42435c8523d0e953c1b2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.dark.png",
+      "from": "0d93e68461cecc3c44b35a766030360fc202f714098cae606f28d67cc918a126",
+      "to": "f76607a3e468cf9a8dc499ee05f21bc2b08ad5addd3a7f352c0f9a65fe3fa66a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-start-screen--settings-general.light.png",
+      "from": "df1d48182ebd5d04fb45047e5f61b4823cc95eb4578c2e23a00fc4d6e57a01c9",
+      "to": "1f0f7a8014e951cb235f07184a1fd3d02ec5ab9d9c411bebae235c993175efae",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2383,
+        "commit": "ccd952924708c190070c8f6b3c62b650e87b7cdd",
+        "record": "visual-baselines/reviews/20261016T035955Z-pr2383.json",
+        "reviewedAt": "2026-10-16T03:59:55.076Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.dark.png",
+      "from": "37ea883d5d479c16a9b345a37d55f2ffc3bbce3fee50f17043239d02f1eb9e74",
+      "to": "92fff0351edc8d83f68b0ffa0a65ee19f15d400bc47f13ddec96ff1a3b2499ed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.light.png",
+      "from": "e0cbe518c4a38589f85f47d9ae38ec250c2443c45610c64c0b7155970123bb80",
+      "to": "12deeed9f5655884cf0699ad9eec3f718913f3f2304982ffa84f4ce5b7b9dc95",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.dark.png",
+      "capture": "a298fb88a77ea3e8596f7c99f28a69c254b63321f143560a1088caa783380151",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.light.png",
+      "capture": "7ec10e2069753e060a5f599a074826899c62673d05759806b52e226d284fd97c",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.dark.png",
+      "capture": "8ed2f8f2d6b77007e87c992eb7509b9b2db1297fa35004da72139a59aafffd44",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.light.png",
+      "capture": "5a3084e2ba1131832e43ce045da0e1a04a0986e0f2c3c0139af62dee86dff2c6",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.dark.png",
+      "capture": "a96c81d8f1dafde3f94d4e09d022503cea26a59866c364154065e6f68c28d0e6",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.light.png",
+      "capture": "74b32dfe58a1baec47f708340bda33e8ae30e6434883969ff4b3d216a8cea6d0",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.dark.png",
+      "capture": "7d8297d1a3b90bf634fac93d81b269c3d740984402c9342fb6f81fff4f4c820e",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.light.png",
+      "capture": "be0ea29d8e9f3a5c9f303e17bf88a22f26c92af73fddc7459bcfcc694f11014b",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.dark.png",
+      "capture": "10c4b55e7712327d55ad5d4f2fde9dec9557540282e46ee418b05fb61858b0f8",
+      "reason": "arrowhead should be behind highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.light.png",
+      "capture": "a77e1f5f70bf289538fe25f134bcafbeb03c7d189073f054da8fbfcc409c2998",
+      "reason": "arrowhead should be behind highlight"
+    }
+  ],
+  "reviewedAt": "2026-10-16T04:49:12.480Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiQm1abnpIX2pvY3RzbEwwa0lGYmZkOXNBMkdZTWx2b0xxQVJfOVlveTNVdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDuE_wDBjYIjkOp5zXWkEnRoCU1hqSwzNgf1SZvuW0wIwIhAK0oGdDwN-aUXIkwFXvkk8T2cFxPEExy2dsP1k85dZjK"
+  }
+}

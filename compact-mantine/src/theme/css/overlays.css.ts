@@ -17,12 +17,12 @@ import { cmFont } from "../tokens";
 import { ROW_LIT, ROW_UNLIT } from "./00-foundation.css";
 
 const css = `
-/* ---------------------------------------------------------------- 8.1 dark menu */
+/* ---------------------------------------------------------------- 8.1 menu */
 
-/* The dropdown: the foundation's cm-menu-surface (#1e1e1e, radius 13, elevation 400 from the
-   page's scheme, padding 8 0, children dark-scoped) plus the menu's own width floor and the
-   viewport clamp, whose max-height the Menu's size middleware writes. The native scrollbar is
-   hidden, as in Figma. */
+/* The dropdown: the foundation's cm-menu-surface (the page's scheme, or always dark with
+   cm-menu-inverse; radius 13, elevation 400 from the page's scheme, padding 8 0) plus the
+   menu's own width floor and the viewport clamp, whose max-height the Menu's size middleware
+   writes. The native scrollbar is hidden, as in Figma. */
 .cm-menu {
     min-width: 152px;
     overflow-y: auto;
@@ -31,8 +31,8 @@ const css = `
 .cm-menu::-webkit-scrollbar { display: none; }
 
 /* Figma's scroll chevron rows: 24 tall, the menu's fill, a 5 x 3 chevron (the register's
-   chevronUp / chevronDown polyline drawn in a 10px box; white because the menu is dark in both
-   themes). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
+   chevronUp / chevronDown polyline drawn in a 10px box; white on a dark menu, the menu's dark ink
+   on a light one). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
    clamped menu for each end it can still scroll towards, and scrolls it while one is hovered.
    The rows are sticky pseudo elements laid over the first and last visible rows. */
 .cm-menu[data-cm-scroll-up]::before,
@@ -56,6 +56,12 @@ const css = `
     margin-bottom: -8px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E");
 }
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-up]::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,10 8,6 12,10' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-down]::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
+}
 
 /* A mount hook: overlayBehavior.ts listens for these animations' animationstart to see a
    menu or tooltip appear, without observing the whole page. */
@@ -68,15 +74,12 @@ const css = `
 .cm-tooltip { animation: cm-tooltip-mount 1ms; }
 .cm-tooltip:not([data-cm-seen]) { visibility: hidden; }
 
-/* A submenu is rendered inside its parent's dropdown, so the foundation's "children are dark"
-   rule reaches it and would resolve its shadow dark in the light app. Its shadow follows the
-   page like every other menu's. */
-:where([data-mantine-color-scheme="light"]) .cm-menu-surface > .cm-menu-surface { color-scheme: light; }
 /* Menu.Sub draws its dropdown through a Popover, so the dropdown also carries the popover's
-   classes (cm-popover-surface, cm-popover). The menu's dark surface wins. */
+   classes (cm-popover-surface, cm-popover). The menu's surface, and its page shadow, win. */
 .cm-menu-surface.cm-popover-surface {
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
 
@@ -149,7 +152,7 @@ const css = `
 
 /* Danger rows (color="red"): Mantine writes the color into the row's inline --menu-item-color;
    the danger slots replace the menu's. ponytail: keyed on the inline style Mantine writes for
-   color="red"; any other color keeps the menu's white. */
+   color="red"; any other color keeps the menu's ink. */
 .cm-menu-item[style*="--mantine-color-red"] { color: var(--cm-text-danger); }
 .cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered])::before { background: var(--cm-bg-danger); }
 .cm-menu-item[style*="--mantine-color-red"]:is(:hover, :focus, [data-hovered]) {

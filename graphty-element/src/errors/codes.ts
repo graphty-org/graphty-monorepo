@@ -170,6 +170,16 @@ export type GraphtyErrorCode =
      */
     | "E_UNSAVED_CHANGES"
     /**
+     * An autosave entry another tab or element is writing, so it cannot be restored or removed
+     * from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+     */
+    | "E_AUTOSAVE_ENTRY_TAKEN"
+    /**
+     * An autosave entry that does not exist (it was removed, or never written under this key).
+     * `details.id` names it. The caller lists the entries again.
+     */
+    | "E_AUTOSAVE_UNKNOWN_ENTRY"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -499,7 +509,14 @@ export type GraphtyWarningCode =
      * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
      * `params.options` lists the names it ignored and `params.available` the names it takes.
      */
-    | "W_UNKNOWN_OPTION";
+    | "W_UNKNOWN_OPTION"
+    /**
+     * A layout was given a dimension option (such as `dim: 3`) while the graph is in 2D mode, and
+     * was computed in 2D instead: a 2D view always draws a 2D layout. Emitted as a `layout-warning`
+     * event. `params.requested` holds the options as given and `params.used` the values used, by
+     * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
+     */
+    | "W_DIMENSION_OVERRIDDEN";
 
 /**
  * Every code, as a lookup table.
@@ -532,6 +549,8 @@ const CODE_TABLE = {
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
+    E_AUTOSAVE_ENTRY_TAKEN: "E_AUTOSAVE_ENTRY_TAKEN",
+    E_AUTOSAVE_UNKNOWN_ENTRY: "E_AUTOSAVE_UNKNOWN_ENTRY",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",

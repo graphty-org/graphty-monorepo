@@ -4,7 +4,7 @@
  *
  * Colors become CSS custom properties `--cm-<name>` written with `light-dark()`, so each one
  * resolves from the `color-scheme` of the element that USES it. Mantine sets `color-scheme` on
- * `:root`; a subtree that must render dark in the light app (menus, tooltips, the toast) sets
+ * `:root`; a subtree that must render dark in the light app (tooltips, the toast, an inverse menu) sets
  * `color-scheme: dark` on a wrapper (`cm-dark-surface`) and every token inside it resolves dark.
  *
  * Components never write a raw color: they read `var(--cm-*)` (or PANEL_INK, which resolves to
@@ -72,9 +72,24 @@ export const CM_COLORS = {
     "text-oninverse": t("#ffffffe5", "#000000e5", "--color-text-oninverse"),
     "text-component": t("#8638e5", "#d1a8ff", "--color-text-component"),
     "text-danger": t("#dc3412", "#fca397", "--color-text-danger"),
+    // Warning text. Figma has no warning text variable: these are darkened / lightened from its
+    // warning fill to meet 4.5:1 on the panel and on a field in both schemes.
+    "text-warning": t("#a65900", "#f7d15f"),
+    // Success text and glyphs. The success fill (#14ae5c) is 2.90:1 on the light panel; these meet
+    // 4.5:1 on the panel and on a field in both schemes (Figma's success-pressed fill in light).
+    "text-success": t("#008043", "#79d297"),
     "text-menu": t("#ffffff", "#ffffff", "--color-text-menu"),
     "text-menu-secondary": t("#ffffffb2", "#ffffffb2", "--color-text-menu-secondary"),
     "text-menu-disabled": t("#ffffff66", "#ffffff66", "--color-text-menu-disabled"),
+    // The menu that follows the page's scheme (cm-menu-surface): a light surface with dark ink
+    // in the light app, Figma's dark menu in the dark app. The `-menu` tokens above stay the
+    // always-dark values the inverse menu, the tooltip and the toast draw with. The secondary ink
+    // is the AA value (4.74:1 on white; Figma's #00000080 is 3.95:1).
+    "bg-menu-page": t("#ffffff", "#1e1e1e"),
+    "text-menu-page": t("#000000e5", "#ffffff"),
+    "text-menu-page-secondary": t("#0000008c", "#ffffffb2"),
+    "text-menu-page-disabled": t("#0000004d", "#ffffff66"),
+    "border-menu-page": t("#e6e6e6", "#383838"),
     icon: t("#000000e5", "#ffffff", "--color-icon"),
     "icon-secondary": t("#00000080", "#ffffffb2", "--color-icon-secondary"),
     "icon-tertiary": t("#0000004d", "#ffffff66", "--color-icon-tertiary"),
@@ -211,6 +226,9 @@ export const CM_HIGH_CONTRAST: Partial<Record<CmColorName, { light: string; dark
     "bg-brand-pressed": { light: "#105cad", dark: "#105cad" },
     "text-brand": { light: "#0768cf", dark: "#7cc4f8" },
     "icon-brand": { light: "#0768cf", dark: "#7cc4f8" },
+    // Figma's #dc3412 is 4.24:1 on a field or hover ground (#f5f5f5); #c4381c, the palette's next
+    // darker red, is 4.90:1 there.
+    "text-danger": { light: "#c4381c", dark: "#fca397" },
     "bg-danger": { light: "#bd2915", dark: "#963323" },
     "bg-success": { light: "#008043", dark: "#0a5c35" },
 };

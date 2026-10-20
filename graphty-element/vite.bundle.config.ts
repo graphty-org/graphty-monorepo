@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
@@ -26,6 +27,10 @@ export default defineConfig({
         // A page loading this from a CDN is running the shipped build, never a dev build, and
         // Lit's dev-mode warning would otherwise fire on every load.
         "process.env.NODE_ENV": JSON.stringify("production"),
+        // The version a project file's `generator` names (src/session/runs/engine.ts).
+        __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+            (JSON.parse(readFileSync(`${here}package.json`, "utf8")) as { version: string }).version,
+        ),
     },
     build: {
         // The library build owns dist/. This one adds a file to it rather than replacing it.

@@ -70,7 +70,7 @@ import { frameTools, icons, moveTools, shapeTools, textTools } from "./fixtures"
  * | ToolButton | 32 x 32, padding 4, radius 5, 24px icon box |
  * | Chevron | 16 x 32, 1px after its tool (a group is 49 x 32) |
  * | Divider | 1 x 48, full height |
- * | Flyout | the dark menu, 4px above the chevron, start-aligned |
+ * | Flyout | the menu, 4px above the chevron, start-aligned |
  * | `floating` | fixed, bottom 12, centered |
  */
 const meta: Meta<typeof Toolbar> = {
@@ -203,7 +203,7 @@ export const States: Story = {
         }),
 };
 
-/** A flyout left open: the dark menu 4px above the chevron, start-aligned, a check on the face. */
+/** A flyout left open: the menu 4px above the chevron, start-aligned, a check on the face. */
 export const FlyoutOpen: Story = {
     args: { "aria-label": "Editor" },
     render: (args) => (

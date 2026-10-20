@@ -86,6 +86,40 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
     });
 
+    it("reads SmartNodeLabelModel placements and keeps the internal model's top inside the node", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(join(CORPUS, "yed-shapenode/voc__voctomix__schema.graphml")),
+        );
+        const position = resolveStyles(styles, "node", "labelPosition", snapshot);
+        // nodeRatioY 0.5 with labelRatioY -0.5: the label's top on the node's bottom edge.
+        expect(position[snapshot.ids.indexOf("n2::n0")]).toBe("bottom");
+        // A group's internal `t` label: inside the top of the box.
+        expect(position[snapshot.ids.indexOf("n0")]).toBe("inside-top");
+    });
+
+    it("maps SmartNodeLabelModel ratios to the nearest position", async () => {
+        const smart = (id: string, lx: number, ly: number, nx: number, ny: number): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="custom">L<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="${String(lx)}" labelRatioY="${String(ly)}" nodeRatioX="${String(nx)}" nodeRatioY="${String(ny)}" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}${smart("c", 0, 0, 0, 0)}${smart("top", 0, 0.5, 0, -0.5)}${smart("in", 0, -0.5, 0, -0.5)}${smart("r", -0.5, 0, 0.5, 0)}${smart("bl", 0.5, -0.5, -0.5, 0.5)}
+            <node id="x"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="custom">L<y:LabelModel><y:Other/></y:LabelModel></y:NodeLabel></y:ShapeNode></data></node>
+            <node id="s"><data key="d6"><y:ShapeNode><y:NodeLabel modelName="sides" modelPosition="n">L</y:NodeLabel></y:ShapeNode></data></node>
+            </graph></graphml>`,
+        );
+        const position = resolveStyles(styles, "node", "labelPosition", snapshot);
+        const at = (id: string): unknown => position[snapshot.ids.indexOf(id)];
+        expect([at("c"), at("top"), at("in"), at("r"), at("bl"), at("s")]).toEqual([
+            "center",
+            "top",
+            "inside-top",
+            "right",
+            "bottom-left",
+            "top",
+        ]);
+        expect(at("x")).toBe("center");
+        expect(styles.styles.notes.some((n) => n.code === "W_STYLE_UNKNOWN_VALUE")).toBe(true);
+    });
+
     it("labels a real icon node by the visible label after its empty icon label", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "yed-shapenode/svanoort__pyresttest__contexts.graphml")),
@@ -132,6 +166,15 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
+        expect(bare.styles.styles.graph.background).toBeUndefined();
+    });
+
+    it("paints a yEd file white, as yEd's canvas does: the file holds no background", async () => {
+        const { styles } = await load(
+            `${YED_HEAD}<node id="a"><data key="d6"><y:ShapeNode><y:Fill color="#FF0000"/></y:ShapeNode></data></node></graph></graphml>`,
+        );
+        expect(styles.styles.source.tool).toBe("yed");
+        expect(styles.styles.graph.background).toBe("#ffffff");
     });
 
     it("draws yEd's flowchart GenericNodes as the shapes yEd draws, matching the name whole", async () => {
@@ -189,7 +232,7 @@ describe("GraphML styles: yFiles 3", () => {
 });
 
 describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
-    it("reads Gephi's r, g, b and size keys with Gephi's defaults and the source node's color on edges", async () => {
+    it("reads Gephi's r, g, b and size keys with Gephi's defaults and the mixed node colors on edges", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "gephi-rgb/nielmclaren__constellation.js__data.graphml")),
         );
@@ -200,10 +243,8 @@ describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
         const b = snapshot.nodes.value("b", 0) as number;
         const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
         expect(resolveStyles(styles, "node", "fill", snapshot)[0]).toBe(hex);
-        expect(resolveStyles(styles, "edge", "color", snapshot)[0]).toBe(
-            resolveStyles(styles, "node", "fill", snapshot)[snapshot.edgeSource(0)],
-        );
-        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "SOURCE_NODE_COLOR")).toBe(true);
+        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "END_NODES_COLOR")).toBe(true);
+        expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(true);
     });
 
     it("gives Cytoscape's export Cytoscape's default style, nodes labeled by name", async () => {

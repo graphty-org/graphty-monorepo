@@ -9,6 +9,7 @@
 
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
+import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
@@ -276,14 +277,20 @@ function hasUnsaved({ workspace, session }: CommandContext): boolean {
  * @param proceed - what replaces the project.
  */
 export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
-    if (hasUnsaved(ctx)) {
-        askToDiscard(ctx.workspace, () => {
+    // The work left behind is the reader's choice, so it is not offered back on a later visit.
+    const kept = forgetKeptWork(ctx);
+    const leave = (): Promise<void> => {
+        if (kept === null) {
             proceed();
             return Promise.resolve();
-        });
+        }
+        return kept().then(proceed);
+    };
+    if (hasUnsaved(ctx)) {
+        askToDiscard(ctx.workspace, leave);
         return;
     }
-    proceed();
+    void leave();
 }
 
 /**

@@ -40,6 +40,8 @@ docs/.vitepress/dist/
 
 # Visual-review baselines: PNGs and the JSON records written with them, byte-exact
 visual-baselines/
+# Signed screenshot approvals: their bytes are what the passkey signed, so a formatter must never touch them.
+visual-review-approvals/
 
 # Other
 gh-pages/

@@ -3,6 +3,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Redo2, Undo2 } from "lucide-react";
 import React, { useCallback, useSyncExternalStore } from "react";
 
+import { BrandLogo } from "../../components/BrandLogo";
+import { AutosaveChip } from "../autosave/AutosaveChip";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CommandButton } from "./CommandButton";
@@ -22,7 +24,7 @@ function useHistoryVersion(session: GraphSession | null): void {
 
 /**
  * The header (tier1-design.md section 2.1): main menu, project name with its menu (double-click
- * or F2 renames), Undo and Redo, and the privacy chip.
+ * or F2 renames), Undo and Redo, the autosave chip and the privacy chip.
  * @returns The header
  */
 export function Header(): React.JSX.Element {
@@ -33,6 +35,9 @@ export function Header(): React.JSX.Element {
 
     return (
         <header className="ws-header" aria-label="Project">
+            <span className="ws-header-mark">
+                <BrandLogo variant="mark" height={20} />
+            </span>
             <MainMenu />
             {renaming ? (
                 <InlineRename
@@ -68,6 +73,7 @@ export function Header(): React.JSX.Element {
             )}
             <CommandButton id="history.undo" icon={<Undo2 size={16} aria-hidden />} />
             <CommandButton id="history.redo" icon={<Redo2 size={16} aria-hidden />} />
+            <AutosaveChip />
             <PrivacyChip />
         </header>
     );

@@ -242,6 +242,140 @@ describe("focus after a style line is written or removed", () => {
         assert.strictEqual(focusName(), "Add to node fill");
     });
 
+    it.each([
+        ["a line just added", false],
+        ["a line already set", true],
+    ])("Tab after typing a width moves on to the next control, on %s", async (_, set) => {
+        const session = await openScene();
+        await session.styles.addRow({ name: "Paint", target: "edge", selector: { match: "everything" } });
+        await session.styles.settled();
+        await openStyle("Paint");
+        await addLine("edge", "line", "Width", "edge.width");
+        if (set) {
+            await userEvent.keyboard("3{Enter}");
+            await waitFor(() => {
+                assert.include(written(session, "edge.width"), 3);
+            });
+            await drawn(session);
+        }
+        await userEvent.keyboard("24{Tab}");
+        await waitFor(() => {
+            assert.include(written(session, "edge.width"), 24);
+        });
+        await drawn(session);
+        const box = within(await lineOf("edge.width")).getByRole("spinbutton", { name: /^Edge width/ });
+        const active = document.activeElement;
+        assert.notStrictEqual(active, box, "focus left the width box");
+        assert.isTrue(
+            active !== null && (box.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+            `focus is after the width box, not on ${focusName()}`,
+        );
+        assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
+    });
+
+    it("Tab out of a selection's first color moves on, not to the Style tab", async () => {
+        const session = await openScene();
+        const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
+        await act(async () => {
+            await session.selection.apply({ nodes: [valjean] });
+        });
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await screen.findByTestId("style-tab");
+        await showKind("node");
+        const before = session.styles.list().length;
+        await addLine("node", "fill", "Color", "node.color");
+        await userEvent.keyboard("purple{Tab}");
+
+        await waitFor(() => {
+            assert.isAbove(session.styles.list().length, before, "the selection's layer is made");
+        });
+        await drawn(session);
+        const box = within(await lineOf("node.color")).getByRole("textbox", { name: /^Node color(,|$)/ });
+        const active = document.activeElement;
+        assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
+        assert.isTrue(
+            active !== null && (box.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+            `focus is after the color box, not on ${focusName()}`,
+        );
+    });
+
+    it.each(["Paint", "Everything"])(
+        "Remove a line with Enter on %s lands on its section's +, so a second Enter removes nothing",
+        async (row) => {
+            const session = await openScene();
+            await session.styles.addRow({ name: "Paint", target: "both", selector: { match: "everything" } });
+            await session.styles.settled();
+            await openStyle(row);
+            await showKind("edge");
+            const has = (channel: Channel): boolean =>
+                document.querySelector(`[data-testid="style-tab"] .ws-row[data-line="${channel}"]`) !== null;
+            if (!has("edge.color")) {
+                await addLine("edge", "line", "Color", "edge.color");
+                await typeColor(session, "edge.color", "blue", "#0000FF");
+            }
+            if (!has("edge.width")) {
+                await addLine("edge", "line", "Width", "edge.width");
+                await userEvent.keyboard("3{Enter}");
+            }
+            await waitFor(() => {
+                assert.isTrue(has("edge.color") && has("edge.width"));
+            });
+            await drawn(session);
+            const lines = (): string[] =>
+                [...document.querySelectorAll<HTMLElement>('[data-section="edge-line"] .ws-row')].map(
+                    (line) => line.dataset.line ?? "",
+                );
+            assert.isBelow(lines().indexOf("edge.color"), lines().indexOf("edge.width"), "Width is below Color");
+            within(await lineOf("edge.color"))
+                .getByRole("button", { name: "Remove edge color" })
+                .focus();
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.isFalse(has("edge.color"));
+            });
+            await drawn(session);
+            assert.strictEqual(focusName(), "Add to edge line");
+            assert.isTrue(has("edge.width"), "Width is still set");
+        },
+    );
+
+    it.each([
+        ["width", "edge.width", "3", "24", /^Edge width/, "spinbutton"],
+        ["color", "edge.color", "blue", "red", /^Edge color(,|$)/, "textbox"],
+    ] as const)(
+        "Escape after typing in a %s box shows and says the discard",
+        async (_, channel, first, typed, name, role) => {
+            const session = await openScene();
+            await session.styles.addRow({ name: "Paint", target: "edge", selector: { match: "everything" } });
+            await session.styles.settled();
+            await openStyle("Paint");
+            await addLine("edge", "line", channel === "edge.width" ? "Width" : "Color", channel);
+            await userEvent.keyboard(`${first}{Enter}`);
+            await waitFor(() => {
+                assert.lengthOf(written(session, channel), 1);
+            });
+            await drawn(session);
+            const box = within(await lineOf(channel)).getByRole(role, { name });
+            await userEvent.keyboard(`${typed}{Escape}`);
+            assert.strictEqual(document.activeElement, box, `focus stays in the box, not on ${focusName()}`);
+            const line = await lineOf(channel);
+            const kept = channel === "edge.width" ? "3" : "0000FF";
+            const words = `Edit discarded; this stays ${kept}.`;
+            await waitFor(() => {
+                const said = within(line)
+                    .getAllByRole("status")
+                    .map((status) => status.textContent);
+                assert.include(said, words, "said aloud");
+                const shown = within(line)
+                    .getAllByText(words)
+                    .filter(
+                        (node) => node.getAttribute("role") !== "status" && node.getBoundingClientRect().height > 1,
+                    );
+                assert.lengthOf(shown, 1, "shown on screen");
+            });
+        },
+    );
+
     it("Control+Z after Stop varying lands in the restored line", async () => {
         const session = await openScene();
         await session.styles.add({

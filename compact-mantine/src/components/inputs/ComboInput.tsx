@@ -3,9 +3,10 @@ import { useId, useMergedRef, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
-import { useNumberParser } from "../../i18n";
+import { useLabels, useNumberParser } from "../../i18n";
 import type { ChangeHandler } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { DiscardNote } from "./DiscardNote";
 import { FieldCaret, ListboxCheck, overTriggerComboboxProps } from "./listbox";
 import { useNumberField } from "./useNumberField";
 import { useScrub } from "./useScrub";
@@ -132,6 +133,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         style,
     } = props;
     const parse = useNumberParser();
+    const labels = useLabels();
     const direction = useDirection();
     const [current, setCurrent] = useUncontrolled<string | number>({ value, defaultValue, finalValue: "", onChange });
     const [textDraft, setTextDraft] = useState<string | null>(null);
@@ -368,6 +370,20 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     rightSection={hasList || suffix !== undefined ? rightSection : undefined}
                     rightSectionWidth={rightSectionWidth}
                     rightSectionPointerEvents="all"
+                    inputContainer={(input) => (
+                        <>
+                            {input}
+                            <DiscardNote
+                                text={
+                                    numeric && number.discarded
+                                        ? labels.colorEditDiscarded(
+                                              currentText === "" ? (placeholder ?? "") : currentText + (suffix ?? ""),
+                                          )
+                                        : ""
+                                }
+                            />
+                        </>
+                    )}
                 />
             </Combobox.Target>
             <Combobox.Dropdown className="cm-menu-surface cm-menu cm-listbox">

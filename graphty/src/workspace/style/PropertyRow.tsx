@@ -32,7 +32,7 @@ import {
     type Target,
     writeIn,
 } from "./row";
-import { focusLineNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
+import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
@@ -348,28 +348,48 @@ function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
 }
 
 /**
- * Keeps keyboard focus in a line whose control is drawn anew in place: the first value of a line
+ * The control of a line keyboard focus is on, or on its way to: a Tab out of a box that writes
+ * moves focus on as the write redraws the line, so the control it was going to can leave the page
+ * before focus lands on it. Module state, so the line's copy in a tab drawn anew (a selection's
+ * first value makes its layer) takes it up.
+ */
+let kept: { readonly element: HTMLElement; readonly line: string; readonly label: string | null } | null = null;
+
+/** What can take keyboard focus inside a line. */
+const LINE_CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
+
+/**
+ * Keeps keyboard focus in a line whose controls are drawn anew in place: the first value of a line
  * "+" added turns its waiting field into the set one, an Undo puts a binding's pill back where a
- * color box was. The control that held focus leaves the page, so focus would fall to the page and
- * then to whatever had it before (the section's "+"); it goes to the line's new control instead.
+ * color box was, a Tab out of a box writes and the line is redrawn under the control it moved to.
+ * The control focus was on (or going to) leaves the page, so focus would fall to the page and then
+ * to whatever had it before (the section's "+", the Style tab); it goes to the same control in the
+ * line's new drawing instead: the control of the same name, else the line's field.
  * @param box - the line.
  */
 function useFocusKept(box: React.RefObject<HTMLElement | null>): void {
-    // The control in the line that last took focus, until focus moves to something else.
-    const held = useRef<HTMLElement | null>(null);
     useEffect(() => {
         const node = box.current;
         if (node === null) {
             return undefined;
         }
+        const keep = (element: EventTarget | null): void => {
+            if (element instanceof HTMLElement) {
+                kept = { element, line: node.dataset.line ?? "", label: element.getAttribute("aria-label") };
+            }
+        };
         const onIn = (event: FocusEvent): void => {
-            held.current = event.target instanceof HTMLElement ? event.target : null;
+            keep(event.target);
         };
         const onOut = (event: FocusEvent): void => {
-            // A control leaving the page has no next focus: keep it, so the line takes focus back.
-            if (event.relatedTarget instanceof Node && !node.contains(event.relatedTarget)) {
-                held.current = null;
+            const to = event.relatedTarget;
+            if (to instanceof HTMLElement && node.contains(to)) {
+                // On its way to another control of the line: that is the one to keep.
+                keep(to);
+            } else if (to instanceof Node) {
+                kept = null;
             }
+            // No next focus: the control is leaving the page, so the line takes focus back.
         };
         node.addEventListener("focusin", onIn);
         node.addEventListener("focusout", onOut);
@@ -380,11 +400,18 @@ function useFocusKept(box: React.RefObject<HTMLElement | null>): void {
     }, [box]);
     // No dependency list: the control is drawn anew on whatever render the element's change causes.
     useLayoutEffect(() => {
-        const control = held.current;
-        if (control !== null && !control.isConnected && focusIsLost()) {
-            held.current = null;
-            lineTarget(box.current)?.focus();
+        const node = box.current;
+        const was = kept;
+        if (node === null || was === null || was.line !== node.dataset.line || was.element.isConnected) {
+            return;
         }
+        if (!focusIsLost()) {
+            return;
+        }
+        const same = [...node.querySelectorAll<HTMLElement>(LINE_CONTROL)].find(
+            (control) => was.label !== null && control.getAttribute("aria-label") === was.label,
+        );
+        (same ?? lineTarget(node))?.focus();
     });
 }
 
@@ -517,6 +544,10 @@ export function Field({
     };
     const remove = (): void => {
         store.set({ announcement: `${name} removed` });
+        // Focus goes to the section's "+", never onto the line that slides up into this one's place.
+        if (box.current?.contains(document.activeElement) === true) {
+            focusSectionNext(box.current, channel);
+        }
         // A property "+" added is no longer waiting, set or not.
         onCancel?.();
         if (own === undefined && partly === undefined) {

@@ -480,6 +480,21 @@ describe("StyleNumberInput", () => {
             expect(input).toHaveFocus();
         });
 
+        it("says on screen and aloud that Escape took back the typing, until the next edit", async () => {
+            const user = userEvent.setup();
+            renderInput(<StyleNumberInput label="Size" value={10} defaultValue={0} suffix=" px" onChange={vi.fn()} />);
+            const input = screen.getByRole("spinbutton");
+            await user.clear(input);
+            await user.type(input, "99");
+            await user.keyboard("{Escape}");
+            const words = "Edit discarded; this stays 10 px.";
+            expect(screen.getByRole("status")).toHaveTextContent(words);
+            // Shown as well as spoken: a copy outside the live region a sighted reader sees.
+            expect(screen.getAllByText(words).filter((node) => node.getAttribute("role") !== "status")).toHaveLength(1);
+            await user.type(input, "5");
+            expect(screen.queryAllByText(words)).toHaveLength(0);
+        });
+
         it("announces the number it holds", () => {
             renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
             expect(screen.getByRole("spinbutton", { name: "Size" })).toHaveAttribute("aria-valuenow", "20");

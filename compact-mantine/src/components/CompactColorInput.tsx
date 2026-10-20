@@ -15,6 +15,7 @@ import { ColorPickerPanel } from "./color/ColorPickerPanel";
 import { revertOnEscape } from "./color/escape";
 import { OpacityInput } from "./color/OpacityInput";
 import { typedColor } from "./color/typed-color";
+import { DiscardNote } from "./inputs/DiscardNote";
 import { Popout } from "./popout";
 
 // Figma's paint field (design/figma-spec.md 7.2): ONE 24-tall field holding the 14px chit (a
@@ -374,7 +375,7 @@ export function CompactColorInput({
     // while the box still holds the refused words (after Enter), false once it went back (a blur).
     const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
     const refusalId = useId();
-    // Spoken, never drawn: what Escape did. The live region stays mounted so a change is announced.
+    // What Escape did, shown under the field and said aloud.
     const [discarded, setDiscarded] = useState("");
     const hexRef = useRef<HTMLInputElement>(null);
     // Set by an Enter that settled the box: the value it shows next is selected, so the next key
@@ -681,6 +682,7 @@ export function CompactColorInput({
                     }}
                     onBlur={(event) => {
                         selectOnRedraw.current = false;
+                        setDiscarded("");
                         commitHex(event);
                         onBlur?.(event);
                     }}
@@ -757,9 +759,7 @@ export function CompactColorInput({
                 </div>
             )}
 
-            <VisuallyHidden role="status" data-testid="compact-color-input-status">
-                {discarded}
-            </VisuallyHidden>
+            <DiscardNote text={discarded} className="cm-paint-message" />
 
             {annotation.description !== undefined && (
                 <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>

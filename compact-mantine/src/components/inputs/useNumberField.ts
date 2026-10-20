@@ -70,6 +70,8 @@ interface NumberField {
     scrub: ScrubCallbacks;
     /** true while a draft (typed or scrubbed) differs from the committed display */
     editing: boolean;
+    /** true from an Escape that took back typing until the next edit, commit or blur */
+    discarded: boolean;
 }
 
 /**
@@ -98,6 +100,8 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         setDraftState(next);
     };
     const justFocused = useRef(false);
+    // Escape took back what was typed: the owner says so until the reader edits or leaves.
+    const [discarded, setDiscarded] = useState(false);
     const scrubBase = useRef(0);
     const scrubValue = useRef<number | null>(null);
 
@@ -143,6 +147,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             // reverting on commit. Letters already there (a unit, a word the caller showed) can
             // still be deleted. Locale digits are not letters.
             if (!locked && letters(text) <= letters(draftRef.current ?? display)) {
+                setDiscarded(false);
                 setDraft(text);
             }
         },
@@ -153,6 +158,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             }
             if (event.key === "Enter") {
                 event.preventDefault();
+                setDiscarded(false);
                 commit(event);
                 const input = event.currentTarget;
                 // Enter in a form's field submits it, as in any text box: the field's own Enter
@@ -176,6 +182,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                     event.stopPropagation();
                     flushSync(() => {
                         setDraft(null);
+                        setDiscarded(true);
                     });
                     event.currentTarget.select();
                 }
@@ -185,6 +192,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                 const delta = (event.key === "ArrowUp" ? step : -step) * (event.shiftKey ? 10 : 1);
                 const next = settle(base + delta);
                 setDraft(null);
+                setDiscarded(false);
                 if (next !== value) {
                     onCommit(next, event);
                 }
@@ -199,6 +207,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         },
         onBlur: (event) => {
             justFocused.current = false;
+            setDiscarded(false);
             commit(event);
             options.onBlur?.(event);
         },
@@ -232,5 +241,5 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         },
     };
 
-    return { inputProps, scrub, editing: draft !== null };
+    return { inputProps, scrub, editing: draft !== null, discarded };
 }

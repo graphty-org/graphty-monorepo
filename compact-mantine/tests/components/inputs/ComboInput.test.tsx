@@ -69,6 +69,17 @@ describe("ComboInput", () => {
         expect(box).toHaveAttribute("aria-expanded", "false");
     });
 
+    it("a number box says on screen and aloud that Escape took back the typing", async () => {
+        renderCombo(<ComboInput label="Width" numeric defaultValue={3} options={[]} />);
+        const box = screen.getByRole("spinbutton");
+        await userEvent.click(box);
+        await userEvent.keyboard("24{Escape}");
+        expect(box).toHaveValue("3");
+        expect(box).toHaveFocus();
+        expect(screen.getByRole("status")).toHaveTextContent("Edit discarded; this stays 3.");
+        expect(screen.getAllByText("Edit discarded; this stays 3.")).toHaveLength(2);
+    });
+
     it("an arrow pressed before the open frame moves from the current value", async () => {
         // Hold back the frame in which the list highlights the current value, as a fast
         // keyboard user (or a test) outruns it.

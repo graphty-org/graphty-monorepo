@@ -16,173 +16,73 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, "Why this look" lands on its line; graphty `inspector/WhyThisLook.tsx`) A Why this
-   look link now opens its row with focus on the line of the property it explains, through the
-   Style tab's own `focusLineNext` ask (the same path an added line takes), not on the heading.
-   Which line: the row's color when it wins one (the swatch beside the link is that color), else
-   the first property it wins; the link also sets `styleSide` to that property's kind, so an
-   edge's link opens the Edge tab. If no such line is drawn a frame later (a run row's tab), the
-   ask is withdrawn so it never steals focus later, and the title takes focus as before.
-   `LayerLink` (no property) is unchanged. Tests: `InspectorTargets.real-element` -- the Louvain
-   link and a new Everything test assert focus is in `[data-line="node.color"]` (both red without).
-   Walk on a fresh build: `design/ui/studio/tmp/r1-dry1-why-this-look-lands/walk/04.png` (Les
-   Miserables, Gribier > Style > Why this look > Everything: ring on Color 6366F1). The build
-   needed `vite build` alone: another agent's uncommitted `keys/useCommandKeys.ts` fails tsc.
-1. (2026-10-19, layer list into view; graphty `frame/Frame.tsx`) Selecting or making a layer from
-   another place left the left panel on that place, so the new folder or the selected group layer
-   was out of sight (a Louvain run from the Data place; a Memberships "Louvain Group 1" button).
-   Fix in the place switch, the one spot every route passes: Frame switches `place` to "graph"
-   when `inspected` CHANGES to a layer-row, folder-row or rows (an effect on the inspected object,
-   so clicking Data afterwards stays on Data), and on `run:changed` phase "start" with cause
-   "command" (any run the reader starts, from Analyze or an inspector re-run; undo, redo and
-   restore do not move the panel). A group-row (a group with no layer) does not switch: not a
-   layer. Test: frame LayerListIntoView.real-element (2, both red without the change). Walk:
-   `design/ui/studio/tmp/r1-dry1-layer-list-into-view/run/` 07 (run from Data, Louvain folder in
-   the list), 10 (Memberships group, Group 1 selected in the opened folder), 11 (Data rail still
-   leaves). Pre-existing red, same with the change reverted: FilterFocus (2), Filters (1),
-   FocusAndTabOrder "Tab out of the Vary by list", KeysLeaveNothingOpen "Tab from a card's value",
-   LayerPanelBehavior "takes an attribute of the other kind".
-2. (2026-10-19, a grid is one Tab stop; compact-mantine `DataTable/DataTable.tsx`) A control a
-   column draws in a cell (a button, a field) is now in the Tab order only while its cell is the
-   grid's roving cell: a layout effect after every drawing parks the rest at tabindex -1 (remembering
-   the old value in `data-cm-dt-parked`) and restores the roving cell's. So Tab leaves the grid in
-   one stop; arrows (End) reach a cell, then Tab reaches its eye and menu. Every DataTable gets it
-   (group grid in "Color by", Data page, table dock). Known ceiling: a control a cell's own state
-   adds without the table drawing again is not parked until the next table render. And Escape on a
-   group row's actions button now closes the "Color by" popout: the actions cell in
-   `style/Groups.tsx` stopped every key but the arrows from bubbling, which kept Escape from the
-   popout manager's document listener; it now lets Escape through, as the field cell already did.
-   Tests: `DataTable.reading.browser` "keeps a cell's controls out of the Tab order" (red without),
-   `Groups.real-element` "the group grid is one Tab stop, and Escape on a row's actions closes"
-   (red without either change). Walk: `design/ui/studio/tmp/r1-dry1-color-by-dialog-keys/walk/`
-   12 (grid), 13 (one Tab: No value), 21-23 (arrows, Hide, actions), 24 (Escape: closed, focus on
-   the Color box). Pre-existing reds seen: `Groups.real-element` "Shift+arrow picks two" times out
-   with or without the DataTable change; `DataPage.real-element` "draws every sample row" finds two
-   "All 12 rows" texts. Tab from the last control (No value) leaves the popout and closes it.
-3. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
-   line, Control+A on the canvas and in the canvas menu, and Tab in Filter analyses (Shift+A and
-   toolbar) all hold their acceptance; nothing they touch got worse. Screenshots:
-   `design/ui/studio/tmp/r1-dry1-recheck-quick-actions-label-line/` (`label/`, `selall/`,
-   `analyze/`). STILL OPEN, not from these fixes (same on the frozen build e3c5bca8e6,
-   `frozen-picker/04.png`): the Style tab's value picker (Text "+" > Label, and Add label line,
-   which opens it) does NOT take the highlighted option on Tab with letters typed ("nam", "name"
-   highlighted, Tab -> "Label not added: no value was picked"), against decided.md "Tab in a list
-   with letters typed takes that option". Fix belongs in `style/ValuePicker.tsx` (the shared
-   picker), like the Analyze filter fix: Tab with filter text and an active option picks it, and
-   stopPropagation if the picker sits in a focus trap. Also seen, minor: Escape from an analysis
-   card back to the list re-highlights the first match, not the one that was opened.
-
-4. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
-   another letter case is that column: `elementRule` takes the element's `checkRule` suggestion
-   when every unknown name equals its first candidate's shown name or rule path ignoring case
-   (`caseOnly`), so `=degree > 30` runs with no "Did you mean Degree?". A real correction still
-   shows: on a directed graph `=indegree > 0` says "Did you mean In-degree?" (the tests use that
-   now). The element's candidates are case-insensitive name matches today, so nearly every old
-   suggestion was case-only. (b) A `focused` state on the box: the suggestion and the rule hints
-   ("Rule: press Enter", "Type a rule") show only while focus is in the box; the polite status
-   region says a refusal only while the box has focus, so a run (which re-checks the rule on the
-   version change) says nothing again. Window blur keeps `focused` (`document.hasFocus()`). (c) The
-   box remembers the membership its text made (`made`, a JSON key of nodes and edges, set after a
-   rule run or a Shift pick via `select`); when another act replaces it with OTHER, non-empty
-   members (a click on a dot) the text clears. A cleared selection keeps the text, so Enter
-   selects again (undoWords test relies on it); a run or a click on another panel keeps it. This
-   replaced "clear after Shift picks once the list closes" (it lost 'Mme' on a Style tab click).
-   (d) Enter on "most" already said and showed "No match" (the pilot ran without screen-reader
-   mode); covered by a test now. Tests: FindBoxWords (3 new, 3 changed; 5 fail without the
-   change). Walk: `design/ui/studio/tmp/r1-dry1-find-box-words-keys/` karate 03-04, 06; lesmis 07
-   (nothing under the box after Degree), 10 ('Mme' kept), 11 (cleared on a dot); volunteers 03-04.
-   Pre-existing red, not mine: inspector tasks T8 and "an edge, an attribute...", graph-place
-   tasks "a click on a drawn name", FocusAfterAdding "a new node Color line" (other agents'
-   uncommitted Style work). This file is past 25 KB; another agent was summarizing it.
-5. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
-   graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
-   opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older
-   "a heading takes no focus mark" call; decided.md now asks for the ring (WCAG 2.4.7). Fix in the
-   theme: `.cm-text[tabindex="-1"]` rings 1px `--cm-border-selected` on `:focus-visible` and under
-   `data-cm-modality="keyboard"`, inset, with 2px padding the margin takes back so the words do not
-   move. `focusOpenedGraph` and `focusInspectorTitle` now use `focusWithRing`, so the ring shows
-   even when the step before was a pointer press or an untrusted test key (Chromium's
-   `:focus-visible` on script focus depends on how focus last moved). Tests red first:
-   compact-mantine focus-ring.browser "a heading focused by script draws the 1px ring" (2);
-   graphty FocusAfterClose `assertFocusOnGraphHeading` (3 opens) and tasks T12 (which had asserted
-   NO outline). Walk: `design/ui/studio/tmp/r1-dry1-focus-ring-heading/open2/` 03 (sample opened
-   by Enter, ring on "Graph"), 07 (Enter in find, ring on "3"). Only the inspector heading is a Text
-   with tabIndex -1 today. Pre-existing red, not mine (red with my app change reverted too):
-   tasks "T8 Louvain's row", "an edge, an attribute ...", FocusAndTabOrder "Tab out of the Vary by
-   list", FindBoxPlain two timeouts. `nx run graphty:build` fails while an untracked
-   `compact-mantine-headproof/` copy sits in the worktree (duplicate project name); `npm run build`
-   in the package works.
-6. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
-   with letters typed and an option highlighted opens that analysis's card, focus on Run (the
-   decided rule for every list); with nothing typed, or Shift+Tab, it still leaves and closes.
-   TRAP: the popover has `trapFocus`, and Mantine's focus trap listens for Tab on the DOCUMENT, so
-   the same keydown, after React rendered the card, wrapped focus from Run (the card's last stop)
-   to Back. `stopPropagation` in the handler stops it reaching the document. Any keydown that
-   swaps a trapped popover's content needs the same. Test: `KeysLeaveNothingOpen` "Tab in Filter
-   analyses with letters typed takes the highlighted analysis" (red without the change, and red
-   without the stopPropagation alone). Walk: `design/ui/studio/tmp/r1-dry1-analysis-filter-tab/walk2/`
-   05 (cluster, Clustering coefficient highlighted), 06 (its card, Run focused), 07 (Enter ran it).
-7. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
-   is now spoken by name: `selectionNameWords` / `selectedNameWords` / `framedWords` in
-   `inspector/words.ts` (one node -> `nodeName`, one edge -> `edgeName`, else `sizeWords`). The
-   shared announcer is the `selection:changed` handler in `canvas/CanvasOverlays.tsx` -- every
-   route (table row, canvas click, find) goes through it, so the fix is there, plus the find
-   box's own line under the box (`FindBox.tsx`). Frame selection (`f`, `view.frame-selection` in
-   `toolbar/commands.ts`) now says "Framed Valjean" / "Framed 3 nodes" after the camera moves.
-   Walk (screen-reader mode, Les Miserables): find `=name == 'Valjean'` Enter -> "Valjean
-   selected"; F6, f -> "Framed Valjean"; table row Enter -> "Napoleon selected"
-   (`design/ui/studio/tmp/r1-dry1-selection-announcements/walk/`). Tests: `CanvasOverlays.test`
-   (node and edge by name), `tasks.real-element` "says what f framed" (real `f` key; red
-   without), `GraphPlace.test` edge-by-name lines, `FindBoxWords.real-element`. NOT done, same
-   defect class: "Selection cleared: 1 node" (`selectionClearedWords`, counts only) and the
-   multi-center Neighborhood line. Pre-existing reds seen: `tasks.real-element` "a run whose
-   folder of groups was deleted" (two "Deleted Louvain" texts; red on HEAD too), and two
-   `GraphPlace.test` rule tests red only with another agent's uncommitted FindBox case-folding
-   work. The other agent was editing `FindBox.tsx` and `FindBoxWords` at the same time: commit
-   built from HEAD blobs with only my lines.
-8. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
+0. (2026-10-19, style fields: Tab, remove, Escape; graphty `style/PropertyRow.tsx`,
+   `style/useFocusLine.ts`; compact-mantine `inputs/useNumberField.ts`, `inputs/DiscardNote.tsx`)
+   Mechanism of the Tab bug: the box writes in its blur handler; React renders that write in the
+   microtask between focusout and focusin, so the control Tab was going to (the bind button) is
+   replaced before focus lands, focus falls to the page, and the old `useFocusKept` (or the
+   focus guard's rescue, which picked the Style tab) sent it back. Now `useFocusKept` remembers
+   the control focus is on OR going to (focusout's `relatedTarget` inside the line), in module
+   state so a line in a remounted tab (a selection's first value makes its layer) takes it up,
+   and restores the control of the same aria-label, else the line's field (that keeps Undo of
+   Stop varying landing in the field). `useFocusLine`'s pending ask is answered when the line
+   already holds focus. Remove: `PropertyRow`'s remove calls `focusSectionNext`, which now asks
+   for the section's `[data-plus]` itself, never the line sliding up. Escape discard: one shared
+   `DiscardNote` (a mounted VisuallyHidden status plus an aria-hidden visible copy) in
+   CompactColorInput, StyleNumberInput and ComboInput; `useNumberField` returns `discarded`.
+   Words reuse `labels.colorEditDiscarded`. Tests: FocusAfterWriting (Tab on a new and a set
+   width, selection color Tab, Remove+Enter on Paint and Everything, Escape in width and color),
+   Labels (settings Size Escape), compact-mantine StyleNumberInput, ComboInput, CompactColorInput.
+   Walk: `design/ui/studio/tmp/r1-dry1-style-field-focus/again/` 03-06, 10-11. Polish left: the
+   number box's note wraps in the 110 px field and pushes the line (and Label settings' Size
+   row) down; a full-width note under the line would read better.
+1. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
+   stop, re-walk of three fixes, find box words and keys, inspector heading focus ring, Analyze
+   filter Tab, selection announcements by name) in full in
+   `git show e0482cf5e:design/ui/studio/notes/engineer.md`, Top of mind 0 to 7.
+2. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
    table Show in table and sorting, F6 regions) in full in
    `git show 1c6a68ee4:design/ui/studio/notes/engineer.md`, Top of mind 5 and 6.
-9. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+3. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-10. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
-    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
-    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-11. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
-    summaries and the Data place, focus after a style line, shape list typing and the color picker,
-    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
-    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-12. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
-    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
-    default label size; Kelly's palette for 10 to 19 groups.
-13. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
-    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
-    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
-    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
-    (`workspace` for studio notes, not `design`).
-14. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-15. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-16. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+4. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+   Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
+   `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
+5. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+   summaries and the Data place, focus after a style line, shape list typing and the color picker,
+   labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
+   of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
+6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+   reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
+   default label size; Kelly's palette for 10 to 19 groups.
+7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+   the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
+   `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
+   `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
+   (`workspace` for studio notes, not `design`).
+8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
+10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-17. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-18. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-19. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -190,6 +90,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-19) **A redrawn line restores focus by the control's name, else its field.** The name
+  survives a redraw for buttons (bind, remove); a box's name changes with its state, and the
+  field is where a box's focus belongs anyway. By position failed the Undo of Stop varying.
+- (2026-10-19) **A discard note is spoken by a live region that is always mounted and shown by a
+  copy hidden from assistive tech.** A region that appears with its words is not reliably read;
+  showing the region itself would read the words twice or need its own layout slot.
 
 - (2026-10-19) **Select all means the whole drawing: every visible node and the edges among
   them**, through `{ scope: "visible" }`. A node a filter hides is not one the reader can see
@@ -307,6 +214,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-19) Worked: tracing focusin/focusout plus a MutationObserver on `[data-line]` inside a
+  real-element test showed the gap (focusout at 167 ms, the target replaced, focusin on the
+  restored copy at 307 ms). Did not work at first: restoring by the held control's index -- after
+  Stop varying the index pointed Undo at the restored Stop varying button instead of the field.
+- (2026-10-19) A walk on `graphty/dist` showed the old behavior once because another agent
+  rebuilt `graphty/dist` between my build and the walk (the dist then vanished mid-session).
+  Build a private copy for walks: `npx vite build --outDir tmp/<task>/dist` and `REAL_DIST` it.
 
 - (2026-10-19) DID NOT WORK, and cost another agent its uncommitted notes edit: `open(p, "w").write(f(open(p).read()))` in Python truncates the file BEFORE it reads it (the write target is evaluated first), so the read is empty. Read into a variable first, then open for writing. The lost edit (a condensation of Top of mind) was redone from its transcript.
 - (2026-10-19) Did not work: Tab in Analyze's filter calling `open()` with only `preventDefault`:

@@ -106,9 +106,9 @@ export function focusLineNext(channel: Channel | null, bound: boolean | "fixed" 
 }
 
 /**
- * Asks for keyboard focus on a section's first control once a line removed from it is gone: its
- * add control in the header, or the line now drawn in its place. The line's own Remove button
- * goes with it, so focus would fall to the page body (WCAG 2.4.3). Withdrawn with
+ * Asks for keyboard focus on a section's "+" once a line removed from it is gone. The line's own
+ * Remove button goes with it, so focus would fall to the page body (WCAG 2.4.3); never onto the
+ * line that slides into its place, whose Remove a second Enter would press. Withdrawn with
  * `focusLineNext(null)`.
  * @param from - the Remove button, inside the section.
  * @param channel - the removed line's channel.
@@ -118,7 +118,7 @@ export function focusSectionNext(from: Element, channel: Channel): void {
     pending =
         section === null || section === undefined
             ? null
-            : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"]))`;
+            : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"])) [data-plus]`;
 }
 
 /**
@@ -153,10 +153,17 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
         if (pending === null) {
             return;
         }
-        const control = lineTarget(scope.current?.querySelector(pending));
+        const target = scope.current?.querySelector<HTMLElement>(pending);
+        // The ask names a line, or a control itself (a section's "+").
+        const control = target?.matches(CONTROL) === true ? target : lineTarget(target);
         if (control !== null) {
             handed.current = pending;
             pending = null;
+            // The line already holds focus (its own copy took it back, on the control a Tab was
+            // going to): the ask is answered.
+            if (target?.contains(document.activeElement) === true) {
+                return;
+            }
             control.focus();
             // A line just added starts at a default: typing replaces it, as tabbing into a field does.
             if (control instanceof HTMLInputElement && !control.readOnly) {

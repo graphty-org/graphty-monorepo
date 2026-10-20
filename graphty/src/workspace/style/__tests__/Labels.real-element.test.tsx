@@ -538,6 +538,26 @@ describe("a label entry's size, keys, lists and widths", () => {
         });
     });
 
+    it("Escape after typing in the settings' Size box keeps the settings open and says the discard", async () => {
+        const { session } = await openWithGraph();
+        await addNameLabel(session);
+        const settings = await openSettings();
+        const size = within(settings).getByLabelText<HTMLInputElement>(/^Size(,|$)/);
+        await userEvent.click(size);
+        await userEvent.keyboard("96{Escape}");
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Label settings" }), "the settings stay open");
+        const field = within(settings).getByLabelText<HTMLInputElement>(/^Size(,|$)/);
+        assert.equal(document.activeElement, field, "focus stays in the Size box");
+        assert.equal(field.value, "48", "the typing is taken back");
+        assert.include(
+            within(settings)
+                .getAllByRole("status")
+                .map((status) => status.textContent),
+            "Edit discarded; this stays 48.",
+        );
+        assert.isUndefined(labelStyle(session).sizePx, "nothing is written");
+    });
+
     it("Escape in a settings field takes back the typing and keeps focus; Escape on a Reset closes the settings", async () => {
         const { session } = await openWithGraph();
         await addNameLabel(session);

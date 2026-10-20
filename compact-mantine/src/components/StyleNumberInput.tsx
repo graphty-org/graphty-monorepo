@@ -7,6 +7,7 @@ import { useLabels, useLocale, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
+import { DiscardNote } from "./inputs/DiscardNote";
 import { useNumberField } from "./inputs/useNumberField";
 
 // One of the "style" trio (StyleSelect, StyleNumberInput, CompactColorInput):
@@ -317,6 +318,16 @@ export function StyleNumberInput(props: Readonly<StyleNumberInputProps>): React.
                     description: VISUALLY_HIDDEN_STYLE,
                 }}
                 style={{ flex: 1 }}
+                inputContainer={(input) => (
+                    <>
+                        {input}
+                        <DiscardNote
+                            text={
+                                field.discarded ? labels.colorEditDiscarded(empty ? (emptyWords ?? "") : shownText) : ""
+                            }
+                        />
+                    </>
+                )}
             />
             {/* The reset is drawn only once there is something to undo, so a
                 panel of untouched controls stays quiet. Its 24px box is the

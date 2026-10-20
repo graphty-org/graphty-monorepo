@@ -209,6 +209,10 @@ describe("CompactColorInput refusals and Escape", () => {
         expect(chosen).toEqual([]);
         // Said aloud, so a screen reader knows the typing is gone and the color kept.
         await expect.element(page.getByRole("status")).toHaveTextContent("Edit discarded; this stays 2E8B57.");
+        // Shown under the field too, not only spoken.
+        await expect
+            .element(page.getByText("Edit discarded; this stays 2E8B57.", { exact: true }).nth(1))
+            .toBeVisible();
         // The value is selected again, so what is typed next replaces it.
         await userEvent.keyboard("FF0000{Enter}");
         expect(chosen).toEqual(["#FF0000"]);

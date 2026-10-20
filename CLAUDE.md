@@ -1003,11 +1003,18 @@ that starts the same server from the owner's own shell, which is how the owner s
   canvas (the owner's rule): the full 1200 x 900 viewport, or the story's full scroll size when it
   is larger, never cropped to the content.
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
-  page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
-  behalf.
-- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
-  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
-  only when its items take each file from master's contents to the pull request's. Agents never
+  page's API, and never write, move or delete anything under `visual-baselines/` or
+  `visual-review-approvals/` on the owner's behalf.
+- The owner's approval is of a tree, not of a pull request: Finish commits a statement naming its
+  accept commit and the git tree of `visual-baselines/` there, signed with the owner's passkey
+  (Face ID), as `visual-review-approvals/<tree>.json`. Once `visual-review/passkeys.json` on master
+  holds a key, the gate passes a pull request whose `visual-baselines/` tree differs from master's
+  only with such a signed statement of exactly that tree, made at a commit in its history, and
+  captures that match those baselines. The per-pull-request records under
+  `visual-baselines/reviews/` are part of the tree and mean nothing else to the gate. So an
+  approval made on golden holds on a cut of it, and anything that changes the baselines tree
+  afterwards (a merge of master's newer baselines, one changed byte) needs the owner again. A
+  Finish that rejects anything or leaves anything undecided signs nothing. Agents never
   edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
   `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
   register a passkey; never merge a pull request past a failing gate; and never call the page's
@@ -1015,20 +1022,20 @@ that starts the same server from the owner's own shell, which is how the owner s
 - CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
   request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
   exercised by the pull request after it; test it with the package's own tests.
-- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
-  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+- A story settings file (`visual-baselines/<project>/<story id>.json`) is part of the approved
+  tree like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
   `parameters.chromatic` (the Storybook convention visual-review reads its capture settings
   from) instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
   above it.
 - A gate line about a missing or invalid approval is fixed only by the owner reviewing again
-  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
-  record.
+  (a new preview of the head, then Finish with Face ID), never by writing or editing a record or
+  an approval file.
 - Never create a passkey or a virtual authenticator against a real review server; Chromium's
   virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
-  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines` and `projects` of
+  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines`, `approvals` and `projects` of
   `visual-review.config.json`, unless the owner asked for that change.
   A story excluded that way while it has a baseline shows up as `removed` anyway; a raised
   threshold does not, which is why it is forbidden.

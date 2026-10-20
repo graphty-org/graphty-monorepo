@@ -3,7 +3,7 @@
  * the sources' code.
  */
 
-import { type SourceDescriptor, type SourceParamDescriptor } from "../types.js";
+import { type SourceDescriptor, type SourceFeature, type SourceParamDescriptor } from "../types.js";
 
 /** The parameters every Cypher source shares. */
 const CYPHER_PARAMS: readonly SourceParamDescriptor[] = [
@@ -38,6 +38,9 @@ const CYPHER_PARAMS: readonly SourceParamDescriptor[] = [
     { name: "pageSize", plainName: "Page size", type: "integer", default: 1000, min: 1, max: 100000, advanced: true },
 ];
 
+/** What every Cypher source can do: expand, probe, validate, and page a capped load. */
+const CYPHER_FEATURES: readonly SourceFeature[] = ["expand", "probe", "validate", "page"];
+
 /** The transport parameter of the generic source. */
 const TRANSPORT_PARAM: SourceParamDescriptor = {
     name: "transport",
@@ -61,6 +64,7 @@ export const CYPHER_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["basic", "bearer", "aws-sigv4"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [...CYPHER_PARAMS, TRANSPORT_PARAM],
 });
 
@@ -74,6 +78,7 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["basic", "bearer"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [
         ...CYPHER_PARAMS,
         {
@@ -112,6 +117,7 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["aws-sigv4"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [
         ...CYPHER_PARAMS,
         {

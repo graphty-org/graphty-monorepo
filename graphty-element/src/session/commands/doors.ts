@@ -478,6 +478,11 @@ const SOURCE_EXPANSION = exempt(
         "for a collapse) as one step; it needs a node a source brought, so it is checked by " +
         "test/session/sources/expand.test.ts and test/interactions/expand-real-input.test.ts.",
 );
+const SOURCE_REFRESH = exempt(
+    "Reads a load from its source again, then dispatches one batch of the difference (data.replace-source), " +
+        "or nothing when nothing changed; it needs a load a source brought, so it is checked by " +
+        "test/session/sources/preview-refresh.test.ts.",
+);
 const GESTURE = exempt(
     "Part of a node drag, which the element records as one step of its own: a transaction opened at drag " +
         "start and recorded at the drop with the positions.set and positions.pin it dispatches; checked by " +
@@ -1748,6 +1753,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // the records and the waiting loads are read from the session.
             testSource: READ,
             listSource: READ,
+            previewSource: READ,
+            checkSource: READ,
+            refresh: SOURCE_REFRESH,
             loads: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,

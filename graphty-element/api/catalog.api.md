@@ -1820,7 +1820,19 @@ export type SetOperand = Scope | {
 };
 
 // @public
-export function sourceDescriptors(): readonly SourceInfo[];
+export interface SourceCatalogEntry extends SourceInfo {
+    readonly features: SourceFeatures;
+}
+
+// @public
+export function sourceDescriptors(): readonly SourceCatalogEntry[];
+
+// @public
+export interface SourceFeatures {
+    readonly expand: boolean;
+    readonly more: boolean;
+    readonly refresh: boolean;
+}
 
 export { SourceInfo }
 

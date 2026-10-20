@@ -15,7 +15,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { sourceFactsOf } from "../../src/session/sources/ids";
-import type { SourceExpanded } from "../../src/session/sources/types";
+import type { SourceExpanded, SourceLoadOptions } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, doubleClick, type Point } from "../helpers/real-input";
 
@@ -32,9 +32,10 @@ afterEach(() => {
 
 /**
  * A mounted 2D element holding the recorded source's seed node at the origin, drawn.
+ * @param load - more options for the seed's load, such as its own `expand`
  * @returns The element.
  */
-async function mounted(): Promise<Graphty> {
+async function mounted(load: SourceLoadOptions = {}): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
@@ -45,7 +46,7 @@ async function mounted(): Promise<Graphty> {
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    await loadRecordedSeed(element.session, "recorded", { position: { x: 0, y: 0, z: 0 } });
+    await loadRecordedSeed(element.session, "recorded", { position: { x: 0, y: 0, z: 0 } }, load);
     await element.graph.setLayout("fixed", { dim: 2 });
     await element.setViewMode("2d");
     await operationQueueOf(element.graph).waitForCompletion();
@@ -139,6 +140,16 @@ describe("click-to-expand under real input", () => {
         assert.deepEqual(counts(element), [5, 4]);
         await element.session.undo();
         assert.deepEqual(counts(element), [1, 0]);
+    });
+
+    it("expands on a double-click the load itself asked for, over the default configuration", async () => {
+        const element = await mounted({ expand: { trigger: "double-click", depth: 1 } });
+        assert.deepEqual(element.session.data.loads().at(-1)?.expand, { trigger: "double-click", depth: 1 });
+
+        const first = await expandSeed(element);
+
+        assert.deepEqual(first.params, { seeds: [PEOPLE_SEED.id], added: [4, 4], partial: true });
+        assert.deepEqual(counts(element), [5, 4]);
     });
 
     it("expands on a single click when the trigger is click", async () => {

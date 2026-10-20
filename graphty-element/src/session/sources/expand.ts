@@ -95,7 +95,7 @@ function unknownNode(id: NodeId): GraphtyError {
  * @param details - the details
  * @returns the params
  */
-function factParams(details: unknown): Record<string, CodedFactParam> {
+export function factParams(details: unknown): Record<string, CodedFactParam> {
     const params: Record<string, CodedFactParam> = {};
     for (const [key, value] of Object.entries((details as Record<string, unknown> | undefined) ?? {})) {
         const scalar = (v: unknown): boolean => v === null || ["string", "number", "boolean"].includes(typeof v);

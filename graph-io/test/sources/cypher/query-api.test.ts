@@ -139,6 +139,64 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(bodies[1].statement).toContain("WHERE key > $after");
     });
 
+    it("sends a node cap on a user query to the server, and a full result continues with more rows", async () => {
+        const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
+        const capped = (rows: number): string => `CALL {\n${query}\n}\nRETURN * LIMIT ${String(rows)}`;
+        const [whole] = QUERIES;
+        const body = whole.body as { data: { fields: string[]; values: unknown[][] } };
+        const answer = (rows: number): Recording => ({
+            ...whole,
+            requestBody: JSON.stringify({
+                statement: capped(rows),
+                parameters: { name: "Tom Hanks" },
+                accessMode: "Read",
+            }),
+            body: { ...body, data: { ...body.data, values: body.data.values.slice(0, rows) } },
+        });
+        const params = { database: "movies", query, parameters: { name: "Tom Hanks" } };
+        const fetch = replayFetch([answer(3), answer(6)]);
+        const first = await loadFromSource("neo4j", params, {
+            ...options([]),
+            fetch,
+            limits: { maxNodes: 3 },
+        });
+        expect(first.snapshot.nodeCount).toBe(4); // Tom Hanks and three movies
+        expect(first.report.source?.next).toMatchObject({ rows: 6 });
+        const next = await loadFromSource("neo4j", params, {
+            ...options([]),
+            fetch,
+            cursor: first.report.source?.next ?? undefined,
+        });
+        expect(next.snapshot.nodeCount).toBe(7);
+        expect(fetch.calls).toHaveLength(2);
+    });
+
+    it("runs a user query uncapped when the server refuses the cap's wrapper", async () => {
+        const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
+        const refused = QUERIES.find((r) => (r.status ?? 200) >= 400);
+        if (refused === undefined) {
+            throw new Error("the recordings hold no refused query");
+        }
+        const fetch = replayFetch([
+            {
+                ...refused,
+                requestBody: JSON.stringify({
+                    statement: `CALL {\n${query}\n}\nRETURN * LIMIT 3`,
+                    parameters: { name: "Tom Hanks" },
+                    accessMode: "Read",
+                }),
+            },
+            QUERIES[0],
+        ]);
+        const { snapshot, report } = await loadFromSource(
+            "neo4j",
+            { database: "movies", query, parameters: { name: "Tom Hanks" } },
+            { ...options([]), fetch, limits: { maxNodes: 3 } },
+        );
+        expect(snapshot.nodeCount).toBe(13);
+        expect(report.source?.next).toBeNull();
+    });
+
     it("reports a query error with the line and column the server named", async () => {
         const err = await rejection(
             loadFromSource("neo4j", { database: "movies", query: "MATCH (n RETURN n" }, options(QUERIES)),

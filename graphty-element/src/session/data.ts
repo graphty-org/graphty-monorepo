@@ -88,9 +88,14 @@ import type {
     CollapseResult,
     ExpandOptions,
     PendingSourceLoad,
+    SourceCheck,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
+    SourceMoreOptions,
+    SourcePreview,
+    SourcePreviewOptions,
+    SourceRefreshReport,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
@@ -770,12 +775,45 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Load the next page after a capped load from a source.
-     * @param options - The load options.
+     * @param options - The load options, and the load to page (`load`, a key from `loads()`).
      * @returns Settles once the page is in the graph.
      */
-    more(options: SourceLoadOptions = {}): Promise<void> {
+    more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
         return sourceLoad.more(this.sourceHost(), options);
+    }
+
+    /**
+     * Read a few rows of a network source, changing nothing.
+     * @param source - The source id and its params.
+     * @param options - The cap (`maxNodes`, 25 by default), the credential and the endpoint.
+     * @returns The rows, their columns, whether there is more, the server's facts and the issues.
+     */
+    previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
+        this.requireLive("previewSource");
+        return sourceLoad.previewSource(this.sourceHost(), source, options);
+    }
+
+    /**
+     * Ask a load's source whether its data changed, loading nothing.
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns Whether it changed; null when the source cannot tell.
+     */
+    checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
+        this.requireLive("checkSource");
+        return sourceLoad.checkSource(this.sourceHost(), load, options);
+    }
+
+    /**
+     * Read a load from its source again and apply only the difference, as one undoable step.
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns What was added, removed and updated.
+     */
+    refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
+        this.requireLive("refresh");
+        return sourceLoad.refreshSource(this.sourceHost(), load, options);
     }
 
     /**
@@ -914,6 +952,7 @@ export class SessionData implements SessionDataApi {
                 return { at: positions.isPlaced(index) ? at : null, pinned: positions.isPinned(index) };
             },
             positionScale: () => this.readConfig().knownFields.positionScale,
+            directed: () => this.current().directed,
             dispatch: (command) =>
                 writes.send === undefined
                     ? Promise.reject(

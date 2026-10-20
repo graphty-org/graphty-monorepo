@@ -8,11 +8,12 @@ import type {
     CredentialKind,
     RetryOptions,
     SourceCursor,
+    SourceInfo,
     SourceLimitOptions,
     SourceValidators,
 } from "@graphty/graph-io";
 
-import type { NodeId } from "../../catalog/types";
+import type { AttributeDescriptor, NodeId } from "../../catalog/types";
 import type { CodedFact } from "../shared";
 import type { LoadChoices } from "../types";
 
@@ -39,6 +40,11 @@ export interface SourceLoadOptions extends LoadChoices {
     readonly signal?: AbortSignal;
     /** The fetch to use instead of the global one: recorded responses in a test or a story. */
     readonly fetch?: typeof fetch;
+    /**
+     * What a click or double-click on a node this load brought fetches, in place of the element's
+     * `behavior.expand` config. Recorded with the load (`SourceLoadRecord.expand`).
+     */
+    readonly expand?: ExpandBehavior;
 }
 
 /** What `data.import` takes for a network source: its id and its params. Experimental. */
@@ -155,6 +161,83 @@ export interface SourceLoadRecord {
     readonly credential: SourceCredentialIdentity | null;
     /** Its expansions, in order. */
     readonly expansions: readonly SourceExpansionRecord[];
+    /**
+     * How many nodes the source holds for this load, when known: the nodes a complete load read,
+     * or the count a sample publishes. Absent when the source does not say.
+     */
+    readonly total?: number;
+    /** The load's own expand behavior (`SourceLoadOptions.expand`), when it was given one. */
+    readonly expand?: ExpandBehavior;
+}
+
+/** How many nodes and edges. Experimental. */
+export interface SourceCounts {
+    /** Nodes. */
+    readonly nodes: number;
+    /** Edges. */
+    readonly edges: number;
+}
+
+/**
+ * What `data.previewSource` read: a few rows of a source, loading nothing. Experimental.
+ */
+export interface SourcePreview {
+    /** At most `maxNodes` node rows, as a load would hold them. */
+    readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    /** The edge rows between those nodes. */
+    readonly edges: readonly Readonly<Record<string, unknown>>[];
+    /** The columns of those rows, node columns first, described as `data.attributes()` describes them. */
+    readonly columns: readonly AttributeDescriptor[];
+    /** Whether the source holds more than the preview shows. */
+    readonly more: boolean;
+    /** Facts about the server (`{ product: "Neo4j", version: "5.24" }`); empty when it gave none. */
+    readonly facts: Readonly<Record<string, string>>;
+    /** What the read reported: graph-io's issue codes (`W_SOURCE_LIMIT`, ...) and their params. */
+    readonly issues: readonly CodedFact[];
+}
+
+/** The options of `data.previewSource`. Experimental. */
+export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "cursor"> {
+    /** At most this many nodes. @defaultValue 25 */
+    readonly maxNodes?: number;
+}
+
+/** The options of `data.more`. Experimental. */
+export interface SourceMoreOptions extends SourceLoadOptions {
+    /** The load to page, by its key in `data.loads()`; the newest load that has more when absent. */
+    readonly load?: string;
+}
+
+/** What `data.checkSource` found. Experimental. */
+export interface SourceCheck {
+    /** Whether the source changed since the load; null when the source cannot tell. */
+    readonly changed: boolean | null;
+}
+
+/** What `data.refresh` did: counts of nodes and edges, the difference only. Experimental. */
+export interface SourceRefreshReport {
+    /** What the source has now that the graph did not. */
+    readonly added: SourceCounts;
+    /** What the load brought that the source no longer has, and no other load supplied. */
+    readonly removed: SourceCounts;
+    /** What the source now says differently. */
+    readonly updated: SourceCounts;
+}
+
+/** What a source can do beyond one load, for a form to offer or leave out. Experimental. */
+export interface SourceFeatures {
+    /** Fetch a node's neighbors (`data.expand`, a double-click). */
+    readonly expand: boolean;
+    /** Read the next page of a capped load (`data.more`). */
+    readonly more: boolean;
+    /** Read the load again and apply the difference (`data.refresh`). */
+    readonly refresh: boolean;
+}
+
+/** One network source as `sourceDescriptors()` lists it: graph-io's entry and its features. Experimental. */
+export interface SourceCatalogEntry extends SourceInfo {
+    /** What it can do beyond one load. */
+    readonly features: SourceFeatures;
 }
 
 /** What `data.collapse(id)` did. Experimental. */

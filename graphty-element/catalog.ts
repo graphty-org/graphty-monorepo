@@ -81,6 +81,7 @@ export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/ca
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 

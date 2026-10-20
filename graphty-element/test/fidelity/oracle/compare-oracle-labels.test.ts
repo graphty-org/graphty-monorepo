@@ -127,8 +127,10 @@ describe("label checks", () => {
                 "Courier New",
                 "Lato",
                 "Wingbat",
+                // Java draws a font named Default, which it does not have, in Dialog's face
+                "Default",
             ].map(programFontClass),
-            ["sans-serif", "sans-serif", "sans-serif", "sans-serif", "monospace", "sans-serif", null],
+            ["sans-serif", "sans-serif", "sans-serif", "sans-serif", "monospace", "sans-serif", null, "sans-serif"],
         );
         assert.deepEqual(
             ["Dialog", "Wingbat, monospace", "Verdana", "SansSerif", "'DejaVu Serif'"].map(browserFontClass),

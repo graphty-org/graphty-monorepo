@@ -318,3 +318,49 @@ describe("CX2 files graphty wrote", () => {
         expect(other.styles?.styles.source.tool).toBe("cytoscape");
     });
 });
+
+describe("CX2 edge colors under arrowColorMatchesEdge", () => {
+    const edgeDoc = (bypass: Record<string, unknown>): string =>
+        JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            { edges: [{ id: 0, s: 1, t: 2 }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            edge: {
+                                EDGE_LINE_COLOR: "#505050",
+                                EDGE_SOURCE_ARROW_COLOR: "#505050",
+                                EDGE_TARGET_ARROW_COLOR: "#505050",
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                            },
+                        },
+                        nodeMapping: {},
+                        edgeMapping: {},
+                    },
+                ],
+            },
+            { visualEditorProperties: [{ properties: { arrowColorMatchesEdge: true } }] },
+            { edgeBypasses: [{ id: 0, v: bypass }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+    const edgeColors = async (bypass: Record<string, unknown>): Promise<unknown[]> => {
+        const { snapshot, styles } = await load(edgeDoc(bypass));
+        const ex = styles as ExtractedStyles;
+        return (["color", "targetArrowColor"] as const).map((p) => resolveStyles(ex, "edge", p, snapshot)[0]);
+    };
+
+    it("paints only the line from an EDGE_LINE_COLOR bypass, as Cytoscape draws it", async () => {
+        // Cytoscape 3.10.5 on the CX2 specimen-mappings-bypass sheet (bypass-over-edge-passthrough): line #9467bd,
+        // arrow the style's #505050
+        expect(await edgeColors({ EDGE_LINE_COLOR: "#9467BD" })).toEqual(["#9467bd", "#505050"]);
+    });
+
+    it("still paints an arrow its own EDGE_TARGET_ARROW_COLOR bypass names", async () => {
+        expect(await edgeColors({ EDGE_LINE_COLOR: "#9467BD", EDGE_TARGET_ARROW_COLOR: "#D62728" })).toEqual([
+            "#9467bd",
+            "#d62728",
+        ]);
+    });
+});

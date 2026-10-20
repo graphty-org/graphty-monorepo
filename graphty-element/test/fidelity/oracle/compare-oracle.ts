@@ -441,7 +441,7 @@ const PROGRAM_FONTS: Readonly<Record<string, FontClass>> = {
     ...Object.fromEntries(
         [
             "bitstream vera serif|cambria|constantia|elephant|garamond|georgia|luxi serif|ms serif|nimbus roman|nimbus roman no9 l|palatino linotype|palatino|thorndale|times-roman|book antiqua|century schoolbook",
-            "albany|arial unicode ms|bitstream vera sans|britannic|calibri|candara|century gothic|corbel|helvetica lt std|haettenschweiler|ms sans serif|nimbus sans|nimbus sans l|luxi sans|tahoma|trebuchet ms|twentieth century|segoe ui|open sans|roboto|noto sans|inter|dialog|sansserif|sans",
+            "albany|arial unicode ms|bitstream vera sans|britannic|calibri|candara|century gothic|corbel|helvetica lt std|haettenschweiler|ms sans serif|nimbus sans|nimbus sans l|luxi sans|tahoma|trebuchet ms|twentieth century|segoe ui|open sans|roboto|noto sans|inter|dialog|sansserif|sans|default",
             "andale mono|bitstream vera sans mono|consolas|courier std|cumberland|fixedsys|inconsolata|luxi mono|nimbus mono|nimbus mono l|nimbus mono ps|terminal|monospaced|dialoginput|lucida console|monaco|menlo",
             "comic sans ms|itc zapf chancery std|zapfino|urw chancery l|apple chancery|brush script mt",
             "bauhaus std|cooper std|copperplate gothic std|impact",

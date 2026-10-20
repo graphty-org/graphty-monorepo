@@ -525,14 +525,25 @@ export function resolveCytoscape(
         out.color = Array.from({ length: n }, (_, i) => one("EDGE_UNSELECTED_PAINT", colorParser, "color", i) ?? paint);
     }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
-        out.sourceArrowColor = out.color.slice();
-        out.targetArrowColor = out.color.slice();
+        // CX2's EDGE_LINE_COLOR bypass is the stroke's alone (its writer spells a desktop EDGE_UNSELECTED_PAINT
+        // bypass out as the line and both arrow colors): the arrows keep the style's line color (Cytoscape 3.10.5's
+        // SVG of the CX2 specimen-mappings-bypass, bypass-over-edge-passthrough, draws its arrow #505050)
+        const lineVp = chosen.get("color")?.[0];
+        const unbypassed = resolver(target, s, { ...elements, bypasses: [] }, notes, options.budget).one;
+        const arrows =
+            lineVp === "EDGE_LINE_COLOR"
+                ? Array.from({ length: n }, (_, i) => unbypassed(lineVp, colorParser, "color", i))
+                : out.color;
+        out.sourceArrowColor = arrows.slice();
+        out.targetArrowColor = arrows.slice();
         // the dependency sets the line and the arrows from EDGE_UNSELECTED_PAINT; an element's own bypass of one of
         // them still wins for that one (Cytoscape draws a bypassed EDGE_STROKE_UNSELECTED_PAINT line in its color)
         const own: readonly [string, string][] = [
             ["color", "EDGE_STROKE_UNSELECTED_PAINT"],
             ["sourceArrowColor", "EDGE_SOURCE_ARROW_UNSELECTED_PAINT"],
             ["targetArrowColor", "EDGE_TARGET_ARROW_UNSELECTED_PAINT"],
+            ["sourceArrowColor", "EDGE_SOURCE_ARROW_COLOR"],
+            ["targetArrowColor", "EDGE_TARGET_ARROW_COLOR"],
         ];
         for (const [prop, vp] of own) {
             out[prop] = (out[prop] ?? []).map((v, i) => {

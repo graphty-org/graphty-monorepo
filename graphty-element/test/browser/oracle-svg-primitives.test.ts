@@ -187,4 +187,23 @@ describe("the oracle SVG reader", () => {
             ],
         );
     });
+
+    it("reads a family CSS rejects (Java's Default, a dotted Java name) as the name the program wrote", () => {
+        // Cytoscape desktop's SVG export writes the Java font a label asked for; `Default` is a CSS-wide keyword
+        // and `Dialog.bold` no CSS name, so the browser's computed style falls back to its own default face
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text font-family="Default" font-size="10" x="10" y="20">a</text>
+            <text font-family="Dialog.bold" font-size="10" x="10" y="40">b</text>
+            <text font-family="DejaVu Sans" font-size="10" x="10" y="60">c</text>
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.family]),
+            [
+                ["a", "Default"],
+                ["b", "Dialog.bold"],
+                ["c", "DejaVu Sans"],
+            ],
+        );
+    });
 });

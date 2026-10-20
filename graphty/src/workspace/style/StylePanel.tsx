@@ -16,7 +16,7 @@ import {
     paintedTarget,
     rowLayers as treeRowLayers,
 } from "../graph-place/rows";
-import { edgeName } from "../inspector/words";
+import { edgeName, nodeName } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -744,9 +744,8 @@ function selectionName(session: GraphSession): string {
     if (origin !== null && "text" in origin && origin.text.startsWith("=")) {
         return selectorName(session, session.selection.layerSelector) ?? origin.text.slice(1).trim();
     }
-    // A node is named by its id until graphty-element publishes its name (#895), as the header does.
     if (nodes.length === 1 && edges.length === 0) {
-        return String(nodes[0]);
+        return nodeName(session, nodes[0]);
     }
     const edge = edges.length === 1 && nodes.length === 0 ? session.data.edge(edges[0]) : undefined;
     if (edge !== undefined) {

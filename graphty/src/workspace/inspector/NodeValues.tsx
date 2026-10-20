@@ -35,6 +35,7 @@ import {
     NEIGHBOR_FILTER_APPLIED_WORDS,
     NEIGHBOR_FILTER_WORDS,
     neighborhoodWords,
+    nodeName,
     rangeWords,
     valueText,
 } from "./words";
@@ -266,7 +267,7 @@ async function showNeighborhood(
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
         inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
-        announcement: neighborhoodWords(session.data.name(center) ?? String(center), around, hops),
+        announcement: neighborhoodWords(nodeName(session, center), around, hops),
     });
 }
 
@@ -330,7 +331,7 @@ export function NeighborList({
     const reach = hops === 2 || hops === 3 ? hops : 1;
     const { directed } = session.status;
     const follow = directed ? direction : "all";
-    const centerName = session.data.name(center) ?? String(center);
+    const centerName = nodeName(session, center);
 
     let words: string;
     let rows: React.JSX.Element[];
@@ -338,7 +339,7 @@ export function NeighborList({
     if (reach > 1) {
         const around = session.selection.nodes
             .filter((node) => node !== center)
-            .map((node) => ({ node, name: session.data.name(node) ?? String(node) }))
+            .map((node) => ({ node, name: nodeName(session, node) }))
             .sort((a, b) => BY_NAME.compare(a.name, b.name));
         // The Hops control under the heading shows the reach, so the heading leaves it out; the
         // status line after a change still says it.
@@ -512,14 +513,14 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
                 <DataRow
                     name={from}
-                    value={String(edge.source)}
+                    value={nodeName(session, edge.source)}
                     onClick={() => {
                         selectNode(session, edge.source);
                     }}
                 />
                 <DataRow
                     name={to}
-                    value={String(edge.target)}
+                    value={nodeName(session, edge.target)}
                     onClick={() => {
                         selectNode(session, edge.target);
                     }}

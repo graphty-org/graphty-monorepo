@@ -203,8 +203,18 @@ export function directionNote(statistics: GraphStatistics): string {
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    return `${nodeName(session, edge.source)}${edgeJoiner(session)}${nodeName(session, edge.target)}`;
+}
+
+/**
+ * What the app calls a node wherever it names one: the label graphty-element gives it
+ * (`session.data.name`, the label column's value), else its id.
+ * @param session - the session.
+ * @param id - the node id.
+ * @returns such as "Nebraska", or "74" when the graph has no label column.
+ */
+export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
+    return session.data.name(id) ?? String(id);
 }
 
 /**

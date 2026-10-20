@@ -110,6 +110,8 @@ describe("selection as a way into a rule", () => {
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
         });
+        // The camera turns to pivot on the selection; read where c is once it has settled.
+        await element.waitForStableFrame();
         await userEvent.keyboard("{Shift>}");
         await userEvent.click(element, { position: at("c") });
         await userEvent.keyboard("{/Shift}");
@@ -139,12 +141,18 @@ describe("selection as a way into a rule", () => {
             return { x: p.x, y: p.y };
         };
         await userEvent.click(element, { position: at("a") });
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["a"]);
+        });
+        // The camera turns to pivot on the selection; read where each node is once it has settled.
+        await element.waitForStableFrame();
         await userEvent.keyboard("{Shift>}");
         await userEvent.click(element, { position: at("c") });
         await userEvent.keyboard("{/Shift}");
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes], ["a", "c"]);
         });
+        await element.waitForStableFrame();
 
         // A right-click on a selected node keeps the selection and lists its commands.
         await userEvent.click(element, { position: at("a"), button: "right" });

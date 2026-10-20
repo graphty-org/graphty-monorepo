@@ -1073,6 +1073,10 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
                 const width = typeof layer.width === "number" ? layer.width : 1;
                 put("outlineWidth", bg.enabled === true && !straight ? Math.max(0, size - width) : 0);
             }
+            const band = visBandStyle(bg, false);
+            if (band !== null) {
+                put("outlineStyle", band);
+            }
         }
     }
     if (layer.hidden !== undefined && canonBoolean(layer.hidden, site("visible")) === true) {
@@ -1211,6 +1215,20 @@ function visTakesOpacity(color: unknown): boolean {
         !color.includes("rgba") &&
         (color.includes("rgb") || /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color.trim()))
     );
+}
+
+/**
+ * The line style of an edge's background band: stroked `size` wide (10 by default) in its own dashes, [5, 5] for true
+ * (EdgeBase.drawBackground, setStrokeDashed), with the canvas's line caps.
+ * @param bg - the edge's `background`
+ * @param round - whether the canvas draws round caps by then (see visStyles' edge loop)
+ * @returns the line style, or null for a band with no dashes
+ */
+function visBandStyle(bg: Readonly<Record<string, unknown>>, round: boolean): string | null {
+    if (bg.dashes === undefined || bg.dashes === false) {
+        return null;
+    }
+    return visDashStyle(bg.dashes === true ? [5, 5] : bg.dashes, typeof bg.size === "number" ? bg.size : 10, round);
 }
 
 /**
@@ -1373,6 +1391,20 @@ function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hangin
         );
     }
     return VIS_SIZED.has(typeof layer.shape === "string" ? layer.shape : "ellipse") ? "hanging" : "middle";
+}
+
+/**
+ * How much lower than a neutral `bottom` label vis-network draws the label of a node sized by `size`: it hangs the
+ * text's top 4 + size / 2 below the outline, whatever the line count (ShapeBase._drawShape puts the label half its
+ * height below the node and Label.calculateLabelSize moves its first line up by that again, then down 4 and half a
+ * font size more), where a `bottom` label's words start about 2 + size / 3 below it (a small gap, then the space
+ * above the capitals in a line's box). Measured on the vis-network labels sheet, font sizes 6 to 40.
+ * @param size - the label's font size
+ * @returns the extra distance down
+ */
+function visBelowGap(size: number): number {
+    // ponytail: a fixed fit of the renderer's gap and line box; a neutral "hang the text's top here" anchor would remove it
+    return 2 + size / 6;
 }
 
 /**
@@ -1716,13 +1748,14 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
         const shaped = VIS_SIZED.has(shape)
             ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
             : visFitShape(merged, shape);
-        // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
-        if (VIS_SIZED.has(shape) && typeof row.labelRuns === "string") {
-            const size = typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE;
-            const drop = visRunsDrop(row.labelRuns, size);
-            if (drop !== 0) {
-                row.labelOffsetY = (typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0) + drop;
-            }
+        if (VIS_SIZED.has(shape) && merged.label !== undefined) {
+            const size =
+                visLabelScaled(merged, range) ??
+                (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
+            // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
+            const drop = typeof row.labelRuns === "string" ? visRunsDrop(row.labelRuns, size) : 0;
+            const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
+            row.labelOffsetY = below + drop + visBelowGap(size);
         }
         // the shape's own label place, then font.vadjust below it
         for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
@@ -2133,6 +2166,10 @@ function visEdges(
     const inherited: (StyleValue | null)[] = new Array<StyleValue | null>(m).fill(null);
     let inheriting = 0;
     const range = visValueRange(m, (e) => finiteValue({ ...edgeDefaults, ...edgeRecords(e) }.value));
+    // vis-network sets round caps to draw a dashed line (EdgeBase._drawDashedLine) and never sets them back, so every
+    // band drawn with or after a dashed edge, in the file's order, has round caps, which close gaps narrower than the
+    // band
+    let roundCaps = false;
     for (let e = 0; e < m; e++) {
         const own = edgeRecords(e);
         // an array of `options.edges.dashes` reaches the edge through bridgeObject as a plain object, no longer an
@@ -2153,6 +2190,12 @@ function visEdges(
             ...visRoute(edgeDefaults, own, s, t, geometry),
             ...visEdgeLabel(merged, range, geometry.at(s), geometry.at(t)),
         };
+        // a dashed edge sets them before it draws its own band (BezierEdgeBase._bezierCurve draws the band first)
+        roundCaps ||= merged.hidden !== true && ![undefined, false, "false"].includes(merged.dashes as never);
+        const band = roundCaps && isJsonObject(merged.background) ? visBandStyle(merged.background, true) : null;
+        if (band !== null) {
+            vals.outlineStyle = band;
+        }
         const inherit = own.inherit ?? edgeDefaults.inherit ?? "from";
         const inherits = inherit !== false && inherit !== "false";
         if (inherits) {

@@ -204,7 +204,7 @@ describe("vis-network nodes", () => {
         // 2 * size square, (2 - sqrt(3)) * size / 2 further down
         expect(values(r, "node", "width")[0]).toBe(36);
         expect(values(r, "node", "height")[0]).toBeCloseTo(Math.sqrt(3) * 18, 9);
-        expect(values(r, "node", "labelOffsetY")[0]).toBeCloseTo(((2 - Math.sqrt(3)) * 18) / 2, 9);
+        expect(values(r, "node", "labelOffsetY")[0]).toBeCloseTo(((2 - Math.sqrt(3)) * 18) / 2 + 2 + 14 / 6, 9);
         // Database.draw: the label at its top, the top margin (5 by default) down
         expect(values(r, "node", "labelPosition").slice(1, 3)).toEqual(["inside-top", "inside-top"]);
         expect(values(r, "node", "labelOffsetY").slice(1, 3)).toEqual([5, 9]);

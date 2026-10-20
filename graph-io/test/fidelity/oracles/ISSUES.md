@@ -1453,8 +1453,23 @@ node-sizes-opacity 3 -> 2. Still open, and why:
   measures each blank between words as three when it wraps (`LabelSplitter.getLongestFit` joins its word list, the
   blanks included, with a blank), so "a long box label" at 50 wraps after every word. graphty-element's wrap counts a
   blank once; it needs a wrap option for it, and graph-io a neutral property to ask for it.
-- `edges.background` with `dashes` (`background-curved-dashes`, edges-lines-p3): vis-network draws the band dashed;
-  the neutral vocabulary has no line style for an edge's outline, nor graphty-element a dashed outline.
+- `edges.background` with `dashes` (`background-curved-dashes`, edges-lines-p3): vis-network draws the band dashed.
+  Fixed in fix round 3: graph-io reads `background.dashes` as the neutral `outlineStyle` (the band's dashes at its
+  `size`, butt caps), graphty-element draws `line.outline.type` "dash" or "dot" (channel `edge.outlineStyle`), and the
+  comparator reads a dashed band under a line as that edge's outline with its line class. edges-lines-p3 passes every
+  row.
+- A small label below a node sized by `size` (`labels` `font-size-6`, label.offset 25.1 against 21.7) and
+  `font.background` (`font-background`, 28.6 against 22.0): vis-network hangs the text's top 4 + size / 2 below the
+  outline (ShapeBase._drawShape, Label.calculateLabelSize), lower than a neutral `bottom` label, by more the larger the
+  font. Fixed in fix round 3: graph-io adds 2 + size / 6 to `labelOffsetY` of such a label, fitted on the labels
+  sheet's font sizes 6 to 40 (the words' ink now within 1 px of vis-network's at every size); the labels sheet passes
+  every row. A neutral anchor that hangs a label's words from a point would replace the fit.
+- The picture graphty draws inside a vis-network image node (`circularImage`, an `image` with a border or a
+  background; `node-shapes`, `images-charts`) failed `stray.extra` (`graphty:annotation-image`): the oracle side
+  folds the program's `<image>` into the node, so nothing was left for graphty's picture to match. Comparator, fixed in
+  fix round 3: the oracle node keeps the boxes of the pictures it is drawn with (`pictures`), and graphty's picture
+  matches one of them as it would a stray. `annotation-image#5` on `images-charts` still fails: graphty places the
+  `coordinate-origin-circular` node 23 px off (`node.position`, shared with `unpositioned-layout-scale`).
 - `json-vis-siblings` (200 nodes / 284 edges drawn, 83 / 104 associated): not an import gap. The file has no hidden or
   duplicate record and vis-network draws all of them (`observed` 200 / 284 in the oracle's metadata); it stores no
   positions, so graphty lays it out itself and the geometric association pairs 83 of its nodes by chance. Shared
@@ -1963,7 +1978,9 @@ rows these sheets still fail, and why each cannot pass yet:
   (`{xgmml,cx,cx2,cys}-specimen-arrows` and `-mappings-bypass-p11`, target and source `open-half-circle`). Each
   program draws the arc as one stroked path; the association keeps an arc as an arrowhead only when both its ends
   land on one node and it is under half that node's size, which these are not, so the oracle has no arrow there and
-  graphty's cap fails `edge.arrow` (oracle false, graphty true). Comparator work.
+  graphty's cap fails `edge.arrow` (oracle false, graphty true). Comparator work. Fix round 3: the comparator takes a
+  stroked half circle across a line's middle as its hollow middle arrow, so vis-network's `arrow-middle-curve` and
+  `arrow-middle-inv-curve` pass.
 - The comparator reads a band drawn under a line as a second edge: `cytoscapejs-specimen-edges-lines`
   `line-outline-width-2` and `line-outline-color-red` (and vis-network's background under a curved edge). The
   oracle's `#g0` is the band and `#g1` the line; graphty draws one edge with its outline, so `#g1` fails
@@ -2010,14 +2027,14 @@ sheet) and the margins below; vis-network middle arrows, box size and image arro
 
 - Comparator work: vis-network `curve` / `inv_curve` and Cytoscape's OPEN_HALF_CIRCLE arcs are not associated as
   arrowheads (above); Cytoscape.js `circle-triangle` and the mid-source `triangle-tee`
-  / `triangle-cross` are shape class "other" on the oracle side; the large middle arrow of `scale-factor-middle`
-  (vis-network, `scaleFactor` 2 on a short edge) is associated with the source end; an edge overlay reads as a
-  second edge, a node underlay or overlay as strays; vis-network's dashed background under a curved edge
-  (`background-curved-dashes`, `vis-network-specimen-edges-lines-p3`) is read as the edge, its line as a second.
+  / `triangle-cross` are shape class "other" on the oracle side; an edge overlay reads as a second edge, a node
+  underlay or overlay as strays. Fixed in fix round 3: the large middle arrow of `scale-factor-middle` (vis-network,
+  `scaleFactor` 2 on a short edge; its point at the line's middle, its base by the source) is the middle arrow, and
+  vis-network's dashed background under a curved edge (`background-curved-dashes`) is that edge's outline; the
+  vis-network arrows sheet passes every row.
 - Cytoscape desktop's arrows sheets (`{xgmml,cx,cx2,cys}-specimen-arrows`, `-mappings-bypass-p11`): 18 of 43 edges
   are still not associated with the oracle's paths (`comparator-edge-association`), so their caps are unjudged.
-- vis-network's dashed background (`background.dashes`): graphty draws the band solid; `line.outline` has no line
-  style. graphty-element work, with a graph-io property for it.
+- vis-network's dashed background (`background.dashes`): fixed in fix round 3 (`outlineStyle`, `line.outline.type`).
 - Cytoscape.js `source-text-margin-*` / `target-text-margin-*`: an end caption has no shift of its own yet; it waits
   for the label offset the import work's `label-anchor-offset` adds.
 - Cytoscape.js `outline-style: double` is drawn by Cytoscape.js with a compositing erase the SVG does not record
@@ -2916,7 +2933,8 @@ Still open, and why:
 - vis-network `font-*-vadjust` (`labels-p2`, `edge-labels`, `label.present` o=None): comparator. graphty-element now
   draws the run that much lower, as vis-network does; the oracle reader keeps a run drawn more than half its height off
   the line as a text of its own (`joinRuns`), so the label is not found on the oracle side at all.
-- vis-network `font.background` (`labels` `font-background`, label 28.6 below its node against 22.0): graph-io draws
+- vis-network `font.background` (`labels` `font-background`, label 28.6 below its node against 22.0; passes since fix
+  round 3, which places a label below a node sized by `size` as vis-network hangs it): graph-io draws
   the box round the words alone (`labelPadding` 0, `labelLineHeight` 1), and graphty-element places a label by its
   box, so the words move up with the smaller box; vis-network places the words and draws the box round them. Needs a
   way to place a label by its words when its box is drawn (graphty-element-render), or graph-io's label place for

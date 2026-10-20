@@ -183,6 +183,7 @@ export const STYLE_PROPERTIES: {
         ["outlineWidth", "number"],
         ["outlineColor", "color"],
         ["outlineOpacity", "opacity"],
+        ["outlineStyle", "lineStyle"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],

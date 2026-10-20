@@ -16,7 +16,24 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, lists say when typing matches nothing, and stay inside the window; compact-mantine
+0. (2026-10-19, color picker refusals and Tab walk; compact-mantine `color/ColorPickerPanel.tsx`,
+   `popout/PopoutPanel.tsx`) The picker's value box refuses unreadable text as the color field's
+   hex box does: Enter keeps it, `aria-invalid`, picker stays open, a `role=alert` line under the
+   value row (`refused(typed, format)`, per-format "what it takes"); blur reverts and says
+   `refusedKept`. Tab: the fix is in PopoutPanel, not the picker, because the close button is the
+   panel's: a panel opened on a `data-autofocus` stop that is not its first wraps Tab/Shift+Tab at
+   either end while any of its stops has not had focus since open (`entryRef`, `visitedRef` via
+   the panel's onFocus); then Tab past the end leaves as before. Rejected: a ring that leaves at
+   the stop before the entry (Tab after a Shift+Tab would leave at once) and a plain trap (breaks
+   "Tab closes a pop-out"). Tests red before: `ColorPickerPanel.browser.test.tsx` (4). Walk on a
+   fresh build (`design/ui/studio/tmp/r1-dry1-color-picker-refusal-tab/detours/`): 05 refusal
+   shown, picker open; 06-23 Tab goes value, 5 swatches, close, field, eyedropper, hue, format,
+   value, swatches, then out to the hex box. Not done: the picker's Escape still reverts without
+   the spoken "Edit discarded" decided.md asks for. Nx in the studio worktree fails on an
+   untracked `compact-mantine-headproof/` (duplicate project name): build with each package's
+   `npm run build`. compact-mantine: 12 failures, all pre-existing (axe FieldChooser x4,
+   CompactColorInput swatches x2 + story, Tree x3, select AA, FieldChooser story).
+1. (2026-10-19, lists say when typing matches nothing, and stay inside the window; compact-mantine
    `inputs/listbox.tsx`) Typed letters that start no option: the foot line shows
    `listNoMatch(typed)` (new optional label, default `No option starts with "cube"`) in place of
    the letters, and a `role=status` region INSIDE the list surface (`.cm-listbox-said`, made on

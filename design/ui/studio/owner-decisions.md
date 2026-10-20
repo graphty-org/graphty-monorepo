@@ -32,6 +32,23 @@ an explicit domain, and the documented `above` count), so it is not made. Ways f
 
 Until then a value beyond a written domain is drawn at the domain's end, as it always has been.
 
+## 2026-10-19 -- Decided by the team: the color picker refuses text out loud, and Tab reaches every control (compact-mantine)
+
+Additive. `ColorPickerPanelLabels` gains `refused(typed, format)` and
+`refusedKept(typed, kept, format)`, overridable through the existing optional `labels` prop.
+Text in the picker's value box that reads as no color in the chosen format is refused the way the
+color field's own hex box refuses it: Enter keeps the text, marks the box invalid, keeps the picker
+open and shows a line under the value row, an alert, saying what the box takes in that format (a
+color name or a hex code, or three numbers); leaving the box puts the color in force back and says
+so. Before, the text was dropped without a word and Enter closed the picker.
+
+Pop-out panels (`Popout.Panel`) that open with focus on a field past their first stop
+(`data-autofocus`) now walk every stop before Tab leaves: past either end, Tab or Shift+Tab wraps
+to the other end while some stop in the panel has not had focus since it opened; once every stop
+has, Tab past the end closes the panel and moves on beside what opened it, as before. A panel that
+opens on its first stop is unchanged. The picker opens in its value box, so the close button, the
+saturation field, the eyedropper, the sliders and the format list were never reached by Tab.
+
 ## 2026-10-19 -- Decided by the team: a list says when typed letters match nothing (compact-mantine)
 
 Additive. compact-mantine's labels gain an optional `listNoMatch(typed)`, default

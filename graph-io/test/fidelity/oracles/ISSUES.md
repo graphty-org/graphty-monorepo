@@ -1854,7 +1854,16 @@ Open:
   defaults). The comparator read neither Graphviz's stroked stem nor its stroked arc in the edge's group: it now
   carries the line to the stem's tip and takes the arc as a hollow half circle (half an arrow for an `l` / `r` arc,
   as graphty's cap cut to one side). arrows-p7 and arrows-p8 edge.route 42/48 -> 48/48, edge.arrow and
-  edge.arrowShape all pass (9 failing elements -> 0 on each). A curved
+  edge.arrowShape all pass (9 failing elements -> 0 on each).
+  STILL OPEN (verified 2026-10-20): `icurve`, `licurve` and `ricurve` are drawn in the wrong place along the line.
+  arrows.c draws the inverted arc with its ends half an arrow back from the tip and its apex a whole arrow back, the
+  stem running through it to the node; graphty-element draws `other:inv-curve` as its `open-half-circle` cap, ends at
+  the node and apex half an arrow back, so the arc sits half an arrow (about 5 px on these sheets) too close to the
+  node (`graphty-element/tmp/oracle-report/gml-specimen-arrows-p7` and `-p8`, side by side). The comparator passes
+  it because it measures an arrowhead's length, width, fill, shape and color but not how far back from the tip it
+  sits. The fix is graphty-element's: a cap that is the inverted arc set back one arc depth with the line carried
+  through it (an `arrowHead.gap` stops the line, so graph-io cannot express it), and a comparator check of a head's
+  distance from its tip. A curved
   route's `lp` is not read yet: graphty-element hangs a curved edge's label where it samples its curve, which
   graph-io cannot know; every gv2gml sheet's edges are straight. A node's `pencolor`, which gv2gml also writes as
   `outline`, is a cluster's alone and Graphviz ignores it on a node; the sheets set a node's outline by its `color`,

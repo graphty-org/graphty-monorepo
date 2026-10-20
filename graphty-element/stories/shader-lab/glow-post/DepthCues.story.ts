@@ -127,7 +127,7 @@ void main() {
 
 const DEFAULTS: Args = {
     ...graphArgs,
-    graph: "large",
+    graph: "communities",
     dim: 3,
     nodeSize: 1.3,
     edgeWidth: 1,

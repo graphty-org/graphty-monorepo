@@ -67,6 +67,10 @@ graph.addEventListener("graphty-model-change", (event) => {
 });
 ```
 
+A page that starts listening late reads the same facts at any time: `graph.session.assets.states()`
+lists the latest change of every model a layer has named, so
+`states().find((m) => m.ref === ref)?.state` says where one stands now, warnings included.
+
 Problems are codes with parameters, never sentences, so your page decides the words. Every code is
 in [Problems and their codes](#problems-and-their-codes).
 

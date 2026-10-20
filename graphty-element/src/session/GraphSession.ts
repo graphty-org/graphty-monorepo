@@ -432,6 +432,7 @@ class Session implements ElementSession {
      * @param change - The change.
      */
     publishModelChange(change: ModelChange): void {
+        this.assets.noteState(change);
         publish(this.watchers, "model:changed", change);
     }
 

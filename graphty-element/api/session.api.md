@@ -158,6 +158,7 @@ export interface AssetsApi {
     }): Promise<AssetRecord>;
     remove(id: AssetId): void;
     setLimits(limits: Partial<ModelLimits>): void;
+    states(): readonly ModelChange[];
 }
 
 // @public

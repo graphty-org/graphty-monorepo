@@ -14,6 +14,7 @@
 import type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
+import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
 import { Refusal } from "./references";
@@ -238,6 +239,18 @@ export interface AssetsApi {
      * @throws A `GraphtyError` coded `E_OPTION_RANGE` for something that is not a host name.
      */
     allowHosts(hosts: readonly string[]): void;
+    /**
+     * Where each model a style layer has named stands: the latest `model:changed` of each, by
+     * `ref`, in the order first named. A page that mounts after a model settled reads its state
+     * (and its warnings, such as `W_MODEL_COLOR_IGNORED`) here instead of waiting for an event.
+     * @returns The changes.
+     * @example
+     * ```ts
+     * const rack = graph.session.assets.states().find((m) => m.ref === "asset:rack");
+     * if (rack?.state === "drawn") console.log("drawn");
+     * ```
+     */
+    states(): readonly ModelChange[];
 }
 
 /** What the session keeps per asset. */
@@ -258,6 +271,11 @@ export interface AssetsApiInternal extends AssetsApi {
     hostAllowed(host: string): boolean;
     /** The limits in force. */
     limits(): ModelLimits;
+    /**
+     * Keep a model's latest change for {@link AssetsApi.states}.
+     * @param change - The change.
+     */
+    noteState(change: ModelChange): void;
 }
 
 /**
@@ -320,6 +338,7 @@ export function createAssetsApi(): AssetsApiInternal {
     // The element's own samples: read from the package on first use, never part of the session's
     // assets (not listed, not counted against sessionBytes, not removable).
     const samples = new Map<AssetId, Entry>();
+    const states = new Map<string, ModelChange>();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
@@ -695,6 +714,14 @@ export function createAssetsApi(): AssetsApiInternal {
 
         limits() {
             return limits;
+        },
+
+        states() {
+            return Object.freeze([...states.values()]);
+        },
+
+        noteState(change) {
+            states.set(change.ref, change);
         },
     };
 

@@ -51,6 +51,9 @@ describe("nodes drawn as models", () => {
         assert.isTrue(drawnAsModel(graph.graph, "web"), "web is the model");
         assert.isTrue(drawnAsModel(graph.graph, "db"), "db is the model");
         assert.isFalse(drawnAsModel(graph.graph, "alice"), "alice keeps her shape");
+        // A page that mounts later reads the same state from the session.
+        const state = graph.session.assets.states().find((change) => change.ref === RACK_URL);
+        assert.equal(state?.state, "drawn");
     });
 
     it("leaves the placeholder on a 404, and says so once, by the URL the layer named", async () => {

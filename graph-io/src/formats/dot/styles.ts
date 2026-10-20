@@ -387,7 +387,27 @@ function readLabelAlign(
     record: boolean,
     put: Put,
 ): void {
-    if (record || isHtmlString(raw) || html.has(`<${raw}>`)) {
+    if (isHtmlString(raw) || html.has(`<${raw}>`)) {
+        // each <BR ALIGN> lines up the line before it: one alignment on every break lines up the label
+        const aligns = new Set(
+            [...raw.matchAll(/<br\b([^>]*)>/gi)].map(
+                (m) => /\balign\s*=\s*["']?(left|right|center)/i.exec(m[1])?.[1].toLowerCase() ?? "center",
+            ),
+        );
+        // words after the last break are a line of their own, centered
+        const body = isHtmlString(raw) ? raw.slice(1, -1) : raw;
+        const last = /<br\b[^>]*>(?![\s\S]*<br\b)/i.exec(body);
+        const tail = last === null ? "" : body.slice(last.index + last[0].length);
+        if (tail.replace(/<[^>]*>/g, "").trim() !== "") {
+            aligns.add("center");
+        }
+        const [only] = aligns;
+        if (aligns.size === 1 && only !== "center") {
+            put("labelTextAlign", only);
+        }
+        return;
+    }
+    if (record) {
         return;
     }
     const align = dotLabelAlign(raw, names);
@@ -1687,7 +1707,7 @@ export function graphvizRouteBends(
     splines: readonly (readonly BendPoint[])[],
     tips: { readonly start: BendPoint | null; readonly end: BendPoint | null } = { start: null, end: null },
 ): string | null {
-    const points: BendPoint[] = tips.start === null ? [] : [tips.start];
+    const points: BendPoint[] = [];
     for (const controls of splines) {
         const flat = flattenCubic(controls);
         if (flat === null || flat.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
@@ -1695,7 +1715,13 @@ export function graphvizRouteBends(
         }
         points.push(...flat);
     }
-    if (tips.end !== null) {
+    // a tip where the spline already ends adds no point
+    const apart = (a: BendPoint, b: BendPoint | undefined): boolean =>
+        b === undefined || Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-6;
+    if (tips.start !== null && apart(tips.start, points[0])) {
+        points.unshift(tips.start);
+    }
+    if (tips.end !== null && apart(tips.end, points.at(-1))) {
         points.push(tips.end);
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];

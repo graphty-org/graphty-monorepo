@@ -69,6 +69,13 @@ describe("DOT styles: HTML font runs", () => {
         expect((await nodes(doc, "labelRuns")).a ?? null).toBeNull();
     });
 
+    it("lines up an HTML label by the ALIGN of its line breaks", async () => {
+        const doc = `digraph { a [label=<wide<BR ALIGN="LEFT"/>x<BR ALIGN="LEFT"/>>]; b [label=<w<BR ALIGN="RIGHT"/>x<BR ALIGN="RIGHT"/>>];
+            c [label=<w<BR ALIGN="LEFT"/>x<BR/>>] }`;
+        const align = await nodes(doc, "labelTextAlign");
+        expect([align.a, align.b, align.c ?? null]).toEqual(["left", "right", null]);
+    });
+
     it("reads an edge label's runs", async () => {
         const runs = await edges(`digraph { a -> b [label=<x<B>y</B>>] }`, "labelRuns");
         expect(JSON.parse(String(runs[0]))).toEqual([{ text: "x" }, { text: "y", weight: "bold" }]);

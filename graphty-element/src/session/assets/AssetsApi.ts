@@ -25,6 +25,12 @@ import { Refusal } from "./references";
  */
 const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
 
+/**
+ * Where the sample models' files are, loaded when a layer first names a sample.
+ * @returns The sample module.
+ */
+const loadSamples = (): Promise<typeof import("./samples")> => import("./samples");
+
 export type { BuiltInModelFormat, ModelFormat };
 
 export { type AssetId, isAssetId, SAMPLE_PREFIX };
@@ -311,6 +317,10 @@ export function createAssetsApi(): AssetsApiInternal {
     const hosts = new Set<string>();
     const entries = new Map<AssetId, Entry>();
     const urls = new Map<string, Entry>();
+    // The element's own samples: read from the package on first use, never part of the session's
+    // assets (not listed, not counted against sessionBytes, not removable).
+    const samples = new Map<AssetId, Entry>();
+    const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
      * Bytes held, counting each digest once.
@@ -332,18 +342,20 @@ export function createAssetsApi(): AssetsApiInternal {
      * @param given - The files as given.
      * @param options - The caller's options.
      * @param main - A main file the source itself named.
+     * @param sample - True for one of the element's samples, which is kept apart from the session's assets.
      * @returns The settled record.
      */
     const intake = async (
         given: ReadonlyMap<string, Uint8Array>,
         options: AddAssetOptions,
         main?: string,
+        sample = false,
     ): Promise<AssetRecord> => {
         const digest = await digestFileSet(given);
         options.signal?.throwIfAborted();
         const byteLength = [...given.values()].reduce((sum, bytes) => sum + bytes.length, 0);
         const id: AssetId = options.name ?? `asset:${digest}`;
-        if (id.startsWith(SAMPLE_PREFIX)) {
+        if (id.startsWith(SAMPLE_PREFIX) && !sample) {
             return record({
                 id,
                 digest,
@@ -393,7 +405,7 @@ export function createAssetsApi(): AssetsApiInternal {
             const already = [...entries.values()].some(
                 (e) => e.record.digest === digest && e.record.state === "accepted",
             );
-            if (!already && storedBytes() + byteLength > limits.sessionBytes) {
+            if (!sample && !already && storedBytes() + byteLength > limits.sessionBytes) {
                 summary = undefined;
                 settled = record({
                     id,
@@ -421,12 +433,57 @@ export function createAssetsApi(): AssetsApiInternal {
             settled = record({ id, digest, byteLength, format: "", state: "rejected", problems: [error.fact] });
         }
 
-        entries.set(id, {
+        (sample ? samples : entries).set(id, {
             record: settled,
             settled: Promise.resolve(settled),
             ...(summary === undefined ? {} : { summary, given }),
         });
         return settled;
+    };
+
+    /**
+     * Read one of the element's samples from the package once, shared by every caller.
+     * @param id - An id under `asset:sample/`.
+     * @returns Its settled record.
+     */
+    const readSample = (id: AssetId): Promise<AssetRecord> => {
+        const held = samples.get(id);
+        if (held !== undefined) {
+            return held.settled;
+        }
+
+        const rejected = (fact: CodedFact): AssetRecord =>
+            record({ id, digest: "", byteLength: 0, format: "", state: "rejected", problems: [fact] });
+        const entry: Entry = {
+            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
+            settled: Promise.resolve(undefined as unknown as AssetRecord),
+        };
+        samples.set(id, entry);
+        entry.settled = (async () => {
+            const name = id.slice(SAMPLE_PREFIX.length);
+            const table = (await loadSamples()).SAMPLE_MODEL_URLS;
+            const url = Object.hasOwn(table, name) ? table[name] : undefined;
+            if (url === undefined) {
+                samples.delete(id);
+                return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
+            }
+
+            let bytes: Uint8Array;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(String(response.status));
+                }
+
+                bytes = new Uint8Array(await response.arrayBuffer());
+            } catch {
+                samples.delete(id); // A later call tries again.
+                return rejected({ code: "E_MODEL_FETCH", params: { url: id, status: null, offline: false } });
+            }
+
+            return intake(new Map([[`${name}.glb`, bytes]]), { name: id }, undefined, true);
+        })();
+        return entry.settled;
     };
 
     /**
@@ -539,6 +596,10 @@ export function createAssetsApi(): AssetsApiInternal {
         },
 
         ready(ref, options = {}) {
+            if (isAssetId(ref) && ref.startsWith(SAMPLE_PREFIX)) {
+                return abortable(readSample(ref), options.signal);
+            }
+
             if (isAssetId(ref)) {
                 const entry = entries.get(ref);
                 if (entry === undefined) {
@@ -561,7 +622,7 @@ export function createAssetsApi(): AssetsApiInternal {
         },
 
         get(id) {
-            return entries.get(id)?.record;
+            return lookup(id)?.record;
         },
 
         list() {
@@ -573,7 +634,7 @@ export function createAssetsApi(): AssetsApiInternal {
         },
 
         inspect(id) {
-            return entries.get(id)?.summary ?? unknownAsset(id);
+            return lookup(id)?.summary ?? unknownAsset(id);
         },
 
         remove(id) {
@@ -586,7 +647,7 @@ export function createAssetsApi(): AssetsApiInternal {
         },
 
         files(id) {
-            const given = entries.get(id)?.given ?? unknownAsset(id);
+            const given = lookup(id)?.given ?? unknownAsset(id);
             return new Map([...given].map(([path, bytes]) => [path, bytes.slice()]));
         },
 

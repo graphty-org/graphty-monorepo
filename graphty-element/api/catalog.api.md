@@ -287,6 +287,7 @@ export interface CatalogApi {
     logSinks(): readonly LogSinkDescriptor[];
     // (undocumented)
     metrics(): readonly MetricAvailability[];
+    models(): readonly ModelDescriptor[];
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
     // (undocumented)
     palettes(): readonly PaletteDescriptor[];
@@ -1450,6 +1451,16 @@ export interface MetricAvailability {
     runIds: readonly RunId[];
     // (undocumented)
     technicalName: string;
+}
+
+// @public
+export const MODEL_DESCRIPTORS: readonly ModelDescriptor[];
+
+// @public
+export interface ModelDescriptor {
+    readonly id: AssetId;
+    readonly plainName: string;
+    readonly thumbnail: string;
 }
 
 // @public

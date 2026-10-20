@@ -183,6 +183,16 @@ let templates = 0;
 /** The cache of each scene. */
 const caches = new WeakMap<Scene, ModelCache>();
 
+/**
+ * Whether a scene still has a model loading, or loaded and not yet swapped in: the picture will
+ * change when it lands, so the frame on screen is not the finished one.
+ * @param scene - The scene.
+ * @returns True while a model is on its way.
+ */
+export function modelsLoading(scene: Scene): boolean {
+    return caches.get(scene)?.loading === true;
+}
+
 /** The models one scene draws. */
 export class ModelCache {
     private readonly entries = new Map<string, Entry>();
@@ -213,6 +223,14 @@ export class ModelCache {
         scene.onDisposeObservable.addOnce(() => {
             this.dispose();
         });
+    }
+
+    /**
+     * Whether a load is running or queued, or a loaded model waits for its nodes' repaint.
+     * @returns True while a model is on its way.
+     */
+    get loading(): boolean {
+        return this.running > 0 || this.queue.length > 0 || this.dirty.size > 0;
     }
 
     /**

@@ -887,13 +887,13 @@ Packages 1 to 6 are the prototype; 1 to 5 are graphty-element.
 Samples are chosen with light, neutral base colors, so `node.modelTint` reproduces a data color
 faithfully.
 
-| Name                                   | Source                                                                                                     | Why                                    | Approximate size |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- |
-| `asset:sample/box`                     | Khronos glTF Sample Assets "Box" (CC0 per its README; confirm)                                             | Smallest valid GLB; tests              | 2 KB             |
-| `asset:sample/server`                  | Kenney "Furniture Kit" or "Building Kit" (CC0)                                                             | A server-like prop for network graphs  | 20-60 KB         |
-| `asset:sample/person`                  | Kenney "Mini Characters" or Quaternius low-poly characters (CC0)                                           | People nodes; has clips for package 11 | 100-200 KB       |
-| `asset:sample/tree`                    | Kenney "Nature Kit" (CC0)                                                                                  | Non-tech example                       | 10-30 KB         |
-| `test/fixtures/models/*` (not shipped) | Hand-made: a `.gltf` + `.bin` pair, an OBJ + MTL + PNG, binary and ASCII STL, a PLY; hostile files (below) | Tests of sections 3 and 4              | --               |
+| Name                                   | Source                                                                                                     | Why                                   | Approximate size |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------- |
+| `asset:sample/box`                     | Made by `graphty-element/scripts/make-sample-models.mjs` (CC0, graphty-org)                                | Smallest valid GLB; tests             | 2 KB             |
+| `asset:sample/server`                  | Made by `graphty-element/scripts/make-sample-models.mjs` (CC0, graphty-org)                                | A server-like prop for network graphs | 15 KB            |
+| `asset:sample/person`                  | Made by `graphty-element/scripts/make-sample-models.mjs` (CC0, graphty-org)                                | People nodes; no clips yet            | 33 KB            |
+| `asset:sample/tree`                    | Made by `graphty-element/scripts/make-sample-models.mjs` (CC0, graphty-org)                                | Non-tech example                      | 10 KB            |
+| `test/fixtures/models/*` (not shipped) | Hand-made: a `.gltf` + `.bin` pair, an OBJ + MTL + PNG, binary and ASCII STL, a PLY; hostile files (below) | Tests of sections 3 and 4             | --               |
 
 Hostile fixtures: references `//host/x`, `%2e%2e/x`, `../x`, `blob:`, `file:`, `http://`; an
 `map_Kd -o 1 1 1 http://host/x.png` line; an accessor with `count: 2e8` and no buffer view; a

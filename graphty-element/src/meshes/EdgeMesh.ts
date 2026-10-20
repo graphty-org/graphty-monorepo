@@ -1068,6 +1068,7 @@ void main() {
             case "circle-triangle":
             case "half-open-flipped":
             case "open-box":
+            case "open-inverted":
             case "image":
                 return {
                     positioningMode: "tip",

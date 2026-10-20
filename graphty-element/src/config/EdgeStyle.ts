@@ -45,6 +45,8 @@ export const EdgeArrowTypes = z.enum([
     // CROSS_OPEN_DELTA)
     "cross-delta",
     "open-cross-delta",
+    // the inverted triangle's outline (Graphviz oinv, invempty)
+    "open-inverted",
 ]);
 
 const ArrowStyle = z.strictObject({

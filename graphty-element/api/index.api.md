@@ -902,6 +902,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1122,6 +1123,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1343,6 +1345,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1382,6 +1385,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;

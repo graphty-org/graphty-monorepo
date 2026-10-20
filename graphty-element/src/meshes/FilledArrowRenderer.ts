@@ -1014,6 +1014,7 @@ void main() {
      * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
      * - "cross-delta": a delta with a bar across the line a little behind it (Cytoscape's CROSS_DELTA).
      * - "open-cross-delta": the delta outlined, with the bar (Cytoscape's CROSS_OPEN_DELTA).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (Graphviz's oinv).
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
         "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
@@ -1055,6 +1056,16 @@ void main() {
         "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
         // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
         "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
+        // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
+        "open-inverted": () =>
+            frame(
+                [
+                    [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [-1, 0],
+                ],
+                OPEN_FRAME,
+            ),
         // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
         "open-box": () => [
             rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),

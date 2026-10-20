@@ -1,6 +1,7 @@
 import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
 import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
 
 describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
@@ -668,6 +669,29 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
                 (v[0] - u[0]) * (0 - u[1]) - (-0.5 - u[0]) * (v[1] - u[1]);
             const s = [side(a, b), side(b, c), side(c, a)];
             assert.isFalse(s.every((x) => x > 0) || s.every((x) => x < 0), "the center is outside every triangle");
+        }
+        mesh.dispose();
+    });
+
+    test("open-inverted is the inverted triangle's outline: its base across the tip, its middle open", () => {
+        const e = extents("open-inverted");
+        assert.closeTo(e.z0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
+        assert.closeTo(e.z1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
+        const mesh = FilledArrowRenderer.createPolygonArrow("open-inverted", scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        // the widest point is the base at the tip (x = 0), the point at x = -1
+        const at = (x: number): number[] =>
+            p.flatMap((v, i) => (i % 3 === 0 && Math.abs(v - x) < 1e-9 ? [p[i + 2]] : []));
+        assert.closeTo(Math.max(...at(0).map(Math.abs)), EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
+        assert.deepEqual([...new Set(at(-1).map((z) => Math.round(z * 1e9) / 1e9))], [0]);
+        // no triangle covers the middle of the triangle (-1/3, 0)
+        const idx = mesh.getIndices() ?? [];
+        for (let t = 0; t < idx.length; t += 3) {
+            const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]].map((k) => [p[3 * k], p[3 * k + 2]]);
+            const side = (u: number[], v: number[]): number =>
+                (v[0] - u[0]) * (0 - u[1]) - (-1 / 3 - u[0]) * (v[1] - u[1]);
+            const s = [side(a, b), side(b, c), side(c, a)];
+            assert.isFalse(s.every((x) => x > 0) || s.every((x) => x < 0), "the middle is outside every triangle");
         }
         mesh.dispose();
     });

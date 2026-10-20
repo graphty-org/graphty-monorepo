@@ -1,5 +1,5 @@
 {
-    "about": "Ratcheted pass-rate floors of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts): per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places). Stand-in oracles (another program's drawing, or a raster) keep their floors in standInFloors. Recording keeps the higher of the stored and the measured rate, so a floor is never lowered by a run; a floor lowered by hand is listed in lowered with why. An allowed drop is \"<sample>/<property>\": { reason, issue: \"#N\" or \"ISSUES.md <row>\", expires: \"YYYY-MM-DD\", atLeast }, and fails the run once expired or under atLeast. The elements known to fail each property are in oracle-known-failures.json.",
+    "about": "Ratcheted pass-rate floors of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts): per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places). Stand-in oracles (another program's drawing, or a raster) keep their floors in standInFloors. A sheet judged per setting (graph-io/test/fidelity/specimens/<format>/judges.json) has one key per reference: <sample> for its oracle, <sample>~<route> for a stand-in program (in standInFloors), <sample>~specification for the expectations derived from the format's specification (in specificationFloors), each scoring only the properties of the settings it judges, and no raster regions. Recording keeps the higher of the stored and the measured rate, so a floor is never lowered by a run; a floor lowered by hand is listed in lowered with why. An allowed drop is \"<sample>/<property>\": { reason, issue: \"#N\" or \"ISSUES.md <row>\", expires: \"YYYY-MM-DD\", atLeast }, and fails the run once expired or under atLeast. The elements known to fail each property are in oracle-known-failures.json.",
     "floors": {
         "cx-ddram": {
             "node.present": 1,
@@ -23017,40 +23017,28 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.286,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.8,
-            "edge.width": 0,
+            "edge.color": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.8,
-            "edge.arrowLength": 1,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 1,
+            "edge.arrowColor": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.arrowhead": 0.87,
-            "raster.canvas": 0.96,
-            "raster.edge": 0.88,
-            "raster.label": 0.86,
-            "raster.nodeBody": 0.84,
-            "raster.nodeOutline": 0.93
+            "frame.zoom": 1
         },
         "gml-specimen-arrows-p5": {
             "node.present": 1,
@@ -23380,34 +23368,28 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.286,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.8,
-            "edge.width": 0,
+            "edge.color": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.8,
-            "edge.arrowLength": 1,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 1,
+            "edge.arrowColor": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "gml-specimen-edge-labels": {
             "node.present": 1,
@@ -23417,23 +23399,18 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.size": 0,
-            "label.weight": 1,
-            "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
             "label.opacity": 1,
-            "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.5,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
@@ -23442,29 +23419,15 @@
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.667,
-            "edge.width": 0,
+            "edge.color": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 1,
-            "edge.arrowFill": 1,
-            "edge.arrowColor": 0,
-            "edge.arrowLength": 1,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.arrowhead": 0.83,
-            "raster.canvas": 0.96,
-            "raster.edge": 0.85,
-            "raster.label": 0.86,
-            "raster.nodeBody": 0.83,
-            "raster.nodeOutline": 0.93
+            "frame.zoom": 1
         },
         "gml-specimen-edge-labels-p3": {
             "node.present": 1,
@@ -23744,23 +23707,18 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.size": 0,
-            "label.weight": 1,
-            "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
             "label.opacity": 1,
-            "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.5,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
@@ -23769,23 +23727,43 @@
             "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.667,
-            "edge.width": 0,
+            "edge.color": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 1,
-            "edge.arrowFill": 1,
-            "edge.arrowColor": 0,
-            "edge.arrowLength": 1,
-            "edge.arrowWidth": 0,
-            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
+        },
+        "gml-specimen-edges-lines": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.color": 1,
+            "edge.opacity": 1,
+            "edge.dash": 1,
+            "edge.gradient": 1,
+            "edge.arrow": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1
         },
         "gml-specimen-edges-lines-p4": {
             "node.present": 1,
@@ -24001,6 +23979,34 @@
             "frame.zoom": 1,
             "background": 1
         },
+        "gml-specimen-edges-lines@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.color": 1,
+            "edge.opacity": 1,
+            "edge.dash": 1,
+            "edge.gradient": 1,
+            "edge.arrow": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1
+        },
         "gml-specimen-groups-p2": {
             "node.present": 1,
             "node.extra": 1,
@@ -24118,87 +24124,69 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.9,
-            "node.height": 0.9,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
-            "node.fill": 0.9,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.9,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.canvas": 0.95,
-            "raster.label": 0.82,
-            "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.89
+            "frame.zoom": 1
         },
         "gml-specimen-images-charts@matched": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.9,
-            "node.height": 0.9,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
-            "node.fill": 0.9,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.9,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "gml-specimen-labels": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.9,
-            "node.height": 0.9,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
-            "node.fill": 0.9,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.9,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.5,
-            "label.size": 0,
-            "label.weight": 1,
-            "label.style": 1,
+            "label.text": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 1,
             "label.opacity": 1,
-            "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.canvas": 0.95,
-            "raster.label": 0.82,
-            "raster.nodeBody": 0.84,
-            "raster.nodeOutline": 0.89
+            "frame.zoom": 1
         },
         "gml-specimen-labels-p5": {
             "node.present": 1,
@@ -24504,62 +24492,50 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.9,
-            "node.height": 0.9,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.4,
-            "node.fill": 0.9,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.9,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.5,
-            "label.size": 0,
-            "label.weight": 1,
-            "label.style": 1,
+            "label.text": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 1,
             "label.opacity": 1,
-            "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "gml-specimen-node-fills-borders": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.893,
-            "node.height": 0.893,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.143,
-            "node.fill": 0.786,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.536,
-            "node.strokeWidth": 0.688,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.canvas": 0.95,
-            "raster.label": 0.8,
-            "raster.nodeBody": 0.83,
-            "raster.nodeOutline": 0.88
+            "frame.zoom": 1
         },
         "gml-specimen-node-fills-borders-p4": {
             "node.present": 1,
@@ -24731,47 +24707,39 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.893,
-            "node.height": 0.893,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.143,
-            "node.fill": 0.786,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.536,
-            "node.strokeWidth": 0.688,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "gml-specimen-node-shapes": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.923,
-            "node.height": 0.923,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.385,
-            "node.fill": 0.923,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.923,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.canvas": 0.95,
-            "raster.label": 0.82,
-            "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.89
+            "frame.zoom": 1
         },
         "gml-specimen-node-shapes-p5": {
             "node.present": 1,
@@ -24975,47 +24943,39 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.923,
-            "node.height": 0.923,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.385,
-            "node.fill": 0.923,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.923,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "gml-specimen-node-sizes-opacity": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.938,
-            "node.height": 0.938,
-            "node.sizeToSpacing": 0.938,
-            "node.sizeToExtent": 0.938,
-            "node.shape": 0.375,
-            "node.fill": 0.938,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.938,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.canvas": 0.95,
-            "raster.label": 0.86,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.89
+            "frame.zoom": 1
         },
         "gml-specimen-node-sizes-opacity-p4": {
             "node.present": 1,
@@ -25187,22 +25147,20 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.938,
-            "node.height": 0.938,
-            "node.sizeToSpacing": 0.938,
-            "node.sizeToExtent": 0.938,
-            "node.shape": 0.375,
-            "node.fill": 0.938,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.938,
-            "node.strokeWidth": 1,
+            "node.stroke": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "frame.zoom": 1
         },
         "json-cyjs-graphmaker": {
             "node.present": 1,
@@ -35295,6 +35253,20 @@
             "frame.zoom": 1,
             "background": 1
         },
+        "gml-specimen-arrows~cytoscape-gml": {
+            "node.strokeWidth": 1,
+            "edge.width": 1
+        },
+        "gml-specimen-arrows~cytoscape-gml@matched": {
+            "node.strokeWidth": 1,
+            "edge.width": 1
+        },
+        "gml-specimen-arrows~gml2gv": {
+            "node.shape": 1
+        },
+        "gml-specimen-arrows~gml2gv@matched": {
+            "node.shape": 1
+        },
         "gml-specimen-edge-labels-p2": {
             "node.present": 1,
             "node.extra": 1,
@@ -35388,40 +35360,19 @@
             "frame.zoom": 1,
             "background": 1
         },
-        "gml-specimen-edges-lines": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 0,
-            "node.stroke": 0,
+        "gml-specimen-edge-labels~cytoscape-gml": {
             "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "edge.present": 1,
-            "edge.extra": 1,
-            "edge.route": 0.611,
-            "edge.curve": 0.667,
-            "edge.color": 0.944,
-            "edge.width": 0.944,
-            "edge.opacity": 1,
-            "edge.dash": 1,
-            "edge.gradient": 1,
-            "edge.arrow": 0.981,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0,
-            "raster.arrowhead": 0.8,
-            "raster.canvas": 0.95,
-            "raster.edge": 0.84,
-            "raster.label": 0.86,
-            "raster.nodeBody": 0.75,
-            "raster.nodeOutline": 0.91
+            "edge.width": 1
+        },
+        "gml-specimen-edge-labels~cytoscape-gml@matched": {
+            "node.strokeWidth": 1,
+            "edge.width": 1
+        },
+        "gml-specimen-edge-labels~gml2gv": {
+            "node.shape": 1
+        },
+        "gml-specimen-edge-labels~gml2gv@matched": {
+            "node.shape": 1
         },
         "gml-specimen-edges-lines-p2": {
             "node.present": 1,
@@ -35580,34 +35531,31 @@
             "frame.zoom": 1,
             "background": 1
         },
-        "gml-specimen-edges-lines@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 0,
-            "node.stroke": 0,
+        "gml-specimen-edges-lines~cytoscape-gml": {
             "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.611,
-            "edge.curve": 0.667,
-            "edge.color": 0.944,
-            "edge.width": 0.944,
-            "edge.opacity": 1,
-            "edge.dash": 1,
-            "edge.gradient": 1,
-            "edge.arrow": 0.981,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 0
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.color": 1,
+            "edge.width": 1,
+            "edge.dash": 1
+        },
+        "gml-specimen-edges-lines~cytoscape-gml@matched": {
+            "node.strokeWidth": 1,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.color": 1,
+            "edge.width": 1,
+            "edge.dash": 1
+        },
+        "gml-specimen-edges-lines~gml2gv": {
+            "node.shape": 1
+        },
+        "gml-specimen-edges-lines~gml2gv@matched": {
+            "node.shape": 1
         },
         "gml-specimen-groups": {
             "node.present": 1,
@@ -35714,6 +35662,14 @@
             "frame.zoom": 1,
             "background": 1
         },
+        "gml-specimen-images-charts~cytoscape-gml": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-images-charts~cytoscape-gml@matched": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-images-charts~gml2gv": {},
+        "gml-specimen-images-charts~gml2gv@matched": {},
         "gml-specimen-labels-p2": {
             "node.present": 1,
             "node.extra": 1,
@@ -35932,6 +35888,20 @@
             "frame.zoom": 1,
             "background": 1
         },
+        "gml-specimen-labels~cytoscape-gml": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-labels~cytoscape-gml@matched": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-labels~gml2gv": {
+            "node.shape": 1,
+            "label.text": 1
+        },
+        "gml-specimen-labels~gml2gv@matched": {
+            "node.shape": 1,
+            "label.text": 1
+        },
         "gml-specimen-node-fills-borders-p2": {
             "node.present": 1,
             "node.extra": 1,
@@ -36046,6 +36016,32 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1
+        },
+        "gml-specimen-node-fills-borders~cytoscape-gml": {
+            "node.fill": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1
+        },
+        "gml-specimen-node-fills-borders~cytoscape-gml@matched": {
+            "node.fill": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1
+        },
+        "gml-specimen-node-fills-borders~gml2gv": {
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1
+        },
+        "gml-specimen-node-fills-borders~gml2gv@matched": {
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1
         },
         "gml-specimen-node-shapes-p2": {
             "node.present": 1,
@@ -36203,6 +36199,18 @@
             "frame.zoom": 1,
             "background": 1
         },
+        "gml-specimen-node-shapes~cytoscape-gml": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-node-shapes~cytoscape-gml@matched": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-node-shapes~gml2gv": {
+            "node.shape": 1
+        },
+        "gml-specimen-node-shapes~gml2gv@matched": {
+            "node.shape": 1
+        },
         "gml-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
             "node.extra": 1,
@@ -36319,6 +36327,18 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1
+        },
+        "gml-specimen-node-sizes-opacity~cytoscape-gml": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-node-sizes-opacity~cytoscape-gml@matched": {
+            "node.strokeWidth": 1
+        },
+        "gml-specimen-node-sizes-opacity~gml2gv": {
+            "node.shape": 1
+        },
+        "gml-specimen-node-sizes-opacity~gml2gv@matched": {
+            "node.shape": 1
         },
         "gml-synthetic-coverage": {
             "node.present": 0.976,
@@ -41800,6 +41820,66 @@
             "background": 1
         }
     },
+    "specificationFloors": {
+        "gml-specimen-arrows~specification": {
+            "edge.arrowLength": 0,
+            "edge.arrowWidth": 0,
+            "edge.arrowToSpacing": 0
+        },
+        "gml-specimen-arrows~specification@matched": {
+            "edge.arrowLength": 0,
+            "edge.arrowWidth": 0,
+            "edge.arrowToSpacing": 0
+        },
+        "gml-specimen-edge-labels~specification": {
+            "edge.arrow": 0.667
+        },
+        "gml-specimen-edge-labels~specification@matched": {
+            "edge.arrow": 0.667
+        },
+        "gml-specimen-edges-lines~specification": {
+            "edge.route": 0,
+            "edge.curve": 0,
+            "edge.opacity": 0,
+            "edge.arrow": 0.667
+        },
+        "gml-specimen-edges-lines~specification@matched": {
+            "edge.route": 0,
+            "edge.curve": 0,
+            "edge.opacity": 0,
+            "edge.arrow": 0.667
+        },
+        "gml-specimen-images-charts~specification": {
+            "node.shape": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-images-charts~specification@matched": {
+            "node.shape": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-labels~specification": {},
+        "gml-specimen-labels~specification@matched": {},
+        "gml-specimen-node-fills-borders~specification": {
+            "node.fill": 0,
+            "node.fillOpacity": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-node-fills-borders~specification@matched": {
+            "node.fill": 0,
+            "node.fillOpacity": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-node-shapes~specification": {
+            "node.shape": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-node-shapes~specification@matched": {
+            "node.shape": 0,
+            "node.stroke": 0
+        },
+        "gml-specimen-node-sizes-opacity~specification": {},
+        "gml-specimen-node-sizes-opacity~specification@matched": {}
+    },
     "allowedDrops": {
         "graphml-libcitygml-mapping/raster.label": {
             "reason": "graphty draws each yEd SmartNodeLabelModel class name where its stored box puts it, 1.4 above the node's middle (label.offset 44/51 to 45/51); draw.io, standing in for yEd, centers it (raster.label 0.65 to 0.64)",
@@ -46366,36 +46446,6 @@
             "to": 0.88,
             "reason": "the sheet gained the specimen fill-ff0000 (Gephi's edge fill, which its Preview's default MIXED edge color ignores); its two end nodes' outlines are judged with the rest",
             "date": "2026-10-18"
-        },
-        "gml-specimen-edges-lines/edge.curve": {
-            "from": 0.944,
-            "to": 0.667,
-            "reason": "how far a route bends is compared (within 0.04 or a quarter of the oracle's), no longer curved or straight",
-            "date": "2026-10-18"
-        },
-        "gml-specimen-edges-lines/node.stroke": {
-            "from": 0.315,
-            "to": 0,
-            "reason": "the sheet's captions are left out of the comparison now (named by their comment, as graphty's already were), and they passed this property: the rate is the specimens' alone, which the stand-in draws with its own defaults",
-            "date": "2026-10-19"
-        },
-        "gml-specimen-edges-lines/raster.nodeOutline": {
-            "from": 0.92,
-            "to": 0.91,
-            "reason": "already below this floor on the branch before the master merge (the pre-merge oracle run of 2026-10-20 scores the same): a later import, renderer or comparator change on the branch moved it; the format's section of ISSUES.md names the open setting",
-            "date": "2026-10-20"
-        },
-        "gml-specimen-edges-lines@matched/edge.curve": {
-            "from": 0.944,
-            "to": 0.667,
-            "reason": "how far a route bends is compared (within 0.04 or a quarter of the oracle's), no longer curved or straight",
-            "date": "2026-10-18"
-        },
-        "gml-specimen-edges-lines@matched/node.stroke": {
-            "from": 0.315,
-            "to": 0,
-            "reason": "the sheet's captions are left out of the comparison now (named by their comment, as graphty's already were), and they passed this property: the rate is the specimens' alone, which the stand-in draws with its own defaults",
-            "date": "2026-10-19"
         },
         "gml-specimen-groups-p2/raster.label": {
             "from": 0.88,

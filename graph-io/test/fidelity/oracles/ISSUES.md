@@ -1960,10 +1960,11 @@ vocabularies, one per file: the GML draft's and Tk's keys (no Creator line), yEd
 (`oracles/tools/ogdf.mjs`, OGDF built from source at its release tag `foxglove-202510` into the main checkout's
 `tmp/ogdf/`) and the Gephi sheets drawn by Gephi Toolkit 0.11.3 (`oracles/tools/gephi.mjs`, node labels shown and
 label overlap avoidance off, as the GEXF pages are). The GML draft's sheets (plain GML, no Creator: `node-shapes`,
-`node-fills-borders`, `node-sizes-opacity`, `labels`, `arrows`, `edge-labels`, `images-charts`) are drawn by the same
-OGDF as written, read by GraphIO::readGML and drawn by GraphIO::drawSVG (route `ogdf-draw`, the owner's decision of
-2026-10-20; before, Cytoscape desktop's GML reader or gml2gv stood in). `edges-lines` keeps gml2gv | neato -n2 as its
-stand-in: OGDF crashes reading it (below). The yEd sheets' oracles are still Cytoscape desktop's GML reader or gml2gv
+`node-fills-borders`, `node-sizes-opacity`, `labels`, `edges-lines`, `arrows`, `edge-labels`, `images-charts`) are
+drawn by the same OGDF as written, read by GraphIO::readGML and drawn by GraphIO::drawSVG (route `ogdf-draw`, the
+owner's decision of 2026-10-20; before, Cytoscape desktop's GML reader or gml2gv stood in), and judged per setting
+(below): OGDF judges what it draws, Cytoscape desktop's GML reader and gml2gv | neato -n2 (both drawn into
+`oracles/stand-ins/`) what OGDF does not draw, and the draft itself what no program here draws. The yEd sheets' oracles are still Cytoscape desktop's GML reader or gml2gv
 | neato -n2, stand-ins for yEd, which cannot be automated here, until the owner exports them from yEd by hand. What
 the programs do, which the importer must match:
 
@@ -2032,8 +2033,64 @@ its elements are listed in `oracle-known-failures.json` for that reason and no f
       sheets' header comment is written as two `comment` keys for it (`generators/specimens/gml.py`).
     - A `Line` holding only the edge's two end points (the draft's straight edge, `edges-lines` `line-straight`)
       crashes OGDF's reader (GmlParser pops the end points and then reads the back of the empty list: a segmentation
-      fault). So `edges-lines` keeps its gml2gv stand-in; every other key on it was checked in a trial drawing without
-      that one edge.
+      fault). `oracles/tools/ogdf.mjs` leaves such a Line out of the copy OGDF reads, which the draft says means the
+      same straight edge (A.4, Line, note 1), and records it in the oracle.json (`preprocessing`); since 2026-10-20
+      `edges-lines` is drawn by OGDF too (it kept gml2gv as its stand-in before).
+
+Per-setting judging of the GML draft's sheets (the owner's decision of 2026-10-20). No one program draws every key of
+the draft, so each property of each setting (each specimen) is judged by the first reference that draws it as the
+draft means, and never by one that cannot: `specimens/gml/judges.json` holds the map, with the reason for every rule,
+and `graphty-element/test/fidelity/oracle/judges.ts` applies it (each reference's comparison keeps only the judgments
+the map gives it). The map was chosen from what each program drew of each setting, never from what graphty draws.
+
+- OGDF (the oracle; floors key `<sample>`) judges node position and size, label presence, text and place, `type
+rectangle`, `#RGB` and `#RRGGBB` fills and outlines, the `arrow` ends, a Line's bends and loops, and edge labels.
+- Cytoscape desktop's GML reader (a stand-in; key `<sample>~cytoscape-gml`, in `standInFloors`) judges the draft's
+  `width` (outline and line width), Tk's color names (`fill-name`, `fill-name-upper`, `outline-name`, the edge's
+  `fill-blue`), and the outline and line of a stippled node or edge, which OGDF does not draw.
+- gml2gv | neato -n2 (a stand-in; key `<sample>~gml2gv`) judges `type oval` (OGDF draws rectangle alone, Cytoscape its
+  round rectangle; Graphviz draws oval as an ellipse), the outer size of a node with a wide outline (drawn centered
+  on the box, as Tk draws it; OGDF draws every outline 1 px wide and Cytoscape draws its border inside the box), and a
+  label's text where GML's character entities decode (`label-entity`, `label-char-ref`).
+- The draft (key `<sample>~specification`, in `specificationFloors`): an expectation per setting, the oracle's
+  drawing with the expected values written over it, citing the draft's section or the Tk manual the draft says its
+  graphics follow (A.4). Tk's 9- and 12-digit colors and `light blue` (`fill-hex9`, `fill-hex12`,
+  `fill-name-space`: #FF8800, #FF8800, #ADD8E6), a 0-wide outline drawn one pixel wide (`width-0`), a gray stipple as
+  that share of its fill or line (`stipple-gray75` to `-gray12`: 0.75 to 0.125 of the fill's or line's opacity), an
+  image or bitmap node drawn as its picture's rectangle with no outline (`type-image`, `type-bitmap`, `image-png`,
+  `image-png-wide`, `bitmap-xbm`, `bitmap-fill`), Tk's default arrowhead (`-arrowshape {8 10 3}`: 10 long, 7.5
+  across a 1.5-wide line), a `smooth 1` Line as Tk's parabolic splines (`smooth-1`), and no arrow on an undirected
+  graph's edge that names none (`default` on `edge-labels` and `edges-lines`). An element the oracle does not draw at
+  all (OGDF draws a stippled line as no line) is taken from a stand-in's drawing, carried into the oracle's frame on
+  the corner anchors.
+- No one (`none`): what nothing sets and nothing defines. The `default` specimens' style (no program draws the
+  draft's own defaults, w and h 0 and an edge width of 0.0, so each draws its own), the canvas background, a label's
+  font (the draft names none), the draft's types a node's box cannot draw (`type-arc`, `type-line`, `type-polygon`,
+  `type-text`), an icon stipple's coverage (`stipple-error` and the other icons), a picture's content and how an image
+  draws a node of type oval (`image-on-oval`), and where an edge label sits on a bent edge (`label-bend`: OGDF puts it
+  on the first segment, Graphviz at the middle; the draft says nothing).
+
+A sheet judged per setting has no raster scores: a region's similarity is a mean over every element in it, whatever
+reference judges each one's properties, so no one drawing can judge it. Its floors and known failures were recorded
+afresh under the scheme (2026-10-20), not lowered: under OGDF alone the seven sheets failed 166 element-properties
+(and `edges-lines`, under gml2gv, 91), nearly all OGDF's or gml2gv's limits; under per-setting judging OGDF's and the
+stand-ins' shares fail nothing but the six unassociated primitives OGDF draws on the `labels` sheet (known before too), and the specification's share
+fails 38, each a graph-io or graphty-element gap now on the fix list in `oracle-known-failures.json`:
+
+- graph-io does not read Tk's 9- and 12-digit colors or a color name with a space (`fill-hex9`, `fill-hex12`,
+  `fill-name-space`: graphty draws its default fill), `stipple` (node and edge), `image` and `bitmap` (graphty draws
+  a plain oval with its outline), `smooth` (graphty draws the Line straight), or a 0-wide outline as Tk's one-pixel
+  line (graphty draws none).
+- graph-io gives a plain GML arrow no size, so graphty-element draws its own arrowhead (4 by 3 px) where Tk draws
+  10 by 7.5.
+- graphty-element draws its default edge, which has a target arrow, for an undirected graph's edge that names no
+  arrow (`default` on `edge-labels` and `edges-lines`).
+
+Decided by the team (2026-10-20, reversible): a plain GML node's label is centered on its node, as OGDF and
+Cytoscape draw it; the draft names no place for it. graph-io's GML reader sets `labelPosition` center for the label of
+a node in a file with no recognized writer (the draft's keys, and igraph's); yEd's GML keeps its own label models
+(`LabelGraphics`). Before, graphty-element drew such a label at its own default place, below the node
+(`gml-specimen-labels` label.offset and label.anchor 0/4 against OGDF, now 4/4).
 
 Open:
 

@@ -139,6 +139,26 @@ for (const r of reports) {
             )
             .join("\n");
     const props = propsOf(r.properties);
+    // a sheet judged per setting: each reference scores only the properties of the settings it draws (judges.json)
+    const references = (r.references ?? [])
+        .map((ref) => {
+            const who = ref.reference === "oracle" ? `the sheet's oracle, ${ref.meta?.program ?? "?"}` : ref.reference;
+            const kind =
+                ref.reference === "specification"
+                    ? "the format's specification, not a program: each expectation cites its section in judges.json"
+                    : ref.meta?.standIn
+                      ? "a stand-in program, scored apart"
+                      : "the file's own reading program";
+            const judged = Object.fromEntries(Object.entries(ref.report.properties).filter(([, v]) => v.n > 0));
+            const failing = Object.entries(ref.report.failures ?? {})
+                .map(([p, ids]) => `${esc(p)}: ${esc(ids.join(", "))}`)
+                .join("<br>");
+            return `<h3>Judged by ${esc(who)} (${esc(kind)})</h3>
+<div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
+${propsOf(judged)}</table></div>
+<p class="mono">${failing || "every element it judges passes"}</p>`;
+        })
+        .join("\n");
     const matchedProps = r.positionMatched ? propsOf(r.positionMatched.report.properties) : "";
     const failures = Object.entries(r.failures ?? {})
         .map(
@@ -207,6 +227,7 @@ Fit graphty to oracle: ${fitText}.</p>
 <h2>Properties</h2>
 <div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
 ${props}</table></div>
+${references ? `<h2>Which reference judged each property</h2>\n<p>No one program draws every setting of this sheet, so each property of each setting is judged by the reference that draws it (graph-io/test/fidelity/specimens/gml/judges.json); the table above is the sheet's oracle's share.</p>\n${references}` : ""}
 <h2>Failing elements, by property</h2>
 <div class="scroll"><table><tr><th>property</th><th>failing</th><th>elements</th></tr>
 ${failures}</table></div>

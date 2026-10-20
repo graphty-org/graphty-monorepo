@@ -339,7 +339,8 @@ export interface NodeStyleValues {
     /**
      * How far right the label is drawn again, as a fraction of its own width: -0.5 puts its right edge where its middle
      * was. With `labelPosition` `center` and the offsets, it pins any point of the label's box to any point of the
-     * node's (Cytoscape desktop's label positions).
+     * node's (Cytoscape desktop's label positions). Measured along the label's own axes, turned by `labelRotation`, so a
+     * turned label turns about the point the shift pins, as Cytoscape and Pajek turn a label about its anchor.
      */
     readonly labelShiftX: number;
     /** How far down the label is drawn again, as a fraction of its own height; see `labelShiftX`. */

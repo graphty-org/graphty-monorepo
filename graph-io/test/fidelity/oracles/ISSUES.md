@@ -3294,3 +3294,51 @@ Still open, and why:
 - Patterned corpus edges: `cys-syn-mappings` edge.arrow 352/393 (139 rows failing in round 3, 41 now) with the
   association change in progress; `cys-affinity-purification`, `-annotation-example`, `-galfiltered` and
   `-luad-vest-v2` keep 4 to 8 edge.route rows each. Comparator, not changed here.
+
+## Specimen sheets: CX2 settings graphty now reads, and the CX2 rows still open (fix round 3, 2026-10-20)
+
+Measured with the oracle report on every `cx2-` sample (49) (`tmp/style-specimens/cx2-r3/` in the worktree). The working
+tree also held other agents' uncommitted comparator, chart and Pajek edits, so the "now" figures include them.
+
+Fixed:
+
+- Mapped `NODE_LABEL_POSITION` with `NODE_LABEL_ROTATION` (`cx2-syn-mappings`, `label-anchor-offset`): not an import
+  gap. graph-io reads the mapped position whole (node 189, `pos` 3: the label's left middle at the node's right
+  middle, 5 px out), but Cytoscape turns a label about that pinned point while graphty-element turned it about its
+  own middle, so a label turned 33.5 degrees hung 7 px lower in Cytoscape. graphty-element now turns a label's shift
+  with the label (74cbbef30); Cytoscape.js and Pajek turn a label about its anchor the same way. `label.anchor`
+  37 -> 8 failing, `label.offset` 19 -> 0; one more label passes in each of the cx, cx2, xgmml and cys `syn-bypass`
+  samples. The 8 left are within 3 px of the oracle and read across the anchor classes' borders. (The same file as CX
+  passed only because Cytoscape's CX reader does not match the `pos` column's 3.0 to the mapping's integer key 3 and
+  draws every label centered, as graph-io's CX reader does too.) Test:
+  `graphty-element/test/mesh-testing/label-opacity-offset.test.ts`.
+- Horizontal label offset (`cx2-u2os-hierarchy`, 5 `label.offset`): not an import gap. Cytoscape writes CX2's
+  generic family `sans-serif` as `Sans-serif`; Java has no font of that name and lays the text out in Dialog (DejaVu
+  Sans): "Mitochondria " starts 73.0 px left of its node at 21.38 px, half its 146.0 px DejaVu Sans width. The oracle
+  reader measured the text in the browser's own sans-serif face, 16 percent narrower, so the label read 12 px left of
+  center. It now measures it in DejaVu Sans, as it does Helvetica, Dialog and SansSerif (b22c179af). The sample
+  passes. Test: `graphty-element/test/browser/oracle-freehep-text.test.ts`.
+
+Still open, and why:
+
+- Label wrap width (`cx2-us-returned-students` 3 `label.lines`, `cx2-ndex-90f78bcd`; `label-wrap-width`): the wrap
+  rule is now known and graphty-element already follows it (with the session round's e37884b68); what differs is the
+  measure. Java lays Cytoscape's labels out with whole-pixel hinted advances (a FontRenderContext without fractional
+  metrics): replaying every label of both samples in Java 21 with Dialog at the file's size (238 labels,
+  `tmp/style-specimens/cx2-r3/java/Wrap.java`), graphty-element's rule with Java's hinted widths gives Cytoscape's
+  breaks for all 238, and with fractional widths it misses 2 ("American Institute of Electrical Engineers" is 199 px
+  hinted, 207.18 fractional, against a width of 200). Hinted advances are not each fractional advance rounded (815 of
+  1,190 label and size pairs differ, `W3.java`), and a browser canvas measures only fractional advances, so graphty-element
+  would need the face's hinted advance table per pixel size to wrap these labels as Java does. graphty-element-render;
+  not changed. The same measure decides `National Committee of Y.M.C.A. of China` (node 10195), which now fails:
+  202 px hinted, so Cytoscape breaks it, but under 200 in the browser, so graphty-element keeps it whole since the
+  session round's rule. On the 49 samples the round-3 run's 1,397 failing elements are 823 now and 32 samples pass
+  (29), most of it the sibling rounds' chart and association work.
+- Chart labels (`chart-labels`), `CROSS_DELTA` / `CROSS_OPEN_DELTA` (`comparator-arrow-class`), the size 24 arrowhead
+  on a short edge and the patterned corpus edges (`comparator-edge-association`): the XGMML and session rounds own
+  these shared changes (`styles/cytoscape/charts.ts`, `oracle/primitives.ts`, `oracle/associate.ts`, uncommitted
+  while this ran; see the session round 3 section above). Not changed here, to keep one owner per shared file.
+- Annotations (`annotation-scoring`; `images-charts-p5`, `-p7`, `mappings-bypass-p14`, `-p18`): the graphty strays
+  on these sheets are not file annotations but bar-chart pieces, which graphty's drawn scene records as
+  `annotation-shape` strays (p5 and p18: one green bar 24.5 px tall where Cytoscape's is 51.8; p14: three bars whose
+  base sits below the oracle's). That is chart geometry (`node-custom-graphics`), not scoring.

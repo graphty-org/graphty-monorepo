@@ -1,11 +1,14 @@
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
+    animationOptions,
     backgroundRefusal,
     dataExportOptions,
     DEFAULT_IMAGE,
+    exportScope,
     fileName,
-    IMAGE_PRESETS,
+    presetChoices,
     presetOf,
     screenshotOptions,
     slug,
@@ -16,8 +19,8 @@ describe("the Export dialog's choices", () => {
         assert.equal(presetOf(DEFAULT_IMAGE)?.id, "web-share");
         assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
         assert.isUndefined(presetOf({ ...DEFAULT_IMAGE, format: "webp" }));
-        for (const preset of IMAGE_PRESETS) {
-            assert.equal(presetOf({ ...preset.choices, view: "current" }), preset);
+        for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
+            assert.equal(presetOf({ ...presetChoices(preset), view: "current" }), preset);
         }
     });
 
@@ -54,14 +57,39 @@ describe("the Export dialog's choices", () => {
     });
 
     it("asks every data export for the graph's styles", () => {
-        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges" }), {
+        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges", scope: "all" }), {
             styles: true,
             sanitizeIds: "mangle",
             table: "edges",
         });
-        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes" }), {
+        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes", scope: "all" }), {
             styles: true,
             sanitizeIds: "mangle",
         });
+    });
+
+    it("hands the element the scope and columns the reader chose", () => {
+        assert.isUndefined(exportScope("all"));
+        assert.equal(exportScope("shown"), "shown");
+        assert.equal(exportScope("selection"), "selection");
+        assert.deepEqual(exportScope("set:hubs"), { set: "hubs" });
+        const options = dataExportOptions({ format: "csv", table: "nodes", scope: "shown" }, ["name"]);
+        assert.equal(options.scope, "shown");
+        assert.deepEqual(options.columns, ["name"]);
+    });
+
+    it("records a tour by naming its views, and a still view without a camera path", () => {
+        const tour = animationOptions(
+            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
+            "a.webm",
+        );
+        assert.equal(tour.cameraMode, "animated");
+        assert.deepEqual(tour.tour, ["topView", "isometric"]);
+        assert.equal(tour.duration, 3000);
+        assert.isTrue(tour.download);
+        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
+        assert.equal(still.cameraMode, "stationary");
+        assert.isUndefined(still.tour);
+        assert.isUndefined(still.download);
     });
 });

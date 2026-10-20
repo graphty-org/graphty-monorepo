@@ -1,10 +1,13 @@
-import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
+import { EntityChip, MenuCheckItem, ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ExportLoss, ExportResult } from "@graphty/graphty-element";
-import { Alert, Button, Group, Input, Select, Text } from "@mantine/core";
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { Alert, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { useAsyncValue } from "../inspector/hooks";
+import { formatNumber } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, dataExportOptions, fileName, SAVED_LOCALLY } from "./choices";
+import { type DataChoices, dataExportOptions, type DataScope, fileName, saveBlob } from "./choices";
 import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
@@ -32,8 +35,81 @@ interface DataOutputProps {
     choices: DataChoices;
     onChange: (choices: DataChoices) => void;
     onCancel: () => void;
-    /** Closes the dialog with a notice. */
-    onDone: (message: string) => void;
+    /** Closes the dialog with a notice, and lists the file under Recent. */
+    onDone: (message: string, file?: string) => void;
+}
+
+/** One column a data export can write. */
+interface ExportColumn {
+    /** What `exportGraph`'s `columns` takes: the attribute's name or the result's path. */
+    readonly name: string;
+    /** Hidden with `data.setHidden`, so left out unless the reader adds it back. */
+    readonly hidden: boolean;
+}
+
+/**
+ * The columns a data export can write: the records' attributes, then each run's result.
+ * @param session - the element's session.
+ * @param kinds - the record kinds the file holds.
+ * @returns the columns, without repeats.
+ */
+function exportColumns(session: GraphSession, kinds: readonly ("node" | "edge")[]): ExportColumn[] {
+    const columns = new Map<string, ExportColumn>();
+    for (const attribute of session.data.attributes()) {
+        if (kinds.includes(attribute.kind) && attribute.origin !== "result" && !columns.has(attribute.name)) {
+            columns.set(attribute.name, { name: attribute.name, hidden: attribute.hidden === true });
+        }
+    }
+    for (const kind of kinds) {
+        for (const column of session.data.resultColumns(kind)) {
+            columns.set(column.path, { name: column.path, hidden: false });
+        }
+    }
+    return [...columns.values()];
+}
+
+/** One scope the reader can pick, with how many nodes it writes. */
+interface ScopeOption {
+    readonly value: DataScope;
+    readonly label: string;
+    readonly nodes: number;
+}
+
+/**
+ * The scopes on offer and their node counts: All, Shown, Selection (when something is selected)
+ * and each kept set.
+ * @param session - the element's session.
+ * @returns the options.
+ */
+async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
+    const total = session.data.statistics().nodeCount;
+    const [shown, selected, ...sets] = await Promise.all([
+        session.scope.count("visible"),
+        session.scope.count("selection"),
+        ...session.sets.list().map(async (set) => ({ set, count: await session.scope.count({ set: set.id }) })),
+    ]);
+    return [
+        { value: "all", label: `All ${formatNumber(total)}`, nodes: total },
+        {
+            value: "shown",
+            label: `Shown ${formatNumber(shown.nodes)} of ${formatNumber(total)}`,
+            nodes: shown.nodes,
+        },
+        ...(selected.nodes > 0
+            ? [
+                  {
+                      value: "selection" as const,
+                      label: `Selection ${formatNumber(selected.nodes)}`,
+                      nodes: selected.nodes,
+                  },
+              ]
+            : []),
+        ...sets.map(({ set, count }) => ({
+            value: `set:${set.id}` as const,
+            label: `${set.name} ${formatNumber(count.nodes)}`,
+            nodes: count.nodes,
+        })),
+    ];
 }
 
 /**
@@ -66,12 +142,7 @@ async function download(result: ExportResult, name: string, type: string): Promi
     for await (const chunk of result.bytes) {
         parts.push(new Uint8Array(chunk));
     }
-    const url = URL.createObjectURL(new Blob(parts, { type }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = name;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveBlob(new Blob(parts, { type }), name);
 }
 
 /**
@@ -106,6 +177,17 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const binary = format?.binary === true;
     const formatName = format?.plainName ?? choices.format;
 
+    const kinds: ("node" | "edge")[] = csv ? [choices.table === "edges" ? "edge" : "node"] : ["node", "edge"];
+    const columns = session === null ? [] : exportColumns(session, kinds);
+    const chosen = choices.columns ?? columns.filter((column) => !column.hidden).map((column) => column.name);
+    // Every column is written when none is left out, so the export keeps what this list cannot name.
+    const written = chosen.length === columns.length ? undefined : chosen;
+    const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
+    const scope = scopes?.find((option) => option.value === choices.scope);
+    const total = scopes?.[0]?.nodes;
+    const options = dataExportOptions(choices, written);
+    const optionsKey = JSON.stringify(options);
+
     useEffect(() => {
         if (element === null) {
             return undefined;
@@ -114,13 +196,13 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         setPreview(null);
         setStyleLosses(null);
         let losses: readonly ExportLoss[] = [];
+        // The options as a key, since they are a new object every render.
+        const asked = JSON.parse(optionsKey) as Readonly<Record<string, unknown>>;
         element
-            .exportGraph(choices.format, dataExportOptions(choices))
+            .exportGraph(choices.format, asked)
             .then(async (result) => {
                 ({ losses } = result);
-                const lines = binary
-                    ? `${formatName} files are not text, so there is no preview.`
-                    : await firstLines(result);
+                const lines = binary ? `${formatName}: no preview` : await firstLines(result);
                 if (live) {
                     setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
                     setFailure(null);
@@ -134,7 +216,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         return () => {
             live = false;
         };
-    }, [element, choices, binary, formatName]);
+    }, [element, choices.format, optionsKey, binary, formatName]);
 
     /**
      * Writes the file and hands it over; first, unless the reader already said to save anyway,
@@ -148,7 +230,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         setBusy(true);
         let losses: readonly ExportLoss[] = [];
         try {
-            const result = await element.exportGraph(choices.format, dataExportOptions(choices));
+            const result = await element.exportGraph(choices.format, options);
             ({ losses } = result);
             // A refusal (an E_ code) means the file cannot be written: say why, never offer "Save anyway".
             if (losses.some((loss) => loss.code.startsWith("E_"))) {
@@ -163,7 +245,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             }
             setStyleLosses(null);
             await download(result, name, format?.mimeTypes[0] ?? "text/plain");
-            onDone(`Exported ${name}`);
+            onDone(`Exported ${name}`, name);
         } catch (error) {
             setFailure(failureWords(error, losses));
         } finally {
@@ -171,23 +253,12 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
     };
 
-    const SUMMARIES = {
-        nodes: "One row per node, with every computed value",
-        edges: "One row per edge, with every edge attribute and computed value",
-    };
-    const summary = csv ? SUMMARIES[choices.table] : "Every node and edge, with every attribute and computed value";
-
     return (
         <>
             <div className="ws-export-main">
-                <div>
-                    <Text fw={550} size="md" role="heading" aria-level={3}>
-                        Data
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                        {summary} - {format?.plainName ?? choices.format}
-                    </Text>
-                </div>
+                <Text fw={550} size="md" role="heading" aria-level={3}>
+                    Data
+                </Text>
                 <div className="ws-export-fields">
                     <Select
                         ref={formatField}
@@ -220,6 +291,52 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             />
                         </Input.Wrapper>
                     ) : null}
+                    <Select
+                        label="Scope"
+                        data={(scopes ?? []).map(({ value, label }) => ({ value, label }))}
+                        value={scope === undefined ? null : choices.scope}
+                        placeholder="--"
+                        allowDeselect={false}
+                        onChange={(value) => {
+                            onChange({ ...choices, scope: (value ?? "all") as DataScope });
+                        }}
+                    />
+                    <Input.Wrapper size="xs" label="Columns">
+                        <Group gap={6} wrap="nowrap">
+                            <Menu closeOnItemClick={false} position="bottom-start">
+                                <Menu.Target>
+                                    <Button size="xs" variant="default">
+                                        {`${String(chosen.length)} of ${String(columns.length)}`}
+                                    </Button>
+                                </Menu.Target>
+                                <Menu.Dropdown mah={280} style={{ overflow: "auto" }}>
+                                    {columns.map((column) => (
+                                        <MenuCheckItem
+                                            key={column.name}
+                                            checked={chosen.includes(column.name)}
+                                            onClick={() => {
+                                                onChange({
+                                                    ...choices,
+                                                    columns: chosen.includes(column.name)
+                                                        ? chosen.filter((name) => name !== column.name)
+                                                        : [...chosen, column.name],
+                                                });
+                                            }}
+                                        >
+                                            {column.name}
+                                        </MenuCheckItem>
+                                    ))}
+                                </Menu.Dropdown>
+                            </Menu>
+                            {scope === undefined || total === undefined ? null : (
+                                <EntityChip kind="node">
+                                    {scope.nodes === total
+                                        ? formatNumber(total)
+                                        : `${formatNumber(scope.nodes)} of ${formatNumber(total)}`}
+                                </EntityChip>
+                            )}
+                        </Group>
+                    </Input.Wrapper>
                 </div>
                 {failure !== null ? (
                     <Alert color="red" title="The file was not written" role="alert">
@@ -277,9 +394,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 </pre>
             </div>
             <ModalFooter className="ws-export-footer">
-                <Text size="sm" c="dimmed" className="ws-export-note">
-                    {SAVED_LOCALLY}
-                </Text>
+                <span className="ws-export-note" />
                 <Button variant="default" onClick={onCancel}>
                     Cancel
                 </Button>

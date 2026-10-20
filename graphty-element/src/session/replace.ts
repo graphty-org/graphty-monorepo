@@ -7,7 +7,7 @@
 import type { EdgeId, NodeId } from "../catalog/types";
 import { readEndpoint } from "../data/endpoints";
 import type { HeldRows } from "./commands/data";
-import type { ReplaceCounts, RowUpdate } from "./types";
+import type { JoinRecord, ReplaceCounts, RowUpdate } from "./types";
 
 /** One of the load's rows as the graph holds it now. */
 export interface HeldRow<Id> {
@@ -196,4 +196,46 @@ export function planReplace(input: ReplaceInput): ReplacePlan {
         nodes: { added: nodesAdded, removed: removeNodes.length, changed: nodeRows.length },
         edges: { added: edgesAdded, removed: removeEdges.length, changed: edgeRows.length },
     };
+}
+
+/**
+ * A joined table of edges as its newer copy has it: the copy's rows, and how many of them match
+ * two nodes the graph holds. A join of values keeps its record: a newer copy of it is joined
+ * again with `editJoin`.
+ * ponytail: an end only this join made counts as matched; subtract the join's own nodes if the
+ * count must match `joinReport` exactly.
+ * @param join - the join as recorded
+ * @param held - the newer copy's rows
+ * @param hasNode - whether the graph holds a node
+ * @param paths - the expressions a row's ends are read with when the held rows name none
+ * @returns the join, recounted
+ */
+export function rejoined(
+    join: JoinRecord,
+    held: HeldRows,
+    hasNode: (id: NodeId) => boolean,
+    paths: Pick<ReplaceInput["paths"], "source" | "target">,
+): JoinRecord {
+    if (join.shape !== "edges") {
+        return join;
+    }
+
+    const sourcePath = held.source ?? paths.source;
+    const targetPath = held.target ?? paths.target;
+    const found = (row: Readonly<Record<string, unknown>>, path: string): boolean => {
+        const id = idText(readEndpoint(row, path));
+        return id !== null && hasNode(id);
+    };
+    const matched = held.edges.filter((row) => found(row, sourcePath) && found(row, targetPath)).length;
+    const columns = [...new Set(held.edges.flatMap((row) => Object.keys(row)))];
+    return Object.freeze({
+        ...join,
+        rows: held.edges.length,
+        matched,
+        table: Object.freeze({
+            name: join.table.name,
+            columns: Object.freeze(columns),
+            rows: Object.freeze([...held.edges]),
+        }),
+    });
 }

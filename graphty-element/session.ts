@@ -102,6 +102,7 @@ export type {
     JoinReport,
     JoinShape,
     JoinSuggestion,
+    JoinWarning,
     LoadChoices,
     LoadDraft,
     LoadedSource,

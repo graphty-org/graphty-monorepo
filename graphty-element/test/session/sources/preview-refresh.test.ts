@@ -77,6 +77,37 @@ registerSource(
     }),
 );
 
+// The pages again, behind a login its one sample publishes for everyone.
+registerSource(
+    defineSource({
+        id: "people-public",
+        descriptor: {
+            plainName: "People (public login)",
+            params: [],
+            features: ["page"],
+            authRequired: "required",
+            auth: ["basic"],
+            defaultEndpoint: "https://people.example.com",
+            samples: [
+                {
+                    id: "people-public-sample",
+                    plainName: "People",
+                    params: {},
+                    publicLogin: { username: "u", password: "p" },
+                },
+            ],
+        },
+        async *records(_params: Record<string, unknown>, ctx) {
+            for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
+                yield await Promise.resolve({
+                    nodes: [{ id: `q${String(page)}` }],
+                    next: page < 1 ? { page: page + 1 } : null,
+                });
+            }
+        },
+    }),
+);
+
 /**
  * A Neo4j Query API node.
  * @param id - its element id
@@ -161,6 +192,13 @@ describe("data.previewSource", () => {
                 "name",
             );
             assert.strictEqual(preview.facts.product, "Neo4j");
+            assert.deepInclude(preview.serverFacts, { code: "source.product", params: { value: "Neo4j" } });
+            assert.strictEqual(preview.rows.length, 25);
+            assert.isTrue(preview.rows.every((row) => typeof row.label === "string"));
+            assert.isFalse(
+                preview.columns.some((c) => c.name.startsWith("_source.")),
+                "no bookkeeping column in a preview",
+            );
             // nothing changed: no rows, no step, no record
             assert.strictEqual(session.data.nodes().length, 0);
             assert.strictEqual(session.history.steps.length, 0);
@@ -233,6 +271,34 @@ describe("data.more({ load })", () => {
         });
     });
 
+    it("adds the page to the load's own source entry, not a second one", async () => {
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "people-pages", config: {}, name: "People" },
+                { limits: { maxNodes: 3, onLimit: "stop" } },
+            );
+            const [before] = session.data.sources();
+            await session.data.more({ load: before.loadKey });
+            const after = session.data.sources();
+            assert.strictEqual(after.length, 1);
+            assert.strictEqual(after[0].key, before.key);
+            assert.strictEqual(after[0].name, "People");
+            assert.deepEqual(after[0].counts, { nodes: 6, edges: 0 });
+            assert.deepEqual(after[0].added, { nodes: 6, edges: 0 });
+            await session.undo();
+            assert.deepEqual(session.data.sources()[0].counts, { nodes: 3, edges: 0 });
+        });
+    });
+
+    it("pages a sample with the login it publishes, with nothing remembered", async () => {
+        await withSession(async (session) => {
+            await session.data.loadSample("people-public-sample", { limits: { maxNodes: 1, onLimit: "stop" } });
+            assert.strictEqual(session.data.nodes().length, 1);
+            await session.data.more({ load: session.data.loads()[0].key });
+            assert.strictEqual(session.data.nodes().length, 2);
+        });
+    });
+
     it("refuses a key no load has", async () => {
         await withSession(async (session) => {
             const error = await session.data.more({ load: "load-9" }).then(
@@ -261,6 +327,7 @@ describe("data.checkSource and data.refresh", () => {
                 added: { nodes: 0, edges: 0 },
                 removed: { nodes: 0, edges: 0 },
                 updated: { nodes: 0, edges: 0 },
+                fact: { code: "I_SOURCE_UNCHANGED", params: { added: [0, 0], removed: [0, 0], updated: [0, 0] } },
             });
             assert.strictEqual(session.history.steps.length, steps);
         });
@@ -287,6 +354,7 @@ describe("data.checkSource and data.refresh", () => {
                 added: { nodes: 1, edges: 1 },
                 removed: { nodes: 1, edges: 1 },
                 updated: { nodes: 1, edges: 0 },
+                fact: { code: "I_SOURCE_REFRESHED", params: { added: [1, 1], removed: [1, 1], updated: [1, 0] } },
             });
             assert.strictEqual(session.history.steps.length, steps + 1);
             assert.strictEqual(session.history.steps.at(-1)?.fact.code, "data.replace-source");
@@ -302,6 +370,7 @@ describe("data.checkSource and data.refresh", () => {
                 [load.key],
                 "still one load",
             );
+            assert.strictEqual(session.data.sources().length, 1, "the new rows count under the load's own entry");
 
             await session.undo();
             assert.deepEqual(

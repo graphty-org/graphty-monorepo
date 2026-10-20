@@ -79,11 +79,14 @@ import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
     SourceCheck,
     SourceExpanded,
     SourceExpandFailed,
+    SourceExpandResult,
     SourceExpandStart,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
@@ -1350,9 +1353,24 @@ export interface SessionDataApi {
      * undoable step. A node not loaded from a source rejects with `E_SOURCE_UNSUPPORTED`. Experimental.
      * @param ids - The seed nodes.
      * @param options - Depth, direction, limit and the credential.
-     * @returns Settles once the neighborhood is in the graph.
+     * @returns `I_SOURCE_EXPANDED` with `{ seeds, added: [nodes, edges], partial }` when it
+     *     brought something, `I_SOURCE_NOTHING_NEW` with the same params when it brought nothing.
      */
-    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<void>;
+    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<SourceExpandResult>;
+    /**
+     * Where a node came from, when a network source's load brought it: the load and its
+     * `sources()` entry, whether expanding it can fetch more, how many neighbors the source holds
+     * that the graph does not, and whether it has been expanded (so `collapse` applies).
+     * Experimental.
+     *
+     * ```ts
+     * const from = session.data.nodeSource("ana");
+     * if (from?.canExpand) await session.data.expand(["ana"]);
+     * ```
+     * @param id - The node.
+     * @returns The facts, or null for a node no network source brought or the graph lacks.
+     */
+    nodeSource(id: NodeId): NodeSource | null;
     /**
      * Remove what a node's expansions alone brought, as one undoable step. Experimental.
      * @param id - The node.
@@ -1921,6 +1939,18 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly loadKey?: string;
+    /**
+     * For a network source's load: what it can do now. `more` is true while the load stopped at a
+     * cap and its source pages; `expand` and `refresh` are what its source can do.
+     * @since 3.30.0
+     */
+    readonly features?: SourceFeatures;
+    /**
+     * For a network source's load: how many nodes the source holds for it, when the source says
+     * or a complete read counted them, so a consumer can show what is loaded of the total.
+     * @since 3.30.0
+     */
+    readonly total?: number;
 }
 
 /**
@@ -1983,16 +2013,30 @@ export interface JoinChoices {
      */
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     /**
-     * Several rows with one key: `"first"` (the default) takes the first row; `"both"` keeps
-     * every row, as a list of values for values, as one edge each for edges.
+     * Several rows with one key: `"first"` (the default) takes the first row, `"last"` the last
+     * one; `"both"` keeps every row, as a list of values for values, as one edge each for edges.
      */
-    readonly repeated?: "first" | "both";
+    readonly repeated?: "first" | "last" | "both";
+    /**
+     * The report's warnings the reader chose to leave as they are, by the {@link JoinReport} count
+     * that raised them. Recorded with the join (`JoinRecord.choices`), so a consumer can stop
+     * flagging them; changes nothing the join does.
+     * @since 3.30.0
+     */
+    readonly ignore?: readonly JoinWarning[];
     /**
      * A mapping table: a joined table (`sources()` key) with one column holding the incoming
      * keys and one holding the graph's, through which incoming keys are translated first.
      */
     readonly via?: SourceKey;
 }
+
+/**
+ * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
+ * OPEN UNION: warnings may be added in a minor release.
+ * @since 3.30.0
+ */
+export type JoinWarning = "repeatedKeys" | "notInGraph" | "withoutValue" | "extraIgnoringCase" | "extraIgnoringSpaces";
 
 /**
  * What a join would do, counted: what `draft.joinReport(choices)` returns. For values, matches
@@ -2016,7 +2060,7 @@ export interface JoinReport {
     readonly newNodes: number;
     /** Edges the join would make. */
     readonly newEdges: number;
-    /** Nodes given values, or, for `"edges"`, nodes a new edge touches. */
+    /** Nodes whose values the join changes: a value written that differs from the one held. 0 for `"edges"`. */
     readonly updatedNodes: number;
     /** The incoming columns the graph already has. */
     readonly clashes: readonly { readonly column: string; readonly code: "clash" }[];

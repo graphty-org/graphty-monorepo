@@ -1921,10 +1921,11 @@ export type ItemKey = {
 export interface JoinChoices {
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
+    readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly keys: readonly JoinKey[];
-    readonly repeated?: "first" | "both";
+    readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly via?: SourceKey;
 }
@@ -1980,6 +1981,9 @@ export interface JoinSuggestion {
     readonly keys: readonly JoinKey[];
     readonly shape: JoinShape;
 }
+
+// @public
+export type JoinWarning = "repeatedKeys" | "notInGraph" | "withoutValue" | "extraIgnoringCase" | "extraIgnoringSpaces";
 
 // @public
 export interface JournalApi {
@@ -2250,6 +2254,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly features?: SourceFeatures;
     readonly join?: JoinRecord;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
@@ -2259,6 +2264,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly reloadable?: true;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
+    readonly total?: number;
 }
 
 // @public
@@ -2399,6 +2405,15 @@ export interface NodeRecord {
 
 // @public
 export type NodeRecordInput = Readonly<Record<string, unknown>>;
+
+// @public
+export interface NodeSource {
+    readonly canExpand: boolean;
+    readonly expanded: boolean;
+    readonly hiddenNeighbors: number | null;
+    readonly loadKey: string;
+    readonly source: SourceKey | null;
+}
 
 // @public
 export type Normalization = "max" | "min-max" | "none";
@@ -3938,7 +3953,7 @@ export interface SessionDataApi {
     edges(): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
-    expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
+    expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
@@ -3967,6 +3982,7 @@ export interface SessionDataApi {
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
+    nodeSource(id: NodeId_2): NodeSource | null;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
@@ -4394,6 +4410,9 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 export type SourceExpandFailed = CodedFact;
 
 // @public
+export type SourceExpandResult = CodedFact<"I_SOURCE_EXPANDED" | "I_SOURCE_NOTHING_NEW">;
+
+// @public
 export interface SourceExpandStart {
     readonly seeds: readonly NodeId[];
 }
@@ -4504,6 +4523,8 @@ export interface SourcePreview {
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    readonly rows: readonly SourcePreviewRow[];
+    readonly serverFacts: readonly CodedFact[];
 }
 
 // @public
@@ -4511,11 +4532,18 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
     readonly maxNodes?: number;
 }
 
+// @public
+export interface SourcePreviewRow {
+    readonly id: NodeId;
+    readonly label: string | null;
+}
+
 export { SourceProbe }
 
 // @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
+    readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }

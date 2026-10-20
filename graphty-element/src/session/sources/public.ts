@@ -9,6 +9,7 @@ export type {
     CollapseResult,
     ExpandBehavior,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
     SourceCatalogEntry,
     SourceCheck,
@@ -16,6 +17,7 @@ export type {
     SourceCredentialIdentity,
     SourceExpanded,
     SourceExpandFailed,
+    SourceExpandResult,
     SourceExpandStart,
     SourceExpansionRecord,
     SourceFeatures,
@@ -25,6 +27,7 @@ export type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourcePreviewRow,
     SourceRefreshReport,
 } from "./types";
 export type {

@@ -119,6 +119,12 @@ describe("session.data.import from a network source", () => {
             assert.strictEqual(record.endpoint, `${ENDPOINT}/`);
             assert.strictEqual(record.credential, null);
             assert.strictEqual(session.data.source()?.type, "source:people-load");
+            assert.isDefined(session.data.node("ana")?.["_source.loads"], "the node keeps its source facts");
+            assert.deepEqual(
+                session.data.attributes().filter((column) => column.name.startsWith("_source.")),
+                [],
+                "the source facts are bookkeeping, not columns",
+            );
         });
     });
 

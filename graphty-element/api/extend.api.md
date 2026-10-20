@@ -1901,6 +1901,15 @@ export interface NodeScoreDefinition<O extends OptionsShorthand> extends Algorit
 }
 
 // @public
+export interface NodeSource {
+    readonly canExpand: boolean;
+    readonly expanded: boolean;
+    readonly hiddenNeighbors: number | null;
+    readonly loadKey: string;
+    readonly source: SourceKey | null;
+}
+
+// @public
 export interface NodeView {
     attr(path: string | undefined): unknown;
     readonly degree: number;
@@ -2420,6 +2429,9 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 export type SourceExpandFailed = CodedFact;
 
 // @public
+export type SourceExpandResult = CodedFact<"I_SOURCE_EXPANDED" | "I_SOURCE_NOTHING_NEW">;
+
+// @public
 export interface SourceExpandStart {
     readonly seeds: readonly NodeId_2[];
 }
@@ -2527,6 +2539,8 @@ export interface SourcePreview {
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    readonly rows: readonly SourcePreviewRow[];
+    readonly serverFacts: readonly CodedFact[];
 }
 
 // @public
@@ -2534,11 +2548,18 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
     readonly maxNodes?: number;
 }
 
+// @public
+export interface SourcePreviewRow {
+    readonly id: NodeId_2;
+    readonly label: string | null;
+}
+
 export { SourceProbe }
 
 // @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
+    readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }

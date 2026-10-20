@@ -525,12 +525,35 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             repeatedKeys: [...seen.values()].filter((count) => count > 1).length,
             extraIgnoringCase: choices.ignoreCase === true ? 0 : extra({ ignoreCase: true }),
             extraIgnoringSpaces: choices.ignoreSpaces === true ? 0 : extra({ ignoreSpaces: true }),
-            updatedNodes: chosen === "node-values" && columns.length > 0 ? now.matched.size : 0,
+            updatedNodes: chosen === "node-values" ? changedCount(table, graph, choices, chosen) : 0,
             rowMatches: frozen(now.rowIds.map((ids) => [...ids])),
             withoutValueIds: frozen(elements.map((element) => element.id).filter((id) => !now.matched.has(id))),
         },
         elements,
     );
+}
+
+/**
+ * How many elements a join of values would change: ones it writes a value to that differs from
+ * the one they hold.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @param shape - The shape.
+ * @returns The count.
+ */
+function changedCount(table: JoinTable, graph: JoinGraph, choices: JoinChoices, shape: JoinShape): number {
+    const { plan } = planJoin(table, graph, choices, shape);
+    if (plan.kind !== "values") {
+        return 0;
+    }
+
+    const held = new Map((plan.target === "node" ? graph.nodes : graph.edges).map((each) => [each.id, each.data]));
+    return plan.rows.filter((row) =>
+        Object.entries(row.values).some(
+            ([name, value]) => JSON.stringify(held.get(row.id)?.[name]) !== JSON.stringify(value),
+        ),
+    ).length;
 }
 
 /**
@@ -586,7 +609,8 @@ function edgeReport(
                     : both(matchEdges(table, graph, choices, looseOf(choices, { ignoreSpaces: true }))) - matched,
             newNodes: fresh.size,
             newEdges: kept,
-            updatedNodes: touched.size,
+            // An edge join writes no node's values.
+            updatedNodes: 0,
             rowMatches: frozen(rowMatches),
             withoutValueIds: frozen(graph.nodes.map((node) => node.id).filter((id) => !touched.has(id))),
         },
@@ -653,7 +677,8 @@ export function planJoin(
             const name = rule === "both" ? bothName(column, table) : column;
             const given = matchedRows.map((row) => row[column]).filter((value) => !absent(value));
             const distinct = [...new Set(given)];
-            const value = choices.repeated === "both" && distinct.length > 1 ? distinct : given[0];
+            const one = choices.repeated === "last" ? given.at(-1) : given[0];
+            const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
             if (value === undefined || (rule === "keep" && !absent(held[name]))) {
                 continue;
             }
@@ -698,17 +723,15 @@ function planEdges(
 ): { readonly plan: JoinPlan; readonly matched: number } {
     const [source, target] = choices.keys.map((key) => key.file);
     const clashing = new Set(clashesOf(graph.edges, columns));
-    const seen = new Set<string>();
-    const edges: Record<string, unknown>[] = [];
-    let matched = 0;
-    for (const row of matchEdges(table, graph, choices, looseOf(choices))) {
-        const pair = `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
-        if (choices.repeated !== "both" && seen.has(pair)) {
+    // One edge per pair, the first row's or the last row's, or one per row with "both"; a Map
+    // keeps the pair where it first appeared either way.
+    const byPair = new Map<string, { edge: Record<string, unknown>; both: boolean }>();
+    for (const [at, row] of matchEdges(table, graph, choices, looseOf(choices)).entries()) {
+        const pair = choices.repeated === "both" ? String(at) : `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
+        if (choices.repeated !== "last" && byPair.has(pair)) {
             continue;
         }
 
-        seen.add(pair);
-        matched += row.found[0] && row.found[1] ? 1 : 0;
         const edge: Record<string, unknown> = { [source]: row.ends[0], [target]: row.ends[1] };
         for (const column of columns) {
             const rule = clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
@@ -718,8 +741,11 @@ function planEdges(
             }
         }
 
-        edges.push(edge);
+        byPair.set(pair, { edge, both: row.found[0] && row.found[1] });
     }
+
+    const edges = [...byPair.values()].map((each) => each.edge);
+    const matched = [...byPair.values()].filter((each) => each.both).length;
 
     const written = new Set(
         edges.flatMap((edge) => Object.keys(edge)).filter((key) => key !== source && key !== target),

@@ -215,6 +215,39 @@ describe("joining a table onto the graph", () => {
         session.dispose();
     });
 
+    it("takes the last row of a repeated key with repeated: last, and records what the reader ignores", async () => {
+        const session = await proteins();
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        await draft.load({ join: { keys, repeated: "last", columns: ["log2fc"], ignore: ["repeatedKeys"] } });
+        assert.strictEqual(session.data.node("TP53")?.log2fc, 9.9);
+        assert.deepEqual(session.data.joins()[0].choices.ignore, ["repeatedKeys"]);
+        const log2fc = session.data.attributes().find((each) => each.name === "log2fc");
+        assert.strictEqual(log2fc?.origin, "joined");
+        await session.undo();
+        await session.redo();
+        assert.strictEqual(session.data.attributes().find((each) => each.name === "log2fc")?.origin, "joined");
+        session.dispose();
+    });
+
+    it("counts only the nodes whose values a join changes", async () => {
+        const session = await proteins();
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        await draft.load({ join: { keys, columns: ["tissue"] } });
+        const again = await session.data.prepare(
+            { config: { file: new File([EXPRESSION], "tumor-expression-2.tsv") }, name: "tumor-expression-2.tsv" },
+            { onto: "graph" },
+        );
+        // Every matched node holds tissue = lung already: overwriting it changes nothing.
+        assert.strictEqual(
+            again.joinReport({ keys, columns: ["tissue"], clash: { tissue: "overwrite" } }).updatedNodes,
+            0,
+        );
+        assert.strictEqual(again.joinReport({ keys, columns: ["log2fc"] }).updatedNodes, 52);
+        session.dispose();
+    });
+
     it("refuses a key column the table lacks, and a draft not prepared onto the graph", async () => {
         const session = await proteins();
         const draft = await expression(session);
@@ -278,7 +311,7 @@ describe("joining edges between the nodes a graph holds", () => {
             notInGraph: 0,
             newEdges: 150,
             newNodes: 0,
-            updatedNodes: 40,
+            updatedNodes: 0,
             withoutValue: 0,
         });
         const { rowMatches } = draft.joinReport({ keys: suggestion.keys });
@@ -305,6 +338,35 @@ describe("joining edges between the nodes a graph holds", () => {
         await session.undo();
         assert.strictEqual(session.data.edges().length, 0);
         assert.deepEqual(session.data.joins(), []);
+        session.dispose();
+    });
+
+    it("keeps the graph's own source, marks the joined columns, and routes the same file to its join", async () => {
+        const { session, draft } = await supplyChain();
+        await draft.load({ join: { keys: draft.suggestJoin().keys } });
+        assert.strictEqual(session.data.source()?.name, "suppliers.csv", "a join is not the graph's source");
+        const volume = session.data.attributes().find((each) => each.kind === "edge" && each.name === "volume");
+        assert.strictEqual(volume?.origin, "joined");
+        const country = session.data.attributes().find((each) => each.name === "country");
+        assert.strictEqual(country?.origin, "imported");
+
+        const [, ships] = session.data.sources();
+        const again = new File([SHIPS], "ships-to-2024-09.csv");
+        assert.strictEqual(await session.data.matchesSource({ config: { file: again } }), ships.key);
+        const twice = await session.data.prepare(
+            { config: { file: again }, name: "ships-to-2024-09.csv" },
+            { onto: "graph" },
+        );
+        await assertRejects(twice.load({ join: { keys: twice.suggestJoin().keys } }), "E_BAD_COMMAND");
+        assert.strictEqual(session.data.edges().length, 150, "not joined twice");
+
+        // A newer copy with nine more shipments: the join is counted again.
+        const newer = [SHIPS, ...Array.from({ length: 9 }, (_unused, at) => `S${String(at)},S${String(at + 20)},1,1`)];
+        await session.data.replaceSource(ships.key, { config: { file: new File([newer.join("\n")], "ships.csv") } });
+        assert.strictEqual(session.data.edges().length, 159);
+        const [join] = session.data.joins();
+        assert.strictEqual(join.rows, 159);
+        assert.strictEqual(join.matched, 159);
         session.dispose();
     });
 

@@ -23,6 +23,7 @@ import {
 import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
+import { sourceDescriptors } from "../catalog/sources";
 import type {
     AttributeDescriptor,
     AttributeRole,
@@ -89,7 +90,7 @@ import { frozenRecord } from "./project/draft";
 import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
-import { pairKey, planReplace } from "./replace";
+import { pairKey, planReplace, rejoined } from "./replace";
 import {
     primaryResultColumn,
     type ResolvedResult,
@@ -108,15 +109,18 @@ import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
+import { isSourceFactKey, SOURCE_RECORD_VERSION, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
     SourceCheck,
+    SourceExpandResult,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
@@ -549,6 +553,7 @@ export class SessionData implements SessionDataApi {
         readonly stored: readonly LoadedSource[];
         readonly provenance: Provenance | undefined;
         readonly snapshot: GraphSnapshot;
+        readonly ledger: object;
         readonly result: readonly LoadedSource[];
     } | null = null;
     /**
@@ -883,11 +888,40 @@ export class SessionData implements SessionDataApi {
      * Fetch the neighborhood of nodes from the source that loaded them, as one undoable step.
      * @param ids - The seeds.
      * @param options - Depth, direction, limit and the credential.
-     * @returns Settles once the neighborhood is in the graph.
+     * @returns What it brought, as a coded fact.
      */
-    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
+    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
         return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+    }
+
+    /**
+     * Where a node came from, when a network source's load brought it.
+     * @param id - The node.
+     * @returns Its load, entry, whether it can expand or collapse, and its hidden neighbors; null
+     *     for a node no network source brought, or one the graph does not hold.
+     */
+    nodeSource(id: NodeId): NodeSource | null {
+        this.requireLive("nodeSource");
+        const record = this.node(id);
+        const load = this.ledger.loadOf(sourceLoadsOf(record));
+        if (record === undefined || load === undefined) {
+            return null;
+        }
+
+        const facts = sourceFactsOf(record);
+        const hidden = typeof facts.hidden === "number" ? facts.hidden : null;
+        const expanded = facts.expansion === "partial" || facts.expansion === "complete";
+        const canFetch = sourceDescriptors().find((entry) => entry.id === load.source)?.features.expand === true;
+        return Object.freeze({
+            loadKey: load.key,
+            source: this.sources().find((each) => each.loadKey === load.key)?.key ?? null,
+            // A node is worth expanding until an expansion found all of it, or the source says
+            // every neighbor is already here.
+            canExpand: canFetch && facts.expansion !== "complete" && hidden !== 0,
+            hiddenNeighbors: hidden,
+            expanded,
+        });
     }
 
     /**
@@ -1039,6 +1073,7 @@ export class SessionData implements SessionDataApi {
             owner: this,
             expansions: this.expansions,
             loads: () => this.loads(),
+            sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             node: (id) => this.node(id),
             nodeIds: () => [...this.current().ids],
             edges: () => {
@@ -1850,9 +1885,18 @@ export class SessionData implements SessionDataApi {
         const provenance = this.provenance();
         const snapshot = this.current();
         const memo = this.sourcesMemo;
-        if (memo?.stored === stored && memo.provenance === provenance && memo.snapshot === snapshot) {
+        const ledger = this.ledger.version();
+        if (
+            memo?.stored === stored &&
+            memo.provenance === provenance &&
+            memo.snapshot === snapshot &&
+            memo.ledger === ledger
+        ) {
             return memo.result;
         }
+
+        const records = new Map(this.ledger.loads().map((record) => [record.key, record]));
+        const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
         const space = edgeSpaceOf(snapshot);
         // An entry saved before loads had keys gets one by its place in the list.
@@ -1870,6 +1914,7 @@ export class SessionData implements SessionDataApi {
                     kind,
                     ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
+                    ...loadFacts(records.get(loadKey ?? ""), catalog),
                     counts: Object.freeze(
                         supplied === undefined
                             ? { ...each.added }
@@ -1881,7 +1926,7 @@ export class SessionData implements SessionDataApi {
                 });
             }),
         );
-        this.sourcesMemo = { stored, provenance, snapshot, result };
+        this.sourcesMemo = { stored, provenance, snapshot, ledger, result };
         return result;
     }
 
@@ -2255,7 +2300,19 @@ export class SessionData implements SessionDataApi {
                     key,
                     origin: entry.kind,
                     ...(entry.joinedOnto === undefined ? {} : { joinedOnto: entry.joinedOnto }),
-                    ...(entry.join === undefined ? {} : { join: entry.join }),
+                    ...(entry.join === undefined
+                        ? {}
+                        : {
+                              join: rejoined(
+                                  entry.join,
+                                  held,
+                                  (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
+                                  {
+                                      source: known.edgeSrcIdPath ?? "source",
+                                      target: known.edgeDstIdPath ?? "target",
+                                  },
+                              ),
+                          }),
                 },
             ],
         });
@@ -2393,6 +2450,16 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         const provenance = this.provenance();
         for (const entry of [...this.storedSources()].reverse()) {
+            // A joined table keeps its own columns: the same header is a newer copy of it.
+            if (entry.join !== undefined) {
+                const { columns } = entry.join.table;
+                if (columns.length === header.size && columns.every((name) => header.has(name))) {
+                    return entry.key;
+                }
+
+                continue;
+            }
+
             const supplied = provenance?.[entry.key];
             if (supplied === undefined || entry.kind === "join") {
                 continue;
@@ -2647,6 +2714,19 @@ export class SessionData implements SessionDataApi {
         }
 
         const stored = this.storedSources();
+        const same = (join: JoinRecord): boolean =>
+            JSON.stringify([join.table.columns, join.table.rows]) === JSON.stringify([table.columns, table.rows]);
+        const twin =
+            previous === undefined ? stored.find((each) => each.join !== undefined && same(each.join)) : undefined;
+        if (twin !== undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The table ${table.name} is joined already, as ${twin.key}: replace or edit that join instead.`,
+                source: "data",
+                details: { reason: "joined-already", key: twin.key },
+            });
+        }
+
         const provenance = this.provenance();
         const key = previous?.key ?? nextSourceKey(stored, provenance);
         const onto = previous === undefined ? this.ontoOf(plan, graph) : (previous.join?.onto ?? null);
@@ -2935,15 +3015,19 @@ export class SessionData implements SessionDataApi {
         // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
         // snapshot alone, an edited value never reached the descriptors.
         const snapshot = this.current();
-        const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
+        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
+        const described = this.attributeCache.get("", () =>
+            Object.freeze(describeAttributes(snapshot, this.records).filter((each) => !isSourceFactKey(each.name))),
+        );
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
         const uses = this.columnUses(described);
         const fed = this.columnSources(described);
         const settings = this.columnSettings();
         const hidden = new Set(settings.hidden);
+        const joined = this.joinedColumns();
         // The same array back while nothing it was laid from moved, so a consumer can memo on it.
-        const key = JSON.stringify([[...declarations], [...roles], [...uses], [...fed], settings]);
+        const key = JSON.stringify([[...declarations], [...roles], [...uses], [...fed], settings, [...joined]]);
         const memo = this.attributeOverlay;
         if (memo?.described === described && memo.key === key) {
             return memo.result;
@@ -2954,6 +3038,7 @@ export class SessionData implements SessionDataApi {
             roles.size === 0 &&
             uses.size === 0 &&
             fed.size === 0 &&
+            joined.size === 0 &&
             settings === NO_COLUMN_SETTINGS
                 ? described
                 : Object.freeze(
@@ -2964,15 +3049,18 @@ export class SessionData implements SessionDataApi {
                           const from = fed.get(declarationKey(each));
                           const typed = settings.types[declarationKey(each)];
                           const isHidden = hidden.has(declarationKey(each));
+                          const isJoined = joined.has(declarationKey(each));
                           return declared === undefined &&
                               played === undefined &&
                               used === undefined &&
                               from === undefined &&
                               typed === undefined &&
-                              !isHidden
+                              !isHidden &&
+                              !isJoined
                               ? each
                               : Object.freeze({
                                     ...each,
+                                    ...(isJoined ? { origin: "joined" as const } : {}),
                                     ...(typed === undefined ? {} : typedFields(each, typed)),
                                     ...(declared === undefined
                                         ? {}
@@ -2989,6 +3077,31 @@ export class SessionData implements SessionDataApi {
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The columns a join brought, by `<kind>:<name>`: the names each join still in the graph wrote,
+     * less a column it wrote over or kept (a clash set to `"overwrite"` or `"keep"`), which was the
+     * graph's before the join.
+     * @returns the columns
+     */
+    private joinedColumns(): ReadonlySet<string> {
+        const out = new Set<string>();
+        for (const { join } of this.storedSources()) {
+            if (join === undefined) {
+                continue;
+            }
+
+            const kind = join.shape === "node-values" ? "node" : "edge";
+            for (const name of join.columns) {
+                const rule = join.choices.clash?.[name];
+                if (rule !== "overwrite" && rule !== "keep") {
+                    out.add(`${kind}:${name}`);
+                }
+            }
+        }
+
+        return out;
     }
 
     /**
@@ -4042,4 +4155,29 @@ function nextSourceKey(stored: readonly LoadedSource[], provenance: Provenance |
         return match === null ? 0 : Number(match[1]);
     });
     return `s${String(Math.max(0, ...serials) + 1)}`;
+}
+
+/**
+ * What a network load can do now and how big its source says it is, for its `sources()` entry.
+ * @param record - the load's record, when the entry has one
+ * @param catalog - each source's features, by source id
+ * @returns `{ features, total }`, or nothing for an entry that is no network load
+ */
+function loadFacts(
+    record: SourceLoadRecord | undefined,
+    catalog: ReadonlyMap<string, SourceFeatures>,
+): Pick<LoadedSource, "features" | "total"> {
+    if (record === undefined) {
+        return {};
+    }
+
+    const declared = catalog.get(record.source);
+    return {
+        features: Object.freeze({
+            expand: declared?.expand === true,
+            more: declared?.more === true && record.next !== null,
+            refresh: declared?.refresh === true,
+        }),
+        ...(record.total === undefined ? {} : { total: record.total }),
+    };
 }

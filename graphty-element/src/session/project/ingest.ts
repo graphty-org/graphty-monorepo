@@ -518,7 +518,17 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const described = describeSource(command.source);
-        writer.setGraphValues({ [SOURCE_VALUE]: described });
+        // A merge under a key the graph already lists (a load's next page, a refresh) adds to that
+        // load; it and a joined table leave the graph's own source as it is.
+        const same = command.key === undefined ? -1 : earlier.findIndex((each) => each.key === command.key);
+        const keepsSource =
+            command.mode === "merge" &&
+            (same >= 0 || command.origin === "join") &&
+            writer.graphValue(SOURCE_VALUE) !== undefined;
+        if (!keepsSource) {
+            writer.setGraphValues({ [SOURCE_VALUE]: described });
+        }
+
         if (!loads) {
             return null;
         }
@@ -568,12 +578,26 @@ export class Ingest<K extends KnownEdge> {
             });
             // What the load saw that the graph does not keep, for `data.issues()`.
             const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
+            const prior = same < 0 ? undefined : earlier[same];
+            const had = prior === undefined ? undefined : earlierProvenance?.[key];
+            const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
+            const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+            const entry: LoadedSource =
+                prior === undefined
+                    ? loaded
+                    : Object.freeze({
+                          ...prior,
+                          added: Object.freeze({
+                              nodes: prior.added.nodes + added.nodes,
+                              edges: prior.added.edges + added.edges,
+                          }),
+                          counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                      });
             writer.setGraphValues({
-                [SOURCES_VALUE]: Object.freeze([...earlier, loaded]),
-                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, {
-                    nodes: [...supplied.nodes],
-                    edges: [...supplied.edges],
-                }),
+                [SOURCES_VALUE]: Object.freeze(
+                    prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
+                ),
+                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
                 ...(facts === null
                     ? {}
                     : {

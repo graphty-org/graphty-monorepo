@@ -79,6 +79,9 @@ export type {
     DataTableValue,
 } from "../components/DataTable";
 
+// The node and edge chip.
+export type { EntityChipProps, EntityKind } from "../components/EntityChip";
+
 // Panel rows, and the two atoms every row is built from.
 export type {
     ActionRowProps,

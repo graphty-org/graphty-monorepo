@@ -523,6 +523,30 @@ const css = `
     white-space: nowrap;
 }
 
+/* ---- EntityChip: a node or edge count or name ------------------------------------------ */
+.cm-entity-chip {
+    flex: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    max-width: 100%;
+    padding: 0 6px 0 4px;
+    border: 0;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--cm-entity-ink) 12%, transparent);
+    color: var(--cm-text);
+    ${cmFont("body")}
+    white-space: nowrap;
+}
+.cm-entity-chip[data-kind="node"] { --cm-entity-ink: var(--cm-entity-node); }
+.cm-entity-chip[data-kind="edge"] { --cm-entity-ink: var(--cm-entity-edge); }
+.cm-entity-chip .cm-entity-icon { flex: none; color: var(--cm-entity-ink); }
+.cm-entity-chip .cm-entity-text { overflow: hidden; text-overflow: ellipsis; }
+button.cm-entity-chip { cursor: pointer; }
+button.cm-entity-chip:hover { background: color-mix(in srgb, var(--cm-entity-ink) 20%, transparent); }
+
 /* ---- DataTable (10.6) -------------------------------------------------------------------- */
 .cm-dt { display: flex; flex-direction: column; gap: 8px; width: 100%; color: var(--cm-text); }
 .cm-dt-count { flex: none; color: var(--cm-text-secondary); ${cmFont("body")} }

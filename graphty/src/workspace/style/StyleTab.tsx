@@ -11,6 +11,7 @@ import { LabelSection } from "./LabelSection";
 import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
 import { SetLine } from "./SetLine";
 import { useStyleVersion } from "./useStyleVersion";
+import { WhichPicker } from "./WhichPicker";
 import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
 /** Props for StyleTab. */
@@ -122,6 +123,10 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
             <span>{words}</span>
         );
 
+    // A reader's own layer picks its targets with the condition cards; the Everything row and a
+    // run's layers paint what the element decides.
+    const own = row.length === 1 ? layers.find((l) => l.source.by === "user" && !l.locked) : undefined;
+
     return (
         <Stack gap={8} p={8} data-testid="style-tab">
             <SegmentedControl
@@ -136,6 +141,7 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
                     { value: "edge", label: sideLabel("edge", "Edges") },
                 ]}
             />
+            {own === undefined ? null : <WhichPicker key={own.id} session={session} layer={own} />}
             {SECTIONS[side].map((section) =>
                 section.id === "label" ? (
                     <LabelSection key={section.id} target={side} row={row} layers={layers} />

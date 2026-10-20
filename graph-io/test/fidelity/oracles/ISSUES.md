@@ -2520,3 +2520,59 @@ outline=true outlineColor=white outlineTransparency=95 outlineWidth=10`, placed 
   oracle reader does not find the caps at the end of a line drawn in pieces (`comparator-edge-association`).
 - `cx-ndex-90f78bcd` node `304542`: Cytoscape shows two lines ("Various" / "neuronal") of a six-line wrapped label at
   size 25; graphty shows all six. Not yet explained.
+
+## Specimen sheets: XGMML settings graph-io now reads, and the XGMML rows still open (fix round 2, 2026-10-19)
+
+Measured with the oracle report on every `xgmml-` sample after rebuilding graph-io: 21 of 52 now pass the verdict
+(15 before), and the failing elements of the 52 fell from 1,559 to about 640. Every change below holds for CX, CX2 and
+sessions too, since the four formats share the Cytoscape desktop reader.
+
+Fixed:
+
+- `ARROW` caps (`arrows`, `mappings-bypass-p11`, and 71 caps of `xgmml-pathguide-allpathwaysdb`): Cytoscape 3.10.5
+  draws ARROW as a filled delta as long and wide as DELTA; graph-io read it as an open vee. It is a triangle now, and
+  the Cytoscape writer writes a neutral vee as ARROW with a W_STYLE_APPROXIMATED note (desktop has no open vee).
+- `EDGE_STACKING` HAYSTACK (`edges-lines`, `mappings-bypass-p10`, `stacking-haystack`): drawn straight, never fanned
+  and not counted among its parallel edges. `EDGE_CURVED` false on AUTO_BEND parallel edges (`curved-false-parallel`):
+  Cytoscape still fans and curves them (the oracle's curves are point for point those of `parallel-3`), so graph-io
+  does too. Both sheets pass.
+- Label background box (`labels`, `edge-labels`, `mappings-bypass-p6`, `-p13`, and the 92 boxes of
+  `xgmml-syn-mappings`): Cytoscape draws the box round the words alone, one line tall (the font's ascent plus descent,
+  1.164 of a DejaVu Sans size, which is also the step between a label's lines): the Cytoscape tool defaults now say
+  `labelPadding` 0 and `labelLineHeight` 1. A ROUND_RECTANGLE box's corners are rounded an eighth of its height
+  (1.455 on the 11.64-tall box of a 10 px label), read into the new neutral `labelCornerRadius` and drawn by the new
+  `node.labelCornerRadius` / `edge.labelCornerRadius` channels of graphty-element. All four sheets pass.
+- Java font names in the corpus (`xgmml-dream4-signaling`, `-imagenet-dog-children`, `-networkportal-nsoxphos`: 40,
+  190 and 69 `label.family`): graph-io was right (Java draws `Default`, a font it does not have, in Dialog's face,
+  DejaVu Sans). Cytoscape's SVG writes `font-family="Default"`, a CSS-wide keyword the browser rejects, so the oracle
+  reader fell back to Times New Roman; it now keeps the name the program wrote when CSS rejects it, and classes
+  `Default` as sans-serif (comparator, d577376ba). With the sibling round's FreeHEP measurement (f5a24b69c), the label
+  places of these samples pass too: `imagenet-dog-children` passes the verdict (151 offsets, 118 anchors before).
+- `NODE_LABEL_FONT_FACE` Serif (`labels`, `mappings-bypass-p6`): fixed by the sibling round's FreeHEP measurement
+  (Java laid "Label" out 28.4 wide, DejaVu Serif's width, where the browser measured the SVG's `Times` 23.1 wide).
+- `OPEN_HALF_CIRCLE` caps and the lines under CIRCLE, T and HALF_* caps (`arrows`, `mappings-bypass-p11`): fixed by
+  the sibling comparator round; no `edge.arrow` or `edge.route` failure remains on these sheets.
+
+Tests: `graph-io/test/formats/xgmml/fix-round-2.test.ts`, `graphty-element/test/session/file-style-label-box.test.ts`,
+`graphty-element/test/browser/oracle-svg-primitives.test.ts` (a family CSS rejects).
+
+Still open, and why:
+
+- Chart labels (`images-charts-p5`, `-p7`, `mappings-bypass-p18`; `chart-labels`): not fixed. Pie item labels need a
+  neutral slot (`cy_itemLabels`, `cy_itemLabelsColumn`, `cy_itemLabelFontSize`) and graphty-element to draw words on a
+  pie slice, which it cannot yet; the bar, line, heat map and box chart labels cannot be judged before graphty-element
+  draws those charts at all (`node-custom-graphics`). The next fix is in graphty-element.
+- Annotations judged as strays (`images-charts`, `-p2`, `-p5`, `-p7` `stray.extra` 1 or 2 each, `-p6` 7 annotation
+  arrows; `annotation-scoring`): graphty's pie slices and file annotations are scored only by their boxes against the
+  oracle's unassociated shapes, so a slice or arrow whose oracle twin the association took into another element is
+  reported extra. Comparator work (FINDINGS "File annotations are not scored"); not changed here.
+- `CROSS_DELTA`, `CROSS_OPEN_DELTA`, `SQUARE`, `OPEN_SQUARE` sizes (`arrows`, `mappings-bypass-p11`, 4 `arrowShape`
+  each): graphty-element-render (`arrow-shape-vocabulary`), unchanged.
+- Patterned corpus edges (`xgmml-syn-mappings` 142 and `-syn-bypass` 18 `edge.arrow`): the oracle reader finds no cap
+  at the end of a line Cytoscape draws in pieces (slashes, arrows, dashes); comparator (`comparator-edge-association`).
+- `xgmml-aracne-mycccnd1`, `-networkportal-nsoxphos`, `-basicdataviz` edge rows moved in this run (aracne 22 to 36
+  failing edges, networkportal 0 to 8 on its thick edges, basicdataviz one route): none of their edges is parallel,
+  stacked or arrowed, and the frame fit moved by 0.2 percent between the runs; they follow the comparator's
+  association changes landing beside this round, not an import change. Not yet explained further.
+- `xgmml-pathguide-allpathwaysdb` edge `-19->-23`: the oracle draws a 1.7 px box before its diamond cap, graphty only
+  the diamond. Not yet explained.

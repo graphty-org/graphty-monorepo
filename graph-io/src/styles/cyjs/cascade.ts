@@ -1914,6 +1914,12 @@ function combineParts(
     values: Record<string, (StyleValue | null)[]>,
     notes: StyleNotes,
 ): void {
+    // the element's own opacity, before an edge's line opacity is multiplied in: its label is drawn at it
+    const whole = [...(values.opacity ?? new Array<StyleValue | null>(n).fill(null))];
+    combineLabelOpacity(n, words, values);
+    if (kind === "node") {
+        combineNodeOpacity(n, words, values);
+    }
     const va = words.get("_valign");
     const ha = words.get("_halign");
     if (kind === "node" && (va !== undefined || ha !== undefined)) {
@@ -1941,8 +1947,68 @@ function combineParts(
     }
     combineDashes(kind, n, words, values);
     combineLabelText(n, words, values);
-    combineLabelDress(kind, n, words, values, notes);
+    combineLabelDress(kind, n, words, values, notes, whole);
     combineVisibility(kind, n, words, values);
+}
+
+/**
+ * A label's opacity as Cytoscape.js draws it: its `text-opacity` times the element's `opacity` (cytoscape.js 3.34.3
+ * `drawText`: `effectiveOpacity() * text-opacity`), which the label's box and its line round it are drawn at too.
+ * ponytail: a compound parent's opacity, which Cytoscape.js multiplies in as well, is left out
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values, `opacity` still the element's own; changed in place
+ */
+function combineLabelOpacity(
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const text = words.get("_textOpacity");
+    const whole = values.opacity;
+    if (text === undefined && whole === undefined) {
+        return;
+    }
+    const col = new Array<StyleValue | null>(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        const t = text?.[i] ?? null;
+        const o = whole?.[i];
+        const v = Math.round((t === null ? 1 : Number(t)) * (typeof o === "number" ? o : 1) * 1e6) / 1e6;
+        // a label at full strength is left unset, as one no rule fades
+        col[i] = v === 1 || !Number.isFinite(v) ? null : v;
+    }
+    values.labelOpacity = col;
+}
+
+/**
+ * A node's border and outline as Cytoscape.js draws them: at their own `border-opacity` / `outline-opacity` times the
+ * node's `opacity` (cytoscape.js 3.34.3 `drawNode`: `parentOpacity * borderOpacity`). A ring at full strength is left
+ * unset.
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values, `opacity` still the node's own; changed in place
+ */
+function combineNodeOpacity(
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const whole = values.opacity;
+    for (const [part, p] of [
+        ["_ringOpacity", "borderOpacity"],
+        ["_outlineRingOpacity", "outerBorderOpacity"],
+    ] as const) {
+        const own = words.get(part);
+        if (own === undefined && whole === undefined) {
+            continue;
+        }
+        values[p] = Array.from({ length: n }, (_, i) => {
+            const a = own?.[i] ?? null;
+            const o = whole?.[i];
+            const v = Math.round((a === null ? 1 : Number(a)) * (typeof o === "number" ? o : 1) * 1e6) / 1e6;
+            return v === 1 || !Number.isFinite(v) ? null : v;
+        });
+    }
 }
 
 /**
@@ -1962,24 +2028,29 @@ function combineDashes(
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
 ): void {
-    const [style, width, fallback, pattern] =
-        kind === "edge" ? ["lineStyle", "width", 3, "6 3"] : ["borderStyle", "borderWidth", 0, "4 2"];
-    const col = values[style];
-    if (col === undefined) {
-        return;
-    }
-    for (let i = 0; i < n; i++) {
-        if (col[i] !== "dashed") {
-            continue;
-        }
-        const w = values[width]?.[i];
-        const dashes = (words.get("_dashPattern")?.[i] ?? pattern)
-            .split(/[\s,[\]]+/)
-            .filter((t) => t !== "")
-            .map(Number.parseFloat);
-        if (dashes.length > 0 && dashes.every((d) => Number.isFinite(d))) {
-            const cap = words.get("_dashCap")?.[i] ?? "butt";
-            col[i] = cyjsDashLook(dashes, typeof w === "number" ? w : fallback, cap);
+    // the line or border, and a node's outline, which is always dashed 4 2 with butt ends (`drawOutline`)
+    const lines: [string, string, number, string, boolean][] =
+        kind === "edge"
+            ? [["lineStyle", "width", 3, "6 3", true]]
+            : [
+                  ["borderStyle", "borderWidth", 0, "4 2", true],
+                  ["outerBorderStyle", "outerBorderWidth", 0, "4 2", false],
+              ];
+    for (const [style, width, fallback, pattern, own] of lines) {
+        const col = values[style];
+        for (let i = 0; i < n && col !== undefined; i++) {
+            if (col[i] !== "dashed") {
+                continue;
+            }
+            const w = values[width]?.[i];
+            const dashes = ((own ? words.get("_dashPattern")?.[i] : null) ?? pattern)
+                .split(/[\s,[\]]+/)
+                .filter((t) => t !== "")
+                .map(Number.parseFloat);
+            if (dashes.length > 0 && dashes.every((d) => Number.isFinite(d))) {
+                const cap = (own ? words.get("_dashCap")?.[i] : null) ?? "butt";
+                col[i] = cyjsDashLook(dashes, typeof w === "number" ? w : fallback, cap);
+            }
         }
     }
 }
@@ -2015,7 +2086,7 @@ function combineVisibility(
         col[i] = keptInvisible || (a !== "hidden" && b !== "none");
         if (keptInvisible) {
             // nothing of it is drawn: its body, its border, its outline or its label
-            for (const p of ["opacity", "borderOpacity", "outerBorderOpacity"]) {
+            for (const p of ["opacity", "borderOpacity", "outerBorderOpacity", "labelOpacity"]) {
                 (values[p] ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
             }
             (values.label ??= new Array<StyleValue | null>(n).fill(null))[i] = "";
@@ -2072,12 +2143,14 @@ function combineLabelText(
  * A label's outline and background box as Cytoscape.js draws them: the outline only with a `text-outline-width` and
  * a `text-outline-opacity` above 0, a stroke of twice that width centered on the letters' edges (cytoscape.js
  * 3.34.3 `drawText`: `lineWidth = 2 * text-outline-width`); the box only with a `text-background-opacity` above 0
- * (its default is 0), at that opacity; an outline opacity between 0 and 1 is drawn opaque, noted.
+ * (its default is 0), and the line round the box (`labelBorder`); the box and the line reach `text-background-padding`
+ * past the words.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
  * @param values - the values; changed in place
  * @param notes - where problems are noted
+ * @param whole - each element's own opacity, which the box is drawn at too
  */
 function combineLabelDress(
     kind: StyleTarget,
@@ -2085,6 +2158,7 @@ function combineLabelDress(
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
     notes: StyleNotes,
+    whole: readonly (StyleValue | null)[],
 ): void {
     const num = (part: string, i: number, fallback: number): number => {
         const v = words.get(part)?.[i];
@@ -2093,63 +2167,69 @@ function combineLabelDress(
     const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
     const outlined = words.has("_outlineWidth");
     const boxed = words.has("_backgroundOpacity");
-    const bordered = words.has("_borderWidth") && words.has("_borderOpacity");
+    const bordered = words.has("_textBorderWidth") && words.has("_textBorderOpacity");
+    // each part is drawn at its own opacity times the element's; the outline at the words' opacity too (drawText)
+    const at = (v: StyleValue | null | undefined): number => (typeof v === "number" ? v : 1);
+    const faded = (v: number): number | null => {
+        const r = Math.round(v * 1e6) / 1e6;
+        return r < 1 ? r : null;
+    };
     for (let i = 0; i < n && (outlined || boxed || bordered); i++) {
         const width = num("_outlineWidth", i, 0);
         const outlineOpacity = num("_outlineOpacity", i, 1);
         if (outlined && width > 0 && outlineOpacity > 0) {
             col("labelOutlineColor")[i] = words.get("_outlineColor")?.[i] ?? "#000000";
             col("labelOutlineWidth")[i] = 2 * width;
-            if (outlineOpacity < 1) {
-                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelOutlineColor", { sample: outlineOpacity, element: i });
-            }
+            col("labelOutlineOpacity")[i] = faded(outlineOpacity * at(values.labelOpacity?.[i]));
         }
         const boxOpacity = num("_backgroundOpacity", i, 0);
-        if (boxed && boxOpacity > 0) {
+        const box = boxed && boxOpacity > 0;
+        if (box) {
             col("labelBackground")[i] = words.get("_backgroundColor")?.[i] ?? "#000000";
-            if (boxOpacity < 1) {
-                col("labelBackgroundOpacity")[i] = boxOpacity;
-            }
+            col("labelBackgroundOpacity")[i] = faded(boxOpacity * at(whole[i]));
         }
-        if (bordered) {
-            labelBorder(kind, i, num("_borderWidth", i, 0), num("_borderOpacity", i, 0), words, col, notes);
+        const border = bordered && labelBorder(kind, i, words, col, notes, at(whole[i]));
+        if (box || border) {
+            // the box reaches this far past the words on every side (0 unset)
+            col("labelPadding")[i] = num("_backgroundPadding", i, 0);
         }
     }
 }
 
 /**
  * The line Cytoscape.js draws round a label's box: only with a `text-border-width` and a `text-border-opacity` above
- * 0 (both default to 0), in `text-border-color` (black unset). Its opacity below 1 and a style other than solid are
- * drawn as a solid opaque line, noted.
+ * 0 (both default to 0), in `text-border-color` (black unset), at its opacity times the element's. A double one is
+ * one line a quarter of the width (cytoscape.js 3.34.3 `drawText`); dotted and dashed are drawn solid, noted.
  * @param kind - the target
  * @param i - the element
- * @param width - its width
- * @param opacity - its opacity
  * @param words - the parts by internal name
  * @param col - a property's values, created when absent
  * @param notes - where problems are noted
+ * @param whole - the element's opacity
+ * @returns whether a line is drawn
  */
 function labelBorder(
     kind: StyleTarget,
     i: number,
-    width: number,
-    opacity: number,
     words: ReadonlyMap<string, (string | null)[]>,
     col: (p: string) => (StyleValue | null)[],
     notes: StyleNotes,
-): void {
+    whole: number,
+): boolean {
+    const num = (part: string): number => Number(words.get(part)?.[i] ?? 0);
+    const [width, opacity] = [num("_textBorderWidth"), num("_textBorderOpacity")];
     if (!(width > 0 && opacity > 0)) {
-        return;
+        return false;
     }
-    col("labelBorderColor")[i] = words.get("_borderColor")?.[i] ?? "#000000";
-    col("labelBorderWidth")[i] = width;
-    if (opacity < 1) {
-        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: opacity, element: i });
-    }
-    const style = words.get("_borderStyle")?.[i] ?? "solid";
-    if (style !== "solid") {
+    const style = words.get("_textBorderStyle")?.[i] ?? "solid";
+    col("labelBorderColor")[i] = words.get("_textBorderColor")?.[i] ?? "#000000";
+    col("labelBorderWidth")[i] = style === "double" ? width / 4 : width;
+    const drawn = Math.round(opacity * whole * 1e6) / 1e6;
+    col("labelBorderOpacity")[i] = drawn < 1 ? drawn : null;
+    if (style === "dotted" || style === "dashed") {
         notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: style, element: i });
     }
+    return true;
 }
 
 /**

@@ -277,6 +277,19 @@ describe("Cytoscape.js label opacity, margins and borders", () => {
         expect(v.edge.values.labelOffsetX?.[0]).toBe(20);
     });
 
+    it("draws a label, and its box, at the element's opacity times its own, not at the line's", () => {
+        const v = evaluateCytoscapeJs(
+            doc(
+                { opacity: 0.5, "text-opacity": 0.4, "text-background-opacity": 1 },
+                { opacity: 0.5, "line-opacity": 0.5 },
+            ),
+        );
+        expect(v.node.values.labelOpacity?.[0]).toBe(0.2);
+        expect(v.node.values.labelBackgroundOpacity?.[0]).toBe(0.5);
+        expect(v.edge.values.labelOpacity?.[0]).toBe(0.5);
+        expect(v.edge.values.opacity?.[0]).toBe(0.25);
+    });
+
     it("draws a label's box at its opacity, and a line round it only with a width and an opacity", () => {
         const v = evaluateCytoscapeJs(
             doc({}, {}, [
@@ -289,18 +302,54 @@ describe("Cytoscape.js label opacity, margins and borders", () => {
                 { data: { id: "d" }, style: { "text-border-width": 2 } },
             ]),
         ).node.values;
-        expect([v.labelBackground?.[0], v.labelBackgroundOpacity?.[0]]).toEqual(["#0000ff", 0.4]);
+        expect([v.labelBackground?.[0], v.labelBackgroundOpacity?.[0], v.labelPadding?.[0]]).toEqual([
+            "#0000ff",
+            0.4,
+            0,
+        ]);
         expect([v.labelBorderColor?.[1], v.labelBorderWidth?.[1]]).toEqual(["#000000", 1]);
         expect([v.labelBorderColor?.[2], v.labelBorderWidth?.[2]]).toEqual(["#ff0000", 2]);
         // text-border-opacity is 0 by default: no line
         expect(v.labelBorderWidth?.[3] ?? null).toBeNull();
     });
+
+    it("draws a label outline's and border's opacity, a double border a quarter wide, and the box padding", () => {
+        const v = evaluateCytoscapeJs(
+            doc({}, {}, [
+                {
+                    data: { id: "a" },
+                    style: { "text-outline-width": 2, "text-outline-opacity": 0.3, "text-opacity": 0.5 },
+                },
+                {
+                    data: { id: "b" },
+                    style: {
+                        "text-border-width": 2,
+                        "text-border-opacity": 0.3,
+                        "text-border-style": "double",
+                        "text-background-padding": "4px",
+                    },
+                },
+            ]),
+        ).node.values;
+        expect(v.labelOutlineOpacity?.[0]).toBe(0.15);
+        expect([v.labelBorderWidth?.[1], v.labelBorderOpacity?.[1], v.labelPadding?.[1]]).toEqual([0.5, 0.3, 4]);
+    });
 });
 
 describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
-    it("reads border-position", () => {
-        const v = evaluateCytoscapeJs(doc({ "border-width": 6, "border-position": "inside" })).node.values;
+    it("reads border-position, and draws the border and outline at the node's opacity", () => {
+        const v = evaluateCytoscapeJs(
+            doc({
+                "border-width": 6,
+                "border-position": "inside",
+                opacity: 0.15,
+                "border-opacity": 0.5,
+                "outline-width": 2,
+            }),
+        ).node.values;
         expect(v.borderPosition?.[0]).toBe("inside");
+        expect(v.borderOpacity?.[0]).toBe(0.075);
+        expect(v.outerBorderOpacity?.[0]).toBe(0.15);
     });
 
     it("reads a dashed line or border as the line its dash pattern looks like at its width", () => {
@@ -317,6 +366,8 @@ describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
             evaluateCytoscapeJs(doc({ "border-style": "dashed", ...node })).node.values.borderStyle?.[0];
         expect(border({ "border-width": 1 })).toBe("dashed");
         expect(border({ "border-width": 4 })).toBe("dotted");
+        const outline = evaluateCytoscapeJs(doc({ "outline-style": "dashed", "outline-width": 4 })).node.values;
+        expect(outline.outerBorderStyle?.[0]).toBe("dotted");
     });
 
     it("sizes a node to its label for width: label or height: label, the other side kept", () => {

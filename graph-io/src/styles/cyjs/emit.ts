@@ -207,6 +207,21 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return arrowToCyjs(ARROW_PROPERTY[property], String(value), specs);
         case "labelFont":
             return isFontFamily(String(value)) ? exact({ "font-family": String(value) }) : null;
+        // a label's box draws only at an opacity above 0, which is 0 unset
+        case "labelBackground":
+            return exact({ "text-background-color": String(value), "text-background-opacity": 1 });
+        // the outline is drawn as a stroke twice text-outline-width (see the reader)
+        case "labelOutlineColor":
+            return exact({ "text-outline-color": String(value) });
+        case "labelOutlineWidth":
+            return typeof value === "number" ? exact({ "text-outline-width": num6(value / 2) }) : null;
+        case "labelPadding":
+            return typeof value === "number" ? exact({ "text-background-padding": value }) : null;
+        // the line round a label's box draws only at an opacity above 0, which is 0 unset
+        case "labelBorderColor":
+            return exact({ "text-border-color": String(value), "text-border-opacity": 1 });
+        case "labelBorderWidth":
+            return typeof value === "number" ? exact({ "text-border-width": value, "text-border-opacity": 1 }) : null;
         default:
             return propertyToCyjs(property, value, specs);
     }
@@ -963,12 +978,96 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
             const want = resolveRules(rules, target, property, src);
             addBypasses(rows, target, property, want, drawn[target].values[property]);
         }
+        const want = (p: string): readonly (StyleValue | null)[] => resolveRules(rules, target, p, src);
         if (target === "node") {
-            labelSizedBypasses(rows, (p) => resolveRules(rules, target, p, src), drawn.node.values);
+            labelSizedBypasses(rows, want, drawn.node.values);
+        }
+        labelOpacityBypasses(rows, want, drawn[target].values);
+        // each part with the property it is drawn only with: a label's box, line or outline only where it has one
+        const parts: (readonly [string, string, string, string | null])[] = [
+            ["labelBackgroundOpacity", "text-background-opacity", "opacity", "labelBackground"],
+            ["labelBorderOpacity", "text-border-opacity", "opacity", "labelBorderWidth"],
+            ["labelOutlineOpacity", "text-outline-opacity", "labelOpacity", "labelOutlineWidth"],
+        ];
+        if (target === "node") {
+            parts.push(["borderOpacity", "border-opacity", "opacity", null]);
+            parts.push(["outerBorderOpacity", "outline-opacity", "opacity", null]);
+        }
+        for (const part of parts) {
+            partOpacityBypasses(rows, want, drawn[target].values, part);
         }
         out[target] = rows;
     }
     return out;
+}
+
+/**
+ * A label's opacity as Cytoscape.js's `text-opacity`, which it draws times the element's `opacity`, where what is
+ * drawn differs; an edge whose label is less faint than its line is written at the label's opacity with a fainter
+ * `line-opacity`.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ */
+function labelOpacityBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+): void {
+    const label = want("labelOpacity");
+    const whole = want("opacity");
+    const at = (v: StyleValue | null | undefined): number => (typeof v === "number" ? v : 1);
+    for (let i = 0; i < rows.length; i++) {
+        const [l, o] = [at(label[i]), at(whole[i])];
+        // a bypass of the opacity written above changes the label's too
+        const rewritten = rows[i]?.opacity !== undefined;
+        if ((l === at(got.labelOpacity?.[i]) && !rewritten) || !(o > 0)) {
+            continue;
+        }
+        if (l === o && rewritten) {
+            continue;
+        }
+        if (l <= o) {
+            rows[i] = { ...rows[i], "text-opacity": num6(l / o) };
+        } else if (l > 0) {
+            // an edge's line fainter than its label: the element at the label's opacity, the line fainter still
+            rows[i] = { ...rows[i], opacity: num6(l), "line-opacity": num6(o / l), "text-opacity": 1 };
+        }
+    }
+}
+
+/**
+ * The opacity of one part of an element (a node's border or outline, a label's box, line or outline) as the
+ * Cytoscape.js property that carries it, which Cytoscape.js draws times the element's `opacity` (a label's outline
+ * times the words' opacity), where what is drawn differs.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ * @param part - the neutral property, the Cytoscape.js property, the neutral property it is drawn times, and the one
+ * it is drawn only with (null: always)
+ */
+function partOpacityBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+    part: readonly [string, string, string, string | null],
+): void {
+    const [property, name, by, drawnBy] = part;
+    const own = want(property);
+    const whole = want(by);
+    const shown = drawnBy === null ? null : want(drawnBy);
+    const at = (v: StyleValue | null | undefined): number => (typeof v === "number" ? v : 1);
+    for (let i = 0; i < rows.length; i++) {
+        if (shown !== null && shown[i] === null) {
+            continue;
+        }
+        const [r, o] = [at(own[i]), at(whole[i])];
+        const rewritten = rows[i]?.opacity !== undefined || rows[i]?.["text-opacity"] !== undefined;
+        if ((r === at(got[property]?.[i]) && !rewritten) || !(o > 0) || r > o) {
+            continue;
+        }
+        rows[i] = { ...rows[i], [name]: num6(r / o) };
+    }
 }
 
 /**

@@ -632,7 +632,8 @@ describe("the cascade", () => {
         expect(r.node.values.outerBorderColor?.[0]).toBe("#ff0000");
         // Cytoscape.js grows the outline's path by its offset across, so the outline starts half of it out
         expect(r.node.values.outerBorderOffset?.[0]).toBe(2);
-        expect(r.node.values.outerBorderStyle?.[0]).toBe("dashed");
+        // drawOutline dashes 4 2 whatever the width: at 3 px each dash is no longer than a dot
+        expect(r.node.values.outerBorderStyle?.[0]).toBe("dotted");
         const edge = (p: StyleProperty): unknown => r.edge.values[p]?.[0];
         expect(edge("midTargetArrow")).toBe("other:triangle-tee");
         expect(edge("midSourceArrow")).toBe("other:chevron");
@@ -937,6 +938,52 @@ const EMIT_FILES = [
 ];
 
 describe("the stylesheet emitter", () => {
+    it("writes the label opacities, margins, borders, dashes and label-sized nodes it reads back the same", async () => {
+        const doc = {
+            elements: [
+                { data: { id: "a" }, position: { x: 0, y: 0 }, classes: "faint" },
+                { data: { id: "b" }, position: { x: 100, y: 0 }, classes: "wide" },
+                { data: { id: "c" }, position: { x: 200, y: 0 } },
+                { data: { id: "ab", source: "a", target: "b" } },
+            ],
+            style: [
+                { selector: "node", style: { label: "L", "text-margin-x": -6, "border-width": 4 } },
+                {
+                    selector: ".faint",
+                    style: { opacity: 0.5, "text-opacity": 0.4, "border-style": "dashed", "border-opacity": 0.5 },
+                },
+                {
+                    selector: ".wide",
+                    style: {
+                        width: "label",
+                        "text-border-width": 1,
+                        "text-border-opacity": 0.5,
+                        "text-background-opacity": 0.4,
+                        "text-background-padding": 3,
+                        "text-outline-width": 1,
+                        "text-outline-opacity": 0.5,
+                        "text-opacity": 0.5,
+                    },
+                },
+                { selector: "edge", style: { "curve-style": "straight", "line-style": "dashed", width: 5 } },
+            ],
+        };
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        const em = toCytoscapeStylesheet(ex, { importId: "one" });
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        const got = resolved(back, s);
+        const want = resolved(ex, s);
+        expect(want["node.labelOpacity"]?.[0]).toBe(0.2);
+        expect(want["node.borderOpacity"]?.[0]).toBe(0.25);
+        for (const [k, col] of Object.entries(want)) {
+            expect(
+                col.map((v, i) => v ?? got[k][i] ?? null),
+                k,
+            ).toEqual(got[k]);
+        }
+    });
+
     for (const file of EMIT_FILES) {
         it(`writes ${file} so that reading the stylesheet back gives the same styles`, async () => {
             const doc = JSON.parse(readFileSync(resolve(CORPUS, file), "utf8")) as {

@@ -162,17 +162,21 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["text-outline-opacity", { property: "_outlineOpacity", type: "zeroOne" }],
     ["text-background-color", { property: "_backgroundColor", type: "color" }],
     ["text-background-opacity", { property: "_backgroundOpacity", type: "zeroOne" }],
+    ["text-background-padding", { property: "_backgroundPadding", type: "size" }],
     ["text-rotation", { property: "_rotation", type: "text" }],
-    // the words' own opacity (cytoscape.js 3.34.3 `drawText` sets globalAlpha to text-opacity times the element's)
-    ["text-opacity", { property: "labelOpacity", type: "zeroOne" }],
+    // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
+    ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],
     // the label moved right and down by this many pixels from where its alignment puts it, a node's and an edge's
     ["text-margin-x", { property: "labelOffsetX", type: "signedSize" }],
     ["text-margin-y", { property: "labelOffsetY", type: "signedSize" }],
     // the line round the label's box draws only with a width and an opacity above 0 (`combineLabelDress`)
-    ["text-border-color", { property: "_borderColor", type: "color" }],
-    ["text-border-width", { property: "_borderWidth", type: "size" }],
-    ["text-border-opacity", { property: "_borderOpacity", type: "zeroOne" }],
-    ["text-border-style", { property: "_borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    ["text-border-color", { property: "_textBorderColor", type: "color" }],
+    ["text-border-width", { property: "_textBorderWidth", type: "size" }],
+    ["text-border-opacity", { property: "_textBorderOpacity", type: "zeroOne" }],
+    [
+        "text-border-style",
+        { property: "_textBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] },
+    ],
 ];
 
 /** Cytoscape.js's `background-gradient-direction` values. */
@@ -384,7 +388,8 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["background-color", { property: "fill", type: "color" }],
     ["background-opacity", { property: "fillOpacity", type: "zeroOne" }],
     ["border-color", { property: "borderColor", type: "color" }],
-    ["border-opacity", { property: "borderOpacity", type: "zeroOne" }],
+    // the rings are drawn at their own opacity times the node's (`combineNodeOpacity`)
+    ["border-opacity", { property: "_ringOpacity", type: "zeroOne" }],
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     // the dashes a dashed border is drawn with and their ends, which decide how it looks (`combineDashes`)
@@ -393,7 +398,7 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     // where the border sits against the node's outline: across it, inside it or outside it
     ["border-position", { property: "borderPosition", type: "enum", enums: ["center", "inside", "outside"] }],
     ["outline-color", { property: "outerBorderColor", type: "color" }],
-    ["outline-opacity", { property: "outerBorderOpacity", type: "zeroOne" }],
+    ["outline-opacity", { property: "_outlineRingOpacity", type: "zeroOne" }],
     ["outline-width", { property: "outerBorderWidth", type: "size" }],
     ["outline-style", { property: "outerBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["outline-offset", { property: "outerBorderOffset", type: "size" }],

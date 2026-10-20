@@ -5,11 +5,10 @@
  * section puts the same cards on filter steps. Every count is graphty-element's (`scope.count`).
  */
 
-import { SegmentedControl } from "@graphty/compact-mantine";
+import { EntityChip, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, Layer, LayerSpec } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
-    Badge,
     CloseButton,
     Group,
     Menu,
@@ -21,7 +20,7 @@ import {
     TextInput,
     Tooltip,
 } from "@mantine/core";
-import { Circle, Minus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import React, { useState } from "react";
 
 import { sourceName } from "../data-place/words";
@@ -73,27 +72,18 @@ function useCardCount(session: GraphSession, card: Card): Count | undefined {
 }
 
 /**
- * "140 of 900" with the node or edge icon.
+ * "140 of 900" as a node or edge chip, the same chip the app uses for nodes and edges everywhere.
  * @param props - Component props
  * @param props.side - nodes or edges
  * @param props.count - the count, or undefined
  * @returns the chip
  */
 export function CountChip({ side, count }: Readonly<{ side: Side; count: Count | undefined }>): React.JSX.Element {
-    const icon =
-        side === "node" ? <Circle size={10} fill="currentColor" aria-hidden /> : <Minus size={10} aria-hidden />;
     const words = count === undefined ? "--" : `${formatNumber(count.matched)} of ${formatNumber(count.total)}`;
     return (
-        <Badge
-            size="xs"
-            variant="light"
-            color={side === "node" ? "blue" : "orange"}
-            leftSection={icon}
-            data-testid="card-count"
-            aria-label={`${words} ${side === "node" ? "nodes" : "edges"}`}
-        >
-            {words}
-        </Badge>
+        <span data-testid="card-count" data-count={words}>
+            <EntityChip kind={side}>{words}</EntityChip>
+        </span>
     );
 }
 
@@ -274,13 +264,13 @@ export function CardBody({
                 <SegmentedControl
                     size="xs"
                     aria-label="Value"
-                    value={card.yes ? "yes" : "no"}
+                    value={card.yes === undefined ? "" : String(card.yes)}
                     data={[
-                        { value: "yes", label: "Yes" },
-                        { value: "no", label: "No" },
+                        { value: "true", label: "Yes" },
+                        { value: "false", label: "No" },
                     ]}
                     onChange={(value) => {
-                        onChange({ ...card, yes: value === "yes" });
+                        onChange({ ...card, yes: value === "true" });
                     }}
                 />
             );
@@ -315,6 +305,7 @@ export function ConditionCard({
 }>): React.JSX.Element {
     const count = useCardCount(session, card);
     const name = card.type === "fixed" ? "Rule" : card.field.name;
+    const remove = `Remove ${name}`;
     return (
         <Stack gap={4} className="ws-card" data-testid="condition-card" role="group" aria-label={name}>
             <Group gap={4} wrap="nowrap" justify="space-between">
@@ -324,7 +315,9 @@ export function ConditionCard({
                 <Group gap={4} wrap="nowrap">
                     <CountChip side={sideOf(card)} count={count} />
                     {extra}
-                    <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={onRemove} />
+                    <Tooltip label={remove}>
+                        <CloseButton size="xs" aria-label={remove} title={remove} onClick={onRemove} />
+                    </Tooltip>
                 </Group>
             </Group>
             <CardBody session={session} card={card} onChange={onChange} />
@@ -352,7 +345,7 @@ export function AddCardMenu({
     label: string;
     onAdd: (field: CardField) => void;
 }>): React.JSX.Element | null {
-    const open = fields.filter((f) => !taken.has(keyOf(f)));
+    const open = fields.filter((f) => f.hidden !== true && !taken.has(keyOf(f)));
     if (open.length === 0) {
         return null;
     }
@@ -392,8 +385,9 @@ export function AddCardMenu({
 
 /**
  * Which nodes (or Which edges) one style layer paints, as condition cards ANDed together. Every
- * edit is written at once to the layer's selector, one undo step; a card still unfinished (no
- * value picked, no text typed) waits here until it makes a rule.
+ * edit, adding a card that already makes a rule included, is written at once to the layer's
+ * selector, one undo step; a card still unfinished (no value picked, no text typed) waits here
+ * until it makes a rule.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.layer - the layer
@@ -446,7 +440,12 @@ export function WhichPicker({
                     taken={new Set(cards.map((c) => c.key))}
                     label="Add condition"
                     onAdd={(field) => {
-                        setDrafts((now) => [...now, newCard(field)]);
+                        const card = newCard(field);
+                        if (leafOf(card) === null) {
+                            setDrafts((now) => [...now, card]);
+                        } else {
+                            write([...cards, card]);
+                        }
                     }}
                 />
             </Group>

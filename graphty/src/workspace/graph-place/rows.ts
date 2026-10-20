@@ -8,6 +8,7 @@ import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { fileStyleOf, type GraphSession, type Layer, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
+import { EVERYTHING_KEY } from "../style/row";
 import { fileStyleLayerWords } from "../styles/fileStyleWords";
 
 /**
@@ -131,7 +132,8 @@ export function paintRows(session: GraphSession): PaintRow[] {
     const placed = new Set<string>();
     for (const layer of [...layers].reverse()) {
         const { source } = layer;
-        if (source.by === "element") {
+        // The element's base layers and the reader's Everything layer are the Everything row's.
+        if (source.by === "element" || layer.userData?.[EVERYTHING_KEY] === true) {
             continue;
         }
         if (source.by === "run") {

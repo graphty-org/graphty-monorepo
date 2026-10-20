@@ -14,7 +14,7 @@ import { useSessionVersion } from "../inspector/hooks";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, cardOf, leafOf, newCard } from "../style/cards";
 import { AddCardMenu, ConditionCard } from "../style/WhichPicker";
-import { type Mode, modeOf, newId, selectRule, writeSteps } from "./filterSteps";
+import { type Mode, modeOf, newId, writeSteps } from "./filterSteps";
 
 /** A card on the list: a written step's, or one still unfinished. */
 interface Row {
@@ -54,13 +54,9 @@ function Filters({ session }: Readonly<{ session: GraphSession }>): React.JSX.El
         ...steps.map((step, at) => ({ step, card: { ...cardOf(step.rule, fields, at), key: step.id } })),
         ...drafts.map((card) => ({ card })),
     ];
-    const write = (next: readonly FilterStep[]): void => {
-        void writeSteps(session, store, next);
-    };
-    const select = (step: FilterStep): void => {
-        selectRule(session, step.rule).catch(() => {
-            store.set({ notice: { message: "Selection not changed" } });
-        });
+    // Each card edit is one undo step: the steps and, for a card in Select, what it selects.
+    const write = (next: readonly FilterStep[], select?: FilterStep): void => {
+        void writeSteps(session, store, next, select?.rule);
     };
 
     const change = (row: Row, card: Card): void => {
@@ -79,16 +75,16 @@ function Filters({ session }: Readonly<{ session: GraphSession }>): React.JSX.El
             return;
         }
         const next = { ...step, rule: leaf };
-        write(steps.map((s) => (s.id === step.id ? next : s)));
-        if (modeOf(step) === "select") {
-            select(next);
-        }
+        write(
+            steps.map((s) => (s.id === step.id ? next : s)),
+            modeOf(step) === "select" ? next : undefined,
+        );
     };
     const setMode = (step: FilterStep, mode: Mode): void => {
-        write(steps.map((s) => (s.id === step.id ? { ...s, on: mode === "hide" } : s)));
-        if (mode === "select") {
-            select(step);
-        }
+        write(
+            steps.map((s) => (s.id === step.id ? { ...s, on: mode === "hide" } : s)),
+            mode === "select" ? step : undefined,
+        );
     };
     const remove = (row: Row): void => {
         if (row.step === undefined) {
@@ -105,7 +101,15 @@ function Filters({ session }: Readonly<{ session: GraphSession }>): React.JSX.El
             taken={new Set(drafts.map((d) => d.key))}
             label="Add filter"
             onAdd={(field) => {
-                setDrafts((now) => [...now, newCard(field)]);
+                // A card that already makes a rule (a number over its range) is a step at once;
+                // the rest wait, unwritten, for a value.
+                const card = newCard(field);
+                const leaf = leafOf(card);
+                if (leaf === null) {
+                    setDrafts((now) => [...now, card]);
+                } else {
+                    write([...steps, { id: newId(steps), on: true, rule: leaf }]);
+                }
             }}
         />
     );

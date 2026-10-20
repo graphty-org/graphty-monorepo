@@ -9,7 +9,7 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
@@ -301,4 +301,37 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
         }
     }
     return null;
+}
+
+/**
+ * Adds a reader's own style layer on top of the stack, named "Layer N": on every node, or on what
+ * is selected (its nodes, else its edges). It starts with one line, Color at the element's own
+ * default (graphty-element refuses a layer that paints nothing); its Style tab changes it. One
+ * undoable step of the element's.
+ * @param session - the element's session.
+ * @param on - every node, or the selection.
+ * @returns the new layer's id, or null for the selection when nothing is selected.
+ */
+export async function addReaderLayer(session: GraphSession, on: "everything" | "selection"): Promise<LayerId | null> {
+    const { nodes, edges } = session.selection;
+    if (on === "selection" && nodes.length === 0 && edges.length === 0) {
+        return null;
+    }
+    const taken = new Set(session.styles.list().map((layer) => layer.name));
+    let n = 1;
+    while (taken.has(`Layer ${String(n)}`)) {
+        n += 1;
+    }
+    const target: Target = on === "selection" && nodes.length === 0 ? "edge" : "node";
+    const color = channelsFor(target).find((d) => d.channel === `${target}.color`);
+    const added = await session.styles.add({
+        name: `Layer ${String(n)}`,
+        target,
+        ...(color === undefined ? {} : { set: { [color.channel]: startingValue(color) } }),
+        selector:
+            on === "everything"
+                ? { match: "everything" }
+                : { match: "ids", ...(target === "node" ? { nodes: [...nodes] } : { edges: [...edges] }) },
+    });
+    return added.id;
 }

@@ -33,19 +33,27 @@ export function newId(steps: readonly FilterStep[]): string {
 }
 
 /**
- * Replaces the steps: one undoable step of the element's. A refusal is one notice.
+ * Replaces the steps, and selects what a card in Select holds, as one undoable step of the
+ * element's (one transaction). A refusal is one notice.
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param steps - the new list.
+ * @param select - a rule to select once the steps are written, if any.
  * @returns true when the element took it.
  */
 export async function writeSteps(
     session: GraphSession,
     store: WorkspaceStore,
     steps: readonly FilterStep[],
+    select?: RuleTree,
 ): Promise<boolean> {
     try {
-        await session.visibility.setSteps(steps);
+        await session.transaction("Filter", async (tx) => {
+            await tx.visibility.setSteps(steps);
+            if (select !== undefined) {
+                await selectRule(tx, select);
+            }
+        });
         return true;
     } catch {
         store.set({ notice: { message: "Filter not changed" } });
@@ -58,6 +66,6 @@ export async function writeSteps(
  * @param session - the element's session.
  * @param rule - the rule.
  */
-export async function selectRule(session: GraphSession, rule: RuleTree): Promise<void> {
+export async function selectRule(session: Pick<GraphSession, "selection">, rule: RuleTree): Promise<void> {
     await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
 }

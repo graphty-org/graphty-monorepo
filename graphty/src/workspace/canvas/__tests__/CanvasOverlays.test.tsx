@@ -22,6 +22,8 @@ interface StandInFacts {
     blocks?: readonly LegendBlock[];
     runs?: Record<string, string>;
     layers?: Record<string, string>;
+    /** Column paths and their names. */
+    columns?: Record<string, string>;
     painting?: RunPainting;
 }
 
@@ -71,7 +73,10 @@ function standIn(facts: StandInFacts = {}): {
             painting: () => facts.painting,
         },
         catalog: { algorithms: () => [] },
-        data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
+        data: {
+            statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }),
+            attributes: () => Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({ path, plainName })),
+        },
     } as unknown as GraphSession;
     return {
         session,
@@ -240,6 +245,19 @@ describe("the legend card", () => {
         assert.isNotNull(within(section).getByText("Other"));
         assert.isNull(within(section).queryByText("Other: 3 groups"));
         assert.isNotNull(within(section).getByText("28 more"));
+    });
+
+    it("titles a reader's layer that colors by a column after the column, not the layer", () => {
+        const byDept = block({
+            field: { plainName: "dept", technicalName: "dept", path: "data.dept" },
+            swatches: [{ label: "east", value: "east", color: "#ff0000" }],
+        });
+        renderOver(
+            standIn({ blocks: [byDept], layers: { "layer-1": "Everything" }, columns: { "data.dept": "Dept" } })
+                .session,
+        );
+        assert.isNotNull(screen.getByRole("group", { name: "Color: Dept" }));
+        assert.isNull(screen.queryByRole("group", { name: "Color: Everything" }));
     });
 
     it("names the shape a category paints", () => {

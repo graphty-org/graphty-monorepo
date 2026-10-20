@@ -1,9 +1,13 @@
 import "./graph-place.css";
 
-import { Anchor, Text, Tooltip } from "@mantine/core";
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { ActionIcon, Anchor, Group, Menu, Text, Tooltip } from "@mantine/core";
+import { Plus } from "lucide-react";
 import React, { useMemo } from "react";
 
+import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { addReaderLayer } from "../style/row";
 import { FindBox } from "./FindBox";
 import { PaintTree } from "./PaintTree";
 import { paintRows } from "./rows";
@@ -41,12 +45,68 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
 }
 
 /**
+ * "+" over the paint tree: a new layer of the reader's own on every node, or one on the selection.
+ * The new layer opens in the inspector, on its Style tab.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.store - the chrome store
+ * @param props.selected - how many elements are selected
+ * @returns the menu
+ */
+function AddLayerMenu({
+    session,
+    store,
+    selected,
+}: Readonly<{ session: GraphSession; store: WorkspaceStore; selected: number }>): React.JSX.Element {
+    const add = (on: "everything" | "selection"): void => {
+        addReaderLayer(session, on).then(
+            (id) => {
+                if (id !== null) {
+                    store.set({ inspected: { kind: "layer-row", id } });
+                }
+            },
+            () => {
+                store.set({ notice: { message: "Layer not added" } });
+            },
+        );
+    };
+    return (
+        <Menu position="bottom-end">
+            <Menu.Target>
+                <Tooltip label="Add layer">
+                    <ActionIcon variant="subtle" size="sm" aria-label="Add layer">
+                        <Plus size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item
+                    onClick={() => {
+                        add("everything");
+                    }}
+                >
+                    New layer
+                </Menu.Item>
+                <Menu.Item
+                    disabled={selected === 0}
+                    onClick={() => {
+                        add("selection");
+                    }}
+                >
+                    Paint selection
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
+    );
+}
+
+/**
  * The Graph place (tier1-design.md section 2.5): the graph title line, the find box, the paint
  * tree and one footer line. Everything it shows is read from graphty-element's session.
  * @returns The Graph place
  */
 export function GraphPlace(): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const version = useSessionVersion(session);
 
@@ -73,9 +133,14 @@ export function GraphPlace(): React.JSX.Element {
                     </Text>
                 </Tooltip>
             </div>
-            <div className="ws-graph-treebar">
-                <FindBox />
-            </div>
+            <Group className="ws-graph-treebar" gap={4} wrap="nowrap">
+                <div className="ws-graph-find">
+                    <FindBox />
+                </div>
+                {session === null ? null : (
+                    <AddLayerMenu session={session} store={store} selected={session.selection.size} />
+                )}
+            </Group>
             {session === null ? null : <PaintTree rows={rows} />}
             <Footer hasGraph={hasGraph} hasRuns={rows.some((row) => row.runId !== undefined)} />
         </section>

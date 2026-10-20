@@ -87,7 +87,7 @@ describe("the Which nodes picker on the real element", () => {
         });
         const written = await within(picker).findByRole("group", { name: "dept" });
         await waitFor(() => {
-            assert.strictEqual(within(written).getByTestId("card-count").textContent, "2 of 4");
+            assert.strictEqual(within(written).getByTestId("card-count").dataset.count, "2 of 4");
         });
         // The layer paints exactly the nodes its card holds.
         await waitFor(() => {
@@ -109,7 +109,7 @@ describe("the Which nodes picker on the real element", () => {
         });
         const codeCard = await within(picker).findByRole("group", { name: "code" });
         await waitFor(() => {
-            assert.strictEqual(within(codeCard).getByTestId("card-count").textContent, "2 of 4");
+            assert.strictEqual(within(codeCard).getByTestId("card-count").dataset.count, "2 of 4");
         });
 
         // Removing both cards puts the layer back on every node.
@@ -117,6 +117,44 @@ describe("the Which nodes picker on the real element", () => {
         await userEvent.click(within(picker).getByRole("button", { name: "Remove code" }));
         await waitFor(() => {
             assert.deepEqual(session.styles.get(id)?.selector, { match: "everything" });
+        });
+    });
+
+    it("adds a reader's layer from the paint tree's +, and writes a number card as it is added", async () => {
+        const { session } = await openWithLayer();
+        await userEvent.click(await screen.findByRole("button", { name: "Add layer" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "New layer" }));
+        const layer = await waitFor(() => {
+            const found = session.styles.list().find((l) => l.name === "Layer 1");
+            assert.isDefined(found);
+            return found;
+        });
+        const picker = await screen.findByRole("group", { name: "Which nodes" });
+        await waitFor(() => {
+            assert.strictEqual(picker.closest("[data-testid=style-tab]") !== null, true);
+        });
+        // A number card makes a rule at once: it is written as it is added.
+        await userEvent.click(within(picker).getByRole("button", { name: "Add condition" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "code" }));
+        await waitFor(() => {
+            const selector = session.styles.get(layer?.id ?? "")?.selector;
+            assert.deepEqual(selector === undefined ? undefined : selectorRule(selector), {
+                kind: "range",
+                attribute: "data.code",
+                min: 1,
+                max: 3,
+            });
+        });
+    });
+
+    it("paints the selection as a new layer of its own", async () => {
+        const { session } = await openWithLayer();
+        await session.selection.apply({ nodes: ["1", "2"] });
+        await userEvent.click(await screen.findByRole("button", { name: "Add layer" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Paint selection" }));
+        await waitFor(() => {
+            const found = session.styles.list().find((l) => l.name === "Layer 1");
+            assert.deepEqual(found?.selector, { match: "ids", nodes: ["1", "2"] });
         });
     });
 });

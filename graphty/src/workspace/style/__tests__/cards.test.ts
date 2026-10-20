@@ -25,6 +25,8 @@ const FIELDS: CardField[] = [
     { path: "data.weight", on: "edge", kind: "number", name: "weight" },
     { path: "data.my type", on: "edge", kind: "category", name: "my type" },
     { path: "data.label", on: "edge", kind: "text", name: "label" },
+    { path: "data.live", on: "edge", kind: "yes-no", name: "live" },
+    { path: "data.secret", on: "node", kind: "text", name: "secret", hidden: true },
 ];
 
 /**
@@ -51,6 +53,8 @@ const CARDS: Card[] = [
     { type: "number", key: "edge:data.weight", field: field("weight"), min: -1, max: 3 },
     { type: "category", key: "edge:data.my type", field: field("my type"), values: ["a`b", "c"] },
     { type: "text", key: "edge:data.label", field: field("label"), mode: "contains", text: "x" },
+    { type: "yes-no", key: "edge:data.live", field: field("live"), yes: true },
+    { type: "text", key: "node:data.secret", field: field("secret"), mode: "is", text: "s" },
 ];
 
 describe("condition cards", () => {
@@ -62,6 +66,40 @@ describe("condition cards", () => {
                 assert.deepEqual(cardOf(leaf, FIELDS, at), card, `card ${String(at)}`);
             }
         });
+    });
+
+    it("write the element's own leaves, edge cards read on edges, never a query", () => {
+        assert.deepEqual(leafOf(CARDS[5]), { kind: "flag", attribute: "data.ok", value: false });
+        assert.deepEqual(leafOf(CARDS[3]), {
+            kind: "text",
+            attribute: "data.note",
+            match: "contains",
+            text: "it's \\ odd",
+        });
+        assert.deepEqual(leafOf(CARDS[6]), { kind: "range", attribute: "data.weight", max: 3, side: "edges" });
+        assert.deepEqual(leafOf(CARDS[8]), {
+            kind: "categories",
+            attribute: "data.my type",
+            values: ["a`b", "c"],
+            side: "edges",
+        });
+        for (const card of CARDS) {
+            const kind = leafOf(card)?.kind;
+            assert.notInclude(["expression", "edges"], kind);
+        }
+    });
+
+    it("start a yes/no card with no value, so it writes no rule until one is picked", () => {
+        const card = newCard(field("ok"));
+        assert.strictEqual(card.type, "yes-no");
+        assert.isNull(leafOf(card));
+        // A number card starts over the whole range: a rule at once.
+        assert.deepEqual(leafOf(newCard(field("score"))), { kind: "range", attribute: "data.score", min: 0, max: 10 });
+    });
+
+    it("keep a card on a hidden field readable, not a fixed Rule", () => {
+        const card = cardOf({ kind: "text", attribute: "data.secret", match: "is", text: "s" }, FIELDS, 0);
+        assert.strictEqual(card.type, "text");
     });
 
     it("make no rule while unfinished, and AND finished cards in a selector", () => {

@@ -15,14 +15,20 @@ interface LegendCardProps {
 }
 
 /**
- * The name of the row that paints a block: its run's name, else its layer's.
+ * The name of the row that paints a block: its run's name, else the column a reader's layer reads
+ * ("Color: dept"), else the layer's name.
  * @param session - the session.
  * @param block - the block.
  * @returns the name.
  */
 function rowName(session: GraphSession, block: LegendBlock): string {
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-    return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
+    if (run !== undefined) {
+        return runName(session, run);
+    }
+    const path = block.field?.path;
+    const column = path === undefined ? undefined : session.data.attributes().find((a) => a.path === path);
+    return column?.plainName ?? session.styles.get(block.layerId)?.name ?? block.layerId;
 }
 
 /**

@@ -7,6 +7,7 @@
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
+import { EVERYTHING_KEY } from "../../style/row";
 import { findRow, paintRows } from "../rows";
 
 /** A run as `runs.list()` hands it, with only the fields the rows read. */
@@ -82,6 +83,15 @@ describe("paintRows", () => {
             ],
         );
         assert.isUndefined(rows[0].count, "an empty selection shows no count");
+    });
+
+    it("keeps the reader's Everything layer in the Everything row, not a second Everything row", () => {
+        const everything = { ...layer("Everything", { by: "user" }), userData: { [EVERYTHING_KEY]: true } } as Layer;
+        const rows = paintRows(sessionOf({ layers: [...BASE, everything], runs: [] }));
+        assert.deepEqual(
+            rows.map((r) => r.name),
+            ["Selection", "Everything"],
+        );
     });
 
     it("orders rows top first in paint order, with a run that has no layer yet on top", () => {

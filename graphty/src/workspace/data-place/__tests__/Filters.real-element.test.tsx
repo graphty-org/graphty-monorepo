@@ -19,11 +19,11 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 60_000;
 
 const NODES = [
-    { id: "a", score: 1, dept: "east" },
-    { id: "b", score: 2, dept: "west" },
-    { id: "c", score: 3, dept: "east" },
-    { id: "d", score: 4, dept: "north" },
-    { id: "e", score: 5, dept: "east" },
+    { id: "a", score: 1, dept: "east", ok: true },
+    { id: "b", score: 2, dept: "west", ok: false },
+    { id: "c", score: 3, dept: "east", ok: true },
+    { id: "d", score: 4, dept: "north", ok: false },
+    { id: "e", score: 5, dept: "east", ok: false },
 ];
 const EDGES = [
     { source: "a", target: "b", weight: 1 },
@@ -83,7 +83,7 @@ async function typeInto(card: HTMLElement, box: string, text: string): Promise<v
  * @param card - the card.
  * @returns "X of Y".
  */
-const countOf = (card: HTMLElement): string => within(card).getByTestId("card-count").textContent;
+const countOf = (card: HTMLElement): string | undefined => within(card).getByTestId("card-count").dataset.count;
 
 describe("the Filters section's condition cards", () => {
     beforeAll(async () => {
@@ -122,7 +122,13 @@ describe("the Filters section's condition cards", () => {
         const card = await addCard("weight");
         await typeInto(card, "Min", "5");
         await waitFor(() => {
-            assert.strictEqual(session.visibility.steps[0]?.rule.kind, "edges");
+            assert.deepEqual(session.visibility.steps[0]?.rule, {
+                kind: "range",
+                attribute: "data.weight",
+                min: 5,
+                max: 7,
+                side: "edges",
+            });
             assert.strictEqual(session.visibility.summary.visibleEdges, 2);
         });
         const written = await screen.findByRole("group", { name: "weight" });
@@ -152,5 +158,69 @@ describe("the Filters section's condition cards", () => {
             });
             assert.strictEqual(session.visibility.summary.visibleNodes, 3);
         });
+    });
+
+    it("starts a yes/no card with nothing picked and writes its rule once Yes is picked", async () => {
+        const session = await openWithGraph();
+        const card = await addCard("ok");
+        assert.lengthOf(session.visibility.steps, 0);
+        assert.isFalse(within(card).getByRole<HTMLInputElement>("radio", { name: "Yes" }).checked);
+        assert.isFalse(within(card).getByRole<HTMLInputElement>("radio", { name: "No" }).checked);
+        await userEvent.click(within(card).getByText("Yes"));
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "flag", attribute: "data.ok", value: true });
+            assert.strictEqual(session.visibility.summary.visibleNodes, 2);
+        });
+    });
+
+    it("makes adding a filter one undo step, and a Select edit one more", async () => {
+        const session = await openWithGraph();
+        await addCard("score");
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.steps, 1);
+        });
+        const filters = await screen.findByTestId("filters");
+        const card = await within(filters).findByRole("group", { name: "score" });
+        await userEvent.click(within(card).getByText("Select"));
+        await waitFor(() => {
+            assert.isFalse(session.visibility.steps[0]?.on);
+        });
+        await typeInto(await within(filters).findByRole("group", { name: "score" }), "Min", "4");
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["d", "e"]);
+        });
+        // One undo takes back the edit and its selection together.
+        await session.undo();
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, {
+                kind: "range",
+                attribute: "data.score",
+                min: 1,
+                max: 5,
+            });
+        });
+        await session.undo();
+        await session.undo();
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.steps, 0);
+        });
+    });
+
+    it("keeps a card on a hidden column readable and editable", async () => {
+        const session = await openWithGraph();
+        await addCard("score");
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.steps, 1);
+        });
+        await session.data.setHidden([{ kind: "node", name: "score" }], true);
+        const card = await screen.findByRole("group", { name: "score" });
+        await typeInto(card, "Max", "2");
+        await waitFor(() => {
+            assert.strictEqual(session.visibility.summary.visibleNodes, 2);
+        });
+        // "+" does not offer the hidden column again.
+        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+        assert.isNull(screen.queryByRole("menuitem", { name: "score" }));
+        await userEvent.keyboard("{Escape}");
     });
 });

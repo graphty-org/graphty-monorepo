@@ -37,6 +37,11 @@
     padding: 0 8px 6px;
 }
 
+.ws-graph-find {
+    flex: 1;
+    min-width: 0;
+}
+
 .ws-find-list {
     max-height: 320px;
     margin: 4px -8px 0;

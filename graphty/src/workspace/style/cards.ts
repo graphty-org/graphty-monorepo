@@ -3,20 +3,11 @@
  * same cards pick a style layer's targets (the Which picker) and make the Data place's filter steps
  * (carried over from design/studio-tier3 and cut to what this branch's element holds). The rule a
  * layer or a step holds is the one source of truth: cards are read from it and written back to it.
- *
- * Temporary, until graphty-element's RuleTree has a text leaf and range / categories leaves on
- * edge columns (design/studio-tier3 has both; the data prototype's element half left them out): a
- * text or yes-no card, and every edge card, is written as the element's own query leaf
- * (`expression` for nodes, `edges` for edges), quoted with the element's `quotePath`.
+ * Every card is one of graphty-element's own rule leaves (range, categories, text, flag, source),
+ * an edge card's with `side: "edges"`, so the app writes no query text.
  */
 
-import {
-    type AttributeDescriptor,
-    type GraphSession,
-    type Layer,
-    quotePath,
-    type RuleTree,
-} from "@graphty/graphty-element/session";
+import type { AttributeDescriptor, GraphSession, Layer, RuleTree } from "@graphty/graphty-element/session";
 
 /** Nodes or edges. */
 export type Side = "node" | "edge";
@@ -31,6 +22,8 @@ export interface CardField {
     readonly kind: "number" | "category" | "text" | "yes-no" | "source";
     readonly name: string;
     readonly range?: { readonly min: number; readonly max: number };
+    /** A hidden column: its cards still read and edit, but "+" does not offer it. */
+    readonly hidden?: boolean;
 }
 
 /** How a text card compares. */
@@ -53,7 +46,8 @@ export type Card =
           readonly mode: TextMode;
           readonly text: string;
       }
-    | { readonly type: "yes-no"; readonly key: string; readonly field: CardField; readonly yes: boolean }
+    /** `yes` is unset until the reader picks Yes or No. */
+    | { readonly type: "yes-no"; readonly key: string; readonly field: CardField; readonly yes?: boolean }
     /** The loads an element came from (`data.sources()` keys), offered once two or more are loaded. */
     | { readonly type: "source"; readonly key: string; readonly field: CardField; readonly sources: readonly string[] }
     /** A leaf no card edits (a rule made elsewhere): kept as it is, removable. */
@@ -87,8 +81,8 @@ function kindOf(attribute: AttributeDescriptor): CardField["kind"] {
 }
 
 /**
- * The fields a card can test on one kind: the data columns graphty-element lists, hidden ones left
- * out.
+ * The fields a card can test on one kind: the data columns graphty-element lists, hidden ones
+ * marked so a card already on one keeps its field.
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @returns the fields, in the element's order.
@@ -101,7 +95,7 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
             : [];
     return session.data
         .attributes()
-        .filter((a) => a.kind === side && a.hidden !== true && a.path.startsWith("data."))
+        .filter((a) => a.kind === side && a.path.startsWith("data."))
         .map((a) => {
             const kind = kindOf(a);
             return {
@@ -109,6 +103,7 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
                 on: side,
                 kind,
                 name: a.plainName,
+                ...(a.hidden === true ? { hidden: true } : {}),
                 ...(kind === "number" && a.min !== undefined && a.max !== undefined
                     ? { range: { min: a.min, max: a.max } }
                     : {}),
@@ -125,8 +120,8 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
 export const keyOf = (field: Pick<CardField, "on" | "path">): string => `${field.on}:${field.path}`;
 
 /**
- * A new card on a field, as "+" starts it: a number over its whole range, Yes, nothing picked or
- * typed yet for the rest.
+ * A new card on a field, as "+" starts it: a number over its whole range (a rule at once), and
+ * nothing picked or typed yet for the rest (no rule until the reader picks one).
  * @param field - the field.
  * @returns the card.
  */
@@ -138,54 +133,11 @@ export function newCard(field: CardField): Card {
         case "category":
             return { type: "category", key, field, values: [] };
         case "yes-no":
-            return { type: "yes-no", key, field, yes: true };
+            return { type: "yes-no", key, field };
         case "source":
             return { type: "source", key, field, sources: [] };
         default:
             return { type: "text", key, field, mode: "contains", text: "" };
-    }
-}
-
-/**
- * Text as a query's raw string literal.
- * @param text - the text.
- * @returns `'text'`, escaped.
- */
-const raw = (text: string): string => `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
-
-/**
- * A value as a query's JSON literal.
- * @param value - the value.
- * @returns `` `value` ``, escaped.
- */
-const json = (value: unknown): string => `\`${JSON.stringify(value).replaceAll("`", "\\`")}\``;
-
-/**
- * The query a card makes, for a leaf the element has no rule form of on this side.
- * @param card - a value card.
- * @returns the query, or null while the card is unfinished.
- */
-function queryOf(card: Exclude<Card, { type: "fixed" | "source" }>): string | null {
-    const q = quotePath(card.field.path);
-    switch (card.type) {
-        case "number": {
-            const parts = [
-                ...(card.min === undefined ? [] : [`${q} >= ${json(card.min)}`]),
-                ...(card.max === undefined ? [] : [`${q} <= ${json(card.max)}`]),
-            ];
-            return parts.length === 0 ? `${q} != \`null\`` : parts.join(" && ");
-        }
-        case "category":
-            return card.values.length === 0 ? null : `contains(${json(card.values)}, to_string(${q}))`;
-        case "yes-no":
-            return `${q} == ${json(card.yes)}`;
-        default:
-            if (card.text === "") {
-                return null;
-            }
-            return card.mode === "is"
-                ? `to_string(${q}) == ${raw(card.text)}`
-                : `${q} != \`null\` && contains(to_string(${q}), ${raw(card.text)})`;
     }
 }
 
@@ -202,80 +154,27 @@ export function leafOf(card: Card): RuleTree | null {
         return card.sources.length === 0 ? null : { kind: "source", sources: card.sources };
     }
     const { path, on } = card.field;
-    if (on === "node" && card.type === "number") {
-        return {
-            kind: "range",
-            attribute: path,
-            ...(card.min === undefined ? {} : { min: card.min }),
-            ...(card.max === undefined ? {} : { max: card.max }),
-        };
+    const side = on === "edge" ? { side: "edges" as const } : {};
+    switch (card.type) {
+        case "number":
+            return {
+                kind: "range",
+                attribute: path,
+                ...(card.min === undefined ? {} : { min: card.min }),
+                ...(card.max === undefined ? {} : { max: card.max }),
+                ...side,
+            };
+        case "category":
+            return card.values.length === 0
+                ? null
+                : { kind: "categories", attribute: path, values: card.values, ...side };
+        case "yes-no":
+            return card.yes === undefined ? null : { kind: "flag", attribute: path, value: card.yes, ...side };
+        default:
+            return card.text === ""
+                ? null
+                : { kind: "text", attribute: path, match: card.mode, text: card.text, ...side };
     }
-    if (on === "node" && card.type === "category") {
-        return card.values.length === 0 ? null : { kind: "categories", attribute: path, values: card.values };
-    }
-    const where = queryOf(card);
-    if (where === null) {
-        return null;
-    }
-    return on === "node" ? { kind: "expression", where } : { kind: "edges", where };
-}
-
-/**
- * Text read back from a raw string literal.
- * @param literal - the literal's inside.
- * @returns the text.
- */
-const unraw = (literal: string): string => literal.replaceAll(/\\(.)/g, "$1");
-
-/**
- * Escapes text for a regular expression.
- * @param text - the text.
- * @returns it, escaped.
- */
-const escape = (text: string): string => text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/**
- * The value card a query leaf reads as on a field, when the query is one `queryOf` writes.
- * @param field - the field.
- * @param where - the query.
- * @returns the card, or undefined.
- */
-function cardOfQuery(field: CardField, where: string): Card | undefined {
-    const q = escape(quotePath(field.path));
-    const key = keyOf(field);
-    const literal = "'((?:[^'\\\\]|\\\\.)*)'";
-    const num = "`(-?[\\d.eE+-]+)`";
-    let m = new RegExp(`^${q} != \`null\` && contains\\(to_string\\(${q}\\), ${literal}\\)$`).exec(where);
-    if (m !== null) {
-        return { type: "text", key, field, mode: "contains", text: unraw(m[1]) };
-    }
-    m = new RegExp(`^to_string\\(${q}\\) == ${literal}$`).exec(where);
-    if (m !== null) {
-        return { type: "text", key, field, mode: "is", text: unraw(m[1]) };
-    }
-    m = new RegExp(`^${q} == \`(true|false)\`$`).exec(where);
-    if (m !== null) {
-        return { type: "yes-no", key, field, yes: m[1] === "true" };
-    }
-    m = new RegExp(`^contains\\(\`(.*)\`, to_string\\(${q}\\)\\)$`).exec(where);
-    if (m !== null) {
-        const values: unknown = JSON.parse(m[1].replaceAll("\\`", "`"));
-        return Array.isArray(values) ? { type: "category", key, field, values: values.map(String) } : undefined;
-    }
-    if (where === `${quotePath(field.path)} != \`null\``) {
-        return { type: "number", key, field };
-    }
-    m = new RegExp(`^(?:${q} >= ${num})?(?: && )?(?:${q} <= ${num})?$`).exec(where);
-    if (m !== null && (m[1] !== undefined || m[2] !== undefined)) {
-        return {
-            type: "number",
-            key,
-            field,
-            ...(m[1] === undefined ? {} : { min: Number(m[1]) }),
-            ...(m[2] === undefined ? {} : { max: Number(m[2]) }),
-        };
-    }
-    return undefined;
 }
 
 /**
@@ -286,45 +185,53 @@ function cardOfQuery(field: CardField, where: string): Card | undefined {
  * @returns the card.
  */
 export function cardOf(leaf: RuleTree, fields: readonly CardField[], at: number): Card {
-    const on = (side: Side, path: string): CardField | undefined =>
-        fields.find((f) => f.on === side && f.path === path);
-    const fixed: Card = {
-        type: "fixed",
-        key: `fixed:${String(at)}`,
-        leaf,
-        side: leaf.kind === "edges" ? "edge" : "node",
-    };
-    switch (leaf.kind) {
-        case "range": {
-            const f = on("node", leaf.attribute);
-            return f?.kind === "number"
-                ? { type: "number", key: keyOf(f), field: f, min: leaf.min, max: leaf.max }
-                : fixed;
-        }
-        case "categories": {
-            const f = on("node", leaf.attribute);
-            return f === undefined ? fixed : { type: "category", key: keyOf(f), field: f, values: leaf.values };
-        }
-        case "expression":
-        case "edges": {
-            const side: Side = leaf.kind === "edges" ? "edge" : "node";
-            const { where } = leaf;
-            for (const f of fields.filter((each) => each.on === side)) {
-                const card = cardOfQuery(f, where);
-                if (card !== undefined) {
-                    return card;
-                }
-            }
-            return fixed;
-        }
-        case "source": {
-            // A source rule speaks nodes and edges: its card is the node field's when there is one.
-            const f = on("node", SOURCE_PATH) ?? on("edge", SOURCE_PATH);
-            return f === undefined ? fixed : { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
-        }
-        default:
-            return fixed;
+    const fixed: Card = { type: "fixed", key: `fixed:${String(at)}`, leaf, side: leafSide(leaf) };
+    if (leaf.kind === "source") {
+        // A source rule speaks nodes and edges: its card is the node field's when there is one.
+        const f =
+            fields.find((each) => each.path === SOURCE_PATH && each.on === "node") ??
+            fields.find((each) => each.path === SOURCE_PATH);
+        return f === undefined ? fixed : { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
     }
+    if (leaf.kind !== "range" && leaf.kind !== "categories" && leaf.kind !== "text" && leaf.kind !== "flag") {
+        return fixed;
+    }
+    const side = leafSide(leaf);
+    const field = fields.find((f) => f.on === side && f.path === leaf.attribute);
+    if (field === undefined) {
+        return fixed;
+    }
+    const key = keyOf(field);
+    switch (leaf.kind) {
+        case "range":
+            return field.kind === "number"
+                ? {
+                      type: "number",
+                      key,
+                      field,
+                      ...(leaf.min === undefined ? {} : { min: leaf.min }),
+                      ...(leaf.max === undefined ? {} : { max: leaf.max }),
+                  }
+                : fixed;
+        case "categories":
+            return { type: "category", key, field, values: leaf.values };
+        case "flag":
+            return { type: "yes-no", key, field, yes: leaf.value };
+        default:
+            return { type: "text", key, field, mode: leaf.match, text: leaf.text };
+    }
+}
+
+/**
+ * The side a leaf counts: edges for an edge leaf or an attribute leaf read on edges, else nodes.
+ * @param leaf - the leaf.
+ * @returns nodes or edges.
+ */
+function leafSide(leaf: RuleTree): Side {
+    if (leaf.kind === "edges" || leaf.kind === "self-loop") {
+        return "edge";
+    }
+    return "side" in leaf && leaf.side === "edges" ? "edge" : "node";
 }
 
 /**

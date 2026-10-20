@@ -299,15 +299,21 @@ export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, st
 }
 
 /**
- * The groups as drawn: every node whose screen box holds the whole box of a visible node, with
+ * The groups as drawn: every group node whose screen box holds the whole box of a visible node, with
  * the visible leaf nodes (nodes holding no other) inside it as its members, the way the reference
  * extractors list a group's members (its leaf descendants). A group drawn over its members shows
- * none of them, so it has no members and is not a group here.
+ * none of them, so it has no members and is not a group here. Only a node graphty-element draws as
+ * a group can be one: a plain node drawn round a smaller one (Gephi's `label-overlap`) is two nodes.
  * @param scene - the scene's nodes, with their visibility already decided
  * @param nodes - what was drawn, by id
+ * @param isGroup - whether graphty-element draws a node as a group; unset, any node may be one
  * @returns the groups
  */
-export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string, DrawnNode>): SceneGroup[] {
+export function groupsOf(
+    scene: readonly SceneNode[],
+    nodes: ReadonlyMap<string, DrawnNode>,
+    isGroup: (id: string) => boolean = () => true,
+): SceneGroup[] {
     const visible = scene.filter((n) => n.visible);
     const inside = new Map(
         scene.map((g) => {
@@ -337,7 +343,7 @@ export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string,
     return scene.flatMap((g) => {
         const box = nodes.get(g.id)?.box;
         const members = (inside.get(g) ?? []).filter((n) => leaves.has(n));
-        if (!box || members.length === 0) {
+        if (!box || members.length === 0 || !isGroup(g.id)) {
             return [];
         }
         return [
@@ -591,7 +597,12 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
         canCarry: canCarry("graphty", PROPERTIES),
         nodes,
         edges,
-        groups: groupsOf(nodes, drawn.nodes),
+        // a group is a node graphty-element puts behind its members: the file's hierarchy gives each group a
+        // node.zIndex below 0 (fileStyles/translate.ts, node.groups)
+        groups: groupsOf(nodes, drawn.nodes, (id) => {
+            const z = channel(styleOf({ node: id }), "node.zIndex");
+            return typeof z === "number" && z < 0;
+        }),
         annotations: drawn.annotations.map((a) => ({
             kind: a.kind,
             bbox: { x: a.box.x0, y: a.box.y0, w: a.box.x1 - a.box.x0, h: a.box.y1 - a.box.y0 },

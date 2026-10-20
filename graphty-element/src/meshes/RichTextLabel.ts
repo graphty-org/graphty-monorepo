@@ -892,10 +892,17 @@ export class RichTextLabel {
                 const h = height - currentOffset * 2;
                 const r = Math.max(0, radius - currentOffset);
 
+                ctx.beginPath();
                 this._createRoundedRectPath(ctx, x, y, w, h, r);
 
                 const innerOffset = currentOffset + border.width;
-                if (i < this.options.borders.length - 1 || innerOffset < this.totalBorderWidth) {
+                // the last ring is left solid only where the background covers its middle; a background
+                // that lets the middle show (none, or a translucent one) gets a hollow ring, as a stroked box is
+                if (
+                    i < this.options.borders.length - 1 ||
+                    innerOffset < this.totalBorderWidth ||
+                    this._backgroundShowsThrough()
+                ) {
                     let innerRadius: number;
                     if (radius > 0) {
                         const minRadius = Math.max(2, radius * 0.2);
@@ -979,7 +986,13 @@ export class RichTextLabel {
                 });
 
                 const innerOffset = currentOffset + border.width;
-                if (i < this.options.borders.length - 1 || innerOffset < this.totalBorderWidth) {
+                // the last ring is left solid only where the background covers its middle; a background
+                // that lets the middle show (none, or a translucent one) gets a hollow ring, as a stroked box is
+                if (
+                    i < this.options.borders.length - 1 ||
+                    innerOffset < this.totalBorderWidth ||
+                    this._backgroundShowsThrough()
+                ) {
                     let innerRadius: number;
                     if (radius > 0) {
                         const minRadius = Math.max(2, radius * 0.2);
@@ -1040,6 +1053,23 @@ export class RichTextLabel {
         if (this.options._progressBar) {
             this._drawProgressBar(ctx);
         }
+    }
+
+    /**
+     * Whether the panel's background lets what lies under its middle show: none, transparent or
+     * translucent. A gradient or a pattern fills the panel and is taken as covering it.
+     * @returns true when the middle shows through
+     */
+    private _backgroundShowsThrough(): boolean {
+        const bg: unknown = this.options.backgroundColor;
+        if (bg === undefined || bg === null || bg === "" || bg === "transparent") {
+            return true;
+        }
+        if (typeof bg !== "string") {
+            return false;
+        }
+        const value = toColorValue(bg);
+        return value !== null && value.a < 1;
     }
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
@@ -1211,7 +1241,7 @@ export class RichTextLabel {
         // asks for 999 to mean "a pill", and every one of them was drawn as a square.
         const radius = Math.max(0, Math.min(wanted, width / 2, height / 2));
 
-        ctx.beginPath();
+        // no beginPath here: a caller cutting a hole adds a second rectangle to the same path
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
         ctx.quadraticCurveTo(x + width, y, x + width, y + radius);

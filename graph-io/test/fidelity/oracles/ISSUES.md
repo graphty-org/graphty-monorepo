@@ -565,6 +565,13 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
       box is the text's own bounds (advance width by the font's ascent plus descent) grown by its stroke; graph-io
       now asks for a label padding of 0 and a line height of 1 (new keys `labelPadding`, `labelLineHeight`, channels
       `node/edge.labelPadding`, `labelLineHeight` in graphty-element), and every page's box passes.
+      Fixed (graphty-element, 2026-10-19, verification of the round): graphty drew that box as a solid panel in the
+      border's color over the node (`labels-p11`: 200 gray inside the box, where Gephi strokes an unfilled box and the
+      node shows through). `RichTextLabel` never cut a border's hole (its path helper began a new path, so the hole
+      replaced the box) and filled the last ring solid for the background to cover, which a label with no background
+      never does. It now draws the border as a ring wherever the background lets the middle show. Comparator blind
+      spot (for the comparator owner): label.backgroundBox and label.backgroundBorder passed the solid panel; nothing
+      compares a box's inside with the oracle's.
     - Seen in the same runs, not traced to this round: edge.curve on `hsk-chars` (0.145, floor 0.684),
       `sigma-ediaspora` (0.872, floor 0.905), 31 non-loop edges of `graphology-rio` and 2 of `miserables` (27->25,
       62->59: graphty bows 0.109 and 0.125 of the chord where Gephi bows 0.069 and 0.059), already at these values

@@ -7,6 +7,7 @@ import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { drawOps, resetRecordedCanvases } from "./recording-canvas";
 
 describe("RichTextLabel opacity and offsets", () => {
     let scene: Scene;
@@ -95,5 +96,25 @@ describe("RichTextLabel opacity and offsets", () => {
         const shifted = at({ shiftX: -0.5, shiftY: 0.5 });
         assert.closeTo(shifted.x - plain.x, -width / 2, width * 0.05);
         assert.closeTo(shifted.y - plain.y, -height / 2, height * 0.05);
+    });
+
+    test("a border round a box with no background is a ring, its middle left undrawn (Gephi's label box)", () => {
+        // the rectangles in the path the border's fill was given: two (the box and its hole) for a ring
+        const rects = (extra: object): number => {
+            resetRecordedCanvases();
+            RichTextLabel.createLabel(scene, { text: "hi", borderWidth: 2, borderColor: "#ff0000", ...extra });
+            const ops = drawOps();
+            const fill = ops.findIndex((o) => o.op === "fill" && String(o.state.fillStyle).startsWith("#ff0000"));
+            assert.isAtLeast(fill, 0, "the border is drawn");
+            const start = ops
+                .slice(0, fill)
+                .map((o) => o.op)
+                .lastIndexOf("beginPath");
+            return ops.slice(start, fill).filter((o) => o.op === "moveTo").length;
+        };
+        assert.strictEqual(rects({}), 2);
+        assert.strictEqual(rects({ backgroundColor: "#ffffff", backgroundOpacity: 0.5 }), 2);
+        // an opaque background covers the middle: the border is drawn solid under it, as before
+        assert.strictEqual(rects({ backgroundColor: "#ffffff" }), 1);
     });
 });

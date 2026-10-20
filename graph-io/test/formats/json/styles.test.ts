@@ -255,7 +255,7 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "width")[5]).toBe(0);
     });
 
-    it("draws no edge labels and puts node labels right of and over the nodes, thinned where they overlap, as sigma.js does", async () => {
+    it("draws no edge labels and puts node labels right of and over the nodes, thinned by a 100 px grid, as sigma.js does", async () => {
         const r = await load({
             attributes: {},
             options: { type: "directed" },
@@ -269,7 +269,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "label")).toEqual([null]);
         expect(values(r, "node", "label")).toEqual(["A", "B"]);
         expect(values(r, "node", "labelPosition")).toEqual(["right", "right"]);
-        expect(values(r, "node", "labelAvoidOverlap")).toEqual([true, true]);
+        // sigma keeps one label per 100 px cell of its first framing (labelGridCellSize) and avoids no overlap
+        expect(values(r, "node", "labelGridCellSize")).toEqual([100, 100]);
+        expect(values(r, "node", "labelAvoidOverlap")).toEqual([null, null]);
         // sigma.js draws its labels after every node and edge
         expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
     });

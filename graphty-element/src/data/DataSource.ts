@@ -786,6 +786,8 @@ export abstract class DataSource {
                           padding: fit.padding,
                           width: box.max[0] - box.min[0],
                           height: box.max[1] - box.min[1],
+                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
+                          ...(positions === null ? {} : { coords: positions.coords }),
                       },
                   }),
         };

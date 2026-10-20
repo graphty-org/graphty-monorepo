@@ -343,7 +343,7 @@
             "labelSize": 12,
             "labelWeight": "normal",
             "labelPosition": "right",
-            "labelAvoidOverlap": true,
+            "labelGridCellSize": 100,
             "labelOnTop": true,
             "labelMinNodeScreenSize": 12
         },

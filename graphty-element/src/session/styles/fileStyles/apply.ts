@@ -20,6 +20,7 @@ import { quotePath } from "../predicate";
 import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
+import { withLabelGrid } from "./labelGrid";
 import { fileStyleNamespace, fileStylePath } from "./path";
 import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileStyleValuesOf } from "./store";
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
@@ -47,7 +48,15 @@ export interface FileStylesRead {
      * them into its canvas, `padding` px in from each side, drawing label sizes in the canvas's px
      * (sigma.js): the padding and the width and height of the positions' bounding box, in their unit.
      */
-    readonly positionFit?: { readonly padding: number; readonly width: number; readonly height: number };
+    readonly positionFit?: {
+        readonly padding: number;
+        readonly width: number;
+        readonly height: number;
+        /** The middle of the bounding box, in the positions' unit. */
+        readonly center?: readonly [number, number];
+        /** Each node's stored position, three numbers per node by the snapshot's index (NaN where it has none). */
+        readonly coords?: ArrayLike<number>;
+    };
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -206,8 +215,15 @@ async function applyRead(
     const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
+    const viewport = ctx.services.viewport?.() ?? null;
+    const pxPerUnit = labelPxPerUnit(read.positionFit, viewport);
+    const fit = read.positionFit;
+    const frame =
+        fit?.coords === undefined || fit.center === undefined || pxPerUnit === undefined || viewport === null
+            ? null
+            : { coords: fit.coords, center: fit.center, pxPerUnit, viewport };
     const translation = translateFileStyles({
-        extracted: read.extracted,
+        extracted: withLabelGrid(read.extracted, read.snapshot, frame),
         snapshot: read.snapshot,
         namespace,
         format: read.format,
@@ -215,7 +231,7 @@ async function applyRead(
         options,
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
-        labelPxPerUnit: labelPxPerUnit(read.positionFit, ctx.services.viewport?.() ?? null),
+        labelPxPerUnit: pxPerUnit,
     });
     const notes = [...translation.notes];
 

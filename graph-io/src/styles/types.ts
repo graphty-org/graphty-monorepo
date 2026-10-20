@@ -354,8 +354,8 @@ export interface NodeStyleValues {
     readonly labelMinScreenSize: number;
     /**
      * Whether the label is left out where it would overlap the label of another node drawn before it, the larger label
-     * (then the larger node) first, as Gephi's Preview (`node.label.avoidOverlap`) and sigma.js's label grid thin
-     * out labels. Unset or false, the label is drawn wherever it falls.
+     * (then the larger node) first, as Gephi's Preview (`node.label.avoidOverlap`) thins out labels. Unset or false,
+     * the label is drawn wherever it falls.
      */
     readonly labelAvoidOverlap: boolean;
     /**
@@ -364,6 +364,13 @@ export interface NodeStyleValues {
      * `labelRenderedSizeThreshold`, a radius of 6 px). Unset, the node's size never hides its label.
      */
     readonly labelMinNodeScreenSize: number;
+    /**
+     * The node labels are thinned by a grid of square cells this many px across, laid over the drawing as the program
+     * first frames it in its canvas (its positions fitted to the canvas): each cell draws the label of its largest node
+     * only (then the lesser id), and more of them as the view zooms in, n x n times as many at n times the zoom
+     * (sigma.js's `labelGridCellSize`, `labelDensity` 1). Unset, no grid thins the labels.
+     */
+    readonly labelGridCellSize: number;
     /**
      * Whether the label is drawn over every node and edge, as sigma.js draws its labels on a layer of their own; unset
      * or false, a nearer node may cover it.

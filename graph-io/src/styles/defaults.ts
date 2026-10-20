@@ -706,11 +706,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(12, `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (labelSize 12)`),
                     labelWeight: v("normal", `${SIGMA}/settings.ts lines 119-126`),
                     labelPosition: v("right", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (labelPosition "right")`),
-                    // ponytail: sigma keeps the largest node's label per 100 px grid cell (labelDensity 1,
-                    // labelGridCellSize 100); avoiding overlap, largest first, thins the labels as much on a
-                    // dense graph. Map the grid itself if a drawing needs the exact count.
-                    labelAvoidOverlap: v(
-                        true,
+                    // sigma keeps the largest node's label per 100 px cell of its first framing; it avoids no overlap
+                    labelGridCellSize: v(
+                        100,
                         `${SIGMA4} LabelGrid.getLabelsToDisplay (labelDensity 1, labelGridCellSize 100)`,
                     ),
                     labelOnTop: v(true, `${SIGMA4} labels are drawn by their own program after every node and edge`),

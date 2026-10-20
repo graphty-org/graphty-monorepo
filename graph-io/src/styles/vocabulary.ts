@@ -112,6 +112,7 @@ export const STYLE_PROPERTIES: {
         ["labelMinScreenSize", "number"],
         ["labelAvoidOverlap", "boolean"],
         ["labelMinNodeScreenSize", "number"],
+        ["labelGridCellSize", "number"],
         ["labelOnTop", "boolean"],
         ["labelRotation", "number"],
         ["labelBackground", "color"],

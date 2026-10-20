@@ -423,6 +423,66 @@ describe("a sigma.js (graphology) file's labels are canvas px over positions fit
     });
 });
 
+describe("a sigma.js (graphology) file's labels are thinned by sigma's 100 px label grid", () => {
+    // The 90 x 90 box in an 800 x 600 canvas is 6 px a unit. "big" (0, 0) and "small" (2, 0) are
+    // drawn 12 px apart, both in the cell 100 to 200 px across and 500 to 600 px down, so sigma shows
+    // only the larger node's label until the view zooms in; "far" has a cell of its own.
+    const doc = JSON.stringify({
+        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        nodes: [
+            { key: "big", attributes: { x: 0, y: 0, size: 8, label: "big" } },
+            { key: "small", attributes: { x: 2, y: 0, size: 5, label: "small" } },
+            { key: "far", attributes: { x: 90, y: 90, size: 5, label: "far" } },
+        ],
+        edges: [],
+    });
+
+    /**
+     * Load the document into a session drawing on a canvas of the given size.
+     * @param viewport - The canvas, or null for a session with none.
+     * @returns The session, settled.
+     */
+    async function loadedGrid(viewport: { width: number; height: number } | null): Promise<GraphSession> {
+        const session = createGraphSession();
+        dispatcherOf(session).services.viewport = () => viewport;
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file", layout: "recommended" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        return session;
+    }
+
+    /**
+     * A field of a node's label style.
+     * @param session - The session.
+     * @param node - The node.
+     * @param field - The field.
+     * @returns Its value.
+     */
+    function labelField(session: GraphSession, node: string, field: string): unknown {
+        return (drawn(session, { node }, "node.labelStyle") as Record<string, unknown> | undefined)?.[field];
+    }
+
+    it("hides the second label of a cell until its node is drawn larger than at sigma's framing", async () => {
+        const session = await loadedGrid({ width: 800, height: 600 });
+        // "small" is 10 units, 60 px across at sigma's framing: its label shows once the node is drawn
+        // sqrt(1) times that, as sigma shows two labels a cell from 1x the framing's zoom on
+        assert.approximately(labelField(session, "small", "minNodeScreenSize"), 60, 1e-6);
+        // the cell's largest node, and a node alone in its cell, keep sigma's own 12 px threshold
+        assert.strictEqual(labelField(session, "big", "minNodeScreenSize"), 12);
+        assert.strictEqual(labelField(session, "far", "minNodeScreenSize"), 12);
+        // sigma's grid avoids no overlap
+        assert.notStrictEqual(labelField(session, "small", "declutter"), "size");
+        session.dispose();
+    });
+
+    it("thins nothing without a canvas to frame the positions in", async () => {
+        const session = await loadedGrid(null);
+        assert.strictEqual(labelField(session, "small", "minNodeScreenSize"), 12);
+        session.dispose();
+    });
+});
+
 describe("a vis-network file's border widths", () => {
     it("are drawn in screen pixels, as vis-network draws them, never scaled with the lengths", async () => {
         const doc = JSON.stringify({

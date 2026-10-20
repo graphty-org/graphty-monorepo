@@ -305,6 +305,9 @@ function ValueEditor({
     if (descriptor.channel === "node.model") {
         return <ModelValue value={value} row={row} writeOther={writeOther} />;
     }
+    if (descriptor.channel === "node.texture") {
+        return <TextureValue value={value} write={write} />;
+    }
     switch (descriptor.accepts) {
         case "color":
             return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
@@ -512,6 +515,65 @@ function ShapeValue({
                 )}
             </Popover.Dropdown>
         </Popover>
+    );
+}
+
+/**
+ * The texture line's value: the picture's name, which opens the picture picker (a file, a drop or a
+ * pasted URL), and what graphty-element says about it.
+ * @param props - Component props
+ * @param props.value - the picture the layer names
+ * @param props.write - writes the line
+ * @returns The value and its popover
+ */
+function TextureValue({
+    value,
+    write,
+}: Readonly<{
+    value: ChannelValue | undefined;
+    write: (next: { value: ChannelValue }) => void;
+}>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const [open, setOpen] = useState(false);
+    const states = useModelStates(session);
+    if (session === null) {
+        return null;
+    }
+    const ref = typeof value === "string" ? value : "";
+    const problems = states.find((change) => change.ref === ref)?.problems ?? [];
+    const name = ref === "" ? "Choose picture" : modelName(session, ref).replace(/^Model$/, "Picture");
+    return (
+        <Stack gap={2}>
+            <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="dark"
+                        aria-label={`Texture ${name}`}
+                        onClick={() => {
+                            setOpen(!open);
+                        }}
+                    >
+                        {name}
+                    </Button>
+                </Popover.Target>
+                <Popover.Dropdown p={0}>
+                    <ModelPicker
+                        kind="image"
+                        onPick={(picked) => {
+                            setOpen(false);
+                            write({ value: picked });
+                        }}
+                    />
+                </Popover.Dropdown>
+            </Popover>
+            {problems.map((fact) => (
+                <Text key={fact.code} size="xs" c={fact.code.startsWith("E_") ? "var(--cm-text-danger)" : "dimmed"}>
+                    {modelWords(fact)}
+                </Text>
+            ))}
+        </Stack>
     );
 }
 

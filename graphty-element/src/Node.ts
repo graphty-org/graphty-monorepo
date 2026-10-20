@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    type BaseTexture,
     Color3,
     Color4,
     InstancedMesh,
@@ -32,6 +33,7 @@ import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isFlatShape } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
+import { TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -314,6 +316,8 @@ export class Node implements ModelUser {
     private drawnStyle: NodeStyleConfig | null = null;
     /** The model template this node's mesh instances, or null when it draws a built-in shape. */
     private drawnModel: ModelTemplate | null = null;
+    /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
+    private drawnImage: BaseTexture | null = null;
     private drawnColor: Rgba | null = null;
 
     /**
@@ -813,6 +817,11 @@ export class Node implements ModelUser {
             return;
         }
 
+        if (this.drawnImage !== null && !modelTinted(this.drawnStyle?.shape)) {
+            // A picture replaces the shape's color; `node.modelTint` multiplies the node's color in.
+            color = color === null ? null : { ...color, r: 255, g: 255, b: 255 };
+        }
+
         if (color === null || !(this.mesh instanceof InstancedMesh)) {
             return;
         }
@@ -875,7 +884,13 @@ export class Node implements ModelUser {
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
         const sameGeometry =
             meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-        return sameGeometry && !this.mesh.isDisposed() && this.modelFor(o) === this.drawnModel;
+        const model = this.modelFor(o);
+        return (
+            sameGeometry &&
+            !this.mesh.isDisposed() &&
+            model === this.drawnModel &&
+            (model !== null || this.imageFor(o) === this.drawnImage)
+        );
     }
 
     /**
@@ -890,7 +905,25 @@ export class Node implements ModelUser {
             return null;
         }
 
-        return ModelCache.of(this.context)?.templateFor(this, o.shape) ?? null;
+        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image) ?? null;
+    }
+
+    /**
+     * The `node.texture` picture a style asks for, once it is drawable; asking starts its load, and
+     * this node is repainted when it is ready. Null when none is named, while it loads, and when it
+     * failed.
+     * @param o - The resolved style.
+     * @returns The texture, or null.
+     */
+    private imageFor(o: NodeStyleConfig): BaseTexture | null {
+        const ref = o.texture?.image;
+        if (ref === undefined || ref === "") {
+            return null;
+        }
+
+        return (
+            TextureCache.forScene(this.context.getScene(), this.context.getSession?.())?.textureFor(this, ref) ?? null
+        );
     }
 
     /**
@@ -903,13 +936,17 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         this.drawnModel = model;
         if (model !== null) {
+            this.drawnImage = null;
             return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
         }
 
+        const image = this.imageFor(o);
+        this.drawnImage = image;
         return NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
+            // A source mesh with its picture is another source mesh than the one drawn while it loads.
+            { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
+            { shape: o.shape, texture: o.texture, effect: o.effect, image },
             this.context.getScene(),
         );
     }

@@ -33,6 +33,15 @@
             "type": "object",
             "required": ["id", "sha256", "format", "main"],
             "additionalProperties": false,
+            "if": {
+                "required": ["stored"]
+            },
+            "then": {
+                "required": ["source"],
+                "not": {
+                    "required": ["files"]
+                }
+            },
             "properties": {
                 "id": {
                     "type": "string",
@@ -48,7 +57,7 @@
                 },
                 "format": {
                     "type": "string",
-                    "description": "The main file's format as detected when it was added: glb, gltf, obj, stl or ply. A reader detects it again from the bytes."
+                    "description": "The main file's format as detected when it was added: glb, gltf, obj, stl or ply for a model, png, jpeg or webp for a picture. A reader detects it again from the bytes."
                 },
                 "main": {
                     "type": "string",
@@ -56,7 +65,11 @@
                 },
                 "source": {
                     "type": "string",
-                    "description": "The URL a layer named, when the model came from one: naming it resolves to these files and fetches nothing."
+                    "description": "The URL a layer named, when the model or picture came from one: naming it resolves to these files and fetches nothing, unless stored is url."
+                },
+                "stored": {
+                    "const": "url",
+                    "description": "Kept by URL: no files; the asset loads from source when the reader allows it, and a file whose digest is not sha256 is reported (W_MODEL_CHANGED). Absent: the files are embedded."
                 },
                 "files": {
                     "type": "array",

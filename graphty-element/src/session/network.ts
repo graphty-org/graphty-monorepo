@@ -188,6 +188,18 @@ export function createNetworkApi(
                 each.answer(true);
             }
         }
+
+        // A waiting source load on an allowed host runs too, when it needs no credential: one
+        // that does waits for the page, which has the reader's login to give it.
+        for (const request of sourceRequests()) {
+            const load = sources?.pendingSourceLoads().find((each) => each.id === request.params.id);
+            if (load !== undefined && load.authRequired !== "required" && api.allowed(request.params.host)) {
+                dismissed.add(load.id);
+                void sources?.runPendingSourceLoad(load.id).catch(() => {
+                    dismissed.delete(load.id);
+                });
+            }
+        }
     };
 
     const api: NetworkApiInternal = {
@@ -241,9 +253,8 @@ export function createNetworkApi(
 
         setProjectPolicy(value) {
             projectPolicy = value === "allow" ? "allow" : "ask";
-            if (projectPolicy === "allow") {
-                release(() => true);
-            }
+            // Also after a project opens: its source loads on allowed hosts run now.
+            release(() => projectPolicy === "allow");
         },
 
         get policy() {

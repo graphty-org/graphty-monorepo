@@ -90,7 +90,7 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
-    const path = session.assets.list().find((r) => r.id === ref)?.path;
+    const path = session.assets.list().find((r) => r.id === ref || r.url === ref)?.path;
     return path === undefined ? "Model" : (path.split("/").pop() ?? path).replace(/\.[^.]*$/, "");
 }
 

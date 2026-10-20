@@ -123,6 +123,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelTint": "Use node color",
     "node.modelFit": "Model fit",
     "node.modelCenter": "Model center",
+    "node.texture": "Texture",
     "node.label": "Label",
     "node.labelStyle": "Label style",
     "node.labelColor": "Label color",
@@ -423,6 +424,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     W_MODEL_TRANSPARENT: () => "See-through parts may look wrong where models overlap.",
     W_MODEL_TEXTURES_REDUCED: () => "Some pictures on the model are drawn smaller.",
     W_MODEL_NOT_EMBEDDED: () => "This project names a model it does not carry; others may not be able to open it.",
+    W_MODEL_CHANGED: (p) => `The file at ${said(p.url)} changed since this project was saved.`,
 };
 
 /**

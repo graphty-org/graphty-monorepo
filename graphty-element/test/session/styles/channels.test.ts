@@ -67,6 +67,7 @@ const DECLARED = [
     "node.modelTint",
     "node.modelFit",
     "node.modelCenter",
+    "node.texture",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -120,8 +121,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into forty-one node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 41);
+    it("splits into forty-two node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 42);
         assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -325,6 +326,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a node draws its own color and no picture.
+        "node.texture",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",

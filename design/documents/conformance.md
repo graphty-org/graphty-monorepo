@@ -541,3 +541,7 @@ its section and number on the page the section heading names, or by page when it
 | asset-14 | an entry named `asset:sample/box` | skipped, `E_MODEL_NAME_TAKEN` | Reading 7 |
 | asset-15 | an entry whose id the session already holds with other files | skipped, `E_MODEL_NAME_TAKEN`; the held model is unchanged | Reading 7 |
 | asset-16 | a reader that does not know `graphty-assets` | the file refused, `E_UNSUPPORTED`: the kind is in `requires` | Writing 7; container.md Reading a file 8 |
+| asset-17 | a layer naming a URL model, saved with `assets: { [url]: "url" }` | an entry with `source`, `sha256`, `"stored": "url"` and no files | Writing 7 |
+| asset-18 | an entry stored by URL whose URL now serves another file | nothing added on open; when the URL loads (after the reader allows it) the model is drawn and reports `W_MODEL_CHANGED` | Reading 9 |
+| asset-19 | an entry with `"stored": "url"` and `files`, or with no `source` | skipped, `E_BAD_DOCUMENT` at `/assets/<n>/stored` | Reading 9 |
+| asset-20 | a layer naming a picture (`node.texture`) | the picture embedded as an entry of format `png`, `jpeg` or `webp`; reopened, an asset of kind `"image"` | Writing 1 |

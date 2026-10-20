@@ -9,6 +9,9 @@ const config: StorybookConfig = {
         // graph-samples' small datasets, from its build (the files graphty.app publishes), so the source
         // chooser story loads them with no network (stories/network-sources/SourceChooser.stories.ts)
         { from: "../../graph-samples/dist/data/v1", to: "/graph-samples-data/v1" },
+        // model files served at a URL of their own, so a story loads a multi-file glTF (its .bin and
+        // picture beside it) and a picture by URL, as a page does (stories/NodeModels.stories.ts)
+        { from: "../stories/fixtures/models/served", to: "/served-models" },
     ],
     framework: {
         name: "@storybook/web-components-vite",

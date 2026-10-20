@@ -423,6 +423,38 @@ project file (7.3) wins over its URL: naming the URL draws the copy and asks not
 fetch is `credentials: "omit"`, `referrerPolicy: "no-referrer"`, has a time limit, and refuses URLs
 holding a user name and password. In problems and events a URL appears without its query string.
 
+**The general warning (owner, 2026-10-20).** Before a project opens any web address -- a model, a
+picture, a network source -- the reader is asked, and nothing is fetched until the application
+answers. graphty-element reports each waiting fetch as the fact above and never words it; the
+graphty app asks "This project wants to open <url>. Continue?" with Continue, Cancel, "Don't ask
+again for this project" and "Don't ask again". Recorded interpretation: "don't ask" means stop
+asking and continue (open what waits, and open without asking from then on). "For this project"
+is `setProjectPolicy("allow")`, a field graphty-element owns and round-trips in the project file;
+"Don't ask again" is the reader's own preference, which the application stores and hands to every
+session with `setPolicy("allow")`. A waiting source load on an allowed host runs as soon as it is
+allowed when it needs no credential; one that needs a login waits for the application, which holds
+it. Private network addresses stay refused regardless.
+
+### 2.8 Pictures on nodes: `node.texture`
+
+| Channel        | Value                        | Default | Meaning                                                                                                                                              |
+| -------------- | ---------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node.texture` | string: an asset id or a URL | unset   | A PNG, JPEG or WebP drawn on the node: on a model, every material's base color texture; on a built-in shape, its surface. Style path `texture.image` |
+
+**Decision (owner, 2026-10-20): replace by default, tint on top.** The picture replaces the base
+color (a PBR material's `albedoTexture` with its `albedoColor` set to white; a standard material's
+`diffuseTexture`), so it shows its own colors. `node.modelTint` stays its own channel and multiplies
+the node's color into the picture, on a model and on a built-in shape alike.
+
+A picture is an asset of kind `"image"` in `session.assets`: added as a file, bytes or a URL like a
+model, checked from its header (its size readable, its decoded bytes under `maxTextureBytes`, one
+over `maxTextureSize` drawn smaller with `W_MODEL_TEXTURES_REDUCED`), fetched through the same gate
+(2.6), embedded in or kept by URL in a project file like a model (7.3), and reported as
+`model:changed` under the ref the layer named. A model file named as a picture is
+`E_MODEL_FORMAT_UNSUPPORTED`. One texture is made per picture and shared by every node and
+template that names it; a model with a picture is its own template, so a model drawn with two
+pictures is two templates.
+
 ### 2.7 The extension point: `registerModelLoader` (later work package)
 
 For a format graphty does not read (FBX through a converter, a molecule drawn as balls and sticks,
@@ -827,6 +859,12 @@ Rules:
    file (`E_UNSUPPORTED`) instead of opening it and dropping the models when it saves it back.
 9. Autosave keeps each model's files in their own part, named by digest, so a style change rewrites
    no model bytes.
+10. **Embed or use the URL (owner, 2026-10-20).** Saving a project with a model or picture loaded
+    from a URL offers "Embed model" or "Use URL" per asset, embed by default:
+    `session.project.save({ assets: { [url]: "embed" | "url" } })`. Kept by URL, the entry records
+    the URL and the file's digest with `"stored": "url"` and no files; when the project opens, the
+    URL waits for the reader like any other (2.6), and a file whose digest is not the recorded one
+    is drawn and reported with `W_MODEL_CHANGED { url, expected, found }`. Autosave always embeds.
 
 The alternatives the owner did not choose: a zip project container (assets as raw files beside the
 JSON, no base64 and no giant string -- a larger change to the container, and kinder to iOS memory),
@@ -904,7 +942,15 @@ The app writes words and arranges controls; every fact and every check comes fro
 5. **Errors** are written by the app from section 4's codes, next to the control that caused them.
    A layer whose model failed shows a warning badge in the layer list; the graph still draws the
    placeholder.
-6. The app installs `@babylonjs/ktx2decoder` once the decoder package lands, so app readers never
+6. **The question before a web address** (2.6): a dialog per waiting fetch with Continue, Cancel,
+   "Don't ask again for this project" and "Don't ask again", the last kept in the app's
+   preferences (`graphty.openProjectUrls.v1`).
+7. **Pasting a URL.** The Model picker and the picture picker (the texture line, in Fill) take a
+   pasted URL as well as a file or a drop; the layer names the URL itself, so a save can keep it by
+   URL.
+8. **Embed or use the URL** on save (7.3 rule 10): a dialog listing each model and picture the
+   layers name by URL, with Embed (the default) or Use URL.
+9. The app installs `@babylonjs/ktx2decoder` once the decoder package lands, so app readers never
    see `E_MODEL_DECODER_UNAVAILABLE` for KTX2.
 
 ---

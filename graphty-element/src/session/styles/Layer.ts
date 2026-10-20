@@ -1171,7 +1171,10 @@ function checkChannels(
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
-            const blocked = descriptor.channel === "node.model" ? modelBindingProblem(binding, path) : null;
+            const blocked =
+                descriptor.channel === "node.model" || descriptor.channel === "node.texture"
+                    ? modelBindingProblem(binding, path)
+                    : null;
             if (blocked !== null) {
                 report(log, blocked);
             }

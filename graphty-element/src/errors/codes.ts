@@ -688,7 +688,13 @@ export type GraphtyWarningCode =
      * `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
      * `params.layerIds`.
      */
-    | "W_URL_NEEDS_APPROVAL";
+    | "W_URL_NEEDS_APPROVAL"
+    /**
+     * A model or picture a project keeps by URL loaded from that URL, and is not the file the
+     * project was saved with: the file at the URL changed. It is drawn. `params.url`,
+     * `params.expected` and `params.found` (SHA-256 digests).
+     */
+    | "W_MODEL_CHANGED";
 
 /**
  * Every code, as a lookup table.

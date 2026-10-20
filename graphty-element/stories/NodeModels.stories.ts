@@ -331,3 +331,57 @@ export const FailedModelPlaceholder: Story = {
         await assertGraphLoaded(scene, { nodes: 4, edges: 3 });
     },
 };
+
+/** Served by Storybook at a folder of their own: a three-file glTF and a picture. */
+const CRATE_GLTF = new URL("served-models/crate/crate.gltf", document.baseURI).href;
+const STRIPES_PNG = new URL("served-models/stripes.png", document.baseURI).href;
+
+/**
+ * A model and a picture loaded by URL: the crates are a glTF in three files (crate.gltf, its .bin
+ * and its wood picture) loaded by the .gltf's URL alone, which brings the other two from beside
+ * it; the people are spheres with a striped picture pasted on by URL (`node.texture`).
+ */
+export const ModelAndTextureByUrl: Story = {
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            layers: [
+                {
+                    name: "Crates by URL",
+                    target: "node",
+                    selector: { match: "expression", where: "data.kind == 'crate'" },
+                    set: { "node.model": CRATE_GLTF },
+                },
+                {
+                    name: "Striped texture by URL",
+                    target: "node",
+                    selector: { match: "expression", where: "data.kind == 'person'" },
+                    set: { "node.texture": STRIPES_PNG },
+                },
+            ],
+        }),
+        nodeData: [
+            at("c1", "crate", -4),
+            at("c2", "crate", 0),
+            at("c3", "crate", 4),
+            at("p1", "person", -2, 4),
+            at("p2", "person", 2, 4),
+        ],
+        edgeData: [
+            { source: "p1", target: "c1" },
+            { source: "p2", target: "c2" },
+            { source: "c2", target: "c3" },
+        ],
+    },
+    play: async ({ canvasElement }) => {
+        const crate = await settled(canvasElement, CRATE_GLTF, ["drawn", "rejected", "failed"]);
+        await holds(crate.state === "drawn", `the crate ended ${crate.state}: ${JSON.stringify(crate.problems)}`);
+        const stripes = await settled(canvasElement, STRIPES_PNG, ["drawn", "rejected", "failed"]);
+        await holds(
+            stripes.state === "drawn",
+            `the stripes ended ${stripes.state}: ${JSON.stringify(stripes.problems)}`,
+        );
+        const scene = await drawn(canvasElement, "Styles/Node Models ModelAndTextureByUrl");
+        await assertGraphLoaded(scene, { nodes: 5, edges: 3 });
+    },
+};

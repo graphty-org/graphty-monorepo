@@ -1800,9 +1800,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param spec - The specification or patch as the caller handed it.
      */
     const noteCodeModel = (spec: Partial<LayerSpec>): void => {
-        const named = spec.set?.["node.model"];
-        if (typeof named === "string" && !named.startsWith("asset:") && (spec.source?.by ?? "user") === "user") {
-            codeModelUrls.add(named);
+        for (const named of [spec.set?.["node.model"], spec.set?.["node.texture"]]) {
+            if (typeof named === "string" && !named.startsWith("asset:") && (spec.source?.by ?? "user") === "user") {
+                codeModelUrls.add(named);
+            }
         }
     };
 

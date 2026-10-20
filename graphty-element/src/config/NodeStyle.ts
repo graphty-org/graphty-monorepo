@@ -195,12 +195,10 @@ export const NodeStyle = z.strictObject({
     texture: z
         .strictObject({
             color: AdvancedColorStyle.or(ColorStyle).optional(),
-            // A node texture from a URL used to be declared here, as a validated `z.url()`, and
-            // was read by nothing in this version of the package or any earlier one. A schema
-            // that accepts a URL and draws nothing with it is worse than one that refuses it: the
-            // consumer is told their image was accepted. It comes back with a renderer and a
-            // channel, together, or not at all.
             icon: z.string().optional(),
+            // `node.texture`: an image asset id or URL, drawn as a model's base color texture or a
+            // built-in shape's surface (design/rendering/node-models.md section 2.8).
+            image: z.string().optional(),
             // pieChart: z.string().or(z.null()).default(null), // https://manual.cytoscape.org/en/stable/Styles.html#using-graphics-in-styles
             // shader: z.url().or(z.null()).default(null), // https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/
             // bumpmap: z.url().or(z.null()).default(null), // https://doc.babylonjs.com/features/featuresDeepDive/materials/using/moreMaterials/#bump-map

@@ -724,7 +724,7 @@ export function proposeColumnBinding(
     if (spec.values !== undefined) {
         const listed = bind(spec.scale ?? "passthrough", { map: { ...spec.values }, unmapped: "skip" });
         const blocked =
-            listed.ok && descriptor.channel === "node.model"
+            listed.ok && (descriptor.channel === "node.model" || descriptor.channel === "node.texture")
                 ? modelBindingProblem(listed.binding, `encode.${descriptor.channel}`)
                 : null;
         return blocked === null

@@ -88,8 +88,8 @@ export interface AssetRecord {
      * while it is pending or rejected, and the digest id once accepted.
      */
     readonly id: AssetId;
-    /** What the asset is; only models today. */
-    readonly kind: "model";
+    /** What the asset is: a 3D model, or a picture a layer draws as a texture (`node.texture`). */
+    readonly kind: "model" | "image";
     /** SHA-256 of the file set as given, as hex (empty while pending). */
     readonly digest: string;
     /** The bytes of the file set as given. */
@@ -102,6 +102,8 @@ export interface AssetRecord {
     readonly state: AssetState;
     /** Why it was rejected (`E_MODEL_*`), and what is worth knowing about it (`W_MODEL_*`). */
     readonly problems: readonly CodedFact[];
+    /** The URL it was fetched from, as the layer or the caller named it; absent for files and bytes. */
+    readonly url?: string;
 }
 
 /** What a model holds, read from its files without drawing it. */
@@ -290,6 +292,28 @@ export interface AssetsApiInternal extends AssetsApi {
      * @param id - The held asset.
      */
     bindUrl(ref: string, id: AssetId): void;
+    /**
+     * Note the digest a project file recorded for an asset it keeps by URL, so the file loaded
+     * from that URL later is reported (`W_MODEL_CHANGED`) when it is not the one saved.
+     * @param ref - The URL.
+     * @param digest - The recorded SHA-256.
+     */
+    expectDigest(ref: string, digest: string): void;
+    /**
+     * The digest a project file recorded for a URL, if any.
+     * @param ref - The URL.
+     * @returns The digest, or undefined.
+     */
+    expectedDigest(ref: string): string | undefined;
+}
+
+/**
+ * A URL as a fact shows it: origin and path.
+ * @param url - The URL.
+ * @returns The text.
+ */
+function shownUrlOf(url: URL): string {
+    return `${url.origin}${url.pathname}`.slice(0, 256);
 }
 
 /**
@@ -306,7 +330,7 @@ function syncHex(text: string): string {
  * @param fields - Its fields.
  * @returns The record.
  */
-function record(fields: Omit<AssetRecord, "kind">): AssetRecord {
+function record(fields: Omit<AssetRecord, "kind"> & { readonly kind?: AssetRecord["kind"] }): AssetRecord {
     return Object.freeze({ kind: "model", ...fields, problems: Object.freeze([...fields.problems]) });
 }
 
@@ -354,6 +378,8 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     // assets (not listed, not counted against sessionBytes, not removable).
     const samples = new Map<AssetId, Entry>();
     const states = new Map<string, ModelChange>();
+    // The digests a project file recorded for assets it keeps by URL, by href.
+    const expectedDigests = new Map<string, string>();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
@@ -377,6 +403,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @param options - The caller's options.
      * @param main - A main file the source itself named.
      * @param sample - True for one of the element's samples, which is kept apart from the session's assets.
+     * @param url - The URL it was fetched from, as named, when it was.
      * @returns The settled record.
      */
     const intake = async (
@@ -384,6 +411,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         options: AddAssetOptions,
         main?: string,
         sample = false,
+        url?: string,
     ): Promise<AssetRecord> => {
         const digest = await digestFileSet(given);
         options.signal?.throwIfAborted();
@@ -421,7 +449,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         try {
             const checked = await (
                 await loadIntake()
-            ).checkFileSet(
+            ).checkAsset(
                 given,
                 { ...options, ...(options.main === undefined && main !== undefined ? { main } : {}) },
                 limits,
@@ -429,12 +457,14 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             ({ summary } = checked);
             settled = record({
                 id,
+                kind: checked.kind,
                 digest,
                 byteLength,
                 format: checked.format,
                 path: checked.main.slice(0, 256),
                 state: "accepted",
                 problems: checked.warnings,
+                ...(url === undefined ? {} : { url }),
             });
             const already = [...entries.values()].some(
                 (e) => e.record.digest === digest && e.record.state === "accepted",
@@ -533,9 +563,10 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * Fetch a URL once and settle its record, shared by every caller asking for it.
      * @param url - The URL.
      * @param options - The caller's options.
+     * @param named - The URL as the caller or the layer wrote it.
      * @returns The URL's entry.
      */
-    const startUrl = (url: URL, options: AddAssetOptions): Entry => {
+    const startUrl = (url: URL, options: AddAssetOptions, named: string = url.href): Entry => {
         const provisional: AssetId = `asset:url-${syncHex(url.href)}`;
         const entry: Entry = {
             record: record({ id: provisional, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
@@ -551,7 +582,26 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             let settled: AssetRecord;
             try {
                 const fetched = await (await loadIntake()).fetchModelSet(url, limits);
-                settled = await intake(fetched.given, shared, fetched.main);
+                settled = await intake(fetched.given, shared, fetched.main, false, named);
+                const expected = expectedDigests.get(url.href);
+                if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
+                    // A project saved this URL with another file's digest: the file changed since.
+                    settled = record({
+                        ...settled,
+                        problems: [
+                            ...settled.problems,
+                            {
+                                code: "W_MODEL_CHANGED",
+                                params: { url: shownUrlOf(url), expected, found: settled.digest },
+                            },
+                        ],
+                    });
+                    const held = entries.get(settled.id);
+                    if (held !== undefined) {
+                        held.record = settled;
+                        held.settled = Promise.resolve(settled);
+                    }
+                }
             } catch (error) {
                 if (!(error instanceof Refusal)) {
                     throw error;
@@ -611,7 +661,8 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 }
 
                 const known = urls.get(url.href);
-                const entry = known !== undefined && options.name === undefined ? known : startUrl(url, options);
+                const entry =
+                    known !== undefined && options.name === undefined ? known : startUrl(url, options, source);
                 return abortable(entry.settled, options.signal);
             }
 
@@ -746,6 +797,18 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             const url = parseUrl(ref);
             const held = url === undefined ? undefined : urls.get(url.href);
             return held?.record.state === "accepted" ? held.record : undefined;
+        },
+
+        expectDigest(ref, digest) {
+            const url = parseUrl(ref);
+            if (url !== undefined) {
+                expectedDigests.set(url.href, digest);
+            }
+        },
+
+        expectedDigest(ref) {
+            const url = parseUrl(ref);
+            return url === undefined ? undefined : expectedDigests.get(url.href);
         },
 
         bindUrl(ref, id) {

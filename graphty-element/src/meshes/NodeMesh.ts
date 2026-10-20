@@ -3,6 +3,7 @@ import "@babylonjs/core/Meshes/instancedMesh";
 
 import {
     AbstractMesh,
+    type BaseTexture,
     Color3,
     Color4,
     DynamicTexture,
@@ -37,6 +38,8 @@ interface NodeMeshOptions {
 interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
+    /** `node.texture`'s picture, loaded: the shape's surface. */
+    image?: BaseTexture | null;
     effect?: NodeStyleConfig["effect"];
     border?: NodeStyleConfig["border"];
 }
@@ -675,6 +678,20 @@ export class NodeMesh {
 
         // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
+
+        if (createOptions.image !== undefined && createOptions.image !== null) {
+            // `node.texture` is the surface: white underneath, so the picture keeps its colors.
+            mat.diffuseTexture = createOptions.image;
+            mat.diffuseColor = Color3.White();
+            if (unlit) {
+                mat.disableLighting = true;
+                mat.emissiveTexture = createOptions.image;
+            } else {
+                mat.emissiveColor = new Color3(0.2, 0.2, 0.2);
+            }
+
+            return;
+        }
 
         if (gradientTexture) {
             if (unlit) {

@@ -314,6 +314,7 @@ export interface ChannelValues {
     "node.modelTint": boolean | "replace";
     "node.modelFit": "contain" | "stretch";
     "node.modelCenter": "bounds" | "origin";
+    "node.texture": string;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -750,9 +751,9 @@ export function mergeLabelStyle(held: unknown, over: object): object {
 const NODE_MODEL_CAVEAT =
     "Draws the node as a 3D model: an asset id from `session.assets` or a URL. The model is fitted " +
     "to the box a node of the same size would fill, centered and lit; `node.shape` is drawn while it " +
-    "loads and if it fails. Only a layer added or updated by the page's code may name a URL: a URL " +
-    "from a project file, an AI command, a template, an encoding or an expression is not fetched " +
-    "unless `session.assets.allowHosts` names its host. `node.color` applies only with " +
+    "loads and if it fails. A URL a layer added or updated by the page's code names is fetched at " +
+    "once; a URL from a project file, an AI command, a template, an encoding or an expression waits " +
+    "for the reader (`session.network`) unless its host is allowed. `node.color` applies only with " +
     "`node.modelTint`.";
 
 /**
@@ -1230,6 +1231,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "shape.modelCenter",
         renderable: true,
         caveat: '"bounds" centers the model\'s bounding box on the node; "origin" keeps the file\'s own pivot.',
+    },
+    "node.texture": {
+        channel: "node.texture",
+        target: "node",
+        plainName: "Node Texture",
+        shortName: "Texture",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.image",
+        renderable: true,
+        caveat:
+            "An image (PNG, JPEG or WebP) drawn on the node: an asset id from `session.assets` or a URL. " +
+            "On a model it replaces the base color texture of every material; on a built-in shape it " +
+            "is the shape's surface. The node's color then multiplies it only with `node.modelTint`. " +
+            "A URL waits for the reader as a model's does (`session.network`).",
     },
     "edge.color": {
         channel: "edge.color",

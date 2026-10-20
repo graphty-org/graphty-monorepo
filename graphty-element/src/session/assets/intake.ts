@@ -10,7 +10,7 @@ import { BUILT_IN_MODEL_FORMATS, detectModelFormat, isZip, type ModelFormat } fr
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
 import { checkGltf, parseGltfJson, readGlb } from "./gltfChecks";
-import { cut, normalizePath, Refusal, refuse } from "./references";
+import { cut, imageSize, normalizePath, Refusal, refuse } from "./references";
 import { scanObj, scanPly, scanStl } from "./textFormats";
 import { unzipModel } from "./unzip";
 
@@ -281,6 +281,10 @@ export async function fetchModelSet(
         return { given };
     }
 
+    if (imageFormatOf(first) !== undefined) {
+        return { given, main };
+    }
+
     let total = first.length;
     for (;;) {
         try {
@@ -310,6 +314,85 @@ export async function fetchModelSet(
             total += bytes.length;
         }
     }
+}
+
+/** The picture formats an image asset may be. */
+export type ImageFormat = "png" | "jpeg" | "webp";
+
+/**
+ * The picture format of a file, from its first bytes.
+ * @param bytes - The file.
+ * @returns The format, or undefined for anything else.
+ */
+export function imageFormatOf(bytes: Uint8Array): ImageFormat | undefined {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return "png";
+    }
+
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+        return "jpeg";
+    }
+
+    const text = String.fromCharCode(...bytes.subarray(0, 12));
+    return text.startsWith("RIFF") && text.slice(8) === "WEBP" ? "webp" : undefined;
+}
+
+/**
+ * Run every check on a file set: one picture is an image asset (a texture), anything else a model.
+ * A picture is checked from its header: its size must be readable, and its decoded bytes are held
+ * to `maxTextureBytes`; one wider or taller than `maxTextureSize` is drawn smaller.
+ * @param given - The file set as given.
+ * @param options - The caller's main file and format, if any.
+ * @param limits - The limits in force.
+ * @returns The checked asset and its kind.
+ * @throws Refusal for the first problem found.
+ */
+export async function checkAsset(
+    given: ReadonlyMap<string, Uint8Array>,
+    options: Pick<AddAssetOptions, "main" | "format">,
+    limits: ModelLimits,
+): Promise<CheckedModel & { readonly kind: "model" | "image" }> {
+    const [[path, bytes]] = given;
+    const format = given.size === 1 ? imageFormatOf(bytes) : undefined;
+    if (format === undefined) {
+        return { kind: "model", ...(await checkFileSet(given, options, limits)) };
+    }
+
+    const size = imageSize(bytes);
+    if (size === undefined || size.width === 0 || size.height === 0) {
+        refuse("E_MODEL_STRUCTURE", { rule: "image", name: cut(path) });
+    }
+
+    const textureBytes = Math.ceil((size.width * size.height * 4 * 4) / 3);
+    if (textureBytes > limits.maxTextureBytes) {
+        refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
+    }
+
+    const largest = Math.max(size.width, size.height);
+    return {
+        kind: "image",
+        files: given,
+        main: path,
+        format,
+        summary: {
+            format,
+            triangles: 0,
+            meshes: 0,
+            materials: [],
+            textures: 1,
+            textureBytes,
+            upAxis: "unknown",
+            animations: [],
+            skinned: false,
+            morphTargets: 0,
+            transparent: false,
+            extensionsRequired: [],
+        },
+        warnings:
+            largest > limits.maxTextureSize
+                ? [{ code: "W_MODEL_TEXTURES_REDUCED", params: { from: largest, to: limits.maxTextureSize } }]
+                : [],
+    };
 }
 
 /** A file set that passed every check. */

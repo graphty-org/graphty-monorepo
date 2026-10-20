@@ -218,6 +218,7 @@
         "Styles/Layered::TwoLayerNodeColors",
         "Styles/Layered::WireframeEffectLayers",
         "Styles/Node Models::FailedModelPlaceholder",
+        "Styles/Node Models::ModelAndTextureByUrl",
         "Styles/Node Models::ModelByKind",
         "Styles/Node Models::ServersAsRacks",
         "Styles/Node Models::StlTurnedUpright",

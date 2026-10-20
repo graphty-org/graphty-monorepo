@@ -40,7 +40,7 @@ interface SavedFile {
 
 /** The members an entry and a file may have; anything else refuses the entry. */
 const MEMBER_KEYS = new Set(["kind", "version", "assets", "extensions"]);
-const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "files"]);
+const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files"]);
 const FILE_KEYS = new Set(["path", "mediaType", "byteLength", "data"]);
 
 /** Media types by file ending; anything else is application/octet-stream. */
@@ -118,20 +118,31 @@ function modelRefs(session: GraphSession): Map<string, LayerId[]> {
     };
     for (const layer of session.styles.list()) {
         if (layer.target === "node") {
-            walk(layer.set?.["node.model"], layer.id, true);
-            walk(layer.encode?.["node.model"], layer.id, false);
+            for (const channel of ["node.model", "node.texture"] as const) {
+                walk(layer.set?.[channel], layer.id, true);
+                walk(layer.encode?.[channel], layer.id, false);
+            }
         }
     }
 
     return refs;
 }
 
+/** How to keep a model or picture a layer names by URL: its bytes in the file, or only its URL and digest. */
+export type AssetStorage = "embed" | "url";
+
 /**
- * The `graphty-assets` member: every model a layer names that the session holds, files as given.
+ * The `graphty-assets` member: every model and picture a layer names that the session holds,
+ * files as given; one a layer names by URL is kept by its URL and digest alone when `storage`
+ * says `"url"` for it.
  * @param session - The session.
- * @returns The member, or null when no layer names a held model; and what could not be embedded.
+ * @param storage - By the URL a layer names: `"url"` keeps it by URL. Default: embed.
+ * @returns The member, or null when no layer names a held asset; and what could not be embedded.
  */
-export function assetsMember(session: GraphSession): {
+export function assetsMember(
+    session: GraphSession,
+    storage: Readonly<Record<string, AssetStorage>> = {},
+): {
     member: Record<string, unknown> | null;
     leftOut: Problem[];
 } {
@@ -155,6 +166,19 @@ export function assetsMember(session: GraphSession): {
 
         const key = `${record.id}\n${url ? ref : ""}`;
         if (written.has(key)) {
+            continue;
+        }
+
+        if (url && storage[ref] === "url") {
+            written.add(key);
+            entries.push({
+                id: record.id,
+                sha256: record.digest,
+                format: record.format,
+                main: record.path ?? "",
+                source: ref,
+                stored: "url",
+            });
             continue;
         }
 
@@ -281,6 +305,7 @@ interface Entry {
     readonly sha256: string;
     readonly main: string;
     readonly source?: string;
+    readonly stored?: "url";
     readonly files?: readonly SavedFile[];
 }
 
@@ -314,6 +339,10 @@ function checkEntry(entry: unknown): Entry | string {
 
     if (source !== undefined && typeof source !== "string") {
         return "/source";
+    }
+
+    if (entry.stored !== undefined && (entry.stored !== "url" || typeof source !== "string" || files !== undefined)) {
+        return "/stored";
     }
 
     if (files !== undefined) {
@@ -421,6 +450,12 @@ export async function restoreAssets(session: GraphSession, member: Record<string
         };
         if (entry.id.startsWith(SAMPLE_PREFIX)) {
             fail({ code: "E_MODEL_NAME_TAKEN", params: {} });
+            continue;
+        }
+
+        if (entry.stored === "url") {
+            // Kept by URL: it loads from there, as the reader allows, and is checked against this.
+            assets.expectDigest(entry.source as string, entry.sha256);
             continue;
         }
 

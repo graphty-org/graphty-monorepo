@@ -546,6 +546,7 @@ export type Channel =
     | "node.modelTint"
     | "node.modelFit"
     | "node.modelCenter"
+    | "node.texture"
     | "edge.color"
     | "edge.width"
     | "edge.opacity"

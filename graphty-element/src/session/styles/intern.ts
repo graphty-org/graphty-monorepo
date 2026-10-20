@@ -106,6 +106,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.modelTint": "mesh",
     "node.modelFit": "mesh",
     "node.modelCenter": "mesh",
+    "node.texture": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source. So two nodes that share a source mesh cannot be given two glow colours --

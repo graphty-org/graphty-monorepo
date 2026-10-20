@@ -27,6 +27,12 @@ a sample, "Choose file..." or a drop; or drop a model file on the canvas or the 
 - **Formats:** `.glb`; `.gltf` with its `.bin` and pictures; `.obj` with its `.mtl`; `.stl`; any of
   these in a `.zip`. Loaded by URL (the stories) and as dropped `File`s through
   `session.assets.add` (an OBJ with its MTL and a glTF with its BIN, both drawn).
+- **Models and pictures by URL:** a `.gltf` or `.obj` URL brings its `.bin`, `.mtl` and pictures
+  from beside it (same site, same folder or below). A URL a project file, an AI command or the data
+  names waits for the reader in `session.network` (the app asks "This project wants to open <url>.
+  Continue?"), the same gate a reopened project's network-source loads wait in. `node.texture`
+  draws a picture on a model or a shape. A save offers Embed or Use URL for each model and picture
+  from the web.
 - **Refusals with codes:** a glTF missing its `.bin` is `E_MODEL_MISSING_FILE`, an `.fbx` is
   `E_MODEL_FORMAT_UNSUPPORTED`, a text file is `E_MODEL_FORMAT_UNKNOWN`, a cut-short GLB is
   `E_MODEL_STRUCTURE`. The node keeps its ordinary shape; nothing goes missing from the picture.

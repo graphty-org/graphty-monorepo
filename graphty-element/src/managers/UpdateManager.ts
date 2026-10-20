@@ -9,6 +9,7 @@ import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { modelsLoading } from "../models/ModelCache";
+import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import { type DataManager, disposeReleased } from "./DataManager";
@@ -971,7 +972,7 @@ export class UpdateManager implements Manager {
             return "the camera is still moving to the selection";
         }
 
-        if (modelsLoading(this.graphContext.getScene())) {
+        if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
             return "a node's 3D model is still loading";
         }
 
@@ -1029,7 +1030,7 @@ export class UpdateManager implements Manager {
         }
 
         // A model still loading replaces its nodes' placeholder shapes when it lands.
-        if (modelsLoading(this.graphContext.getScene())) {
+        if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
             return false;
         }
 

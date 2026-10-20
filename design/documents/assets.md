@@ -1,8 +1,8 @@
 # The assets member
 
 `kind: "graphty-assets"`, version 1. Schema: [assets.schema.json](assets.schema.json). It holds the
-3D model files a document's style layers name in `node.model`, embedded exactly as they were
-given, so a saved project opens anywhere, offline, with its models drawn. The container rules are
+3D model files and pictures a document's style layers name in `node.model` and `node.texture`,
+embedded exactly as they were given (or, on request, kept by URL and digest), so a saved project opens anywhere, offline, with its models drawn. The container rules are
 in [container.md](container.md); edge-case rulings are rows of [conformance.md](conformance.md),
 "Assets". The design behind it is `design/rendering/node-models.md`, section 7.3.
 
@@ -22,7 +22,8 @@ interface AssetEntry {
     format: string; // the main file's format when it was added: glb, gltf, obj, stl or ply
     main: string; // the main file's path in the set (inside the zip, for a zip)
     source?: string; // the URL a layer named, when the model came from one
-    files?: AssetFile[]; // absent: the files of the earlier entry with the same sha256
+    stored?: "url"; // kept by URL: no files; source is required
+    files?: AssetFile[]; // absent (and not stored by URL): the files of the earlier entry with the same sha256
 }
 
 interface AssetFile {
@@ -82,7 +83,10 @@ digest, so the same files have the same id in every file and every release.
    embedded, and the save reports `W_MODEL_NOT_EMBEDDED { ref, layerIds }`.
 6. At most 64 MB of file bytes per document, counted once per digest. A model that would pass it is
    left out and reported as `E_MODEL_TOO_LARGE { what: "documentBytes", found, limit, id }`.
-7. A writer writes the member only when it holds an entry, and then lists `graphty-assets` in the
+7. A model or picture a layer names by URL is kept by URL instead when the caller asks
+   (`project.save({ assets: { [url]: "url" } })`): the entry carries `source`, `sha256`, `format`,
+   `main` and `"stored": "url"`, and no files.
+8. A writer writes the member only when it holds an entry, and then lists `graphty-assets` in the
    document's `requires`: the layers would draw their placeholder shapes without it, and an older
    reader that skipped it would drop the models when it saved the file back.
 
@@ -117,7 +121,11 @@ an asset finds it.
 8. **A `source`** makes the URL resolve to the entry's files: a layer naming that URL draws the
    embedded copy and fetches nothing, whatever the page allowed. The embedded copy wins over the
    URL.
-9. A skipped entry is reported in the open's problems as `{ code, params: { kind: "graphty-assets",
+9. **An entry stored by URL** adds nothing: the URL loads when a layer names it and the reader
+   allows it (`session.network`), and a file whose digest is not the entry's `sha256` is drawn and
+   reported with `W_MODEL_CHANGED { url, expected, found }`. An entry with `stored` but no `source`,
+   or with both `stored` and `files`, is skipped, `E_BAD_DOCUMENT`.
+10. A skipped entry is reported in the open's problems as `{ code, params: { kind: "graphty-assets",
 id, ... } }`; a layer naming it draws its placeholder shape and reports `E_MODEL_UNKNOWN_ASSET`.
 
 ## Autosave

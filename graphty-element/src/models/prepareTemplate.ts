@@ -253,6 +253,16 @@ export async function prepareTemplate(
         if (!scene.materials.includes(material)) {
             scene.addMaterial(material);
         }
+
+        // `node.texture` replaces the base color texture; the node's tint still multiplies it.
+        if (options.image !== undefined && options.image !== null) {
+            if (material instanceof PBRMaterial) {
+                material.albedoTexture = options.image;
+                material.albedoColor = Color3.White();
+            } else if ("diffuseTexture" in material) {
+                (material as { diffuseTexture: unknown }).diffuseTexture = options.image;
+            }
+        }
     }
 
     for (const texture of container.textures) {

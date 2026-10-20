@@ -18,6 +18,64 @@ import { entryForHandle, forgetRecent, recentEntry, type RecentProject, remember
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
 export const DISCARD_DIALOG = "discard";
+export const KEEP_ASSETS_DIALOG = "keep-assets";
+
+/** How the reader chose to keep each model or picture loaded from a web address, by that address. */
+export type AssetChoices = Record<string, "embed" | "url">;
+
+/** A save waiting for the reader's choices: the addresses to ask about, and what to do with the answer. */
+export interface AssetQuestion {
+    readonly assets: readonly { readonly url: string; readonly name: string; readonly kind: "model" | "image" }[];
+    readonly answer: (choices: AssetChoices | null) => void;
+}
+
+const assetQuestions = new WeakMap<WorkspaceStore, AssetQuestion>();
+
+/**
+ * The save waiting for the reader's choices, for the dialog that asks.
+ * @param store - the workspace store.
+ * @returns the question, or undefined.
+ */
+export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined {
+    return assetQuestions.get(store);
+}
+
+/**
+ * Asks how to keep each model or picture the layers name by web address (Embed, the default, or
+ * Use URL), when there is any; graphty-element's save takes the answer (`project.save({ assets })`).
+ * @param store - the workspace store.
+ * @param session - the project's session.
+ * @returns the choices, or null when the reader cancelled.
+ */
+function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
+    const named = new Set(
+        session.styles
+            .list()
+            .flatMap((layer) => [layer.set?.["node.model"], layer.set?.["node.texture"]])
+            .filter((value): value is string => typeof value === "string"),
+    );
+    const assets = session.assets
+        .list()
+        .filter((record) => record.state === "accepted" && record.url !== undefined && named.has(record.url))
+        .map((record) => ({
+            url: record.url as string,
+            name: (record.path ?? record.url ?? "").split("/").pop() ?? "",
+            kind: record.kind,
+        }));
+    if (assets.length === 0) {
+        return Promise.resolve({});
+    }
+    return new Promise((resolve) => {
+        assetQuestions.set(store, {
+            assets,
+            answer: (choices) => {
+                assetQuestions.delete(store);
+                resolve(choices);
+            },
+        });
+        store.set({ dialog: KEEP_ASSETS_DIALOG });
+    });
+}
 
 /** Where the open project's Save goes, and what is waiting on the reader. Per workspace store. */
 interface ProjectFileState {
@@ -169,23 +227,28 @@ async function nameTheProject(store: WorkspaceStore, session: GraphSession): Pro
  * @param ctx.element - the element, which downloads.
  * @param target - the file, or "download".
  * @param verb - "Saved" or "Saved as", for a file the browser keeps.
+ * @returns false when the reader cancelled the question about files from the web.
  */
 async function writeProject(
     { workspace, session, element }: CommandContext,
     target: FileSystemFileHandle | "download",
     verb: "Saved" | "Saved as",
-): Promise<void> {
+): Promise<boolean> {
     if (session === null || element === null) {
-        return;
+        return false;
+    }
+    const choices = await askAssetChoices(workspace, session);
+    if (choices === null) {
+        return false;
     }
     await nameTheProject(workspace, session);
     const name = headerName(workspace);
     const state = fileState(workspace);
     try {
         if (target === "download") {
-            await element.downloadProject();
+            await element.downloadProject({ assets: choices });
         } else {
-            await writeFile(target, (await session.project.save()).text);
+            await writeFile(target, (await session.project.save({ assets: choices })).text);
         }
     } catch (error) {
         state.writeFailed = true;
@@ -195,6 +258,7 @@ async function writeProject(
     state.target = target;
     await remember(workspace, session, target === "download" ? undefined : target, await thumbnailOf(element));
     workspace.set({ notice: { message: `${target === "download" ? "Downloaded" : verb} ${name}` } });
+    return true;
 }
 
 /**
@@ -242,7 +306,11 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
     workspace.set((now) => ({ project: now.project && { ...now.project, name } }));
     state.recentId = null;
     try {
-        await writeProject(ctx, target, "Saved as");
+        if (!(await writeProject(ctx, target, "Saved as"))) {
+            // The reader cancelled: nothing was saved, so the project keeps the name it had.
+            state.recentId = recentId;
+            workspace.set((now) => ({ project: now.project && { ...now.project, name: before.header } }));
+        }
     } catch {
         // Nothing was saved, so the project keeps the name it had.
         state.recentId = recentId;

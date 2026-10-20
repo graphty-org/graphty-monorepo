@@ -117,6 +117,14 @@ export interface ProjectSaveOptions {
      * project dirty, and so does any change made while the write was under way. Default `true`.
      */
     readonly markSaved?: boolean;
+    /**
+     * How to keep each model or picture a layer names by URL, by that URL: `"embed"` writes its
+     * files into the project (the default), so it opens offline; `"url"` writes only the URL and
+     * the file's digest, so the file is fetched again when the project opens (after the reader
+     * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
+     * `session.assets.list()` gives each asset's `url`.
+     */
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
 }
 
 /** What the session lends the project file for the loads from network sources. */
@@ -761,7 +769,7 @@ function write(
         notesMember(session),
         viewStateMember(session, ids),
     ].filter((member) => !leaveOut.has(member.kind as string));
-    const assets = assetsMember(session);
+    const assets = assetsMember(session, options.assets);
     if (assets.member !== null) {
         members.push(assets.member);
     }

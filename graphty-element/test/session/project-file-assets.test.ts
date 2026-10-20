@@ -14,7 +14,7 @@ import { isGraphtyError } from "../../src/errors";
 import type { AssetsApiInternal } from "../../src/session/assets/AssetsApi";
 import { MAX_DOCUMENT_ASSET_BYTES } from "../../src/session/assets/projectMember";
 import type { GraphSession } from "../../src/session/types";
-import { sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
+import { PNG_1X1, sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 
 const schema = JSON.parse(
@@ -32,6 +32,7 @@ interface Member {
         format: string;
         main: string;
         source?: string;
+        stored?: string;
         files?: { path: string; mediaType: string; byteLength: number; data: string }[];
     }[];
 }
@@ -285,6 +286,52 @@ describe("graphty-assets: a model a layer named by URL", () => {
         assert.isDefined((opened.assets as AssetsApiInternal).urlRecord(url));
     });
 
+    it("keeps a URL model by its URL and digest when asked, and notices a changed file on reopen", async () => {
+        const url = "https://models.example.com/ball.glb";
+        let bytes = sphereGlb(8, 4);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(() =>
+                Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    headers: { get: () => null },
+                    body: null,
+                    arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
+                }),
+            ),
+        );
+        const session = await baseSession();
+        await session.styles.add({
+            name: "by url",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": url },
+        });
+        const first = await session.assets.ready(url);
+        assert.equal(first.url, url);
+        const saved = await session.project.save({ assets: { [url]: "url" } });
+        const { member } = memberOf(saved.text);
+        assert.isTrue(validate(member), JSON.stringify(validate.errors));
+        assert.deepEqual(member.assets[0], {
+            id: first.id,
+            sha256: first.digest,
+            format: "glb",
+            main: "ball.glb",
+            source: url,
+            stored: "url",
+        });
+
+        bytes = sphereGlb(10, 5);
+        const { session: opened, report } = await reopen(saved.text);
+        assert.deepEqual(report.problems, []);
+        assert.isUndefined(opened.assets.get(first.id), "nothing was embedded");
+        const changed = await opened.assets.ready(url);
+        assert.equal(changed.state, "accepted");
+        const notice = changed.problems.find((problem) => problem.code === "W_MODEL_CHANGED");
+        assert.equal(notice?.params.expected, first.digest);
+    });
+
     it("names a URL that never loaded as not embedded", async () => {
         const session = await baseSession();
         await session.styles.add({
@@ -298,6 +345,25 @@ describe("graphty-assets: a model a layer named by URL", () => {
             saved.report.leftOut.filter((problem) => problem.code === "W_MODEL_NOT_EMBEDDED").map((p) => p.params.ref),
             ["https://models.example.com/never.glb"],
         );
+    });
+});
+
+describe("graphty-assets: pictures", () => {
+    it("embeds a picture node.texture names, and reads it back as an image", async () => {
+        const session = await baseSession();
+        const picture = await session.assets.add({ files: new Map([["dots.png", PNG_1X1]]) });
+        assert.equal(picture.kind, "image");
+        await session.styles.add({
+            name: "picture",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.texture": picture.id },
+        });
+        const { member } = memberOf((await session.project.save()).text);
+        assert.equal(member.assets[0].format, "png");
+        const { session: opened, report } = await reopen((await session.project.save()).text);
+        assert.deepEqual(report.problems, []);
+        assert.equal(opened.assets.get(picture.id)?.kind, "image");
     });
 });
 

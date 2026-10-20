@@ -19,17 +19,19 @@
  * first model only (./loadModel).
  */
 
-import type { Mesh, Observer, Scene } from "@babylonjs/core";
+import type { BaseTexture, Mesh, Observer, Scene } from "@babylonjs/core";
 
 import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";
 import type { GraphContext } from "../managers/GraphContext";
-import { type AssetRecord, type AssetsApiInternal, isAssetId } from "../session/assets/AssetsApi";
-import type { FetchQuestion, NetworkApiInternal } from "../session/network";
+import type { AssetRecord, AssetsApiInternal } from "../session/assets/AssetsApi";
+import type { NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";
 import type { SessionStylesApi } from "../session/styles/StylesApi";
 import type { ModelChange, ModelState, SessionEventMap } from "../session/types";
+import { decideFetch, layersNaming } from "./fetchGate";
 import { loadChunk, loadModel, ModelLoadFailure } from "./loadModel";
+import { TextureCache } from "./TextureCache";
 
 /** The geometry options a template is built for. */
 export interface TemplateOptions {
@@ -41,6 +43,8 @@ export interface TemplateOptions {
     readonly fit: "contain" | "stretch";
     /** Paint every material flat, in the node's colour. */
     readonly replace: boolean;
+    /** `node.texture`: the picture every material takes as its base color texture. */
+    readonly image?: BaseTexture | null;
 }
 
 /** One model, ready to instance: centered, fitted to a unit box, compiled and frozen. */
@@ -82,6 +86,8 @@ interface ModelSession {
 interface Entry {
     readonly key: string;
     readonly ref: string;
+    /** The `node.texture` its template is built with. */
+    readonly image?: string;
     template: ModelTemplate | null;
     readonly users: Set<ModelUser>;
     /** Frames since no layer named it and no node drew it; -1 while it is in use. */
@@ -109,42 +115,6 @@ const HEAVY = { triangles: 50_000, materials: 8, bytes: 8 * 1024 * 1024 };
 
 /** Blended instances past which `W_MODEL_TRANSPARENT` is reported. */
 const TRANSPARENT_NODES = 100;
-
-/**
- * Whether a host is private, loopback or link-local, which a layer not from code never reaches.
- * @param host - The URL's host name.
- * @returns True for such a host.
- */
-export function isPrivateHost(host: string): boolean {
-    const name = host.replace(/^\[|\]$/g, "").toLowerCase();
-    if (name === "localhost" || name.endsWith(".localhost") || name.endsWith(".local") || name === "0.0.0.0") {
-        return true;
-    }
-
-    const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(name);
-    if (v4 !== null) {
-        const a = Number(v4[1]);
-        const b = Number(v4[2]);
-        return (
-            a === 0 ||
-            a === 10 ||
-            a === 127 ||
-            (a === 100 && b >= 64 && b <= 127) ||
-            (a === 169 && b === 254) ||
-            (a === 172 && b >= 16 && b <= 31) ||
-            (a === 192 && b === 168)
-        );
-    }
-
-    return (
-        name.includes(":") &&
-        (name === "::1" ||
-            name === "::" ||
-            /^f[cd]/.test(name) ||
-            name.startsWith("fe80") ||
-            name.startsWith("::ffff:"))
-    );
-}
 
 /**
  * The geometry options a node's shape block asks for.
@@ -263,18 +233,26 @@ export class ModelCache {
      * load; until it is drawable, and if it fails, the answer is null and the node draws its shape.
      * @param user - The node asking; it is repainted when the template becomes drawable.
      * @param shape - Its shape block.
+     * @param image - The `node.texture` the node names, which every material takes.
      * @returns The template, or null.
      */
-    templateFor(user: ModelUser, shape: NodeStyleConfig["shape"]): ModelTemplate | null {
+    templateFor(user: ModelUser, shape: NodeStyleConfig["shape"], image?: string): ModelTemplate | null {
         const ref = shape?.model;
         if (shape === undefined || typeof ref !== "string" || ref === "") {
             return null;
         }
 
-        const key = keyOf(shape);
+        const key = JSON.stringify([keyOf(shape), image ?? null]);
         let entry = this.entries.get(key);
         if (entry === undefined) {
-            entry = { key, ref, template: null, users: new Set(), idle: -1 };
+            entry = {
+                key,
+                ref,
+                ...(image === undefined || image === "" ? {} : { image }),
+                template: null,
+                users: new Set(),
+                idle: -1,
+            };
             this.entries.set(key, entry);
             this.start(entry, shape);
         }
@@ -297,28 +275,6 @@ export class ModelCache {
     }
 
     /**
-     * The layers that name a model, literally or in an encoding's value map.
-     * @param ref - What the layers name.
-     * @returns Their ids.
-     */
-    private layersNaming(ref: string): LayerId[] {
-        const ids: LayerId[] = [];
-        for (const layer of this.session.styles.list()) {
-            if (layer.target !== "node") {
-                continue;
-            }
-
-            const literal = layer.set?.["node.model"];
-            const binding = layer.encode?.["node.model"] as { map?: Record<string, unknown> } | undefined;
-            if (literal === ref || (binding?.map !== undefined && Object.values(binding.map).includes(ref))) {
-                ids.push(layer.id);
-            }
-        }
-
-        return ids;
-    }
-
-    /**
      * The layers a reader added that colour nodes, for `W_MODEL_COLOR_IGNORED`.
      * @returns Their ids.
      */
@@ -331,67 +287,13 @@ export class ModelCache {
     }
 
     /**
-     * Whether a model may be fetched: at once, never, or once the reader answers.
-     * @param ref - What a layer named.
-     * @returns null to go ahead, the refusal, or the question to put to `session.network`.
-     */
-    private decide(ref: string): CodedFact | FetchQuestion | null {
-        // An asset id, a URL the session already holds (an embedded copy from a project file), or
-        // a URL the page's own code named fetches nothing more to decide.
-        if (
-            isAssetId(ref) ||
-            this.session.assets.urlRecord(ref) !== undefined ||
-            this.session.styles.modelUrlFromCode(ref)
-        ) {
-            return null;
-        }
-
-        let url: URL;
-        try {
-            url = new URL(ref, (globalThis as { location?: { href?: string } }).location?.href);
-        } catch {
-            return null; // Not a URL at all: the intake reports it.
-        }
-
-        if (url.protocol !== "https:" && url.protocol !== "http:") {
-            return null; // The intake refuses the scheme.
-        }
-
-        const layerIds = this.layersNaming(ref);
-        if (isPrivateHost(url.hostname)) {
-            return { code: "E_MODEL_URL_BLOCKED", params: { hosts: [url.host], layerIds } };
-        }
-
-        if (this.session.assets.hostAllowed(url.host)) {
-            return null;
-        }
-
-        return { url, kind: "model", by: this.askerOf(ref, layerIds), layerIds };
-    }
-
-    /**
-     * What asked for a URL: an AI command's layer, a value read from the data, or a file's layer.
-     * @param ref - The URL.
-     * @param layerIds - The layers naming it.
-     * @returns The asker.
-     */
-    private askerOf(ref: string, layerIds: readonly LayerId[]): FetchQuestion["by"] {
-        const layers = this.session.styles.list().filter((layer) => layerIds.includes(layer.id));
-        if (layers.some((layer) => layer.source?.by === "plugin" && layer.source.name === "graphty-ai")) {
-            return "ai";
-        }
-
-        return layers.some((layer) => layer.set?.["node.model"] === ref) ? "file" : "data";
-    }
-
-    /**
      * Prepare one entry's template, in its turn: at once, or once the reader allowed its URL.
      * @param entry - The entry.
      * @param shape - The shape block that asked for it.
      */
     private start(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>): void {
         const { ref } = entry;
-        const decided = this.decide(ref);
+        const decided = decideFetch(this.session, ref, "node.model");
         if (decided === null) {
             this.load(entry, shape);
             return;
@@ -423,6 +325,29 @@ export class ModelCache {
      * @param shape - The shape block that asked for it.
      */
     private load(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>): void {
+        // The picture first, outside the two load slots: it may wait for the reader. One that
+        // cannot be drawn leaves the model with its own colors; the picture reports why itself.
+        if (entry.image === undefined) {
+            // No picture: queue the load now, so the frame is not finished in between.
+            this.loadWith(entry, shape, null);
+            return;
+        }
+
+        const picture = TextureCache.forScene(this.scene, this.session)?.load(entry.image) ?? Promise.resolve(null);
+        void picture.then((image) => {
+            if (this.entries.get(entry.key) === entry) {
+                this.loadWith(entry, shape, image);
+            }
+        });
+    }
+
+    /**
+     * Load one entry's files and prepare its template with its picture, in its turn.
+     * @param entry - The entry.
+     * @param shape - The shape block that asked for it.
+     * @param image - The picture every material takes, or null.
+     */
+    private loadWith(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>, image: BaseTexture | null): void {
         const { ref } = entry;
         this.enqueue(async () => {
             this.settle(ref, "pending", []);
@@ -443,7 +368,7 @@ export class ModelCache {
                     this.scene,
                     container,
                     `graphty-model-${String(++templates)}`,
-                    optionsOf(shape, record.format),
+                    { ...optionsOf(shape, record.format), image },
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 if (!this.entries.has(entry.key)) {
@@ -671,7 +596,7 @@ export class ModelCache {
             Object.freeze({
                 ref,
                 ...(id === undefined ? {} : { id }),
-                layerIds: Object.freeze(this.layersNaming(ref)),
+                layerIds: Object.freeze(layersNaming(this.session.styles, ref, "node.model")),
                 state,
                 problems: Object.freeze([...problems]),
             }),
@@ -702,7 +627,7 @@ export class ModelCache {
         }
 
         for (const entry of this.entries.values()) {
-            const named = this.layersNaming(entry.ref).length > 0;
+            const named = layersNaming(this.session.styles, entry.ref, "node.model").length > 0;
             if (named) {
                 entry.idle = -1;
             } else if (entry.idle < 0) {

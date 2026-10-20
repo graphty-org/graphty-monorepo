@@ -62,6 +62,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelTint": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
+    "node.texture": "Texture",
     "node.label": "Label",
     "node.labelStyle": "Label",
     "node.labelColor": "Label",

@@ -291,6 +291,26 @@ for anything that did not come from your code. Every model request is made with 
 referrer, and has a time limit. A column of addresses fetches each distinct address once, however
 many nodes name it.
 
+## Pictures on nodes
+
+`node.texture` draws a picture (PNG, JPEG or WebP) on nodes: on a model it replaces the model's
+own base color picture, on an ordinary shape it covers the surface. Name a picture by web address,
+or add one from a file and name its id:
+
+```ts
+await element.session.styles.add({
+    name: "Striped people",
+    target: "node",
+    selector: { match: "expression", where: "data.kind == 'person'" },
+    set: { "node.texture": "https://example.com/pictures/stripes.png" },
+});
+```
+
+The picture shows its own colors. To color it by the node's color as well, add
+`"node.modelTint": true`, which multiplies the node's color in. A picture by address is fetched
+like a model's (your code's own addresses at once; anyone else's after the reader agrees), and a
+project saves it like a model.
+
 ## Saving a project with its models
 
 A saved project carries its models. `session.project.save()` (and the element's autosave) writes
@@ -308,6 +328,18 @@ A model your page loaded from a web address is saved too, under that address: op
 the layer draws the saved copy and fetches nothing. The sample models are never copied into a
 file, because every page has them. A layer naming a model the session does not hold (an address
 that never loaded) is saved without it, and `report.leftOut` says so with `W_MODEL_NOT_EMBEDDED`.
+
+To keep a model or picture from the web by its address alone, so the file stays small and always
+shows what the site serves now, say so per address when saving (each record's `url` in
+`session.assets.list()` is the address):
+
+```ts
+await element.session.project.save({ assets: { "https://example.com/models/rack.glb": "url" } });
+```
+
+The file then records the address and a fingerprint of the file. When the project opens, the
+address is fetched (after the reader agrees), and if the site now serves a different file it is
+drawn and reported with `W_MODEL_CHANGED`.
 
 A project file holds at most 64 MB of model files. When it opens, each model is checked against
 the fingerprint the file recorded for it, then by every check a dropped file gets; a model that
@@ -354,3 +386,5 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `W_MODEL_TRANSPARENT`         | `nodes`                           | Many nodes draw a see-through model, which may look wrong where they overlap                                                               |
 | `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                      | Pictures larger than the limit were drawn smaller                                                                                          |
 | `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                 | A project was saved without a model its layers name, because the session does not hold it                                                  |
+| `W_MODEL_CHANGED`             | `url`, `expected`, `found`        | A model or picture a project keeps by address loaded, and is not the file the project was saved with                                       |
+| `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by` | An address waits for the reader in `session.network` (not a model's own event: `network:pending`)                                          |

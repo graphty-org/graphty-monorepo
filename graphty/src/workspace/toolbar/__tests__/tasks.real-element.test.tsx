@@ -98,6 +98,24 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await page.viewport(1366, 768);
     });
 
+    it("Table on the toolbar opens the table dock and closes it; no Timeline without a time column", async () => {
+        await openKarate();
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const table = within(toolbar).getByRole("button", { name: "Table" });
+        assert.isNull(screen.queryByRole("region", { name: "Table" }));
+
+        await userEvent.click(table);
+        assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
+        assert.equal(table.getAttribute("aria-pressed"), "true");
+        // Karate has no column with the time role, so the clock is not drawn.
+        assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
+
+        await userEvent.click(table);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Table" }));
+        });
+    });
+
     it("T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row", async () => {
         const session = await openKarate();
 

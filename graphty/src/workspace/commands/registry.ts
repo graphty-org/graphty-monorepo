@@ -53,6 +53,13 @@ export interface Command {
     readonly description?: string;
     /** Why it cannot run now, or null when it can. Drawn grayed with the reason, still focusable. */
     readonly disabled?: (ctx: CommandContext) => string | null;
+    /**
+     * Whether it is available at all now: false draws no door to it (toolbar button, Quick
+     * actions row) and makes its keys and `run` do nothing. For a command that only makes sense
+     * in some data (Timeline, with a time column), where a grayed door would be noise. Absent
+     * means always.
+     */
+    readonly shown?: (ctx: CommandContext) => boolean;
     /** Does it. */
     readonly run: (ctx: CommandContext) => void | Promise<void>;
     /** Declared but not built: holds the id, drawn nowhere. */

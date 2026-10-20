@@ -28,7 +28,7 @@ const GROUP_ORDER = [
 export function QuickActionsPalette({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const workspace = useWorkspace();
     const actions = workspace.registry.live
-        .filter((command) => command.id !== "quick-actions.open")
+        .filter((command) => command.id !== "quick-actions.open" && command.shown?.(workspace) !== false)
         .sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
         .map((command) => ({
             value: command.id,

@@ -54,6 +54,8 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
+    readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -99,6 +101,7 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
+    timelineOpen: false,
     legendShown: true,
     exportOn: "image",
     singleKeyShortcuts: true,

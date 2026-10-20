@@ -2,7 +2,7 @@ import "./toolbar.css";
 
 import { Toolbar, ToolButton } from "@graphty/compact-mantine";
 import { Menu, Popover, VisuallyHidden } from "@mantine/core";
-import { Box, Command, FlaskConical, List, Move, Square, Target } from "lucide-react";
+import { Box, Clock, Command, FlaskConical, List, Move, Square, Table, Target } from "lucide-react";
 import React, { forwardRef, useRef, useState } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
@@ -71,8 +71,8 @@ function SelectionBar(): React.JSX.Element | null {
 }
 
 /**
- * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View, Legend | Quick actions, at the
- * canvas's bottom center, with the selection bar above it. Analyze, Layout and Quick actions open
+ * The canvas toolbar (tier1-design.md 2.3): Table, Timeline | Analyze | Layout, View, Legend | Quick
+ * actions, at the canvas's bottom center, with the selection bar above it. Analyze, Layout and Quick actions open
  * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
  * while it is open, so each opening starts fresh (Analyze on its list, the filter empty).
@@ -83,6 +83,12 @@ export function WorkspaceToolbar(): React.JSX.Element {
     useSessionVersion(session);
     const dialog = useWorkspaceState((state) => state.dialog);
     const legendShown = useWorkspaceState((state) => state.legendShown);
+    const dockOpen = useWorkspaceState((state) => state.dockOpen);
+    const timelineOpen = useWorkspaceState((state) => state.timelineOpen);
+    // Table and Timeline come first, each only while its command is registered and shown.
+    const tableDoor = useCommand("table.toggle");
+    const timelineDoor = useCommand("timeline.toggle");
+    const dataTools = tableDoor !== null || timelineDoor !== null;
     const [announcement, setAnnouncement] = useState("");
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
@@ -121,6 +127,9 @@ export function WorkspaceToolbar(): React.JSX.Element {
         <div className="ws-toolbar-stack">
             <SelectionBar />
             <Toolbar aria-label="Canvas tools">
+                <CommandTool command="table.toggle" icon={<Table size={20} />} selected={dockOpen} />
+                <CommandTool command="timeline.toggle" icon={<Clock size={20} />} selected={timelineOpen} />
+                {dataTools ? <Toolbar.Divider /> : null}
                 <Popover {...popoverProps("analyze")} closeOnEscape={false} width={380}>
                     <Popover.Target>
                         <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<FlaskConical size={20} />} />

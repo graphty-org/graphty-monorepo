@@ -691,9 +691,9 @@ function nodeLabelPosition(label: unknown, geometry: unknown, at: SiteOf): strin
 }
 
 /**
- * Where a SmartNodeLabelModel (`custom`) label is drawn: its box decides whether it overlaps the node, and its ratios
- * where it sits, so a label hung from the node's top edge into it is a header along its top. A box beside the node is
- * handled before this.
+ * Where a SmartNodeLabelModel (`custom`) label is drawn: where its stored box puts it, as for any other model, and
+ * where its ratios put it when the file stores no box (a label hung from the node's top edge into it is a header
+ * along its top). A box beside the node is handled before this.
  * @param label - the label element
  * @param outside - the box's position against the node, `center` or null
  * @param at - the sites
@@ -705,8 +705,8 @@ function customPosition(label: unknown, outside: string | null, at: SiteOf): str
         noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, "custom");
         return outside;
     }
-    const position = smartPosition(smart);
-    return position === "inside-top" || outside === null ? position : outside;
+    // the stored box is where yEd drew the label; the ratios place it only when the file stores no box
+    return outside ?? smartPosition(smart);
 }
 
 /**

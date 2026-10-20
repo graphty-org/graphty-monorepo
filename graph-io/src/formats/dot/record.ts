@@ -18,13 +18,13 @@ interface Field {
 }
 
 /** One text line of a field and how it is justified (`\l` left, `\r` right, else centered). */
-export interface RecordLine {
+interface RecordLine {
     readonly text: string;
     readonly justify: "l" | "r" | "c";
 }
 
 /** Where a record's dividers and text lines go, in points from the node's center, y up. */
-export interface RecordLayout {
+interface RecordLayout {
     /** The node's width and height in points. */
     readonly width: number;
     readonly height: number;
@@ -107,7 +107,7 @@ function splitLines(text: string): RecordLine[] {
  * @param lr - whether the top level lays its fields left to right
  * @returns the root field
  */
-export function parseRecord(label: string, lr: boolean): Field {
+function parseRecord(label: string, lr: boolean): Field {
     let i = 0;
     const parse = (across: boolean, top: boolean): Field => {
         const children: Field[] = [];

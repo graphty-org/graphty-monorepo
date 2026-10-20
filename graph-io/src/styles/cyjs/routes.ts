@@ -43,7 +43,7 @@ export interface CyjsRouteEdge {
 }
 
 /** An edge's route: its neutral `bends`, or null when Cytoscape.js draws it some other way. */
-export type CyjsRoute = string | null;
+type CyjsRoute = string | null;
 
 /**
  * A list of lengths (`20px -20px`, numbers in pixels).

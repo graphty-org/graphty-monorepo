@@ -1836,7 +1836,7 @@ export function graphvizArrowValue(
  * @returns the shape's own name and its side (null for the whole shape), or null for a name outside the grammar (a
  * synonym such as `empty`)
  */
-export function graphvizArrow(raw: string): { readonly name: string; readonly side: "left" | "right" | null } | null {
+function graphvizArrow(raw: string): { readonly name: string; readonly side: "left" | "right" | null } | null {
     let rest = raw.trim().toLowerCase();
     // the one synonym the grammar would misread (as `inv`): arrows.c's `invempty` is an open `inv`
     if (rest === "invempty") {

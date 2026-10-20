@@ -126,7 +126,19 @@ export interface ToolArrowhead {
      * Another arrow shape's length along its line as a fraction of the triangle's, and its width as a fraction of
      * its own length, where they differ.
      */
-    readonly shapes?: Readonly<Partial<Record<StyleArrowShape, { readonly length: number; readonly aspect?: number }>>>;
+    readonly shapes?: Readonly<
+        Partial<
+            Record<
+                StyleArrowShape,
+                {
+                    /** The shape's length along its line, as a fraction of the triangle's. */
+                    readonly length: number;
+                    /** Its width across the line as a fraction of its own length; unset, the triangle's. */
+                    readonly aspect?: number;
+                }
+            >
+        >
+    >;
     /** Where the rule is stated or measured. */
     readonly source: string;
 }

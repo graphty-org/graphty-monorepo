@@ -37,7 +37,7 @@ export interface AnnotationBase {
  * How far an annotation is turned about its box's center, in degrees, clockwise as seen on screen (0: not turned).
  * Shapes, texts and pictures carry it; Cytoscape saves it as `rotation`.
  */
-export interface RotatedAnnotation {
+interface RotatedAnnotation {
     /** The turn in degrees, clockwise on screen. */
     readonly rotation: number;
 }

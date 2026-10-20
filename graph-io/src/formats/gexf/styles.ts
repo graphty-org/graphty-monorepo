@@ -556,7 +556,7 @@ function perElementDefault(
 }
 
 /** What a GEXF drawing adds to gephiRules(): the file is a GEXF, drawn under these Preview settings. */
-export interface GephiDrawing {
+interface GephiDrawing {
     /** The Preview settings, Gephi's defaults where none is given. */
     readonly preview: GephiPreview;
     /** Each edge's own viz color and its alpha, which `edge.color=original` draws. */

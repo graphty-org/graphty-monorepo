@@ -148,9 +148,13 @@ export interface ImporterPositions extends PositionColumnExtra {
      * 0.4, the first vertex on the left). Absent, such a file has no positions.
      */
     readonly unplacedCircle?: {
+        /** The circle's center, x and y. */
         readonly center: readonly [number, number];
+        /** Its radius. */
         readonly radius: number;
+        /** The angle of the first node, in degrees. */
         readonly startDegrees: number;
+        /** Which way round the next nodes go: 1 the angle grows, -1 it shrinks. */
         readonly direction: 1 | -1;
     };
 }

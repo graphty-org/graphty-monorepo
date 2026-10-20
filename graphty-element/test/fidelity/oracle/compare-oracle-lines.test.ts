@@ -617,6 +617,20 @@ describe("gradients", () => {
             [],
         );
     });
+
+    it("judges no direction on a gradient of one color, which looks the same run either way", () => {
+        const o = scene("oracle", [
+            edge({ stroke: stroke("#c8c8c8", 2, { gradient: linear(0, "#c8c8c8", "#c8c8c8") }) }),
+        ]);
+        const along = (angle: number, from: string, to: string): PScene =>
+            scene("graphty", [edge({ stroke: stroke("#c8c8c8", 2, { gradient: linear(angle, from, to) }) })]);
+        assert.deepEqual(failing(o, along(180, "#c8c8c8", "#c8c8c8")), []);
+        // a ramp that changes color is still judged by its direction
+        const changing = scene("oracle", [
+            edge({ stroke: stroke("#c8c8c8", 2, { gradient: linear(0, "#c8c8c8", "#ff0000") }) }),
+        ]);
+        assert.deepEqual(failing(changing, along(180, "#c8c8c8", "#ff0000")), ["edge.gradient"]);
+    });
 });
 
 describe("arrowheads", () => {

@@ -78,6 +78,11 @@ export interface PStroke {
     patterned?: boolean;
     /** Read off a filled outline (`outlinePaintedAsFill`) rather than a stroke. */
     painted?: boolean;
+    /**
+     * How thick a line waving within the stroke's width is (graphty's zigzag and sine-wave borders with a swing of
+     * their own), where `width` is the ring it waves in: the width a reader compares with the program's line.
+     */
+    line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
 }
@@ -397,7 +402,9 @@ const SECTORS = 36;
 
 /**
  * Whether many subpaths are drawn round a hole: in nearly every direction from their box's center,
- * and nearer the rim than the center (an arrowhead or a glyph is drawn to its middle).
+ * and nearer the rim than the center for the most part (an arrowhead or a glyph is drawn to its middle; Cytoscape
+ * desktop's contiguous-arrow border, whose chevrons reach two border widths either side of the ring, leaves a hole a
+ * third as wide as it reaches).
  * @param subpaths - the subpaths, sampled
  * @param box - their box
  * @returns whether they ring a hole
@@ -415,7 +422,7 @@ function ringsAHole(subpaths: readonly (readonly Pt[])[], box: PBox): boolean {
     }
     const drawn = near.flatMap((n, k) => (Number.isFinite(n) ? [n / Math.max(far[k], 1e-9)] : []));
     const hollow = [...drawn].sort((a, b) => a - b)[Math.floor(drawn.length / 2)];
-    return drawn.length >= 0.75 * SECTORS && hollow >= 0.5;
+    return drawn.length >= 0.75 * SECTORS && hollow >= 0.3;
 }
 
 /**
@@ -567,7 +574,9 @@ function piecesPattern(
         }, 0);
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
-        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 2 * thin;
+        // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
+        // its own mirror image by more than its thickness; an arrow drawn square on the line is its own mirror image
+        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > thin;
         if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
@@ -628,6 +637,37 @@ function continuousPattern(outer: readonly Pt[]): DashClass {
     return straightShare(outer) > 0.5 ? "zigzag" : "sinewave";
 }
 
+/**
+ * How far apart two outlines most often are: over one outline's points, the distance to the other's nearest side,
+ * and of those the run within a tenth of one another that holds the most, its median.
+ * @param a - one outline, sampled
+ * @param b - the other, closed
+ * @returns the distance
+ */
+function outlinesApart(a: readonly Pt[], b: readonly Pt[]): number {
+    const toSide = ([x, y]: Pt, [x0, y0]: Pt, [x1, y1]: Pt): number => {
+        const [dx, dy] = [x1 - x0, y1 - y0];
+        const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / Math.max(dx * dx + dy * dy, 1e-12)));
+        return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
+    };
+    const step = Math.max(1, Math.floor(a.length / 256));
+    const gaps: number[] = [];
+    for (let i = 0; i < a.length; i += step) {
+        gaps.push(Math.min(...b.map((p, k) => toSide(a[i], p, b[(k + 1) % b.length]))));
+    }
+    gaps.sort((x, y) => x - y);
+    let [best, from] = [0, 0];
+    for (let i = 0, j = 0; i < gaps.length; i++) {
+        while (j < gaps.length && gaps[j] <= gaps[i] * 1.1) {
+            j++;
+        }
+        if (j - i > best) {
+            [best, from] = [j - i, i];
+        }
+    }
+    return median(gaps.slice(from, from + best));
+}
+
 const patternResult = (dashClass: DashClass, width: number | null, box: PBox): PaintedOutline => ({
     width,
     dashClass,
@@ -664,7 +704,18 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
         if (!(width > 0)) {
             return null;
         }
-        return patternResult(continuousPattern(subpaths[boxes.indexOf(outerBox)]), width, box);
+        const outer = subpaths[boxes.indexOf(outerBox)];
+        const dashClass = continuousPattern(outer);
+        // A zigzag or sine wave stroked as Java2D strokes a line has its inner corners drawn through the corner's own
+        // point (Stroker's inner join), and round a small node its sharp turns overlap their strokes, both of which
+        // lengthen its outlines but not its band: its width is how far its two outlines most often are apart, where
+        // the line runs straight.
+        const waved = dashClass === "zigzag" || dashClass === "sinewave";
+        return patternResult(
+            dashClass,
+            waved ? outlinesApart(outer, subpaths[1 - boxes.indexOf(outerBox)]) : width,
+            box,
+        );
     }
     // two shapes side by side, neither round the other, are two shapes (Cytoscape.js's triangle-tee arrow): a line
     // drawn in pieces round a node is many pieces

@@ -284,6 +284,8 @@ export function drawnPrimitives(
         const gap = split ? 2 * outer.gapPx : 0;
         const borderColor = split ? (own?.color ?? null) : n.border.color;
         const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
+        // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
+        const waved = split ? null : (d?.border?.lineWidthPx ?? null);
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -310,6 +312,7 @@ export function drawnPrimitives(
                           // the style the ring was built in: the scene folds a double border into "other"
                           dashClass: LINE_CLASS[own?.style ?? n.border.style] ?? "other",
                           ...(own?.screen === true ? { screen: true } : {}),
+                          ...(waved === null ? {} : { line: waved }),
                       }
                     : null,
             ring:

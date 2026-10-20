@@ -786,7 +786,11 @@ function gradientMiss(
     }
     const colors = Math.max(...RAMP_AT.map((t) => deltaE(rampColor(o, t), rampColor(g, t))));
     let miss = Math.max(0, colors - ORACLE_TOLERANCES.colorDeltaE);
-    if (o.kind === "linear" && angles.o !== null && angles.g !== null) {
+    // a ramp of one color looks the same run either way (Pajek's gradient between two vertices of one color), so it
+    // has no direction to judge
+    const changes = (x: PGradient): boolean =>
+        RAMP_AT.some((t) => deltaE(rampColor(x, t), rampColor(x, RAMP_AT[0])) > ORACLE_TOLERANCES.colorDeltaE);
+    if (o.kind === "linear" && angles.o !== null && angles.g !== null && (changes(o) || changes(g))) {
         miss += Math.max(0, Math.abs(turnOf(angles.g - angles.o)) - ORACLE_TOLERANCES.gradientAngleDeg) / 90;
     }
     return { miss, ...out };
@@ -1335,13 +1339,15 @@ export function compareOracle(
                 [gs.color, R(gs.opacity)],
             );
             if (Number.isFinite(os.width)) {
+                // a line waving in a ring is as wide as the line, not the ring
+                const gWidth = (gs.line ?? gs.width) * strokeScale;
                 j.add(
                     "node.strokeWidth",
                     "node",
                     id,
-                    ratioMiss((gs.width * strokeScale) / os.width, T.strokeWidthRatio),
+                    ratioMiss(gWidth / os.width, T.strokeWidthRatio),
                     os.width,
-                    gs.width * strokeScale,
+                    gWidth,
                 );
             }
             j.add(

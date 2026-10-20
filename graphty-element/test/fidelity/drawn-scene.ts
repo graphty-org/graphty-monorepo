@@ -34,7 +34,9 @@ import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
 
 /**
@@ -191,6 +193,7 @@ interface PatternInternals {
     width: number;
     color: string;
     opacity: number;
+    wave: WaveShape | undefined;
 }
 interface NodeInternals {
     border: AbstractMesh | null;
@@ -598,6 +601,11 @@ export interface DrawnBorder {
     color: string | null;
     /** How far the ring reaches past the node's outline, in render pixels. */
     widthPx: number;
+    /**
+     * A zigzag or sine wave with a swing of its own: how thick its waving line is, in render pixels (as an outline
+     * painted as a fill is read); null for any other border.
+     */
+    lineWidthPx?: number | null;
     /** The line style the ring was built in (the node's own record of it). */
     style: string;
     /** Whether its width is in screen pixels at every zoom (`border.screenWidth`), not a length. */
@@ -625,14 +633,66 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     const x = p.point(at.add(new Vector3(node.borderReach, 0, 0)));
     const widthPx = Math.hypot(x.x - o.x, x.y - o.y);
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
+    // a zigzag or sine wave with a swing of its own is a line its width thick waving round the node: as thick as the
+    // ring it drew, read as an outline drawn as a fill is (twice its area over its edges)
+    const waved =
+        NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined &&
+        (drawnStyle?.border?.style === "zigzag" || drawnStyle?.border?.style === "sinewave");
     const material = materialColor(source.material);
     return {
         color: material ? hex(material.rgb) : null,
         widthPx: Math.max(0, widthPx),
+        lineWidthPx: waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null,
         style: drawnStyle?.border?.style ?? "solid",
         screen: drawnStyle?.border?.screenWidth !== undefined,
         opacity: (material?.alpha ?? 1) * border.visibility,
     };
+}
+
+/**
+ * How thick the line a slab's front face draws is: twice the face's area over the length of its outline (each piece's
+ * edges that no other triangle of it shares), in the slab's own units.
+ * @param mesh - a slab built by `ringSlab`
+ * @returns the thickness, or 0
+ */
+function frontThickness(mesh: AbstractMesh): number {
+    const positions = mesh.getVerticesData("position");
+    const indices = mesh.getIndices();
+    if (positions === null || indices === null || indices.length === 0) {
+        return 0;
+    }
+    const at = (i: number): [number, number, number] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    let front = Infinity;
+    for (let i = 2; i < positions.length; i += 3) {
+        front = Math.min(front, positions[i]);
+    }
+    let area = 0;
+    const edges = new Map<string, { length: number; uses: number }>();
+    const key = (a: number[], b: number[]): string =>
+        [a, b]
+            .map((q) => `${q[0].toFixed(5)},${q[1].toFixed(5)}`)
+            .sort()
+            .join("|");
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+        const tri = [at(indices[t]), at(indices[t + 1]), at(indices[t + 2])];
+        if (tri.some((q) => Math.abs(q[2] - front) > 1e-9)) {
+            continue;
+        }
+        const [a, b, c] = tri;
+        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+        for (const [u, v] of [
+            [a, b],
+            [b, c],
+            [c, a],
+        ]) {
+            const k = key(u, v);
+            const e = edges.get(k) ?? { length: Math.hypot(v[0] - u[0], v[1] - u[1]), uses: 0 };
+            e.uses++;
+            edges.set(k, e);
+        }
+    }
+    const outline = [...edges.values()].filter((e) => e.uses === 1).reduce((sum, e) => sum + e.length, 0);
+    return outline > 0 ? (2 * area) / outline : 0;
 }
 
 /**
@@ -671,8 +731,8 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
 
 /**
  * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
- * itself is shown: nothing for a border outside the size, half the ring for one centered on it, the ring for one
- * inside it.
+ * itself is shown (`NodeMesh.borderFit`): nothing for a border outside the size, half the ring for one centered on
+ * it, the ring for one inside it, half the ring for one inside it at opacity 0.
  * @param node - the node
  * @param p - the projector
  * @returns the inset on each side
@@ -680,24 +740,19 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
 function readInset(node: Node, p: Projector): number {
     const { drawnStyle } = node as unknown as NodeInternals;
     const border = drawnStyle?.border;
-    const share =
-        new Map([
-            ["inside", 1],
-            ["center", 0.5],
-        ]).get(border?.position ?? "outside") ?? 0;
-    if (share === 0) {
-        return 0;
-    }
     const shape = drawnStyle?.shape;
-    const { ring } = NodeMesh.borderFit(
+    const { inset } = NodeMesh.borderFit(
         shape,
         border,
         NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? node.size, 1e-3)),
     );
+    if (inset <= 0) {
+        return 0;
+    }
     const at = node.mesh.getAbsolutePosition();
     const o = p.point(at);
-    const x = p.point(at.add(new Vector3(ring, 0, 0)));
-    return share * Math.hypot(x.x - o.x, x.y - o.y);
+    const x = p.point(at.add(new Vector3(inset, 0, 0)));
+    return Math.hypot(x.x - o.x, x.y - o.y);
 }
 
 /**
@@ -1037,9 +1092,16 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const pm = edge.mesh;
         const fields = pm as unknown as PatternInternals;
         ({ pattern } = pm);
-        world = pm.elements.map((el: ArrowCap) => el.position);
+        // a wave with a period of its own runs from end to end of what it drew, not from element to element
+        world = pm.drawnEnds() ?? pm.elements.map((el: ArrowCap) => el.position);
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
-        thicknessPx = fields.width * p.pxPerWorld(mid);
+        // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
+        // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)
+        const thick =
+            fields.wave === undefined
+                ? fields.width
+                : piecesThickness([PatternedLineRenderer.wavePiece(pm.pattern, fields.width, fields.wave)]);
+        thicknessPx = thick * p.pxPerWorld(mid);
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);

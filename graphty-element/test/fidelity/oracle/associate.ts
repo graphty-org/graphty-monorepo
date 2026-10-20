@@ -62,6 +62,8 @@ const union = (boxes: readonly PBox[]): PBox =>
             [b.x1, b.y1],
         ]),
     );
+/** Whether a box lies wholly inside another. */
+const within = (a: PBox, b: PBox): boolean => a.x0 >= b.x0 && a.y0 >= b.y0 && a.x1 <= b.x1 && a.y1 <= b.y1;
 const inside = (p: Pt, b: PBox, slack = 0): boolean =>
     p[0] >= b.x0 - slack && p[0] <= b.x1 + slack && p[1] >= b.y0 - slack && p[1] <= b.y1 + slack;
 /**
@@ -1230,7 +1232,21 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 .map((n) => ({ n, d: d(n) }))
                 .filter(({ n, d: x }) => x <= endReach(n))
                 .sort((x, y) => x.d - y.d);
-        const direct = at((n) => toBox(p, nodeBox(n)));
+        // how far from where a line ends on the node, its outline or its center: an end inside a big node's box but on
+        // a small node's outline drawn over it is the small node's (cys-affinity-purification: a flat round rectangle
+        // drawn inside an octagon's box, each with its own edges to the same nodes); an ellipse's outline is its own,
+        // not its box's (cys-import-and-save: an end on a small circle's outline, in its box's corner, beside another
+        // circle's box); and a program that runs its lines to the centers ends them there
+        const direct = at((n) => {
+            const b = nodeBox(n);
+            const [rx, ry] = [bw(b) / 2, bh(b) / 2];
+            const center = Math.hypot(p[0] - cx(b), p[1] - cy(b));
+            if (n.shape === "ellipse" && rx > 0 && ry > 0) {
+                const k = Math.hypot((p[0] - cx(b)) / rx, (p[1] - cy(b)) / ry);
+                return Math.min(center, Math.abs(k - 1) * Math.min(rx, ry));
+            }
+            return inside(p, b) ? Math.min(center, p[0] - b.x0, b.x1 - p[0], p[1] - b.y0, b.y1 - p[1]) : toBox(p, b);
+        });
         if (direct.length > 0) {
             return direct;
         }
@@ -1487,6 +1503,13 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // a picture is an arrowhead only centered on its line, as vis-network stands one there; a picture beside an
         // edge's end (an annotation's, a node's offset graphic) is not
         if (best === null || (picture && !centeredOnLine(p.box, best.e, best.end))) {
+            continue;
+        }
+        // a shape inside its node's box at the end of a piece of that node's own drawing is more of that drawing (a
+        // chart's slice beside the line between two slices, cys-specimen-images-charts' ring), left free to be judged
+        // against what graphty draws there, never swallowed as the piece's arrowhead
+        const owner = best.e.source === best.e.target ? nodes.get(best.e.source) : undefined;
+        if (owner !== undefined && !edges.includes(best.e) && within(p.box, nodeBox(owner))) {
             continue;
         }
         take(p);

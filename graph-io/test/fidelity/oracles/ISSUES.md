@@ -1115,6 +1115,44 @@ Still open on the session sheets (the same rows, with the same counts, on the XG
   label as start-anchored; not an import setting (graph-io reads the label as centered, as the file says). Resolved
   in fix round 2: a comparator misreading, fixed there (f5a24b69c, see the session round 2 section below).
 
+## Specimen sheets: Cytoscape session settings (fix round 2, sessions, 2026-10-20)
+
+Measured with the oracle report on every `cys-` sample after rebuilding graph-io.
+
+Fixed:
+
+- Text measured in the wrong face (comparator, f5a24b69c): Cytoscape's SVG writer (FreeHEP) names Java's logical fonts
+  `Helvetica`, `Times`, `Courier` or `Dialog.bolditalic`, but Java laid each line out in DejaVu (a centered "Multidrug "
+  starts half of DejaVu Sans's 71.07 px left of its node's middle, not Liberation Sans's 61.47). The oracle reader now
+  measures those texts in the DejaVu face. `cys-import-and-save` label.offset 212/300 -> 299/300, label.anchor
+  222/300 -> 300/300 (the "corpus label places" row was this, not an import gap); `font-face-serif` on `labels` and
+  `mappings-bypass-p6` passes; `cys-syn-mappings` and `-syn-bypass` label anchors 88/96 -> 96/96 and 52/58 -> 57/58.
+- Edge ends where nodes overlap (comparator, associate.ts): an end is given to the node whose outline (an ellipse's
+  own, a box's sides) or center it lies on, not to any node whose box holds it. `cys-affinity-purification` edge.present
+  881/893 -> 892/893, `cys-luad-vest-v2` 295/300 -> 303/305, `cys-annotation-example` and `cys-galfiltered` find more
+  of their edges. Test: `graphty-element/test/fidelity/oracle/associate-ends.test.ts`.
+- A chart slice inside its node at the end of a line of the node's own drawing (a ring's divider) is no longer taken
+  as that line's arrowhead, so it is judged as a stray against graphty's slice (`images-charts` `ring`,
+  `ring-hole-0-7`, `-p2` `customgraphics-3-ring`, `-p5` `ring-hole-0-1`).
+- ARROW, HAYSTACK, uncurved parallel edges (bbdf7ce71), the label background box and its ROUND_RECTANGLE corners
+  (12b7e0d4d, e6d877107) and OPEN_HALF_CIRCLE caps (dbfd268c8), fixed by the sibling rounds, pass on the session
+  sheets too. Test: `graph-io/test/formats/cys/fix-round-2.test.ts`.
+
+Still open, and why:
+
+- Chart labels (`images-charts-p5`, `-p7`, `mappings-bypass-p18`): as the CX and XGMML rounds say; 9 of the 11 on
+  `-p7` label bar, line and heat map charts graphty-element does not draw at all, and pie item labels need a neutral
+  slot and words drawn on a pie slice in graphty-element. `-p5` `pie-item-label-font-size-20` also leaves one slice
+  extra (the oracle's slice is taken with the item label over it).
+- The line reach under T, half circle and square caps (`arrows`, `mappings-bypass-p11`): being fixed by the sibling
+  comparator round in `drawn-primitives.ts` and graphty-element's arrow gap; not changed here.
+- Patterned corpus edges (`cys-syn-mappings` 139 `edge.arrow`, all on slashed, arrow-patterned, dashed and double
+  lines in a crowded sheet; `cys-syn-bypass` 18): the oracle reader finds no cap at the end of a line drawn in pieces.
+- `cys-import-and-save` 3 labels ("Decanoic Acid", 99.0 wide at a wrap width of 100) wrap in graphty and not in
+  Cytoscape: graphty's letters are about 4 percent larger against the node than Cytoscape's. Not yet explained.
+- The edge-end change was checked on every `cys-` sample and the comparator unit tests; the whole report across the
+  other formats had not finished when this round ended.
+
 ## Specimen sheets: vis-network
 
 The vis-network specimen sheets (`graph-io/test/fidelity/specimens/vis-network/`, `{ nodes, edges, options }`

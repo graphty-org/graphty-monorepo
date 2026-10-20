@@ -51,8 +51,11 @@ export function dialogWidth(text: string): number {
         const c = ch.codePointAt(0) ?? 0;
         // ponytail: a character outside the table (CJK and other scripts Java falls back to another font for) is
         // counted a full em; a measured table per script when a sample needs it
-        const w = c >= 32 && c < 127 ? ASCII[c - 32] : c >= 160 && c < 0x250 ? LATIN[c - 160] : 1000;
-        sum += w;
+        if (c >= 32 && c < 127) {
+            sum += ASCII[c - 32];
+        } else {
+            sum += c >= 160 && c < 0x250 ? LATIN[c - 160] : 1000;
+        }
     }
     return sum / 1000;
 }

@@ -976,7 +976,7 @@ function gephiCenters(snapshot: GraphSnapshot): ([number, number] | null)[] {
     const position = snapshot.nodes.byRole("position");
     return Array.from({ length: snapshot.nodeCount }, (_, i) => {
         const v = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : null;
-        return v === null ? null : [Number(v[0]) || 0, Number(v[1]) || 0];
+        return v === null ? null : [v[0] || 0, v[1] || 0];
     });
 }
 
@@ -1072,6 +1072,7 @@ function selfLoopBends(
  * @param edge - the edge rules, changed in place
  * @param snapshot - the graph
  * @param channels - each node's color channels
+ * @param nodes - the node values (their widths)
  * @param edges - each edge's own color and width
  * @param gexf - the GEXF drawing, or undefined
  * @param preview - the settings
@@ -1156,9 +1157,13 @@ function edgeRules(
         edge,
         "edge",
         ["opacity", "end-opacity"],
-        withoutOwn(edges.color, snapshot.edgeCount, (e) => colors[e][3] / 255).map((v, e) =>
-            swallowed[e] !== null && !hidden[e] ? 0 : v === 1 ? null : v,
-        ),
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => colors[e][3] / 255).map((v, e) => {
+            // a swallowed edge Gephi draws only the arrowhead of draws no line
+            if (swallowed[e] !== null && !hidden[e]) {
+                return 0;
+            }
+            return v === 1 ? null : v;
+        }),
         "END_NODE_COLORS",
     );
     everyElement(edge, "edge", "preview-curve", preview.on("edge.curved") ? {} : { curved: false });

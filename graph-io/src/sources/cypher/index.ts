@@ -36,6 +36,7 @@ import {
     counts,
     DEFAULT_PAGE_SIZE,
     edgePage,
+    edgesAmong,
     MAX_DEPTH,
     MAX_PAGE_SIZE,
     neighborhood,
@@ -277,6 +278,13 @@ class Reader {
     private async *everything(profile: CypherProfile, cursor: SourceCursor | null): AsyncGenerator<Page> {
         const { params, ctx } = this;
         const size = checkedInteger(params.pageSize ?? DEFAULT_PAGE_SIZE, "pageSize", 1, MAX_PAGE_SIZE, ctx.report);
+        const cap = ctx.limits.maxNodes;
+        if (cap !== undefined && cursor?.phase !== "edges") {
+            const capped = Number(checkedInteger(cap, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
+            yield* this.cappedNodes(profile, cursor, Math.min(Number(size), capped));
+            return;
+        }
+
         let phase: "nodes" | "edges" = cursor?.phase === "edges" ? "edges" : "nodes";
         let after: string | number | boolean | null = cursor?.after ?? null;
         const total = params.countFirst === true && cursor === null ? await this.total() : undefined;
@@ -298,6 +306,44 @@ class Reader {
             }
             phase = next.phase === "edges" ? "edges" : "nodes";
             after = next.after ?? null;
+        }
+    }
+
+    /**
+     * Mode "all" under a node cap: pages of at most the cap's nodes, each with the relationships
+     * among the nodes loaded so far, so a capped load stops at its cap with its edges, and its
+     * next page (`data.more`) continues by key.
+     * @param profile - the server's profile
+     * @param cursor - where to resume
+     * @param size - the page size
+     * @yields one page at a time
+     */
+    private async *cappedNodes(
+        profile: CypherProfile,
+        cursor: SourceCursor | null,
+        size: number,
+    ): AsyncGenerator<Page> {
+        let after: string | number | boolean | null = cursor?.after ?? null;
+        for (;;) {
+            const { collected, rows, fields } = await this.generated(
+                (d) => nodePage(profile, this.filters, String(size), after !== null, d),
+                after === null ? {} : { after },
+            );
+            const last = rows.at(-1)?.[fields.indexOf("key")];
+            const key = typeof last === "string" || typeof last === "number" ? last : null;
+            if (key !== null) {
+                const among = await this.transport.run(edgesAmong(profile, this.filters, after !== null), {
+                    last: key,
+                    ...(after === null ? {} : { after }),
+                });
+                collected.add(among, false);
+            }
+            const next = rows.length >= size && key !== null ? { phase: "nodes", after: key } : null;
+            yield { collected, next };
+            if (next === null) {
+                return;
+            }
+            after = key;
         }
     }
 

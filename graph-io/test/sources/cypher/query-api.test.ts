@@ -39,6 +39,52 @@ const QUERIES = recorded("movies-queries");
 const EXPAND_PAGED = recorded("movies-expand-paged");
 const MOVIES = { database: "movies", mode: "all", pageSize: 100 } as const;
 
+/** A recorded Query API answer's rows. */
+type Rows = { data: { fields: string[]; values: { _value: Record<string, string> }[][] } };
+
+/**
+ * The last key a recorded node page returned.
+ * @param page - the page
+ * @returns the key
+ */
+function lastKey(page: Recording): string {
+    return ((page.body as Rows).data.values.at(-1)?.[1] as unknown as { _value: string })._value;
+}
+
+/**
+ * The demo's answer to the relationships among the nodes a capped mode "all" loaded, built from
+ * the recorded relationship pages: both ends at or before `last`, one past `after`.
+ * @param last - the node page's last key
+ * @param after - the previous page's last key, or null for the first page
+ * @returns the recording
+ */
+function among(last: string, after: string | null): Recording {
+    const values = PAGED.slice(2)
+        .flatMap((r) => (r.body as Rows).data.values)
+        .filter(([, r]) => {
+            const ends = [r._value._start_node_element_id, r._value._end_node_element_id];
+            return ends.every((id) => id <= last) && ends.some((id) => after === null || id > after);
+        })
+        .map(([a, r, b]) => [a, r, b]);
+    const statement = [
+        "MATCH (a)-[r]->(b) WITH a, r, b, elementId(a) AS ka, elementId(b) AS kb",
+        `WHERE ka <= $last AND kb <= $last${after === null ? "" : " AND (ka > $after OR kb > $after)"}`,
+        "RETURN a, r, b",
+    ].join(" ");
+    return {
+        ...PAGED[2],
+        requestBody: JSON.stringify({
+            statement,
+            parameters: { last, ...(after === null ? {} : { after }) },
+            accessMode: "Read",
+        }),
+        body: { data: { fields: ["a", "r", "b"], values } },
+    };
+}
+
+/** Mode "all" capped at 100 nodes, page by page: each node page, then the edges among what is loaded. */
+const CAPPED = [PAGED[0], among(lastKey(PAGED[0]), null), PAGED[1], among(lastKey(PAGED[1]), lastKey(PAGED[0]))];
+
 /** Load options against recordings, with the demo's published login. */
 function options(recordings: readonly Recording[]): Parameters<typeof loadFromSource>[2] {
     return { endpoint: DEMO, credential: credentials.basic("movies", "movies"), fetch: replayFetch(recordings) };
@@ -171,6 +217,24 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(fetch.calls).toHaveLength(2);
     });
 
+    it("stops Everything at its node cap with the edges among the loaded nodes, and pages on by key", async () => {
+        const fetch = replayFetch(CAPPED);
+        const capped = await loadFromSource("neo4j", MOVIES, { ...options([]), fetch, limits: { maxNodes: 100 } });
+        expect(capped.snapshot.nodeCount).toBe(100);
+        expect(capped.snapshot.edgeCount).toBeGreaterThan(0);
+        expect(capped.report.source?.next).toMatchObject({ phase: "nodes", after: lastKey(PAGED[0]) });
+
+        const rest = await loadFromSource("neo4j", MOVIES, {
+            ...options([]),
+            fetch,
+            limits: { maxNodes: 100 },
+            cursor: capped.report.source?.next ?? undefined,
+        });
+        expect(rest.snapshot.nodeCount).toBeGreaterThanOrEqual(71);
+        expect(rest.report.source?.next).toBeNull();
+        expect(capped.snapshot.edgeCount + rest.snapshot.edgeCount).toBe(253);
+    });
+
     it("runs a user query uncapped when the server refuses the cap's wrapper", async () => {
         const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
         const refused = QUERIES.find((r) => (r.status ?? 200) >= 400);
@@ -281,8 +345,8 @@ runSourceConformance(neo4jSource, [
         name: "movies, paged",
         params: MOVIES,
         endpoint: DEMO,
-        recordings: PAGED,
-        cap: { maxNodes: 1 },
+        recordings: [...PAGED, ...CAPPED],
+        cap: { maxNodes: 100 },
         credential: (secret) => credentials.basic("movies", secret),
     },
     {

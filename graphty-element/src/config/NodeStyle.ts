@@ -384,7 +384,8 @@ export const NodeStyle = z.strictObject({
      * nodes, yEd's image nodes, Cytoscape's image custom graphics). `src` is its URL (a `data:`
      * URL too), and `fallback` the picture drawn when that one cannot be loaded. `fit` sizes it: "contain" (the default) keeps its proportions inside the node,
      * "cover" keeps them over the whole node, "fill" stretches it to the node, "none" draws it at
-     * `width` x `height` (one of them keeps its proportions), or at its own pixels times
+     * `width` x `height` (a side left unset keeps the picture's proportions to the one given, or with
+     * `autoSize` "natural" is the picture's own pixels times `pixelSize`), or at its own pixels times
      * `pixelSize` each. `positionX` / `positionY` place it across the room the node leaves (0 the
      * left or top, 0.5 the middle, the default, 1 the right or bottom), `offsetX` / `offsetY` move
      * it (y down); lengths are in the units of `shape.size`. `repeat` tiles it ("repeat",
@@ -400,6 +401,7 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             pixelSize: z.number().nonnegative().optional(),
+            autoSize: z.enum(["proportional", "natural"]).optional(),
             positionX: z.number().optional(),
             positionY: z.number().optional(),
             offsetX: z.number().optional(),

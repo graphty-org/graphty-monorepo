@@ -610,6 +610,7 @@ export type Channel =
     | "node.imageRepeat"
     | "node.imageClip"
     | "node.imageSmoothing"
+    | "node.imageAutoSize"
     | "node.imageOpacity"
     | "node.glyph"
     | "node.glyphFont"

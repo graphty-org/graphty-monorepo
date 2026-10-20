@@ -117,6 +117,7 @@ const DECLARED = [
     "node.imageRepeat",
     "node.imageClip",
     "node.imageSmoothing",
+    "node.imageAutoSize",
     "node.imageOpacity",
     "node.glyph",
     "node.glyphFont",
@@ -303,8 +304,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and twenty-eight node channels and one hundred and twenty-four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 128);
+    it("splits into one hundred and twenty-nine node channels and one hundred and twenty-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 129);
         assert.strictEqual(channelsFor("edge").length, 124);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

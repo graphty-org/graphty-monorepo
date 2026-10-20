@@ -606,6 +606,7 @@ function channelPlans(
             ["imageRepeat", [id("node.imageRepeat")]],
             ["imageClip", [id("node.imageClip")]],
             ["imageSmoothing", [id("node.imageSmoothing")]],
+            ["imageAutoSize", [id("node.imageAutoSize")]],
             ["imageOpacity", [id("node.imageOpacity")]],
             ["glyph", [id("node.glyph")]],
             ["glyphFont", [id("node.glyphFont")]],

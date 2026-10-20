@@ -255,6 +255,9 @@ export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 export type NodeImageFitValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["fit"]>;
 /** Whether and which way a node's image is tiled. */
 export type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["repeat"]>;
+
+/** How an image drawn at a size of its own fills a side left unset (`node.imageAutoSize`). */
+export type NodeImageAutoSizeValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["autoSize"]>;
 /** Whether a node's image is kept inside the node's outline. */
 export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
 /** Which way a node's stripes follow one another. */
@@ -403,6 +406,7 @@ export interface ChannelValues {
     "node.imageRepeat": NodeImageRepeatValue;
     "node.imageClip": NodeImageClipValue;
     "node.imageSmoothing": boolean;
+    "node.imageAutoSize": NodeImageAutoSizeValue;
     "node.imageOpacity": number;
     "node.glyph": string;
     "node.glyphFont": string;
@@ -748,6 +752,9 @@ const NODE_GLYPH_CAVEAT =
 const NODE_IMAGE_FIT_VALUES: readonly NodeImageFitValue[] = ["contain", "cover", "fill", "none"];
 /** How a node's image is tiled. */
 const NODE_IMAGE_REPEAT_VALUES: readonly NodeImageRepeatValue[] = ["no-repeat", "repeat", "repeat-x", "repeat-y"];
+
+/** Every way `node.imageAutoSize` fills an unset side. */
+const NODE_IMAGE_AUTO_SIZE_VALUES: readonly NodeImageAutoSizeValue[] = ["proportional", "natural"];
 /** Whether a node's image is clipped to the node. */
 const NODE_IMAGE_CLIP_VALUES: readonly NodeImageClipValue[] = ["node", "none"];
 /** Which way a node's stripes run. */
@@ -2252,6 +2259,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "image.smoothing",
         renderable: true,
         caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageAutoSize": {
+        channel: "node.imageAutoSize",
+        target: "node",
+        plainName: "Node Image Auto Size",
+        shortName: "Image auto size",
+        group: "shape",
+        default: "proportional",
+        accepts: "enum",
+        values: NODE_IMAGE_AUTO_SIZE_VALUES,
+        stylePath: "image.autoSize",
+        renderable: true,
+        caveat:
+            'How an image drawn at a size of its own (`node.imageFit` "none") fills the side `node.imageWidth` or ' +
+            '`node.imageHeight` leaves unset: "proportional" keeps the picture\'s proportions to the side given, ' +
+            '"natural" draws it at the picture\'s own pixels times `node.imagePixelSize`, as Cytoscape.js draws ' +
+            "a `background-width` with an `auto` height.",
     },
     "node.imageOpacity": {
         channel: "node.imageOpacity",

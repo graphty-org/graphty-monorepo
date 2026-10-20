@@ -49,7 +49,7 @@ describe("a label drawn in runs", () => {
         const ctx = {
             font: "",
             textBaseline: "alphabetic",
-            measureText(text: string) {
+            measureText(this: { font: string }, text: string) {
                 const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 0);
                 return {
                     width: text.length * size * 0.5,

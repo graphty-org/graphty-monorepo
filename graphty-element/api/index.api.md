@@ -4027,6 +4027,10 @@ export const NodeStyle: z.ZodObject<{
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
         pixelSize: z.ZodOptional<z.ZodNumber>;
+        autoSize: z.ZodOptional<z.ZodEnum<{
+            proportional: "proportional";
+            natural: "natural";
+        }>>;
         positionX: z.ZodOptional<z.ZodNumber>;
         positionY: z.ZodOptional<z.ZodNumber>;
         offsetX: z.ZodOptional<z.ZodNumber>;

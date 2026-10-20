@@ -100,6 +100,18 @@ describe("an image", () => {
             y0: -2.5,
             x1: 5,
             y1: 2.5,
+        }); // or, with autoSize "natural", is the picture's own pixels on the side left unset (Cytoscape.js `auto`)
+        assert.deepEqual(imageBox({ fit: "none", width: 30, autoSize: "natural", pixelSize: 1 }, 40, 40, natural, 1), {
+            x0: -15,
+            y0: -5,
+            x1: 15,
+            y1: 5,
+        });
+        assert.deepEqual(imageBox({ fit: "none", height: 4, autoSize: "natural", pixelSize: 1 }, 40, 40, natural, 1), {
+            x0: -10,
+            y0: -2,
+            x1: 10,
+            y1: 2,
         });
     });
 

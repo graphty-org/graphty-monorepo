@@ -125,6 +125,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.imageRepeat": "mesh",
     "node.imageClip": "mesh",
     "node.imageSmoothing": "mesh",
+    "node.imageAutoSize": "mesh",
     "node.imageOpacity": "mesh",
     "node.glyph": "mesh",
     "node.glyphFont": "mesh",

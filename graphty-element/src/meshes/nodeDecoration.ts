@@ -191,13 +191,15 @@ export function imageBox(
             const ownH = image.height === undefined ? undefined : image.height * scale;
             // its own pixels at the pixel size, or contained in the node when it has none
             const each = px > 0 ? px : Math.min(width / nw, height / nh);
-            // a side left unset keeps the image's proportions to the one given, or is its pixels
+            // a side left unset keeps the image's proportions to the one given, or with autoSize "natural" is its
+            // own pixels; with neither side given, it is its pixels
+            const natural = image.autoSize === "natural";
             if (ownW !== undefined) {
-                [w, h] = [ownW, ownH ?? (ownW * nh) / nw];
+                [w, h] = [ownW, ownH ?? (natural ? nh * each : (ownW * nh) / nw)];
             } else if (ownH === undefined) {
                 [w, h] = [nw * each, nh * each];
             } else {
-                [w, h] = [(ownH * nw) / nh, ownH];
+                [w, h] = [natural ? nw * each : (ownH * nw) / nh, ownH];
             }
             break;
         }

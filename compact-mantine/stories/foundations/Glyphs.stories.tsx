@@ -142,6 +142,8 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     text: "Text.",
     component: "A component.",
     group: "A group.",
+    upload: "Choose files from the computer.",
+    folder: "Choose a whole folder.",
 };
 
 /** The narrowest one entry in the gallery grid is allowed to be. */

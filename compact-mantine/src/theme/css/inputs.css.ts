@@ -390,6 +390,34 @@ const css = `
     margin-bottom: 8px;
     padding: 0;
 }
+/* A list's trailing action (PanelField footerAction): the last option, under a line, as wide as
+   the list, its glyph in the check column's place. */
+.cm-listbox .cm-menu-row:has(> .cm-listbox-footer-action) {
+    margin-top: 8px;
+    border-top: 1px solid var(--cm-border-translucent);
+    padding-top: 8px;
+    height: auto;
+    min-height: 33px;
+    grid-column: 1 / -1;
+}
+.cm-listbox .cm-menu-row:has(> .cm-listbox-footer-action)::before {
+    inset-block-start: 8px;
+}
+/* FileDrop: its buttons in a dashed box that takes a drop, filled while files are held over it. */
+.cm-file-drop {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border: 1px dashed var(--cm-border);
+    border-radius: 4px;
+}
+.cm-file-drop[data-over] {
+    border-color: var(--cm-border-selected);
+    background: var(--cm-bg-selected);
+}
 .cm-listbox .cm-listbox-empty {
     display: flex;
     align-items: center;

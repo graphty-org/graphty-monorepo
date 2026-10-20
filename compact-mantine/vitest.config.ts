@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
@@ -222,6 +223,75 @@ const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => 
     }
 };
 
+/** A file a test hands over: its path (a name, or a path inside a folder) and its text. */
+interface TestFile {
+    path: string;
+    text: string;
+}
+
+/**
+ * Writes the files on disk under a new folder, as a reader's files would be.
+ * @param files - the files, by path
+ * @returns the folder, and each file's full path
+ */
+function writeTestFiles(files: TestFile[]): { root: string; paths: string[] } {
+    const root = mkdtempSync(join(tmpdir(), "cm-files-"));
+    const paths = files.map((file) => {
+        const full = join(root, file.path);
+        mkdirSync(dirname(full), { recursive: true });
+        writeFileSync(full, file.text);
+        return full;
+    });
+    return { root, paths };
+}
+
+/**
+ * Answers the next file chooser the page opens with these files, as the reader choosing them; a
+ * test calls it before the key or click that opens the chooser (headless Chromium cancels a
+ * chooser nobody answers). With `folder`, the files sit in that folder and the folder is chosen,
+ * so each file arrives with its `webkitRelativePath`.
+ * @param ctx - the browser command context
+ * @param files - the files
+ * @param folder - the folder's name, to choose a folder
+ */
+const chooseNextFiles: BrowserCommand<[files: TestFile[], folder?: string]> = (ctx, files, folder) => {
+    const written = writeTestFiles(
+        folder === undefined ? files : files.map((f) => ({ ...f, path: join(folder, f.path) })),
+    );
+    ctx.page.once("filechooser", (chooser) => {
+        void chooser.setFiles(folder === undefined ? written.paths : join(written.root, folder));
+    });
+};
+
+/**
+ * Drags files from outside the page and drops them at the middle of the element `selector` names,
+ * as the reader dragging them from the desktop (CDP drag events, so the browser builds the drop's
+ * DataTransfer and runs its drag events itself).
+ * @param ctx - the browser command context
+ * @param selector - where to drop, inside the test frame
+ * @param files - the files
+ * @param hold - true to stop over the element without dropping (its hover state)
+ */
+const dropFiles: BrowserCommand<[selector: string, files: TestFile[], hold?: boolean]> = async (
+    ctx,
+    selector,
+    files,
+    hold = false,
+) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    const data = { items: [], files: writeTestFiles(files).paths, dragOperationsMask: 1 };
+    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    const types = hold ? ["dragEnter", "dragOver"] : ["dragEnter", "dragOver", "drop"];
+    for (const type of types) {
+        await cdp.send("Input.dispatchDragEvent", { type, ...at, data });
+    }
+    await cdp.detach();
+};
+
 /**
  * Node-side helpers for the measurement harness (tests/harness) and tests/setup.browser.ts. Both
  * browser projects load that setup file, so both register the same commands.
@@ -237,6 +307,8 @@ const browserCommands = {
     emulateReducedMotion,
     axNodes,
     accessibilityTree,
+    chooseNextFiles,
+    dropFiles,
 };
 
 export default defineConfig({

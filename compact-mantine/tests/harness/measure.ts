@@ -37,6 +37,8 @@ declare module "vitest/browser" {
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
         axNodes: (name: string) => Promise<{ role: string; name: string; value: string | undefined }[]>;
         accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
+        chooseNextFiles: (files: { path: string; text: string }[], folder?: string) => Promise<void>;
+        dropFiles: (selector: string, files: { path: string; text: string }[], hold?: boolean) => Promise<void>;
     }
 }
 

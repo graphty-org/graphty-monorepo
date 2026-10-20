@@ -267,6 +267,91 @@ function ChoicesField(): React.JSX.Element {
 }
 
 /**
+ * A drop-down whose list ends in an action: "Model..." after the shapes, under a line. The arrows
+ * and End reach it like any choice and Enter takes it; it runs `footerAction.onSelect` (here, it
+ * shows what it would open) and leaves the value as it was. The play opens the list with Enter and
+ * walks to the action with End.
+ */
+export const WithTrailingAction: Story = {
+    render: (): React.JSX.Element => <ShapeField />,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.click(canvas.getByRole("combobox", { name: /^Shape/ }));
+        await userEvent.keyboard("{End}");
+        const body = within(canvasElement.ownerDocument.body);
+        await waitFor(() => {
+            expect(body.getByRole("option", { name: "Model..." })).toHaveAttribute("data-combobox-selected");
+        }, storyWaitOptions(1000));
+    },
+};
+
+/** Small shape drawings for the WithTrailingAction story. */
+const SHAPE_DRAWINGS: Record<string, React.JSX.Element> = {
+    sphere: <circle cx="8" cy="8" r="5.5" />,
+    box: <rect x="3" y="3" width="10" height="10" />,
+    cone: <path d="M8 2.5 13 13.5H3z" />,
+    cylinder: <path d="M3 4v8c0 2 10 2 10 0V4c0-2-10-2-10 0z" />,
+};
+
+/**
+ * A 16 x 16 outline drawing.
+ * @param props - Component props
+ * @param props.children - its shapes
+ * @returns the drawing
+ */
+function Drawing({ children }: { children: React.ReactNode }): React.JSX.Element {
+    return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1}>
+            {children}
+        </svg>
+    );
+}
+
+/**
+ * The Shape field with a Model... action, for the WithTrailingAction story.
+ * @returns A drop-down field
+ */
+function ShapeField(): React.JSX.Element {
+    const [shape, setShape] = React.useState<string | number>("sphere");
+    const [opened, setOpened] = React.useState(0);
+    return (
+        <Stack gap={8}>
+            <PanelField
+                label="Shape"
+                kind="select"
+                width={PANEL_GRID.BODY}
+                data={Object.keys(SHAPE_DRAWINGS).map((value) => ({
+                    value,
+                    label: value[0].toUpperCase() + value.slice(1),
+                }))}
+                optionGlyphs={Object.fromEntries(
+                    Object.entries(SHAPE_DRAWINGS).map(([value, shapes]) => [
+                        value,
+                        <Drawing key={value}>{shapes}</Drawing>,
+                    ]),
+                )}
+                footerAction={{
+                    label: "Model...",
+                    glyph: (
+                        <Drawing>
+                            <path d="M2.5 5 8 2.5 13.5 5v6L8 13.5 2.5 11zM2.5 5 8 7.5l5.5-2.5M8 7.5v6" />
+                        </Drawing>
+                    ),
+                    onSelect: () => {
+                        setOpened((n) => n + 1);
+                    },
+                }}
+                value={shape}
+                onChange={setShape}
+            />
+            <Text size="xs" c="dimmed">
+                Models opened: {opened}
+            </Text>
+        </Stack>
+    );
+}
+
+/**
  * The drop-down look without a drop-down list. With no `data` the field draws
  * the chevron and stays read-only, and `onClick` opens whatever you have built
  * for it -- a pop-out, a picker, a dialog.

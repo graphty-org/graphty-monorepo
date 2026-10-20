@@ -119,6 +119,8 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropProps,
+    ListboxFooterAction,
     SearchInputProps,
     VariablePillProps,
 } from "../components/inputs";

@@ -53,6 +53,7 @@ import type {
     FieldGlyphProps,
     FieldLetter,
     FieldRowProps,
+    FileDropProps,
     FlatTreeRow,
     GestureChangeHandler,
     GestureEndHandler,
@@ -66,6 +67,7 @@ import type {
     InfoCircleProps,
     InlineRenameProps,
     LabelsProviderProps,
+    ListboxFooterAction,
     LiveSetting,
     MenuCheckItemProps,
     MetricRowProps,
@@ -267,6 +269,8 @@ type PublicTypeSurface = {
     comboInput: ComboInputProps;
     comboInputSeparator: ComboInputSeparator;
     searchInput: SearchInputProps;
+    fileDrop: FileDropProps;
+    listboxFooterAction: ListboxFooterAction;
     variablePill: VariablePillProps;
     contextMenu: ContextMenuProps;
     menuCheckItem: MenuCheckItemProps;
@@ -344,6 +348,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
 
     // Buttons, chrome, color, inputs, overlays, selection, tree
     "ComboInput",
+    "FileDrop",
     "SearchInput",
     "VariablePill",
     "ContextMenu",
@@ -657,7 +662,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(44);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(46);
             });
 
             it("exports the guards that read the registers", () => {
@@ -847,6 +852,8 @@ describe("Package exports", () => {
                     comboInput: true,
                     comboInputSeparator: true,
                     searchInput: true,
+                    fileDrop: true,
+                    listboxFooterAction: true,
                     variablePill: true,
                     contextMenu: true,
                     menuCheckItem: true,
@@ -883,7 +890,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(134);
+                expect(names).toHaveLength(136);
             });
         });
 

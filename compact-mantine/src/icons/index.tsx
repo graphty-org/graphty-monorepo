@@ -67,7 +67,9 @@ export type UiGlyphName =
     | "ellipse"
     | "text"
     | "component"
-    | "group";
+    | "group"
+    | "upload"
+    | "folder";
 
 /**
  * Every glyph name in the closed field register, in register order.
@@ -136,6 +138,8 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "text",
     "component",
     "group",
+    "upload",
+    "folder",
 ];
 
 /**
@@ -491,6 +495,9 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
     text: <path d="M3.5 3.5h9M8 3.5v9" />,
     component: <path d="M8 2l2 2-2 2-2-2zM8 10l2 2-2 2-2-2zM2 8l2-2 2 2-2 2zM10 8l2-2 2 2-2 2z" />,
     group: <rect x="3" y="3" width="10" height="10" strokeDasharray="2 2" />,
+    // A file chooser's verbs: an arrow up out of a tray, and a folder.
+    upload: <path d="M8 10.5V2.5M4.75 5.75 8 2.5l3.25 3.25M2.5 10v3.5h11V10" />,
+    folder: <path d="M2 4.5V12.5h12V5.5H7.5L6 3.5H2z" />,
 };
 
 /**

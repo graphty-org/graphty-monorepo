@@ -759,3 +759,42 @@ export function FieldCaret(): React.JSX.Element {
         </span>
     );
 }
+
+/**
+ * The value of a list's trailing action option. Nothing a caller offers as a choice uses it.
+ */
+export const LISTBOX_FOOTER_VALUE = "\u0000cm-footer-action";
+
+/**
+ * A trailing action at the end of a list (design/rendering/node-models.md 13.2): one full-width
+ * option after a line, that does something instead of choosing a value -- "Model..." after the
+ * shapes. It is an option of the list, so the arrows, End and Enter reach it as they reach any
+ * choice, and taking it leaves the field's value as it was.
+ */
+export interface ListboxFooterAction {
+    /** Its name, drawn and announced. */
+    label: string;
+    /** A 16 x 16 drawing before the name, in `currentColor`. */
+    glyph?: React.ReactNode;
+    /** Called when the reader takes it (Enter, or a click); the list closes. */
+    onSelect: () => void;
+}
+
+/**
+ * Draws a list's trailing action option: its glyph and name, under a line.
+ * @param props - Component props
+ * @param props.footer - the action
+ * @returns the option's content
+ */
+export function ListboxFooterOption({ footer }: { footer: ListboxFooterAction }): React.JSX.Element {
+    return (
+        <span className="cm-listbox-option-content cm-listbox-footer-action" title={footer.label}>
+            {footer.glyph !== undefined && (
+                <span className="cm-listbox-glyph" aria-hidden="true">
+                    {footer.glyph}
+                </span>
+            )}
+            <span className="cm-listbox-label">{footer.label}</span>
+        </span>
+    );
+}

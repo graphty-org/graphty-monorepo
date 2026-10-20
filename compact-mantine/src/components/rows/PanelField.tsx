@@ -16,7 +16,13 @@ import type {
 import { useControlAnnotation } from "../../utils/control-annotation";
 import { isRtl, useDirection } from "../../utils/rtl";
 import { DiscardNote } from "../inputs/DiscardNote";
-import { FieldCaret, ListboxCheck } from "../inputs/listbox";
+import {
+    FieldCaret,
+    LISTBOX_FOOTER_VALUE,
+    ListboxCheck,
+    type ListboxFooterAction,
+    ListboxFooterOption,
+} from "../inputs/listbox";
 import { useNumberField } from "../inputs/useNumberField";
 import { useScrub } from "../inputs/useScrub";
 
@@ -188,6 +194,12 @@ export interface PanelFieldProps extends Omit<
      * pass it as `glyph`.
      */
     optionGlyphs?: Readonly<Record<string, React.ReactNode>>;
+    /**
+     * One more entry at the end of the open list, under a line, that runs an action instead of
+     * choosing a value: "Model..." after the shapes. The arrows, End and Enter reach it like any
+     * choice; taking it closes the list, calls `onSelect` and leaves the value as it was.
+     */
+    footerAction?: ListboxFooterAction;
     /**
      * A short unit shown after the value, in the secondary text color, at the
      * end of the same box -- "%", "px" per second, a count of links.
@@ -378,6 +390,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             onChange,
             data,
             optionGlyphs,
+            footerAction,
             unit,
             width = PANEL_GRID.FIELD,
             bound = false,
@@ -840,24 +853,35 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             return (
                 <Select
                     {...common}
-                    data={data}
+                    data={
+                        footerAction === undefined
+                            ? data
+                            : [...data, { value: LISTBOX_FOOTER_VALUE, label: footerAction.label }]
+                    }
                     renderOption={
-                        optionGlyphs === undefined
+                        optionGlyphs === undefined && footerAction === undefined
                             ? undefined
-                            : ({ option }) => (
-                                  <span className="cm-listbox-option-content" title={option.label}>
-                                      <ListboxCheck />
-                                      {optionGlyphs[option.value] !== undefined && (
-                                          <span className="cm-listbox-glyph" aria-hidden="true">
-                                              {optionGlyphs[option.value]}
-                                          </span>
-                                      )}
-                                      <span className="cm-listbox-label">{option.label}</span>
-                                  </span>
-                              )
+                            : ({ option }) =>
+                                  option.value === LISTBOX_FOOTER_VALUE && footerAction !== undefined ? (
+                                      <ListboxFooterOption footer={footerAction} />
+                                  ) : (
+                                      <span className="cm-listbox-option-content" title={option.label}>
+                                          <ListboxCheck />
+                                          {optionGlyphs?.[option.value] !== undefined && (
+                                              <span className="cm-listbox-glyph" aria-hidden="true">
+                                                  {optionGlyphs[option.value]}
+                                              </span>
+                                          )}
+                                          <span className="cm-listbox-label">{option.label}</span>
+                                      </span>
+                                  )
                     }
                     value={hidesValue || valueText === "" ? null : valueText}
                     onChange={(next) => {
+                        if (next === LISTBOX_FOOTER_VALUE) {
+                            footerAction?.onSelect();
+                            return;
+                        }
                         handleChange(next ?? "");
                     }}
                 />

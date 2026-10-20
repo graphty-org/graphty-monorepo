@@ -340,13 +340,27 @@ const ROUNDED: Readonly<Record<string, string>> = {
     "round-polygon": "polygon",
 };
 
+/** How one of a node's further texts is drawn where it differs from the node's label. */
+export interface ShapeTextLook {
+    /** How tall its letters (one font size) are drawn, as a share of the node's height. */
+    size?: number;
+    /** Its color. */
+    color?: string;
+    /** Its font family. */
+    font?: string;
+    /** How far it is turned, in degrees clockwise on screen, about its point. */
+    rotation?: number;
+}
+
 /**
- * A node's further texts (`shape.texts`): a JSON list of `[x, y, text]`, each point relative to the node's center as
- * fractions of its half width and half height, y up. An entry of any other shape is passed over.
+ * A node's further texts (`shape.texts`): a JSON list of `[x, y, text]` or `[x, y, text, look]`, each point relative
+ * to the node's center as fractions of its half width and half height, y up, and `look` an object of what differs
+ * from the node's label (`size`, a share of the node's height; `color`; `font`; `rotation`). An entry of any other
+ * shape is passed over, and so is a look's field of the wrong type.
  * @param text - the list, or undefined
  * @returns the texts, none when unset or not a list
  */
-export function shapeTexts(text: string | undefined): [number, number, string][] {
+export function shapeTexts(text: string | undefined): [number, number, string, ShapeTextLook][] {
     if (text === undefined || text.trim() === "") {
         return [];
     }
@@ -359,14 +373,26 @@ export function shapeTexts(text: string | undefined): [number, number, string][]
     if (!Array.isArray(list)) {
         return [];
     }
-    return list.filter(
-        (e): e is [number, number, string] =>
-            Array.isArray(e) &&
-            Number.isFinite(e[0]) &&
-            Number.isFinite(e[1]) &&
-            typeof e[2] === "string" &&
-            e[2] !== "",
-    );
+    return list.flatMap((e: unknown): [number, number, string, ShapeTextLook][] => {
+        if (
+            !Array.isArray(e) ||
+            !Number.isFinite(e[0]) ||
+            !Number.isFinite(e[1]) ||
+            typeof e[2] !== "string" ||
+            e[2] === ""
+        ) {
+            return [];
+        }
+        const raw: unknown = e[3];
+        const o = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+        const look: ShapeTextLook = {
+            ...(typeof o.size === "number" && o.size > 0 ? { size: o.size } : {}),
+            ...(typeof o.color === "string" ? { color: o.color } : {}),
+            ...(typeof o.font === "string" ? { font: o.font } : {}),
+            ...(typeof o.rotation === "number" && Number.isFinite(o.rotation) ? { rotation: o.rotation } : {}),
+        };
+        return [[e[0] as number, e[1] as number, e[2], look]];
+    });
 }
 
 /**

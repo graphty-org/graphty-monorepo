@@ -1965,8 +1965,9 @@ export class Node {
 
     /**
      * Bring the further texts (`shape.texts`) on screen into line with one resolved style: each one line in the
-     * label's font, size and color, centered on its point over the node, as Graphviz draws a record's fields. Rebuilt
-     * only when the texts, the label's typography or the node's size change, or the mesh they hang from was replaced.
+     * label's font, size and color (or its own, where its entry gives one), centered on its point over the node, as
+     * Graphviz draws a record's fields. Rebuilt only when the texts, the label's typography or the node's size change,
+     * or the mesh they hang from was replaced.
      * @param o - The resolved style.
      * @param rebuild - True when the node's mesh has just been replaced.
      */
@@ -1990,9 +1991,15 @@ export class Node {
         const scene = this.mesh.getScene();
         const style = { ...o.label, location: "center" as const, attachOffset: 0, offsetX: 0, offsetY: 0 };
         this.shapeTextLabels = texts.map(
-            ([x, y, text]) =>
+            ([x, y, text, look]) =>
                 new RichTextLabel(scene, {
-                    ...this.createLabelOptions(text, style),
+                    ...this.createLabelOptions(text, {
+                        ...style,
+                        ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
+                        ...(look.color === undefined ? {} : { textColor: look.color }),
+                        ...(look.font === undefined ? {} : { font: look.font }),
+                        ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
+                    }),
                     // right and down on screen
                     offsetX: x * half.x,
                     offsetY: -y * half.y,

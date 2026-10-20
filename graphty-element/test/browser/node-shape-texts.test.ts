@@ -58,6 +58,33 @@ describe("a node's further texts", () => {
         assert.closeTo(b.x - a.x, half.x, 0.05 * half.x);
         assert.closeTo(b.y - a.y, 0.5 * half.y, 0.05 * half.y);
 
+        // a fourth item draws a text in its own size, color and font (a chart's item labels), the size a share of
+        // the node's height
+        await styleEveryNode(
+            graph,
+            {
+                "node.shapeTexts": JSON.stringify([
+                    [-0.5, 0, "a", { size: 0.25 }],
+                    [0.5, 0, "a", { size: 0.5, color: "#ff0000", font: "Courier New" }],
+                ]),
+            },
+            "texts with a look",
+        );
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const [small, big] = node.shapeTextLabels;
+        const run = big.textRuns[0][0].style;
+        assert.strictEqual(run.color, "#ff0000");
+        assert.strictEqual(run.font, "Courier New");
+        assert.notStrictEqual(small.textRuns[0][0].style.color, "#ff0000");
+        const tall = (l: typeof small): number => {
+            const box = l.labelMesh?.getBoundingInfo().boundingBox.extendSizeWorld;
+            assert(box, "the text is on screen");
+            return box.y;
+        };
+        // twice the share of the node's height, about twice as tall (the box adds the same margin round each)
+        assert.closeTo(tall(big) / tall(small), 2, 0.2);
+
         await styleEveryNode(graph, { "node.shapeTexts": "[]" }, "no texts");
         await operationQueueOf(graph).waitForCompletion();
         await graph.waitForStableFrame();

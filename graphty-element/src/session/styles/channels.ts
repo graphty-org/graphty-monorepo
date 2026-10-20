@@ -2813,7 +2813,10 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Further texts drawn over a node in its label's font, size and color, each one line centered on its " +
             "point: a JSON list of `[x, y, text]`, the point in the frame `node.shapeParts` uses " +
             '(`[[-0.5, 0, "a"], [0.5, 0, "b"]]` is two words side by side, as Graphviz draws a record\'s ' +
-            "fields). Drawn beside the node's label, whatever it says.",
+            "fields). A fourth item gives what differs from the label: " +
+            '`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the ' +
+            "node's height, the rotation in degrees clockwise (a chart's item labels). Drawn beside the node's " +
+            "label, whatever it says.",
     },
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",

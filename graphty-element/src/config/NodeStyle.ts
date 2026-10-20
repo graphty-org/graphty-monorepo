@@ -256,7 +256,9 @@ export const NodeStyle = z.strictObject({
             // Further texts drawn over a flat node in its label's font, size and color, each one line centered on its
             // point: a JSON list of `[x, y, text]`, the point relative to the node's center as fractions of its half
             // width and half height, y up, as `parts` places its corners (Graphviz's record fields:
-            // `[[-0.66, 0, "a"], [0, 0, "b"], [0.66, 0, "c"]]`). Drawn whatever the label says, beside it.
+            // `[[-0.66, 0, "a"], [0, 0, "b"], [0.66, 0, "c"]]`). A fourth item gives what differs from the label
+            // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
+            // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as

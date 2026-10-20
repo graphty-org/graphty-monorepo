@@ -1611,11 +1611,11 @@ async function settle(s, out, ms = 15000) {
 // the canvas's own pixels are compared: a cell of the canvas's area that something else covers,
 // in any of the captures, is left out.
 async function canvasMoves(page) {
-    const clip = await page
-        .locator("graphty-element")
-        .first()
-        .boundingBox()
-        .catch(() => null);
+    // With no drawing on the page (the start screen) there is nothing to watch: boundingBox would
+    // wait Playwright's default 30 s for one to appear, and every step there would take 30 s.
+    const drawing = page.locator("graphty-element").first();
+    if ((await drawing.count().catch(() => 0)) === 0) return false;
+    const clip = await drawing.boundingBox({ timeout: 1000 }).catch(() => null);
     if (!clip || clip.width < 1 || clip.height < 1) return false;
     const covered = new Set();
     const grab = async () => {

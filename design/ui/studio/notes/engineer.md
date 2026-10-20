@@ -16,27 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, "New layer from selection" makes the layer at once; graphty app + graphty-element)
-   `layerFromSelection` (`style/commands.ts`): if the selection already has its row
-   (`selectionRow`), open it ("Opened layer X"); else `styles.addRow({ name: selectionName,
-selector: selection.layerSelector, target: node|edge|both, userData: DEFAULT_NAME_KEY })` above
-   `topmostRow`, one undo step; then `inspected: { kind: "layer-row", id, tab: "style" }`, notice
-   `madeWords`, and a rAF focuses `[data-inspected="layer-row"] [role="tab"][aria-selected]` (the
-   context menu has already handed focus back to the canvas by then). `selectionName` moved from
-   `StylePanel.tsx` to `cards.ts` (react-refresh lint forbids a non-component export there).
-   ELEMENT DEFECT FIXED: `addRow` refused an empty row of ONE kind (`E_BAD_LAYER`, "writes no
-   channel") but accepted an empty both-kinds row (parts carry `row`); `planAddRow` now checks
-   with `mayBeEmpty`. Recorded in `owner-decisions.md` (decided by the team). A both-kinds row was
-   not an option: a node rule's edge part would paint the edges the rule reaches.
-   Test: `FindToRule.real-element.test.tsx` "...on the canvas menu..." (right-click a selected
-   node, the menu row, layer added, tree row selected, notice, focus on Style tab, Control+Z takes
-   it away); red before (no layer). Element: `test/session/empty-row.test.ts` one-kind rows.
-   Walk on a fresh dist, `design/ui/studio/tmp/r1-dry1-new-layer-from-selection/walk/`: 06 menu,
-   07 "Made layer Guadagni for 1 node" with the Style tab ringed, 08 undo, 11 rule selection
-   ("Rule: graphty.degree >= 4", a name from `selectorName` that reads the internal path -- not
-   touched here, worth a look). Pre-existing red in the same run, not from this: StylePanel 3
-   (attribute option names), inspector T8 and "an edge, an attribute..." (Id rename), CanvasMenu
-   "Open a sample" list, element `door-surface` (`LoadDraft.graphtyDocument`).
+0. (2026-10-19, F6 regions; graphty app) `PANELS` in `frame/focus.ts` is now top bar
+   (`.ws-header`), Data page, left panel, drawing, toolbar, table, inspector; `NOT_A_LANDING`
+   (`[role="separator"]`) keeps F6 off a resize handle, also as a remembered control. From the
+   inspector heading F6 x5: Main menu, "Graph <name>" (left panel's first stop), Canvas, Analyze,
+   heading; Shift+F6 reverses. Walk `design/ui/studio/tmp/r1-dry1-f6-regions/f6/` 09-19 (focus
+   lines in screen-reader mode). Test: `FocusAndTabOrder.real-element` "F6 moves round the five
+   regions..." (userEvent F6/Shift+F6; red on the old order) and `focus.test` "never lands on a
+   resize handle". NOTE: decided.md's "Enter on a layer row ... F6 goes to the inspector" now
+   takes three presses (left -> canvas -> toolbar -> inspector), as the five-region order sets;
+   Shift+F6 from the tree goes to the top bar. The inspector heading takes F6 with no visible
+   ring (`outline: none` in `Inspector.tsx`), against decided.md's "heading draws a visible ring":
+   open, not this unit. Pre-existing red: "Tab out of the Vary by list" (same on old focus.ts).
+   START-SCREEN SLOWNESS (the 2-minute Shift+Tab): the study tool, not the app. `canvasMoves` in
+   `real.mjs` called `locator("graphty-element").boundingBox()` with no element on the page;
+   Playwright waits its default 30 s for one, so EVERY start-screen step took 30.6 s (T48A
+   e3c-keys 01-13 are 30 s apart, then 1 s once a graph opened). Fixed: `count()` first, then a
+   1 s bound; start-screen Tab/Shift+Tab now 0.6 s.
+   0a. (2026-10-19, "New layer from selection" makes the layer at once) in full in
+   `git show 18f1cae06:design/ui/studio/notes/engineer.md`, Top of mind 0.
 1. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.

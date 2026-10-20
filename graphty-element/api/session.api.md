@@ -4666,12 +4666,35 @@ export interface TemplateReport {
 export const TERMINAL_RUN_STATUSES: readonly RunStatus[];
 
 // @public
+export interface TimeHistogram {
+    readonly attribute: Path;
+    readonly bins: readonly TimeHistogramBin[];
+    readonly kind: "number" | "date";
+    readonly max: number | null;
+    readonly min: number | null;
+    readonly untimed: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+}
+
+// @public
+export interface TimeHistogramBin {
+    readonly edges: number;
+    readonly from: number;
+    readonly nodes: number;
+    readonly to: number;
+}
+
+// @public
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
 
 // @public
 export interface TimeWindow {
     readonly attribute: Path;
+    readonly end?: Path;
     readonly from: number | string;
+    readonly nodes?: "own" | "follow-edges";
     readonly step?: TimeStep;
     readonly to: number | string;
 }
@@ -4752,6 +4775,9 @@ export interface VisibilityApi {
     showContext: boolean;
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
+    timeHistogram(attribute: Path, options?: {
+        readonly bins?: number;
+    }): TimeHistogram;
     readonly window: TimeWindow | null;
 }
 

@@ -24,6 +24,8 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
+    type TimeHistogram,
+    type TimeHistogramBin,
     type TimeStep,
     type TimeWindow,
     type VisibilityPass,

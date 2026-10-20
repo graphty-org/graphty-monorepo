@@ -427,6 +427,8 @@ export type {
     FilterStep,
     RuleTree,
     StepCounts,
+    TimeHistogram,
+    TimeHistogramBin,
     TimeStep,
     TimeWindow,
     VisibilityApi,

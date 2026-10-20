@@ -998,6 +998,7 @@ export const READ_ONLY: readonly string[] = [
     "VisibilityApi.edgeMask",
     "VisibilityApi.isVisible",
     "VisibilityApi.nodeMask",
+    "VisibilityApi.timeHistogram",
     "VoiceInputAdapter.dispose",
     "VoiceInputAdapter.onActiveChange",
     "VoiceInputAdapter.onInput",

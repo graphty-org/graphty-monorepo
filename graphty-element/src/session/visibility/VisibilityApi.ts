@@ -94,6 +94,8 @@ import {
     type RuleTree,
     runPass,
     type ScopeLeaf,
+    type TimeHistogram,
+    timeHistogram,
     type TimeWindow,
 } from "./filter";
 import { assertSteps, combinedRule } from "./steps";
@@ -251,6 +253,18 @@ export interface VisibilityApi {
      * @throws A `GraphtyError` when the window is malformed or needs something this session lacks.
      */
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
+    /**
+     * How one time attribute spreads over the WHOLE graph, nodes and edges counted apart: the
+     * density strip a timeline draws under its window. Not narrowed by the filter or the window,
+     * so it shows where the window could move as well as where it is. Changes nothing.
+     * @param attribute - The time attribute, such as `data.timestamp`.
+     * @param options - `bins`: how many equal-width bins, 1 to 10,000 (default 50).
+     * @param options.bins - How many bins.
+     * @returns The bins, the range, whether the values are dates, and how many elements had none.
+     * @throws A `GraphtyError` when the path or `bins` is not usable, or this session cannot read
+     *     attributes.
+     */
+    timeHistogram(attribute: Path, options?: { readonly bins?: number }): TimeHistogram;
     /**
      * The filter steps, in order. The steps that are on combine with {@link VisibilityApi.filter}
      * by AND, so each narrows what the step before it left; a step that is off keeps its rule and
@@ -1228,6 +1242,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             assertVisibility(null, window);
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
+        },
+
+        timeHistogram(attribute: Path, options?: { readonly bins?: number }): TimeHistogram {
+            return timeHistogram(upToDate().graph, sources.values, attribute, options);
         },
 
         get steps(): readonly FilterStep[] {

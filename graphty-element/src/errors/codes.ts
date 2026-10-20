@@ -681,7 +681,14 @@ export type GraphtyWarningCode =
      * loaded, or an asset id it has no accepted model for), so the file does not carry it.
      * `params.ref` is what the layers named and `params.layerIds` the layers.
      */
-    | "W_MODEL_NOT_EMBEDDED";
+    | "W_MODEL_NOT_EMBEDDED"
+    /**
+     * A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+     * from a project or style file, an AI command or the data, or a reopened project's source load.
+     * `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+     * `params.layerIds`.
+     */
+    | "W_URL_NEEDS_APPROVAL";
 
 /**
  * Every code, as a lookup table.

@@ -1126,6 +1126,7 @@ export interface GraphSession {
     readonly history: SessionHistory;
     readonly journal: JournalApi;
     readonly layout: SessionLayout;
+    readonly network: NetworkApi;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
     plan(command: SessionCommand): Promise<Plan>;
@@ -1884,7 +1885,14 @@ export type GraphtyWarningCode =
 * loaded, or an asset id it has no accepted model for), so the file does not carry it.
 * `params.ref` is what the layers named and `params.layerIds` the layers.
 */
-| "W_MODEL_NOT_EMBEDDED";
+| "W_MODEL_NOT_EMBEDDED"
+/**
+* A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+* from a project or style file, an AI command or the data, or a reopened project's source load.
+* `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+* `params.layerIds`.
+*/
+| "W_URL_NEEDS_APPROVAL";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -2477,6 +2485,43 @@ export interface NeighborSort {
     readonly by: "weight" | "name" | "degree";
     readonly descending?: boolean;
 }
+
+// @public
+export interface NetworkApi {
+    allow(id: string, options?: {
+        readonly remember?: "project";
+    }): Promise<void>;
+    deny(id: string): void;
+    pending(): readonly NetworkRequest[];
+    readonly policy: NetworkPolicy;
+    readonly projectPolicy: NetworkPolicy;
+    setPolicy(policy: NetworkPolicy): void;
+    setProjectPolicy(policy: NetworkPolicy): void;
+}
+
+// @public
+export type NetworkPolicy = "ask" | "allow";
+
+// @public
+export interface NetworkRequest {
+    // (undocumented)
+    readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
+    // (undocumented)
+    readonly params: {
+        readonly id: string;
+        readonly url: string;
+        readonly host: string;
+        readonly kind: NetworkRequestKind;
+        readonly by: NetworkRequestAsker;
+        readonly layerIds: readonly LayerId[];
+    };
+}
+
+// @public
+export type NetworkRequestAsker = "file" | "ai" | "data" | "source";
+
+// @public
+export type NetworkRequestKind = "model" | "texture" | "source";
 
 // @public
 export type NodeId = string | number;
@@ -3942,6 +3987,7 @@ export interface SessionEventMap {
         readonly entry: JournalEntry;
     };
     "model:changed": ModelChange;
+    "network:pending": NetworkRequest;
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
     "project:changed": {

@@ -128,9 +128,11 @@ A kind the map does not list, and a node with no value, keeps its ordinary shape
 prepared once and shared by every node of its kind.
 
 The values here are model ids (`asset:...`): the samples, or models added with
-`session.assets.add` (below). A web address is refused in an encoding with `E_MODEL_URL_BLOCKED`,
-because a column of addresses would make the page fetch whatever the data names. To use a model
-from the web per kind, add it first and use its id:
+`session.assets.add` (below). They may also be web addresses, and a column of addresses works too
+(`encode: { "node.model": { by: "data.model", scale: "passthrough" } }`); an address in an encoding
+is fetched only once the reader allows its site (see
+[Who may make the page fetch a model](#who-may-make-the-page-fetch-a-model)), once per address. To
+use a model from the web per kind without asking, add it from your code first and use its id:
 
 ```ts
 const rack = await element.session.assets.add("https://example.com/models/rack.glb", { name: "asset:rack" });
@@ -252,19 +254,42 @@ await element.session.styles.add({
 
 ## Who may make the page fetch a model
 
-A web address in `node.model` is fetched only when your page's code added the layer with
-`styles.add` or `styles.update`. A layer that came from anywhere else -- a saved project, a style
-file, an AI command, an encoding, an expression -- draws its ordinary shape instead and reports
-`E_MODEL_URL_BLOCKED`, naming the host, with no request made. This keeps a shared project file from
-making a reader's browser contact a server nobody chose.
+A web address in `node.model` is fetched at once when your page's code added the layer with
+`styles.add` or `styles.update`. A model loaded from an address brings the files it names from
+beside it -- a `.gltf`'s `.bin` and pictures, an `.obj`'s `.mtl` and images -- from the same site
+and folder, so a multi-file model works by its main file's address alone. A reference to another
+site inside the model is refused (`E_MODEL_EXTERNAL_URL`).
 
-To let such layers fetch from hosts you trust, name the hosts in your page's code:
+An address that came from anywhere else -- a saved project, a style file, an AI command, a column
+of addresses in your data -- is not fetched until the reader agrees. It waits in
+`session.network`, the same place a reopened project's network-source loads wait, and the node
+keeps its ordinary shape meanwhile:
+
+```ts
+element.session.on("network:pending", (request) => {
+    // request.params: { id, url, host, kind: "model" | "texture" | "source", by, layerIds }
+    if (confirm(`This project wants to open ${request.params.url}. Continue?`)) {
+        void element.session.network.allow(request.params.id); // and the rest of that site, this session
+    } else {
+        element.session.network.deny(request.params.id); // E_MODEL_URL_BLOCKED, the shape stays
+    }
+});
+```
+
+`element.session.network.pending()` lists what is waiting now, for a page that starts listening
+late. A reader who does not want to be asked again for this project:
+`network.allow(id, { remember: "project" })`, saved with the project. One who does not want to be
+asked at all: your page calls `network.setPolicy("allow")` (it is never saved; keep that preference
+yourself). To trust hosts from your page's code instead, name them:
 
 ```ts
 element.session.assets.allowHosts(["models.example.com"]);
 ```
 
-Every model request is made with no cookies and no referrer, and has a time limit.
+Addresses on this machine or the local network (`localhost`, `192.168.x.x`, ...) are never fetched
+for anything that did not come from your code. Every model request is made with no cookies and no
+referrer, and has a time limit. A column of addresses fetches each distinct address once, however
+many nodes name it.
 
 ## Saving a project with its models
 
@@ -307,7 +332,7 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | Code                          | params                            | When                                                                                                                                       |
 | ----------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `E_MODEL_FETCH`               | `url`, `status`, `offline`        | The address answered with an error, or not at all. `status` is `null` when nothing answered (offline, CORS and an unknown host look alike) |
-| `E_MODEL_URL_BLOCKED`         | `hosts`                           | The address may not be fetched: a layer that did not come from your code, an encoding, or not `http`/`https`                               |
+| `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`                 | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`              |
 | `E_MODEL_TOO_LARGE`           | `what`, `found`, `limit`          | Over a limit; `what` says which one                                                                                                        |
 | `E_MODEL_STRUCTURE`           | `rule`                            | The file is damaged or unsafe to read                                                                                                      |
 | `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`              | A 3D format graphty-element recognizes but does not load (FBX, USDZ, DAE, .blend, 3MF, PLY)                                                |

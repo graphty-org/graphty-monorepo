@@ -550,6 +550,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     sets: READ,
     notes: READ,
     assets: READ,
+    network: READ,
     journal: READ,
     selection: READ,
     visibility: READ,
@@ -2127,6 +2128,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         whole: exempt(
             "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+        ),
+    },
+    {
+        name: "NetworkApi",
+        file: "src/session/network.ts",
+        half: "session",
+        whole: exempt(
+            "Answers to a waiting fetch are the reader's trust, not graph content: no step and no recipe entry. The project's policy is saved with the project file.",
         ),
     },
     {

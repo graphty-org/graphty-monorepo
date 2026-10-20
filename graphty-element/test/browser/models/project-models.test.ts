@@ -9,7 +9,7 @@ import { assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
 import { sphereGlb, texturedGltfSet } from "../../fixtures/models/fixtures";
-import { cleanups, drawnAsModel, mount, nextModelEvent } from "./helpers";
+import { cleanups, drawnAsModel, mount, nextModelEvent, stubFetch } from "./helpers";
 
 /**
  * Refuse every request that leaves this page's origin, and record every request made.
@@ -117,5 +117,33 @@ describe("a project file carries its models", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         assert.isTrue(drawnAsModel(element.graph, "a"));
         assert.isFalse(drawnAsModel(element.graph, "b"), "b keeps its shape");
+    });
+
+    it("draws a URL model from the file's embedded copy, asking nothing and fetching nothing", async () => {
+        const url = "https://models.example.com/kit/ball.glb";
+        stubFetch(new Map([[url, sphereGlb(16, 8)]]));
+        const saver = await mount();
+        await saver.graph.addNodes([{ id: "a" }]);
+        await saver.session.styles.add({
+            name: "by url",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": url },
+        });
+        assert.equal((await saver.session.assets.ready(url)).state, "accepted");
+        const { text } = await saver.session.project.save();
+        saver.remove();
+
+        const requested = blockNetwork();
+        const element = await mount();
+        const asked: unknown[] = [];
+        element.session.on("network:pending", (request) => asked.push(request));
+        const drawn = nextModelEvent(element, (change) => change.ref === url && change.state === "drawn");
+        await element.session.project.open(text, { discard: true });
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(drawnAsModel(element.graph, "a"));
+        assert.deepEqual(asked, [], "the embedded copy wins over the URL");
+        assert.notInclude(requested, url);
     });
 });

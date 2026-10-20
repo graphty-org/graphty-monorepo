@@ -587,20 +587,26 @@ describe("modelBindingProblem", () => {
         assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
     });
 
-    it("refuses a URL anywhere among the listed values", () => {
+    it("accepts http(s) URLs among the listed values, and a value read from the data", () => {
         const url = "https://example.com/x.glb";
         const bindings: Binding[] = [
             { by: "data.kind", map: { a: url }, unmapped: "skip" },
             { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
-            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: url } },
+            { by: "data.url", scale: "passthrough" },
+            { template: ["{data.url}"] },
+        ];
+        for (const binding of bindings) {
+            assert.isNull(modelBindingProblem(binding, at));
+        }
+    });
+
+    it("refuses a listed value that is neither an asset id nor an http(s) URL", () => {
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: "rack.glb" }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: "file:///etc/x.glb" } },
         ];
         for (const binding of bindings) {
             assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
         }
-    });
-
-    it("refuses a value read from the data", () => {
-        assert.equal(modelBindingProblem({ by: "data.url", scale: "passthrough" }, at)?.path, `${at}.unmapped`);
-        assert.equal(modelBindingProblem({ template: ["{data.url}"] }, at)?.path, `${at}.template`);
     });
 });

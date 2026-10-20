@@ -10,7 +10,7 @@ import { BUILT_IN_MODEL_FORMATS, detectModelFormat, isZip, type ModelFormat } fr
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
 import { checkGltf, parseGltfJson, readGlb } from "./gltfChecks";
-import { cut, normalizePath, refuse } from "./references";
+import { cut, normalizePath, Refusal, refuse } from "./references";
 import { scanObj, scanPly, scanStl } from "./textFormats";
 import { unzipModel } from "./unzip";
 
@@ -253,6 +253,62 @@ export async function fetchModel(
     } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
+    }
+}
+
+/** The most files a model fetched by URL may load beside its main file. */
+export const MAX_COMPANION_FILES = 64;
+
+/**
+ * Fetch a model by URL with the files it references: a .gltf's .bin and images, an .obj's .mtl
+ * and the images the .mtl names. Each is fetched relative to the main file, so it comes from the
+ * same origin and from the main file's folder or below; the set's total is held to `maxBytes` and
+ * at most {@link MAX_COMPANION_FILES} files are added. A reference outside that tree, or to
+ * another host, stays refused by the checks (`E_MODEL_EXTERNAL_URL`).
+ * @param url - The main file's URL.
+ * @param limits - The limits in force.
+ * @param signal - The caller's signal.
+ * @returns The file set and its main file (none for a zip, whose main file is inside it).
+ */
+export async function fetchModelSet(
+    url: URL,
+    limits: ModelLimits,
+    signal?: AbortSignal,
+): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
+    const given = await fetchModel(url, limits, signal);
+    const [[main, first]] = given;
+    if (isZip(first)) {
+        return { given };
+    }
+
+    let total = first.length;
+    for (;;) {
+        try {
+            await checkFileSet(given, { main }, limits);
+            return { given, main };
+        } catch (error) {
+            if (!(error instanceof Refusal) || error.fact.code !== "E_MODEL_MISSING_FILE") {
+                throw error;
+            }
+
+            const name = String(error.fact.params.name);
+            if (given.has(name)) {
+                throw error;
+            }
+
+            if (given.size > MAX_COMPANION_FILES) {
+                refuse("E_MODEL_TOO_LARGE", { what: "count", found: given.size, limit: MAX_COMPANION_FILES });
+            }
+
+            // The path is relative to the main file's folder, normalized, with no ".." left: the
+            // URL it resolves to is on the same origin and inside that folder.
+            const companion = new URL(name.split("/").map(encodeURIComponent).join("/"), url);
+            const [bytes] = (
+                await fetchModel(companion, { ...limits, maxBytes: Math.max(0, limits.maxBytes - total) }, signal)
+            ).values();
+            given.set(name, bytes);
+            total += bytes.length;
+        }
     }
 }
 

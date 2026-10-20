@@ -179,6 +179,13 @@ export type {
 } from "./src/session";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
 
+/**
+ * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
+ * the data, a reopened project's network-source loads -- waiting for the reader's answer
+ * (`session.network`).
+ */
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
+
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
 // ---------------------------------------------------------------------------------------------

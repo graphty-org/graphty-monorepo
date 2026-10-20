@@ -288,6 +288,13 @@ export const READ_ONLY: readonly string[] = [
     "AssetsApi.setLimits",
     "AssetsApi.states",
     "NamedBlob.arrayBuffer",
+    // The fetch gate: its cost grows with the fetches waiting, not with the graph; allowing a
+    // source load runs it, which a source load's own tests count.
+    "NetworkApi.allow",
+    "NetworkApi.deny",
+    "NetworkApi.pending",
+    "NetworkApi.setPolicy",
+    "NetworkApi.setProjectPolicy",
     "AcceleratorRegistry.clear",
     "AcceleratorRegistry.has",
     "AcceleratorRegistry.list",

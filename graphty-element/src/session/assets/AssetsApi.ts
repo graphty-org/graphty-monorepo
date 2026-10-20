@@ -13,6 +13,7 @@
 
 import type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
 import { GraphtyError } from "../../errors";
+import type { NetworkApiInternal } from "../network";
 import type { CodedFact } from "../shared";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
@@ -341,9 +342,10 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
 
 /**
  * Build `session.assets`.
+ * @param network - The session's fetch gate, which `allowHosts` also opens.
  * @returns The API.
  */
-export function createAssetsApi(): AssetsApiInternal {
+export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal {
     let limits: ModelLimits = DEFAULT_MODEL_LIMITS;
     const hosts = new Set<string>();
     const entries = new Map<AssetId, Entry>();
@@ -548,7 +550,8 @@ export function createAssetsApi(): AssetsApiInternal {
         entry.settled = (async () => {
             let settled: AssetRecord;
             try {
-                settled = await intake(await (await loadIntake()).fetchModel(url, limits), shared);
+                const fetched = await (await loadIntake()).fetchModelSet(url, limits);
+                settled = await intake(fetched.given, shared, fetched.main);
             } catch (error) {
                 if (!(error instanceof Refusal)) {
                     throw error;
@@ -719,6 +722,8 @@ export function createAssetsApi(): AssetsApiInternal {
 
                 hosts.add(host.toLowerCase());
             }
+
+            network?.allowHosts(list);
         },
 
         hostAllowed(host) {

@@ -30,6 +30,7 @@ export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendati
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";

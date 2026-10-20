@@ -61,6 +61,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, recommendLayout } from "./layout";
+import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -418,6 +419,7 @@ class Session implements ElementSession {
     readonly sets: SetsApi;
     readonly notes: NotesApi;
     readonly assets: AssetsApiInternal;
+    readonly network: NetworkApiInternal;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -481,7 +483,18 @@ class Session implements ElementSession {
         this.sets = parts.sets;
         this.notes = parts.notes;
         // Model files live beside the project, not in it: no command, no step, no recipe.
-        this.assets = createAssetsApi();
+        // One gate for every fetch the page's code did not ask for, the source loads of a reopened
+        // project among them.
+        this.network = createNetworkApi(
+            (request) => {
+                publish(this.watchers, "network:pending", request);
+            },
+            {
+                pendingSourceLoads: () => this.data.pendingSourceLoads(),
+                runPendingSourceLoad: (id) => this.data.runPendingSourceLoad(id),
+            },
+        );
+        this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;

@@ -572,6 +572,8 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // A reader chose not to be asked before this project's fetches (session.network).
+        ...(session.network.projectPolicy === "allow" ? { network: { policy: "allow" } } : {}),
     };
 }
 
@@ -1764,6 +1766,9 @@ export function projectOf(
             (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
             opening,
         );
+        // Whether this project asks before its fetches: what the file says, else ask.
+        const network = doc.members.get("graphty-session")?.[0]?.network;
+        session.network.setProjectPolicy(isObject(network) && network.policy === "allow" ? "allow" : "ask");
         // The loads from network sources wait, fetching nothing, until the application runs them.
         try {
             networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);

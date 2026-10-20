@@ -206,10 +206,15 @@ await graph.session.styles.encode({
 ```
 
 This uses the existing `styles.encode` with a value map (`values`, written as the binding's `map`
-with `unmapped: "skip"`, so a kind the map does not list keeps `node.shape`). Encoded and computed values of
-`node.model` may name **asset ids only**, never URLs: a column of URLs would make one request per
-node to any host, and an expression could build a URL out of node data and leak it. A URL there
-is refused with `E_MODEL_URL_BLOCKED`.
+with `unmapped: "skip"`, so a kind the map does not list keeps `node.shape`). Encoded and computed
+values of `node.model` -- a value map, a column of URLs, a template -- may name asset ids and
+`http`/`https` URLs (owner, 2026-10-20: "why not allow loading models via URL?"). A URL read from
+the data is fetched only on a host the page's code or the reader allowed (2.6): until then it
+waits in `session.network`, so a file cannot make the reader's browser contact a host nobody
+chose, and an expression that builds a URL out of node data leaks nothing before the reader
+answers. Each distinct URL is fetched once and shared by every node that names it, never once per
+node. A listed value that is neither an asset id nor an `http`/`https` URL is refused with
+`E_MODEL_URL_BLOCKED`.
 
 ### 2.3 The new style channels
 
@@ -380,20 +385,42 @@ intake failure and `failed` a drawing failure. The event fires once per asset, n
 
 ### 2.6 Who may make the element fetch a URL
 
-A `node.model` URL is fetched only when the layer was added by a direct call to
-`session.styles.add` (or `update`) from the page's code. The element records that on the layer
-internally; a layer from any other origin carries a URL but does not fetch it, draws `node.shape`
-and reports `E_MODEL_URL_BLOCKED { hosts }`:
+A `node.model` URL is fetched at once when the layer was added by a direct call to
+`session.styles.add` (or `update`) from the page's code, or when its host is allowed. Any other
+URL waits for the reader:
 
-- a layer opened from a project file or imported from a style file;
-- a layer written by the AI style commands (`src/ai/commands/StyleCommands.ts`), a template or
-  suggested styles;
+- a layer opened from a project file or imported from a style file, or applied from a template;
+- a layer written by the AI style commands (`src/ai/commands/StyleCommands.ts`) or suggested styles;
 - a value produced by an encoding or an expression (2.2).
 
-The page's code may lift the block per host: `session.assets.allowHosts(["models.example.com"])`.
-Even then, private, loopback and link-local addresses are refused for a layer that did not come
-from code, and previews and thumbnails never fetch. Every model fetch is `credentials: "omit"`,
-`referrerPolicy: "no-referrer"`, has a time limit, follows at most 5 redirects, and refuses URLs
+**One gate for every such fetch: `session.network`.** It is the same mechanism a reopened project's
+network-source loads wait in (`data.pendingSourceLoads`), so the application has one question to
+answer, not two. Each waiting fetch is a fact, `{ code: "W_URL_NEEDS_APPROVAL", params: { id, url,
+host, kind, by, layerIds } }` -- `url` without its query or credentials, `kind` `"model"`,
+`"texture"` or `"source"`, `by` what asked (`"file"`, `"ai"`, `"data"`, `"source"`) -- listed by
+`session.network.pending()` and published once per URL as `network:pending`. While it waits the
+node draws `node.shape` and the model is `pending`.
+
+- `network.allow(id)` makes the fetch and allows its host for the rest of the session, so a reader
+  is asked once per host. A source load runs as `runPendingSourceLoad` would run it.
+- `network.deny(id)` refuses it: the model is `E_MODEL_URL_BLOCKED { hosts, layerIds, denied: true }`
+  and keeps its shape; a source load stays unloaded and is not listed again.
+- `network.setProjectPolicy("allow")` stops this project asking; it is saved in the project
+  (`graphty-session` member, `network: { policy: "allow" }`). `allow(id, { remember: "project" })`
+  sets it in the same call.
+- `network.setPolicy("allow")` stops the page asking at all: the reader's own preference, set by the
+  page's code, never saved.
+- `session.assets.allowHosts([...])` (code) allows hosts for the session without asking.
+
+**Known risk, recorded with the owner's choice:** a project file can carry `network: { policy:
+"allow" }` without a reader ever having chosen it, and then opens without asking. The private-address
+rule below still holds, and an application that wants a project's choice to count only on the
+machine that made it can ignore the saved policy (`setProjectPolicy("ask")` after opening).
+
+Whatever the answers, private, loopback and link-local addresses are refused for anything that did
+not come from the page's code, and previews and thumbnails never fetch. An embedded copy in a
+project file (7.3) wins over its URL: naming the URL draws the copy and asks nothing. Every model
+fetch is `credentials: "omit"`, `referrerPolicy: "no-referrer"`, has a time limit, and refuses URLs
 holding a user name and password. In problems and events a URL appears without its query string.
 
 ### 2.7 The extension point: `registerModelLoader` (later work package)
@@ -477,6 +504,15 @@ normalizing the path, it is a key in the file set, or a `data:` URL whose media 
 or `application/octet-stream`. Everything else -- `http(s):`, `//host`, `blob:`, `file:`, paths
 that leave the set with `..` -- is `E_MODEL_EXTERNAL_URL { url }`. A missing key is
 `E_MODEL_MISSING_FILE { name, referencedBy }`.
+
+**A model fetched by URL brings the files beside it.** When the main file names a file the set
+does not hold (a `.gltf`'s `.bin` and images, an `.obj`'s `.mtl` and the images the `.mtl` names),
+the element fetches it relative to the main file's URL -- the reference has already passed the
+allowlist, so the request is on the same origin and in the main file's folder or below -- adds it
+to the set and checks again. The files together are held to `maxBytes`, at most 64 files are added
+(`E_MODEL_TOO_LARGE { what: "count" }`), each request is made like the main one, and a file that
+does not answer is `E_MODEL_FETCH`. A reference to another host, or above the folder, stays
+`E_MODEL_EXTERNAL_URL` and is never requested.
 
 **A second guard that does not depend on parsing.** For the length of each load, every request
 Babylon makes passes one hook (the glTF loader's `preprocessUrlAsync` and Babylon's global URL
@@ -634,33 +670,34 @@ Every problem is a `CodedFact` `{ code, params }`, never a sentence. `E_` means 
 drawn (the node keeps its placeholder); `W_` means it is drawn but something is worth saying. Every
 string param from a file (names, clip names) is cut to 256 characters.
 
-| Code                          | params                                                                                                                               | When                                                                          | What the graphty app says (example)                                                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_MODEL_FETCH`               | `url` (no query), `status: number \| null`, `offline: boolean`                                                                       | The URL answered with an error, or not at all (offline, CORS, DNS look alike) | "Could not download rack.glb (404)." / with no status: "The server did not answer or does not share its files with other sites. Download the model and drop it here." |
-| `E_MODEL_URL_BLOCKED`         | `hosts`, `layerIds`                                                                                                                  | A layer not added by code names a URL (2.6)                                   | "This style loads a model from models.example.com. Load models from that site?"                                                                                       |
-| `E_MODEL_TOO_LARGE`           | `what: "bytes" \| "unzipped" \| "triangles" \| "textureBytes" \| "decodedBytes" \| "sceneTextureBytes" \| "count"`, `found`, `limit` | Over a limit in section 6                                                     | "This model has 4.2 million triangles; the limit is 1 million. Pick a lighter one."                                                                                   |
-| `E_MODEL_STRUCTURE`           | `rule: "index" \| "cycle" \| "depth" \| "accessor" \| "json" \| "instancing"`                                                        | The glTF's structure is unsafe or broken                                      | "The file is damaged."                                                                                                                                                |
-| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon)   | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
-| `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                                                                                                           | No format matches the bytes                                                   | "This is not a 3D model file graphty knows."                                                                                                                          |
-| `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                           | "Which one is the model?" with the list                                                                                                                               |
-| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`                                                                                                               | A `.bin`, texture or `.mtl` is not in the set                                 | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
-| `E_MODEL_EXTERNAL_URL`        | `url`                                                                                                                                | A reference outside the file set                                              | "This model loads parts from somewhere else, which is not allowed. Export it as .glb."                                                                                |
-| `E_MODEL_DECODER_UNAVAILABLE` | `extension`, `package`                                                                                                               | Draco, meshopt or KTX2 compression, and no decoder                            | "This model is compressed in a way this page cannot read yet."                                                                                                        |
-| `E_MODEL_PARSE`               | `format`                                                                                                                             | Babylon could not read a file that passed the checks                          | "The file is damaged or not a valid GLB."                                                                                                                             |
-| `E_MODEL_ZIP`                 | `reason: "corrupt" \| "encrypted" \| "empty" \| "duplicate" \| "ratio" \| "entries" \| "nested"`                                     | The zip cannot be read safely                                                 | "The .zip could not be opened."                                                                                                                                       |
-| `E_MODEL_NAME_TAKEN`          | `id`                                                                                                                                 | A name already held by different files, or a reserved `asset:sample/` name    | "A different model is already called rack."                                                                                                                           |
-| `E_MODEL_DIGEST_MISMATCH`     | `id`                                                                                                                                 | Stored bytes do not match their digest (project files, 7.3)                   | "The model in this file is damaged."                                                                                                                                  |
-| `E_MODEL_UNKNOWN_ASSET`       | `id`                                                                                                                                 | A layer names an asset the session does not hold, after loading has settled   | "This style needs a model that is not here. Find rack.glb..." (adding the same file gives the same id and fixes it)                                                   |
-| `W_MODEL_COLOR_IGNORED`       | `layerIds`                                                                                                                           | A color reaches a model node with tint off                                    | Show "Use node color" next to the model choice                                                                                                                        |
-| `W_MODEL_HEAVY`               | `triangles`, `materials`, `nodes`                                                                                                    | Over the comfortable size (8.2)                                               | "This model is detailed; with 800 nodes the graph may be slow."                                                                                                       |
-| `W_MODEL_BUDGET`              | `nodes`, `triangles`, `budget`                                                                                                       | Triangles across the scene pass the budget                                    | "The graph draws 3 million triangles and may be slow."                                                                                                                |
-| `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                                                                                                         | Textures above `maxTextureSize` were drawn smaller                            | (usually nothing)                                                                                                                                                     |
-| `W_MODEL_TRANSPARENT`         | `nodes`                                                                                                                              | Many blended instances may sort wrongly                                       | "See-through parts may look wrong where models overlap."                                                                                                              |
-| `W_MODEL_HAS_ANIMATIONS`      | `clips`                                                                                                                              | Clips exist and animation is off                                              | Offer a "Play animation" control (later)                                                                                                                              |
-| `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn              | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
-| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                            | Show the "Turn upright" control near the model                                                                                                                        |
-| `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                   | "Layers that used this model now show the plain shape."                                                                                                               |
-| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                     | "This project names a model on the web; others may not be able to open it."                                                                                           |
+| Code                          | params                                                                                                                               | When                                                                                               | What the graphty app says (example)                                                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_MODEL_FETCH`               | `url` (no query), `status: number \| null`, `offline: boolean`                                                                       | The URL answered with an error, or not at all (offline, CORS, DNS look alike)                      | "Could not download rack.glb (404)." / with no status: "The server did not answer or does not share its files with other sites. Download the model and drop it here." |
+| `E_MODEL_URL_BLOCKED`         | `hosts`, `layerIds`, `denied?`                                                                                                       | A private address not from code, a scheme other than http(s), or the reader denied the fetch (2.6) | "This style loads a model from models.example.com, which is not allowed."                                                                                             |
+| `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`, `layerIds`                                                                                        | A fetch not from code waits in `session.network` (2.6)                                             | "This project wants to open models.example.com/rack.glb. Continue?"                                                                                                   |
+| `E_MODEL_TOO_LARGE`           | `what: "bytes" \| "unzipped" \| "triangles" \| "textureBytes" \| "decodedBytes" \| "sceneTextureBytes" \| "count"`, `found`, `limit` | Over a limit in section 6                                                                          | "This model has 4.2 million triangles; the limit is 1 million. Pick a lighter one."                                                                                   |
+| `E_MODEL_STRUCTURE`           | `rule: "index" \| "cycle" \| "depth" \| "accessor" \| "json" \| "instancing"`                                                        | The glTF's structure is unsafe or broken                                                           | "The file is damaged."                                                                                                                                                |
+| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon)                        | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
+| `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                                                                                                           | No format matches the bytes                                                                        | "This is not a 3D model file graphty knows."                                                                                                                          |
+| `E_MODEL_AMBIGUOUS`           | `candidates`                                                                                                                         | Two different main files in one set                                                                | "Which one is the model?" with the list                                                                                                                               |
+| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`                                                                                                               | A `.bin`, texture or `.mtl` is not in the set                                                      | "robot.gltf needs robot.bin. Drop the whole folder or a .zip, or export as .glb."                                                                                     |
+| `E_MODEL_EXTERNAL_URL`        | `url`                                                                                                                                | A reference outside the file set                                                                   | "This model loads parts from somewhere else, which is not allowed. Export it as .glb."                                                                                |
+| `E_MODEL_DECODER_UNAVAILABLE` | `extension`, `package`                                                                                                               | Draco, meshopt or KTX2 compression, and no decoder                                                 | "This model is compressed in a way this page cannot read yet."                                                                                                        |
+| `E_MODEL_PARSE`               | `format`                                                                                                                             | Babylon could not read a file that passed the checks                                               | "The file is damaged or not a valid GLB."                                                                                                                             |
+| `E_MODEL_ZIP`                 | `reason: "corrupt" \| "encrypted" \| "empty" \| "duplicate" \| "ratio" \| "entries" \| "nested"`                                     | The zip cannot be read safely                                                                      | "The .zip could not be opened."                                                                                                                                       |
+| `E_MODEL_NAME_TAKEN`          | `id`                                                                                                                                 | A name already held by different files, or a reserved `asset:sample/` name                         | "A different model is already called rack."                                                                                                                           |
+| `E_MODEL_DIGEST_MISMATCH`     | `id`                                                                                                                                 | Stored bytes do not match their digest (project files, 7.3)                                        | "The model in this file is damaged."                                                                                                                                  |
+| `E_MODEL_UNKNOWN_ASSET`       | `id`                                                                                                                                 | A layer names an asset the session does not hold, after loading has settled                        | "This style needs a model that is not here. Find rack.glb..." (adding the same file gives the same id and fixes it)                                                   |
+| `W_MODEL_COLOR_IGNORED`       | `layerIds`                                                                                                                           | A color reaches a model node with tint off                                                         | Show "Use node color" next to the model choice                                                                                                                        |
+| `W_MODEL_HEAVY`               | `triangles`, `materials`, `nodes`                                                                                                    | Over the comfortable size (8.2)                                                                    | "This model is detailed; with 800 nodes the graph may be slow."                                                                                                       |
+| `W_MODEL_BUDGET`              | `nodes`, `triangles`, `budget`                                                                                                       | Triangles across the scene pass the budget                                                         | "The graph draws 3 million triangles and may be slow."                                                                                                                |
+| `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                                                                                                         | Textures above `maxTextureSize` were drawn smaller                                                 | (usually nothing)                                                                                                                                                     |
+| `W_MODEL_TRANSPARENT`         | `nodes`                                                                                                                              | Many blended instances may sort wrongly                                                            | "See-through parts may look wrong where models overlap."                                                                                                              |
+| `W_MODEL_HAS_ANIMATIONS`      | `clips`                                                                                                                              | Clips exist and animation is off                                                                   | Offer a "Play animation" control (later)                                                                                                                              |
+| `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn                                   | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
+| `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                                                 | Show the "Turn upright" control near the model                                                                                                                        |
+| `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                                        | "Layers that used this model now show the plain shape."                                                                                                               |
+| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                                          | "This project names a model on the web; others may not be able to open it."                                                                                           |
 
 Later packages add `W_MODEL_ANIMATION_UNKNOWN`, `W_MODEL_ANIMATION_LIMITED` (3.6, 3.7) and
 `E_MODEL_CRASHED_LAST_TIME` (7.3).
@@ -806,7 +843,9 @@ Every model is hostile input, whether a user dropped it or a project file embedd
 - **No code.** Only glTF, OBJ, STL and PLY are read; none carries scripts or shaders.
 - **No network from inside a model.** An allowlist of references, a request guard during the load,
   and a root URL that cannot resolve against the page (3.3).
-- **No network from a document, data or the AI.** Only layers added by code fetch URLs (2.6).
+- **No network from a document, data or the AI without the reader.** Only layers added by code, or
+  hosts the page or the reader allowed, fetch URLs; everything else waits in `session.network`
+  (2.6). A model's own references reach only its own folder on its own origin (3.3).
 - **Allocation bombs.** glTF structure, accessor and count checks before Babylon sees the file;
   per-use triangle counting; OBJ, STL and PLY scans (3.3).
 - **Decompression bombs.** Streaming unzip with real byte counts and ratio caps (3.1); image

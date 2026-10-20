@@ -156,7 +156,8 @@ export interface ColumnEncodingSpec extends EncodingOptions {
      * `"passthrough"` when not.
      *
      * On `node.model` every value must be an asset id (`"asset:..."`, from `session.assets.add`
-     * or `session.catalog`); a URL is refused with `E_MODEL_URL_BLOCKED` and nothing is fetched.
+     * or `session.catalog`) or an `http`/`https` URL; a URL is fetched once, and only when its host
+     * is allowed by the page or the reader (`session.network`).
      *
      * ```ts
      * await session.styles.encode({
@@ -779,7 +780,7 @@ export function planColumnEncoding(
             code: proposal.refusal.code as "E_UNSUPPORTED",
             message:
                 proposal.refusal.code === "E_MODEL_URL_BLOCKED"
-                    ? `An encoded ${spec.channel} names asset ids only, never a URL; add the file with session.assets.add and map the category to its id.`
+                    ? `An encoded ${spec.channel} names asset ids or http(s) URLs; add the file with session.assets.add and map the category to its id.`
                     : `The ${column.kind} column ${JSON.stringify(column.name)} cannot be drawn on ${spec.channel} by default; name a scale to draw it anyway.`,
             source: "style",
             details: proposal.refusal.params,

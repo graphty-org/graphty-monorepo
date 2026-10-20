@@ -54,6 +54,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { JournalApi, JournalEntry } from "./journal";
+import type { NetworkApi, NetworkRequest } from "./network";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -1617,6 +1618,11 @@ export interface SessionEventMap {
      * `graphty-model-change`.
      */
     "model:changed": ModelChange;
+    /**
+     * A fetch the page's code did not ask for waits for an answer (`session.network.allow` or
+     * `deny`). Once per URL.
+     */
+    "network:pending": NetworkRequest;
 }
 
 /**
@@ -2216,6 +2222,13 @@ export interface GraphSession {
      * draws nothing; assets are not commands, so they are kept out of the history and recipes.
      */
     readonly assets: AssetsApi;
+    /**
+     * The fetches the page's code did not ask for, waiting for the reader: a model URL a project
+     * file, an AI command or the data names, and a reopened project's network-source loads. Each
+     * is a `W_URL_NEEDS_APPROVAL` fact, published as `network:pending`; nothing is fetched until
+     * `allow`. Private, loopback and link-local addresses are refused whatever the answer.
+     */
+    readonly network: NetworkApi;
     /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command

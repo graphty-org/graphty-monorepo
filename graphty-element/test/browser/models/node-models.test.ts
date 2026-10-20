@@ -85,14 +85,23 @@ describe("nodes drawn as models", () => {
         assert.isNotNull(graph.graph.getNodeMesh("a"));
     });
 
-    it("fetches nothing for a URL from a project file or an AI command", async () => {
+    it("asks before a URL from a project file or an AI command, and fetches only what the reader allows", async () => {
         const fromFile = "https://models.example.org/from-file.glb";
-        const fromAi = "https://models.example.org/from-ai.glb";
-        const requested = stubFetch(new Map());
+        const fromAi = "https://ai-models.example.net/from-ai.glb";
+        const requested = stubFetch(new Map([[fromAi, sphereGlb(12, 6)]]));
         const graph = await mount();
         await graph.graph.addNodes([{ id: "a" }, { id: "b" }]);
-        const blockedFile = nextModelEvent(graph, (change) => change.ref === fromFile);
-        const blockedAi = nextModelEvent(graph, (change) => change.ref === fromAi);
+        const asked: string[] = [];
+        const bothAsked = new Promise<void>((resolve) => {
+            graph.session.on("network:pending", (request) => {
+                asked.push(request.params.url);
+                if (asked.length === 2) {
+                    resolve();
+                }
+            });
+        });
+        const refusedFile = nextModelEvent(graph, (change) => change.ref === fromFile && change.state === "rejected");
+        const drawnAi = nextModelEvent(graph, (change) => change.ref === fromAi && change.state === "drawn");
 
         // A project file's styles are applied as a style document (src/session/projectFile.ts).
         await graph.session.styles.applyTemplate({
@@ -114,18 +123,27 @@ describe("nodes drawn as models", () => {
             selector: { match: "ids", nodes: ["b"] },
             set: { "node.model": fromAi },
         });
+        await bothAsked;
 
-        for (const change of [await blockedFile, await blockedAi]) {
-            assert.equal(change.state, "rejected");
-            assert.equal(change.problems[0]?.code, "E_MODEL_URL_BLOCKED");
-            assert.deepEqual(change.problems[0]?.params.hosts, ["models.example.org"]);
-        }
-
-        await graph.waitForStableFrame();
-        assert.notInclude(requested, fromFile);
+        const pending = graph.session.network.pending();
+        const byUrl = new Map(pending.map((request) => [request.params.url, request.params]));
+        assert.equal(byUrl.get(fromFile)?.by, "file");
+        assert.equal(byUrl.get(fromAi)?.by, "ai");
+        assert.equal(byUrl.get(fromAi)?.host, "ai-models.example.net");
+        assert.notInclude(requested, fromFile, "nothing is fetched before the answer");
         assert.notInclude(requested, fromAi);
+
+        graph.session.network.deny(byUrl.get(fromFile)?.id ?? "");
+        await graph.session.network.allow(byUrl.get(fromAi)?.id ?? "");
+        const refused = await refusedFile;
+        assert.equal(refused.problems[0]?.code, "E_MODEL_URL_BLOCKED");
+        assert.deepEqual(refused.problems[0]?.params.hosts, ["models.example.org"]);
+        await drawnAi;
+        await operationQueueOf(graph.graph).waitForCompletion();
+        assert.notInclude(requested, fromFile);
+        assert.include(requested, fromAi);
         assert.isFalse(drawnAsModel(graph.graph, "a"));
-        assert.isFalse(drawnAsModel(graph.graph, "b"));
+        assert.isTrue(drawnAsModel(graph.graph, "b"));
     });
 
     it("fetches a project file's URL once the page allows its host, but never a private one", async () => {

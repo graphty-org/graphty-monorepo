@@ -6,9 +6,11 @@
  *   only when it is "replace" (which swaps the materials). Tint on or off is per instance.
  * - REFERENCE-COUNTED BY LAYERS. A template no layer names and no node draws is disposed after
  *   10 more frames; the files stay in `session.assets`, so naming it again prepares it again.
- * - URL PROVENANCE: a URL is fetched only when the page's code named it in a layer it added or
- *   updated itself, or when the page allowed its host -- and a private, loopback or link-local
- *   host is never allowed that way. Anything else is `E_MODEL_URL_BLOCKED` and no request.
+ * - URL PROVENANCE: a URL is fetched at once when the page's code named it in a layer it added or
+ *   updated itself, or when its host is allowed (by the page, the reader or the project). Any other
+ *   URL -- from a project or style file, an AI command, the data -- waits in `session.network`
+ *   until the reader answers; a refusal is `E_MODEL_URL_BLOCKED`. A private, loopback or
+ *   link-local host is refused for anything not from code, whatever the answer.
  * - AT MOST TWO LOADS AT A TIME, and finished loads repaint their nodes once per frame.
  * - ONE EVENT PER MODEL AND STATE (`model:changed`, mirrored as `graphty-model-change`), and one
  *   `console.warn` per model that fails.
@@ -23,6 +25,7 @@ import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";
 import type { GraphContext } from "../managers/GraphContext";
 import { type AssetRecord, type AssetsApiInternal, isAssetId } from "../session/assets/AssetsApi";
+import type { FetchQuestion, NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";
 import type { SessionStylesApi } from "../session/styles/StylesApi";
 import type { ModelChange, ModelState, SessionEventMap } from "../session/types";
@@ -69,6 +72,7 @@ export interface ModelUser {
 /** What the cache reads from the session. */
 interface ModelSession {
     readonly assets: AssetsApiInternal;
+    readonly network: NetworkApiInternal;
     readonly styles: SessionStylesApi;
     publishModelChange(change: ModelChange): void;
     on<K extends keyof SessionEventMap>(event: K, listener: (detail: SessionEventMap[K]) => void): () => void;
@@ -327,16 +331,17 @@ export class ModelCache {
     }
 
     /**
-     * Why a URL may not be fetched, or null when it may.
+     * Whether a model may be fetched: at once, never, or once the reader answers.
      * @param ref - What a layer named.
-     * @returns The refusal, or null.
+     * @returns null to go ahead, the refusal, or the question to put to `session.network`.
      */
-    private blocked(ref: string): CodedFact | null {
-        // A URL the session already holds (an embedded copy from a project file) fetches nothing.
+    private decide(ref: string): CodedFact | FetchQuestion | null {
+        // An asset id, a URL the session already holds (an embedded copy from a project file), or
+        // a URL the page's own code named fetches nothing more to decide.
         if (
             isAssetId(ref) ||
-            this.session.styles.modelUrlFromCode(ref) ||
-            this.session.assets.urlRecord(ref) !== undefined
+            this.session.assets.urlRecord(ref) !== undefined ||
+            this.session.styles.modelUrlFromCode(ref)
         ) {
             return null;
         }
@@ -348,26 +353,77 @@ export class ModelCache {
             return null; // Not a URL at all: the intake reports it.
         }
 
-        if (this.session.assets.hostAllowed(url.host) && !isPrivateHost(url.hostname)) {
+        if (url.protocol !== "https:" && url.protocol !== "http:") {
+            return null; // The intake refuses the scheme.
+        }
+
+        const layerIds = this.layersNaming(ref);
+        if (isPrivateHost(url.hostname)) {
+            return { code: "E_MODEL_URL_BLOCKED", params: { hosts: [url.host], layerIds } };
+        }
+
+        if (this.session.assets.hostAllowed(url.host)) {
             return null;
         }
 
-        return { code: "E_MODEL_URL_BLOCKED", params: { hosts: [url.host], layerIds: this.layersNaming(ref) } };
+        return { url, kind: "model", by: this.askerOf(ref, layerIds), layerIds };
     }
 
     /**
-     * Prepare one entry's template, in its turn.
+     * What asked for a URL: an AI command's layer, a value read from the data, or a file's layer.
+     * @param ref - The URL.
+     * @param layerIds - The layers naming it.
+     * @returns The asker.
+     */
+    private askerOf(ref: string, layerIds: readonly LayerId[]): FetchQuestion["by"] {
+        const layers = this.session.styles.list().filter((layer) => layerIds.includes(layer.id));
+        if (layers.some((layer) => layer.source?.by === "plugin" && layer.source.name === "graphty-ai")) {
+            return "ai";
+        }
+
+        return layers.some((layer) => layer.set?.["node.model"] === ref) ? "file" : "data";
+    }
+
+    /**
+     * Prepare one entry's template, in its turn: at once, or once the reader allowed its URL.
      * @param entry - The entry.
      * @param shape - The shape block that asked for it.
      */
     private start(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>): void {
         const { ref } = entry;
-        const refusal = this.blocked(ref);
-        if (refusal !== null) {
-            this.settle(ref, "rejected", [refusal]);
+        const decided = this.decide(ref);
+        if (decided === null) {
+            this.load(entry, shape);
             return;
         }
 
+        if ("code" in decided) {
+            this.settle(ref, "rejected", [decided]);
+            return;
+        }
+
+        this.settle(ref, "pending", []);
+        void this.session.network.ask(decided).then((allowed) => {
+            if (!allowed) {
+                this.settle(ref, "rejected", [
+                    {
+                        code: "E_MODEL_URL_BLOCKED",
+                        params: { hosts: [decided.url.host], layerIds: [...decided.layerIds], denied: true },
+                    },
+                ]);
+            } else if (this.entries.get(entry.key) === entry) {
+                this.load(entry, shape);
+            }
+        });
+    }
+
+    /**
+     * Load one entry's files and prepare its template, in its turn.
+     * @param entry - The entry.
+     * @param shape - The shape block that asked for it.
+     */
+    private load(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>): void {
+        const { ref } = entry;
         this.enqueue(async () => {
             this.settle(ref, "pending", []);
             const record = await this.session.assets.ready(ref);

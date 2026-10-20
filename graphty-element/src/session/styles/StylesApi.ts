@@ -396,8 +396,8 @@ export interface StylesApi {
      * ```
      *
      * `values` names what each category paints, and leaves a category it does not list alone.
-     * That is how each kind of node is drawn as its own model; `node.model` takes asset ids only,
-     * and a URL there is refused with `E_MODEL_URL_BLOCKED` before anything is fetched:
+     * That is how each kind of node is drawn as its own model; `node.model` takes asset ids and
+     * URLs, and a URL waits for its host to be allowed (`session.network`) before it is fetched:
      *
      * ```ts
      * await session.styles.encode({

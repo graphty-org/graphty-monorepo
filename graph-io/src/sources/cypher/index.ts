@@ -28,7 +28,7 @@ import {
     type SourceValidators,
 } from "../types.js";
 import { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
-import { canonicalRows, Collector, compareText, requireGraph, writeCollected } from "./flatten.js";
+import { canonicalRows, Collector, compareText, type QueryResult, requireGraph, writeCollected } from "./flatten.js";
 import { type CypherParams } from "./params.js";
 import { type CypherProfile, neo4jProfile, neptuneProfile, serverFacts } from "./profiles.js";
 import {
@@ -205,11 +205,7 @@ class Reader {
             if (typeof params.query !== "string" || params.query.trim() === "") {
                 failOn(report, "E_SOURCE_PARAM", "mode query needs a query", { name: "query", reason: "required" });
             }
-            const result = await this.transport.run(params.query, params.parameters ?? {});
-            const collected = new Collector();
-            collected.add(result, false);
-            requireGraph(result, collected, report);
-            yield { collected, next: null };
+            yield await this.userQuery(params.query, cursor);
             return;
         }
         const profile = await this.profile();
@@ -231,6 +227,44 @@ class Reader {
             return;
         }
         yield* this.everything(profile, cursor);
+    }
+
+    /**
+     * Mode "query": the reader's own query, as written. With a node cap (or a cursor from a capped
+     * run) the server returns at most that many rows (`CALL { query } RETURN * LIMIT n`), and a full
+     * result hands back a cursor that runs the query again with twice the rows, for the caller to
+     * merge. A server that refuses the wrapper runs the query uncapped.
+     * @param query - the query
+     * @param cursor - where to resume: `{ rows }` from an earlier capped run
+     * @returns the one page
+     */
+    private async userQuery(query: string, cursor: SourceCursor | null): Promise<Page> {
+        const { params, ctx } = this;
+        const parameters = params.parameters ?? {};
+        const asked = cursor?.rows ?? ctx.limits.maxNodes;
+        const rows =
+            asked === undefined || asked === null
+                ? null
+                : Number(checkedInteger(asked, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
+        let result: QueryResult;
+        let capped = rows !== null;
+        try {
+            result = await this.transport.run(
+                rows === null ? query : `CALL {\n${query.trim().replace(/;+$/, "")}\n}\nRETURN * LIMIT ${String(rows)}`,
+                parameters,
+            );
+        } catch (err) {
+            if (!capped || !(err instanceof ImportError) || err.issue?.code !== SOURCE_ISSUE.E_SOURCE_QUERY) {
+                throw err;
+            }
+            capped = false;
+            result = await this.transport.run(query, parameters);
+        }
+        const collected = new Collector();
+        collected.add(result, false);
+        requireGraph(result, collected, ctx.report);
+        const full = capped && rows !== null && result.rows.length >= rows;
+        return { collected, next: full ? { rows: rows * 2 } : null };
     }
 
     /**

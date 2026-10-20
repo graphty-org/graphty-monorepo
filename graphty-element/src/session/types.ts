@@ -80,12 +80,17 @@ import type {
     CollapseResult,
     ExpandOptions,
     PendingSourceLoad,
+    SourceCheck,
     SourceExpanded,
     SourceExpandFailed,
     SourceExpandStart,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
+    SourceMoreOptions,
+    SourcePreview,
+    SourcePreviewOptions,
+    SourceRefreshReport,
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
@@ -1215,11 +1220,56 @@ export interface SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult>;
     /**
-     * Load the next page after a capped load from a source. Experimental.
-     * @param options - The load options.
-     * @returns Settles once the page is in the graph.
+     * Load the next page after a capped load from a source, merged in. Experimental.
+     *
+     * ```ts
+     * const [load] = session.data.loads();
+     * if (load.next !== null) await session.data.more({ load: load.key });
+     * ```
+     * @param options - The load options; `load` names the load to page (a key from `loads()`),
+     *     else the newest load that has more. The load's own caps apply unless `limits` is given.
+     * @returns Settles once the page is in the graph, or at once when the load has no more;
+     *     rejects with `E_SOURCE_UNKNOWN` for a `load` that `loads()` does not list.
      */
-    more(options?: SourceLoadOptions): Promise<void>;
+    more(options?: SourceMoreOptions): Promise<void>;
+    /**
+     * Read a few rows of a network source to confirm a form, changing nothing: no step, no
+     * record, no event. The cap is sent to the source, so a database returns no more. Experimental.
+     *
+     * ```ts
+     * const preview = await session.data.previewSource({ source: "neo4j", config: { database: "movies", mode: "all" } });
+     * preview.nodes.length; // at most 25
+     * ```
+     * @param source - The source id and its params.
+     * @param options - `maxNodes` (25 by default), the credential and the endpoint.
+     * @returns At most `maxNodes` node rows, the edges between them, their columns, `more` when the
+     *     source holds more, the server's facts and the read's issues; rejects with the source's code.
+     */
+    previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+    /**
+     * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns `{ changed }`; null when the source cannot tell (it has no cheap check, or the
+     *     load recorded nothing to compare). Rejects with `E_SOURCE_UNKNOWN` for an unknown key.
+     */
+    checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
+    /**
+     * Read a load from its source again -- as many pages as it read -- and apply only the
+     * difference as one undoable step (history fact `data.replace-source`): what the source no
+     * longer has goes unless another load also supplied it, what it changed takes the new
+     * values, and what it added arrives. A source that has not changed dispatches nothing and
+     * reports zeros. Expansions of the load are not fetched again. Experimental.
+     *
+     * ```ts
+     * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
+     * ```
+     * @param load - The load's key, from `loads()`.
+     * @param options - The credential and the endpoint.
+     * @returns The node and edge counts added, removed and updated; rejects with
+     *     `E_SOURCE_UNKNOWN` for an unknown key, else with the source's code.
+     */
+    refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
      * Load one of the public samples the registered sources list (`samples` on a descriptor of
      * `sourceDescriptors()`, graph-samples' datasets among them), as one undoable step: the

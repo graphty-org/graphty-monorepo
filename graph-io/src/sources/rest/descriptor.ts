@@ -17,6 +17,8 @@ export const REST_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["bearer", "api-key"],
     authRequired: "optional",
+    // ponytail: a mapping without `expand` or paging cannot do either; per-mapping features when a form needs them
+    features: ["expand", "probe", "validate", "page"],
     params: [{ name: "mapping", plainName: "Mapping", type: "text", required: true }],
     samples: [
         {
@@ -48,6 +50,7 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
     auth: ["api-key"],
     authRequired: "optional",
     rateLimit: { requests: 10, perMs: 1000 },
+    features: ["expand", "probe", "validate", "page"],
     params: [
         { name: "work", plainName: "Work", type: "string" },
         { name: "author", plainName: "Author", type: "string" },

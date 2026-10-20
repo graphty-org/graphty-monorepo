@@ -2382,7 +2382,23 @@ export const SOURCE_RECORD_MEMBER = "graphty-sources";
 // @public
 export const SOURCE_RECORD_VERSION = 1;
 
+// @public
+export interface SourceCatalogEntry extends SourceInfo {
+    readonly features: SourceFeatures;
+}
+
+// @public
+export interface SourceCheck {
+    readonly changed: boolean | null;
+}
+
 export { SourceContext }
+
+// @public
+export interface SourceCounts {
+    readonly edges: number;
+    readonly nodes: number;
+}
 
 // @public
 export interface SourceCredentialIdentity {
@@ -2422,6 +2438,13 @@ export interface SourceExpansionRecord {
 
 export { SourceFeature }
 
+// @public
+export interface SourceFeatures {
+    readonly expand: boolean;
+    readonly more: boolean;
+    readonly refresh: boolean;
+}
+
 export { SourceFile }
 
 export { SourceFinish }
@@ -2459,6 +2482,7 @@ export interface SourceLoadOptions extends LoadChoices {
     readonly cursor?: SourceCursor;
     readonly endpoint?: string;
     readonly existing?: "keep" | "update";
+    readonly expand?: ExpandBehavior;
     readonly fetch?: typeof fetch;
     readonly limits?: SourceLimitOptions;
     readonly retry?: RetryOptions | false;
@@ -2471,6 +2495,7 @@ export interface SourceLoadRecord {
     readonly config: Readonly<Record<string, unknown>>;
     readonly credential: SourceCredentialIdentity | null;
     readonly endpoint: string | null;
+    readonly expand?: ExpandBehavior;
     readonly expansions: readonly SourceExpansionRecord[];
     readonly key: string;
     readonly loadedAt: string;
@@ -2478,8 +2503,14 @@ export interface SourceLoadRecord {
     readonly options: Readonly<Record<string, unknown>>;
     readonly pages: number;
     readonly source: string;
+    readonly total?: number;
     readonly validators: SourceValidators;
     readonly version: number;
+}
+
+// @public
+export interface SourceMoreOptions extends SourceLoadOptions {
+    readonly load?: string;
 }
 
 export { SourceNodeRecord }
@@ -2488,7 +2519,29 @@ export { SourceParamDescriptor }
 
 export { SourceParamType }
 
+// @public
+export interface SourcePreview {
+    readonly columns: readonly AttributeDescriptor[];
+    readonly edges: readonly Readonly<Record<string, unknown>>[];
+    readonly facts: Readonly<Record<string, string>>;
+    readonly issues: readonly CodedFact[];
+    readonly more: boolean;
+    readonly nodes: readonly Readonly<Record<string, unknown>>[];
+}
+
+// @public
+export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "cursor"> {
+    readonly maxNodes?: number;
+}
+
 export { SourceProbe }
+
+// @public
+export interface SourceRefreshReport {
+    readonly added: SourceCounts;
+    readonly removed: SourceCounts;
+    readonly updated: SourceCounts;
+}
 
 export { SourceReportInfo }
 

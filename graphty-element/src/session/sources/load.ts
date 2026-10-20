@@ -21,21 +21,41 @@ import {
     type SourceReportInfo,
 } from "@graphty/graph-io";
 
-import type { NodeId } from "../../catalog/types";
+import type { EdgeId, NodeId } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
 import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
+import type { SessionCommand } from "../planning";
+import { pairKey, planReplace } from "../replace";
+import type { CodedFact } from "../shared";
+import type { RowUpdate } from "../types";
 import { resolve } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
+import { factParams } from "./expand";
 import type { SourceHost } from "./host";
-import { SOURCE_ATTR } from "./ids";
-import type { PendingSourceLoad, SourceInput, SourceLoadOptions, SourceLoadRecord } from "./types";
+import { SOURCE_ATTR, sourceLoadsOf } from "./ids";
+import type {
+    PendingSourceLoad,
+    SourceCheck,
+    SourceCounts,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+    SourceMoreOptions,
+    SourcePreview,
+    SourcePreviewOptions,
+    SourceRefreshReport,
+} from "./types";
 
 /** How many refused rows a source read keeps before it stops counting. */
 const ERROR_LIMIT = 100;
+
+/** How many nodes a preview shows when the caller names no cap. */
+const PREVIEW_NODES = 25;
 
 /**
  * A source's descriptor, read from the registry without loading the source's code.
@@ -135,6 +155,8 @@ async function coded<T>(access: Access, work: () => Promise<T>): Promise<T> {
 interface Read {
     readonly held: HeldRows;
     readonly info: SourceReportInfo | undefined;
+    /** graph-io's issues, as codes and params. */
+    readonly issues: readonly CodedFact[];
 }
 
 /**
@@ -170,6 +192,7 @@ async function readRows(
             target: "target",
         },
         info: report.source,
+        issues: report.issues.map((issue) => ({ code: issue.code, params: factParams(issue.params) })),
     };
 }
 
@@ -189,6 +212,25 @@ function dispatchRows(
     read: Read,
     options: SourceLoadOptions,
 ): Promise<unknown> {
+    return host.dispatch(importCommand(host, key, input, read, options));
+}
+
+/**
+ * The step that loads a read's rows, each stamped with the load that brought it.
+ * @param host - the session pieces
+ * @param key - the key of the load the rows belong to
+ * @param input - the source and its params
+ * @param read - the rows
+ * @param options - the load choices
+ * @returns the command
+ */
+function importCommand(
+    host: SourceHost,
+    key: string,
+    input: SourceInput,
+    read: Read,
+    options: SourceLoadOptions,
+): DataImportSourceCommand {
     // Every row names the load that brought it, so expand, collapse and refresh can find its source.
     // ponytail: a merge that keeps or replaces an existing row's `_source.loads` does not union the
     // keys; union them here if a row two loads bring must answer to both.
@@ -223,7 +265,22 @@ function dispatchRows(
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
     };
-    return host.dispatch(command);
+    return command;
+}
+
+/**
+ * How many nodes the source holds for a read: what it read when the read is complete, else what
+ * the caller knew.
+ * @param read - the read
+ * @param known - what the caller knew
+ * @returns `{ total }`, or nothing when neither tells
+ */
+function totalOf(read: Read, known: number | undefined): { total?: number } {
+    if ((read.info?.next ?? null) === null) {
+        return { total: read.held.nodes.length };
+    }
+
+    return known === undefined ? {} : { total: known };
 }
 
 /**
@@ -231,12 +288,14 @@ function dispatchRows(
  * @param host - the session pieces
  * @param input - the source and its params
  * @param options - the load options
+ * @param total - how many nodes the source holds, when the caller knows (a sample's count)
  * @returns the load's record
  */
 export async function importSource(
     host: SourceHost,
     input: SourceInput,
     options: SourceLoadOptions,
+    total?: number,
 ): Promise<SourceLoadRecord> {
     const access = await accessFor(host, input.source, options);
     const read = await readRows(input.source, input.config, access, options);
@@ -260,6 +319,8 @@ export async function importSource(
         next: read.info?.next ?? null,
         validators: read.info?.validators ?? {},
         credential: access.credential ?? null,
+        ...totalOf(read, total),
+        ...(options.expand === undefined ? {} : { expand: options.expand }),
     });
     try {
         await dispatchRows(host, record.key, input, read, options);
@@ -310,6 +371,7 @@ export function loadSample(host: SourceHost, id: string, options: SourceLoadOpti
             ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
             ...options,
         },
+        sample.counts?.nodes,
     );
 }
 
@@ -350,24 +412,32 @@ export async function listSource(
 }
 
 /**
- * Load the next page after a capped load: the newest load that has more, merged in.
+ * Load the next page after a capped load, merged in: the chosen load, else the newest load that
+ * has more. The load's own caps apply again unless the caller gives others.
  * @param host - the session pieces
- * @param options - the load options; `mode` is always "merge"
- * @returns settles once the page is drawn, or at once when no load has more
+ * @param options - the load options and the load; `mode` is always "merge"
+ * @returns settles once the page is drawn, or at once when the load has no more
  */
-export async function more(host: SourceHost, options: SourceLoadOptions): Promise<void> {
-    const record = [...host.loads()].reverse().find((r) => r.next !== null);
+export async function more(host: SourceHost, options: SourceMoreOptions): Promise<void> {
+    const { load, ...rest } = options;
+    const loads = host.loads();
+    const record = load === undefined ? [...loads].reverse().find((r) => r.next !== null) : requireLoad(host, load);
     if (!record?.next) {
         return;
     }
 
+    const saved = record.options as Pick<SourceLoadOptions, "limits">;
     const access = await accessFor(host, record.source, {
-        ...options,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        ...rest,
+        endpoint: rest.endpoint ?? record.endpoint ?? undefined,
     });
-    const read = await readRows(record.source, record.config, access, { ...options, cursor: record.next });
+    const read = await readRows(record.source, record.config, access, {
+        ...(saved.limits === undefined ? {} : { limits: saved.limits }),
+        ...rest,
+        cursor: record.next,
+    });
     await dispatchRows(host, record.key, { source: record.source, config: record.config }, read, {
-        ...options,
+        ...rest,
         mode: "merge",
     });
     host.ledger.refreshLoad(record.key, {
@@ -376,7 +446,268 @@ export async function more(host: SourceHost, options: SourceLoadOptions): Promis
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
         endpoint: access.endpoint,
+        // A capped Cypher query reruns from the start, so its last page holds every row.
+        ...((read.info?.next ?? null) === null && record.next.rows !== undefined
+            ? { total: read.held.nodes.length }
+            : {}),
     });
+}
+
+/**
+ * A load the graph holds, by key.
+ * @param host - the session pieces
+ * @param key - the load's key
+ * @returns the record
+ * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `data.loads()` does not list.
+ */
+function requireLoad(host: SourceHost, key: string): SourceLoadRecord {
+    const loads = host.loads();
+    const record = loads.find((r) => r.key === key);
+    if (record === undefined) {
+        throw new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `No source load the graph holds has key ${JSON.stringify(key)}.`,
+            source: "data",
+            details: { id: key, known: loads.map((r) => r.key) },
+        });
+    }
+
+    return record;
+}
+
+/**
+ * Read a few rows of a source, loading nothing: at most `maxNodes` nodes (the cap is sent to the
+ * source, so a database returns no more), the edges between them, their columns, whether there is
+ * more, the server's facts and the read's issues.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the cap, the credential and the endpoint
+ * @returns the preview
+ */
+export async function previewSource(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourcePreviewOptions,
+): Promise<SourcePreview> {
+    const { maxNodes = PREVIEW_NODES, ...rest } = options;
+    const access = await accessFor(host, input.source, rest);
+    const read = await readRows(input.source, input.config, access, {
+        ...rest,
+        limits: { ...rest.limits, maxNodes, onLimit: "stop" },
+    });
+    const nodes = read.held.nodes.slice(0, maxNodes);
+    const kept = new Set(nodes.map((row) => String(row.id)));
+    const edges = read.held.edges.filter((row) => kept.has(String(row.source)) && kept.has(String(row.target)));
+    return Object.freeze({
+        nodes: Object.freeze(nodes),
+        edges: Object.freeze(edges),
+        columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
+        more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,
+        facts: Object.freeze({ ...read.info?.server }),
+        issues: Object.freeze(read.issues),
+    });
+}
+
+/**
+ * Ask the source whether a load's data changed, loading nothing. A source that cannot tell (no
+ * `validate`, or validators it cannot compare) answers null.
+ * @param host - the session pieces
+ * @param key - the load's key
+ * @param options - the credential and the endpoint
+ * @returns whether it changed
+ */
+export async function checkSource(host: SourceHost, key: string, options: SourceLoadOptions): Promise<SourceCheck> {
+    const record = requireLoad(host, key);
+    if (descriptorOf(record.source)?.features?.includes("validate") !== true) {
+        return Object.freeze({ changed: null });
+    }
+
+    const access = await accessFor(host, record.source, {
+        ...options,
+        endpoint: options.endpoint ?? record.endpoint ?? undefined,
+    });
+    const freshness = await coded(access, () =>
+        registry.validateSource(record.source, currentParams(record), record.validators, ioOptions(access, options)),
+    );
+    return Object.freeze({ changed: freshness.status === "unverifiable" ? null : freshness.status === "changed" });
+}
+
+/**
+ * Read a load again -- as many pages as it read -- and apply only the difference as one undoable
+ * step: what the source dropped goes (unless another load also supplied it), what it changed
+ * takes the new values, and what it added arrives. Nothing is dispatched when nothing differs.
+ * ponytail: the load's expansions are not fetched again, so what they brought stays as it is;
+ * re-run each expansion here if a refresh must also drop what an expansion's source dropped.
+ * @param host - the session pieces
+ * @param key - the load's key
+ * @param options - the credential and the endpoint
+ * @returns the counts
+ */
+export async function refreshSource(
+    host: SourceHost,
+    key: string,
+    options: SourceLoadOptions,
+): Promise<SourceRefreshReport> {
+    const record = requireLoad(host, key);
+    const config = currentParams(record);
+    const { write: _write, ...readOnly } = options;
+    const saved = record.options as Pick<SourceLoadOptions, "limits">;
+    const access = await accessFor(host, record.source, {
+        ...readOnly,
+        endpoint: options.endpoint ?? record.endpoint ?? undefined,
+    });
+    const read = await readPages(record, config, access, {
+        ...(saved.limits === undefined ? {} : { limits: saved.limits }),
+        ...readOnly,
+    });
+
+    const directed = host.directed();
+    const own = (row: Readonly<Record<string, unknown>> | undefined): boolean => sourceLoadsOf(row).includes(key);
+    const elsewhere = (row: Readonly<Record<string, unknown>> | undefined): boolean =>
+        sourceLoadsOf(row).some((k) => k !== key);
+    const nodes = host.nodeIds().flatMap((id) => {
+        const row = host.node(id);
+        return row !== undefined && own(row) ? [{ id, data: row }] : [];
+    });
+    const allEdges = host.edges();
+    const edges = allEdges
+        .filter((edge) => own(edge.record))
+        .map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, data: edge.record }));
+    const graphPairs = new Set(allEdges.map((edge) => pairKey(edge.source, edge.target, directed)));
+    const plan = planReplace({
+        nodes,
+        edges,
+        shared: {
+            nodes: new Set(nodes.filter((each) => elsewhere(each.data)).map((each) => each.id)),
+            edges: new Set(edges.filter((each) => elsewhere(each.data)).map((each) => each.id)),
+        },
+        graphPairs,
+        hasNode: (id) => host.node(id) !== undefined,
+        directed,
+        held: read.held,
+        paths: { nodeId: "id", source: "source", target: "target" },
+    });
+    const report: SourceRefreshReport = Object.freeze({
+        added: Object.freeze({ nodes: plan.nodes.added, edges: plan.edges.added }),
+        removed: Object.freeze({ nodes: plan.nodes.removed, edges: plan.edges.removed }),
+        updated: Object.freeze({ nodes: plan.nodes.changed, edges: plan.edges.changed }),
+    });
+
+    const counted: readonly SourceCounts[] = [report.added, report.removed, report.updated];
+    if (counted.some((counts) => counts.nodes + counts.edges > 0)) {
+        await host.dispatch(refreshBatch(host, record, config, read, plan, report));
+    }
+
+    host.ledger.refreshLoad(key, {
+        next: read.info?.next ?? null,
+        ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
+        credential: access.credential ?? null,
+        endpoint: access.endpoint,
+        ...totalOf(read, record.total),
+    });
+    return report;
+}
+
+/**
+ * Read as many pages of a load as it read before.
+ * @param record - the load
+ * @param config - its params, as the source takes them now
+ * @param access - the endpoint and the credential
+ * @param options - the read options
+ * @returns every page's rows together, and the last page's facts
+ */
+async function readPages(
+    record: SourceLoadRecord,
+    config: Readonly<Record<string, unknown>>,
+    access: Access,
+    options: SourceLoadOptions,
+): Promise<Read> {
+    let read = await readRows(record.source, config, access, options);
+    for (let page = 1; page < record.pages && read.info?.next; page++) {
+        const next = await readRows(record.source, config, access, { ...options, cursor: read.info.next });
+        // ponytail: a capped Cypher query's next page holds every earlier row again; the repeats
+        // match by id and pair and change nothing.
+        read = {
+            held: {
+                ...next.held,
+                nodes: [...read.held.nodes, ...next.held.nodes],
+                edges: [...read.held.edges, ...next.held.edges],
+            },
+            info: next.info,
+            issues: [...read.issues, ...next.issues],
+        };
+    }
+
+    return read;
+}
+
+/**
+ * The one step a refresh dispatches: the removals, the new values, and the new rows merged in
+ * under the load's key.
+ * @param host - the session pieces
+ * @param record - the load
+ * @param config - its params
+ * @param read - what the source holds now
+ * @param plan - what differs
+ * @param report - the counts
+ * @returns the batch
+ */
+function refreshBatch(
+    host: SourceHost,
+    record: SourceLoadRecord,
+    config: Readonly<Record<string, unknown>>,
+    read: Read,
+    plan: ReturnType<typeof planReplace>,
+    report: SourceRefreshReport,
+): SessionCommand {
+    const directed = host.directed();
+    const graphPairs = new Set(host.edges().map((edge) => pairKey(edge.source, edge.target, directed)));
+    const newNodes = read.held.nodes.filter((row) => host.node(row.id as NodeId) === undefined);
+    const newEdges = read.held.edges.filter(
+        (row) => !graphPairs.has(pairKey(String(row.source), String(row.target), directed)),
+    );
+    const update = (target: "node" | "edge", rows: readonly RowUpdate<NodeId | EdgeId>[]): SessionCommand[] =>
+        rows.length === 0 ? [] : [{ op: "data.apply", mutation: { kind: "update-rows", target, rows: [...rows] } }];
+    const steps: SessionCommand[] = [
+        ...(plan.removeEdges.length === 0
+            ? []
+            : [{ op: "data.apply", mutation: { kind: "remove-edges", ids: [...plan.removeEdges] } } as const]),
+        ...(plan.removeNodes.length === 0
+            ? []
+            : [{ op: "data.apply", mutation: { kind: "remove-nodes", ids: [...plan.removeNodes] } } as const]),
+        ...update("edge", plan.edgeRows),
+        ...update("node", plan.nodeRows),
+    ];
+    if (newNodes.length > 0 || newEdges.length > 0) {
+        // ponytail: the merge lists its rows in `data.sources()` as a load of their own, as `more` does.
+        steps.push(
+            importCommand(
+                host,
+                record.key,
+                { source: record.source, config },
+                { ...read, held: { ...read.held, nodes: newNodes, edges: newEdges } },
+                { mode: "merge" },
+            ),
+        );
+    }
+
+    const name = typeof record.config.name === "string" ? record.config.name : record.source;
+    return {
+        op: "batch",
+        label: `Refreshed ${name}`,
+        // A refresh is a replacement of the load by its newer copy, so it reports as one.
+        fact: {
+            code: "data.replace-source",
+            params: {
+                key: record.key,
+                name,
+                added: report.added.nodes + report.added.edges,
+                removed: report.removed.nodes + report.removed.edges,
+                changed: report.updated.nodes + report.updated.edges,
+            },
+        },
+        steps,
+    };
 }
 
 /**

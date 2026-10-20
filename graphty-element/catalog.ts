@@ -83,6 +83,7 @@ export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screens
 export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 

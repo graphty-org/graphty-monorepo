@@ -80,6 +80,11 @@ export interface SourceHost {
      */
     placement(id: NodeId): HostPlacement;
     /**
+     * Whether the graph's edges are directed.
+     * @returns true when they are
+     */
+    directed(): boolean;
+    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */

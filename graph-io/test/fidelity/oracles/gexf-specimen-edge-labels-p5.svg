@@ -176,7 +176,7 @@
               fill="none" stroke-linejoin="round" style="text-anchor: middle;"
               font-family="Dialog" class="id_label-entity" stroke="#ff8000"
               stroke-opacity="0.8" stroke-width="0.9375px">
-            a&amp; b&lt;c&gt;
+            a &amp; b &lt;c&gt;
         </text>
         <text stroke-linecap="round" font-size="10" x="1048.0" y="-678.2048"
               fill="none" stroke-linejoin="round" style="text-anchor: middle;"
@@ -212,7 +212,7 @@
         <text font-size="10" x="824.0" y="-678.2048" fill="#000000"
               style="text-anchor: middle;" font-family="Dialog"
               class="id_label-entity">
-            a&amp; b&lt;c&gt;
+            a &amp; b &lt;c&gt;
         </text>
         <text font-size="10" x="1048.0" y="-678.2048" fill="#000000"
               style="text-anchor: middle;" font-family="Dialog"

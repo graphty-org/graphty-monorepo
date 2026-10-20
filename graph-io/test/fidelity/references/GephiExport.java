@@ -116,7 +116,7 @@ public class GephiExport {
             first = false;
         }
         sb.append("\n},\n");
-        for (String type : new String[] {Item.NODE, Item.EDGE, Item.NODE_LABEL}) {
+        for (String type : new String[] {Item.NODE, Item.EDGE, Item.NODE_LABEL, Item.EDGE_LABEL}) {
             sb.append(q(type)).append(": [");
             first = true;
             for (Item it : m.getItems(type)) {
@@ -128,7 +128,7 @@ public class GephiExport {
                 }
                 Object src = it.getSource();
                 if (src instanceof Node n) sb.append(", \"_id\": ").append(q(n.getId()));
-                if (src instanceof Edge e) sb.append(", \"_src\": ").append(q(e.getSource().getId())).append(", \"_dst\": ").append(q(e.getTarget().getId()));
+                if (src instanceof Edge e) sb.append(", \"_edge\": ").append(q(e.getId() == null ? "" : e.getId().toString())).append(", \"_src\": ").append(q(e.getSource().getId())).append(", \"_dst\": ").append(q(e.getTarget().getId()));
                 sb.append("}");
                 first = false;
             }

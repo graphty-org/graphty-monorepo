@@ -20,7 +20,7 @@
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,6 +85,42 @@ const RUNS = [
         })),
 ];
 
+/**
+ * Gephi's labels as its Preview draws them. Gephi's SVG writer drops the whitespace before an entity reference in a
+ * text: the label "a & b <c>" is written "a&amp; b&lt;c&gt;", while the Preview, its PNG export and the preview items
+ * (NODE_LABEL and EDGE_LABEL "label") all keep "a & b <c>" (probe: tmp/style-specimens/fix-gexf-r2/ent). Each text in
+ * the label groups whose words match its item's label once the spaces are taken out is written as that label.
+ * @param {string} svg - Gephi's SVG
+ * @param {Record<string, Record<string, string>[]>} items - GephiExport.java's preview items
+ * @returns {{ svg: string, restored: number }} the SVG and how many texts were changed
+ */
+function restoreLabelText(svg, items) {
+    const esc = (t) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const labels = {
+        node: new Map((items.node_label ?? []).map((it) => [it._id, it.label])),
+        edge: new Map((items.edge_label ?? []).map((it) => [it._edge, it.label])),
+    };
+    let restored = 0;
+    const out = svg.replace(
+        /(<g id="(node|edge)-labels(?:-outline)?"[^>]*>)([\s\S]*?)(<\/g>)/g,
+        (_, open, kind, body, close) => {
+            const fixed = body.replace(
+                /(<text[^>]*class="id_([^"]*)"[^>]*>)(\s*)([^<]*?)(\s*<\/text>)/g,
+                (whole, tag, id, lead, text, tail) => {
+                    const label = labels[kind].get(id);
+                    if (typeof label !== "string") return whole;
+                    const want = esc(label.trim().replace(/\s+/g, " "));
+                    if (want === text || want.replace(/\s+/g, "") !== text.replace(/\s+/g, "")) return whole;
+                    restored++;
+                    return `${tag}${lead}${want}${tail}`;
+                },
+            );
+            return `${open}${fixed}${close}`;
+        },
+    );
+    return { svg: out, restored };
+}
+
 const wanted = new Set(process.argv.slice(2));
 const failed = [];
 const work = mkdtempSync(join(tmpdir(), "gephi-oracle-"));
@@ -123,8 +159,9 @@ try {
         const out = java.stdout;
         const [, nodes, edges] = /nodes=(\d+) edges=(\d+)/.exec(out) ?? [];
         if (!nodes) throw new Error(`${id}: GephiExport printed no counts: ${out}`);
-        copyFileSync(`${prefix}.svg`, join(oracles, `${id}.svg`));
-        const svg = readFileSync(`${prefix}.svg`, "utf8");
+        const items = JSON.parse(readFileSync(`${prefix}.items.json`, "utf8"));
+        const { svg, restored } = restoreLabelText(readFileSync(`${prefix}.svg`, "utf8"), items);
+        writeFileSync(join(oracles, `${id}.svg`), svg);
         const [, w, h] = /width="([\d.]+)"[\s\S]*?height="([\d.]+)"/.exec(svg) ?? [];
         const viewBox = /viewBox="([^"]+)"/.exec(svg)?.[1];
         const meta = {
@@ -159,7 +196,10 @@ try {
                 viewBox,
             },
             fonts: "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
-            svgPostprocessing: "none: the SVG is Gephi's output byte for byte",
+            svgPostprocessing:
+                restored === 0
+                    ? "none: the SVG is Gephi's output byte for byte"
+                    : `${restored} label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference ("a & b <c>" is written "a&amp; b&lt;c&gt;") where its Preview, its PNG export and its preview items keep it; nothing else changed`,
             date: new Date().toISOString().slice(0, 10),
             standIn: false,
             regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,

@@ -121,7 +121,7 @@
         <text font-size="22" x="1048.0" y="-729.85443" fill-opacity="1.0"
               fill="#000000" font-family="DejaVu Serif"
               style="text-anchor: middle;" class="id_label-entity">
-            a&amp; b&lt;c&gt;
+            a &amp; b &lt;c&gt;
         </text>
         <text font-size="22" x="152.0" y="-456.5244" fill-opacity="1.0"
               fill="#000000" font-family="DejaVu Serif"

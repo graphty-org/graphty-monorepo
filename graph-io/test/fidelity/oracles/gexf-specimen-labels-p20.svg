@@ -133,7 +133,7 @@
         <text font-size="11" x="1048.0" y="-733.5922" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_label-entity">
-            a&amp; b&lt;c&gt;
+            a &amp; b &lt;c&gt;
         </text>
         <rect x="134.10672" y="-471.00412" fill="none" width="35.78654"
               opacity="1.0" height="14.008237" stroke="#646464"

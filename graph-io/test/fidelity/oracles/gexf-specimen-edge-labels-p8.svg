@@ -174,7 +174,7 @@
         <text font-size="14" x="824.0" y="-676.82" fill="#000000"
               style="text-anchor: middle;" font-family="DejaVu Serif"
               font-style="italic" class="id_label-entity">
-            a&amp; b&lt;c&gt;
+            a &amp; b &lt;c&gt;
         </text>
         <text font-size="14" x="1048.0" y="-676.82" fill="#000000"
               style="text-anchor: middle;" font-family="DejaVu Serif"

@@ -350,12 +350,17 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(border("node", "borderColor")).toEqual(["#ff0000", "#0000ff", "#c0c0c0"]);
         // Gephi strokes the border inside the node's size (a circle of radius size - border / 2)
         expect(border("node", "borderPosition")).toEqual(["inside", "inside", "inside"]);
-        // a node drawn less than opaque has no border at all
+        // a node drawn less than opaque keeps its border, at the node's alpha (gexf-specimen-node-sizes-opacity-p2,
+        // -p3: a fill of radius 0.84 s and a separate ring out to s, both at that alpha)
         const perNode = await loadWith({ "node.per.node.opacity": "true" });
         expect(perNode("node", "fillOpacity")[0]).toBeCloseTo(0.5, 2);
-        expect(perNode("node", "borderWidth")).toEqual([0, 1.6, 1.6]);
+        expect(perNode("node", "borderWidth")).toEqual([4, 1.6, 1.6]);
+        expect(perNode("node", "borderOpacity")[0]).toBeCloseTo(0.5, 2);
+        expect(perNode("node", "borderOpacity").slice(1)).toEqual([null, null]);
         const faded = await loadWith({ "node.opacity": "40.0" });
         expect(faded("node", "fillOpacity")).toEqual([0.4, 0.4, 0.4]);
+        expect(faded("node", "borderWidth")).toEqual([4, 1.6, 1.6]);
+        expect(faded("node", "borderOpacity")).toEqual([0.4, 0.4, 0.4]);
         const labels = await loadWith({
             "node.label.proportinalSize": "false",
             "node.label.color": "parent",

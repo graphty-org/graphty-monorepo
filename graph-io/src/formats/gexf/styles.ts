@@ -653,16 +653,13 @@ function nodeRules(
     preview: GephiPreview,
 ): number[] {
     const nodeIndices = Array.from({ length: snapshot.nodeCount }, (_, i) => i);
-    // a node's alpha is drawn only under node.per.node.opacity, times node.opacity; a node not opaque has no border
+    // a node's alpha is drawn only under node.per.node.opacity, times node.opacity, on its fill and its border alike:
+    // a node not opaque is a fill of radius 0.84 s and a separate ring out to s, both at that alpha
     const perNode = preview.on("node.per.node.opacity");
     const alpha = channels.map((c) => ((perNode ? c[3] : 255) / 255) * (preview.num("node.opacity") / 100));
-    perElementDefault(
-        node,
-        "node",
-        ["fillOpacity", "preview-opacity"],
-        alpha.map((a) => (a < 1 ? a : null)),
-        "NODE_OPACITY",
-    );
+    const translucent = alpha.map((a) => (a < 1 ? a : null));
+    perElementDefault(node, "node", ["fillOpacity", "preview-opacity"], translucent, "NODE_OPACITY");
+    perElementDefault(node, "node", ["borderOpacity", "preview-border-opacity"], translucent, "NODE_OPACITY");
     // NodeRenderer: the border is DependantColor DARKER by default, half of each channel (+-1 from Gephi's float math)
     const borderMode = preview.text("node.border.color");
     perElementDefault(
@@ -681,9 +678,6 @@ function nodeRules(
         "node",
         ["borderWidth", "size-border"],
         nodeIndices.map((i) => {
-            if (alpha[i] < 1) {
-                return 0;
-            }
             // a fixed border is no wider than the node's size (radius): a size-3 node takes a border of 4 as 3
             return fixed === null ? 0.08 * nodeWidth(nodes, i) : Math.min(fixed, nodeWidth(nodes, i) / 2);
         }),

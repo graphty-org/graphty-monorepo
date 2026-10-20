@@ -265,7 +265,8 @@
             "height": 20,
             "shape": "ellipse",
             "borderPosition": "inside",
-            "labelPosition": "center"
+            "labelPosition": "center",
+            "labelOnTop": true
         },
         "edge": {
             "sourceArrow": "none",

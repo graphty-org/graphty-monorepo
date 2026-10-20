@@ -597,6 +597,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
                     ),
+                    // a node drawn under another still shows its label (gexf-cns-wos n5 under n109: "Borner, K")
+                    labelOnTop: v(
+                        true,
+                        `${GEPHI} PreviewController (the node label items are drawn after every node); Gephi Toolkit 0.11.3 SVG export: g#node-labels after g#nodes`,
+                    ),
                 },
                 edge: {
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),

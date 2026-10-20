@@ -100,6 +100,19 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.deepEqual(head.points.at(-1), [100, 0]);
     });
 
+    it("ends a line at the back of an open half circle, not at the mouth the scene reports", () => {
+        // Cytoscape's OPEN_HALF_CIRCLE: an arc bulging back along the line from x 95 to its mouth at the line's end
+        const arc = Array.from({ length: 9 }, (_v, k): [number, number] => [
+            100 - 5 * Math.sin((k * Math.PI) / 8),
+            -5 * Math.cos((k * Math.PI) / 8),
+        ]);
+        const open = graphOf([cap({ name: "arrow-2d-open-half-circle", outline: arc })]).edges[0];
+        assert.closeTo(open.points.at(-1)?.[0] ?? 0, 95, 1e-9);
+        // the filled one is carried through to its tip, as the oracle's is
+        const filled = graphOf([cap({ name: "arrow-2d-half-circle", outline: arc })]).edges[0];
+        assert.closeTo(filled.points.at(-1)?.[0] ?? 0, 100, 1e-9);
+    });
+
     it("reads vis-network's curve cap, a stroked arc, as a hollow half circle", () => {
         const [arrow] = graphOf([cap({ name: "arrow-2d-curve" })]).edges[0].arrows;
         assert.deepEqual([arrow.shape, arrow.filled], ["half-circle", false]);

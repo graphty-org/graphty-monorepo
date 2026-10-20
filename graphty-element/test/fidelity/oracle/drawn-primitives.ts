@@ -192,6 +192,36 @@ const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 const STROKED_NAMES: readonly string[] = ["curve"];
 
 /**
+ * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.
+ * @param path - the edge's path, source end first, ending at the cap's mouth
+ * @param outline - the arc's points
+ * @param end - which end it caps
+ * @returns the path, its end moved back along its last segment
+ */
+function backToArc(
+    path: readonly [number, number][],
+    outline: readonly [number, number][],
+    end: "source" | "target",
+): [number, number][] {
+    const pts = end === "target" ? [...path] : [...path].reverse();
+    const last = pts.at(-1);
+    const back = pts.at(-2);
+    if (last === undefined || back === undefined || outline.length === 0) {
+        return [...path];
+    }
+    const len = Math.hypot(last[0] - back[0], last[1] - back[1]);
+    if (len < 1e-9) {
+        return [...path];
+    }
+    const [dx, dy] = [(last[0] - back[0]) / len, (last[1] - back[1]) / len];
+    const reach = Math.min(...outline.map((q) => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy));
+    if (reach < 0 && -reach < len) {
+        pts[pts.length - 1] = [last[0] + dx * reach, last[1] + dy * reach];
+    }
+    return end === "target" ? pts : pts.reverse();
+}
+
+/**
  * A cap's shape class by its mesh's name (`arrow-2d-open-normal`, `sphere-dot-arrow-3d`): the longest cap type the name
  * holds, so "open-normal" is not read as "normal".
  * @param name - the cap's mesh name
@@ -397,13 +427,18 @@ export function drawnPrimitives(
                     : measureArrow(c.outline, d.points, end, look);
             });
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
-        // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip)
+        // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
+        // an open half circle, a stroke the line meets at its back: the line ends there, where the oracle's reader ends
+        // it too (associate.ts, "a small open stroke at an edge's end"), not at the cap's mouth the scene reports
         let { points } = e;
         for (const c of d.caps) {
             const end = CAP_END[c.end];
-            if (end !== "middle" && c.outline !== null && c.opacity > 0 && c.sizePx > 0) {
-                points = extendToTip(points, c.outline, end);
+            if (end === "middle" || c.outline === null || c.opacity <= 0 || c.sizePx <= 0) {
+                continue;
             }
+            // an open half circle's mouth faces the node (Cytoscape's OPEN_HALF_CIRCLE); a curve straddles the line's end
+            const openArc = c.name.includes("open-half-circle");
+            points = openArc ? backToArc(points, c.outline, end) : extendToTip(points, c.outline, end);
         }
         const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or

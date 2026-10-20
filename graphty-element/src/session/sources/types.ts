@@ -13,7 +13,7 @@ import type {
     SourceValidators,
 } from "@graphty/graph-io";
 
-import type { AttributeDescriptor, NodeId } from "../../catalog/types";
+import type { AttributeDescriptor, NodeId, SourceKey } from "../../catalog/types";
 import type { CodedFact } from "../shared";
 import type { LoadChoices } from "../types";
 
@@ -182,8 +182,14 @@ export interface SourceCounts {
  * What `data.previewSource` read: a few rows of a source, loading nothing. Experimental.
  */
 export interface SourcePreview {
-    /** At most `maxNodes` node rows, as a load would hold them. */
+    /** At most `maxNodes` node rows, as a load would hold them, without the `_source.` facts. */
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    /**
+     * Each of `nodes`, in order, as its id and its label: the first text value of `label`, `name`,
+     * `title` or `display_name`, else null.
+     * @since 3.30.0
+     */
+    readonly rows: readonly SourcePreviewRow[];
     /** The edge rows between those nodes. */
     readonly edges: readonly Readonly<Record<string, unknown>>[];
     /** The columns of those rows, node columns first, described as `data.attributes()` describes them. */
@@ -192,8 +198,23 @@ export interface SourcePreview {
     readonly more: boolean;
     /** Facts about the server (`{ product: "Neo4j", version: "5.24" }`); empty when it gave none. */
     readonly facts: Readonly<Record<string, string>>;
+    /**
+     * The same facts as codes, one per fact: `source.product`, `source.version`, `source.readOnly`
+     * (`value` `"enforced"` or `"not-enforced"`), `source.profile` and any other the source gives,
+     * each with its `value`.
+     * @since 3.30.0
+     */
+    readonly serverFacts: readonly CodedFact[];
     /** What the read reported: graph-io's issue codes (`W_SOURCE_LIMIT`, ...) and their params. */
     readonly issues: readonly CodedFact[];
+}
+
+/** One row of a source preview: the node's id and its label. Experimental. */
+export interface SourcePreviewRow {
+    /** The node's id. */
+    readonly id: NodeId;
+    /** Its label, or null when the row has none. */
+    readonly label: string | null;
 }
 
 /** The options of `data.previewSource`. Experimental. */
@@ -222,6 +243,12 @@ export interface SourceRefreshReport {
     readonly removed: SourceCounts;
     /** What the source now says differently. */
     readonly updated: SourceCounts;
+    /**
+     * `I_SOURCE_REFRESHED` when anything differed, `I_SOURCE_UNCHANGED` when nothing did; its
+     * params are `added`, `removed` and `updated`, each a `[nodes, edges]` pair.
+     * @since 3.30.0
+     */
+    readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
 }
 
 /** What a source can do beyond one load, for a form to offer or leave out. Experimental. */
@@ -248,6 +275,28 @@ export interface CollapseResult {
     readonly removedEdges: number;
     /** Facts about what was kept: `W_COLLAPSE_KEPT` with `{ ids, reason }`. */
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
+}
+
+/**
+ * What `data.expand` did, one fact for the whole call: `I_SOURCE_EXPANDED` when it brought
+ * something, `I_SOURCE_NOTHING_NEW` when every neighbor the source returned was there already.
+ * Its params: `seeds`, `added` as `[nodes, edges]`, and `partial`, true while a capped expansion
+ * has more. Experimental.
+ */
+export type SourceExpandResult = CodedFact<"I_SOURCE_EXPANDED" | "I_SOURCE_NOTHING_NEW">;
+
+/** Where a node came from, as `data.nodeSource(id)` reads it. Experimental. */
+export interface NodeSource {
+    /** The load that brought it, a key from `data.loads()`. */
+    readonly loadKey: string;
+    /** The `data.sources()` entry that lists it, or null when none does. */
+    readonly source: SourceKey | null;
+    /** Whether its source can fetch its neighbors and the node has some it has not fetched. */
+    readonly canExpand: boolean;
+    /** How many neighbors the source holds that the graph does not, or null when unknown. */
+    readonly hiddenNeighbors: number | null;
+    /** Whether the node has been expanded, so `data.collapse` has something to take back. */
+    readonly expanded: boolean;
 }
 
 /** What `source:expand-start` carries. Experimental. */

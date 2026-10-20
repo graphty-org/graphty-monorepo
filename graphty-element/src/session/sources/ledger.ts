@@ -148,8 +148,16 @@ export class SourceLedger {
             ...(facts.total === undefined ? {} : { total: facts.total }),
             ...(facts.expand === undefined ? {} : { expand: plain(facts.expand) }),
         };
-        this.records.push(record);
+        this.records = [...this.records, record];
         return record;
+    }
+
+    /**
+     * What changes whenever a record does: a value to key a memo with.
+     * @returns an object that is the same until a record changes
+     */
+    version(): object {
+        return this.records;
     }
 
     /**

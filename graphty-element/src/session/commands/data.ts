@@ -171,6 +171,8 @@ export interface DataImportCommand {
     readonly origin?: LoadedSourceKind;
     /** For a joined table: the load it was joined onto. */
     readonly joinedOnto?: SourceKey;
+    /** The load's key, in place of the next one: a load's next page or refresh adds to its own entry. */
+    readonly key?: SourceKey;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */

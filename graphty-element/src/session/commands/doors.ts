@@ -1757,6 +1757,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             checkSource: READ,
             refresh: SOURCE_REFRESH,
             loads: READ,
+            nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,
             collapse: SOURCE_EXPANSION,
@@ -1776,12 +1777,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return () => Promise.resolve();
                     },
                 },
-                // the next page's rows carry the key of the load they continue, so an expansion finds it
+                // the next page's rows carry the key of the load they continue, so an expansion finds it,
+                // and count under that load's own sources() entry
                 expect: [
                     sourceImport(
                         "merge",
                         ["door-s1"],
-                        {},
+                        { key: "s1" },
                         {
                             nodes: [{ id: "door-s1", "_source.expansion": "none", "_source.loads": ["load-1"] }],
                             repeated: "first",

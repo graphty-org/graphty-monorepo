@@ -77,11 +77,14 @@ import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
     SourceCheck,
     SourceExpanded,
     SourceExpandFailed,
+    SourceExpandResult,
     SourceExpandStart,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
@@ -1129,9 +1132,24 @@ export interface SessionDataApi {
      * undoable step. A node not loaded from a source rejects with `E_SOURCE_UNSUPPORTED`. Experimental.
      * @param ids - The seed nodes.
      * @param options - Depth, direction, limit and the credential.
-     * @returns Settles once the neighborhood is in the graph.
+     * @returns `I_SOURCE_EXPANDED` with `{ seeds, added: [nodes, edges], partial }` when it
+     *     brought something, `I_SOURCE_NOTHING_NEW` with the same params when it brought nothing.
      */
-    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<void>;
+    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<SourceExpandResult>;
+    /**
+     * Where a node came from, when a network source's load brought it: the load and its
+     * `sources()` entry, whether expanding it can fetch more, how many neighbors the source holds
+     * that the graph does not, and whether it has been expanded (so `collapse` applies).
+     * Experimental.
+     *
+     * ```ts
+     * const from = session.data.nodeSource("ana");
+     * if (from?.canExpand) await session.data.expand(["ana"]);
+     * ```
+     * @param id - The node.
+     * @returns The facts, or null for a node no network source brought or the graph lacks.
+     */
+    nodeSource(id: NodeId): NodeSource | null;
     /**
      * Remove what a node's expansions alone brought, as one undoable step. Experimental.
      * @param id - The node.
@@ -1563,6 +1581,24 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
+     * `data.refresh` and `data.checkSource` take.
+     * @since 3.30.0
+     */
+    readonly loadKey?: string;
+    /**
+     * For a network source's load: what it can do now. `more` is true while the load stopped at a
+     * cap and its source pages; `expand` and `refresh` are what its source can do.
+     * @since 3.30.0
+     */
+    readonly features?: SourceFeatures;
+    /**
+     * For a network source's load: how many nodes the source holds for it, when the source says
+     * or a complete read counted them, so a consumer can show what is loaded of the total.
+     * @since 3.30.0
+     */
+    readonly total?: number;
 }
 
 /** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
@@ -1862,6 +1898,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
  * | `data.remove-source` | `key`: the load's key; `name`: its name, or null |
+ * | `data.replace-source` | `key`; `name`: the copy's name, or null; `added`, `removed`, `changed`: nodes and edges together |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -1920,6 +1957,7 @@ export type HistoryCode =
     | "data.declare"
     | "data.set-source"
     | "data.remove-source"
+    | "data.replace-source"
     | "data.label"
     | "data.set-file-styles"
     | "style.add-layer"

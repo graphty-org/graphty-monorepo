@@ -86,6 +86,27 @@ describe("session.data.expand from a network source", () => {
         assert.lengthOf(session.data.loads()[0]?.expansions ?? [], 1);
     });
 
+    it("returns what each expansion brought, and nodeSource says what a node can do", async () => {
+        const session = await seeded();
+        const fresh = session.data.nodeSource("valjean");
+        assert.strictEqual(fresh?.loadKey, "load-1");
+        assert.isFalse(fresh?.expanded, "nothing to collapse before an expansion");
+
+        const first = await session.data.expand(["valjean"]);
+        assert.deepEqual(first, {
+            code: "I_SOURCE_EXPANDED",
+            params: { seeds: ["valjean"], added: [4, 4], partial: true },
+        });
+        assert.deepInclude(session.data.nodeSource("valjean"), { expanded: true, hiddenNeighbors: 2 });
+        assert.isNull(session.data.nodeSource("nobody"));
+
+        await session.data.expand(["valjean"]);
+        const again = await session.data.expand(["valjean"]);
+        assert.strictEqual(again.code, "I_SOURCE_NOTHING_NEW");
+        assert.deepEqual(again.params.added, [0, 0]);
+        assert.isFalse(session.data.nodeSource("valjean")?.canExpand, "complete: nothing more to fetch");
+    });
+
     it("expands a node that session.data.import loaded from the source", async () => {
         const session = createGraphSession();
         sessions.push(session);

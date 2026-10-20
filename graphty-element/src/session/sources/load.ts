@@ -21,7 +21,7 @@ import {
     type SourceReportInfo,
 } from "@graphty/graph-io";
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
 import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
@@ -37,7 +37,7 @@ import { resolve } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
-import { SOURCE_ATTR, sourceLoadsOf } from "./ids";
+import { isSourceFactKey, SOURCE_ATTR, sourceLoadsOf } from "./ids";
 import type {
     PendingSourceLoad,
     SourceCheck,
@@ -216,6 +216,18 @@ function dispatchRows(
 }
 
 /**
+ * The choices of a merge that adds to a load the graph lists already (a next page, a refresh, a
+ * waiting load run again), so its rows count under that load's `data.sources()` entry.
+ * @param host - the session pieces
+ * @param load - the load's key
+ * @returns the entry's key, when the graph lists one for the load
+ */
+function sameEntry(host: SourceHost, load: string): { sourceKey?: SourceKey } {
+    const sourceKey = host.sourceKeyOf(load);
+    return sourceKey === undefined ? {} : { sourceKey };
+}
+
+/**
  * The step that loads a read's rows, each stamped with the load that brought it.
  * @param host - the session pieces
  * @param key - the key of the load the rows belong to
@@ -229,7 +241,7 @@ function importCommand(
     key: string,
     input: SourceInput,
     read: Read,
-    options: SourceLoadOptions,
+    options: SourceLoadOptions & { readonly sourceKey?: SourceKey },
 ): DataImportSourceCommand {
     // Every row names the load that brought it, so expand, collapse and refresh can find its source.
     // ponytail: a merge that keeps or replaces an existing row's `_source.loads` does not union the
@@ -264,6 +276,7 @@ function importCommand(
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
+        ...(options.sourceKey === undefined ? {} : { key: options.sourceKey }),
     };
     return command;
 }
@@ -363,12 +376,16 @@ export function loadSample(host: SourceHost, id: string, options: SourceLoadOpti
 
     const { source, sample } = found;
     const login = sample.publicLogin;
+    // A sample too big to load whole starts with the first page its descriptor names; `more` reads on.
+    const firstPage =
+        sample.firstPage === undefined ? {} : { limits: { maxNodes: sample.firstPage, onLimit: "stop" as const } };
     return importSource(
         host,
         { source, config: sample.params, name: sample.plainName },
         {
             ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }),
             ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
+            ...firstPage,
             ...options,
         },
         sample.counts?.nodes,
@@ -436,10 +453,13 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         ...rest,
         cursor: record.next,
     });
-    await dispatchRows(host, record.key, { source: record.source, config: record.config }, read, {
-        ...rest,
-        mode: "merge",
-    });
+    await host.dispatch(
+        importCommand(host, record.key, { source: record.source, config: record.config }, read, {
+            ...rest,
+            mode: "merge",
+            ...sameEntry(host, record.key),
+        }),
+    );
     host.ledger.refreshLoad(record.key, {
         pages: 1,
         next: read.info?.next ?? null,
@@ -495,17 +515,53 @@ export async function previewSource(
         ...rest,
         limits: { ...rest.limits, maxNodes, onLimit: "stop" },
     });
-    const nodes = read.held.nodes.slice(0, maxNodes);
+    // The `_source.` facts are the element's bookkeeping, not the source's data.
+    const nodes = read.held.nodes.slice(0, maxNodes).map(withoutSourceFacts);
     const kept = new Set(nodes.map((row) => String(row.id)));
-    const edges = read.held.edges.filter((row) => kept.has(String(row.source)) && kept.has(String(row.target)));
+    const edges = read.held.edges
+        .filter((row) => kept.has(String(row.source)) && kept.has(String(row.target)))
+        .map(withoutSourceFacts);
+    const facts = { ...read.info?.server };
     return Object.freeze({
         nodes: Object.freeze(nodes),
+        rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, label: labelOf(row) }))),
         edges: Object.freeze(edges),
         columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
         more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,
-        facts: Object.freeze({ ...read.info?.server }),
+        facts: Object.freeze(facts),
+        serverFacts: Object.freeze(
+            Object.entries(facts).map(([name, value]) => Object.freeze({ code: `source.${name}`, params: { value } })),
+        ),
         issues: Object.freeze(read.issues),
     });
+}
+
+/**
+ * A row without the element's `_source.` facts.
+ * @param row - the row
+ * @returns a copy without them
+ */
+function withoutSourceFacts(row: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+    return Object.freeze(Object.fromEntries(Object.entries(row).filter(([name]) => !isSourceFactKey(name))));
+}
+
+/** The columns a preview row's label is read from, first match wins. */
+const LABEL_COLUMNS = ["label", "name", "title", "display_name"];
+
+/**
+ * A row's label: its first text value among {@link LABEL_COLUMNS}.
+ * @param row - the row
+ * @returns the label, or null
+ */
+function labelOf(row: Readonly<Record<string, unknown>>): string | null {
+    for (const name of LABEL_COLUMNS) {
+        const value = row[name];
+        if (typeof value === "string" && value.trim() !== "") {
+            return value;
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -587,14 +643,23 @@ export async function refreshSource(
         held: read.held,
         paths: { nodeId: "id", source: "source", target: "target" },
     });
+    const added = Object.freeze({ nodes: plan.nodes.added, edges: plan.edges.added });
+    const removed = Object.freeze({ nodes: plan.nodes.removed, edges: plan.edges.removed });
+    const updated = Object.freeze({ nodes: plan.nodes.changed, edges: plan.edges.changed });
+    const counted: readonly SourceCounts[] = [added, removed, updated];
+    const changed = counted.some((counts) => counts.nodes + counts.edges > 0);
+    const pair = (counts: SourceCounts): number[] => [counts.nodes, counts.edges];
     const report: SourceRefreshReport = Object.freeze({
-        added: Object.freeze({ nodes: plan.nodes.added, edges: plan.edges.added }),
-        removed: Object.freeze({ nodes: plan.nodes.removed, edges: plan.edges.removed }),
-        updated: Object.freeze({ nodes: plan.nodes.changed, edges: plan.edges.changed }),
+        added,
+        removed,
+        updated,
+        fact: Object.freeze({
+            code: changed ? ("I_SOURCE_REFRESHED" as const) : ("I_SOURCE_UNCHANGED" as const),
+            params: { added: pair(added), removed: pair(removed), updated: pair(updated) },
+        }),
     });
 
-    const counted: readonly SourceCounts[] = [report.added, report.removed, report.updated];
-    if (counted.some((counts) => counts.nodes + counts.edges > 0)) {
+    if (changed) {
         await host.dispatch(refreshBatch(host, record, config, read, plan, report));
     }
 
@@ -679,14 +744,13 @@ function refreshBatch(
         ...update("node", plan.nodeRows),
     ];
     if (newNodes.length > 0 || newEdges.length > 0) {
-        // ponytail: the merge lists its rows in `data.sources()` as a load of their own, as `more` does.
         steps.push(
             importCommand(
                 host,
                 record.key,
                 { source: record.source, config },
                 { ...read, held: { ...read.held, nodes: newNodes, edges: newEdges } },
-                { mode: "merge" },
+                { mode: "merge", ...sameEntry(host, record.key) },
             ),
         );
     }
@@ -809,11 +873,14 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
     });
-    await dispatchRows(host, record.key, { source: record.source, config }, read, {
-        ...readOnly,
-        mode: "merge",
-        existing: "update",
-    });
+    await host.dispatch(
+        importCommand(host, record.key, { source: record.source, config }, read, {
+            ...readOnly,
+            mode: "merge",
+            existing: "update",
+            ...sameEntry(host, record.key),
+        }),
+    );
     host.pending.delete(id);
     host.ledger.refreshLoad(id, {
         next: read.info?.next ?? null,

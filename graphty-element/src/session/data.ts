@@ -23,6 +23,7 @@ import {
 import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
+import { sourceDescriptors } from "../catalog/sources";
 import type {
     AttributeDescriptor,
     AttributeRole,
@@ -80,15 +81,18 @@ import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
+import { isSourceFactKey, SOURCE_RECORD_VERSION, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource } from "./sources/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
     SourceCheck,
+    SourceExpandResult,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
@@ -457,6 +461,7 @@ export class SessionData implements SessionDataApi {
         readonly stored: readonly LoadedSource[];
         readonly provenance: Provenance | undefined;
         readonly snapshot: GraphSnapshot;
+        readonly ledger: object;
         readonly result: readonly LoadedSource[];
     } | null = null;
     /** The loads whose rows carry each column, and what they were read from. */
@@ -756,11 +761,40 @@ export class SessionData implements SessionDataApi {
      * Fetch the neighborhood of nodes from the source that loaded them, as one undoable step.
      * @param ids - The seeds.
      * @param options - Depth, direction, limit and the credential.
-     * @returns Settles once the neighborhood is in the graph.
+     * @returns What it brought, as a coded fact.
      */
-    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
+    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
         return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+    }
+
+    /**
+     * Where a node came from, when a network source's load brought it.
+     * @param id - The node.
+     * @returns Its load, entry, whether it can expand or collapse, and its hidden neighbors; null
+     *     for a node no network source brought, or one the graph does not hold.
+     */
+    nodeSource(id: NodeId): NodeSource | null {
+        this.requireLive("nodeSource");
+        const record = this.node(id);
+        const load = this.ledger.loadOf(sourceLoadsOf(record));
+        if (record === undefined || load === undefined) {
+            return null;
+        }
+
+        const facts = sourceFactsOf(record);
+        const hidden = typeof facts.hidden === "number" ? facts.hidden : null;
+        const expanded = facts.expansion === "partial" || facts.expansion === "complete";
+        const canFetch = sourceDescriptors().find((entry) => entry.id === load.source)?.features.expand === true;
+        return Object.freeze({
+            loadKey: load.key,
+            source: this.sources().find((each) => each.loadKey === load.key)?.key ?? null,
+            // A node is worth expanding until an expansion found all of it, or the source says
+            // every neighbor is already here.
+            canExpand: canFetch && facts.expansion !== "complete" && hidden !== 0,
+            hiddenNeighbors: hidden,
+            expanded,
+        });
     }
 
     /**
@@ -912,6 +946,7 @@ export class SessionData implements SessionDataApi {
             owner: this,
             expansions: this.expansions,
             loads: () => this.loads(),
+            sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             node: (id) => this.node(id),
             nodeIds: () => [...this.current().ids],
             edges: () => {
@@ -1693,9 +1728,18 @@ export class SessionData implements SessionDataApi {
         const provenance = this.provenance();
         const snapshot = this.current();
         const memo = this.sourcesMemo;
-        if (memo?.stored === stored && memo.provenance === provenance && memo.snapshot === snapshot) {
+        const ledger = this.ledger.version();
+        if (
+            memo?.stored === stored &&
+            memo.provenance === provenance &&
+            memo.snapshot === snapshot &&
+            memo.ledger === ledger
+        ) {
             return memo.result;
         }
+
+        const records = new Map(this.ledger.loads().map((record) => [record.key, record]));
+        const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
         const space = edgeSpaceOf(snapshot);
         // An entry saved before loads had keys gets one by its place in the list.
@@ -1703,10 +1747,14 @@ export class SessionData implements SessionDataApi {
             stored.map((each, at) => {
                 const key = (each as Partial<LoadedSource>).key ?? `s${String(at + 1)}`;
                 const supplied = provenance?.[key];
+                const kind = (each as Partial<LoadedSource>).kind ?? "file";
+                const loadKey = kind === "server" ? this.networkLoadOf(supplied?.nodes ?? []) : undefined;
                 return Object.freeze({
                     ...each,
                     key,
-                    kind: (each as Partial<LoadedSource>).kind ?? "file",
+                    kind,
+                    ...(loadKey === undefined ? {} : { loadKey }),
+                    ...loadFacts(records.get(loadKey ?? ""), catalog),
                     counts: Object.freeze(
                         supplied === undefined
                             ? { ...each.added }
@@ -1718,7 +1766,7 @@ export class SessionData implements SessionDataApi {
                 });
             }),
         );
-        this.sourcesMemo = { stored, provenance, snapshot, result };
+        this.sourcesMemo = { stored, provenance, snapshot, ledger, result };
         return result;
     }
 
@@ -1805,6 +1853,27 @@ export class SessionData implements SessionDataApi {
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
         });
+    }
+
+    /**
+     * The network load a load's nodes came from: the first load key a node it supplied carries.
+     * @param nodes - The nodes the load supplied.
+     * @returns The key in `loads()`, or undefined when none of them is in the graph.
+     */
+    private networkLoadOf(nodes: readonly NodeId[]): string | undefined {
+        const snapshot = this.current();
+        for (const id of nodes) {
+            const index = snapshot.ids.indexOf(id);
+            if (index !== INVALID_INDEX) {
+                // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
+                const [first] = sourceLoadsOf(this.records?.nodeAttributes(index, id));
+                if (first !== undefined) {
+                    return first.split("/")[0];
+                }
+            }
+        }
+
+        return undefined;
     }
 
     /**
@@ -1977,7 +2046,10 @@ export class SessionData implements SessionDataApi {
         // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
         // snapshot alone, an edited value never reached the descriptors.
         const snapshot = this.current();
-        const described = this.attributeCache.get("", () => describeAttributes(snapshot, this.records));
+        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
+        const described = this.attributeCache.get("", () =>
+            Object.freeze(describeAttributes(snapshot, this.records).filter((each) => !isSourceFactKey(each.name))),
+        );
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
         const uses = this.columnUses(described);
@@ -2600,4 +2672,29 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * What a network load can do now and how big its source says it is, for its `sources()` entry.
+ * @param record - the load's record, when the entry has one
+ * @param catalog - each source's features, by source id
+ * @returns `{ features, total }`, or nothing for an entry that is no network load
+ */
+function loadFacts(
+    record: SourceLoadRecord | undefined,
+    catalog: ReadonlyMap<string, SourceFeatures>,
+): Pick<LoadedSource, "features" | "total"> {
+    if (record === undefined) {
+        return {};
+    }
+
+    const declared = catalog.get(record.source);
+    return {
+        features: Object.freeze({
+            expand: declared?.expand === true,
+            more: declared?.more === true && record.next !== null,
+            refresh: declared?.refresh === true,
+        }),
+        ...(record.total === undefined ? {} : { total: record.total }),
+    };
 }

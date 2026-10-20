@@ -33,6 +33,8 @@ const GEPHI_PREVIEW: Readonly<Record<string, string>> = Object.freeze({
     "node.label.color": "#000000",
     "node.label.shorten": "false",
     "node.label.avoidOverlap": "true",
+    "node.label.overlapGridSize": "10",
+    "node.label.scale": "1.0",
     "node.label.max-char": "30",
     "node.label.outline.size": "0.0",
     "node.label.outline.color": "#ffffff",

@@ -29,6 +29,7 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { DIALOG_LINE_HEIGHT, dialogWidth } from "./dialog-metrics.js";
 import { dependantColor, drawnLabels, edgeThickness, type GephiFont, GephiPreview } from "./preview.js";
 import { NODE_COLUMNS, TEMPORAL_COLUMNS, temporalTableName, VIZ_NAMESPACE } from "./schema.js";
 
@@ -564,6 +565,8 @@ export interface GephiDrawing {
     };
     /** Each edge's label, drawn under `edge.label.show`. */
     readonly edgeLabels?: readonly (StyleValue | null)[];
+    /** Whether the node labels Gephi's overlap avoidance hides are already left out (gephiOverlapHidden()). */
+    readonly overlapSettled?: boolean;
 }
 
 /**
@@ -617,7 +620,7 @@ export function gephiRules(
     );
     const labelSizes = nodeRules(node, snapshot, channels, nodes, preview);
     edgeRules(edge, snapshot, channels, nodes, edges, gexf, preview);
-    nodeLabelRules(node, channels, labelSizes, preview);
+    nodeLabelRules(node, channels, labelSizes, preview, gexf?.overlapSettled === true);
     labelBox(node, channels, nodes, preview);
     return { node, edge };
 }
@@ -702,12 +705,14 @@ function nodeRules(
  * @param channels - each node's color channels
  * @param sizes - each node's label size
  * @param preview - the settings
+ * @param settled - whether the labels overlap avoidance hides are already left out
  */
 function nodeLabelRules(
     node: GephiTargetRules,
     channels: readonly number[][],
     sizes: readonly number[],
     preview: GephiPreview,
+    settled: boolean,
 ): void {
     const color = preview.text("node.label.color");
     if (color !== "#000000" && color !== "original") {
@@ -726,7 +731,7 @@ function nodeLabelRules(
     // first (DefaultPreset node.label.avoidOverlap true, overlapGridSize 10; NodeLabelRenderer.preProcess); avoiding
     // overlap, larger first, is that test without the grid's rounding. A rule only while it is on: graphty-element
     // has no value that turns a lower rule's overlap avoidance off again.
-    if (preview.on("node.label.avoidOverlap")) {
+    if (preview.on("node.label.avoidOverlap") && !settled) {
         node.columns.set(
             AVOID_OVERLAP_KEY,
             sizes.map(() => true),
@@ -851,6 +856,85 @@ function labelOutline(
     everyElement(out, target, "preview-outline", {
         labelOutlineOpacity: gephiAlpha(preview.num(`${target}.label.outline.opacity`)),
     });
+}
+
+/**
+ * The node labels Gephi's label overlap avoidance hides (`node.label.avoidOverlap`, Gephi 0.11
+ * NodeLabelRenderer.preProcess): largest font first, each label's box -- its Dialog advance width by its line height,
+ * centered on its node -- marks the cells of a `node.label.overlapGridSize` grid over the nodes' bounds, and a label
+ * any of whose cells an earlier one marked is hidden. A label's font size is 12 x 0.05 x its node's size (proportional
+ * size) or the font's, measured in the float size of the last label of the same whole size (Gephi's font cache),
+ * its labels taken largest node first.
+ * Decided where every node has a stored position; elsewhere graphty-element lays the graph out, so null.
+ * @param snapshot - the graph
+ * @param labels - each node's label as drawn
+ * @param widths - each node's width (twice its size), or undefined for Gephi's default
+ * @param preview - the settings
+ * @returns whether each label is hidden, or null
+ */
+function gephiOverlapHidden(
+    snapshot: GraphSnapshot,
+    labels: readonly (StyleValue | null)[],
+    widths: readonly (StyleValue | null)[] | undefined,
+    preview: GephiPreview,
+): boolean[] | null {
+    const centers = gephiCenters(snapshot);
+    if (centers.some((c) => c === null)) {
+        return null;
+    }
+    const f = Math.fround;
+    const grid = preview.num("node.label.overlapGridSize");
+    const proportional = preview.on("node.label.proportinalSize");
+    const base = f(preview.font("node").size * preview.num("node.label.scale"));
+    const nodeSizes = centers.map((_, i) => {
+        const w = widths?.[i];
+        return f((typeof w === "number" ? w : GEPHI_NODE_WIDTH) / 2);
+    });
+    const sizes = nodeSizes.map((nodeSize) =>
+        proportional ? f(f(base * nodeSize) * f(0.05)) : f(base * f(1 + f(nodeSize * f(0.00001)))),
+    );
+    // Gephi's label items come largest node first (file order among equals; measured on six corpus files)
+    const items = sizes.map((_, i) => i).sort((a, b) => nodeSizes[b] - nodeSizes[a]);
+    // Font.deriveFont(size).getSize() rounds; the cache keeps the last font of each whole size
+    const cached = new Map<number, number>();
+    items.forEach((i) => cached.set(Math.round(sizes[i]), sizes[i]));
+    // NodeItem Y is the file's y turned over
+    const at = centers.map((c) => [c?.[0] ?? 0, -(c?.[1] ?? 0)] as const);
+    // loops, not Math.min(...): a spread of every node overflows the call stack on a large graph
+    let [loX, loY, hiX, hiY] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of at) {
+        [loX, loY, hiX, hiY] = [Math.min(loX, x), Math.min(loY, y), Math.max(hiX, x), Math.max(hiY, y)];
+    }
+    const [minX, minY] = [loX - grid, loY - grid];
+    const cols = Math.ceil((hiX + grid - minX) / grid);
+    const rows = Math.ceil((hiY + grid - minY) / grid);
+    const taken = new Set<number>();
+    const hidden = labels.map(() => false);
+    const order = [...items].sort((a, b) => sizes[b] - sizes[a]);
+    for (const i of order) {
+        const label = labels[i];
+        if (typeof label !== "string" || label.trim() === "") {
+            continue;
+        }
+        const size = cached.get(Math.round(sizes[i])) ?? sizes[i];
+        const [w, h] = [dialogWidth(label) * size, DIALOG_LINE_HEIGHT * size];
+        const cell = (v: number, min: number, n: number): number =>
+            Math.min(n - 1, Math.max(0, Math.trunc((v - min) / grid)));
+        const [c0, c1] = [cell(at[i][0] - w / 2, minX, cols), cell(at[i][0] + w / 2, minX, cols)];
+        const [r0, r1] = [cell(at[i][1] - h / 2, minY, rows), cell(at[i][1] + h / 2, minY, rows)];
+        const cells: number[] = [];
+        for (let r = r0; r <= r1; r++) {
+            for (let c = c0; c <= c1; c++) {
+                cells.push(r * cols + c);
+            }
+        }
+        if (cells.some((k) => taken.has(k))) {
+            hidden[i] = true;
+        } else {
+            cells.forEach((k) => taken.add(k));
+        }
+    }
+    return hidden;
 }
 
 /** Gephi's `edge.arc-curveness`: a curved edge is an arc of radius its nodes' distance over it (code only, 1.2). */
@@ -1196,6 +1280,15 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
         exactFromBlock(snapshot, block, node, edge);
     }
     const labels = drawnLabels(node.label, preview, "node", block !== null);
+    const overlapHidden =
+        block === null && labels !== undefined && preview.on("node.label.avoidOverlap")
+            ? gephiOverlapHidden(snapshot, labels, node.width, preview)
+            : null;
+    overlapHidden?.forEach((hide, i) => {
+        if (hide && labels !== undefined) {
+            labels[i] = null;
+        }
+    });
     if (labels === undefined) {
         delete node.label;
     } else {
@@ -1210,7 +1303,7 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
         { fill: node.fill, fillOpacity: nodeOpacity, width: node.width },
         { color: edge.color, width: edge.width },
         context.budget,
-        { preview, original, edgeLabels },
+        { preview, original, edgeLabels, overlapSettled: overlapHidden !== null },
     );
     return {
         canonical: true,

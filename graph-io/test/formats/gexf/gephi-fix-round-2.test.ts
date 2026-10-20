@@ -110,3 +110,25 @@ describe("curved edges Gephi's nodes swallow", () => {
         expect((await read(doc("undirected", 7.585), { "edge.curved": "false" }))("visible")).toEqual([null, null]);
     });
 });
+
+describe("Gephi's label overlap avoidance", () => {
+    // two size-10 nodes 20 apart: their 6 px labels (12 x 0.05 x 10) cover cells of the 10-unit grid in common, so the
+    // later one is hidden; a third far away keeps its label
+    const doc = `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
+        <node id="a" label="a long label"><viz:size value="10"/><viz:position x="0" y="0"/></node>
+        <node id="b" label="another one"><viz:size value="10"/><viz:position x="20" y="0"/></node>
+        <node id="c" label="far"><viz:size value="10"/><viz:position x="500" y="500"/></node>
+        <node id="d" label="bigger wins"><viz:size value="20"/><viz:position x="10" y="300"/></node>
+        <node id="e" label="small"><viz:size value="5"/><viz:position x="10" y="300"/></node>
+        </nodes><edges/></graph></gexf>`;
+
+    it("hides the labels Gephi's grid hides, largest font first, and leaves no overlap rule for graphty", async () => {
+        const { snapshot, styles } = await registry.importGraph(doc, { format: "gexf", styles: true });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const get = (property: string) => resolveStyles(styles, "node", property as never, snapshot);
+        expect(get("label")).toEqual(["a long label", null, "far", "bigger wins", null]);
+        expect(get("labelAvoidOverlap")).toEqual([null, null, null, null, null]);
+    });
+});

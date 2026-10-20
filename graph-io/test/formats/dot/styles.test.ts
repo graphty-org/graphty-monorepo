@@ -90,7 +90,10 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(label.get("b")).toBe("b in G");
         expect(label.get("p")).toBeNull();
         expect(label.get("cluster_k")).toBeNull();
-        expect(label.get("r")).toBe("left | mid|dle | x | y");
+        // a record draws its fields as texts of their own over the node, in place of one label
+        expect(label.get("r")).toBe("");
+        const fields = JSON.parse(String(byId(styles, snapshot, "shapeTexts").get("r"))) as [number, number, string][];
+        expect(fields.map((f) => f[2])).toEqual(["left", "mid|dle", "x", "y"]);
         expect(label.get("h")).toBe("bold & plain\nnext");
         const e = drawn(styles, snapshot, "edge", "label");
         expect(e[0]).toBe("a->b: a to b");

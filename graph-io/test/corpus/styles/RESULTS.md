@@ -127,8 +127,8 @@ Tool values are elements drawn with the writing program's default.
 | dot/fidelity/real-linux-kernel.gv | ok | 65 | 68 | 4 | 6 | 237 | 81% | 0% | 0 | 495 | 0 | W_STYLE_UNFILLED |
 | dot/fidelity/real-siblings.gv | ok | 200 | 284 | 7 | 2 | 157 | 0% | 0% | 0 | 4356 | 0 |  |
 | dot/fidelity/real-softmaint.gv | ok | 213 | 269 | 6 | 3 | 202 | 0% | 0% | 0 | 3654 | 0 |  |
-| dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 11 | 7 | 151 | 70% | 24% | 0 | 1153 | 0 | W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL, W_STYLE_UNKNOWN_VALUE |
-| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 211 | 100% | 0% | 0 | 1479 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
+| dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 11 | 7 | 151 | 70% | 24% | 0 | 1151 | 0 | W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL, W_STYLE_UNKNOWN_VALUE |
+| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 217 | 100% | 0% | 0 | 1475 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
 | dot/generated/clusters-200.gv | ok | 1200 | 0 | 5 | 1 | 995 | 0% | 0% | 0 | 13000 | 0 |  |
 | dot/generated/clusters-40.gv | ok | 160 | 39 | 4 | 2 | 117 | 0% | 0% | 0 | 2071 | 0 |  |
 | dot/generated/colors-and-scopes.gv | ok | 33 | 3 | 4 | 5 | 50 | 100% | 2% | 0 | 320 | 0 | W_STYLE_BAD_VALUE, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL |
@@ -142,7 +142,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/graphviz-gallery-directed-bazel.gv | ok | 8 | 15 | 3 | 3 | 0 | - | - | 0 | 200 | 0 |  |
 | dot/graphviz-gallery-directed-go-package.gv | ok | 20 | 49 | 5 | 3 | 0 | - | - | 0 | 592 | 0 |  |
 | dot/graphviz-gallery-directed-lion_share.gv | ok | 47 | 51 | 8 | 4 | 82 | 1% | 1% | 0 | 618 | 0 |  |
-| dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | 4 | 3 | 0 | - | - | 0 | 162 | 0 | W_STYLE_RECORD_LABEL |
+| dot/graphviz-gallery-directed-neural-network.gv | ok | 10 | 9 | 5 | 3 | 25 | 100% | 0% | 0 | 142 | 0 | W_STYLE_RECORD_LABEL |
 | dot/graphviz-gallery-directed-ninja.gv | ok | 125 | 131 | 5 | 7 | 12 | 0% | 0% | 0 | 1651 | 0 |  |
 | dot/graphviz-gallery-directed-profile.gv | ok | 61 | 85 | 4 | 4 | 42 | 0% | 0% | 0 | 1145 | 0 |  |
 | dot/graphviz-gallery-directed-sdh.gv | ok | 75 | 131 | 6 | 7 | 174 | 2% | 0% | 0 | 1532 | 0 |  |

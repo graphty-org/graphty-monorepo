@@ -138,10 +138,33 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
     }
     const column = hook?.column === undefined ? snapshot.nodes.byRole("position") : snapshot.nodes.get(hook.column);
     if (column === null || column.meta.components < 2) {
-        return null;
+        return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
     return { read: vectorReader(column), size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
+}
+
+/**
+ * The spelling of a file that places no node, whose program puts them round a circle (`unplacedCircle`).
+ * @param snapshot - the graph
+ * @param hook - the hook's answer, with its circle
+ * @returns the spelling
+ */
+function circleSpelling(snapshot: GraphSnapshot, hook: ImporterPositions): Spelling {
+    const circle = hook.unplacedCircle;
+    const n = snapshot.nodeCount;
+    const read: RowReader = (row, out) => {
+        if (circle === undefined || n === 0) {
+            return false;
+        }
+        const a = ((circle.startDegrees + (circle.direction * 360 * row) / n) * Math.PI) / 180;
+        out[0] = circle.center[0] + circle.radius * Math.cos(a);
+        out[1] = circle.center[1] + circle.radius * Math.sin(a);
+        out[2] = 0;
+        return true;
+    };
+    const extra = { ...extraOf(hook), sourceDims: 2 } as const;
+    return { read, size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
 }
 
 /**
@@ -220,6 +243,7 @@ function extraOf(source: object): PositionColumnExtra {
     pick("pxPerUnitY", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
     pick("zOrigin", (v) => typeof v === "number" && Number.isFinite(v));
     pick("zeroUnplaced", (v) => typeof v === "boolean");
+    pick("originUnplaced", (v) => typeof v === "boolean");
     pick("containersFollowChildren", (v) => typeof v === "boolean");
     const fit = extra.viewerFit as Readonly<Record<string, unknown>> | null | undefined;
     if (typeof fit?.padding === "number" && Number.isFinite(fit.padding) && fit.padding >= 0) {
@@ -258,6 +282,13 @@ function readRows(n: number, spelling: Spelling, notes: NoteCollector<PositionNo
     }
     if (spelling.extra.zeroUnplaced === true) {
         dropZeroPile(values);
+    }
+    if (spelling.extra.originUnplaced === true && values.some((v) => !Number.isNaN(v))) {
+        for (let i = 0; i < values.length; i += 3) {
+            if (Number.isNaN(values[i])) {
+                values.fill(0, i, i + 3);
+            }
+        }
     }
     const realZ = spelling.extra.sourceDims === 3 && !constantZ(values);
     convertRows(values, spelling.extra, spelling.size, realZ, notes);

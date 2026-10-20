@@ -72,6 +72,11 @@ export interface PositionColumnExtra {
      */
     readonly zeroUnplaced?: boolean;
     /**
+     * The program that draws the file puts a node the file gives no position at the origin, (0, 0, 0) as written,
+     * when other nodes are placed (Gephi), rather than leaving it for a layout to place.
+     */
+    readonly originUnplaced?: boolean;
+    /**
      * The program that draws the file draws a container node (one other nodes name as their
      * parent) around its children, wherever the container's own stored coordinate says: Cytoscape.js
      * computes a compound node's position and size from its children's. A container's stored
@@ -136,6 +141,18 @@ export interface ImporterPositions extends PositionColumnExtra {
     readonly medianNodeSize?: number | null;
     /** The tool that wrote the file, when the importer knows it better than `meta.creator`. */
     readonly tool?: GraphTool | null;
+    /**
+     * Where the program that draws the file puts its nodes when the file places none: evenly round a circle in node
+     * order, the first at `startDegrees`, each next one further round in `direction` (1: the angle grows, -1: it
+     * shrinks), in the file's own coordinates as the rest of this answer spells them (Pajek: center 0.5, 0.5, radius
+     * 0.4, the first vertex on the left). Absent, such a file has no positions.
+     */
+    readonly unplacedCircle?: {
+        readonly center: readonly [number, number];
+        readonly radius: number;
+        readonly startDegrees: number;
+        readonly direction: 1 | -1;
+    };
 }
 
 /**

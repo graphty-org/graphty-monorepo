@@ -22,6 +22,7 @@ import {
     GraphFormatError,
     type GraphMetaPatch,
     type GraphSink,
+    type GraphSnapshot,
     INVALID_INDEX,
     type NodeId,
     type U32,
@@ -61,6 +62,7 @@ import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
+import type { ImporterPositions } from "../../positions/types.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -1907,6 +1909,26 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     extensions: Object.freeze([".net", ".paj"]),
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
     styles: pajekStyles,
+
+    /**
+     * Where Pajek 6.02 draws a network whose vertices have no coordinates: round a circle in vertex order, the first
+     * on the left, the rest going clockwise on screen (y down), at radius 0.4 about the middle of the Draw window
+     * (pajek-iliad: 311 vertices 200 points from the middle of its 500-point window). A file with coordinates is read
+     * from its position column.
+     * @param snapshot - the imported graph
+     * @returns the circle for a file with no coordinates, else null
+     */
+    positions(snapshot: GraphSnapshot): ImporterPositions | null {
+        if (snapshot.nodes.byRole("position") !== null) {
+            return null;
+        }
+        return {
+            units: "file",
+            pxPerUnit: PAJEK_POINTS_PER_UNIT,
+            yAxis: "down",
+            unplacedCircle: { center: [0.5, 0.5], radius: 0.4, startDegrees: 180, direction: 1 },
+        };
+    },
 
     /**
      * Confidence that the input is a Pajek network: it starts with `*Vertices` (or `*Network`),

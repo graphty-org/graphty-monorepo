@@ -1167,6 +1167,9 @@ function edgeRules(
         "END_NODE_COLORS",
     );
     everyElement(edge, "edge", "preview-curve", preview.on("edge.curved") ? {} : { curved: false });
+    // Gephi's `edge.radius` leaves that much empty between each node and its edges' ends, arrowheads too
+    const nodeGap = preview.num("edge.radius");
+    everyElement(edge, "edge", "preview-radius", nodeGap > 0 ? { nodeGap } : {});
     edgeLabelRules(edge, colors, gexf, preview);
 }
 

@@ -73,6 +73,7 @@ import {
     isGraphvizBox,
 } from "./drawing.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
+import { layoutRecord } from "./record.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -225,6 +226,8 @@ interface NodeContext {
     readonly cluster: boolean;
     /** The HTML strings of the file, for Graphviz's shared string pool. */
     readonly html: ReadonlySet<string>;
+    /** Whether the graph's `rankdir` is LR or RL, which turns a record's fields top to bottom. */
+    readonly flip: boolean;
 }
 
 /** What an edge's label escapes depend on. */
@@ -553,10 +556,60 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
         readClusterBox(get, put);
     } else {
         readSize(get, shape, n.point, put, at);
-        if (!n.point) {
+        if (RECORD.has(shape) && label !== null && !htmlLabel) {
+            readRecord(n, label, names);
+        } else if (!n.point) {
             readLabelFit(get, shape, label, shown, put);
         }
     }
+}
+
+/** Graphviz's default node width and height, in points (0.75 and 0.5 inch). */
+const DEFAULT_NODE_SIZE = { w: 54, h: 36 } as const;
+
+/**
+ * Reads a record node as Graphviz lays it out: its size (at least its fields' unless `fixedsize`), the dividers
+ * between its fields as lines over the node, and each field's text lines where Graphviz centers or justifies them,
+ * in place of one label.
+ * @param n - the node
+ * @param label - its record label
+ * @param names - what the label's escapes stand for
+ */
+function readRecord(n: NodeRead, label: string, names: DotEscapeNames): void {
+    const { get, put, at, cx } = n;
+    const pt = (attr: string, fallback: number): number => {
+        const v = inches(get(attr), at(attr === "width" ? "width" : "height"));
+        return v === null ? fallback : v * DOT_POINTS_PER_INCH;
+    };
+    const size = Number(get("fontsize") ?? 14);
+    const lay = layoutRecord(
+        label,
+        !cx.flip,
+        pt("width", DEFAULT_NODE_SIZE.w),
+        pt("height", DEFAULT_NODE_SIZE.h),
+        isTrue(get("fixedsize")),
+        Number.isFinite(size) && size > 0 ? size : 14,
+        (line) => dotLabelText(line, names),
+    );
+    const hw = lay.width / 2;
+    const hh = lay.height / 2;
+    const fx = (x: number): string => String(num6(hw > 0 ? x / hw : 0));
+    const fy = (y: number): string => String(num6(hh > 0 ? y / hh : 0));
+    put("width", num6(lay.width));
+    put("height", num6(lay.height));
+    put("label", "");
+    put(
+        "shapeLines",
+        lay.dividers.length === 0
+            ? null
+            : lay.dividers.map(([x0, y0, x1, y1]) => `${fx(x0)},${fy(y0)} ${fx(x1)},${fy(y1)}`).join("; "),
+    );
+    put(
+        "shapeTexts",
+        lay.texts.length === 0
+            ? null
+            : JSON.stringify(lay.texts.map((t) => [Number(fx(t.x)), Number(fy(t.y)), t.text])),
+    );
 }
 
 /**
@@ -1669,12 +1722,14 @@ function contexts(
 } {
     const html = htmlStrings(snapshot);
     const graph = snapshot.meta.name ?? "";
+    const rankdir = (cellText(snapshot.graph, "rankdir", 0) ?? "").trim().toUpperCase();
+    const flip = rankdir === "LR" || rankdir === "RL";
     const own = directedEdges(snapshot);
     // a graph mixing both directions is written with one, every edge then drawn as that one
     const directed = written === null || own.every((d) => d === snapshot.directed) ? own : own.map(() => written);
     const name = (i: number): string => String(snapshot.ids.idOf(i));
     return {
-        node: (i) => ({ name: name(i), graph, cluster: isCluster(snapshot, i), html }),
+        node: (i) => ({ name: name(i), graph, cluster: isCluster(snapshot, i), html, flip }),
         edge: (e) => {
             const tail = name(snapshot.edgeSource(e));
             const head = name(snapshot.edgeTarget(e));

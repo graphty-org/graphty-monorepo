@@ -255,6 +255,12 @@ export interface NodeStyleValues {
     readonly shapeLines: string;
     /** How wide `shapeLines` are drawn; unset, the border's width. */
     readonly shapeLineWidth: number;
+    /**
+     * Further texts drawn on the node in its label's font, size and color, each one line centered on its point: a JSON
+     * list of `[x, y, text]`, the point as `shapeParts` writes one (Graphviz's record fields, `[[-0.5, 0, "a"], [0.5,
+     * 0, "b"]]`).
+     */
+    readonly shapeTexts: string;
     /** The border's line style. */
     readonly borderStyle: StyleBorderStyle;
     /** Where the border sits against the node's width and height. */
@@ -656,6 +662,11 @@ export interface EdgeStyleValues {
      * distance between them (Gephi: the distance over its arc curveness 1.2).
      */
     readonly arcRadius: number;
+    /**
+     * How far from each of its nodes' outlines the edge's line (and its arrowhead) stops, leaving that much empty
+     * (a length; Gephi's `edge.radius`).
+     */
+    readonly nodeGap: number;
     /**
      * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
      * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the

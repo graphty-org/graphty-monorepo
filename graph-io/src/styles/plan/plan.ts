@@ -63,6 +63,7 @@ const LENGTHS: ReadonlySet<string> = new Set([
     "labelOffsetX",
     "labelOffsetY",
     "fanSpacing",
+    "nodeGap",
 ]);
 
 /**

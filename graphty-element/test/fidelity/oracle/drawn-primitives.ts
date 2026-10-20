@@ -428,8 +428,9 @@ export function drawnPrimitives(
             });
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
-        // an open half circle, a stroke the line meets at its back: the line ends there, where the oracle's reader ends
-        // it too (associate.ts, "a small open stroke at an edge's end"), not at the cap's mouth the scene reports
+        // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's
+        // back, where the oracle's reader ends it too (associate.ts, "a small open stroke at an edge's end"), not at
+        // the cap's mouth the scene reports. One against its node (vis-network's inv_curve) has the line run on under it.
         let { points } = e;
         for (const c of d.caps) {
             const end = CAP_END[c.end];
@@ -437,7 +438,7 @@ export function drawnPrimitives(
                 continue;
             }
             // an open half circle's mouth faces the node (Cytoscape's OPEN_HALF_CIRCLE); a curve straddles the line's end
-            const openArc = c.name.includes("open-half-circle");
+            const openArc = c.name.includes("open-half-circle") && (c.gap ?? 0) > 0;
             points = openArc ? backToArc(points, c.outline, end) : extendToTip(points, c.outline, end);
         }
         const gradient = edgeGradientOf(d.gradient, d.points);

@@ -187,7 +187,11 @@ interface EdgeInternals {
     outlineSlots: number[];
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
-    drawnStyle: { line?: { bezier?: boolean; gradient?: { kind?: string } } } | null;
+    drawnStyle: {
+        line?: { bezier?: boolean; gradient?: { kind?: string } };
+        arrowHead?: { gap?: number };
+        arrowTail?: { gap?: number };
+    } | null;
 }
 interface PatternInternals {
     width: number;
@@ -898,6 +902,8 @@ export interface DrawnEdge {
         color: string | null;
         /** The opacity it is drawn at: 0 is a cap that draws nothing. */
         opacity: number;
+        /** How far off its node an end cap stands, in its own lengths (`ArrowStyle.gap`), the line stopping at it. */
+        gap?: number;
     }[];
     label: DrawnLabel | null;
     /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
@@ -1169,6 +1175,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             outline: capOutline(cap, p),
             color: rgb === null ? null : hex(rgb),
             opacity: c.visibility * (material?.alpha ?? 1),
+            gap:
+                (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??
+                (c.end === "arrowTail" ? internal.drawnStyle?.arrowTail?.gap : undefined) ??
+                0,
         };
     });
     return {

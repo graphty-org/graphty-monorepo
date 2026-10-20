@@ -3348,8 +3348,11 @@ Fixed:
   generic family `sans-serif` as `Sans-serif`; Java has no font of that name and lays the text out in Dialog (DejaVu
   Sans): "Mitochondria " starts 73.0 px left of its node at 21.38 px, half its 146.0 px DejaVu Sans width. The oracle
   reader measured the text in the browser's own sans-serif face, 16 percent narrower, so the label read 12 px left of
-  center. It now measures it in DejaVu Sans, as it does Helvetica, Dialog and SansSerif (b22c179af). The sample
-  passes. Test: `graphty-element/test/browser/oracle-freehep-text.test.ts`.
+  center. It now measures it in DejaVu Sans, as it does Helvetica, Dialog and SansSerif (b22c179af). Every element
+  of the sample now passes its rows, but the sample still fails two raster floors in the same tree
+  (`raster.label` 0.76 < 0.79, `raster.arrowhead` 0.93 < 0.94): not from these commits, since the sample has no
+  turned label and the raster regions and the alignment come from graphty's scene and the nodes, never the oracle's
+  text boxes. Not traced here. Test: `graphty-element/test/browser/oracle-freehep-text.test.ts`.
 
 Still open, and why:
 

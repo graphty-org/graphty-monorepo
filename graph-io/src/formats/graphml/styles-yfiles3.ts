@@ -625,11 +625,21 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
             type = a;
         }
         if (type !== null) {
-            const arrow = canonEnum("arrow", /^default$/i.test(type) ? "triangle" : type, "yfiles3", at(property));
+            const arrow = canonEnum("arrow", RENAMED_ARROWS.get(type.toUpperCase()) ?? type, "yfiles3", at(property));
             put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
         }
     }
 }
+
+/**
+ * yFiles 3.0 renamed 2.6's DEFAULT arrow to STEALTH and CIRCLE to ELLIPSE
+ * (https://docs.yfiles.com/yfiles-html/api/ArrowType/); each is read as its 2.6 name is.
+ */
+const RENAMED_ARROWS: ReadonlyMap<string, string> = new Map([
+    ["DEFAULT", "triangle"],
+    ["STEALTH", "triangle"],
+    ["ELLIPSE", "circle"],
+]);
 
 /** The filled arrows whose `{x:Null}` fill draws them as their open outline. */
 const HOLLOW_ARROWS: ReadonlyMap<string, string> = new Map([

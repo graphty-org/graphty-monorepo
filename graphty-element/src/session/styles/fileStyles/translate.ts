@@ -1008,9 +1008,74 @@ const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
 
 /** The properties the translation draws in passes of their own, per kind. */
 const COMPOSITE: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["width", "height", "fillOpacity", "opacity", "visible"]),
-    edge: new Set(["visible"]),
+    node: new Set(["width", "height", "fillOpacity", "opacity", "visible", "labelRuns"]),
+    edge: new Set(["visible", "labelRuns"]),
 };
+
+/**
+ * The label markup tags a run's fields are drawn with (the label's own markup: `<bold>`, `<italic>`, `<font>`,
+ * `<color>`), each with its value ("" for none).
+ * @param run - the run
+ * @returns the tags
+ */
+function runTags(run: Record<string, unknown>): [string, string][] {
+    const tags: [string, string][] = [];
+    if (run.weight === "bold") {
+        tags.push(["bold", ""]);
+    }
+    if (run.italic === true) {
+        tags.push(["italic", ""]);
+    }
+    if (typeof run.font === "string" && !/['<>]/.test(run.font)) {
+        tags.push(["font", run.font]);
+    }
+    if (typeof run.color === "string" && /^#[0-9a-f]{6}$/i.test(run.color)) {
+        tags.push(["color", run.color]);
+    }
+    return tags;
+}
+
+/**
+ * A label drawn in runs of styles of their own (the neutral `labelRuns`, a JSON array of runs) as the label markup
+ * the element draws: each run's words in the tags of its weight, slant, face and color, every line of a run tagged
+ * on its own (the markup does not carry across a line break), and its size as a share of the label's.
+ * @param runs - the runs, as JSON
+ * @param size - the label's own size, in the runs' unit, or null when it has none
+ * @returns the label with its markup, or null when the runs cannot be read
+ */
+export function labelRunsMarkup(runs: unknown, size: unknown = null): string | null {
+    let parsed: unknown;
+    try {
+        parsed = typeof runs === "string" ? JSON.parse(runs) : null;
+    } catch {
+        return null;
+    }
+    if (!Array.isArray(parsed)) {
+        return null;
+    }
+    return parsed
+        .map((run: unknown) => {
+            if (typeof run !== "object" || run === null || typeof (run as { text?: unknown }).text !== "string") {
+                return "";
+            }
+            const r = run as Record<string, unknown>;
+            const tags = runTags(r);
+            // a run's size, as a share of the label's own
+            if (typeof r.size === "number" && typeof size === "number" && size > 0 && r.size !== size) {
+                tags.push(["size", `${String(Math.round((r.size / size) * 1e4) / 100)}%`]);
+            }
+            const open = tags.map(([tag, v]) => (v === "" ? `<${tag}>` : `<${tag}='${v}'>`)).join("");
+            const close = tags
+                .map(([tag]) => `</${tag}>`)
+                .reverse()
+                .join("");
+            return (r.text as string)
+                .split("\n")
+                .map((line) => (line === "" || tags.length === 0 ? line : `${open}${line}${close}`))
+                .join("\n");
+        })
+        .join("");
+}
 
 /**
  * A number at 12 significant digits, so a length scaled by a factor compares as the same value
@@ -2447,6 +2512,7 @@ class KindTranslation {
 
     /** Node size from width and height, node opacity from two opacities, and arrow sizes. */
     #composites(): void {
+        this.#labelRuns();
         if (this.#kind !== "node") {
             this.#arrowSizes();
             return;
@@ -2479,6 +2545,49 @@ class KindTranslation {
             },
             "node.opacity",
         );
+    }
+
+    /**
+     * A label drawn in runs of styles of their own (`labelRuns`): where a rule writes runs, each element's label as
+     * its runs' markup (its plain `label` where it has none) is planned again with graph-io's planner and drawn above
+     * the topmost rule that writes either.
+     */
+    #labelRuns(): void {
+        const writes = (rule: StyleRule, property: string): boolean =>
+            rule.set?.[property as StyleProperty] !== undefined || rule.map?.[property as StyleProperty] !== undefined;
+        const writers = this.#rules
+            .map((rule, bucket) => ({ rule, bucket }))
+            .filter(({ rule }) => writes(rule, "labelRuns") || writes(rule, "label"));
+        if (!writers.some(({ rule }) => writes(rule, "labelRuns"))) {
+            return;
+        }
+
+        const { extracted, snapshot } = this.#input;
+        const labels = resolveStyles(extracted, this.#kind, "label", snapshot);
+        const runs = resolveStyles(extracted, this.#kind, "labelRuns", snapshot);
+        const sizes = resolveStyles(extracted, this.#kind, "labelSize", snapshot);
+        const values = labels.map((label, i) => labelRunsMarkup(runs[i], sizes[i]) ?? label);
+        const sub = planStyles(
+            {
+                format: extracted.styles.source.format,
+                units: "px",
+                [this.#kind]: { values: { label: values } },
+                fingerprint: extracted.fingerprint,
+            },
+            {
+                node: this.#kind === "node" ? extracted.features.node : [],
+                edge: this.#kind === "edge" ? extracted.features.edge : [],
+            },
+            { toolDefaults: false },
+        );
+        const channel: Channel = this.#kind === "node" ? "node.label" : "edge.label";
+        const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
+        const top = writers.at(-1)?.bucket ?? 0;
+        for (const rule of sub.styles.rules) {
+            if (rule.target === this.#kind) {
+                this.#emitWith({ ...rule, id: `${rule.id}.labelRuns` }, top, "label", identity, sub);
+            }
+        }
     }
 
     /**

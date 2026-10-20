@@ -1366,7 +1366,7 @@ export class RichTextLabel {
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
-        const newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
+        let newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
         const stretch = target instanceof Vector3 ? null : this.undoStretchOf(target);
@@ -1398,6 +1398,21 @@ export class RichTextLabel {
             const sy = inFront ? 1 : (stretch?.y ?? 1) || 1;
             newPos.x += moveX / sx;
             newPos.y -= moveY / sy;
+        }
+
+        // A label its offset moves over its own target (vis-network's font.vadjust, a Cytoscape.js text margin into
+        // the node) is drawn in front of it, hung from the pivot a center label hangs from: beside, in the target's
+        // own frame, the target's mesh hides it.
+        if (!inFront && target instanceof AbstractMesh && stretch === null && (moveX !== 0 || moveY !== 0)) {
+            const mid = bounds.min.add(bounds.max).scaleInPlace(0.5);
+            const overX = Math.abs(newPos.x - mid.x) < (labelWidth + bounds.max.x - bounds.min.x) / 2;
+            const overY = Math.abs(newPos.y - mid.y) < (labelHeight + bounds.max.y - bounds.min.y) / 2;
+            if (overX && overY) {
+                const besideAt = newPos;
+                this.parentTo(target, bounds);
+                newPos = besideAt.subtract(this.centerPivot?.position ?? mid);
+                newPos.z = -Vector3.Distance(bounds.min, bounds.max) / 2;
+            }
         }
 
         this.mesh.position = newPos;

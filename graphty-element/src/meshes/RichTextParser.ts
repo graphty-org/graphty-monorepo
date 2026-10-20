@@ -65,7 +65,10 @@ export class RichTextParser {
                         newStyle.color = tagValue || this.defaultStyle.color;
                         break;
                     case "size":
-                        newStyle.size = Number.parseInt(tagValue || "0") || this.defaultStyle.size;
+                        // a size in percent is of the size it is opened in (a run of a label drawn larger than the rest)
+                        newStyle.size = tagValue?.endsWith("%")
+                            ? (newStyle.size * Number.parseFloat(tagValue)) / 100 || this.defaultStyle.size
+                            : Number.parseInt(tagValue || "0") || this.defaultStyle.size;
                         break;
                     case "font":
                         newStyle.font = tagValue || this.defaultStyle.font;

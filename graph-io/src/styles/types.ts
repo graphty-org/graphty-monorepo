@@ -257,6 +257,14 @@ export interface NodeStyleValues {
     readonly overlayCornerRadius: number;
     /** The label text, as the tool draws it. */
     readonly label: string;
+    /**
+     * The label drawn in runs of styles of their own (a program's rich text: vis-network's multi-font labels), as a
+     * JSON array of runs left to right, each `{ "text": string, "weight"?: "bold", "italic"?: true, "font"?: string,
+     * "size"?: number, "color"?: "#rrggbb" }`; a run's `text` may hold line breaks. A run gives only what differs
+     * from the label's own font (`labelFont`, `labelSize` in the unit of `width`, `labelColor`, `labelWeight`,
+     * `labelItalic`). Its words, run after run, are `label`. Unset, the label is drawn in its own font throughout.
+     */
+    readonly labelRuns: string;
     /** The tooltip text. */
     readonly tooltip: string;
     /** The label's font family, as the file names it. */
@@ -595,6 +603,14 @@ export interface EdgeStyleValues {
     readonly targetPort: string;
     /** The label text. */
     readonly label: string;
+    /**
+     * The label drawn in runs of styles of their own (a program's rich text: vis-network's multi-font labels), as a
+     * JSON array of runs left to right, each `{ "text": string, "weight"?: "bold", "italic"?: true, "font"?: string,
+     * "size"?: number, "color"?: "#rrggbb" }`; a run's `text` may hold line breaks. A run gives only what differs
+     * from the label's own font (`labelFont`, `labelSize`, `labelColor`, `labelWeight`,
+     * `labelItalic`). Its words, run after run, are `label`. Unset, the label is drawn in its own font throughout.
+     */
+    readonly labelRuns: string;
     /** The tooltip text. */
     readonly tooltip: string;
     /** The label's font family. */

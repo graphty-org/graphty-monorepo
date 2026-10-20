@@ -742,6 +742,8 @@ interface VisLayer {
     fontFace?: unknown;
     /** `font.vadjust`: how far down the label's text is drawn */
     fontVadjust?: unknown;
+    /** `font.bold`, `font.ital`, `font.boldital` and `font.mono`: each font modifier's own options */
+    fontMods?: unknown;
     margin?: unknown;
     /** `widthConstraint` (a number) or its `maximum`: the width the label's lines wrap at */
     wrapWidth?: unknown;
@@ -1011,6 +1013,10 @@ function visFontLayer(font: unknown, set: SetLayer): void {
         set("fontSize", font.size);
         set("fontFace", font.face);
         set("fontVadjust", font.vadjust);
+        const mods = ["bold", "ital", "boldital", "mono"].filter((m) => font[m] !== undefined && font[m] !== null);
+        if (mods.length > 0) {
+            set("fontMods", Object.fromEntries(mods.map((m) => [m, font[m]])));
+        }
     } else if (typeof font === "string") {
         const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(font.slice(0, 256));
         if (m !== null) {
@@ -1108,6 +1114,9 @@ function visLabelValues(
         const text = target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label"));
         const marked = typeof text === "string" ? visMarkup(text, layer.fontMulti) : null;
         put("label", marked?.text ?? text);
+        if (marked !== null) {
+            put("labelRuns", visRuns(marked.runs, layer, site("labelRuns")));
+        }
         // after the face: a label all in mono is drawn in the mono face
         for (const [p, v] of Object.entries(VIS_MOD_VALUES[marked?.mod ?? "normal"] ?? {})) {
             put(p, v);
@@ -1232,7 +1241,10 @@ function visDashStyle(dashes: unknown, width: number, round: boolean): string {
  * @param multi - `font.multi`
  * @returns the plain text and the shared modifier, or null when the label is not read as markup
  */
-function visMarkup(text: string, multi: unknown): { text: string; mod: string | null } | null {
+function visMarkup(
+    text: string,
+    multi: unknown,
+): { text: string; mod: string | null; runs: { text: string; mod: string }[] } | null {
     const system = VIS_MARKUP_SYSTEM.get(multi);
     if (system === undefined) {
         return null;
@@ -1253,7 +1265,93 @@ function visMarkup(text: string, multi: unknown): { text: string; mod: string | 
     }
     const mods = new Set(runs.filter((r) => /\S/.test(r.text)).map((r) => r.mod));
     const only = mods.size === 1 ? [...mods][0] : null;
-    return { text: runs.map((r) => r.text).join(""), mod: only === "normal" ? null : only };
+    // the characters in runs of one modifier each, as vis-network draws its blocks
+    const merged: { text: string; mod: string }[] = [];
+    for (const r of runs) {
+        const last = merged.at(-1);
+        if (last?.mod === r.mod) {
+            last.text += r.text;
+        } else {
+            merged.push({ ...r });
+        }
+    }
+    return { text: runs.map((r) => r.text).join(""), mod: only === "normal" ? null : only, runs: merged };
+}
+
+/** vis-network's own options of each font modifier (vis-network 9.1.9 `NodesHandler` defaults, `font.mono`). */
+const VIS_MOD_DEFAULTS: Readonly<Record<string, { mod: string; face?: string; size?: number }>> = {
+    bold: { mod: "bold" },
+    ital: { mod: "italic" },
+    boldital: { mod: "bold italic" },
+    mono: { mod: "", face: "monospace", size: 15 },
+};
+
+/**
+ * vis.js multi-font runs as the neutral `labelRuns`: each run's font as vis-network draws it (its modifier's own
+ * `font.bold`, `font.ital`, `font.boldital` or `font.mono` options, an object or text like "16px arial black", over
+ * the label's font; mono is 15 px monospace unless given), each field only where it differs from the label's own.
+ * vadjust is not carried.
+ * @param runs - the runs, each with its modifier
+ * @param layer - the element's layer
+ * @param site - where a bad color is noted
+ * @returns the runs as JSON, or null when every run is drawn in the label's own font
+ */
+function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer, site: CanonSite): string | null {
+    const own = {
+        face: typeof layer.fontFace === "string" ? layer.fontFace : "arial",
+        size: typeof layer.fontSize === "number" ? layer.fontSize : VIS_FONT_SIZE,
+        color: typeof layer.fontColor === "string" ? layer.fontColor : null,
+    };
+    const mods = isJsonObject(layer.fontMods) ? layer.fontMods : {};
+    let differs = false;
+    const out = runs.map((r) => {
+        const run: Record<string, unknown> = { text: r.text };
+        const base = VIS_MOD_DEFAULTS[r.mod];
+        if (base === undefined) {
+            return run;
+        }
+        const given = visModOptions(mods[r.mod]);
+        const modText = typeof given.mod === "string" ? given.mod : base.mod;
+        const face = typeof given.face === "string" ? given.face : (base.face ?? own.face);
+        const size = typeof given.size === "number" ? given.size : (base.size ?? own.size);
+        const color = typeof given.color === "string" ? canonColor(given.color, "vis", site)?.color : null;
+        if (modText.includes("bold")) {
+            run.weight = "bold";
+        }
+        if (modText.includes("italic")) {
+            run.italic = true;
+        }
+        if (face !== null && face !== own.face) {
+            run.font = face;
+        }
+        if (size !== own.size) {
+            run.size = size;
+        }
+        if (typeof color === "string") {
+            run.color = color;
+        }
+        differs ||= Object.keys(run).length > 1;
+        return run;
+    });
+    return differs ? JSON.stringify(out) : null;
+}
+
+/**
+ * A vis.js font modifier's options: an object, or text like "16px arial black" (size, face, color).
+ * @param raw - `font.bold`, `font.ital`, `font.boldital` or `font.mono`
+ * @returns the options
+ */
+function visModOptions(raw: unknown): Record<string, unknown> {
+    if (isJsonObject(raw)) {
+        return raw;
+    }
+    if (typeof raw === "string") {
+        const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(raw.slice(0, 256));
+        if (m !== null) {
+            return { size: Number(m[1]), face: m[2], ...(m[3] === undefined ? {} : { color: m[3] }) };
+        }
+    }
+    return {};
 }
 
 /** vis-network's markup systems by `font.multi`. */
@@ -1366,9 +1464,13 @@ function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (prop
     if (layer.opacity !== undefined) {
         // vis-network's node opacity replaces the alpha of its border color and its background color alike, but only of
         // a hex or rgb() color: overrideOpacity leaves rgba() and any other text (a name) as it is (Node.getFormattingValues)
+        // The neutral opacity is the whole node's, its border's too: where only one of the two takes it, that one's
+        // own opacity carries it
         const opacity = canonOpacity(layer.opacity, "vis", site("opacity"));
-        put("opacity", visTakesOpacity(layer.fill) ? opacity : null);
-        put("borderOpacity", visTakesOpacity(layer.border) ? opacity : null);
+        const [fill, border] = [visTakesOpacity(layer.fill), visTakesOpacity(layer.border)];
+        put("opacity", fill && border ? opacity : null);
+        put("fillOpacity", fill && !border ? opacity : null);
+        put("borderOpacity", border && !fill ? opacity : null);
     }
     if (layer.borderDashes !== undefined) {
         // vis-network's default border dashes are [5, 15]
@@ -1626,7 +1728,8 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
     }
     Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
     if (shape === "icon") {
-        Object.assign(row, visIcon(merged, site("glyphColor")));
+        // an icon node is its glyph alone: vis-network draws no body, no fill and no border for it (Icon.draw)
+        Object.assign(row, { shape: "none" }, visIcon(merged, site("glyphColor")));
     }
     // vis-network's triangleDown: its triangle turned over, a corner down
     if (shape === "triangleDown") {

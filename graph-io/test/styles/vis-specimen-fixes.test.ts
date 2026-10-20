@@ -124,7 +124,8 @@ describe("vis-network nodes", () => {
             edges: [],
             options: { physics: false },
         });
-        expect(values(r, "node", "borderOpacity")[0]).toBe(0.25);
+        // the neutral opacity is the whole node's, its border's too
+        expect(values(r, "node", "opacity")[0]).toBe(0.25);
         expect(values(r, "node", "visible")[1]).toBe(false);
         // a box: the 14 x 14 label box and 5 each side; an ellipse: twice the box's height tall, its width and height wide
         expect([values(r, "node", "width")[2], values(r, "node", "height")[2]]).toEqual([24, 24]);
@@ -235,7 +236,8 @@ describe("vis-network nodes", () => {
         });
         expect(values(r, "node", "opacity")[0]).not.toBe(0.3);
         expect(values(r, "node", "borderOpacity")[0]).not.toBe(0.3);
-        expect(values(r, "node", "opacity")[1]).toBe(0.3);
+        expect(values(r, "node", "opacity")[1]).not.toBe(0.3);
+        expect(values(r, "node", "fillOpacity")[1]).toBe(0.3);
         expect(values(r, "node", "borderOpacity")[1]).not.toBe(0.3);
     });
 });

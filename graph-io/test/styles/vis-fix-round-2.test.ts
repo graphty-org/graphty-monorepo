@@ -144,6 +144,61 @@ describe("vis-network node colors and labels", () => {
     });
 });
 
+describe("vis-network multi-font labels", () => {
+    it("reads each run's font, its modifier's own options over the label's", async () => {
+        const r = await load({
+            nodes: [
+                {
+                    id: "a",
+                    x: 0,
+                    y: 0,
+                    label: "<b>B</b> <i>I</i> <code>M</code>",
+                    font: { multi: "html", size: 10, face: "DejaVu Sans", bold: { color: "#ff0000" } },
+                },
+                { id: "b", x: 50, y: 0, label: "plain <b>", font: { multi: false } },
+            ],
+            edges: [],
+            options: { physics: false },
+        });
+        expect(value(r, "node", "label", 0)).toBe("B I M");
+        expect(JSON.parse(value(r, "node", "labelRuns", 0) as string)).toEqual([
+            { text: "B", weight: "bold", color: "#ff0000" },
+            { text: " " },
+            { text: "I", italic: true },
+            { text: " " },
+            // mono is 15 px monospace unless the file says otherwise
+            { text: "M", font: "monospace", size: 15 },
+        ]);
+        expect(value(r, "node", "labelRuns", 1)).toBe(null);
+    });
+
+    it("fades a whole node by its opacity, and only the part vis-network can where one color has its own alpha", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", x: 0, y: 0, opacity: 0.25 },
+                { id: "b", x: 50, y: 0, opacity: 0.25, color: { background: "#c8c8c8", border: "rgba(1,2,3,0.5)" } },
+            ],
+            edges: [],
+            options: { physics: false },
+        });
+        expect([value(r, "node", "opacity", 0), value(r, "node", "borderOpacity", 0)]).toEqual([0.25, null]);
+        expect([value(r, "node", "fillOpacity", 1), value(r, "node", "borderOpacity", 1)]).toEqual([0.25, 0.5]);
+    });
+});
+
+describe("vis-network icon nodes", () => {
+    it("draws an icon node as its glyph alone, with no body", async () => {
+        const r = await load({
+            nodes: [{ id: "i", x: 0, y: 0, shape: "icon", color: "#c8c8c8", icon: { code: "A", color: "#1f77b4" } }],
+            edges: [],
+            options: { physics: false },
+        });
+        expect(value(r, "node", "shape", 0)).toBe("none");
+        expect(value(r, "node", "glyph", 0)).toBe("A");
+        expect(value(r, "node", "glyphColor", 0)).toBe("#1f77b4");
+    });
+});
+
 describe("vis-network arrowheads", () => {
     it("draws a circle arrow 0.8 of the arrow's length across (vis-network's Circle: radius 0.4 of it)", () => {
         expect(toolDefaults("vis-network")?.arrowhead?.shapes?.circle).toEqual({ length: 0.8, aspect: 1 });

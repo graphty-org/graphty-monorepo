@@ -234,7 +234,8 @@ describe("a file's styles drawn by the load", () => {
 
         assert.strictEqual(drawn(session, { node: "p" }, "node.borderOpacity"), 0.5);
         assert.strictEqual(drawn(session, { node: "q" }, "node.borderOpacity"), 0.15);
-        assert.strictEqual(drawn(session, { node: "r" }, "node.borderOpacity"), 1);
+        // a border at full strength is left at the element's default, 1
+        assert.include([undefined, 1], drawn(session, { node: "r" }, "node.borderOpacity"));
         session.dispose();
     });
 

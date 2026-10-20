@@ -162,6 +162,10 @@ describe("what the inspector opens, on the real element", () => {
         assert.include(color.textContent, "Color");
         await userEvent.click(within(color).getByRole("button"));
         assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row, tab: "style" });
+        // Focus lands on the Color line the link explained, not on the opened row's heading.
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]') ?? null);
+        });
 
         // The opened layer's Color is the node's own; red there repaints its group only.
         const hex = (colorOf(session, "n3") ?? "").slice(1).toUpperCase();
@@ -180,6 +184,24 @@ describe("what the inspector opens, on the real element", () => {
             assert.equal(colorOf(session, "n3"), "#ff0000");
         });
         assert.equal(colorOf(session, String(other.id)), otherBefore, "another group keeps its color");
+    });
+
+    it("the Everything line of Why this look lands on the Color line it explains", async () => {
+        const { session, store } = await openRings();
+        await pick(session, "n3");
+        await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
+        const lines: HTMLElement[] = await inspector().findAllByTestId("why-line");
+        const everything = lines.find((line) => line.textContent.startsWith("Everything"));
+        if (everything === undefined) {
+            throw new Error(lines.map((line) => line.textContent).join(" | "));
+        }
+        assert.include(everything.textContent, "Color");
+        await userEvent.click(within(everything).getByRole("button"));
+        await waitFor(() => {
+            assert.equal(store.get().inspected?.tab, "style");
+            const focused = document.activeElement;
+            assert.isNotNull(focused?.closest('[data-line="node.color"]') ?? null, focused?.outerHTML.slice(0, 200));
+        });
     });
 
     it("a group's Style is its layer's when the run paints each group as a layer", async () => {

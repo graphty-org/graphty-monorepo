@@ -8,6 +8,7 @@ import { findTreeRow } from "../graph-place/rows";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { focusLineNext } from "../style/useFocusLine";
 import type { Resolved } from "./inspected";
 import { hexOf } from "./reads";
 import { channelTokens } from "./words";
@@ -19,6 +20,8 @@ interface WinnerLine {
     readonly swatch: string | null;
     readonly tokens: string[];
     readonly opens: Resolved | null;
+    /** The property whose line the link lands on: the color the swatch shows, else the first it wins. */
+    readonly channel: Channel | undefined;
 }
 
 /**
@@ -66,24 +69,38 @@ function rowOf(
 
 /**
  * Opens a line's row in the inspector, on its Style tab: the look and the rule that picks what
- * it paints are what the link was followed for.
+ * it paints are what the link was followed for. Focus lands on the line of the property the link
+ * explains (its Color), on that kind's tab; with no property, or a tab that draws no such line,
+ * on the title of the row it opened, as after a find pick.
  * @param store - the chrome store.
  * @param opens - the row.
+ * @param channel - the property the link explains, when it names one.
  */
-function openRow(store: WorkspaceStore, opens: Resolved): void {
+function openRow(store: WorkspaceStore, opens: Resolved, channel?: Channel): void {
     const tab = "style";
+    const side = channel === undefined ? {} : ({ styleSide: channel.startsWith("edge.") ? "edge" : "node" } as const);
     if ("run" in opens) {
-        store.set({ inspected: { kind: opens.kind, id: opens.run, tab } });
+        store.set({ inspected: { kind: opens.kind, id: opens.run, tab }, ...side });
     } else if (opens.kind === "layer-row") {
-        store.set({ inspected: { kind: opens.kind, id: opens.layer, tab } });
+        store.set({ inspected: { kind: opens.kind, id: opens.layer, tab }, ...side });
     } else if (opens.kind === "folder-row") {
-        store.set({ inspected: { kind: opens.kind, id: opens.row, tab } });
+        store.set({ inspected: { kind: opens.kind, id: opens.row, tab }, ...side });
     } else {
-        store.set({ inspected: { kind: opens.kind, tab } });
+        store.set({ inspected: { kind: opens.kind, tab }, ...side });
     }
-    // The link goes with the inspector it was in: focus goes to the title of the row it opened,
-    // once drawn, as after a find pick.
-    requestAnimationFrame(focusInspectorTitle);
+    if (channel === undefined) {
+        requestAnimationFrame(focusInspectorTitle);
+        return;
+    }
+    // The Style tab hands focus to the line as it draws it; one that drew no such line withdraws
+    // the ask, so it never takes focus later, and the title takes it instead.
+    focusLineNext(channel);
+    requestAnimationFrame(() => {
+        if ((document.activeElement?.closest(`[data-line="${channel}"]`) ?? null) === null) {
+            focusLineNext(null);
+            focusInspectorTitle();
+        }
+    });
 }
 
 /**
@@ -151,12 +168,14 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
         .reverse()
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
+            const channels = won.get(contribution.layerId) ?? [];
             const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
             return {
                 layerId: contribution.layerId,
                 ...rowOf(session, contribution.layerId, contribution.name),
                 swatch: color ?? null,
-                tokens: channelTokens(won.get(contribution.layerId) ?? []),
+                tokens: channelTokens(channels),
+                channel: channels.find((channel) => channel.endsWith(".color")) ?? channels[0],
             };
         });
 
@@ -190,7 +209,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                                 aria-label={`Open ${line.opens.kind === "folder-row" ? "folder" : "layer"} ${line.name}`}
                                 onClick={() => {
                                     if (line.opens !== null) {
-                                        openRow(store, line.opens);
+                                        openRow(store, line.opens, line.channel);
                                     }
                                 }}
                             >

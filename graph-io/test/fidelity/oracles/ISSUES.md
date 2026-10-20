@@ -1575,24 +1575,34 @@ Open:
   middle. A comparator gap for every Cytoscape desktop oracle (FreeHEP's Helvetica is Java's SansSerif): measuring
   such a text in DejaVu Sans would fix it; it touches every Cytoscape desktop sheet's floors, so it is left for the
   comparator's owner.
-- `gml-specimen-arrows-p6` (`directed-0`): Gephi's GML exporter writes an edge's own `directed` key in a mixed
-  graph, but Gephi's own GML importer drops an edge whose `directed` disagrees with the graph's (it loads 4 of the
-  sheet's 5 edges, and a mixed file it wrote itself loses its edges the same way), so its drawing has no edge there;
-  graph-io reads the edge as undirected and graphty draws it without an arrow (edge.extra 0.8). This is Gephi's
-  limit, not an import defect: dropping the edge would lose data the file holds. Gephi reads the edge's `fill` and
-  `label` (`gml-specimen-edges-lines-p5` `fill-ff0000`, `gml-specimen-edge-labels-p4`) but its Preview's defaults
-  draw neither (MIXED edge colors, no edge labels), and graphty matches that.
-- The gv2gml sheets show the same graphty-element gaps as the DOT sheets, for the same Graphviz values (the DOT
-  sheets' rows of `oracle-known-failures.json` list them by setting id): the peripheries of `doublecircle`,
-  `doubleoctagon`, `tripleoctagon` and `insulator` (`gml-specimen-node-shapes-p6` / `-p7` node.ring and the outer
-  size), the synthetic-biology glyphs and `cylinder` (`-p7`: `promoter`, `terminator`, `utr`, `primersite`,
-  `restrictionsite`, `fivepoverhang`, `threepoverhang`, `noverhang`, `assembly`, `signature`, `rnastab`, `ribosite`,
-  `proteasesite`, `proteinstab`, drawn as plain ellipses), the one-sided arrows `l` / `r` (drawn whole and half as wide,
-  not as a half), the open `o` box, inv and half arrows (drawn filled), the `curve` and `icurve` arrows, and the edge
-  label's own place (`lp`, which gv2gml copies as a plain key: `gml-specimen-edge-labels-p5` `font-size-20`,
-  `font-name-dejavu-serif`). graph-io has no free edge-label position to carry `lp` in, as for OGDF's node label
-  offset above. A node's `pencolor`, which gv2gml also writes as `outline`, is a cluster's alone and Graphviz ignores it
-  on a node; the sheets set a node's outline by its `color`, which is what Graphviz draws.
+- Gephi reads a GML edge's `fill` and `label` (`gml-specimen-edges-lines-p5` `fill-ff0000`,
+  `gml-specimen-edge-labels-p4`) but its Preview's defaults draw neither (MIXED edge colors, no edge labels), and
+  graphty matches that.
+- The gv2gml sheets show the same graphty-element gaps as the DOT sheets, for the same Graphviz values: the third
+  outline of `tripleoctagon` (graphty draws one outer ring; noted as not carried) and the outlines of `insulator`, the
+  synthetic-biology glyphs and `cylinder` (`gml-specimen-node-shapes-p7`: `promoter`, `terminator`, `utr`,
+  `primersite`, `restrictionsite`, `fivepoverhang`, `threepoverhang`, `noverhang`, `assembly`, `signature`,
+  `rnastab`, `ribosite`, `proteasesite`, `proteinstab`: graph-io reads them as `other:<name>` and graphty-element
+  draws a 37 px ellipse or box where Graphviz draws a 7 to 19 px glyph; graphty-element's shape vocabulary, the
+  DOT sheets' `node-shape-vocabulary` gap), and the `curve` / `icurve` arrows (`gml-specimen-arrows-p7` / `-p8`
+  `target-arrow-curve`, `-lcurve`, `-rcurve`, `-icurve`, `-licurve`, `-ricurve`: edge.arrow and edge.route 0.149 to
+  0.197). The arrow rows are the comparator's (the shared `comparator-arrow-line-reach` gap): Graphviz draws a curve
+  cap as an open arc the comparator does not read as an arrowhead, and stops the line where the arc starts, so the
+  line reads short; graph-io reads the cap (`curve`), so nothing in the importer is left to fix there. A curved
+  route's `lp` is not read yet: graphty-element hangs a curved edge's label where it samples its curve, which
+  graph-io cannot know; every gv2gml sheet's edges are straight. A node's `pencolor`, which gv2gml also writes as
+  `outline`, is a cluster's alone and Graphviz ignores it on a node; the sheets set a node's outline by its `color`,
+  which is what Graphviz draws.
+- `gml-specimen-edges-lines-p4` (`loop`): OGDF draws a self-loop as a stroked polyline from its node's center through
+  its bends and back (`M848.889,651 L828.889,616 ... L848.889,651`); graphty draws the same bends (its points match the
+  oracle's within 0.1 px once the frame is fitted), but the comparator reads a stroke-only path whose ends meet as a
+  closed shape and never as an edge, so the loop is judged missing (stray.present) and graphty's an extra edge. A
+  comparator gap: a stroke-only open `path` (no `Z`) whose ends land on one node graphty loops on is that loop.
+- GML corpus `gml-need4stacks261`, `gml-dunnart-autobahn`, `gml-jgrapht-grid-territorio` (edge.arrow): each file says
+  `directed 1` and names no `arrow`; the stand-in (gml2gv | neato) draws Graphviz's default digraph arrowhead on every
+  edge (need4stacks 776), graphty none. Neither the programs that wrote them (JGraphT has no drawing; Dunnart and
+  need4stacks' tool cannot run here) nor yEd can draw them here, so what a GML reader should draw for a directed graph
+  with no `arrow` key cannot be read off a real drawing; the rows judge the stand-in.
 - The stand-in sheets (`node-shapes`, `-p2`, `-p3`, `node-fills-borders`, `-p2`, `node-sizes-opacity`, `-p2`,
   `labels`, `labels-p2`, `labels-p3`, `edges-lines`, `-p2`, `arrows`, `-p2`, `-p3`, `edge-labels`, `-p2`, `groups`,
   `images-charts`): Cytoscape's GML reader and gml2gv paint their own defaults over the GML draft's, Tk's and yEd's
@@ -1639,6 +1649,30 @@ Fixed in fix round 1 (2026-10-19):
   and anchors are now named by their `comment` or `template` on both sides (`specimenRoleNames`, `namedCaptions`),
   and a caption's words the association hands to a tall specimen beside it are taken off it (`node-sizes-opacity-p4`
   `size-40x80`). OGDF's root cluster, a stroked 0 x 0 rect SVG does not draw, is no longer read as a stray.
+
+Fixed in fix round 2 (2026-10-19):
+
+- `gml-specimen-arrows-p7` / `-p8` (`obox`, `olbox`, `orbox`, `oinv`, `olinv`, `orinv`, `invempty`): gv2gml's open
+  arrows the neutral vocabulary has no name for were read filled; they take the open values the DOT reader gives
+  them (`other:open-square`, `other:open-inverted`), through one shared `graphvizArrowValue` (edge.arrowFill 7 per
+  page -> 0).
+- `gml-specimen-node-shapes-p6` (`type-doublecircle`, `type-doubleoctagon`, and `type-tripleoctagon`'s second
+  outline): gv2gml's double outlines were not read. The ring Graphviz draws 4 points outside the first outline is
+  read as `outerBorder*`, as the DOT reader reads it, and the node is sized by its inner outline (gv2gml's `w` and
+  `H` are the outer size). A third outline is noted as not carried.
+- `gml-specimen-edge-labels-p5`: gv2gml copies Graphviz's `lp` as a plain edge key; a straight edge's label is now
+  moved there from the line's middle (labelPosition center, labelOffsetX / Y, y flipped). label.alongLine 0.34 ->
+  passes.
+- `gml-specimen-edge-labels-p3`: OGDF's drawSVG draws an edge label centered on its line, at the middle of the
+  route's first segment (source center to first bend), not at the route's middle; both are read (OGDF's edge
+  labelPosition default center, a bent edge's labelOffsetX / Y). label.alongLine 0.22 -> passes.
+- `gml-specimen-arrows-p6` (`directed-0`): Gephi's GML importer never loads an edge whose `directed` disagrees with
+  the graph's, so its drawing has none; the edge is kept with its data and read as not visible (edge.extra -> 0;
+  the sheet passes).
+- Specimen ids by number: the comparator names every node of a GML sheet by the setting id its `comment` (or OGDF's
+  `template`) keeps (`specimenSettingNames`), so a failing row reads `type-promoter` or
+  `target-arrow-curve-s->target-arrow-curve-t#0`, not a number that is another setting on each page. The sheets'
+  rows of `oracle-known-failures.json` were renamed to match.
 
 ## Specimen sheets: Graphviz DOT
 

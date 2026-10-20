@@ -286,8 +286,12 @@ Review happens before anything is offered to master.
   master. The owner reviews whenever convenient and presses Finish.
 - Finish commits the accept record to the `golden` branch on GitHub (existing visual-review
   behavior). The next `land` or `ship` merges it into local `golden` during its sync.
-- visual-review's trusted code does not change. The approvals are records for the golden pull
-  request, which is exactly what the existing gate checks.
+- Since 2026-10-19 the owner's approval is a signed statement about the git tree of
+  `visual-baselines/`, committed outside it as `visual-review-approvals/<tree>.json`, and the gate
+  accepts it on any commit that has the approved commit in its history and the same tree, so an
+  approval made on golden holds on a cut of it. The review page compares the cut with master's
+  baselines, so it shows every image the cut ships. See `design/visual-testing/design.md`,
+  "Signed tree approvals".
 
 Because the owner approves one pull request rather than one per change, folding changes together
 no longer invalidates approvals (section 2.2).

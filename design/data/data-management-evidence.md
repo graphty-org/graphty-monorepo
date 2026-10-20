@@ -36,7 +36,8 @@ Evidence lines cite files by short name. They resolve as follows.
 
 ## B. Requirement evidence
 
-Numbers match the main document. "Jobs" are the job rows of section C.
+Numbers match the main document. Here they run in number order; in the main document the order
+within a tier is priority. "Jobs" are the job rows of section C.
 
 ### 1. Every data operation is one element command
 
@@ -559,6 +560,69 @@ Cell = frequency/importance. Frequency: E every session, O often, S sometimes, R
 | clean-values                 | R/n            | S/I          |             |               | S/I                  |                       |                           | S/I                     | S/I                  |                   |                    | E/B                | S/I                             |                              |
 | keep-and-replay-steps        |                | O/I          | S/I         | S/I           |                      | S/I                   | O/I                       | O/I                     | O/I                  | S/I               |                    | O/I                |                                 |                              |
 | export-data                  |                | O/I          | O/B         | O/I           | S/I                  |                       | O/I                       | E/I                     | O/I                  | O/B               | E/B                | O/I                |                                 | S/I                          |
+
+### Summary by job
+
+How many of the 14 personas do each job, and for whom it is every session or blocking.
+
+| Data job                              | Personas who do it | Every session for                                        | Blocking for                                                 |
+| ------------------------------------- | ------------------ | -------------------------------------------------------- | ------------------------------------------------------------ |
+| Load one file                         | 13 of 14           | 9 personas, from explorer to lab researcher              | all but knowledge engineer                                   |
+| Filter or hide                        | 12                 | analyst, expert, fraud, intelligence, security, genomics | analyst, security                                            |
+| Export data                           | 11                 | genomics, recommender                                    | expert, marketing, recommender                               |
+| Check what loaded                     | 10                 | explorer, analyst, expert, genomics, knowledge engineer  | analyst, knowledge engineer                                  |
+| Set id, source, target, weight        | 10                 | security, recommender, lab researcher                    | explorer, analyst, supply chain, recommender, lab researcher |
+| Join a table onto nodes               | 9                  | genomics                                                 | genomics, bioinformatics                                     |
+| Repeat steps on new data              | 9                  | --                                                       | -- (often for five)                                          |
+| Set time, kind, place                 | 9                  | fraud, security                                          | --                                                           |
+| Preview before loading                | 8                  | explorer, analyst, knowledge engineer, lab researcher    | genomics, lab researcher                                     |
+| Select by condition                   | 8                  | explorer, fraud, intelligence, security                  | fraud                                                        |
+| Node table plus edge table            | 8                  | --                                                       | supply chain                                                 |
+| Add a second file                     | 7                  | --                                                       | intelligence, knowledge engineer                             |
+| Fix a column's type                   | 7                  | --                                                       | --                                                           |
+| Replace with newer data               | 6                  | --                                                       | supply chain                                                 |
+| Load from a server or list of ids     | 6                  | genomics, knowledge engineer, security                   | genomics, knowledge engineer                                 |
+| Expand a neighborhood from the server | 6                  | fraud                                                    | fraud                                                        |
+| Merge duplicate nodes                 | 6                  | knowledge engineer                                       | knowledge engineer                                           |
+| Merge or compare two graphs           | 5                  | --                                                       | --                                                           |
+
+### Priority scores
+
+The main document orders each tier by these scores. A job's score sums, over the personas with
+evidence for it, frequency (every session 4, often 3, sometimes 2, rarely 1) times importance
+(blocking 3, important 2, nice 1), from the grid above. A requirement takes the score of the job
+it serves; one that covers only a narrow part of its job, or a single persona's case, ranks below
+those that cover the whole job.
+
+| job                          | score | personas with evidence | personas for whom it is blocking |
+| ---------------------------- | ----- | ---------------------- | -------------------------------- |
+| load-one-file                | 141   | 13                     | 12                               |
+| filter-hide                  | 88    | 12                     | 2                                |
+| set-structural-role          | 78    | 10                     | 5                                |
+| export-data                  | 76    | 11                     | 3                                |
+| check-what-loaded            | 76    | 10                     | 2                                |
+| select-by-condition          | 60    | 8                      | 1                                |
+| preview-validate-before-load | 57    | 8                      | 2                                |
+| join-table-onto-nodes        | 53    | 9                      | 2                                |
+| load-from-network-source     | 50    | 6                      | 2                                |
+| keep-and-replay-steps        | 46    | 9                      | 0                                |
+| set-descriptive-role         | 45    | 9                      | 0                                |
+| add-second-file              | 42    | 7                      | 2                                |
+| two-tables-one-network       | 40    | 8                      | 1                                |
+| expand-from-source           | 36    | 6                      | 1                                |
+| clean-values                 | 33    | 7                      | 1                                |
+| derive-column                | 30    | 7                      | 0                                |
+| set-column-type              | 29    | 7                      | 0                                |
+| resolve-duplicate-nodes      | 29    | 6                      | 1                                |
+| replace-with-newer-data      | 29    | 6                      | 1                                |
+| load-subset                  | 29    | 6                      | 1                                |
+| save-filter-or-set           | 26    | 5                      | 0                                |
+| know-provenance              | 24    | 5                      | 0                                |
+| map-identifiers              | 20    | 5                      | 0                                |
+| rename-hide-columns          | 14    | 4                      | 0                                |
+| merge-or-compare-graphs      | 12    | 5                      | 0                                |
+| edit-values                  | 12    | 5                      | 0                                |
+| open-sample                  | 10    | 4                      | 0                                |
 
 ### Jobs
 
@@ -2127,7 +2191,11 @@ Judgment
 
 ## J. Competitor lessons and superseded designs
 
-The main document summarizes these in one paragraph.
+In short, the competitors teach: let the reader point at columns instead of
+demanding fixed headers; make a join say why it matched nothing before it commits; fix a type on
+the column itself; prefer two plain verbs to three subtle ones; offer cleanup only when the data
+needs it; bind recorded steps by column role or name, never by position; and keep one filter card
+first, because ordered filter trees confuse newcomers.
 
 ### What competitors teach
 
@@ -2183,7 +2251,62 @@ The main document summarizes these in one paragraph.
 The framework documents in `design/ui/framework/` stay in force; this document applies them to
 data.
 
-## K. Sources for the project file decision
+## K. The project file decision: column roles and sources
+
+### What the columns member holds
+
+The detail of item 8 of the owner's decision of 2026-10-19 (main document, "Decided by the
+owner"):
+
+- Standard keywords carry the type, `format` (date-time, date, duration, uri), `enum`, and
+  title and description.
+- The graphty vocabulary carries: the column's role; the weight's meaning (distance,
+  similarity, capacity, unknown) and whether higher means stronger; the id system (Ensembl
+  gene, UniProt, email); the time kind (instant, start, end, duration); precision; the original
+  format and time zone, so an export writes the values back as they came; the measurement
+  level, including ordered categories; a unit or currency; the missing-value markers seen on
+  import; a multi-valued separator; and the keys used to match nodes across graphs or tables.
+- Values in the data are stored normalized: ids as strings, numbers as numbers, times as ISO
+  8601 in UTC, lists as arrays, blanks as missing.
+- A column with no recorded role is inferred on open, as today.
+- Node positions stay with the layout, and a file's own colors and sizes stay a style layer;
+  neither is a column role.
+- Recipes refer to columns by role, so a recipe survives renamed columns. Each column change a
+  person makes is also a recipe command, so applying a recipe to new data reproduces the
+  types.
+
+### What the columns member records per role
+
+The owner's decision of 2026-10-19 (main document, "Decided by the owner", item 8) gives each
+column a JSON Schema description. Per role it records:
+
+| Role                     | Recorded besides type and format                          | Stored as                           |
+| ------------------------ | --------------------------------------------------------- | ----------------------------------- |
+| node id                  | id system; whether it is a key for matching across graphs | string                              |
+| edge source, edge target | id system of the node ids they name                       | string                              |
+| edge id                  | id system                                                 | string                              |
+| weight                   | meaning; whether higher is stronger; unit                 | number                              |
+| time                     | time kind; precision; original format and time zone       | ISO 8601 in UTC; durations ISO 8601 |
+| label                    | --                                                        | string                              |
+| kind                     | the kinds (`enum`)                                        | string                              |
+| category                 | the categories (`enum`); whether they are ordered         | string                              |
+| place                    | original format; precision                                | string or number, as its type says  |
+| link                     | --                                                        | string, `format: uri`               |
+| image                    | --                                                        | string, `format: uri`               |
+
+Any column, with a role or none, can also record a unit or currency, missing-value markers and a
+multi-valued separator (stored as an array).
+
+### Why JSON Schema rather than Frictionless Table Schema
+
+Values are already stored normalized, so
+Table Schema's rules for parsing raw text are not needed. The document file already uses JSON
+Schema, so the whole file has one schema language, and standard validators check embedded data
+against it. graphty's own meanings need a vocabulary in either language. A Table Schema that comes
+with a CSV (a `datapackage.json` beside it) is read by graph-io at import and mapped into the
+columns member; graphty never writes one.
+
+### Sources
 
 - FACT: the document container, its typed members, `requires`, skipped unknown kinds and the closed
   data member (`design/documents/container.md` on `golden`, "Data model", "Reading a file" rules
@@ -2198,3 +2321,29 @@ data.
   parsing raw values such as missing-value markers and number formats
   (https://specs.frictionlessdata.io/table-schema/). graph-io reads it at import; graphty does not
   write it.
+
+## L. Team decisions in full
+
+The main document lists these in short, under "Decided here".
+
+These are additive, so the team decides them; each lands without the owner's approval.
+
+1. **Column roles gain a node or edge kind and a skip choice by a new field, not by widening
+   `ColumnRole`.** `ColumnRole` is a closed union that `DraftColumn.suggested` returns, so a new
+   member would break a consumer's exhaustive switch. `DraftColumn` gains a field typed as an open
+   union (`ColumnRole` plus `"kind"`, `"skip"` and any string), and the table mapping gains optional
+   `kind` and `skip` entries. Widening `ColumnRole` itself can ride in the grouped graphty-element
+   major the owner has on hold.
+2. **A date is a time measurement with an optional unit and format, not a new kind.** `Measurement`
+   is already an open union that includes `"time"`, and optional fields on a measurement
+   declaration break nothing. Column types and time roles (requirements 17 and 33) need it now.
+3. **The weight meaning "similarity" is accepted beside "strength".** Every input accepts both,
+   values read back keep saying `"strength"` so no consumer's switch breaks, and `"strength"` is
+   deprecated and replaced in the next planned graphty-element major.
+   `design/ui/framework/graph-conventions.md` (line 88) asks for the clearer word.
+4. **Ordered filter steps take one kind of step.** The published API has one filter per session
+   (`session.visibility.filter`) plus one time window, and no `FilterStep`, so the list of steps is
+   a new shape. The team takes decision 25 of `design/ui/framework/one-way-doors.md`: one kind,
+   every step bounding every computation. Steps are saved as recipe commands.
+5. **Network-source limits default to none in the element and are set by the app**, because the
+   right cap depends on the consumer's screen and machine.

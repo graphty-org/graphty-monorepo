@@ -16,19 +16,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, crimson is red) compact-mantine `colorWord` (`utils/color-utils.ts`, the one
-   function every spoken color name goes through: picker swatches, the layer table, the folder
-   Color button, legend words): the red band now starts at hue 340, not 350, so BE0032 (hue 344,
-   Kelly's red in the 19-color palette) reads "red", not "pink". Hot and deep pinks sit near 330
-   (EC4899, CC79A7, FF69B4) and stay pink; F783AC (hue 339) stays pink. Test: `color-utils.test.ts`
-   "calls a crimson red and keeps pink for pinks" (red before the change). Walk on a fresh build
-   (`design/ui/studio/tmp/r1-dry1-color-word-crimson/walk/`): College football, Louvain, folder
-   Color: table swatch "Layer Group 5 color, red" (13), picker swatch "red BE0032, the color before
-   this edit" (15). The session's first page load was blank (02, 03); `--reopen` loaded it (04) --
-   the session waited minutes for a browser slot, mechanism not traced. graphty `words.test.ts`
-   "draws the vary glyph..." is red ("Node color by attribute" vs "Color by attribute"), not mine.
-   Re-walk of the label clearance fix (Top of mind 0 before this):
-   `git show 50ecd91e4:design/ui/studio/notes/engineer.md`.
+0. (2026-10-19, crimson re-walk: REGRESSION) Moving the red band's start to 340 in compact-mantine
+   `colorWord` (50ecd91e4) made Kelly's purplish pink E68FAC -- hue exactly 340.0 -- read "red":
+   the band test is `hue * 60 < end`, so 340 falls out of pink into red. College football,
+   Louvain, Group 8 is now "red" in the Color from each layer rows, its swatch button and its
+   picker ("red E68FAC") -- a plainly pink swatch spoken red
+   (`design/ui/studio/tmp/r1-dry1-recheck-color-word-crimson/walk/11.png`, `14.png`). BE0032
+   (Group 5) reads red as intended (`18.png`); Enter, Escape, Tab, Shift+Tab on the swatches and
+   picker unchanged. Fix idea, not done: put the boundary between 340 and 344 (e.g. 342), or
+   decide by lightness too (a light 340 is pink, a deep one red), and add E68FAC to the test.
+   Lesson: a hue boundary moved onto a round number lands exactly on palette colors; test every
+   palette color near a moved boundary, not only the one that exposed it.
+   Earlier: the fix and its first walk are in `git show a1d58467a:design/ui/studio/notes/engineer.md`, Top of mind 0.
 
 1. (2026-10-19, label count and the selection ring) graphty-element `LabelDeclutter` keeps a
    fixed 3 px `LABEL_CLEARANCE` between kept words and other nodes' circles, and sizes a node by

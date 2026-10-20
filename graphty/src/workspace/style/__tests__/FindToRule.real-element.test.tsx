@@ -145,5 +145,16 @@ describe("selection as a way into a rule", () => {
         assert.isDefined(made);
         assert.deepEqual(made.selector, { match: "expression", where: "age > `30`" });
         assert.strictEqual(session.styles.counts(made.id).matched, 3);
+
+        // The layer styles nodes only, so its "Style nodes" box stays on, and says why to a screen
+        // reader and on hover.
+        const box = await screen.findByRole("checkbox", { name: "Style nodes" }, { timeout: TIMEOUT_MS });
+        const reason = "Stays on: style edges first to stop styling nodes";
+        await waitFor(() => {
+            assert.isTrue((box as HTMLInputElement).disabled);
+            assert.strictEqual(box.getAttribute("aria-description"), reason);
+        });
+        await userEvent.hover(box.closest(".ws-kind-switch-tip") ?? box);
+        assert.strictEqual((await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS })).textContent, reason);
     });
 });

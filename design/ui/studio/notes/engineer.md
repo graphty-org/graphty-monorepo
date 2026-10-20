@@ -16,7 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, the key and the layer rows say what is drawn; graphty app, no API change)
+0. (2026-10-19, "Style nodes" says why it is dimmed: NO CODE CHANGE NEEDED) The dimmed box on a
+   layer made from a find selection already carries its reason: `KindSwitch` (`StylePanel.tsx`,
+   not `ValuePicker.tsx`) gives a disabled box `aria-description` "Stays on: style edges first to
+   stop styling nodes" and a tooltip, exactly as a disabled "+" does (not a Tab stop, reason on
+   hover; `decided.md`). It was in the frozen build e3c5bca8e6 too. Walked on a fresh dist
+   (`design/ui/studio/tmp/r1-dry1-style-nodes-reason/repro/09-12`): volunteers, find `phone`,
+   Enter, Fill red; hovering "Style nodes" prints the tooltip. The pilots who flagged it (T40B,
+   T41A, T41B) never hovered: "dimmed with no reason" means "no reason drawn on the panel", and
+   drawing it there was reversed in pass 2 (three lines under the box). Added a guard to
+   `FindToRule.real-element.test.tsx` (a rule-made layer's box: disabled, description, tooltip);
+   it passes on HEAD, as expected. Next triage should class the complaint "no change" against the
+   disabled-"+" rule, or decide anew whether a box that cannot change should show at all.
+
+1. (2026-10-19, the key and the layer rows say what is drawn; graphty app, no API change)
    (a) Legend pressed with nothing keyed: store flag `legendAsked`, set only by the reader's press
    (the default `legendShown: true` is not a request), makes the toggle read pressed and the card
    show one line "Nothing is styled yet" (`NOTHING_KEYED`, `legendWords.ts`); the next press clears
@@ -34,7 +47,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    styled"). In this shared worktree today 15 real-element tests (VaryByLayer 7, StylePanel 3,
    RowKinds 2, ConditionCards 1, LayerPanelBehavior 1, CanvasOverlays T8) fail identically with and
    without these edits: not from this change.
-1. (2026-10-19, earlier today) A node called by its label everywhere (`nodeName`, fa2316520);
+2. (2026-10-19, earlier today) A node called by its label everywhere (`nodeName`, fa2316520);
    Which nodes in one click (`WhichPicker.tsx`); the drawing stays put when the key appears
    (`useOverlayInset` never frames); re-walk of tooltips, lists and picker (four pre-existing
    gaps). Each in full in `git show f94864ef6:design/ui/studio/notes/engineer.md`, Top of mind 0,

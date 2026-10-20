@@ -912,19 +912,29 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
     }
     put("curved", edgeCurved(real));
+    if (real.type === "ArcEdge") {
+        // the bend yEd saves is the arc's apex, `y:Arc height` from the line between the ends (every yEd-saved arc
+        // in the corpus: scala-collection-mutable, Animatron__player__flow), so the arc is the circle through it
+        put("bendCurve", "arc");
+    }
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
 }
 
 /**
- * Whether yEd draws an edge curved: an arc always; a Bezier, quad curve or spline only through its control points
- * (with none it is a straight line); a polyline, and a generic edge (a framed or styled polyline), only when it smooths
- * bends it has.
+ * Whether an edge is drawn curved through its bends: an arc always; a spline only through its control points (with
+ * none it is a straight line); a polyline, and a generic edge (a framed or styled polyline), only when it smooths
+ * bends it has. A Bezier or quad curve edge never: its curve is flattened into points on it (`readEdgeRoute`), drawn
+ * straight from one to the next, as a Graphviz spline is; rounding their corners cut inside the curve (a quad curve
+ * of straightness 1, whose points are its control polygon, was drawn bowed).
  * @param real - the edge realizer
  * @returns true when curved, null when a polyline does not say whether it smooths
  */
 function edgeCurved(real: Realizer): boolean | null {
     if (real.type === "ArcEdge") {
         return true;
+    }
+    if (real.type === "BezierEdge" || real.type === "QuadCurveEdge") {
+        return false;
     }
     const bent = treeChildren(treeChild(real.r, "Path"), "Point").length > 0;
     if (real.type !== "PolyLineEdge" && real.type !== "GenericEdge") {

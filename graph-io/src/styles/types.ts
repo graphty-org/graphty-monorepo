@@ -654,7 +654,8 @@ export interface EdgeStyleValues {
      * How a curved edge is drawn through its bends: `"corners"`, straight through each bend with its corner rounded,
      * or `"midpoints"`, one smooth curve using the bends as control points, from the middle of each segment to the
      * next and leaving each end along its first and last segments (Cytoscape desktop), or `"bezier"`, one Bezier curve
-     * whose control points are the bends (one: quadratic, two: cubic; vis-network's smooth edges).
+     * whose control points are the bends (one: quadratic, two: cubic; vis-network's smooth edges), or `"arc"`, the arc
+     * of the circle through both ends and the one bend, which lies on it (yEd's arc edge).
      */
     readonly bendCurve: string;
     /**

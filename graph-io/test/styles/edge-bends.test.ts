@@ -240,6 +240,19 @@ ${edge("a", "a", '<y:PolyLineEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x
         expect(loop).toBe("-0.5,4 0.5,4");
     });
 
+    it("draws a flattened Bezier or quad curve straight through its points, and an arc as a circle through its apex", async () => {
+        // the flattened points lie on the curve: rounding their corners cut inside it
+        expect((await bends(doc, "graphml", "curved")).slice(1, 3)).toEqual([false, false]);
+        const arc = doc.replace(
+            /<edge source="a" target="b"><data key="d10"><y:PolyLineEdge>.*?<\/edge>/,
+            '<edge source="a" target="b"><data key="d10"><y:ArcEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="50" y="-20"/></y:Path><y:Arc height="20" ratio="0.8" type="fixedHeight"/></y:ArcEdge></data></edge>',
+        );
+        expect((await bends(arc, "graphml", "bendCurve"))[0]).toBe("arc");
+        expect((await bends(arc, "graphml", "curved"))[0]).toBe(true);
+        // yEd saves the arc's apex, 20 above the middle of the line between the centers 100 apart
+        expect((await bends(arc, "graphml"))[0]).toBe("0.5,0.2");
+    });
+
     it("writes ports and a loop's points back so they read back as the same values", async () => {
         const r = await registry.importGraph(doc, { format: "graphml", styles: true });
         const written = await registry.exportGraphToString(r.snapshot, "graphml", { styles: r.styles ?? undefined });

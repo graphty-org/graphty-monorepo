@@ -988,6 +988,55 @@ Still open after fix round 2:
 - The Cytoscape.js writer writes no `curve-style` for a straight edge, so Cytoscape.js draws a file graphty wrote with
   haystack edges and no arrows; it should write `curve-style: straight` where an arrow is drawn.
 
+Fix round 3 (2026-10-20), what graph-io now reads and the comparator now sees (unit tests in
+`graph-io/test/styles/cyjs-specimen-fixes.test.ts` and `graphty-element/test/browser/oracle-clip-band.test.ts`):
+
+- One label alignment inside the node and the other outside it (`text-align-bottom-inside-left`,
+  `-bottom-left-inside` and the rest on `cytoscapejs-specimen-labels`): the label is centered, moved to the point
+  `recalculateNodeLabelProjection` puts it at (half the node's size, `padding` out for an outside side and in for an
+  inside one, `text-margin` added) and pinned there by `labelShiftX` / `labelShiftY` (its far edge for an outside
+  side, its near edge for an inside one). `label.anchor` and `label.offset` pass on every one; the outside side alone,
+  noted, is kept only for a node sized to its label. Fixed: the fix round 1 note "One inside and one outside
+  alignment keep the outside side" no longer holds.
+- The label's box (`text-background-*`, `text-border-*`): one font size tall a line (`labelLineHeight: 1`, as
+  `calculateLabelDimensions` measures it), and `text-background-shape: round-rectangle` (and `roundrectangle`) rounds
+  its corners 2 px (`drawText`'s `roundRadius`). `label.backgroundBox` passes for every box without a border on
+  `-labels-p2` and `-edge-labels` (it drew 26.1 x 13.5 for 26.1 x 9.7). Still open: `circle` (a disc as tall as the
+  box, centered on it; no neutral box has that shape, noted), and a box with a border: Cytoscape.js strokes the
+  border centered on the box's edge, graphty-element draws it wholly outside the box and about 1.4 px taller
+  (29.9 x 15.1 for 26.1 x 9.7 at a 2 px border), which needs a label border position in graphty-element.
+- `border-position: inside` / `outside`: the comparator now reads only the half of the doubled stroke the clip keeps
+  (the node's outline, or a box minus the outline by the evenodd rule), and the web oracle now records the evenodd
+  rule and the `Path2D.addPath` that builds the outside clip (the SVG had the bare box, so the stroke was drawn whole).
+  `cytoscapejs-specimen-node-fills-borders` regenerated; both specimens pass `node.width`, `node.height` and
+  `node.strokeWidth` (they read 46.4 and an 11.6 stroke for a 5.8 border).
+
+Still open after fix round 3:
+
+- Numeric font weights 100, 200, 900 and `lighter` (`label.weight`): unchanged, the owner's call (above). 100, 200
+  and `lighter` are read as normal (400), 900 as bold (700); none is drawn bolder than the file asks.
+- Compound bounds (`group.box`, `group.present`, `group.extra` on `cytoscapejs-specimen-groups`): unchanged.
+  graphty-element pads a group by its largest member's radius (`LayoutManager.boxOf`); Cytoscape.js pads the
+  members' box, labels included, by `padding` (10 px unset) and grows it to `min-width` / `min-height` by the biases.
+  Needs a group padding and minimum size channel in graphty-element and neutral properties for them.
+- `source-distance-from-node` / `target-distance-from-node`: the neutral `nodeGap` and graphty-element's
+  `edge.nodeGap` stop both ends alike; one end's gap needs a per-end gap in both packages.
+- Label wrap (`json-cyjs-winecheese` 10 and `json-cyjs-graphmaker` 6 `label.lines`): not the widths. Measured in
+  Chromium with the pinned fonts, `Hoch Ybrig` is 48 px wide at bold 9 px, inside `text-max-width: 50`, and
+  Cytoscape.js keeps it on one line: `getLabelText` measures `subline + word + wordSeparator`, and a label's last word
+  has no separator (`/[\s​]+|$/g` matches the end with ""). graphty-element's `wrapTrailingSpace` counts a space
+  after the last word too (Cytoscape desktop's rule, measured on `cx-ndex-90f78bcd`), 50.5 px, so it breaks the
+  line. Needs a wrap mode that counts the space after every word but the last, in graph-io's vocabulary and
+  graphty-element's label options.
+- `json-cyjs-tokyo` label places (`label.anchor` 17/712, `label.offset` 655/712): not a mixed alignment (its
+  stylesheet sets none; every label is Cytoscape.js's default `top`). graphty draws each label about 4.5 render px
+  higher than Cytoscape.js at the sheet's small zoom; the specimen sheets' `top` labels pass, so the gap grows as the
+  font shrinks on screen. Open, graphty-element.
+- `haystack` and `haystack-radius`, the edge to a hidden node, the edge overlay read as a second edge, the corpus
+  edges left unpaired and the compound arrow caps (`circle-triangle`, `triangle-tee`, `triangle-cross`, read as no
+  class on the oracle side): unchanged, as above; the comparator's edge association and arrow classes
+  (`associate.ts`) are being changed by other work.
+
 The annotation, chart color scheme and mapping pages added after the first round (`-images-charts-p6`,
 `-mappings-bypass-p19`, `-p20`):
 

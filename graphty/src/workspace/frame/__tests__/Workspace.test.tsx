@@ -218,6 +218,9 @@ describe("the workspace frame", () => {
         const undo = screen.getByRole("button", { name: "Undo" });
         assert.equal(undo.getAttribute("aria-disabled"), "true");
         assert.isFalse(undo.hasAttribute("disabled"));
+        // A dimmed Undo and Redo stay Tab stops, so the reason is reachable by keyboard.
+        assert.notStrictEqual(undo.tabIndex, -1);
+        assert.notStrictEqual(screen.getByRole("button", { name: "Redo" }).tabIndex, -1);
         await userEvent.hover(undo);
         assert.isNotNull(await screen.findByText("Nothing to undo", undefined, { timeout: 3000 }));
     });

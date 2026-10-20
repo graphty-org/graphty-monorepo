@@ -255,18 +255,18 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         assert.strictEqual(add.getAttribute("aria-description"), "Everything in node shape is set");
     });
 
-    it("disabled Undo and Redo are not Tab stops; the canvas toolbar is entered at Analyze", async () => {
+    it("disabled Undo and Redo stay Tab stops; the canvas toolbar is entered at Analyze", async () => {
         const { session } = await openRings();
         const header = within(screen.getByRole("banner", { name: "Project" }));
-        // Loading the rings was undoable; with nothing to undo, Undo is passed over too.
         assert.strictEqual(header.getByRole("button", { name: /^Undo( |$)/ }).tabIndex, 0);
         act(() => {
             session.history.clear();
         });
         await waitFor(() => {
-            assert.strictEqual(header.getByRole("button", { name: "Undo" }).tabIndex, -1);
+            assert.strictEqual(header.getByRole("button", { name: "Undo" }).getAttribute("aria-disabled"), "true");
         });
-        assert.strictEqual(header.getByRole("button", { name: "Redo" }).tabIndex, -1);
+        assert.strictEqual(header.getByRole("button", { name: "Undo" }).tabIndex, 0);
+        assert.strictEqual(header.getByRole("button", { name: "Redo" }).tabIndex, 0);
         const bar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const entry = within(bar)
             .getAllByRole("button")

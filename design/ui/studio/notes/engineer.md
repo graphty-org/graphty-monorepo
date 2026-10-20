@@ -8,6 +8,7 @@ Words: "the app" is the graphty app; "the element" is graphty-element; "the stud
 `.worktrees/design-studio-tier3` (branch `design/studio-tier3`). "Frozen build" is a copy of
 `graphty/dist` under `.study-builds/`, named on the first line of `tier3/criteria.md`.
 
+Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
 Summarized 2026-10-17 from 44 KB. Every dated entry of today's dry-run fixes (table, Analyze run,
 filter steps, style panel polish, page and selection, undo, inspector targets, condition lists,
 yes and no, find box, names and words, focus, number card, spoken messages, color box, drawing and
@@ -16,66 +17,32 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, RE-WALK of five fixes, no changes: node named by its label, Style nodes reason,
-   table Show in table and sort, inspector heading focus ring, layer list into view) Holds: node
-   inspector, neighborhood, edge Summary ends, made-layer name, notice and Undo words, member rows
-   all say the label (GeorgiaTech, Maryland -- GeorgiaTech, Navy); Style nodes box dimmed with its
-   reason on hover; Show in table marks, scrolls to and focuses the column, a header sort starts at
-   the top, hints say "Sort by label, A to Z"; the heading draws its ring after a keyboard open and
-   after a find pick; a run from the Data place and a Memberships group show the layer list, Undo,
-   Redo and the Data rail do not move it. REGRESSION (from the sort hint tooltip): Escape on a
-   focused sortable table header with a selection CLEARS the selection and leaves focus on the
-   header; the frozen build moved focus to the toolbar's Table button and kept the selection
-   (decided.md "Escape in the table grid moves focus to the toolbar's Table button"). Mechanism:
-   the header now opens a Mantine Tooltip on focus; floating-ui's dismiss handler stops Escape in
-   React, so TableDock's `leaveGrid` (a React onKeyDown on the dock) never sees it, and the
-   tooltip-Escape re-read in `useCommandKeys` then runs Clear selection. A second Escape (tooltip
-   gone) does leave the grid. Fix idea: `leaveGrid` in the capture phase (`onKeyDownCapture`), or
-   make the tooltip re-read skip a target inside `[role="grid"]`. Screens:
-   `design/ui/studio/tmp/r1-dry1-recheck-node-label-everywhere/new-esc/07.png`, `08.png` (new),
-   `frozen-esc/05.png` (frozen). Also seen, not from these diffs: a layer made from a `=degree > 11`
-   find is named "Rule: graphty.degree > 11" (an internal rule path in a reader's name).
-1. (2026-10-19, Escape in the inspector; graphty `keys/useCommandKeys.ts` `inspectorEscape`,
-   `inspector/Inspector.tsx`, `inspector/LayerValues.tsx` `MemberRows`, `inspector/reads.ts`
-   `openMember`/`memberReturn`/`takeMemberFocus`) Mechanism of "Escape on Degree 17 clears
-   nothing": the theme opens a Tooltip on focus, and Mantine's Tooltip closes on Escape through
-   floating-ui's dismiss handler on the reference element (a React onKeyDown), which calls
-   stopPropagation and never preventDefault, so the window's command listener never got the key.
-   Fix: a window CAPTURE listener sees Escape while a tooltip shows and no menu/list/dialog shows,
-   and re-reads it with the normal handler in a zero-delay task after dispatch; a control that
-   used Escape up prevented it, and a window run prevents it, so it never runs twice. Escape now
-   leaves the selection alone on any inspector that is not the selection's own (inspected null or
-   node/edge/several/neighborhood); fields keep Escape as before. A member row (Members, Top N)
-   remembers its layer; when that node's selection empties while the inspector shows it, the
-   layer comes back on Values with focus on that member's row. Selected's "Now" rows are left out
-   (the row is gone once the selection is). Tests: KeyboardStopsEscape (3 new; all 3 fail on the
-   old code). Walk on a fresh build: `design/ui/studio/tmp/r1-dry1-escape-inspector/degree/14.png`
-   (cleared, notice), `poster/09.png` (layer keeps Valjean), `poster/13.png` (back on Poster,
-   focus on MlleGillenormand). Pre-existing red, not from this: inspector tasks T7, T8 and "an
-   edge, an attribute...", FocusAndTabOrder "Why this look" and "Vary by" Tab, KeysLeaveNothingOpen
-   "card's remove button" (same 6 on the old code). nx refuses to run while an untracked
-   `compact-mantine-headproof/` copy duplicates the project name; build with `npm run build` in
-   `graphty/`. This file is past 25 KB; not summarized here because other agents had it open.
-2. (2026-10-19, style fields: Tab, remove, Escape; graphty `style/PropertyRow.tsx`,
-   `style/useFocusLine.ts`; compact-mantine `inputs/useNumberField.ts`, `inputs/DiscardNote.tsx`)
-   Mechanism of the Tab bug: the box writes in its blur handler; React renders that write in the
-   microtask between focusout and focusin, so the control Tab was going to (the bind button) is
-   replaced before focus lands, focus falls to the page, and the old `useFocusKept` (or the
-   focus guard's rescue, which picked the Style tab) sent it back. Now `useFocusKept` remembers
-   the control focus is on OR going to (focusout's `relatedTarget` inside the line), in module
-   state so a line in a remounted tab (a selection's first value makes its layer) takes it up,
-   and restores the control of the same aria-label, else the line's field (that keeps Undo of
-   Stop varying landing in the field). `useFocusLine`'s pending ask is answered when the line
-   already holds focus. Remove: `PropertyRow`'s remove calls `focusSectionNext`, which now asks
-   for the section's `[data-plus]` itself, never the line sliding up. Escape discard: one shared
-   `DiscardNote` (a mounted VisuallyHidden status plus an aria-hidden visible copy) in
-   CompactColorInput, StyleNumberInput and ComboInput; `useNumberField` returns `discarded`.
-   Words reuse `labels.colorEditDiscarded`. Tests: FocusAfterWriting (Tab on a new and a set
-   width, selection color Tab, Remove+Enter on Paint and Everything, Escape in width and color),
-   Labels (settings Size Escape), compact-mantine StyleNumberInput, ComboInput, CompactColorInput.
-   Walk: `design/ui/studio/tmp/r1-dry1-style-field-focus/again/` 03-06, 10-11. Polish left: the
-   number box's note wraps in the 110 px field and pushes the line (and Label settings' Size
-   row) down; a full-width note under the line would read better.
+0. (2026-10-19, dimmed Undo and Redo are Tab stops; graphty `frame/Header.tsx`,
+   `frame/CommandButton.tsx`) The header passed `skipWhileDisabled` to Undo and Redo, which set
+   `tabIndex=-1` while their command could not run, so right after a graph opened Tab went Main
+   menu > Project > Local only and the "Nothing to undo" reason was never reachable by keyboard
+   (decided.md: a dimmed Undo stays reachable). Deleted the prop from both and the option from
+   CommandButton (no other caller). Tests: Workspace.test.tsx "shows a disabled command with its
+   reason and keeps it focusable" now asserts tabIndex is not -1 for both (fails on the old code,
+   where the header's disabled Undo was -1); the FocusAndTabOrder real-element test that asserted
+   -1 now asserts 0. Walk on a fresh build:
+   `design/ui/studio/tmp/r1-dry1-dimmed-undo-reachable/topbar-strip.png` (Tab: Main menu,
+   Project, Undo with "Nothing to undo", Redo with "Nothing to redo", Local only) and
+   `shift-tab-strip.png` (Shift+Tab back over Redo and Undo). Lesson: a setup start
+   (`setup:<file>`) leaves nothing focused, so the first Tab is Main menu; an `empty` start then
+   a sample click leaves focus in the inspector instead.
+1. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
+   with a selection clears the selection and keeps focus on the header; decided.md says it moves
+   focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
+   floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
+   never sees it, and `useCommandKeys`'s tooltip re-read runs Clear selection. Fix idea:
+   `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
+   Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
+   Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
+2. Earlier 2026-10-19 entries (Escape in the inspector and the window capture re-read of a
+   tooltip-swallowed Escape; style fields' Tab, remove and Escape with the shared `DiscardNote`)
+   in full in `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 1 and 2.
+   Pre-existing red there, still red: FocusAndTabOrder "Why this look" and "Vary by" Tab.
 3. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
    stop, re-walk of three fixes, find box words and keys, inspector heading focus ring, Analyze
    filter Tab, selection announcements by name) in full in
@@ -307,56 +274,13 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   their gaps together, so a count can only move with zoom through a rule fixed in pixels.
   Wheeling out past the fitted view did not zoom further in the probe (zoom3 equals the start).
 
-- (2026-10-18) Did not work: queuing a real.mjs `--start` while four pilot sessions hold every
-  browser slot. The start blocks with no output; a `timeout` around it kills the client but leaves
-  the queued `--serve` process (kill it by pid). Worked: the real-element test as the check.
-- (2026-10-18) Did not work: a one-size rule that compared `swatch.size` with no `size` set hid
-  every size ramp in a unit test (undefined === undefined); scoped to category blocks with a size.
-  A covered line named "Shortest route" (the element's layer name) where the key names the run as
-  the Analyze list does; naming a run's layer by `runName` fixed it.
-- (2026-10-18) Undo's reason after the press that dimmed it: WORKED by un-dismissing the same
-  tooltip element when its trigger turns off. Not tried and rejected on reading: a `key` on the
-  Tooltip to remount it, which remounts the button and drops keyboard focus to the page. The
-  condition-card step split keyed on `document.activeElement` alone merged a Tab-committed "from"
-  with the next commit in "to" (the Tab had moved focus there); keying on a box that holds its own
-  typing (`hasPendingEdit`) WORKED.
-
-- (2026-10-18) Did not work: proving the Enter-says-No-match test by waiting for the first "No
-  match" announcement. The old box spoke twice while typing (unsettled, then with the example), so
-  the second arrived after Enter and the test passed on the old code. Waiting for the settled line
-  ("To select by a value") before Enter made it fail on the old code and pass on the new.
-- (2026-10-18) Worked: compact-mantine's States play test strips the "on" attributes and expects
-  the drawing to change; a fill keyed on a new `data-current` failed it, `data-active` (an "on"
-  marker it knows) passes.
-
-- (2026-10-18) Mantine's Select calls `onDropdownOpen` BEFORE queuing its own
-  `updateSelectedOptionIndex` timer, so a timer set in `onDropdownOpen` runs first and is undone:
-  the cell stays lit (DOM attribute) while the store index is -1, and Enter does nothing. A
-  document listener's timer is queued after React's handlers, so it runs after Mantine's. Seen in
-  the walk (w1/12: Enter left the grid open), reproduced by a FieldStates test. WORKED once moved.
-- (2026-10-18) A layer added on nodes and edges is held as two layers with one name (edge part
-  `set: null`): find a layer's write by name AND the channel, not the first by name.
-- (2026-10-18) Selecting Les Miserables' node "0" (its gml id) opened nothing: the element keeps
-  other ids. Take ids from `session.data.nodes()`.
-- (2026-10-18) A tooltip test failed only in a full file run: `findByRole("tooltip")` waits 1 s by
-  default, the theme's open delay is 1 s, so it raced. Give it the hang guard. WORKED.
-- (2026-10-18) Seen, not mine (fail on HEAD's sources too): KeysLeaveNothingOpen "Tab from a
-  card's value reaches the card's remove button" (the remove moved after the header in 9f8c35c76)
-  and FocusAndTabOrder "Tab out of the Vary by list" (focus returns to "Node size by attribute").
-  `UnsetLine.real-element` (untracked, another agent) stops graphty `tsc`; walk build used
-  `vite build`. "Done on a new layer" failed once on the first, cold run of two files (13.8 s,
-  message lost) and passed on four warm runs, mine and HEAD's.
-- (2026-10-18) Proving failure by copying HEAD over my four files for one `-t` run, then copying
-  back, WORKED; check `git diff --stat` after, since another agent committed TableDock meanwhile.
-- (2026-10-18) Worked: a document `focusin` listener logging `new Error().stack` names who moved
-  focus. Staging only my hunks of a shared file: `git merge-file` into a private index (details
-  and every older entry: `git show d714c8530:design/ui/studio/notes/engineer.md`, "Tried").
-- (2026-10-18) After a commit from a private index the shared index still holds the old blobs, so
-  `git status` shows my files staged backwards and another agent's commit would revert them. Put
-  HEAD's blobs back for my paths only: `git update-index --add --cacheinfo <mode>,<blob>,<path>`
-  from `git ls-tree HEAD -- <path>`. WORKED (status clean after).
-- (2026-10-18) Found, not fixed: graphty-element `real-input.test.ts` 3D wheel zoom-out symmetry
-  fails every run (1.4045 vs 1.4366); needs its own unit.
+- (2026-10-19) Worked: proving a disabled-state test fails without the change by reading the
+  old code path, not by swapping files, when the change is a deleted prop: the header's Undo with
+  nothing to undo was exactly the `skipWhileDisabled && disabledReason !== null` branch.
+- 2026-10-18 entries (real.mjs slots, one-size rule, Undo's reason after the press, Select's
+  `onDropdownOpen` order, two-part layers, gml ids, tooltip waits, proving failure by copying HEAD,
+  focusin stack traces, private-index commits, the 3D wheel zoom-out symmetry finding) in full in
+  `git show 393580a87:design/ui/studio/notes/engineer.md`, "Tried: worked / did not work".
 
 ## Sources
 

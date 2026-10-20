@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { formatNumber } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { columnChoices, type RecordKind, type TableColumnChoice } from "../table/columns";
+import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
 import { RecordTable } from "../table/RecordTable";
 import { useSessionVersion } from "../table/useSessionVersion";
@@ -230,6 +230,7 @@ function IncomingTable({
                     {edges ? <span className="ws-th-role">{key === 0 ? "source" : "target"}</span> : null}
                 </span>
             ) : undefined,
+            ...(isKey ? { iconLabel: edges ? `key, ${key === 0 ? "source" : "target"}` : "key" } : {}),
             headerEnd: (
                 <span className="jn-th-end">
                     {clashes.has(column) && brought.has(column) ? (
@@ -388,6 +389,7 @@ function GraphTable({ session, kind, choices, onChange, only, height }: Readonly
                     ) : (
                         <HeaderIcons column={column} />
                     ),
+                    iconLabel: keyed.has(column.id) ? "key" : headerIconsLabel(column),
                     ...(path === null
                         ? {}
                         : {

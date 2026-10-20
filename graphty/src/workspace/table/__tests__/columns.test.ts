@@ -1,3 +1,4 @@
+import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
 import type { DataIssue } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
@@ -6,6 +7,7 @@ import {
     elementSort,
     fixLabel,
     groupName,
+    headerIconsLabel,
     issueLabel,
     issuePlace,
     sortCaption,
@@ -24,6 +26,20 @@ const RANK: TableColumnChoice = {
 const NAME: TableColumnChoice = { id: "a:name", header: "name", group: "attribute", numeric: false, attribute: "name" };
 
 describe("the table dock's words and sorts", () => {
+    it("names a header's icons for a screen reader: type, role, origin", () => {
+        assert.equal(headerIconsLabel(RANK), "number, computed");
+        assert.equal(headerIconsLabel({ id: "id", header: "Id", group: "key", numeric: false }), "key");
+        assert.equal(
+            headerIconsLabel({
+                ...NAME,
+                role: "label",
+                // Only the fields the words read.
+                descriptor: { type: "string", origin: "joined" } as unknown as AttributeDescriptor,
+            }),
+            "text, label, joined",
+        );
+    });
+
     it("sorts a result column by its run and an attribute by its key", () => {
         assert.deepEqual(elementSort(RANK, true), { run: "pagerank", descending: true });
         assert.deepEqual(elementSort(NAME, false), { key: "name", descending: false });

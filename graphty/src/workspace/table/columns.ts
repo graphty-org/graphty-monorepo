@@ -371,3 +371,22 @@ export function headerWidth(column: TableColumnChoice, warned: boolean): number 
     // Padding 16 + 16, the type icon and its gap, the menu caret's 32, the warning's 24.
     return 32 + HEADER_ICON + 4 + role + origin + name + 32 + (warned ? 24 : 0);
 }
+
+/**
+ * What a header's leading icons say, for a screen reader: the type, the role and the origin, in
+ * the order they are drawn.
+ * @param column - the column
+ * @returns the icons' words, such as "number, weight, joined"
+ */
+export function headerIconsLabel(column: TableColumnChoice): string {
+    const fallback = column.numeric ? "number" : "category";
+    const type = valueTypeOf(column.descriptor) ?? (column.descriptor === undefined ? fallback : "mixed");
+    const origin = column.group === "result" ? "computed" : column.descriptor?.origin;
+    return [
+        column.group === "key" ? "key" : (VALUE_TYPES.find((entry) => entry.type === type)?.label ?? type),
+        column.role === undefined ? undefined : (ROLE_WORDS[column.role] ?? column.role),
+        origin === "joined" || origin === "computed" ? origin : undefined,
+    ]
+        .filter((word) => word !== undefined)
+        .join(", ");
+}

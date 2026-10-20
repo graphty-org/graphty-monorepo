@@ -14,6 +14,7 @@ import {
     columnChoices,
     columnSummary,
     countOf,
+    headerIconsLabel,
     headerWidth,
     issuePlace,
     type RecordKind,
@@ -308,7 +309,10 @@ interface HeaderCellProps {
 }
 
 /** The header's parts of a table column. */
-type HeaderParts = Pick<DataTableColumn<object>, "icon" | "headerTooltip" | "headerEnd" | "menu" | "width">;
+type HeaderParts = Pick<
+    DataTableColumn<object>,
+    "icon" | "iconLabel" | "headerTooltip" | "headerEnd" | "menu" | "width"
+>;
 
 /**
  * A column header's configuration (spec section 3.5.1), as the table's header slots: the type
@@ -329,6 +333,7 @@ function headerCell(props: HeaderCellProps): HeaderParts {
     return {
         width: headerWidth(column, issues.length > 0),
         icon: <HeaderIcons column={column} />,
+        iconLabel: headerIconsLabel(column),
         ...(column.descriptor === undefined ? {} : { headerTooltip: columnSummary(column.descriptor) }),
         ...(end === undefined ? {} : { headerEnd: end }),
         menu: <HeaderMenu column={column} kind={kind} issues={issues} anyHidden={anyHidden} actions={actions} />,

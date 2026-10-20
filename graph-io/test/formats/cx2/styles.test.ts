@@ -393,3 +393,30 @@ describe("CX2 arrows Cytoscape draws off their node", () => {
         expect(resolveStyles(ex, "edge", "sourceArrowGap", snapshot).map(round)).toEqual(expected);
     });
 });
+
+describe("CX2 label background shapes", () => {
+    it("rounds the corners of a round-rectangle box, CX2's spelling of ROUND_RECTANGLE", async () => {
+        const text = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, v: { name: "a" } },
+                    { id: 2, v: { name: "b" } },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: { node: { NODE_LABEL_FONT_SIZE: 10, NODE_LABEL_BACKGROUND_SHAPE: "rectangle" } },
+                        nodeMapping: {},
+                        edgeMapping: {},
+                    },
+                ],
+            },
+            { nodeBypasses: [{ id: 2, v: { NODE_LABEL_BACKGROUND_SHAPE: "round-rectangle" } }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(text);
+        expect(resolveStyles(styles as ExtractedStyles, "node", "labelCornerRadius", snapshot)).toEqual([null, 1.455]);
+    });
+});

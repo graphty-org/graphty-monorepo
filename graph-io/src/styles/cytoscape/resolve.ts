@@ -654,7 +654,8 @@ function labelBox(
     const opacity =
         one(t, opacityParser(t), "labelBackgroundOpacity", i) ?? one(o, opacityParser(o), "labelBackgroundOpacity", i);
     put("labelBackgroundOpacity", i, opacity ?? 1);
-    if (shape.trim().toUpperCase() === "ROUND_RECTANGLE") {
+    // CX2 spells it round-rectangle
+    if (shape.trim().toUpperCase().replace("-", "_") === "ROUND_RECTANGLE") {
         const size = one(vp("FONT_SIZE"), sizeParser, "labelSize", i);
         // desktop's default label sizes: 12 on a node, 10 on an edge
         const defaultSize = vp("FONT_SIZE").startsWith("EDGE") ? 10 : 12;

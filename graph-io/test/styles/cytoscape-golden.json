@@ -5633,7 +5633,8 @@
                 "width": [[25, 4]],
                 "labelOpacity": [[1, 4]],
                 "labelBackground": [["#f0f0f0", 4]],
-                "labelBackgroundOpacity": [[1, 4]]
+                "labelBackgroundOpacity": [[1, 4]],
+                "labelCornerRadius": [[2.91, 4]]
             },
             "edge": {
                 "color": [

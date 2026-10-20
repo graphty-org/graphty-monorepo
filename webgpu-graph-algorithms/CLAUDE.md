@@ -692,5 +692,10 @@ A further model follows the same steps:
 - Never create fallbacks if WebGPU isn't supported (root CLAUDE.md): no CPU path, no WebGL path, no silent
   software-adapter acceptance in `src/`; the TEST layer may skip with a printed `E_NO_ADAPTER` reason only
   under the unset policy, and a wrong result is never a skip.
+- graphty-element, not the app, owns WebGPU detection, construction and lifecycle (root CLAUDE.md). This
+  OVERRULES design 9.1 (`design/webgpu/webgpu-acceleration-plan.md`, "9.1 The seam is async, and the dependency
+  direction"), whose dependency diagram ends at the app and makes the app the only importer of the GPU package.
+  That section is superseded, not deleted; the decision record is
+  `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`.
 - Never `git add` / `commit` / `push` (the owner commits from `tmp/commit-p<N>.sh`); never `sudo`; plain
   ASCII everywhere; no `eslint-disable`, no `@ts-expect-error` outside negative type tests.

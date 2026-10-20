@@ -1,33 +1,82 @@
 import { EntityChip, MenuCheckItem, ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ExportLoss, ExportResult } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Alert, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type DataChoices, dataExportOptions, type DataScope, fileName, saveBlob } from "./choices";
-import { isStyleLoss, layersBackWords, listedStyleLosses, lossWords } from "./lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
 
+/** Why a file was not written: the export's refusals (its E_ losses) as rows, else a label from its error code. */
+type Failure = readonly LossRow[] | string;
+
 /**
- * Why a file was not written, from the export's error code (graphty-element's messages are for developers).
+ * Why a file was not written (graphty-element's messages are for developers).
  * @param error - what the export threw.
  * @param losses - the export's losses, when it got that far; its refusals (E_ codes) say why.
- * @returns a sentence.
+ * @returns the refusals' rows, or a label.
  */
-function failureWords(error: unknown, losses: readonly ExportLoss[] = []): string {
-    const refused = [...new Set(losses.filter((loss) => loss.code.startsWith("E_")).map(lossWords))];
+function failureOf(error: unknown, losses: readonly ExportLoss[] = []): Failure {
+    const refused = lossRows(losses.filter((loss) => loss.code.startsWith("E_")));
     if (refused.length > 0) {
-        return refused.join(". ");
+        return refused;
     }
     const code = (error as { code?: unknown } | null)?.code;
-    return code === "E_UNSUPPORTED"
-        ? "This format cannot hold this graph"
-        : "Something went wrong while writing the file";
+    return code === "E_UNSUPPORTED" ? "Format cannot hold this graph" : "Write failed";
+}
+
+/**
+ * A loss row's count: a node or edge chip for nodes or edges; a plain number for anything else,
+ * unless the row's column chips already say how many.
+ * @param props - Component props
+ * @param props.row - the row.
+ * @returns the count, or nothing.
+ */
+function LossCount({ row }: Readonly<{ row: LossRow }>): React.JSX.Element | null {
+    if (row.count === null) {
+        return null;
+    }
+    if (row.kind !== null) {
+        return <EntityChip kind={row.kind}>{formatNumber(row.count)}</EntityChip>;
+    }
+    return row.columns.length > 0 ? null : (
+        <Text size="xs" c="dimmed" span>
+            {formatNumber(row.count)}
+        </Text>
+    );
+}
+
+/**
+ * What a file cannot hold, one compact row per loss: what is lost, the columns it is about as
+ * chips, and how many nodes or edges (as a node or edge chip).
+ * @param props - Component props
+ * @param props.rows - the rows.
+ * @returns the list.
+ */
+function LossList({ rows }: Readonly<{ rows: readonly LossRow[] }>): React.JSX.Element {
+    return (
+        <ul className="ws-export-losses">
+            {rows.map((row) => (
+                <li key={`${row.what}|${String(row.kind)}`}>
+                    <Text size="xs" span>
+                        {row.what}
+                    </Text>
+                    {row.columns.map((column) => (
+                        <Badge key={column} size="xs" variant="default" tt="none">
+                            {column}
+                        </Badge>
+                    ))}
+                    <LossCount row={row} />
+                </li>
+            ))}
+        </ul>
+    );
 }
 
 /** Props for DataOutput. */
@@ -77,7 +126,7 @@ interface ScopeOption {
 
 /**
  * The scopes on offer and their node counts: All, Shown, Selection (when something is selected)
- * and each kept set.
+ * and each kept set that holds a node.
  * @param session - the element's session.
  * @returns the options.
  */
@@ -104,11 +153,13 @@ async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
                   },
               ]
             : []),
-        ...sets.map(({ set, count }) => ({
-            value: `set:${set.id}` as const,
-            label: `${set.name} ${formatNumber(count.nodes)}`,
-            nodes: count.nodes,
-        })),
+        ...sets
+            .filter(({ count }) => count.nodes > 0)
+            .map(({ set, count }) => ({
+                value: `set:${set.id}` as const,
+                label: `${set.name} ${formatNumber(count.nodes)}`,
+                nodes: count.nodes,
+            })),
     ];
 }
 
@@ -160,8 +211,8 @@ async function download(result: ExportResult, name: string, type: string): Promi
 export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
-    const [failure, setFailure] = useState<string | null>(null);
+    const [preview, setPreview] = useState<{ lines: string; notes: readonly LossRow[] } | null>(null);
+    const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
     /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
     const [styleLosses, setStyleLosses] = useState<readonly ExportLoss[] | null>(null);
@@ -172,12 +223,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         .sort((a, b) => Number(b.id === "csv") - Number(a.id === "csv"));
     const format = formats.find((entry) => entry.id === choices.format);
     const csv = choices.format === "csv";
+    // A graph without edges has no edge table to offer: the toggle is not shown and the node table is written.
+    const hasEdges = (session?.data.statistics().edgeCount ?? 0) > 0;
+    const table = hasEdges ? choices.table : "nodes";
     const extension = format?.extensions[0]?.replace(/^\./, "") ?? choices.format;
-    const name = fileName(project, csv ? choices.table : "graph", extension);
+    const name = fileName(project, csv ? table : "graph", extension);
     const binary = format?.binary === true;
     const formatName = format?.plainName ?? choices.format;
 
-    const kinds: ("node" | "edge")[] = csv ? [choices.table === "edges" ? "edge" : "node"] : ["node", "edge"];
+    const kinds: ("node" | "edge")[] = csv ? [table === "edges" ? "edge" : "node"] : ["node", "edge"];
     const columns = session === null ? [] : exportColumns(session, kinds);
     const chosen = choices.columns ?? columns.filter((column) => !column.hidden).map((column) => column.name);
     // Every column is written when none is left out, so the export keeps what this list cannot name.
@@ -185,7 +239,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
     const scope = scopes?.find((option) => option.value === choices.scope);
     const total = scopes?.[0]?.nodes;
-    const options = dataExportOptions(choices, written);
+    const options = dataExportOptions({ ...choices, table }, written);
     const optionsKey = JSON.stringify(options);
 
     useEffect(() => {
@@ -204,13 +258,13 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 ({ losses } = result);
                 const lines = binary ? `${formatName}: no preview` : await firstLines(result);
                 if (live) {
-                    setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
+                    setPreview({ lines, notes: lossRows(result.losses) });
                     setFailure(null);
                 }
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setFailure(failureWords(error, losses));
+                    setFailure(failureOf(error, losses));
                 }
             });
         return () => {
@@ -235,7 +289,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             // A refusal (an E_ code) means the file cannot be written: say why, never offer "Save anyway".
             if (losses.some((loss) => loss.code.startsWith("E_"))) {
                 setStyleLosses(null);
-                setFailure(failureWords(undefined, losses));
+                setFailure(failureOf(undefined, losses));
                 return;
             }
             const lost = result.losses.filter(isStyleLoss);
@@ -247,7 +301,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             await download(result, name, format?.mimeTypes[0] ?? "text/plain");
             onDone(`Exported ${name}`, name);
         } catch (error) {
-            setFailure(failureWords(error, losses));
+            setFailure(failureOf(error, losses));
         } finally {
             setBusy(false);
         }
@@ -276,7 +330,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             onChange({ ...choices, format: id ?? "csv" });
                         }}
                     />
-                    {csv ? (
+                    {csv && hasEdges ? (
                         <Input.Wrapper size="xs" label="Table">
                             <SegmentedControl
                                 fullWidth
@@ -339,22 +393,16 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     </Input.Wrapper>
                 </div>
                 {failure !== null ? (
-                    <Alert color="red" title="The file was not written" role="alert">
-                        {failure}
+                    <Alert color="red" title="Not written" role="alert">
+                        {typeof failure === "string" ? failure : <LossList rows={failure} />}
                     </Alert>
                 ) : null}
                 {failure === null && styleLosses !== null ? (
-                    <Alert
-                        color="orange"
-                        role="alertdialog"
-                        title={`${format?.plainName ?? choices.format} does not keep all of the graph's styles`}
-                    >
-                        <ul className="ws-export-notes">
-                            {[...new Set(listedStyleLosses(format, styleLosses).map(lossWords))].map((note) => (
-                                <li key={note}>{note}</li>
-                            ))}
-                        </ul>
-                        <Text size="sm">{layersBackWords(format, styleLosses)}</Text>
+                    <Alert color="orange" role="alertdialog" title={`Styles lost in ${formatName}`}>
+                        <LossList rows={lossRows(listedStyleLosses(format, styleLosses))} />
+                        <Text size="xs" c="dimmed">
+                            {layersBackWords(format, styleLosses)}
+                        </Text>
                         <Group gap="xs" mt="xs">
                             <Button size="xs" disabled={busy} onClick={() => void save(true)}>
                                 Save anyway
@@ -373,16 +421,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     </Alert>
                 ) : null}
                 {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert
-                        color="yellow"
-                        role="note"
-                        title={`${format?.plainName ?? choices.format} cannot hold everything`}
-                    >
-                        <ul className="ws-export-notes">
-                            {preview.notes.map((note) => (
-                                <li key={note}>{note}</li>
-                            ))}
-                        </ul>
+                    <Alert color="yellow" role="note" title={`Lost in ${formatName}`}>
+                        <LossList rows={preview.notes} />
                     </Alert>
                 ) : null}
                 <pre

@@ -253,6 +253,39 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         }
     });
 
+    it("offers no edge table without edges, and names a tour's views by their plain names", async () => {
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+
+        let dialog = await openExport();
+        await pick(dialog, "Data");
+        const preview = within(dialog).getByLabelText("Preview of the exported data");
+        await waitFor(() => {
+            assert.notEqual(preview.textContent, "Writing the preview...");
+        }, storyWaitOptions(1000));
+        assert.isNull(within(dialog).queryByText("Table"), "no Nodes / Edges toggle without edges");
+        assert.isNull(within(dialog).queryByRole("radio", { name: "Edges" }));
+
+        await userEvent.keyboard("{Escape}");
+        dialog = await openExport();
+        await pick(dialog, "Video");
+        const views = within(dialog).getByRole("textbox", { name: "Views" }).closest(".mantine-MultiSelect-root");
+        assert.isNotNull(views);
+        assert.include(views?.textContent, "From the front");
+        assert.notInclude(views?.textContent, "frontView", "no camera id is shown");
+    });
+
     it("records a short tour of views, and lists it under Recent (flow 10)", async () => {
         const saved = catchDownloads();
         await openScoredGraph();

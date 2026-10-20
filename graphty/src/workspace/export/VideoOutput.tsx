@@ -36,7 +36,8 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
     const [recording, setRecording] = useState(false);
     const [failure, setFailure] = useState<string | null>(null);
 
-    const cameras = session?.catalog.cameras().map((camera) => camera.id) ?? [];
+    const presets = session?.catalog.cameras() ?? [];
+    const cameras = presets.map((camera) => camera.id);
     const saved = session === null ? [] : [...session.views.keys()];
     const firstStops = saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.includes(id));
     const stops = choices.stops.length > 0 ? choices.stops : firstStops;
@@ -124,7 +125,12 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
                             className="ws-export-wide"
                             size="xs"
                             label="Views"
-                            data={[...new Set([...saved, ...cameras])]}
+                            data={[
+                                ...saved.map((view) => ({ value: view, label: view })),
+                                ...presets
+                                    .filter((camera) => !saved.includes(camera.id))
+                                    .map((camera) => ({ value: camera.id, label: camera.plainName })),
+                            ]}
                             value={[...stops]}
                             error={tourShort ? "2 or more" : undefined}
                             onChange={(next) => {

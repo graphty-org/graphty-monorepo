@@ -8,7 +8,7 @@ import type { StyleColumn } from "../../src/styles/types.js";
 
 const PIE =
     'org.cytoscape.PieChart:{"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}';
-const DATA: Record<string, number> = { a: 3, b: 5, c: 2 };
+const DATA: Record<string, unknown> = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4] };
 
 /**
  * One node's chart values.
@@ -85,5 +85,75 @@ describe("Cytoscape charts", () => {
                 .pieColors,
         ).toBeUndefined();
         expect(read({ NODE_CUSTOMGRAPHICS_1: PIE.replace('"a","b","c"', '"x"') }).pieColors).toBeUndefined();
+    });
+
+    it("reads bar charts as Cytoscape 3.10.5 draws them: grouped, stacked, heat strips and up-down", () => {
+        const bar = (options: string): Record<string, unknown> =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]${options}}`,
+            });
+        const grouped = bar(',"cy_type":"GROUPED"');
+        expect(grouped).toMatchObject({
+            chartKind: "bar",
+            chartValues: "3 5 2",
+            chartColors: "#d62728 #2ca02c #1f77b4",
+            chartMin: 0,
+            chartMax: 10,
+            chartHorizontal: false,
+            chartMargin: 0.025,
+            chartGap: 0,
+            chartBorderColor: "#404040",
+            chartBorderWidth: 0.125,
+        });
+        // a plot 52.1 across on a 60 node, as the specimen sheets' oracles measure it
+        expect(grouped.chartSize).toBeCloseTo(52.1 / 60, 6);
+        expect(grouped.pieColors).toBeUndefined();
+        // a stacked bar lies across the node when the chart stands up
+        expect(bar(',"cy_type":"STACKED"')).toMatchObject({ chartKind: "stacked-bar", chartHorizontal: true });
+        // heat strips: each bar's color from the zero color toward the up color by its value
+        expect(bar(',"cy_type":"HEAT_STRIPS"').chartColors).toBe("#5f7c2b #81642a #4e882b");
+        expect(bar(',"cy_type":"UP_DOWN"').chartColors).toBe("#d62728 #d62728 #d62728");
+        expect(bar(',"cy_separation":0.5,"cy_borderWidth":2.0,"cy_borderColor":"#000000"')).toMatchObject({
+            chartGap: 0.5,
+            chartBorderColor: "#000000",
+            chartBorderWidth: 1,
+        });
+        // without a global range, from 0 to a tenth above the greatest value
+        expect(bar(',"cy_globalRange":false')).toMatchObject({ chartMin: 0, chartMax: 5.5 });
+    });
+
+    it("reads line, box and heat map charts as Cytoscape 3.10.5 draws them", () => {
+        const chart = (cls: string, columns: string, options = ""): Record<string, unknown> =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.${cls}:{"cy_range":[0.0,10.0],"cy_colors":["#2166AC","#F7F7F7","#B2182B"],"cy_dataColumns":${columns}${options}}`,
+            });
+        // a line's range has a tenth more headroom, its width is half Cytoscape's
+        expect(chart("LineChart", '["series"]', ',"cy_lineWidth":3.0')).toMatchObject({
+            chartKind: "line",
+            chartValues: "2 5 3 8 4",
+            chartColors: "#2166ac",
+            chartMax: 11,
+            chartMargin: -0.0125,
+            chartLineWidth: 1.5,
+        });
+        // JFreeChart's quartiles of 2 3 4 5 8: 3 and 5 about the median 4, the whiskers at 2 and 8
+        expect(chart("BoxChart", '["series"]')).toMatchObject({
+            chartKind: "box",
+            chartValues: "2 3 4 5 8",
+            chartColors: "#2166ac #000000",
+        });
+        const heat = chart("HeatMapChart", '["a","b","c"]');
+        expect(heat).toMatchObject({
+            chartKind: "cells",
+            chartValues: "3 5 2",
+            chartColors: "#b7cce1 #8cafd2 #ccdae8",
+            chartHorizontal: true,
+        });
+        expect(heat.chartSize).toBeCloseTo(51.1 / 60, 6);
+        // laid left to right, the last value first
+        expect(chart("HeatMapChart", '["a","b","c"]', ',"cy_orientation":"HORIZONTAL"')).toMatchObject({
+            chartValues: "2 5 3",
+            chartHorizontal: false,
+        });
     });
 });

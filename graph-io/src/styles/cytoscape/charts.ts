@@ -1,6 +1,7 @@
 /**
- * Cytoscape desktop's pie and ring charts (`NODE_CUSTOMGRAPHICS_1` .. `_9` holding `org.cytoscape.PieChart:{...}` or
- * `org.cytoscape.RingChart:{...}`), read per node from the node's own data as the neutral `pie*` properties
+ * Cytoscape desktop's charts (`NODE_CUSTOMGRAPHICS_1` .. `_9` holding `org.cytoscape.PieChart:{...}`,
+ * `org.cytoscape.RingChart:{...}`, `BarChart`, `LineChart`, `BoxChart` or `HeatMapChart`), read per node from the
+ * node's own data as the neutral `pie*` properties (pie and ring) and `chart*` properties (the others)
  * (https://manual.cytoscape.org/en/stable/Styles.html#using-graphics-in-styles).
  *
  * As Cytoscape 3.10.5 draws them (measured from its own SVG export): each slice is its data column's share of the
@@ -28,33 +29,48 @@ interface ChartOptions {
     readonly cy_dataColumns?: unknown;
     readonly cy_startAngle?: unknown;
     readonly cy_holeSize?: unknown;
+    readonly cy_range?: unknown;
+    readonly cy_globalRange?: unknown;
+    readonly cy_type?: unknown;
+    readonly cy_orientation?: unknown;
+    readonly cy_separation?: unknown;
+    readonly cy_borderWidth?: unknown;
+    readonly cy_borderColor?: unknown;
+    readonly cy_lineWidth?: unknown;
 }
 
+/** The charts Cytoscape draws, by the name of their class. */
+type ChartKind = "PieChart" | "RingChart" | "BarChart" | "LineChart" | "BoxChart" | "HeatMapChart";
+
+/** A Cytoscape chart class name, without its package. */
+const CHART_CLASS = /^org\.cytoscape\.(PieChart|RingChart|BarChart|LineChart|BoxChart|HeatMapChart)$/;
+
 /**
- * The pie or ring chart a custom graphics value holds, or null for anything else.
+ * The chart a custom graphics value holds, or null for anything else.
  * @param raw - the value
  * @returns the chart's kind and options
  */
-function chartOf(raw: unknown): { ring: boolean; options: ChartOptions } | null {
+function chartOf(raw: unknown): { kind: ChartKind; ring: boolean; options: ChartOptions } | null {
     // CX2 writes the chart as an object, the desktop, CX and sessions as `<class>:<options as JSON>`
     if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
         const o = raw as { type?: unknown; name?: unknown; properties?: unknown };
-        const kind = /^org\.cytoscape\.(PieChart|RingChart)$/.exec(typeof o.name === "string" ? o.name : "")?.[1];
+        const kind = CHART_CLASS.exec(typeof o.name === "string" ? o.name : "")?.[1] as ChartKind | undefined;
         return kind !== undefined && typeof o.properties === "object" && o.properties !== null
-            ? { ring: kind === "RingChart", options: o.properties }
+            ? { kind, ring: kind === "RingChart", options: o.properties }
             : null;
     }
     if (typeof raw !== "string") {
         return null;
     }
-    const m = /^org\.cytoscape\.(PieChart|RingChart):(\{.*\})\s*$/s.exec(raw.trim());
-    if (m === null) {
+    const m = /^(org\.cytoscape\.\w+):(\{.*\})\s*$/s.exec(raw.trim());
+    const kind = m === null ? undefined : (CHART_CLASS.exec(m[1])?.[1] as ChartKind | undefined);
+    if (m === null || kind === undefined) {
         return null;
     }
     try {
         const options = JSON.parse(m[2]) as unknown;
         return typeof options === "object" && options !== null
-            ? { ring: m[1] === "RingChart", options: options }
+            ? { kind, ring: kind === "RingChart", options: options }
             : null;
     } catch {
         return null;
@@ -149,6 +165,23 @@ export function readCytoscapeCharts(
         const colors = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
         const columns = Array.isArray(options.cy_dataColumns) ? options.cy_dataColumns.map(String) : [];
         const values = valuesOf(columns, (c) => value(c, i));
+        if (chart.kind !== "PieChart" && chart.kind !== "RingChart") {
+            const [w, h] = [out.width?.[i], out.height?.[i]];
+            const own = Number(graphicOf(`NODE_CUSTOMGRAPHICS_SIZE_${String(slot + 1)}`, i));
+            const side = typeof w === "number" && typeof h === "number" ? Math.min(w, h) : null;
+            const disc = side === null ? null : CHART_ACROSS * (sizeSync || !(own > 0) ? side : own);
+            const set = plotChart(
+                chart.kind,
+                options,
+                values,
+                colors,
+                disc === null || side === null ? null : { disc, side },
+            );
+            for (const [property, v] of Object.entries(set)) {
+                col(property)[i] = v;
+            }
+            continue;
+        }
         const total = values.reduce((sum, v) => sum + (Number.isFinite(v) && v > 0 ? v : 0), 0);
         const slices = values.flatMap((v, k) =>
             Number.isFinite(v) && v > 0 && colors[k] !== undefined
@@ -190,4 +223,197 @@ export function readCytoscapeCharts(
             col("pieHole")[i] = Number.isFinite(hole) ? Math.max(0, Math.min(1, hole)) : RING_HOLE;
         }
     }
+}
+
+/** How many of the file's lengths one of Cytoscape's chart units is: it draws a chart at twice the node's scale. */
+const CHART_UNIT = 0.5;
+
+/**
+ * How far in from the disc a pie would fill Cytoscape draws a chart's plot, in the file's lengths, measured from its
+ * SVG export of the specimen sheets (60 nodes): the chart's own box is 0.9 of the node less 0.9, its plot 1 less
+ * again, a heat map's 2 less.
+ */
+const CHART_INSET = 0.9;
+const PLOT_INSET = 1;
+const HEAT_MAP_INSET = 2;
+
+/** The default outline Cytoscape draws round each bar and box, in chart units: JFreeChart's dark gray, a quarter wide. */
+const BAR_OUTLINE = { color: "#404040", width: 0.25 };
+
+/** How much of the category side JFreeChart leaves at each end of a bar and a box chart, and of a line chart. */
+const BAR_MARGIN = 0.025;
+const LINE_MARGIN = -0.0125;
+
+/** The share of its range JFreeChart adds above a line chart's, and above an automatic range's top. */
+const RANGE_HEADROOM = 0.1;
+
+/**
+ * A color between two `#rrggbb` colors, each channel rounded, as Cytoscape interpolates a heat map's.
+ * @param a - the color at 0
+ * @param b - the color at 1
+ * @param t - how far, 0..1
+ * @returns the color
+ */
+function mix(a: string, b: string, t: number): string {
+    const rgb = (c: string): number[] => [1, 3, 5].map((k) => Number.parseInt(c.slice(k, k + 2), 16));
+    const [x, y] = [rgb(a), rgb(b)];
+    if ([...x, ...y].some((v) => !Number.isFinite(v))) {
+        return a;
+    }
+    const u = Math.max(0, Math.min(1, t));
+    return `#${x
+        .map((v, k) =>
+            Math.round(v + (y[k] - v) * u)
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+}
+
+/**
+ * A value's color on Cytoscape's three-color scale (`[up, zero, down]`): from the zero color toward the up color as
+ * the value nears the top of the range, toward the down color as it nears the bottom (`cy-heat-map`: 5 of 0..10
+ * half way from #F7F7F7 to #2166AC).
+ * @param colors - the three colors
+ * @param v - the value
+ * @param range - the range
+ * @returns the color
+ */
+function scaleColor(colors: readonly string[], v: number, range: readonly [number, number]): string {
+    const [up, zero, down] = [colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]];
+    return v >= 0 ? mix(zero, up, range[1] > 0 ? v / range[1] : 0) : mix(zero, down, range[0] < 0 ? v / range[0] : 0);
+}
+
+/**
+ * The quartiles, median and whiskers JFreeChart draws a box chart's values as (`BoxAndWhiskerCalculator`): the
+ * quartiles are the medians of each half, the middle value in both halves of an odd count; each whisker reaches the
+ * furthest value within 1.5 times the quartiles' spread.
+ * @param values - the values
+ * @returns low whisker, lower quartile, median, upper quartile, high whisker
+ */
+function boxStats(values: readonly number[]): number[] {
+    const v = [...values].sort((a, b) => a - b);
+    const median = (list: readonly number[]): number => {
+        const m = list.length / 2;
+        return list.length % 2 === 1 ? list[Math.floor(m)] : (list[m - 1] + list[m]) / 2;
+    };
+    const half = Math.ceil(v.length / 2);
+    const [q1, q3] = [median(v.slice(0, half)), median(v.slice(v.length - half))];
+    const reach = 1.5 * (q3 - q1);
+    const inside = v.filter((x) => x >= q1 - reach && x <= q3 + reach);
+    return [inside[0], q1, median(v), q3, inside[inside.length - 1]];
+}
+
+/**
+ * A bar, line, box or heat map chart as the neutral `chart*` properties, as Cytoscape 3.10.5 draws it (measured from
+ * its own SVG export of the specimen sheets: JFreeChart plots in a square box inset from the disc a pie fills).
+ * @param kind - the chart's class
+ * @param options - its options
+ * @param values - the node's values for its data columns
+ * @param colors - its colors
+ * @param box - how far across a pie would be drawn on the node and the node's shorter side, in the file's lengths;
+ *     null when the node's size is unknown
+ * @param box.disc - the pie's width
+ * @param box.side - the node's shorter side
+ * @returns the properties to set
+ */
+function plotChart(
+    kind: Exclude<ChartKind, "PieChart" | "RingChart">,
+    options: ChartOptions,
+    values: readonly number[],
+    colors: readonly string[],
+    box: { disc: number; side: number } | null,
+): Record<string, StyleValue> {
+    const finite = values.filter((v) => Number.isFinite(v));
+    if (finite.length === 0 || colors.length === 0) {
+        // ponytail: a chart colored by a named scheme (cy_colorScheme) without its colors is not drawn
+        return {};
+    }
+    const given = Array.isArray(options.cy_range) ? options.cy_range.map(Number) : [];
+    const global = options.cy_globalRange !== false && given.length === 2 && given.every((v) => Number.isFinite(v));
+    // an automatic range holds zero and the values, with headroom above
+    const auto: [number, number] = [Math.min(0, ...finite), Math.max(0, ...finite)];
+    auto[1] += RANGE_HEADROOM * (auto[1] - auto[0]);
+    const range: [number, number] = global ? [given[0], given[1]] : auto;
+    const horizontal = options.cy_orientation === "HORIZONTAL";
+    const type = typeof options.cy_type === "string" ? options.cy_type : "GROUPED";
+    const lower = (c: string): string => c.toLowerCase();
+    const out: Record<string, StyleValue> = {};
+    // the plot inside the disc a pie fills, as a share of the node
+    if (box !== null && box.side > 0) {
+        // ponytail: the insets are measured on 60 nodes only; whether they scale with the node is not known
+        const inset = CHART_INSET + (kind === "HeatMapChart" ? HEAT_MAP_INSET : PLOT_INSET);
+        out.chartSize = num6(Math.max(0, box.disc - inset) / box.side);
+    }
+    const outline = {
+        chartBorderColor: lower(
+            typeof options.cy_borderColor === "string" ? options.cy_borderColor : BAR_OUTLINE.color,
+        ),
+        chartBorderWidth: num6(CHART_UNIT * (Number(options.cy_borderWidth ?? BAR_OUTLINE.width) || 0)),
+    };
+    switch (kind) {
+        case "BarChart": {
+            const stacked = type === "STACKED";
+            const each = (v: number, k: number): string => {
+                if (type === "HEAT_STRIPS") {
+                    return scaleColor(colors, v, range);
+                }
+                return lower(
+                    type === "UP_DOWN"
+                        ? colors[v >= 0 ? 0 : colors.length - 1]
+                        : colors[Math.min(k, colors.length - 1)],
+                );
+            };
+            Object.assign(out, outline, {
+                chartKind: stacked ? "stacked-bar" : "bar",
+                chartValues: finite.join(" "),
+                chartColors: finite.map(each).join(" "),
+                chartMin: range[0],
+                chartMax: range[1],
+                // Cytoscape lays a stacked bar's values across the node when its orientation says up
+                chartHorizontal: stacked ? !horizontal : horizontal,
+                chartMargin: BAR_MARGIN,
+                chartGap: num6(Math.max(0, Math.min(1, Number(options.cy_separation ?? 0) || 0))),
+            });
+            break;
+        }
+        case "LineChart":
+            // drawn up the node whatever its orientation, with headroom above its range
+            Object.assign(out, {
+                chartKind: "line",
+                chartValues: finite.join(" "),
+                chartColors: lower(colors[0]),
+                chartMin: range[0],
+                chartMax: num6(range[1] + (global ? RANGE_HEADROOM * (range[1] - range[0]) : 0)),
+                chartMargin: LINE_MARGIN,
+                chartLineWidth: num6(CHART_UNIT * (Number(options.cy_lineWidth ?? 1) || 0)),
+            });
+            break;
+        case "BoxChart":
+            Object.assign(out, outline, {
+                chartKind: "box",
+                chartValues: boxStats(finite).map(num6).join(" "),
+                chartColors: `${lower(colors[0])} #000000`,
+                chartMin: range[0],
+                chartMax: range[1],
+                chartHorizontal: horizontal,
+                chartMargin: BAR_MARGIN,
+                chartLineWidth: num6(CHART_UNIT * BAR_OUTLINE.width),
+            });
+            break;
+        case "HeatMapChart": {
+            // one cell per value, top to bottom; laid left to right, the last value first
+            const cells = horizontal ? [...finite].reverse() : finite;
+            Object.assign(out, {
+                chartKind: "cells",
+                chartValues: cells.join(" "),
+                chartColors: cells.map((v) => scaleColor(colors, v, range)).join(" "),
+                chartHorizontal: !horizontal,
+            });
+            break;
+        }
+        default:
+            break;
+    }
+    return out;
 }

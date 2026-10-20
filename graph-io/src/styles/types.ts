@@ -482,6 +482,34 @@ export interface NodeStyleValues {
     readonly stripeDirection: string;
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
+    /**
+     * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
+     * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower
+     * quartile, the median, the upper quartile and the high whisker) or `cells` (a row of colored cells).
+     */
+    readonly chartKind: string;
+    /** The chart's values, numbers separated by spaces, in the order they are drawn. */
+    readonly chartValues: string;
+    /** The chart's colors, `#rrggbb` separated by spaces: item i in color i, the last color for the rest. */
+    readonly chartColors: string;
+    /** The value at the start of the chart's value axis; unset, the smaller of 0 and the least value. */
+    readonly chartMin: number;
+    /** The value at the end of the chart's value axis; unset, the greatest value. */
+    readonly chartMax: number;
+    /** Whether the values run left to right (true) or bottom to top (unset); the categories run the other way. */
+    readonly chartHorizontal: boolean;
+    /** The size of the chart's plot box, as a fraction of the node's; unset, 1. */
+    readonly chartSize: number;
+    /** How much of the category side is left empty at each end, as a fraction of it; unset, 0. */
+    readonly chartMargin: number;
+    /** How much of the category side is left between the categories in all, as a fraction of it; unset, 0. */
+    readonly chartGap: number;
+    /** How wide the chart draws a line and a whisker (a length). */
+    readonly chartLineWidth: number;
+    /** The color of a bar's and a box's outline. */
+    readonly chartBorderColor: StyleColor;
+    /** How wide a bar's and a box's outline is (a length); unset, none. */
+    readonly chartBorderWidth: number;
     /** Whether the node is drawn at all. */
     readonly visible: boolean;
 }

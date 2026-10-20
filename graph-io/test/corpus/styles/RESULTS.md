@@ -18,7 +18,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/fidelity/radiation-bibliography.cx.gz | ok | 188 | 207 | 5 | 7 | 505 | 9% | 9% | 0 | 2163 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 360 | 0 |  |
 | cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 3 | 0 | - | - | 0 | 746 | 0 |  |
-| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 6 | 5 | 247 | 100% | 90% | 0 | 834 | 0 | W_STYLE_NOT_CARRIED |
+| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 7 | 5 | 247 | 100% | 90% | 0 | 834 | 0 | W_STYLE_NOT_CARRIED |
 | cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 13 | 12 | 1628 | 26% | 26% | 37 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_RAMP_ROUNDED |
 | cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 1065 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 1065 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -31,7 +31,7 @@ Tool values are elements drawn with the writing program's default.
 | cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 403 | 2% | 2% | 0 | 1245 | 0 |  |
 | cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 5 | 32 | 0% | 0% | 0 | 411 | 0 |  |
 | cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 8 | 762 | 14% | 13% | 0 | 2412 | 0 |  |
-| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 6 | 5 | 247 | 100% | 90% | 0 | 834 | 0 | W_STYLE_NOT_CARRIED |
+| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 247 | 100% | 90% | 0 | 834 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 15 | 12 | 1700 | 25% | 25% | 37 | 1276 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_RAMP_ROUNDED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 9 | 4 | 365 | 0% | 0% | 13 | 1174 | 0 | W_STYLE_RAMP_ROUNDED |
 | cx2/fidelity/u2os-hierarchy.cx2 | ok | 82 | 84 | 8 | 2 | 134 | 0% | 0% | 16 | 996 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -110,7 +110,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 5 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 10 | 365 | 5% | 0% | 0 | 865 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 281 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
-| cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 6 | 5 | 224 | 100% | 93% | 0 | 808 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 7 | 5 | 224 | 100% | 93% | 0 | 808 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 13 | 12 | 1628 | 26% | 26% | 37 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES, W_STYLE_RAMP_ROUNDED |
 | cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -221,7 +221,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 7 | 34 | 0% | 0% | 0 | 332 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 6681 | 0 |  |
 | graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 7 | 4 | 483 | 83% | 8% | 0 | 629 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_UNKNOWN_VALUE |
-| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 9 | 7 | 100 | 74% | 4% | 0 | 291 | 0 |  |
+| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 9 | 7 | 98 | 76% | 4% | 0 | 291 | 0 |  |
 | graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 4 | 3 | 48 | 100% | 6% | 0 | 47 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 39 | 0 |  |
 | graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 362 | 0 | W_STYLE_EXTRA_LABELS |
@@ -233,10 +233,10 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
 | graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 5 | 6 | 152 | 49% | 3% | 0 | 236 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 8 | 5 | 86 | 78% | 12% | 0 | 222 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 149 | 57% | 2% | 0 | 173 | 0 |  |
+| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 6 | 143 | 59% | 2% | 0 | 173 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 276 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 5 | 6 | 59 | 54% | 0% | 0 | 185 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 354 | 100% | 0% | 0 | 337 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 360 | 100% | 0% | 0 | 337 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 371 | 100% | 0% | 0 | 156 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 108 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 317 | 86% | 0% | 0 | 50 | 0 |  |
@@ -262,9 +262,9 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 5 | 2 | 17 | 100% | 24% | 0 | 45 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 9 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 21 | 0 |  |
-| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 5 | 159 | 55% | 3% | 0 | 133 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 154 | 56% | 3% | 0 | 133 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 39 | 51% | 0% | 0 | 24 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 7 | 5 | 384 | 88% | 4% | 0 | 584 | 0 |  |
+| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 7 | 5 | 444 | 76% | 3% | 0 | 584 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 4 | 1 | 80 | 63% | 0% | 0 | 119 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 1806 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 7 | 3 | 736 | 93% | 5% | 0 | 914 | 0 |  |

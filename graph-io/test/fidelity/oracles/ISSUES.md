@@ -2356,7 +2356,9 @@ Fixed (unit tests in `graph-io/test/formats/graphml/styles.test.ts`):
   puts it (its stored box is not its words' box). Label offset: `labels-p2` 12/33 to 24/33,
   voctomix 21/32 to 32/32, stm32-func 28/106 to 101/106 (anchor 26 to 90), galaxy-lcms-workflow 7/33 to 11/33,
   libcitygml-mapping 44/51 to 45/51. Where graphty now draws a label where yEd's box puts it and draw.io does not
-  (recorded with this reason): `labels-p2` raster label region 0.862 to 0.847 (draw.io puts `sides-w` 4.6 lower and
+  (recorded with this reason, row `yed-label-box-stand-in`): libcitygml-mapping's raster label and node body
+  regions 0.65 to 0.64 and 0.57 to 0.56 (its class names are stored 1.4 above their nodes' middles, which draw.io
+  centers, `allowedDrops`); `labels-p2` raster label region 0.862 to 0.840 (draw.io puts `sides-w` 4.6 lower and
   the side and corner labels further out, `allowedDrops`); galaxy-lcms-workflow `n0::n8` label offset (its two-line
   "HTML\nreport" box is 4 below the node, and draw.io draws it on one line, half a line higher); stm32-func `n78`
   label anchor (a smart label stored 9 above the node's middle, which draw.io centers: it ignores

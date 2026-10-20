@@ -36293,6 +36293,18 @@
         }
     },
     "allowedDrops": {
+        "graphml-libcitygml-mapping/raster.label": {
+            "reason": "graphty draws each yEd SmartNodeLabelModel class name where its stored box puts it, 1.4 above the node's middle (label.offset 44/51 to 45/51); draw.io, standing in for yEd, centers it (raster.label 0.65 to 0.64)",
+            "issue": "ISSUES.md yed-label-box-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.64
+        },
+        "graphml-libcitygml-mapping/raster.nodeBody": {
+            "reason": "graphty draws each yEd SmartNodeLabelModel class name where its stored box puts it, 1.4 above the node's middle (label.offset 44/51 to 45/51); draw.io, standing in for yEd, centers it (raster.nodeBody 0.57 to 0.56)",
+            "issue": "ISSUES.md yed-label-box-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.56
+        },
         "yed-live-graphml-specimen-arrows/raster.arrowhead": {
             "reason": "graph-io now draws yFiles 3's ELLIPSE and STEALTH arrows (circle, triangle) where it drew none; draw.io, standing in for yEd Live, draws a triangle or vee there, so the arrowhead pixels overlap a little less (0.93 to 0.92)",
             "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",
@@ -36325,7 +36337,7 @@
         },
         "yed-graphml-specimen-labels-p2/raster.label": {
             "reason": "graphty now draws yEd's outside and free labels where their stored boxes put them, 4 from the node (label.offset 12/33 to 24/33); draw.io, standing in for yEd, puts them elsewhere (sides-w 4.6 lower, sides-e and corners further out), so the label pixels overlap less (0.862 to 0.847)",
-            "issue": "ISSUES.md yEd GraphML settings graph-io now reads (fix round 2)",
+            "issue": "ISSUES.md yed-label-box-stand-in",
             "expires": "2026-12-31",
             "atLeast": 0.84
         },

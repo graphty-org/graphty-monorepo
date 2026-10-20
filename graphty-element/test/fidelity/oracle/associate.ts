@@ -337,6 +337,7 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
                       ),
                   },
         label: mergeTexts(texts),
+        ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
     };
 }
 
@@ -464,8 +465,15 @@ export function measureArrow(
     };
 }
 
-/** How far a cap's own axis may turn from the line's end direction and still be read as its axis. */
-const CAP_AXIS_TURN = (30 * Math.PI) / 180;
+/**
+ * How far a cap's own axis may turn from the line's end direction and still be read as its axis: the most Gephi's
+ * aim turns from its arc. Its arc (radius distance / 1.2) passes through both node centers, so the aim from a point on
+ * it at the target's center turns from the arc's tangent there by half the arc between them (the tangent-chord angle),
+ * at most half the whole arc, asin(0.6) = 36.87 degrees; the line's end direction, read from a point behind its end,
+ * turns away by half the arc between, which still sums to at most half the whole arc. A short edge between large
+ * nodes comes close (`gexf-graphology-rio` `ncs337->ncs291`: 34 degrees).
+ */
+const CAP_AXIS_TURN = Math.asin(0.6) + (0.5 * Math.PI) / 180;
 /** How closely a cap's tip and its middle must agree on its axis for it to count as symmetric about it. */
 const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
 
@@ -2684,5 +2692,108 @@ export function rasterScene(
         strays: [],
         labelGeometry: false,
         nodesOnly: !painted,
+    };
+}
+
+/** Half a pixel: how far a box may poke past another and still count as inside it (extract-scene's INSIDE_SLACK). */
+const INSIDE_SLACK = 0.5;
+/** The least fill opacity that hides what is behind it (extract-scene's OPAQUE). */
+const OPAQUE = 0.99;
+
+/**
+ * Whether one box lies wholly inside another, within half a pixel.
+ * @param inner - the box that may be inside
+ * @param outer - the box that may hold it
+ * @param slack - how far inner may poke past outer
+ * @returns true when every side of inner is within outer
+ */
+export function boxWithin(inner: PBox, outer: PBox, slack = INSIDE_SLACK): boolean {
+    return (
+        inner.x0 >= outer.x0 - slack &&
+        inner.x1 <= outer.x1 + slack &&
+        inner.y0 >= outer.y0 - slack &&
+        inner.y1 <= outer.y1 + slack
+    );
+}
+
+/**
+ * Whether a box lies wholly inside a node's shape: inside its ellipse for a round node (every corner of the box), else
+ * inside its box, within the slack.
+ * @param inner - the box that may be inside
+ * @param outer - the node's box
+ * @param ellipse - whether the node is round
+ * @param slack - how far inner may poke past the node
+ * @returns true when inner is inside the node
+ */
+export function withinShape(inner: PBox, outer: PBox, ellipse: boolean, slack = INSIDE_SLACK): boolean {
+    if (!ellipse) {
+        return boxWithin(inner, outer, slack);
+    }
+    const [mx, my] = [(outer.x0 + outer.x1) / 2, (outer.y0 + outer.y1) / 2];
+    const [rx, ry] = [(outer.x1 - outer.x0) / 2 + slack, (outer.y1 - outer.y0) / 2 + slack];
+    return [
+        [inner.x0, inner.y0],
+        [inner.x1, inner.y0],
+        [inner.x0, inner.y1],
+        [inner.x1, inner.y1],
+    ].every(([x, y]) => ((x - mx) / rx) ** 2 + ((y - my) / ry) ** 2 <= 1);
+}
+
+/**
+ * The oracle's scene without what it draws wholly under a node, judged as graphty's side judges its own (`occluders`
+ * in extract-scene.ts, `linelessCaps` in drawn-primitives.ts): a node, or a stray shape, is covered by an opaque node
+ * drawn after it (later in the document) whose box, out to its outline's outer edge, holds its whole box (a stray's box
+ * must lie inside a round node's ellipse). A covered
+ * node's label is still drawn, as a free text it owns, as graphty's side keeps a hidden node's label. Gephi draws a
+ * node at (nearly) the same place as a larger or earlier one under it (`gexf-cns-wos` n5, n23, n50, n100), which
+ * graphty's scene marks hidden, and the arrowheads of edges whose nodes swallow their line under those nodes
+ * (`gexf-sigma-ediaspora`). The half pixel a box may poke past is graphty's, taken into the oracle's pixels by the
+ * ratio of the two drawings' sizes of the same nodes (`gexf-cns-wos` draws 1.36 oracle pixels to graphty's one).
+ * @param scene - the oracle's scene
+ * @param guide - graphty's scene, whose nodes' sizes give the scale; none takes the oracle's pixel as graphty's
+ * @returns the scene without what is covered
+ */
+export function withoutCovered(scene: PScene, guide?: PScene): PScene {
+    const theirs = new Map((guide?.nodes ?? []).map((n) => [n.id, n.w]));
+    const ratios = scene.nodes
+        .flatMap((n) => {
+            const w = theirs.get(n.id) ?? 0;
+            return w > 0 && n.w > 0 ? [n.w / w] : [];
+        })
+        .sort((a, b) => a - b);
+    const slack = INSIDE_SLACK * (ratios.length > 0 ? ratios[Math.floor(ratios.length / 2)] : 1);
+    const boxOf = (n: PNode): PBox => {
+        const out = (n.stroke?.width ?? 0) / 2;
+        return {
+            x0: n.cx - n.w / 2 - out,
+            y0: n.cy - n.h / 2 - out,
+            x1: n.cx + n.w / 2 + out,
+            y1: n.cy + n.h / 2 + out,
+        };
+    };
+    const covers = scene.nodes
+        .filter((n) => n.order !== undefined && n.fill !== null && n.fill.opacity >= OPAQUE)
+        .map((n) => ({ n, box: boxOf(n), order: n.order ?? -1 }));
+    const covered = new Set(
+        scene.nodes.filter((n) =>
+            covers.some((c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack)),
+        ),
+    );
+    const strays = scene.strays.filter(
+        (s) =>
+            s.kind !== "shape" ||
+            !covers.some((c) => c.order > s.index && withinShape(s.box, c.box, c.n.shape === "ellipse", slack)),
+    );
+    if (covered.size === 0 && strays.length === scene.strays.length) {
+        return scene;
+    }
+    return {
+        ...scene,
+        nodes: scene.nodes.filter((n) => !covered.has(n)),
+        texts: [
+            ...scene.texts,
+            ...[...covered].flatMap((n) => (n.label === null ? [] : [{ ...n.label, owner: n.id }])),
+        ],
+        strays,
     };
 }

@@ -10,7 +10,7 @@
 import type { Graphty } from "../../../index.js";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
-import { associate, type Association, diskColor, type RasterDrawing, rasterScene } from "./associate";
+import { associate, type Association, diskColor, type RasterDrawing, rasterScene, withoutCovered } from "./associate";
 import {
     compareOracle,
     namedCaptions,
@@ -258,7 +258,10 @@ export async function compareWithOracle(
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
     const associated = await associateOracle(id, meta, prims, { width, height }, namedCaptions(graphty, numbers));
     // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
-    const association = { ...associated, scene: namedCaptions(namedCaptions(associated.scene, captionOf), names) };
+    const association = {
+        ...associated,
+        scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+    };
     const report = compareOracle(
         id,
         association.scene,

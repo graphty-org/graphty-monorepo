@@ -205,6 +205,11 @@ export interface PNode {
      * raster comparison still masks its box.
      */
     faceless?: PText[];
+    /**
+     * The oracle's side only: the document order of its front-most primitive, which says what it is drawn over (a
+     * later node is drawn in front of an earlier one).
+     */
+    order?: number;
 }
 
 /**

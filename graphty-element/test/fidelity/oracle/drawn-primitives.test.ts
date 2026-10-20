@@ -27,6 +27,7 @@ function graphOf(
     pattern: string | null = null,
     gradient: DrawnEdge["gradient"] = null,
     over: Partial<DrawnEdge> = {},
+    edgeOver: Partial<SceneEdge> = {},
 ): PScene {
     const sceneEdge: SceneEdge = {
         id: "e",
@@ -43,6 +44,7 @@ function graphOf(
         style: "solid",
         arrow: { source: "none", target: "none" },
         label: null,
+        ...edgeOver,
     };
     const scene = { nodes: [], edges: [sceneEdge], groups: [], annotations: [], gaps: [] } as unknown as Scene;
     const edge: DrawnEdge = {
@@ -78,6 +80,64 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({})]).edges[0].arrows, 1);
+    });
+
+    it("reads the arrowhead of an edge it draws no line for as a free shape, as the oracle's is a stray", () => {
+        // Gephi's swallowed curved edge (gexf-sigma-ediaspora): an arrowhead with no line
+        const head = cap({
+            outline: [
+                [90, -5],
+                [100, 0],
+                [90, 5],
+            ],
+        });
+        const lineless = graphOf([head], null, null, {}, { opacity: 0 });
+        assert.lengthOf(lineless.edges, 0);
+        assert.deepEqual(
+            lineless.strays.map((s) => [s.tag, s.kind, s.box]),
+            [["arrowhead", "shape", { x0: 90, y0: -5, x1: 100, y1: 5 }]],
+        );
+        // an edge it draws a line for carries its arrowhead itself
+        assert.lengthOf(graphOf([head]).strays, 0);
+        // one wholly inside an opaque node is drawn under it, seen nowhere
+        const sceneEdge = {
+            id: "e",
+            source: "a",
+            target: "b",
+            points: [
+                [0, 0],
+                [100, 0],
+            ],
+            width: 2,
+            opacity: 0,
+        };
+        const scene = {
+            nodes: [{ id: "b", shape: "rect", visible: false }],
+            edges: [sceneEdge],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const covering = (fillOpacity: number): DrawnNode =>
+            ({
+                visible: true,
+                fillDrawn: "#cccccc",
+                fillOpacity,
+                box: { x0: 80, y0: -20, x1: 120, y1: 20, near: 0, far: 0 },
+            }) as unknown as DrawnNode;
+        const strays = (fillOpacity: number): number =>
+            drawnPrimitives(scene, {
+                nodes: new Map([["b", covering(fillOpacity)]]),
+                edges: new Map([
+                    ["e", { shown: true, points: sceneEdge.points, caps: [head] } as unknown as DrawnEdge],
+                ]),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            }).strays.length;
+        assert.strictEqual(strays(1), 0);
+        assert.strictEqual(strays(0.4), 1);
     });
 
     it("carries a line on to the tip of a cap placed by its middle, a circle's far side", () => {

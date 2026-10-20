@@ -8,13 +8,15 @@
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
-import { extendToTip, measureArrow, mergeTexts } from "./associate";
+import { extendToTip, measureArrow, mergeTexts, withinShape } from "./associate";
 import {
     type ArrowShape,
+    boxOfPoints,
     compareIds,
     type DashClass,
     dashClassOf,
     type PArrow,
+    type PBox,
     type PEdge,
     type PGradient,
     type PNode,
@@ -331,6 +333,51 @@ function glyphTexts(n: SceneNode, glyph: { text: string; color: string | null } 
 }
 
 /**
+ * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
+ * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
+ * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
+ * it and seen nowhere, as the oracle's side leaves out a stray under a node drawn after it (`withoutCovered`).
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the caps, as strays without their index
+ */
+function linelessCaps(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: string | null; stroke: null; text: null }[] {
+    const opaque = scene.nodes.flatMap((n) => {
+        const d = drawn.nodes.get(n.id);
+        return d !== undefined && d.visible && d.fillDrawn !== null && d.fillOpacity >= 0.99
+            ? [{ box: d.box, ellipse: n.shape === "ellipse" }]
+            : [];
+    });
+    return scene.edges.flatMap((e) => {
+        const d = drawn.edges.get(e.id);
+        if (d === undefined || !d.shown || (e.points.length >= 2 && e.width > 0 && e.opacity > 0)) {
+            return [];
+        }
+        return d.caps.flatMap((c) =>
+            c.outline === null ||
+            c.outline.length === 0 ||
+            c.opacity <= 0 ||
+            c.sizePx <= 0 ||
+            opaque.some((n) => withinShape(boxOfPoints(c.outline ?? []), n.box, n.ellipse))
+                ? []
+                : [
+                      {
+                          tag: "arrowhead",
+                          kind: "shape" as const,
+                          box: boxOfPoints(c.outline),
+                          fill: c.color,
+                          stroke: null,
+                          text: null,
+                      },
+                  ],
+        );
+    });
+}
+
+/**
  * graphty's drawing as primitives.
  * @param scene - `extractScene` of the drawing
  * @param drawn - `readDrawn` of the same frame
@@ -548,14 +595,16 @@ export function drawnPrimitives(
             }),
             ...drawnGroups.flatMap((g) => (!boxed(g) && g.label !== null ? [g.label] : [])),
         ],
-        strays: (scene.annotations ?? []).map((a, i) => ({
-            index: i,
-            tag: `annotation-${a.kind}`,
-            kind: a.kind === "text" ? "text" : "shape",
-            box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
-            fill: null,
-            stroke: null,
-            text: a.text ?? null,
-        })),
+        strays: [
+            ...(scene.annotations ?? []).map((a) => ({
+                tag: `annotation-${a.kind}`,
+                kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
+                box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
+                fill: null,
+                stroke: null,
+                text: a.text ?? null,
+            })),
+            ...linelessCaps(scene, drawn),
+        ].map((s, index) => ({ index, ...s })),
     };
 }

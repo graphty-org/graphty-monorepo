@@ -40,6 +40,17 @@ describe("an arrowhead's axis", () => {
         assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "triangle");
     });
 
+    it("reads the cap along its own axis on a short arc, turned up to the most Gephi's aim turns from its arc", () => {
+        // gexf-graphology-rio, edge ncs337 -> ncs291: a 1.4 px arc whose arrowhead aims 34 degrees off the arc's end
+        const short = arc([-91.541199, 284.750946], [-91.010086, 283.457123], 9.752835);
+        const cap: Pt[] = [
+            [-88.515694, 281.790375],
+            [-90.17672, 284.704315],
+            [-91.843452, 282.20993],
+        ];
+        assert.strictEqual(measureArrow(cap, short, "target", { filled: true, color: null }).shape, "triangle");
+    });
+
     it("keeps the line's direction for half an arrow, which is symmetric about no axis through its tip", () => {
         const end = path.at(-1) ?? [0, 0];
         const back = path[path.length - 4];

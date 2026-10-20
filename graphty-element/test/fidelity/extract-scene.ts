@@ -453,8 +453,14 @@ export function sceneNode(
                       fontSize: label.fontPx,
                       color: label.color,
                       position: place,
-                      // a label is drawn whatever its node's fill: an unfilled group still shows it
-                      visible: d.shown && hiddenBy === null && label.enabled && !occluded && label.fontPx >= 1,
+                      // a label is drawn whatever its node's fill: an unfilled group still shows it, and one drawn on
+                      // top of everything shows over the node that hides its own (Gephi's, gexf-cns-wos n5)
+                      visible:
+                          d.shown &&
+                          (hiddenBy === null || label.onTop) &&
+                          label.enabled &&
+                          !occluded &&
+                          label.fontPx >= 1,
                   },
         visible,
         z: -d.box.near,

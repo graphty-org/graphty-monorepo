@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -112,7 +113,7 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
  */
 async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSession; before: Snapshot }> {
     render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+    await pickSample("Florentine families");
     const session = await elementSession();
     await waitFor(
         () => {

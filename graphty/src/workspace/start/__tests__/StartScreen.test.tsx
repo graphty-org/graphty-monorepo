@@ -9,7 +9,8 @@ import { userEvent } from "vitest/browser";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
-import { render, screen, within } from "../../../test/test-utils";
+import { openSamples, pickSample, sampleRow } from "../../../test/samples-dialog";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
@@ -42,7 +43,7 @@ afterEach(() => {
 });
 
 describe("the start screen", () => {
-    it("offers the first visit's ways in and the sample library, the four samples first", async () => {
+    it("offers the first visit's ways in, and no second list of samples on the page", () => {
         renderStart();
 
         assert.isNotNull(screen.getByRole("img", { name: "graphty" }));
@@ -52,83 +53,69 @@ describe("the start screen", () => {
         );
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
         assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
-        assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
+        assert.isNotEmpty(screen.getAllByRole("button", { name: "Samples" }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
         assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
-        const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
-            name: /^Open the .+ sample$/,
-        });
-        const names = samples.map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names.slice(0, 4), [
-            "Open the Les Miserables sample",
-            "Open the Zachary's karate club sample",
-            "Open the College football sample",
-            "Open the Florentine families sample",
-        ]);
-        // Then graph-samples' other datasets, the large ones too, without a second copy of the four,
-        // and without the three past graphty-element's ceilings (road-ny, com-dblp, ogbn-arxiv).
-        assert.lengthOf(names, 19);
-        assert.include(names, "Open the Doubtful Sound dolphins sample");
-        assert.equal(new Set(names).size, names.length, "no sample twice");
-        // Each shows the picture graph-samples publishes of its graph, the large ones and every
-        // generator too, and the picture loads: no tile shows the plain stand-in.
-        const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
-        for (const [i, picture] of pictures.entries()) {
-            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z0-9-]+\.webp$/, names[i] ?? "");
-        }
-        const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
-            name: /^Generate a graph: /,
-        });
-        assert.isAbove(generators.length, 50);
-        for (const button of generators) {
-            const picture = button.querySelector<HTMLImageElement>("img.ws-land-sample-pic");
-            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/generator-[a-z0-9-]+\.webp$/);
-        }
-        assert.isNull(document.querySelector(".ws-land-sample-none"), "no stand-in picture");
-        // A small dataset's, a large dataset's and a generator's picture each load.
-        const loaded = [
-            pictures[0],
-            pictures.at(-1),
-            generators[0]?.querySelector<HTMLImageElement>("img.ws-land-sample-pic"),
-        ];
-        for (const picture of loaded) {
-            assert.isNotNull(picture);
-            assert.isDefined(picture);
-            picture.loading = "eager";
-            await picture.decode();
-            assert.equal(picture.naturalWidth, 480, picture.src);
-        }
+        // Samples are picked in the one Samples dialog, never from a list on the page.
+        assert.isNull(screen.queryByRole("region", { name: "Sample library" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Samples" }));
     });
 
-    it("narrows the sample library to what the search box names", async () => {
+    it("opens the one Samples dialog from both Samples buttons, each sample once with its provider and size", async () => {
         renderStart();
-        const library = screen.getByRole("region", { name: "Sample library" });
 
-        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
-
-        const names = within(library)
-            .getAllByRole("button", { name: /^Open the .+ sample$/ })
-            .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Open the Doubtful Sound dolphins sample"]);
-    });
-
-    it("narrows the sample library to one field, and tags each tile with its field", async () => {
-        renderStart();
-        const library = screen.getByRole("region", { name: "Sample library" });
-
-        await userEvent.click(within(library).getByRole("button", { name: "Sports" }));
-
-        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample$/ });
-        assert.deepEqual(
-            tiles.map((button) => button.getAttribute("aria-label")),
-            ["Open the College football sample"],
+        for (const button of screen.getAllByRole("button", { name: "Samples" })) {
+            await userEvent.click(button);
+            const dialog = await screen.findByRole("dialog", { name: "Samples" });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isFalse(dialog.isConnected && dialog.checkVisibility());
+            });
+        }
+        const dialog = await openSamples();
+        // Headings in sentence case, read as written.
+        const headings = within(dialog)
+            .getAllByRole("region")
+            .map((section) => section.getAttribute("aria-label"));
+        assert.includeMembers(headings, ["Proteins", "Supply chain", "Graphs", "Datasets", "Generated"]);
+        for (const section of within(dialog).getAllByRole("region")) {
+            const heading = section.firstElementChild;
+            assert.notEqual(getComputedStyle(heading as Element).textTransform, "uppercase");
+        }
+        // Les Miserables once: the app's own copy, not graph-samples' as well.
+        const names = within(dialog)
+            .getAllByRole("button")
+            .map((button) => button.textContent);
+        assert.lengthOf(
+            names.filter((name) => /^Les Miserables/.test(name)),
+            1,
         );
-        assert.isNotNull(within(tiles[0]).getByText("Sports"));
-        assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
-        await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 19);
+        // Each row names who serves it and how big it is.
+        assert.include(sampleRow(dialog, "Les Miserables").textContent, "graphty");
+        assert.include(sampleRow(dialog, "Les Miserables").textContent, "77");
+        assert.include(sampleRow(dialog, "Doubtful Sound dolphins").textContent, "graphty.app");
+        assert.include(sampleRow(dialog, "Doubtful Sound dolphins").textContent, "159");
+        assert.include(sampleRow(dialog, "Gene Ontology (go-basic)").textContent, "1.4 MB");
+        assert.include(sampleRow(dialog, "auth-log.csv").textContent, "400 rows");
+    });
+
+    it("narrows the Samples dialog to what the search box names", async () => {
+        renderStart();
+        const dialog = await openSamples();
+
+        await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search samples" }), "dolphin");
+
+        const sections = within(dialog).getAllByRole("region");
+        assert.deepEqual(
+            sections.map((section) => section.getAttribute("aria-label")),
+            ["Datasets"],
+        );
+        assert.lengthOf(within(sections[0]).getAllByRole("button"), 1);
+        assert.isNotNull(sampleRow(dialog, "Doubtful Sound dolphins"));
+        await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search samples" }), "zzz");
+        assert.isNotNull(within(dialog).getByText("No matches"));
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
@@ -180,7 +167,7 @@ describe("the start screen", () => {
     it("opens a sample as a project named after it, before the card is answered", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await pickSample("Florentine families");
 
         assert.equal(store.get().project?.name, "Florentine families");
         assert.equal(store.get().opening?.name, "Florentine families");
@@ -195,19 +182,6 @@ describe("the start screen", () => {
 
         assert.equal(store.get().project?.name, "Untitled");
         assert.equal(store.get().page, "panels");
-    });
-
-    it("scrolls to the samples for Samples", async () => {
-        renderStart();
-        const samples = screen.getByRole("region", { name: "Sample library" });
-        let scrolled = false;
-        samples.scrollIntoView = () => {
-            scrolled = true;
-        };
-
-        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
-
-        assert.isTrue(scrolled);
     });
 
     it("opens a project on the Data place with the server form", async () => {

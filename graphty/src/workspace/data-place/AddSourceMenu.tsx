@@ -6,10 +6,10 @@ import { useCommand } from "../state/WorkspaceContext";
 
 /**
  * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
- * Server..., Paste, registered by the loading and server packages, and the Data page's Add
- * data.... Each is drawn only once its package registers it.
+ * Server... and Paste, registered by the loading and server packages. Each is drawn only once its
+ * package registers it.
  */
-export const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste", "data.add"] as const;
+export const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste"] as const;
 
 /**
  * The Sources "+": a menu of the ways to add a source.
@@ -21,7 +21,6 @@ export function AddSourceMenu(): React.JSX.Element | null {
         useCommand(ADD_SOURCE[1]),
         useCommand(ADD_SOURCE[2]),
         useCommand(ADD_SOURCE[3]),
-        useCommand(ADD_SOURCE[4]),
     ].filter((door) => door !== null);
     if (doors.length === 0) {
         return null;

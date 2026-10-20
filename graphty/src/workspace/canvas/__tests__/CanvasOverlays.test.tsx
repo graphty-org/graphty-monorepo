@@ -92,12 +92,12 @@ function standIn(facts: StandInFacts = {}): {
 }
 
 /**
- * An Add data command whose disabled reason the test sets.
+ * A Samples... command whose disabled reason the test sets.
  * @param disabled - the reason, or null for an enabled command.
  * @returns the command.
  */
 function openCommand(disabled: string | null): Command {
-    return { id: "data.add", label: "Add data...", group: "Data", disabled: () => disabled, run: vi.fn() };
+    return { id: "data.samples", label: "Samples...", group: "Data", disabled: () => disabled, run: vi.fn() };
 }
 
 /**
@@ -175,28 +175,28 @@ describe("the canvas's state cards", () => {
         assert.isNull(screen.queryByRole("status"));
     });
 
-    it("shows No nodes to draw over an empty graph, with Add data... its one door", () => {
+    it("shows No nodes to draw over an empty graph, with the Sources doors File... and Samples...", () => {
         renderOver(standIn({ nodeCount: 0 }).session);
         assert.isNotNull(screen.getByRole("region", { name: "No nodes to draw" }));
         assert.deepEqual(
             screen.getAllByRole("button").map((button) => button.textContent),
-            ["Add data..."],
+            ["File...", "Samples..."],
         );
     });
 
-    it("offers Add data on the empty card, and runs it", async () => {
+    it("offers Samples... on the empty card, and runs it", async () => {
         const command = openCommand(null);
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
-        const button = screen.getByRole("button", { name: "Add data..." });
+        const button = screen.getByRole("button", { name: "Samples..." });
         assert.notEqual(button.getAttribute("aria-disabled"), "true");
         await userEvent.click(button);
         assert.equal(vi.mocked(command.run).mock.calls.length, 1);
     });
 
-    it("keeps Add data reachable but disabled, with the reason in a tooltip", async () => {
+    it("keeps Samples... reachable but disabled, with the reason in a tooltip", async () => {
         const command = openCommand("Close the dialog first");
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
-        const button = screen.getByRole("button", { name: "Add data..." });
+        const button = screen.getByRole("button", { name: "Samples..." });
         assert.equal(button.getAttribute("aria-disabled"), "true");
         // force: a reader can still press a disabled control, and it must do nothing
         await userEvent.click(button, { force: true });

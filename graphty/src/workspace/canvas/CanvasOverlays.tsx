@@ -134,7 +134,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
-    const addData = useCommand("data.add");
+    // The empty card's doors: the Sources "+" doors a first source most often comes through.
+    const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
 
     if (session === null) {
@@ -157,18 +158,24 @@ export function CanvasOverlays(): React.JSX.Element | null {
                 icon={<CircleDashed size={20} />}
                 title="No nodes to draw"
                 actions={
-                    addData === null ? undefined : (
-                        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                            <Button
-                                size="xs"
-                                aria-disabled={addData.disabledReason !== null}
-                                data-disabled={addData.disabledReason === null ? undefined : true}
-                                onClick={addData.disabledReason === null ? addData.run : undefined}
-                            >
-                                {addData.command.label}
-                            </Button>
-                        </Tooltip>
-                    )
+                    doors.length === 0
+                        ? undefined
+                        : doors.map((door) => (
+                              <Tooltip
+                                  key={door.command.id}
+                                  label={door.disabledReason}
+                                  disabled={door.disabledReason === null}
+                              >
+                                  <Button
+                                      size="xs"
+                                      aria-disabled={door.disabledReason !== null}
+                                      data-disabled={door.disabledReason === null ? undefined : true}
+                                      onClick={door.disabledReason === null ? door.run : undefined}
+                                  >
+                                      {door.command.label}
+                                  </Button>
+                              </Tooltip>
+                          ))
                 }
             />
         );

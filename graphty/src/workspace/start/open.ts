@@ -1,19 +1,12 @@
 /**
- * How the start screen opens a project: a sample by URL, or a file the reader chose or dropped.
- * Either way the data goes through graphty-element's ordinary import, so the import report and
+ * How data opens: a sample, or a file the reader chose or dropped, into the project or as a new
+ * one. Either way the data goes through graphty-element's ordinary import, so the import report and
  * Undo work as for any file, and nothing is run on it.
  */
 
-import {
-    type DatasetMeta,
-    DEFAULT_DATASET_BASE_URL,
-    type GeneratorDescriptor,
-    type GeneratorParams,
-} from "@graphty/graphty-element/catalog";
 import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
-import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
 import { routeToReplace } from "../replace/commands";
@@ -45,18 +38,6 @@ export function openProject(
 }
 
 /**
- * Opens a sample as a new project named after it, with nothing run.
- * @param workspace - the workspace store.
- * @param sample - the sample.
- */
-export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
-    openProject(workspace, sample.name, async (session) => {
-        await session.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() });
-        noticeFileStyles(workspace, session);
-    });
-}
-
-/**
  * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
  * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
  * Storybook (its staticDirs), which never reads the network.
@@ -67,48 +48,11 @@ const DATASET_BASE =
         : undefined;
 
 /**
- * The address of the picture graph-samples publishes of a dataset or a generator, beside the
- * datasets' files.
- * @param entry - the dataset's metadata or the generator's descriptor, from graph-samples' catalog.
- * @param entry.thumbnail - the picture's file name, when it has one.
- * @returns the address, or undefined when it has no picture.
- */
-export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
-}
-
-/**
- * Opens one of graph-samples' datasets as a new project named after it, with nothing run: the
- * element downloads it and loads it.
- * @param workspace - the workspace store.
- * @param dataset - the dataset's metadata, from graph-samples' catalog.
- */
-export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
-    openProject(workspace, dataset.title, (session) => session.data.loadDataset(dataset.name, datasetBase()));
-}
-
-/**
  * Where `loadDataset` reads graph-samples' datasets from (see `DATASET_BASE`).
  * @returns the options naming it, or none for graph-samples' default.
  */
 export function datasetBase(): { readonly baseUrl?: string } {
     return DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE };
-}
-
-/**
- * Opens a generated graph as a new project named after its generator, with nothing run.
- * @param workspace - the workspace store.
- * @param generator - the generator, from graph-samples' catalog.
- * @param params - its parameters.
- */
-export function openGenerated(
-    workspace: WorkspaceStore,
-    generator: GeneratorDescriptor,
-    params: GeneratorParams,
-): void {
-    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
 }
 
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
@@ -212,6 +156,29 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
             : takeIn(workspace, session, incoming);
     work.catch((error: unknown) => {
         workspace.set({ notice: { message: refusalFor(error, incoming.name).what } });
+    });
+}
+
+/** How a whole graph loads into a session: replacing what it holds, or added to it. */
+export type GraphLoad = (session: GraphSession, mode: "replace" | "merge") => Promise<void>;
+
+/**
+ * Adds a whole graph (a server sample, a dataset, a generated graph) by the same rule as
+ * {@link addSource}: from the start screen as a new project named after it; into an empty project
+ * as its first source; into a graph that holds data as one more source, added to it.
+ * @param ctx - the command context.
+ * @param ctx.workspace - the workspace store.
+ * @param ctx.session - the open project's session, or null.
+ * @param name - the graph's name.
+ * @param load - loads it.
+ */
+export function addGraph({ workspace, session }: CommandContext, name: string, load: GraphLoad): void {
+    if (workspace.get().project === null || session === null) {
+        openProject(workspace, name, (next) => load(next, "replace"));
+        return;
+    }
+    load(session, session.data.sources().length === 0 ? "replace" : "merge").catch((error: unknown) => {
+        workspace.set({ notice: { message: refusalFor(error, name).what } });
     });
 }
 

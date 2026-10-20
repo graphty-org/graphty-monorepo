@@ -15,7 +15,10 @@ export const registration = defineRegistration({
                 if (workspace.get().project === null) {
                     return "No project is open";
                 }
-                return session === null ? "The graph is still loading" : null;
+                if (session === null) {
+                    return "The graph is still loading";
+                }
+                return session.data.sources().length === 0 ? "No data yet" : null;
             },
             run: ({ workspace }) => {
                 workspace.set((state) => ({ dockOpen: !state.dockOpen }));

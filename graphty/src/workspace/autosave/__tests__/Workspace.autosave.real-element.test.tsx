@@ -11,6 +11,7 @@ import { type GraphSession, listAutosaves } from "@graphty/graphty-element/sessi
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -84,7 +85,7 @@ async function openElement(): Promise<{ element: ElementUnderTest; session: Grap
  */
 async function workThenLeave(): Promise<string> {
     const first = mountWorkspace();
-    await userEvent.click(screen.getByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
+    await pickSample(SAMPLE.name);
     const { element, session } = await openElement();
     await waitFor(
         () => {
@@ -189,7 +190,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         // Nothing is offered on the next visit.
         const third = mountWorkspace();
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
+            assert.isNotNull(screen.queryByRole("button", { name: /^Open a file/ }));
         });
         assert.deepEqual(await listAutosaves(WORKSPACE_AUTOSAVE_KEY), []);
         assert.isNull(third.store.get().recovered);

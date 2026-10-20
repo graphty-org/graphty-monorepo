@@ -1,7 +1,7 @@
 /**
  * Tier 1 tasks T1 (first launch) and T2 (pick a sample), from an empty app on the REAL
  * graphty-element: the usage data card is answered, then each of the four samples opens from the
- * start screen through the element's ordinary import, with nothing run and no style layer, and
+ * start screen's Samples dialog through the element's ordinary import, with nothing run and no style layer, and
  * the element's counts match the sample's source. Every assertion reads what the element reports.
  */
 
@@ -15,6 +15,7 @@ import { userEvent } from "vitest/browser";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
@@ -80,7 +81,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.
-        await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+        await pickSample("Les Miserables");
         const session = await elementSession();
         await waitFor(
             () => {
@@ -107,7 +108,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
 
-            await userEvent.click(screen.getByRole("button", { name: `Open the ${sample.name} sample` }));
+            await pickSample(sample.name);
             const session = await elementSession();
             await waitFor(
                 () => {

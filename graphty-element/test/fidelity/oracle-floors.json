@@ -36293,6 +36293,12 @@
         }
     },
     "allowedDrops": {
+        "yed-graphml-specimen-labels-p2/raster.label": {
+            "reason": "graphty now draws yEd's outside and free labels where their stored boxes put them, 4 from the node (label.offset 12/33 to 24/33); draw.io, standing in for yEd, puts them elsewhere (sides-w 4.6 lower, sides-e and corners further out), so the label pixels overlap less (0.862 to 0.847)",
+            "issue": "ISSUES.md yEd GraphML settings graph-io now reads (fix round 2)",
+            "expires": "2026-12-31",
+            "atLeast": 0.84
+        },
         "yed-live-graphml-specimen-node-shapes/node.shape": {
             "reason": "graphty draws yFiles' PILL (a box with half-circle ends; on this square box a circle); draw.io, standing in for yEd Live, draws PILL as a plain box (shape-pill)",
             "issue": "ISSUES.md yed-live-stand-in",

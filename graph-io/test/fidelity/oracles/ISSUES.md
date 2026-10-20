@@ -2015,15 +2015,54 @@ Not import defects (no change):
       the rest at the most common one. A file's label positions are now drawn element by element through
       `node.labelLocation` in one layer, with no cap and no default changed (`labelLayers` is deprecated and
       ignored), so `model-corners-ne` and `model-eight-pos-ne` are drawn at the top right.
-    - yEd sets an outside label its model's distance (4 px by default) from the node; graphty draws it against the
-      node (`se`, `sw`: [29, 22] against [35, 30]). The neutral styles have no label distance or offset, and
-      graphty-element no offset from the label's anchor: both are needed (shared with Cytoscape.js `text-margin`,
-      `label-anchor-offset`).
+    - Resolved (fix round 2): yEd sets an outside label its model's distance (4 px by default) from the node, and
+      graphty drew it against the node (`se`, `sw`: [29, 22] against [35, 30]). graph-io now reads the distance,
+      and a free label's offset, from the label's stored box as `labelOffsetX` / `labelOffsetY` (see "yEd GraphML
+      settings graph-io now reads (fix round 2)").
     - The rest of the anchor rows (an internal `c` label the stand-in puts at the node's bottom, smart labels it puts
       at the left): draw.io ignores `SmartNodeLabelModel` and the internal model; yEd's stored label boxes put these
       labels where graphty draws them.
 - Edge label models, arrow shapes and fill alpha (`#RRGGBBAA`): the stand-in cannot judge them (above); they wait for
   the owner's yEd export.
+
+## Specimen sheets: yEd GraphML settings graph-io now reads (fix round 2, 2026-10-19)
+
+Judged against the draw.io stand-ins, on the `yed-graphml-specimen-*` sheets and the `graphml-*` corpus samples.
+Fixed (unit tests in `graph-io/test/formats/graphml/styles.test.ts`):
+
+- Outside label distance and free label offsets. yEd writes every label's box as it draws it, relative to the node's
+  top-left corner. A label beside the node (`sides`, `sandwich`, `corners`, `eight_pos`) is now moved by the gap
+  between the node and its box (yEd's 4-point default distance), and along the side by how far its box's middle is
+  from the node's; a `free` or custom (smart) label over the node by its box's middle on both axes. Read as
+  `labelOffsetX` / `labelOffsetY`, which graphty-element already draws. A turned label is left where its position
+  puts it (its stored box is not its words' box). Label offset: `labels-p2` 12/33 to 24/33,
+  voctomix 21/32 to 32/32, stm32-func 28/106 to 101/106 (anchor 26 to 90), galaxy-lcms-workflow 7/33 to 11/33,
+  libcitygml-mapping 44/51 to 45/51. Where graphty now draws a label where yEd's box puts it and draw.io does not
+  (recorded with this reason): `labels-p2` raster label region 0.862 to 0.847 (draw.io puts `sides-w` 4.6 lower and
+  the side and corner labels further out, `allowedDrops`); galaxy-lcms-workflow `n0::n8` label offset (its two-line
+  "HTML\nreport" box is 4 below the node, and draw.io draws it on one line, half a line higher); stm32-func `n78`
+  label anchor (a smart label stored 9 above the node's middle, which draw.io centers: it ignores
+  `SmartNodeLabelModel`).
+- Label rotation. A `y:NodeLabel` / `y:EdgeLabel` `rotationAngle` is read as `labelRotation`. yEd is a Java2D program,
+  whose angles turn clockwise on screen, as the neutral slot does (and as the stand-in draws them). Label rotation: `labels` 40/44 to 44/44,
+  `edge-labels` 39/41 to 41/41, stm32-func 99/106 to 106/106, synthetic-nodes 68/69 to 69/69.
+
+Not fixed, and why:
+
+- Table nodes and BPMN pools (`groups`, `groups-p2`: `table-*`, `bpmn-pool-*`). yEd draws a `y:TableNode` as a header
+  band in `yed.table.header.color.*` over rows or columns in `yed.table.lane.color.*`, parted by lines, inside the
+  node's `y:Geometry` (90 tall on these sheets, which graphty draws). graph-io reads the node's `y:Fill` (a gradient
+  to `#0042F440`) and its `y:BorderStyle hasColor="false"`, so graphty draws one gradient box with no outline.
+  Neither graph-io's neutral styles nor graphty-element have a node made of a header and lanes, so the fix is in
+  both: a lane structure in the neutral model and its drawing in graphty-element. Which colors yEd paints where
+  (whether the `y:Fill` gradient shows under the lanes, what color the lines are) is not documented, and draw.io
+  draws its own table (63 tall lanes in `#C0C0C0` with black lines and the header label above them), so it cannot
+  judge graphty: the owner's yEd export decides it.
+- Group containers on the stand-in (`groups`: `group.extra` on 9 group specimens), arrows, edge label models, fill
+  alpha and default fills (`arrows`, `edge-labels`, `edges-lines`, `node-sizes-opacity`, `labels`), and the
+  `graphml-*` corpus samples (draw.io's own arrows, newlines drawn as spaces): draw.io's drawings, not yEd's (see
+  "Specimen sheets: yEd GraphML and yEd Live GraphML" above). yEd's license forbids automating it, so these oracles
+  stay stand-ins until the owner exports each sheet from yEd by hand (File > Export > SVG).
 
 ## Specimen sheets: one-sided caps, crossed deltas, label places, loops and captions (fix round 2, rendering batch 1, 2026-10-19)
 

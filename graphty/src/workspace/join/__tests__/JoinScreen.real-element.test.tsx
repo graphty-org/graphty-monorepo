@@ -190,15 +190,76 @@ describe("the join screen on the real element", () => {
         });
     });
 
-    it("cancels with Esc and lets go of the file", async () => {
+    it("takes focus, cancels with Esc in the screen only, and Undo brings the file back", async () => {
         const { store, session } = await projectWith("tp53-interactions.tsv", 60);
-        await joinScreenFor("tumor-expression.tsv");
+        const join = await joinScreenFor("tumor-expression.tsv");
+        await waitFor(() => {
+            assert.isTrue(join.contains(document.activeElement), "the screen has focus");
+        });
+
+        // An Esc outside the screen is not the join's.
+        (document.activeElement as HTMLElement).blur();
+        await userEvent.keyboard("{Escape}");
+        assert.isNotNull(screen.queryByRole("region", { name: "Join" }));
+
+        within(join).getByRole("button", { name: "Join" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Join" }));
         });
         assert.isNull(store.get().joining);
         assert.deepEqual(session.data.joins(), []);
+
+        const toast = (await screen.findByText("Join canceled")).closest<HTMLElement>('[role="group"]');
+        assert.isNotNull(toast);
+        await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+        const back = await screen.findByRole("region", { name: "Join" });
+        assert.include(chips(back), "52 matched");
+        await userEvent.click(within(back).getByRole("button", { name: "Join" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.joins(), 1);
+        });
+    });
+
+    it("keeps Ignore on the repeated key in the join, and Include in the header menu", async () => {
+        const { session } = await projectWith("tp53-interactions.tsv", 60);
+        const join = await joinScreenFor("tumor-expression.tsv");
+        await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Ignore" }));
+        await waitFor(() => {
+            assert.notInclude(chips(join), "1 repeated key");
+        });
+
+        // The header menu's Include is the include box, from the keyboard.
+        const tissue = within(join).getByRole("button", { name: /^tissue/ });
+        tissue.focus();
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        const include = await screen.findByRole("menuitem", { name: "Include" });
+        assert.strictEqual(include.getAttribute("aria-checked"), "true");
+        await userEvent.click(include);
+        await waitFor(() => {
+            assert.isFalse(within(join).getByRole<HTMLInputElement>("checkbox", { name: "Include tissue" }).checked);
+        });
+
+        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.joins(), 1);
+        });
+        assert.include(session.data.joins()[0]?.choices.ignore ?? [], "repeatedKeys");
+        assert.isUndefined(session.data.node("TP53")?.tissue);
+    });
+
+    it("sizes incoming columns to their names", async () => {
+        await projectWith("tp53-interactions.tsv", 60);
+        const join = await joinScreenFor("tumor-expression.tsv");
+        const incoming = within(join).getByRole("grid", { name: "tumor-expression.tsv" });
+        await waitFor(() => {
+            const labels = incoming.querySelectorAll<HTMLElement>('[data-testid="data-table-header-label"]');
+            assert.isAbove(labels.length, 0);
+            for (const label of labels) {
+                assert.isAtMost(label.scrollWidth, label.clientWidth, `${label.textContent ?? ""} is cut off`);
+            }
+        });
     });
 
     it("adds an edge file to a node file as edges between nodes (flow 7)", async () => {
@@ -206,6 +267,11 @@ describe("the join screen on the real element", () => {
         const join = await joinScreenFor("ships-to-2024-09.csv");
         assert.strictEqual(valueOf(join, "Rows are"), "Edges");
         assert.include(chips(join), "150 edges added");
+        // Replace data names the source it replaces, picked from the Join button's menu.
+        await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
+        assert.isDefined(await screen.findByRole("menuitem", { name: "Replace suppliers.csv" }));
+        await userEvent.keyboard("{Escape}");
+        assert.isNotNull(screen.queryByRole("region", { name: "Join" }), "Esc in the menu closes only the menu");
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(
             () => {

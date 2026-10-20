@@ -2,10 +2,10 @@ import "./join.css";
 
 import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-mantine";
 import type { GraphSession, JoinChoices, JoinReport } from "@graphty/graphty-element/session";
-import { Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
+import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import { ChevronDown, Combine, KeyRound } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import { ArrowRight, ChevronDown, Combine, Database, FileText, KeyRound } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatNumber } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -22,12 +22,42 @@ import {
     howChoices,
     type JoinHow,
     type JoinSubject,
+    type ReplaceTarget,
+    replaceTargets,
 } from "./commands";
 import { type JoinShow, MatchChips } from "./MatchChips";
 import { MatchRow } from "./MatchRow";
 
 /** The smallest table drawn, while its pane is being measured. */
 const MIN_TABLE_HEIGHT = 32;
+
+/** About how wide one character of a table's text is drawn, in pixels. */
+const CHAR_WIDTH = 7;
+/** Room in an incoming header beside its name: type or key icon, include box, clash icon, caret. */
+const HEADER_EXTRA = 96;
+/** Room in a cell beside its text. */
+const CELL_EXTRA = 16;
+/** The narrowest and widest an incoming column is sized. */
+const MIN_COLUMN = 88;
+const MAX_COLUMN = 320;
+/** How many rows a column's width is read from. */
+const SIZED_ROWS = 200;
+
+/**
+ * An incoming column's width from its content: its name with the header's icons, or its longest
+ * value in the first rows, whichever is wider, within bounds.
+ * @param column - the column's name.
+ * @param rows - the rows.
+ * @returns the width, in pixels.
+ */
+function columnWidth(column: string, rows: readonly IncomingRow[]): number {
+    let widest = column.length * CHAR_WIDTH + HEADER_EXTRA;
+    for (const row of rows.slice(0, SIZED_ROWS)) {
+        const value = cellValue(row.values[column]);
+        widest = Math.max(widest, String(value ?? "").length * CHAR_WIDTH + CELL_EXTRA);
+    }
+    return Math.min(MAX_COLUMN, Math.max(MIN_COLUMN, widest));
+}
 
 /** A clash rule's words. */
 const CLASH_RULES = [
@@ -112,6 +142,8 @@ function reportOf(subject: JoinSubject, choices: JoinChoices): JoinReport | stri
  * @param props.onHow - takes another choice
  * @param props.onRun - runs the choice
  * @param props.disabled - whether the join cannot run now
+ * @param props.targets - the sources Replace data can replace
+ * @param props.target - the one picked, if any
  * @returns the button
  */
 function JoinButton({
@@ -120,17 +152,28 @@ function JoinButton({
     onHow,
     onRun,
     disabled,
+    targets,
+    target,
 }: Readonly<{
     how: JoinHow;
     hows: readonly JoinHow[];
-    onHow: (how: JoinHow) => void;
+    onHow: (how: JoinHow, target?: ReplaceTarget) => void;
     onRun: () => void;
     disabled: boolean;
+    targets: readonly ReplaceTarget[];
+    target: ReplaceTarget | undefined;
 }>): React.JSX.Element {
+    const words = (each: JoinHow, to?: ReplaceTarget): string =>
+        each === "replace" && to !== undefined ? `Replace ${to.name}` : HOW_WORDS[each];
     return (
         <Button.Group>
-            <Button size="xs" data-autofocus onClick={onRun} disabled={disabled && how === "join"}>
-                {HOW_WORDS[how]}
+            <Button
+                size="xs"
+                data-autofocus
+                onClick={onRun}
+                disabled={(disabled && how === "join") || (how === "replace" && target === undefined)}
+            >
+                {words(how, target)}
             </Button>
             {hows.length > 1 ? (
                 <Menu position="bottom-end" withinPortal>
@@ -140,17 +183,21 @@ function JoinButton({
                         </Button>
                     </Menu.Target>
                     <Menu.Dropdown>
-                        {hows.map((each) => (
-                            <Menu.Item
-                                key={each}
-                                aria-checked={each === how}
-                                onClick={() => {
-                                    onHow(each);
-                                }}
-                            >
-                                {HOW_WORDS[each]}
-                            </Menu.Item>
-                        ))}
+                        {hows.flatMap((each) =>
+                            // Replace data asks which source: one item per source it can replace.
+                            (each === "replace" ? targets : [undefined]).map((to) => (
+                                <Menu.Item
+                                    key={to === undefined ? each : `${each}:${to.key}`}
+                                    aria-checked={each === how && to?.key === target?.key}
+                                    leftSection={to === undefined ? undefined : <Database size={14} aria-hidden />}
+                                    onClick={() => {
+                                        onHow(each, to);
+                                    }}
+                                >
+                                    {words(each, to)}
+                                </Menu.Item>
+                            )),
+                        )}
                     </Menu.Dropdown>
                 </Menu>
             ) : null}
@@ -208,6 +255,13 @@ function IncomingTable({
         header: edges ? "Edge" : "Graph",
         pinned: "start",
         sortable: false,
+        width: Math.min(
+            MAX_COLUMN,
+            Math.max(
+                MIN_COLUMN,
+                ...rows.slice(0, SIZED_ROWS).map((row) => row.match.join(" - ").length * CHAR_WIDTH + HEADER_EXTRA),
+            ),
+        ),
         value: (row) => row.match.join(" - ") || undefined,
         cell: (row) =>
             row.match.length === 0 ? null : (
@@ -223,6 +277,7 @@ function IncomingTable({
         return {
             id: `c:${column}`,
             header: column,
+            width: columnWidth(column, rows),
             value: (row) => cellValue(row.values[column]),
             icon: isKey ? (
                 <span className="jn-key-icon" data-key={column}>
@@ -254,6 +309,8 @@ function IncomingTable({
                         </HoverCard>
                     ) : null}
                     {isKey ? null : (
+                        // Out of the tab order like every header control (the grid has one tab
+                        // stop); the header's menu holds the same box: Alt+ArrowDown, Include.
                         <Checkbox
                             size="xs"
                             tabIndex={-1}
@@ -296,11 +353,15 @@ function IncomingTable({
                     )}
                     {isKey ? null : (
                         <Menu.Item
+                            aria-checked={brought.has(column)}
+                            leftSection={
+                                <Checkbox size="xs" tabIndex={-1} readOnly checked={brought.has(column)} aria-hidden />
+                            }
                             onClick={() => {
                                 setInclude(column, !brought.has(column));
                             }}
                         >
-                            {brought.has(column) ? "Leave out" : "Include"}
+                            Include
                         </Menu.Item>
                     )}
                     {clashes.has(column) && brought.has(column) ? (
@@ -426,11 +487,19 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const [choices, setChoices] = useState<JoinChoices>(subject.initial);
     const [how, setHow] = useState<JoinHow>(subject.how);
     const [show, setShow] = useState<JoinShow>(null);
-    const [repeatedIgnored, setRepeatedIgnored] = useState(false);
     const [rows, setRows] = useState<readonly Readonly<Record<string, unknown>>[]>([]);
     const [busy, setBusy] = useState(false);
     const graph = useElementSize();
     const incoming = useElementSize();
+    const screenRef = useRef<HTMLElement>(null);
+    const targets = replaceTargets(workspace);
+    // Replace data names the source it replaces; with one there is nothing to pick.
+    const [target, setTarget] = useState<ReplaceTarget | undefined>(targets.length === 1 ? targets[0] : undefined);
+    // The screen takes focus as it opens, on its Join button, so Esc and Tab work in it at once.
+    useEffect(() => {
+        const screenEl = screenRef.current;
+        (screenEl?.querySelector<HTMLElement>("[data-autofocus]:not(:disabled)") ?? screenEl)?.focus();
+    }, []);
     useEffect(() => {
         let live = true;
         void subject.rows().then((read) => {
@@ -442,21 +511,15 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
             live = false;
         };
     }, [subject]);
-    // Esc cancels, unless a menu or list is open and takes it first. In the capture phase, so it
-    // runs before the workspace's key map.
-    useEffect(() => {
-        const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === "Escape" && !event.defaultPrevented && !inOpenPopup(event.target)) {
-                event.preventDefault();
-                event.stopPropagation();
-                closeJoin(workspace, subject);
-            }
-        };
-        globalThis.addEventListener("keydown", onKeyDown, true);
-        return () => {
-            globalThis.removeEventListener("keydown", onKeyDown, true);
-        };
-    }, [workspace, subject]);
+    // Esc in the screen cancels (Undo brings it back), unless a menu or list is open and takes it
+    // first. Only in the screen: an Esc anywhere else is not the join's.
+    const onKeyDown = (event: React.KeyboardEvent): void => {
+        if (event.key === "Escape" && !event.defaultPrevented && !inOpenPopup(event.target)) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeJoin(workspace, subject);
+        }
+    };
 
     const report = reportOf(subject, choices);
     const counts = typeof report === "string" ? null : report;
@@ -475,23 +538,36 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const shown = rows
         .map((values, at): IncomingRow => ({ at, values, match: counts?.rowMatches[at] ?? [] }))
         .filter((row) => show !== "not-in-graph" || row.match.length === 0);
-    const onto = session.data.sources().find((each) => each.kind !== "join")?.name;
     const hows = howChoices(workspace, subject);
     return (
-        <section className="jn-screen" aria-label="Join">
+        <section className="jn-screen" aria-label="Join" ref={screenRef} tabIndex={-1} onKeyDown={onKeyDown}>
             <header className="jn-bar">
                 <span className="jn-title">Join</span>
-                <span className="jn-name">{subject.name}</span>
-                {onto === undefined ? null : <span className="jn-onto">onto {onto}</span>}
+                <Badge variant="default" leftSection={<FileText size={12} aria-hidden />}>
+                    {subject.name}
+                </Badge>
+                <ArrowRight size={14} aria-hidden className="jn-onto" />
+                {targets.map((each) => (
+                    <Badge key={each.key} variant="default" leftSection={<Database size={12} aria-hidden />}>
+                        {each.name}
+                    </Badge>
+                ))}
                 <span className="jn-spacer" />
                 <JoinButton
                     how={how}
                     hows={hows}
-                    onHow={setHow}
+                    onHow={(next, to) => {
+                        setHow(next);
+                        if (to !== undefined) {
+                            setTarget(to);
+                        }
+                    }}
+                    targets={targets}
+                    target={target}
                     disabled={counts === null || busy}
                     onRun={() => {
                         setBusy(true);
-                        finishJoin(workspace, subject, choices, how).catch((error: unknown) => {
+                        finishJoin(workspace, subject, choices, how, target?.key).catch((error: unknown) => {
                             setBusy(false);
                             const reason = error instanceof Error ? error.message : String(error);
                             workspace.store.set({
@@ -530,9 +606,9 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             onChange={setChoices}
                             show={show}
                             onShow={setShow}
-                            repeatedIgnored={repeatedIgnored}
+                            repeatedIgnored={choices.ignore?.includes("repeatedKeys") === true}
                             onIgnoreRepeated={() => {
-                                setRepeatedIgnored(true);
+                                setChoices({ ...choices, ignore: [...(choices.ignore ?? []), "repeatedKeys"] });
                             }}
                         />
                     )}

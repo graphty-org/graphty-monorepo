@@ -16,6 +16,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { sourceName } from "../data-place/words";
 import { replaceWith } from "../replace/commands";
 import { openSeparate } from "../start/open";
 
@@ -143,6 +144,12 @@ export function editSubject(ctx: CommandContext, record: JoinRecord): JoinSubjec
     };
 }
 
+/** A source Replace data can replace: its load and its name. */
+export interface ReplaceTarget {
+    readonly key: SourceKey;
+    readonly name: string;
+}
+
 /**
  * The Join button's choices for a subject: Join always; Add as rows for a file; Replace data and
  * Open as a separate graph only when the file can be read again.
@@ -155,7 +162,7 @@ export function howChoices(ctx: CommandContext, subject: JoinSubject): JoinHow[]
         return ["join"];
     }
     const hows: JoinHow[] = ["join", "rows"];
-    if (subject.source !== undefined && replaceTarget(ctx) !== undefined) {
+    if (subject.source !== undefined && replaceTargets(ctx).length > 0) {
         hows.push("replace");
     }
     if (subject.source !== undefined) {
@@ -165,22 +172,51 @@ export function howChoices(ctx: CommandContext, subject: JoinSubject): JoinHow[]
 }
 
 /**
- * The source Replace data replaces: the graph's first load that is not a joined table.
+ * The sources Replace data can replace, for the reader to pick from: every load that is not a
+ * joined table.
  * @param ctx - the command context.
- * @returns its key, or undefined.
+ * @returns them, in the Sources list's order.
  */
-function replaceTarget(ctx: CommandContext): SourceKey | undefined {
-    return ctx.session?.data.sources().find((source) => source.kind !== "join")?.key;
+export function replaceTargets(ctx: CommandContext): ReplaceTarget[] {
+    return (ctx.session?.data.sources() ?? [])
+        .filter((source) => source.kind !== "join")
+        .map((source) => ({ key: source.key, name: sourceName(source) }));
 }
 
 /**
- * Closes the join screen, letting go of a draft it held.
+ * Closes the join screen. Cancelling a file keeps its draft and offers Undo, which opens the
+ * screen on it again; the draft is let go once the notice goes without Undo.
  * @param ctx - the command context.
  * @param subject - the table, or undefined.
  */
 export function closeJoin(ctx: CommandContext, subject?: JoinSubject): void {
-    subject?.draft?.dispose();
-    ctx.workspace.set({ joining: null, editingJoin: null });
+    const { workspace } = ctx;
+    const { joining } = workspace.get();
+    workspace.set({ joining: null, editingJoin: null });
+    const draft = subject?.draft;
+    if (draft === undefined || joining === null) {
+        return;
+    }
+    const notice = {
+        message: "Join canceled",
+        action: {
+            label: "Undo",
+            run: () => {
+                workspace.set({ joining, editingJoin: null });
+            },
+        },
+    };
+    workspace.set({ notice });
+    const stop = workspace.subscribe(() => {
+        const now = workspace.get();
+        if (now.notice === notice) {
+            return;
+        }
+        stop();
+        if (now.joining !== joining) {
+            draft.dispose();
+        }
+    });
 }
 
 /**
@@ -189,6 +225,7 @@ export function closeJoin(ctx: CommandContext, subject?: JoinSubject): void {
  * @param subject - the table.
  * @param choices - the join.
  * @param how - the Join button's choice.
+ * @param target - the source Replace data replaces, as the reader picked it.
  * @returns settles once it is done.
  */
 export async function finishJoin(
@@ -196,13 +233,13 @@ export async function finishJoin(
     subject: JoinSubject,
     choices: JoinChoices,
     how: JoinHow,
+    target?: SourceKey,
 ): Promise<void> {
     const { session, workspace } = ctx;
     const { draft, source, edit } = subject;
     if (session === null) {
         return;
     }
-    const target = replaceTarget(ctx);
     if (how === "join" && edit !== undefined) {
         await session.data.editJoin(edit, choices);
     } else if (how === "join") {

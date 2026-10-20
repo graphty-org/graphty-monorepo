@@ -701,6 +701,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     color: v("#cccccc", `${SIGMA}/settings.ts lines 119-126`),
                     // an edge of sigma's default size 1, drawn half as wide as its size (readSigmaRow)
                     width: v(0.5, `${SIGMA4} DEFAULT_EDGE_DISPLAY_DATA (size 1)`),
+                    // an edge label (renderEdgeLabels) is drawn at its line's middle, 12 px, in #666
+                    labelColor: v("#666666", `${SIGMA4} DEFAULT_EDGE_DISPLAY_DATA (labelColor "#666")`),
+                    labelSize: v(12, "sigma 4.0.1 dist/sigma.esm.js line 2816 (DEFAULT_EDGE_LABEL_SIZE)"),
+                    labelPosition: v("center", "sigma 4.0.1 dist/sigma.esm.js line 3647 (the middle of its two ends)"),
                     sourceArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                     targetArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                     // no edge is drawn thinner on screen, whatever its size (the shader's max(size, minEdgeThickness 1.7),

@@ -361,9 +361,9 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 223 | 9% | 9% | 0 | 1939 | 0 | W_STYLE_APPROXIMATED, W_STYLE_BAD_VALUE, W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 32371 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 6 | 3 | 2131 | 0% | 0% | 0 | 33529 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
-| json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 1537 | 0 |  |
-| json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 1378 | 0 | W_STYLE_RAMP_ROUNDED |
+| json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 61992 | 0 | W_STYLE_RAMP_ROUNDED |
+| json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 2717 | 0 |  |
+| json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 2471 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 14 | 2 | 126 | 0% | 0% | 0 | 3687 | 0 |  |
 | json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 7 | 4 | 69 | 48% | 1% | 0 | 270 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 4324 | 0 |  |
@@ -376,17 +376,17 @@ Tool values are elements drawn with the writing program's default.
 | json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 14 | 86% | 64% | 0 | 3 | 0 |  |
 | json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 7 | 8 | 13 | 62% | 62% | 0 | 116 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 4 | 9 | 78% | 67% | 0 | 69 | 0 |  |
-| json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 38 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 54 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 9 | 89% | 78% | 0 | 69 | 0 |  |
-| json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 49 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 43777 | 0 |  |
-| json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 40376 | 0 | W_STYLE_RAMP_ROUNDED |
+| json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 66 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 70404 | 0 |  |
+| json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 71757 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 1702 | 0 | W_STYLE_NOT_CARRIED |
 | json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 2026 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 9315 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 183995 | 0 |  |
-| json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 44231 | 0 |  |
-| json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 22935 | 0 |  |
+| json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 335420 | 0 |  |
+| json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 75612 | 0 |  |
+| json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 25020 | 0 |  |
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 5 | 3 | 202 | 100% | 0% | 0 | 4461 | 0 |  |
 | pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 100% | 45% | 0 | 64 | 0 |  |

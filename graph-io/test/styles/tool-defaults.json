@@ -340,6 +340,9 @@
         "edge": {
             "color": "#cccccc",
             "width": 0.5,
+            "labelColor": "#666666",
+            "labelSize": 12,
+            "labelPosition": "center",
             "sourceArrow": "none",
             "targetArrow": "none",
             "minScreenWidth": 0.85

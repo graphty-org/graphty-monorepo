@@ -288,6 +288,53 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "width")).toEqual([0.5, 1.5]);
     });
 
+    describe("graphology edge labels under sigma.js's settings (the sigmaSettings option)", () => {
+        const doc = JSON.stringify({
+            options: { type: "directed" },
+            nodes: [
+                { key: "a", attributes: { label: "a" } },
+                { key: "b", attributes: { label: "b" } },
+                { key: "c" },
+                { key: "d", attributes: { label: "" } },
+            ],
+            edges: [
+                { source: "a", target: "b", attributes: { label: "between labels" } },
+                { source: "c", target: "a", attributes: { label: "bare end" } },
+                { source: "a", target: "d", attributes: { label: "empty end" } },
+            ],
+        });
+        const loadWith = async (sigmaSettings?: Record<string, unknown>) => {
+            const r = await registry.importGraph(doc, { format: "json", styles: true, sigmaSettings });
+            return { ...r, styles: r.styles as ExtractedStyles };
+        };
+
+        it("draws no edge label by default, as sigma's renderEdgeLabels is off (graphology-specimen-edge-labels)", async () => {
+            expect(values(await loadWith(), "edge", "label")).toEqual([null, null, null]);
+        });
+
+        it("draws an edge's label between two labeled nodes with renderEdgeLabels (-edge-labels-p2)", async () => {
+            const r = await loadWith({ renderEdgeLabels: true, stagePadding: 30 });
+            expect(values(r, "edge", "label")).toEqual(["between labels", null, null]);
+            // DEFAULT_EDGE_DISPLAY_DATA's labelColor, DEFAULT_EDGE_LABEL_SIZE, at the line's middle
+            expect(values(r, "edge", "labelColor")).toEqual(["#666666", "#666666", "#666666"]);
+            expect(values(r, "edge", "labelSize")).toEqual([12, 12, 12]);
+            expect(values(r, "edge", "labelPosition")).toEqual(["center", "center", "center"]);
+        });
+
+        it("draws every edge's label with edgeLabelAnchors allNodes (-edge-labels-p3)", async () => {
+            const r = await loadWith({ renderEdgeLabels: true, edgeLabelAnchors: "allNodes" });
+            expect(values(r, "edge", "label")).toEqual(["between labels", "bare end", "empty end"]);
+        });
+
+        it("refuses settings sigma would not read", async () => {
+            await expect(loadWith({ renderEdgeLabels: "yes" })).rejects.toThrow(/renderEdgeLabels/);
+            await expect(loadWith({ edgeLabelAnchors: "some" })).rejects.toThrow(/edgeLabelAnchors/);
+            await expect(
+                registry.importGraph(doc, { format: "json", sigmaSettings: [] as unknown as Record<string, unknown> }),
+            ).rejects.toThrow(/sigmaSettings/);
+        });
+    });
+
     it("draws a graphology label on one line, each newline or tab a space, as sigma.js's canvas text does", async () => {
         const r = await load({
             options: { type: "directed" },

@@ -1916,31 +1916,41 @@ Fixed in the comparator and the oracle record (2026-10-19):
 - `node-sizes-opacity` `size-0`, `size-negative`: the raster scene draws a node of no or negative size as nothing
   (sigma's recorded radius is 0 and -9.7), so it no longer has a fill graphty's sub-pixel node lacks.
 
+Fixed (2026-10-19, fix round 2):
+
+- `edge-labels-p2`, `-p3` (edge label now 5/5 and 6/6; graphty drew none): sigma draws edge labels only under its
+  `renderEdgeLabels` setting, and under `edgeLabelAnchors` "nodeLabels" (the default) only between two nodes that
+  show their labels. Both are the application's settings, never in the file: graph-io's JSON importer takes them as
+  the `sigmaSettings` option (graphty-element's JSON reader passes `sigmaSettings` through), and draws an edge's
+  `label` in sigma's edge label look (#666, 12 px, on the line's middle). The oracle record listed every edge's label
+  whenever `renderEdgeLabels` was on, so `edge-label-unlabeled-ends` ("Bare ends") read as drawn on page 2, where
+  sigma's PNG has none: the oracle tool now records `getEdgeDisplayedLabels()`, and page 2 was regenerated (its
+  PNG and SVG unchanged).
+- Thin edges and `edge-size-0` (edge width now 27/27 on edges-lines, 8/8 on arrows, arrows-p2 and the three
+  edge-labels pages, 14/14 on edges-lines-p2; edge present 27/27): the screen-pixel edge floor
+  (`minScreenWidth` 0.85, see Gephi JSON).
+- `labels` `label-size-below-threshold`, `force-label-small`: sigma's `labelRenderedSizeThreshold`
+  (`labelMinNodeScreenSize` 12, see Gephi JSON); label shown now 19/20.
+- `node-sizes-opacity` `size-0`, `size-negative` (node width and height now 24/24): two sizes under a quarter
+  pixel are judged alike (see Gephi JSON).
+- Comparator: a line drawn at its screen floor was judged through the frame's length scale, so where graphty frames a
+  sigma file smaller than sigma (lesmis 1.137x, worldcup 1.109x) its 0.85 px lines read as 0.97 px and failed:
+  json-sigma-lesmis edge width 254/254 -> 157/254 when the floor landed, json-gephi-worldcup 0/9,228. The drawn
+  record now marks a line whose thickness is its screen floor, and the comparator judges it as drawn, as it already
+  judges a screen-pixel node border: lesmis 254/254, worldcup 9,228/9,228.
+
 Still open:
 
-- Thin edges: sigma draws every edge at least 0.85 screen px wide (half its `minEdgeThickness` of 1.7), graphty its
-  size scaled (`default` 0.48 px, size 1.5 0.72 px): edge width fails 21/26 on edges-lines and 7/8 on arrows and the
-  edge-labels sheets (json-graphology-synth 180/180 and json-sigma-lesmis 254/254 pass); `edge-size-0` (sigma
-  0.85 px, graphty none) fails edge present. graph-io has nothing to map it to: graphty-element needs a screen-pixel
-  minimum edge width channel (as `border.screenWidth` is for a node's border).
 - json-graphology-synth edge route 138/180: the 42 that fail run between nodes that overlap (centers 93 px apart,
   radii up to 93 px), so almost nothing of the route lies outside its nodes on either side and the route is judged on
   a few pixels or none. A comparator limit, not a drawing difference seen by eye.
-- `labels` `label-size-below-threshold`, `force-label-small`: sigma draws no label on a node drawn under 6 px
-  (`labelRenderedSizeThreshold`), even one with `forceLabel`; graphty draws "Small" and "Forced". graphty-element has
-  no label visibility channel keyed to the node's drawn size (`node.labelMinScreenSize` is the letters' size), so
-  graph-io has nothing to map it to; the fix is that channel in graphty-element. Same row as Gephi JSON's
-  `label-small-node`.
-- `labels` `label-grid-smaller`: sigma keeps one label per 100 px cell of its screen (the largest node's), so
-  "Small" is hidden beside "Big"; graphty's `labelAvoidOverlap` hides a label only where it overlaps another, and
-  these two do not. graphty-element needs sigma's grid rule as a label visibility option (see I35: the exact grid
-  also waits for graphty to frame a sigma file as sigma does).
-- `node-sizes-opacity` `size-0`, `size-negative`: graphty draws a 0.014 px node where sigma draws none, so node
-  width fails; `size-0-5`, `size-1`: as on the Gephi JSON sheets, a comparator limit on sub-pixel nodes.
-- `edge-labels-p2`, `-p3`: sigma draws the edge labels under its `renderEdgeLabels` setting (and `edgeLabelAnchors`
-  "allNodes"), which is the application's and never in the file; graph-io cannot be told sigma's settings, so
-  graphty draws no edge label on these pages (edge label fails 6/8 on each, now that edges are judged). Needs a graph-io import option
-  carrying sigma's drawing settings (`renderEdgeLabels`, `edgeLabelAnchors`, `labelRenderedSizeThreshold`).
+- `labels` `label-grid-smaller` (label shown 19/20), json-sigma-lesmis 54/77, json-graphology-synth 77/89: sigma keeps
+  one label per 100 px cell of its screen (the largest node's), so "Small" is hidden beside "Big"; graphty's
+  `labelAvoidOverlap` hides a label only where it overlaps another, and these two do not. The grid is a rule in
+  screen pixels over sigma's own framing (its node positions fitted into the canvas less a 30 px `stagePadding`), and
+  graphty frames a sigma file 1.1x to 1.2x smaller, so the exact grid computed on graphty's screen scores below
+  today's rule (see I35). It waits for graphty to frame a sigma file as sigma does, then a label grid option in
+  graphty-element.
 - A node whose `x` or `y` is a string, even a numeric one ("100"), makes sigma throw while drawing; graph-io places
   no node of such a file (the column is text). No oracle can be drawn, so no sheet holds it.
 

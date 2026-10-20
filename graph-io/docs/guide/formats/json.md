@@ -260,18 +260,19 @@ graphology `color` column), the style is written there instead and the note
 These come on top of the [options every importer takes](../options.md#every-importer).
 A file can hold several graphs: pick one with the `graphIndex` or `graphName` option of [importGraph()](../options.md#importgraph-and-importallgraphs), as [Files that hold several graphs](../loading.md#files-that-hold-several-graphs) shows.
 
-| Option                             | Type                                                                                                                     | Default            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| [`dialect`](#import-dialect)       | `"node-link" \| "d3" \| "jgf" \| "cytoscape" \| "graphology" \| "vis" \| "obographs" \| "adjacency" \| "tree" \| "auto"` | `"auto"`           |
-| [`nodeIdKey`](#import-nodeidkey)   | `string`                                                                                                                 | `"id"`             |
-| [`edgesKey`](#import-edgeskey)     | `string`                                                                                                                 | "edges" or "links" |
-| [`sourceKey`](#import-sourcekey)   | `string`                                                                                                                 | `"source"`         |
-| [`targetKey`](#import-targetkey)   | `string`                                                                                                                 | `"target"`         |
-| [`indexLinks`](#import-indexlinks) | `boolean \| "auto"`                                                                                                      | `"auto"`           |
-| [`oboIds`](#import-oboids)         | `"curie" \| "iri"`                                                                                                       | `"curie"`          |
-| [`typedefs`](#import-typedefs)     | `"metadata" \| "nodes"`                                                                                                  | `"metadata"`       |
-| [`nodesPath`](#import-nodespath)   | `string`                                                                                                                 | `"nodes"`          |
-| [`edgesPath`](#import-edgespath)   | `string`                                                                                                                 | next to the nodes  |
+| Option                                   | Type                                                                                                                     | Default                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| [`dialect`](#import-dialect)             | `"node-link" \| "d3" \| "jgf" \| "cytoscape" \| "graphology" \| "vis" \| "obographs" \| "adjacency" \| "tree" \| "auto"` | `"auto"`                                 |
+| [`nodeIdKey`](#import-nodeidkey)         | `string`                                                                                                                 | `"id"`                                   |
+| [`edgesKey`](#import-edgeskey)           | `string`                                                                                                                 | "edges" or "links"                       |
+| [`sourceKey`](#import-sourcekey)         | `string`                                                                                                                 | `"source"`                               |
+| [`targetKey`](#import-targetkey)         | `string`                                                                                                                 | `"target"`                               |
+| [`indexLinks`](#import-indexlinks)       | `boolean \| "auto"`                                                                                                      | `"auto"`                                 |
+| [`oboIds`](#import-oboids)               | `"curie" \| "iri"`                                                                                                       | `"curie"`                                |
+| [`typedefs`](#import-typedefs)           | `"metadata" \| "nodes"`                                                                                                  | `"metadata"`                             |
+| [`nodesPath`](#import-nodespath)         | `string`                                                                                                                 | `"nodes"`                                |
+| [`edgesPath`](#import-edgespath)         | `string`                                                                                                                 | next to the nodes                        |
+| [`sigmaSettings`](#import-sigmasettings) | `Readonly<Record<string, unknown>>`                                                                                      | sigma.js's own settings (no edge labels) |
 
 - <a id="import-dialect"></a>`dialect`: The dialect to read; "auto" detects it from the document. `jsonShapeOf(snapshot).dialect` is the dialect that was read.
 - <a id="import-nodeidkey"></a>`nodeIdKey`: node-link, d3, vis, adjacency and tree documents: the node key that holds the id. The default is "id" (for node-link and d3, "name" when no node has an "id").
@@ -283,6 +284,7 @@ A file can hold several graphs: pick one with the `graphIndex` or `graphName` op
 - <a id="import-typedefs"></a>`typedefs`: OBO Graphs documents: "metadata" keeps the relation definitions (PROPERTY nodes, with their subPropertyOf and inverseOf edges) in `snapshot.meta.extra.obographs`, the way the OBO importer keeps `[Typedef]` frames; "nodes" makes them nodes and edges of the graph.
 - <a id="import-nodespath"></a>`nodesPath`: node-link, d3, vis and graphology documents: where the node array is, as a dotted path of keys and array positions from the top of the document (`"data.nodes"`, `"graphs.0.nodes"`). The object that holds the array is read as the graph (its `directed`, `multigraph`, `graph` and edge keys). A path that leads nowhere is reported as `E_MISSING_SECTION` and the graph has no nodes.
 - <a id="import-edgespath"></a>`edgesPath`: node-link, d3, vis and graphology documents: where the edge array is, as a dotted path (`"data.links"`). The default is the edges or links key next to the node array. A path that leads nowhere is reported as `E_MISSING_SECTION` and the graph has no edges.
+- <a id="import-sigmasettings"></a>`sigmaSettings`: graphology and Gephi JSON documents: the sigma.js settings the graph is drawn with, which are the application's and never in the file. `renderEdgeLabels: true` draws the edges' labels, between two labeled nodes or, with `edgeLabelAnchors: "allNodes"`, on every edge; other settings are accepted and not read.
 
 ## Export options
 

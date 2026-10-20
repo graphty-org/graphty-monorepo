@@ -82,9 +82,22 @@ export interface JsonStyleSource {
     readonly groups?: unknown;
     /** graphology: whether the document is Gephi's JSON export (`id` instead of `key`). */
     readonly gephi?: boolean;
+    /** graphology: the sigma.js settings the drawing uses (the `sigmaSettings` import option). */
+    readonly sigma?: SigmaSettings;
     /** node-link: whether the document has NetworkX's `directed`, `multigraph` and `graph` keys. */
     readonly networkx?: boolean;
 }
+
+/** The sigma.js settings that change what graph-io reads from a graphology document; the rest are the application's. */
+export interface SigmaSettings {
+    /** Whether sigma draws edge labels (`renderEdgeLabels`, off by default). */
+    readonly renderEdgeLabels: boolean;
+    /** Whose edge labels it draws (`edgeLabelAnchors`): between two labeled nodes ("nodeLabels", the default), or every edge's. */
+    readonly edgeLabelAnchors: "nodeLabels" | "allNodes";
+}
+
+/** sigma.js's own settings. */
+export const SIGMA_DEFAULT_SETTINGS: SigmaSettings = { renderEdgeLabels: false, edgeLabelAnchors: "nodeLabels" };
 
 /** The writable values of one row. */
 type Row = Record<string, StyleValue | null>;
@@ -317,6 +330,7 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
     const notes = new StyleNotes();
     const out: Record<StyleTarget, Values> = { node: {}, edge: {} };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
+    const edgeLabel = sigmaEdgeLabels(snapshot, src.sigma ?? SIGMA_DEFAULT_SETTINGS);
     for (const target of TARGETS) {
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const { values, put } = valuesOf(n);
@@ -337,7 +351,7 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
                 element: i,
                 budget: context.budget,
             });
-            readSigmaRow(keys, target, i, put, site);
+            readSigmaRow(keys, target, target === "node" || edgeLabel(i), i, put, site);
         }
         out[target] = values;
     }
@@ -355,6 +369,30 @@ function graphologyStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context
     };
 }
 
+/**
+ * Which edges sigma.js draws the label of: none unless `renderEdgeLabels` is on; then, under `edgeLabelAnchors`
+ * "nodeLabels", only an edge whose two end nodes show a label.
+ * @param snapshot - the graph
+ * @param settings - sigma's settings
+ * @returns whether edge `i`'s label is drawn
+ */
+function sigmaEdgeLabels(snapshot: GraphSnapshot, settings: SigmaSettings): (i: number) => boolean {
+    if (!settings.renderEdgeLabels) {
+        return () => false;
+    }
+    if (settings.edgeLabelAnchors === "allNodes") {
+        return () => true;
+    }
+    // ponytail: a node "shows" its label when it has one; sigma also hides labels by its label grid and
+    // labelRenderedSizeThreshold, which depend on its framing. Model those once graphty frames a sigma file as sigma does.
+    const label = cells(snapshot, "node", "label");
+    const shows = (node: number): boolean => {
+        const text = label?.(node);
+        return typeof text === "string" ? text !== "" : text !== null && text !== undefined;
+    };
+    return (i) => shows(snapshot.edgeSource(i)) && shows(snapshot.edgeTarget(i));
+}
+
 /** The cell readers of the keys sigma.js draws, null for a key the graph does not have. */
 interface SigmaKeys {
     readonly color: ((i: number) => unknown) | null;
@@ -366,6 +404,7 @@ interface SigmaKeys {
  * Reads one element's sigma.js keys.
  * @param keys - the cell readers
  * @param target - nodes or edges
+ * @param labeled - whether sigma draws the element's label
  * @param i - the element
  * @param put - the setter
  * @param site - where a value of a property was read
@@ -373,6 +412,7 @@ interface SigmaKeys {
 function readSigmaRow(
     keys: SigmaKeys,
     target: StyleTarget,
+    labeled: boolean,
     i: number,
     put: (p: string, i: number, v: StyleValue | null) => void,
     site: (property: string) => CanonSite,
@@ -398,9 +438,9 @@ function readSigmaRow(
             put("width", i, w === null ? null : w / 2);
         }
     }
-    // sigma.js draws no edge labels unless its `renderEdgeLabels` setting is on, and a graphology
-    // document carries no settings: an edge's `label` is data, not something sigma draws.
-    if (label !== null && target === "node") {
+    // an edge's label is drawn only under sigma's renderEdgeLabels setting, which a document never carries (the
+    // `sigmaSettings` import option); otherwise it is data (graphology-specimen-edge-labels, -p2, -p3)
+    if (label !== null && labeled) {
         const text = canonText(label(i), site("label"));
         // sigma draws a label with the canvas's fillText, which draws each ASCII whitespace as a space: one line
         // (graphology-specimen-labels, label-multiline)

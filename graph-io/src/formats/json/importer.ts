@@ -128,7 +128,7 @@ import {
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
 import { jsonPositions } from "./positions.js";
-import { jsonStyles, type JsonStyleSource } from "./styles.js";
+import { jsonStyles, type JsonStyleSource, SIGMA_DEFAULT_SETTINGS, type SigmaSettings } from "./styles.js";
 
 /**
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
@@ -204,6 +204,13 @@ export interface JsonImportOptions extends GraphChoiceOptions, CommonImportOptio
      * @defaultValue next to the nodes
      */
     edgesPath?: string | undefined;
+    /**
+     * graphology and Gephi JSON documents: the sigma.js settings the graph is drawn with, which are the application's
+     * and never in the file. `renderEdgeLabels: true` draws the edges' labels, between two labeled nodes or, with
+     * `edgeLabelAnchors: "allNodes"`, on every edge; other settings are accepted and not read.
+     * @defaultValue sigma.js's own settings (no edge labels)
+     */
+    sigmaSettings?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
@@ -461,6 +468,8 @@ interface ResolvedJsonOptions {
     readonly edgesPath: readonly string[] | null;
     /** Set by importAll(): every graph of a `graphs` array is read, so none is reported as skipped. */
     readonly all?: boolean;
+    /** graphology: the sigma.js settings of the drawing. */
+    readonly sigma: SigmaSettings;
 }
 
 /**
@@ -508,7 +517,30 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
         typedefs,
         nodesPath,
         edgesPath,
+        sigma: sigmaSettingsOption(o.sigmaSettings),
     };
+}
+
+/**
+ * Check the `sigmaSettings` option: an object, whose `renderEdgeLabels` and `edgeLabelAnchors` are sigma's values.
+ * @param value - the caller's value
+ * @returns the settings graph-io reads, sigma's own where not given
+ */
+function sigmaSettingsOption(value: unknown): SigmaSettings {
+    if (value === undefined) {
+        return SIGMA_DEFAULT_SETTINGS;
+    }
+    if (!isJsonObject(value)) {
+        throw unsupportedOption("sigmaSettings", value, ["an object of sigma.js settings"]);
+    }
+    const { renderEdgeLabels = false, edgeLabelAnchors = "nodeLabels" } = value;
+    if (typeof renderEdgeLabels !== "boolean") {
+        throw unsupportedOption("sigmaSettings.renderEdgeLabels", renderEdgeLabels, ["true", "false"]);
+    }
+    if (edgeLabelAnchors !== "nodeLabels" && edgeLabelAnchors !== "allNodes") {
+        throw unsupportedOption("sigmaSettings.edgeLabelAnchors", edgeLabelAnchors, ["nodeLabels", "allNodes"]);
+    }
+    return { renderEdgeLabels, edgeLabelAnchors };
 }
 
 /**
@@ -2812,7 +2844,7 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     // `y`, `color`, `size`) beside `attributes`; they are read as attributes, not as unknown element keys
     const firstNode = nodes.find((n) => isJsonObject(n));
     const gephi = isJsonObject(firstNode) && !hasKey(firstNode, "key") && hasKey(firstNode, "id");
-    ctx.styleSource = { dialect: "graphology", block: blockOf(root), gephi };
+    ctx.styleSource = { dialect: "graphology", block: blockOf(root), gephi, sigma: ctx.json.sigma };
     ctx.reportNodeIdFrom("graphology", "the node key");
     ctx.sink.reserve(nodes.length, edges.length);
 
@@ -4286,6 +4318,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         "nodeIdKey",
         "nodesPath",
         "oboIds",
+        "sigmaSettings",
         "sourceKey",
         "targetKey",
         "typedefs",

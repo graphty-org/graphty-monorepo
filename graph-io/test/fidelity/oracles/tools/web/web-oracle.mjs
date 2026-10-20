@@ -491,13 +491,14 @@ try {
                 // shader computes it: max(size, minEdgeThickness * sizeRatio) * correctionRatio / sizeRatio in framed
                 // graph units (sizeRatio = 1 / scaleSize()), times the pixels one framed unit spans -- which is half of
                 // max(scaleSize(size), minEdgeThickness) on a 1200 x 900 canvas, measured off the PNG (size 20: 9.55 px
-                // drawn, 9.66 here); sigma draws no edge of a hidden end node. An edge's label is drawn only under
-                // renderEdgeLabels.
+                // drawn, 9.66 here); sigma draws no edge of a hidden end node. An edge's label is the one sigma says it
+                // displayed (getEdgeDisplayedLabels: only under renderEdgeLabels, and under edgeLabelAnchors
+                // "nodeLabels" only between two nodes that show theirs).
                 const minWidth = s.getSetting("minEdgeThickness");
                 const [o0, o1] = [s.framedGraphToViewport({ x: 0, y: 0 }), s.framedGraphToViewport({ x: 1, y: 0 })];
                 const pxPerUnit = Math.hypot(o1.x - o0.x, o1.y - o0.y);
                 const edgeWidth = (size) => Math.max(s.scaleSize(size), minWidth) * s.correctionRatio * pxPerUnit;
-                const edgeLabels = s.getSetting("renderEdgeLabels");
+                const edgeLabels = s.getEdgeDisplayedLabels();
                 const edges = g.edges().flatMap((key) => {
                     const d = s.getEdgeDisplayData(key);
                     if (d === undefined || d.visibility === "hidden") return [];
@@ -511,7 +512,7 @@ try {
                             type: d.type ?? null,
                             size: d.size,
                             width: edgeWidth(d.size),
-                            label: edgeLabels && d.label ? d.label : null,
+                            label: edgeLabels.has(key) && d.label ? d.label : null,
                         },
                     ];
                 });

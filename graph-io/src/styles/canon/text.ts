@@ -176,8 +176,44 @@ function entity(body: string): string | undefined {
 export function htmlLabelText(html: string, site: CanonSite): string {
     spendAt(site, html.length);
     noteAt(site, STYLE_ISSUE.HTML_LABEL, html);
+    return htmlLabelSpans(html)
+        .map((s) => s.text)
+        .join("")
+        .trim();
+}
+
+/** A piece of an HTML-like label's text with the font tags open around it, outermost first. */
+export interface HtmlLabelSpan {
+    /** The text, entities decoded. */
+    readonly text: string;
+    /** The open font tags (`<B>`, `<FONT COLOR="red">`, ...) as written, outermost first. */
+    readonly tags: readonly string[];
+}
+
+/** The tags that change the font of the text inside them. */
+const FONT_TAGS = /^<(\/?)(b|i|u|o|s|sub|sup|font)\b/i;
+
+/**
+ * The pieces of text an HTML-like label shows, untrimmed, each with the font tags around it (the text
+ * {@link htmlLabelText} joins and trims).
+ * @param html - the label, with or without its outer `<` and `>`
+ * @returns the pieces in order
+ * @category Styles
+ */
+export function htmlLabelSpans(html: string): HtmlLabelSpan[] {
     const body = html.startsWith("<") && html.endsWith(">") ? html.slice(1, -1) : html;
+    const spans: HtmlLabelSpan[] = [];
+    let tags: string[] = [];
     let out = "";
+    const emit = (text: string): void => {
+        out += text;
+        const last = spans.at(-1);
+        if (last?.tags === tags) {
+            spans[spans.length - 1] = { text: last.text + text, tags };
+        } else if (text !== "") {
+            spans.push({ text, tags });
+        }
+    };
     // the open tables and cells, innermost last: text is drawn outside every table or inside a cell
     const open: ("table" | "td")[] = [];
     const lineHasText = (): boolean => out.slice(out.lastIndexOf("\n") + 1).trim() !== "";
@@ -191,27 +227,36 @@ export function htmlLabelText(html: string, site: CanonSite): string {
             }
             const tag = /^<(\/?)(br|table|tr|td)\b/i.exec(body.slice(i, i + 7));
             const name = tag?.[2].toLowerCase();
+            const font = FONT_TAGS.exec(body.slice(i, i + 6));
             if (name === "br" || (name === "tr" && tag?.[1] === "" && lineHasText())) {
-                out += "\n";
+                emit("\n");
             } else if ((name === "table" || name === "td") && tag?.[1] === "/") {
                 open.pop();
             } else if (name === "table" || name === "td") {
                 if (name === "td" && lineHasText()) {
-                    out += " ";
+                    emit(" ");
                 }
                 open.push(name);
+            } else if (font !== null && font[1] === "/") {
+                let at = tags.length - 1;
+                while (at >= 0 && /^<(\w+)/.exec(tags[at])?.[1].toLowerCase() !== font[2].toLowerCase()) {
+                    at--;
+                }
+                tags = at < 0 ? tags : [...tags.slice(0, at), ...tags.slice(at + 1)];
+            } else if (font !== null && body[close - 1] !== "/") {
+                tags = [...tags, body.slice(i, close + 1)];
             }
             i = close + 1;
         } else if (c === "&") {
             const [text, next] = entityAt(body, i);
-            out += open.at(-1) === "table" ? "" : text;
+            emit(open.at(-1) === "table" ? "" : text);
             i = next;
         } else {
-            out += open.at(-1) === "table" ? "" : c;
+            emit(open.at(-1) === "table" ? "" : c);
             i++;
         }
     }
-    return out.trim();
+    return spans;
 }
 
 /**

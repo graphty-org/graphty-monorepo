@@ -219,7 +219,10 @@ function sections(popover: HTMLElement): string[] {
                 const words = (el.textContent ?? "").replace(/\b(values|layers)\b/, "<groups>").trim();
                 if (el.tagName === "LABEL") {
                     const control = document.getElementById((el as HTMLLabelElement).htmlFor);
-                    return `${words}: ${control?.getAttribute("role") ?? control?.tagName.toLowerCase() ?? "none"}`;
+                    // A field's name goes on to say its state ("Palette, not set, ..."): only its
+                    // first part is structure.
+                    const field = words.split(", ")[0];
+                    return `${field}: ${control?.getAttribute("role") ?? control?.tagName.toLowerCase() ?? "none"}`;
                 }
                 return `button ${el.getAttribute("aria-label") ?? words}`;
             })

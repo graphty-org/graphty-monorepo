@@ -15,6 +15,7 @@ import type {
 } from "../../types/events";
 import { useControlAnnotation } from "../../utils/control-annotation";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { DiscardNote } from "../inputs/DiscardNote";
 import { FieldCaret, ListboxCheck } from "../inputs/listbox";
 import { useNumberField } from "../inputs/useNumberField";
 import { useScrub } from "../inputs/useScrub";
@@ -814,6 +815,23 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                     {...hint}
                     onKeyDown={numberField.inputProps.onKeyDown}
                     classNames={{ wrapper: "cm-number-field" }}
+                    // Escape takes the typing back and says so, as every number field does.
+                    inputContainer={(input) => (
+                        <>
+                            {input}
+                            <DiscardNote
+                                text={
+                                    numberField.discarded
+                                        ? labels.colorEditDiscarded(
+                                              numberText === ""
+                                                  ? (placeholderText ?? "")
+                                                  : `${numberText}${unit ?? ""}`,
+                                          )
+                                        : ""
+                                }
+                            />
+                        </>
+                    )}
                 />
             );
         }

@@ -2,11 +2,9 @@ import {
     type ColorStop,
     colorWord,
     CompactColorInput,
-    FieldRow,
     GradientEditor,
     LabelsProvider,
     PanelField,
-    PanelLabelsProvider,
     ResetButton,
 } from "@graphty/compact-mantine";
 import { channelsFor, LABEL_STYLE_DEFAULTS, labelLook } from "@graphty/graphty-element/catalog";
@@ -450,34 +448,36 @@ function FieldControl({
             );
         case "number":
             return (
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            typeof value === "number" && (
-                                <ResetButton
-                                    label={field.word}
-                                    onClick={() => {
-                                        onChange(undefined);
-                                    }}
-                                />
-                            )
+                <Captioned
+                    word={field.word}
+                    onReset={
+                        typeof value === "number"
+                            ? () => {
+                                  onChange(undefined);
+                              }
+                            : undefined
+                    }
+                >
+                    <PanelField
+                        label={field.word}
+                        kind="number"
+                        width="fill"
+                        // Nothing set here: the value beneath shows in the field, or "None",
+                        // and the name reads it as the default it is: "Size, default 48".
+                        value={shownNumber}
+                        placeholder={shownNumber === null ? NONE : undefined}
+                        aria-label={
+                            typeof value !== "number" && numberBeneath !== null
+                                ? `${field.word}, default ${String(numberBeneath)}${suffix ?? ""}`
+                                : undefined
                         }
-                    >
-                        <PanelField
-                            label={field.word}
-                            kind="number"
-                            width="fill"
-                            // Nothing set here: the value beneath shows in the field, or "None".
-                            value={shownNumber}
-                            placeholder={shownNumber === null ? NONE : undefined}
-                            unit={suffix?.trim()}
-                            step={field.step}
-                            onChange={(next) => {
-                                onChange(Number(next));
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
+                        unit={suffix?.trim()}
+                        step={field.step}
+                        onChange={(next) => {
+                            onChange(Number(next));
+                        }}
+                    />
+                </Captioned>
             );
         default: {
             const options: readonly (readonly [string, string])[] =
@@ -503,41 +503,66 @@ function FieldControl({
             const written = wordOf(value);
             const beneathWord = data.find((option) => option.value === (wordOf(fallback) ?? DEFAULT))?.label ?? "";
             return (
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            written !== undefined && (
-                                <ResetButton
-                                    label={field.word}
-                                    onClick={() => {
-                                        onChange(undefined);
-                                    }}
-                                />
-                            )
-                        }
-                    >
-                        <PanelField
-                            label={field.word}
-                            kind="select"
-                            width="fill"
-                            data={data}
-                            value={written ?? null}
-                            placeholder={written === undefined ? DEFAULT_WORDS.fieldNotSet(beneathWord) : undefined}
-                            onChange={(next) => {
-                                if (next === DEFAULT) {
-                                    onChange(undefined);
-                                } else if (field.kind === "switch") {
-                                    onChange(next === "true");
-                                } else {
-                                    onChange(String(next));
-                                }
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
+                <Captioned
+                    word={field.word}
+                    onReset={
+                        written === undefined
+                            ? undefined
+                            : () => {
+                                  onChange(undefined);
+                              }
+                    }
+                >
+                    <PanelField
+                        label={field.word}
+                        kind="select"
+                        width="fill"
+                        data={data}
+                        value={written ?? null}
+                        // Unset, it reads the value beneath, as the number fields do.
+                        placeholder={written === undefined ? beneathWord : undefined}
+                        onChange={(next) => {
+                            if (next === DEFAULT) {
+                                onChange(undefined);
+                            } else if (field.kind === "switch") {
+                                onChange(next === "true");
+                            } else {
+                                onChange(String(next));
+                            }
+                        }}
+                    />
+                </Captioned>
             );
         }
     }
+}
+
+/**
+ * A settings field under its caption, with a Reset beside it once the layer sets a value. The
+ * field takes the width its column gives it: these columns are half a pop-out wide, narrower than
+ * the panel rows FieldRow is measured for.
+ * @param props - Component props
+ * @param props.word - the caption, drawn only: the field names itself
+ * @param props.onReset - clears the value, when one is set
+ * @param props.children - the field
+ * @returns The field
+ */
+function Captioned({
+    word,
+    onReset,
+    children,
+}: Readonly<{ word: string; onReset?: () => void; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <Stack gap={2} style={{ minWidth: 0 }}>
+            <span className="cm-caption" aria-hidden="true" title={word}>
+                {word}
+            </span>
+            <Group gap={4} wrap="nowrap">
+                <div style={{ flex: 1, minWidth: 0, display: "flex" }}>{children}</div>
+                {onReset === undefined ? null : <ResetButton label={word} onClick={onReset} />}
+            </Group>
+        </Stack>
+    );
 }
 
 /** The gradient a label draws while neither the layer nor its look names colors. */

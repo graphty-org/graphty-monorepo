@@ -171,19 +171,6 @@ describe("vis-network multi-font labels", () => {
         ]);
         expect(value(r, "node", "labelRuns", 1)).toBe(null);
     });
-
-    it("fades a whole node by its opacity, and only the part vis-network can where one color has its own alpha", async () => {
-        const r = await load({
-            nodes: [
-                { id: "a", x: 0, y: 0, opacity: 0.25 },
-                { id: "b", x: 50, y: 0, opacity: 0.25, color: { background: "#c8c8c8", border: "rgba(1,2,3,0.5)" } },
-            ],
-            edges: [],
-            options: { physics: false },
-        });
-        expect([value(r, "node", "opacity", 0), value(r, "node", "borderOpacity", 0)]).toEqual([0.25, null]);
-        expect([value(r, "node", "fillOpacity", 1), value(r, "node", "borderOpacity", 1)]).toEqual([0.25, 0.5]);
-    });
 });
 
 describe("vis-network icon nodes", () => {

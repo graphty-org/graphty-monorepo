@@ -1464,13 +1464,9 @@ function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (prop
     if (layer.opacity !== undefined) {
         // vis-network's node opacity replaces the alpha of its border color and its background color alike, but only of
         // a hex or rgb() color: overrideOpacity leaves rgba() and any other text (a name) as it is (Node.getFormattingValues)
-        // The neutral opacity is the whole node's, its border's too: where only one of the two takes it, that one's
-        // own opacity carries it
         const opacity = canonOpacity(layer.opacity, "vis", site("opacity"));
-        const [fill, border] = [visTakesOpacity(layer.fill), visTakesOpacity(layer.border)];
-        put("opacity", fill && border ? opacity : null);
-        put("fillOpacity", fill && !border ? opacity : null);
-        put("borderOpacity", border && !fill ? opacity : null);
+        put("opacity", visTakesOpacity(layer.fill) ? opacity : null);
+        put("borderOpacity", visTakesOpacity(layer.border) ? opacity : null);
     }
     if (layer.borderDashes !== undefined) {
         // vis-network's default border dashes are [5, 15]

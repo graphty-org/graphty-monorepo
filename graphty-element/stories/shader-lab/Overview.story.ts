@@ -4,6 +4,10 @@
  */
 import manifest from "./manifest.json";
 
+// small screenshots of each story, named by the idea's slug
+const THUMBS = import.meta.glob<string>("./thumbs/*.jpg", { eager: true, query: "?url", import: "default" });
+const thumbFor = (slug: string): string | undefined => THUMBS[`./thumbs/${slug}.jpg`];
+
 export default { title: "Shader Lab/Overview", tags: ["!autodocs"], parameters: { layout: "fullscreen" } };
 
 interface Idea {
@@ -15,6 +19,8 @@ interface Idea {
     what: string;
     status: string;
     story: string | null;
+    standout?: boolean;
+    review?: string;
 }
 
 interface IndexEntry {
@@ -40,9 +46,14 @@ const STYLE = `
 .lab-ov .filters button.on { background: #3b4766; color: #fff; border-color: #5a6a94; }
 .lab-ov h2 { font-size: 17px; margin: 28px 0 10px; color: #cfd6ee; }
 .lab-ov .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.lab-ov .card { display: block; text-decoration: none; color: inherit; background: #151926; border: 1px solid #262c3e; border-radius: 8px; padding: 12px 14px; }
+.lab-ov .card { display: flex; flex-direction: column; text-decoration: none; color: inherit; background: #151926; border: 1px solid #262c3e; border-radius: 8px; padding: 12px 14px; }
 .lab-ov a.card:hover { border-color: #6b7cff; background: #1a2033; }
 .lab-ov .card.planned { opacity: 0.6; }
+.lab-ov .card img { width: calc(100% + 28px); margin: -12px -14px 10px; border-radius: 8px 8px 0 0; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
+.lab-ov .card.standout { border-color: #b8913a; }
+.lab-ov .tag.star { background: #b8913a; color: #fff; }
+.lab-ov .review { color: #7f879c; font-size: 12px; margin-top: 6px; }
+.lab-ov .filters .sep { width: 12px; }
 .lab-ov .name { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
 .lab-ov .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; font-size: 11px; }
 .lab-ov .tag { padding: 1px 7px; border-radius: 9px; background: #262c3e; color: #dde; }
@@ -60,7 +71,7 @@ function render(): HTMLElement {
     const batches = manifest.batches as { id: string; title: string; ideas: Idea[] }[];
     const total = batches.reduce((s, b) => s + b.ideas.length, 0);
     const head = document.createElement("div");
-    head.innerHTML = `<h1>Shader Lab</h1><p class="sub">${total} shader ideas for drawing nodes and edges and adding effects. Hover a node in any story to highlight it, click to select it. Cards with a story are links; faded cards are not built yet.</p>`;
+    head.innerHTML = `<h1>Shader Lab</h1><p class="sub">${total} shader ideas for drawing nodes and edges and adding effects. Hover a node in any story to highlight it, click to select it. Click a card to open its story; gold cards are the standouts. Screenshots come from a software renderer, so open the story to see it move.</p>`;
     root.appendChild(head);
 
     const filters = document.createElement("div");
@@ -83,16 +94,26 @@ function render(): HTMLElement {
         filters.replaceChildren();
         for (const f of [
             "all",
-            "built",
+            "standouts",
+            "|",
+            "practical",
+            "aesthetic",
+            "|",
+            "wow 4+",
+            "wow 5",
+            "|",
             "node",
             "node-effect",
             "edge",
             "edge-effect",
             "whole-graph",
-            "practical",
-            "aesthetic",
-            "wow 5",
         ]) {
+            if (f === "|") {
+                const sep = document.createElement("span");
+                sep.className = "sep";
+                filters.appendChild(sep);
+                continue;
+            }
             const b = document.createElement("button");
             b.textContent = f;
             b.className = f === filter ? "on" : "";
@@ -108,11 +129,11 @@ function render(): HTMLElement {
                 if (filter === "all") {
                     return true;
                 }
-                if (filter === "built") {
-                    return storyFor(idea) !== undefined;
+                if (filter === "standouts") {
+                    return idea.standout === true;
                 }
-                if (filter === "wow 5") {
-                    return idea.wow >= 5;
+                if (filter.startsWith("wow ")) {
+                    return idea.wow >= parseInt(filter.slice(4), 10);
                 }
                 if (filter === "practical" || filter === "aesthetic") {
                     return idea.purpose === filter || idea.purpose === "both";
@@ -130,7 +151,7 @@ function render(): HTMLElement {
             for (const idea of ideas) {
                 const id = storyFor(idea);
                 const card = document.createElement(id ? "a" : "div");
-                card.className = `card${id ? "" : " planned"}`;
+                card.className = `card${id ? "" : " planned"}${idea.standout ? " standout" : ""}`;
                 if (id && card instanceof HTMLAnchorElement) {
                     card.href = `/?path=/story/${id}`;
                     card.target = "_top";
@@ -153,12 +174,32 @@ function render(): HTMLElement {
                 wow.textContent = `wow ${"*".repeat(idea.wow)}`;
                 const status = document.createElement("span");
                 status.className = "tag";
-                status.textContent = id ? "built" : idea.status;
+                status.textContent = idea.status;
                 tags.append(cat, purpose, wow, status);
+                if (idea.standout) {
+                    const star = document.createElement("span");
+                    star.className = "tag star";
+                    star.textContent = "standout";
+                    tags.append(star);
+                }
+                const thumb = thumbFor(idea.slug);
+                if (thumb) {
+                    const img = document.createElement("img");
+                    img.src = thumb;
+                    img.alt = "";
+                    img.loading = "lazy";
+                    card.append(img);
+                }
                 const what = document.createElement("div");
                 what.className = "what";
                 what.textContent = idea.what;
                 card.append(name, tags, what);
+                if (idea.review) {
+                    const review = document.createElement("div");
+                    review.className = "review";
+                    review.textContent = idea.review;
+                    card.append(review);
+                }
                 grid.appendChild(card);
             }
             body.appendChild(grid);

@@ -13,7 +13,9 @@
                     "wow": 1,
                     "what": "The harness starting point: flat discs and gradient edges. Copy it to start a story.",
                     "status": "built",
-                    "story": "shader-lab-basics-flat-nodes-and-straight-edges--flat-nodes-and-straight-edges"
+                    "story": "shader-lab-basics-flat-nodes-and-straight-edges--flat-nodes-and-straight-edges",
+                    "standout": false,
+                    "review": "The harness starting point."
                 }
             ]
         },
@@ -27,9 +29,11 @@
                     "category": "node",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Crisp circle/square/star/hexagon by community, border width by degree, smooth shape morph.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Seven crisp SDF shapes by community, border width by degree, morph and cycle knobs blend each shape into the next.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-shape-glyphs--shape-glyphs",
+                    "standout": false,
+                    "review": "Reviewed: crisp at every zoom; the hover glow was cut off in a visible square at the quad edge, now it fades out inside a larger quad."
                 },
                 {
                     "slug": "pie-donut",
@@ -37,9 +41,11 @@
                     "category": "node",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Each node is a small pie or donut of its neighbors' community mix, slices animate open.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Donut of each node's neighbor communities (top four plus the rest); own-community slices dimmed so cross-community links pop; staggered open, hold, close loop.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-pie-and-donut--pie-and-donut",
+                    "standout": false,
+                    "review": "Reviewed: most donuts were one solid color, so the node's own community is now dimmed (ownDim) and foreign slices stand out; the loop holds open longer and spends less time empty."
                 },
                 {
                     "slug": "progress-ring",
@@ -47,9 +53,11 @@
                     "category": "node",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Arc gauge with glowing tip shows a 0..1 value such as PageRank.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Round-capped arc gauge of PageRank, degree or value around a dimmed core, with a pulsing tip and refill on hover.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-progress-ring--progress-ring",
+                    "standout": false,
+                    "review": "Reviewed: the round start cap took the end-of-gauge color (a cyan nub at 12 o'clock); it now matches the start of the gradient."
                 },
                 {
                     "slug": "lod-glyph",
@@ -57,9 +65,11 @@
                     "category": "node",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Dots far away, gain border, gauge, icon and badge as you zoom in, no popping.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Dot far out; border, value gauge, community icon (12 distinct, solid and outlined) and degree badge fade in by on-screen size as you zoom.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-level-of-detail--level-of-detail",
+                    "standout": true,
+                    "review": "Reviewed: no popping between levels; communities 6 to 11 shared icons with 0 to 5 and now get outlined versions. The degree badge pips are still small."
                 },
                 {
                     "slug": "sparkline-badge",
@@ -67,9 +77,11 @@
                     "category": "node",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Tiny line chart of the node's value over time drawn across its face.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Card per node with a scrolling 32-sample line chart, area fill, now dot, green or red by trend (synthetic series).",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-sparkline-badge--sparkline-badge",
+                    "standout": false,
+                    "review": "Reviewed and unchanged: reads like a wall of live tickers; the series is synthetic noise, so the green or red trend says nothing about the graph yet."
                 },
                 {
                     "slug": "icon-sticker",
@@ -77,19 +89,23 @@
                     "category": "node",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "SDF icon stickers by node type; the corner peels back with foil shine on hover.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Die-cut vinyl sticker with a community icon (solid or outlined); a small corner lift at rest, hover peels it back to a holographic foil underside with a shadow.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-icon-sticker--icon-sticker",
+                    "standout": true,
+                    "review": "Reviewed: every corner was half peeled at rest, which buried the hover; rest lift is now 0.12 and hover 0.5. Two communities shared an icon; communities 6 to 11 now get outlined icons. The peel snaps shut on leave."
                 },
                 {
                     "slug": "colorblind-patterns",
                     "name": "Colorblind pattern overlay",
                     "category": "node-effect",
                     "purpose": "practical",
-                    "wow": 1,
-                    "what": "Stripes, dots or checks per category inside the node, readable in any color vision.",
-                    "status": "planned",
-                    "story": null
+                    "wow": 2,
+                    "what": "Eight textures by community over the hue, plus a protanopia, deuteranopia, tritanopia and grayscale simulator.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-colorblind-patterns--colorblind-patterns",
+                    "standout": false,
+                    "review": "Reviewed: at the default zoom the dots, checks and crosshatch aliased into flat color, so the patterns did nothing; pattern density now follows the node's pixel size, and every community stays distinct at a glance."
                 },
                 {
                     "slug": "kaleidoscope-mandala",
@@ -97,19 +113,23 @@
                     "category": "node",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Rotating mandala per node; symmetry fold count equals degree.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Turning mandala per node, mirror folds from degree (3 to 14), fbm filigree, petals, gold rim; spins faster on hover.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-kaleidoscope-mandala--kaleidoscope-mandala",
+                    "standout": true,
+                    "review": "Reviewed and unchanged: the strongest wow in the group, rich at default zoom and close up; hover speeds the spin."
                 },
                 {
                     "slug": "fractal-core",
                     "name": "Fractal core",
                     "category": "node",
                     "purpose": "aesthetic",
-                    "wow": 5,
-                    "what": "Animated Julia set per node, parameter from node data, a visual fingerprint.",
-                    "status": "planned",
-                    "story": null
+                    "wow": 4,
+                    "what": "Animated Julia set per node, c on the Mandelbrot cardioid edge from PageRank and seed; interior lit by ring and cross orbit traps in the community color.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sdf-node-glyphs-fractal-core--fractal-core",
+                    "standout": true,
+                    "review": "Reviewed: the interior was a flat pastel blob; ring plus cross orbit traps now draw glowing filaments inside it. Still reads as speckle at the default zoom: zoom in to see it."
                 }
             ]
         },
@@ -123,9 +143,11 @@
                     "category": "node",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Perfect lit spheres from two triangles with written depth; 100k nodes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Two-triangle ray-cast spheres with true depth, Blinn-Phong, rim light and color-by data; the cloud control draws 20k-200k nodes in one draw call.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-sphere-impostors--sphere-impostors",
+                    "review": "Reviewed: the base the other materials build on; renders a 100k-node cloud.",
+                    "standout": true
                 },
                 {
                     "slug": "matcap-sampler",
@@ -133,9 +155,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 3,
-                    "what": "Switch nodes between clay, chrome, jade, pearl, velvet, wax, toon.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Procedural matcaps (clay, chrome, jade, pearl, velvet, wax, toon) from the impostor normal, cross-fade between two, or one material per community.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-matcap-sampler--matcap-sampler",
+                    "review": "Reviewed: chrome reflected the dark floor as black holes; added a bright horizon band and lightened velvet.",
+                    "standout": false
                 },
                 {
                     "slug": "toon-ink",
@@ -143,9 +167,11 @@
                     "category": "node",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Comic-book bands, hard specular dot, wobbly hand-drawn ink outline, halftone shadow.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Comic-book spheres on paper: quantized light bands, hard glint, halftone-dot shadows and a boiling, wobbly hand-drawn ink outline.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-toon-ink--toon-ink",
+                    "review": "Reviewed: selecting a node turns its ink outline red; strong look for little cost.",
+                    "standout": true
                 },
                 {
                     "slug": "glass-marble",
@@ -153,9 +179,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Glass marbles with community-colored ribbons refracted inside.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Refracted ray marched through each sphere to gather twisted cat's-eye ribbons in the community color inside milky tinted glass, with fresnel studio reflections.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-glass-marble--glass-marble",
+                    "review": "Reviewed: removed layered march stripes and black wedges; now milky marbles with ribbons.",
+                    "standout": false
                 },
                 {
                     "slug": "gemstone",
@@ -163,9 +191,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "Faceted gems with rainbow fire; top-rank nodes are diamonds.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Brilliant-cut (58 facet) or geodesic gems with per-channel dispersion fire, twinkling glints, diamonds for top rank and mirror-tile disco balls for hubs.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-gemstone--gemstone",
+                    "review": "Reviewed: brightened gems and disco tiles; the most expensive shader in the lab.",
+                    "standout": true
                 },
                 {
                     "slug": "soap-bubble",
@@ -173,9 +203,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "Iridescent swirling bubble nodes, or a bubble shield around locked nodes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Physically based thin-film interference on a swirling, draining film; by default one big bubble shield around each community, or every node a bubble.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-soap-bubble--soap-bubble",
+                    "review": "Reviewed: community-shields mode is now the default; the selected bubble gets a warm rim.",
+                    "standout": true
                 },
                 {
                     "slug": "eyeball",
@@ -183,9 +215,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Iris follows the cursor, blinks at random, hovered pupil dilates.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Eyes that follow the cursor (or stare at the selected node), with fibered community-colored irises, veins, random blinks and a pupil that dilates on hover.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-eyeball--eyeball",
+                    "review": "Reviewed: veins fade out on small eyes; clicking a node makes every eye stare at it.",
+                    "standout": true
                 },
                 {
                     "slug": "lantern-glow",
@@ -193,9 +227,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Nodes glow from within like paper lanterns; brightness is a value, hue stays free.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Paper lanterns lit from inside whose brightness encodes value, rank or degree while hue stays the community, with ribs, caps and a one-pass bloom.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-lantern-glow--lantern-glow",
+                    "review": "Reviewed: works as built; solid and practical.",
+                    "standout": false
                 },
                 {
                     "slug": "fresnel-rim-selection",
@@ -203,9 +239,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Rim of light around selected/hovered nodes that breathes; cheap replacement for blur highlight.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Breathing fresnel rim on the selected node (eased in with overshoot), cool hover rim, neighbor echo, dim-others, and an analytic additive halo with no blur pass.",
+                    "status": "reviewed",
+                    "story": "shader-lab-sphere-impostors-and-lit-materials-fresnel-rim-selection--fresnel-rim-selection",
+                    "review": "Reviewed: hover, selection and neighbor rims all respond; meant to be quiet.",
+                    "standout": false
                 }
             ]
         },
@@ -220,8 +258,11 @@
                     "purpose": "aesthetic",
                     "wow": 5,
                     "what": "Rotating banded gas giants with storms, atmosphere; hubs get rings.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-gas-planet--gas-planet",
+                    "description": "Rotating banded gas giants in community colors; storms on high-value outliers, ray-cast rings on hubs, atmosphere halo.",
+                    "standout": true,
+                    "review": "Reviewed on a real GPU (60 fps). Unchanged: banded planets, storms and rings that pass behind the planet read well up close and from afar."
                 },
                 {
                     "slug": "sun-star",
@@ -230,8 +271,11 @@
                     "purpose": "aesthetic",
                     "wow": 4,
                     "what": "Boiling granulated stars with corona; temperature color encodes rank.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-sun-star--sun-star",
+                    "description": "Boiling granulated stars with sunspots and a streaming corona; temperature color (red to blue-white) encodes rank.",
+                    "standout": false,
+                    "review": "Reviewed: granulation and sunspots now fade to a smooth disc when a star is only a few pixels wide (was shimmering static), exposure lowered so hot stars keep their cells instead of clipping white, default corona 0.4."
                 },
                 {
                     "slug": "lava-node",
@@ -240,8 +284,11 @@
                     "purpose": "aesthetic",
                     "wow": 4,
                     "what": "Dark crust with glowing lava veins; vein brightness encodes load.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-lava-node--lava-node",
+                    "description": "Basalt crust cracked by shifting lava veins; vein width, heat and heat halo encode a load value.",
+                    "standout": true,
+                    "review": "Reviewed: far away a node now shows its average heat (dark when idle, glowing when busy) instead of a fine orange net; up close the veins are unchanged."
                 },
                 {
                     "slug": "living-cell",
@@ -250,8 +297,11 @@
                     "purpose": "aesthetic",
                     "wow": 4,
                     "what": "Wobbling membrane, nucleus sized by degree, drifting organelles.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-living-cell--living-cell",
+                    "description": "Fluorescence-microscope cells: wobbling membrane, nucleus sized by degree, drifting organelles; churn rate encodes activity.",
+                    "standout": true,
+                    "review": "Reviewed on a real GPU (60 fps). Unchanged: superb up close; reads as glowing rings at whole-graph zoom."
                 },
                 {
                     "slug": "liquid-fill",
@@ -260,8 +310,11 @@
                     "purpose": "both",
                     "wow": 4,
                     "what": "Glass bulb partly filled with sloshing liquid at a value's level.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-liquid-fill--liquid-fill",
+                    "description": "Glass bulbs filled to a value's level with gauge ticks; liquid sloshes against each bulb's bobbing motion and when hovered.",
+                    "standout": true,
+                    "review": "Reviewed on a real GPU (60 fps). Unchanged: the most readable practical shader of the batch."
                 },
                 {
                     "slug": "frost-pinned",
@@ -270,8 +323,11 @@
                     "purpose": "both",
                     "wow": 4,
                     "what": "Pinning grows frost inward from the rim; unpinning thaws it.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-frost-pinned--frost-pinned",
+                    "description": "Click to pin: frost creeps in from the rim along crystal facets with sparkle; unpinning thaws it. Auto-cycles demo pins.",
+                    "standout": false,
+                    "review": "Reviewed: frozen nodes were gray pebbles; the ice is now translucent blue over the node color with bright crystal lines and dendrites. Grow and thaw speed controls now rebuild the story so a change takes effect at once."
                 },
                 {
                     "slug": "aging-patina",
@@ -280,8 +336,11 @@
                     "purpose": "both",
                     "wow": 3,
                     "what": "Old nodes fade to sepia with grain and cracks; new ones stay glossy.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-aging-patina--aging-patina",
+                    "description": "Age as wear: new nodes glossy and clear-coated, old ones sepia, matte, cracked and verdigris-blotched.",
+                    "standout": false,
+                    "review": "Reviewed: grain and fine cracks fade out on small nodes, so old nodes read as matte sepia rather than noise; craquelure and verdigris unchanged up close."
                 },
                 {
                     "slug": "plasma-globe",
@@ -290,8 +349,11 @@
                     "purpose": "both",
                     "wow": 5,
                     "what": "Plasma tendrils reach toward each neighbor's direction and the cursor.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-plasma-globe--plasma-globe",
+                    "description": "Plasma globes whose filaments land on each top neighbor's on-screen direction; hover adds a filament to the cursor.",
+                    "standout": true,
+                    "review": "Reviewed on a real GPU (60 fps). Unchanged: filaments track neighbors as the camera moves; overlapping globes cut each other along a straight line, which is correct sphere intersection."
                 },
                 {
                     "slug": "radar-sweep",
@@ -300,8 +362,11 @@
                     "purpose": "both",
                     "wow": 4,
                     "what": "Rotating sweep lights neighbor blips; also a busy state while an algorithm computes.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-procedural-surfaces-radar-sweep--radar-sweep",
+                    "description": "Radar scopes whose sweep lights blips at neighbor directions; busy nodes go amber and fast, then flash green when done.",
+                    "standout": false,
+                    "review": "Reviewed on a real GPU (60 fps). Unchanged: click-to-compute (amber, fast sweep, green flash) works."
                 }
             ]
         },
@@ -315,9 +380,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Predicted or not-loaded nodes and edges as flickering scanline holograms.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Ghost nodes are spinning wireframe-globe holograms with scanlines, Fresnel rim, flicker and glitch; ghost edges are dashed beams; hover prints a ghost solid bottom to top.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-hologram-ghost--hologram-ghost",
+                    "standout": true,
+                    "review": "Reviewed: reads clearly and the hover print works."
                 },
                 {
                     "slug": "glitch-failure",
@@ -325,9 +392,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Failed nodes and edges tear with RGB split and block jumps.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Failed nodes keep a steady red ring and X, and periodically tear with RGB split, sliding bands, block dropouts and a jump; their edges break into flickering red fringed segments.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-glitch-failure--glitch-failure",
+                    "standout": false,
+                    "review": "Reviewed: failed nodes stay readable between tears; practical, not a wow."
                 },
                 {
                     "slug": "burning-dissolve",
@@ -335,9 +404,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Filtered nodes and edges burn away with an ember rim, reassemble in reverse.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Nodes under a value cutoff burn away through a noise mask with a blackbody ember front and char, wrapped in a flickering fire halo with rising sparks so the burn reads at a distance; fire runs down their edges from the burning end, then everything reassembles; scrub with manual progress.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-burning-dissolve--burning-dissolve",
+                    "standout": true,
+                    "review": "Reviewed: added fire glow and rising sparks so the burn reads from a distance."
                 },
                 {
                     "slug": "gommage-disintegration",
@@ -345,9 +416,11 @@
                     "category": "node-effect",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "A removed node shatters into glowing flakes that drift away.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Click a node and it crumbles cell by cell (5x5 grid) into large glowing petals (one thin-instanced batch) that swirl off on the wind while its edges burn back; auto mode erases and regrows a few nodes on a timer.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-gommage-disintegration--gommage-disintegration",
+                    "standout": true,
+                    "review": "Reviewed: each node now breaks into a 5x5 grid of larger petals."
                 },
                 {
                     "slug": "change-flash",
@@ -355,9 +428,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Changed nodes flash with a star glint; new edges cool through a heat ramp; removed edges shrink away.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Simulated updates: changed nodes flash with a rotating star glint and expanding ring, new edges draw out white-hot and cool through a heat ramp, removed edges shrink to their middle.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-change-flash--change-flash",
+                    "standout": false,
+                    "review": "Reviewed: glint, ring and heat-colored new edges work; practical."
                 },
                 {
                     "slug": "heartbeat",
@@ -365,9 +440,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Nodes and edges pulse with a lub-dub beat; rate and strength from centrality or activity.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Every node beats lub-dub at a rate set by PageRank, swelling with a glow halo; clicking a node syncs its neighborhood hop by hop while the rest of the graph quiets to a faint beat, and pulses travel along edges.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-heartbeat--heartbeat",
+                    "standout": false,
+                    "review": "Reviewed: nodes outside the selected neighborhood beat at a quarter strength."
                 },
                 {
                     "slug": "community-breathing",
@@ -375,9 +452,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Each community breathes in sync with a slow traveling wave.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Each community inhales and exhales together on its own phase with a slow wave rolling across it; nodes swell and glow, auras bloom, intra-community edges breathe along.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-community-breathing--community-breathing",
+                    "standout": true,
+                    "review": "Reviewed: the best-looking story in its batch."
                 },
                 {
                     "slug": "lock-on-reticle",
@@ -385,9 +464,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "HUD brackets snap in around the selected node and rotate.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Selecting a node snaps in turning HUD brackets, drawn on top of any nodes in front, with overshoot, a counter-rotating ticked ring and a lock flash, with a minimum on-screen size; selected edges stream dashes outward, hover shows a tracking ring.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-lock-on-reticle--lock-on-reticle",
+                    "standout": false,
+                    "review": "Reviewed: marks now draw on top and the pulse ring fades before its quad edge."
                 },
                 {
                     "slug": "foil-shimmer-search",
@@ -395,9 +476,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "A band of holographic foil sweeps across search hits.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Search hits wear fine-banded, silvered, angle-dependent holographic foil with a gold rim; a bright band sweeps the screen catching each hit with sparkles while non-matches dim.",
+                    "status": "reviewed",
+                    "story": "shader-lab-time-driven-status-and-event-effects-foil-shimmer-search--foil-shimmer-search",
+                    "standout": false,
+                    "review": "Reviewed: finer silvered foil bands and a softer sweep."
                 }
             ]
         },
@@ -411,9 +494,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 5,
-                    "what": "Click a node; a ripple lights nodes in hop order, with screen-space water refraction.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Click a node (or let autoPulse do it): a wave of light runs out hop by hop, each node flashes and throws a shock ring, the wave runs along edges, and a screen-space water ring refracts the picture.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-hop-ripple--hop-ripple",
+                    "standout": true,
+                    "review": "Reviewed: a click starts a wave that spreads hop by hop with water distortion."
                 },
                 {
                     "slug": "focus-by-hop",
@@ -421,9 +506,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 4,
-                    "what": "Selected neighborhood stays sharp; farther nodes and edges blur, gray and fade (depth-of-field variant).",
-                    "status": "planned",
-                    "story": null
+                    "what": "The selected node's neighborhood stays crisp; each hop farther is softer, grayer and more transparent, easing in over 300 ms, like depth of field measured in graph steps.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-focus-by-hop--focus-by-hop",
+                    "standout": true,
+                    "review": "Reviewed: the selected neighborhood stays sharp, farther hops blur and fade."
                 },
                 {
                     "slug": "hover-swell",
@@ -431,9 +518,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Nodes near the cursor swell like the macOS dock.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Nodes near the cursor swell like the macOS dock, with an optional fisheye lens that pushes nodes apart on screen and bends the edges with them, all in the vertex shader.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-hover-swell--hover-swell",
+                    "standout": false,
+                    "review": "Reviewed: swells around the cursor on 2,500 nodes; clicks hit unswollen positions."
                 },
                 {
                     "slug": "jelly-wobble",
@@ -441,9 +530,11 @@
                     "category": "node-effect",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Nodes squash and stretch while the layout moves them and wobble when they stop.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Nodes stretch along their direction of travel and squash across it as a stand-in layout springs them in and out, then jiggle with traveling lobes until the energy rings down.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-jelly-wobble--jelly-wobble",
+                    "standout": true,
+                    "review": "Reviewed: the spring now runs in fixed real-time steps so nodes settle on slow frames."
                 },
                 {
                     "slug": "orbiting-satellites",
@@ -451,9 +542,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Tiny moons orbit each node; count is a number, speed is activity.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Tiny lit moons circle each node on tilted orbits with faint rings and trails; moon count encodes degree and orbit speed encodes value, and moons behind the planet are hidden.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-orbiting-satellites--orbiting-satellites",
+                    "standout": false,
+                    "review": "Reviewed: the moons can be counted; busy at full density."
                 },
                 {
                     "slug": "uncertainty-sketch",
@@ -461,9 +554,11 @@
                     "category": "node-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Uncertain nodes blur and grain; uncertain edges wobble like pencil strokes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Uncertain nodes and edges look hand-drawn: soft grainy fills, hesitant double outlines and pencil lines that boil several times a second, on paper or a dark sheet.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-uncertainty-sketch--uncertainty-sketch",
+                    "standout": true,
+                    "review": "Reviewed: the paper look and grainy uncertain nodes read clearly."
                 },
                 {
                     "slug": "uncertainty-aura",
@@ -471,9 +566,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Smoky aura churns harder around less certain nodes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "A domain-warped smoky halo flows outward from each node; the less certain the node, the wider, wispier and more restless its cloud.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-uncertainty-aura--uncertainty-aura",
+                    "standout": true,
+                    "review": "Reviewed: smoky halos per cluster; the most expensive per pixel in its batch."
                 },
                 {
                     "slug": "thermal-glow",
@@ -481,9 +578,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Busy nodes glow on a blackbody ramp with heat shimmer above.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Nodes glow on a blackbody ramp by PageRank, degree or value, with crawling hot spots, bloom, a wavering heat plume above, and edges carrying heat between their ends.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-thermal-glow--thermal-glow",
+                    "standout": true,
+                    "review": "Reviewed: contrast control fixed (heat = pow(raw, contrast), default 2)."
                 },
                 {
                     "slug": "rising-embers",
@@ -491,9 +590,11 @@
                     "category": "node-effect",
                     "purpose": "both",
                     "wow": 5,
-                    "what": "Top nodes shed rising sparks that wink out.",
-                    "status": "planned",
-                    "story": null
+                    "what": "The hottest share of nodes smolder as cracked coals and shed sparks that rise on a wavering draft, cool from yellow to red and wink out; count and speed follow heat.",
+                    "status": "reviewed",
+                    "story": "shader-lab-hop-data-hover-motion-and-auras-rising-embers--rising-embers",
+                    "standout": true,
+                    "review": "Reviewed: cracked coals on the busiest nodes with rising sparks."
                 }
             ]
         },
@@ -507,9 +608,11 @@
                     "category": "edge",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Wide at source, needle at target, with a ring sliding down.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Edges taper from wide at the source to a needle at the target, with a bright ring sliding toward the target.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-tapered-edges--tapered-edges",
+                    "standout": false,
+                    "review": "Reviewed: the taper and sliding ring show direction on long edges."
                 },
                 {
                     "slug": "gradient-edges",
@@ -517,9 +620,11 @@
                     "category": "edge",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Edge blends source to target community color with a faint direction shimmer.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Source-to-target community color blend in OKLab (toggle to compare RGB) on 4 px edges, with a faint scrolling lightness shimmer for direction.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-gradient-edges--gradient-edges",
+                    "standout": false,
+                    "review": "Reviewed: default width raised to 4 px so the color blend shows."
                 },
                 {
                     "slug": "fiber-optic",
@@ -527,9 +632,11 @@
                     "category": "edge",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Dark glass fibers carrying light packets, glint at the target.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Dark glass fibers carrying colored light packets with exponential tails, flaring at the target, additive plus bloom.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-fiber-optic--fiber-optic",
+                    "standout": true,
+                    "review": "Reviewed: colored light packets with bloom on dark glass."
                 },
                 {
                     "slug": "energy-flow",
@@ -537,9 +644,11 @@
                     "category": "edge",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Scrolling turbulent plasma in a cosine palette; turbulence by weight.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Domain-warped fbm plasma streams source to target in a cosine palette; heavier edges flow faster and boil harder.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-energy-flow--energy-flow",
+                    "standout": true,
+                    "review": "Reviewed: the strongest moving edge effect; dense clusters blow out to hot spots."
                 },
                 {
                     "slug": "rope-chain",
@@ -547,9 +656,11 @@
                     "category": "edge",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Thread, braided rope or chain links by weight band; stitched-thread variant.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Weight read as material: silk thread, twisted rope or steel chain (thicker), plus a running-stitch mode.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-rope-chain--rope-chain",
+                    "standout": true,
+                    "review": "Reviewed: thread, rope and chain show edge weight with no legend."
                 },
                 {
                     "slug": "dna-helix",
@@ -557,9 +668,11 @@
                     "category": "edge",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Two twisting strands in source and target colors with rungs.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Two strands in source and target colors twist around each edge with four-color base-pair rungs; twist tightens with weight.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-dna-helix--dna-helix",
+                    "standout": true,
+                    "review": "Reviewed: the top edge shader; slider range raised to 30."
                 },
                 {
                     "slug": "matrix-glyphs",
@@ -567,9 +680,11 @@
                     "category": "edge-effect",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Procedural green glyphs rain along edges toward the target.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Procedural mirrored 5x7 glyphs flicker and rain along 16 px edges toward the target, white heads and green tails, with bloom; 120 nodes so glyphs read.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-matrix-glyphs--matrix-glyphs",
+                    "standout": false,
+                    "review": "Reviewed: defaults now 120 nodes and 16 px edges so glyphs read; fun but busy."
                 },
                 {
                     "slug": "ink-brush",
@@ -577,9 +692,11 @@
                     "category": "edge",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Sumi-e strokes with pressure swell and dry-brush fraying.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Sumi-e brush strokes on rice paper: press, swell and dry-brush lift-off toward the target (10 px, 120 nodes); enso nodes, red seal on select.",
+                    "status": "reviewed",
+                    "story": "shader-lab-fragment-patterns-along-the-edge-ribbon-ink-brush--ink-brush",
+                    "standout": false,
+                    "review": "Reviewed: darker ink, earlier dry-out; press, swell and lift-off now show."
                 }
             ]
         },
@@ -594,8 +711,11 @@
                     "purpose": "both",
                     "wow": 3,
                     "what": "Anti-aliased curved edges; multi-edges bow apart, self-loops become teardrops.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Screen-plane quadratic Bezier edges with neon core and glow by weight, parallel edges fan apart, self-loops become teardrops, a glint shows direction, click focuses a node.",
+                    "story": "shader-lab-curved-and-displaced-edges-bezier-glow--bezier-glow",
+                    "standout": true,
+                    "review": "Reviewed: draws, click focus dims the rest and lights the node's fanned edges; disposes cleanly."
                 },
                 {
                     "slug": "lightning-arcs",
@@ -604,8 +724,11 @@
                     "purpose": "aesthetic",
                     "wow": 5,
                     "what": "Jagged bolts that re-snap several times a second, with forks.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Jagged random-walk bolts that re-snap several times a second with forks and blue-white halo, a fraction of edges strike at once, hovered or selected node's edges always strike.",
+                    "story": "shader-lab-curved-and-displaced-edges-lightning-arcs--lightning-arcs",
+                    "standout": true,
+                    "review": "Reviewed: hovered node's edges strike every snap; short intra-community edges read as static fuzz at default zoom, long edges read as real bolts."
                 },
                 {
                     "slug": "arcs-3d",
@@ -614,8 +737,11 @@
                     "purpose": "practical",
                     "wow": 3,
                     "what": "Edges lift into arches by weight or length, with a riding pulse.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Graph laid on the ground with edges lifted into arches whose height and color encode weight or length, comets ride source to target, faint ground footprints.",
+                    "story": "shader-lab-curved-and-displaced-edges-weight-arcs--weight-arcs",
+                    "standout": false,
+                    "review": "Reviewed: heavy links stand above the hairball; the 400-node default is dense, fewer nodes reads better."
                 },
                 {
                     "slug": "oscilloscope-edges",
@@ -624,8 +750,11 @@
                     "purpose": "both",
                     "wow": 4,
                     "what": "Green phosphor sine traces; frequency is weight, amplitude is variance.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Phosphor sine traces scroll along edges on a CRT with graticule and scanlines, frequency is weight, amplitude is endpoint value difference, beam dims on steep flanks.",
+                    "story": "shader-lab-curved-and-displaced-edges-oscilloscope--oscilloscope",
+                    "standout": true,
+                    "review": "Reviewed: convincing CRT look; no afterglow trail (needs a feedback render target)."
                 },
                 {
                     "slug": "vines-growing",
@@ -634,8 +763,11 @@
                     "purpose": "aesthetic",
                     "wow": 4,
                     "what": "Vines grow source to target and unfurl leaves; newest edges still growing.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Vines grow hop by hop from the hub node, wiggle, unfurl alternating SDF leaves behind the tip and set flowers, nodes blossom when reached, the cycle replays.",
+                    "story": "shader-lab-curved-and-displaced-edges-growing-vines--growing-vines",
+                    "standout": true,
+                    "review": "Reviewed: full bloom recolors every community with its own flowers; the harness caps dt at 0.1 s so growth crawls on slow software GL."
                 },
                 {
                     "slug": "dew-silk",
@@ -644,8 +776,11 @@
                     "purpose": "aesthetic",
                     "wow": 4,
                     "what": "Near-invisible threads beaded with glinting droplets; bead count is weight.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Sagging, breeze-swayed faint threads beaded with fake-glass droplets (count = weight) with caustic, fresnel rim and an orbiting specular glint, dawn backdrop and bloom.",
+                    "story": "shader-lab-curved-and-displaced-edges-dew-on-silk--dew-on-silk",
+                    "standout": false,
+                    "review": "Reviewed: node bubbles shrunk (0.6 to 0.3), beads larger (3.5 to 5, up to 40% of spacing), fewer per edge (7 to 5), sparkle 1.6, so the droplets now carry the picture."
                 },
                 {
                     "slug": "aurora",
@@ -654,8 +789,11 @@
                     "purpose": "aesthetic",
                     "wow": 5,
                     "what": "Aurora curtains hang from long edges, or above community pairs with brightness from edges between them.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "description": "Aurora ribbons extruded up from long edges, or between community centers with brightness from the edges joining them, with folds, ray streaks, green-to-violet ramp and a starry sky.",
+                    "story": "shader-lab-curved-and-displaced-edges-aurora-curtains--aurora-curtains",
+                    "standout": true,
+                    "review": "Reviewed: intensity 0.38 to 0.26, a less blue green and a soft tone shoulder in the sky pass, so overlapping curtains stay green instead of clipping to cyan; many overlaps in communities mode still clip a little (8-bit target)."
                 }
             ]
         },
@@ -669,9 +807,11 @@
                     "category": "edge",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Dashes or chevrons scroll source to target; speed and density by weight.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Dashes or arrow chevrons scroll source to target in screen pixels; heavier edges march faster and pack tighter. Clear direction cue, but dense bundles still blur together.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-marching-ants--marching-ants",
+                    "standout": false,
+                    "review": "Reviewed: at width 5 the dense flow graph became a solid yellow band; edges are now 3 px with a fainter track so the chevrons read. Renamed useEdgeColor to tintFromEdge (Storybook gave it a color control and warned)."
                 },
                 {
                     "slug": "comet-tracers",
@@ -679,9 +819,11 @@
                     "category": "edge",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Bright heads with fading tails race along edges with random phases.",
-                    "status": "planned",
-                    "story": null
+                    "what": "White-hot comet heads with long tails in the edge colors race along every edge with their own phase; additive plus bloom.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-comet-tracers--comet-tracers",
+                    "standout": true,
+                    "review": "Reviewed: draws cleanly at 60 fps on the GPU, strong night-traffic look; no change."
                 },
                 {
                     "slug": "particle-traffic",
@@ -689,9 +831,11 @@
                     "category": "edge",
                     "purpose": "both",
                     "wow": 5,
-                    "what": "Thousands of glowing particles stream along edges; count and speed by traffic.",
-                    "status": "planned",
-                    "story": null
+                    "what": "About 2,100 instanced streaks with long fading tails stream along edges like a wind map; count and speed by edge weight, colored by speed.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-particle-traffic--particle-traffic",
+                    "standout": false,
+                    "review": "Reviewed: particles read as short dashes; longer trails, smaller heads, stronger bloom and fainter edges now give the wind-map streak look."
                 },
                 {
                     "slug": "packets-bursts",
@@ -699,9 +843,11 @@
                     "category": "edge-effect",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Typed packet glyphs slide along edges and queue on congestion; a click fires a burst that splashes on the target.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Typed packet glyphs with bit patterns slide down each lane and queue at the target on loaded edges; a click fires a spark volley that splashes on neighbors.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-packets-bursts--packets-bursts",
+                    "standout": false,
+                    "review": "Reviewed: works, busy but striking; clicking empty space clears the selection and stops the volleys while packets keep flowing, which is fine."
                 },
                 {
                     "slug": "bfs-wave",
@@ -709,9 +855,11 @@
                     "category": "edge-effect",
                     "purpose": "practical",
                     "wow": 5,
-                    "what": "Click a node; a light pulse runs over edges in breadth-first order.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Click a node: a light pulse runs outward over the edges in breadth-first order, swelling the edges it passes and leaving each hop in its own hue. Clicking empty space restarts it from the hub.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-bfs-wave--bfs-wave",
+                    "standout": true,
+                    "review": "Reviewed: a click on empty space cleared the selection and left the story dark; it now reselects the hub (onSelection fallback in common.ts). Mid-wave is the best shot in the batch."
                 },
                 {
                     "slug": "path-fuse",
@@ -719,9 +867,11 @@
                     "category": "edge-effect",
                     "purpose": "both",
                     "wow": 5,
-                    "what": "A burning spark runs along a Dijkstra path or a cascade, leaving embers.",
-                    "status": "planned",
-                    "story": null
+                    "what": "A crackling spark burns along the Dijkstra path from the clicked node to the farthest one, leaving flickering embers; cascade mode burns the whole shortest-path tree.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-path-fuse--path-fuse",
+                    "standout": true,
+                    "review": "Reviewed: same dark-after-empty-click problem as bfs-wave, fixed the same way; the fuse and cascade look great."
                 },
                 {
                     "slug": "hover-sparkle",
@@ -729,9 +879,11 @@
                     "category": "edge-effect",
                     "purpose": "both",
                     "wow": 3,
-                    "what": "Hovered node's out-edges and in-edges sparkle in two colors.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Hovering a node widens its edges into rivers of twinkling stars, out-edges gold and in-edges blue, drifting along the edge direction; shown on the directed flow graph, with a demo touring the hubs.",
+                    "status": "reviewed",
+                    "story": "shader-lab-motion-along-edges-and-propagation-hover-sparkle--hover-sparkle",
+                    "standout": true,
+                    "review": "Reviewed: on the communities graph the hovered edges were short and hidden under nodes, so it barely showed; it now defaults to the directed flow graph with brighter stars, more bloom and dimmer other edges, and reads well."
                 }
             ]
         },
@@ -746,8 +898,11 @@
                     "purpose": "both",
                     "wow": 5,
                     "what": "Faint additive edges tone-mapped like a long exposure; toggle vs plain alpha.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-light-painting--light-painting",
+                    "description": "Long-exposure edges: additive light in a half-float buffer, log tone-mapped through inferno/magma/community/ice so busy corridors glow; toggle to plain alpha.",
+                    "standout": true,
+                    "review": "Reviewed: draws the 2,500-node graph as a glowing long exposure; corridors burn yellow, single edges stay wisps. Hover, click and story switches are clean. Unchanged."
                 },
                 {
                     "slug": "density-heatmap",
@@ -756,8 +911,11 @@
                     "purpose": "practical",
                     "wow": 3,
                     "what": "Gaussian splats mapped through a log magma ramp under the graph.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-density-heatmap--density-heatmap",
+                    "description": "Gaussian splat per node into a half-res float target, log-mapped through viridis/magma/inferno/ocean under the graph; weigh by count, rank, degree or value, optional isolines and community tint.",
+                    "standout": false,
+                    "review": "Reviewed: clear and correct, nodes stay readable over the heat; practical rather than striking. Unchanged."
                 },
                 {
                     "slug": "metaball-hulls",
@@ -766,8 +924,11 @@
                     "purpose": "both",
                     "wow": 5,
                     "what": "Gooey blobs wrap each community, optional soap-bubble membrane.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-metaball-hulls--metaball-hulls",
+                    "description": "Per-community metaball fields in two RGBA float targets; gooey translucent hulls with seams where communities meet, breathing so hulls merge and split; goo, iridescent soap-film membrane or outline looks.",
+                    "standout": true,
+                    "review": "Reviewed: gooey hulls with seams where communities touch read instantly. Fixed the node lighting (the light came from behind, so every node drew as a dull gray disc); nodes are now lit spheres in community color."
                 },
                 {
                     "slug": "voronoi-territory",
@@ -776,8 +937,11 @@
                     "purpose": "practical",
                     "wow": 3,
                     "what": "Jump-flood nearest-node cells colored by community with borders.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-voronoi-territory--voronoi-territory",
+                    "description": "Jump-flood Voronoi over projected node seeds: each pixel takes its nearest node's community, exact anti-aliased borders between communities, cell lines, distance fade; map, stained-glass or cells styles.",
+                    "standout": false,
+                    "review": "Reviewed: territories and the odd enclaves of mixed communities read well. Fixed the map style's community borders, which stayed bright all the way to the screen edges across empty space; they now fade out with the territory."
                 },
                 {
                     "slug": "iso-contours",
@@ -786,8 +950,11 @@
                     "purpose": "both",
                     "wow": 4,
                     "what": "Density as a topographic map with contours and hill shading.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-iso-contours--iso-contours",
+                    "description": "Node density as terrain: hypsometric tints, sea level, contour lines with index lines every fifth level, hill shading; topographic, blueprint or neon-night styles.",
+                    "standout": true,
+                    "review": "Reviewed: the best-looking practical field in the batch; communities read as islands with peaks at their cores. Unchanged."
                 },
                 {
                     "slug": "kdeeb-bundling",
@@ -796,8 +963,11 @@
                     "purpose": "practical",
                     "wow": 5,
                     "what": "Slider pulls a hairball into bundled highways; glowing traffic variant.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-kdeeb-bundling--kdeeb-bundling",
+                    "description": "GPU kernel-density edge bundling: 24 samples per edge in a float texture move up a splatted density gradient with a shrinking kernel; a slider morphs straight to bundled, with light particles streaming along the trunks.",
+                    "standout": true,
+                    "review": "Reviewed: straight edges collapse into glowing trunks that look like a nervous system; particles stream along them. Bundling now plays out at the intended 2 iterations a frame (it ran 4). Unchanged otherwise."
                 },
                 {
                     "slug": "layout-trails",
@@ -806,8 +976,11 @@
                     "purpose": "both",
                     "wow": 5,
                     "what": "Nodes leave fading streaks while the force layout settles.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-layout-trails--layout-trails",
+                    "description": "A live ForceAtlas2 run from a random scatter, looping; nodes leave fading motion-streak trails (ping-pong accumulation) colored by community or speed.",
+                    "standout": true,
+                    "review": "Reviewed: the raw ForceAtlas2 steps jitter, so the trails were zigzag scribbles that overflowed the frame, and a loop restart shot streaks across the screen. Drawn positions now ease toward the simulation (new smoothing control), trails are full resolution and thinner, the frame fits tighter and a restart draws no streak. Now smooth comet trails as communities condense."
                 },
                 {
                     "slug": "force-wind-map",
@@ -816,8 +989,11 @@
                     "purpose": "both",
                     "wow": 5,
                     "what": "Particles drift along the layout's force field like a wind map.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-force-wind-map--force-wind-map",
+                    "description": "Wind-map particles (4k-65k in a float texture, ping-pong updated) drift down or around the nodes' pressure field with fading trails, tinted by the community whose air they are in.",
+                    "standout": true,
+                    "review": "Reviewed: was broken, not just grainy. The shared per-frame hook ran twice a frame, so the second particle update (dt 0) made old and new positions equal and every trail segment collapsed to a one-pixel dot. Fixed in common.ts for all nine stories (it also doubled the trail fade in layout trails and the fluid steps). Trail segments also no longer overlap at their joints. Now real flowing wind-map strokes tinted by community."
                 },
                 {
                     "slug": "fluid-ink",
@@ -826,8 +1002,11 @@
                     "purpose": "aesthetic",
                     "wow": 5,
                     "what": "Dragging a node stirs community-colored ink in a fluid sim.",
-                    "status": "planned",
-                    "story": null
+                    "status": "reviewed",
+                    "story": "shader-lab-splatting-fields-and-simulations-fluid-ink--fluid-ink",
+                    "description": "Stable-fluids simulation (advection, vorticity confinement, Jacobi pressure) under the graph; nodes seep community ink, hubs paddle in circles and dragging a node stirs it; marbled paper or glowing ink.",
+                    "standout": true,
+                    "review": "Reviewed: dragging a node works (it stirs ink and the edges follow), auto stir keeps it moving, and the marbled-paper look is the prettiest in the batch. Fixed the node lighting (same backward light as metaball hulls). The ink and velocity fades were per frame, so on a slow renderer the sheet flooded to a pink wash within a minute; they are now per 1/60 s of simulated time. The per-frame hook fix also halves the extra sim steps it was taking."
                 }
             ]
         },
@@ -841,9 +1020,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Neon tube outlines and edges with white core and halo; flicker encodes volatility.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Neon tube outlines (ring, star, hexagon, triangle, square by community) and edges with white-hot cores, colored halos and a mip-chain bloom; volatile nodes stutter like a failing sign.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-neon-glow--neon-glow",
+                    "review": "Reviewed: 60 fps; the center overlap washes a little to white.",
+                    "standout": true
                 },
                 {
                     "slug": "selective-bloom",
@@ -851,9 +1032,11 @@
                     "category": "whole-graph",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Only high-centrality nodes and the active path glow.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Only high-PageRank hubs and the active path glow, from an off-screen emissive mask blurred by a mip-chain bloom; click a node to light its path to the top hub with a traveling pulse.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-selective-bloom--selective-bloom",
+                    "review": "Reviewed: only hubs glow; clicking lights the path to the top hub.",
+                    "standout": true
                 },
                 {
                     "slug": "depth-cues",
@@ -861,9 +1044,11 @@
                     "category": "whole-graph",
                     "purpose": "practical",
                     "wow": 3,
-                    "what": "Toggles for depth fog and desaturation, eye-dome outlines, ambient occlusion.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Depth fog, distance desaturation, eye-dome outlines and depth-only ambient occlusion over a float depth image of the 3D graph, each switchable, with depth and occlusion debug views.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-depth-cues--depth-cues",
+                    "review": "Reviewed: depth read without smoothing, so outlines are crisp.",
+                    "standout": false
                 },
                 {
                     "slug": "stylize-looks",
@@ -871,9 +1056,11 @@
                     "category": "whole-graph",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Dropdown: CRT, 1-bit dither, ASCII, pixel art, phosphor, pencil, watercolor, blueprint.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Eight full-screen looks from one dropdown: CRT, 1-bit Bayer dither, ASCII glyphs, PICO-8 pixel art, lingering green phosphor, boiling pencil hatching, Kuwahara watercolor and blueprint.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-stylize-looks--stylize-looks",
+                    "review": "Reviewed: pencil, blueprint, pixel art and CRT stand out; phosphor smear fixed.",
+                    "standout": true
                 },
                 {
                     "slug": "colorblind-preview",
@@ -881,9 +1068,11 @@
                     "category": "whole-graph",
                     "purpose": "practical",
                     "wow": 2,
-                    "what": "Simulates protanopia, deuteranopia, tritanopia; optional hull stripes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Machado 2009 simulation of protanopia, deuteranopia, tritanopia and achromatopsia with severity and a before/after split; optional per-community stripe patterns as a non-color encoding.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-colorblind-preview--colorblind-preview",
+                    "review": "Reviewed: every mode and the before/after split work.",
+                    "standout": false
                 },
                 {
                     "slug": "lens",
@@ -891,9 +1080,11 @@
                     "category": "whole-graph",
                     "purpose": "both",
                     "wow": 4,
-                    "what": "Draggable glass lens with chromatic rim; edges bend away from the lens.",
-                    "status": "planned",
-                    "story": null
+                    "what": "A lens that follows the mouse: a glass magnifier post-process with chromatic rim, a sharp geometry fisheye in the vertex shaders, and EdgeLens, which bends pass-through edges out around the rim.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-lens--lens",
+                    "review": "Reviewed: all three lenses follow the mouse at 60 fps; EdgeLens is the best.",
+                    "standout": true
                 },
                 {
                     "slug": "camera-finish",
@@ -901,9 +1092,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Color grading, vignette, grain, anamorphic streaks, tilt-shift miniature.",
-                    "status": "planned",
-                    "story": null
+                    "what": "The graph as a lit miniature on the ground: tilt-shift focus band, anamorphic blue streaks, filmic grade with looks (teal and orange, bleach bypass, warm film, noir), aberration, vignette, grain, letterbox.",
+                    "status": "reviewed",
+                    "story": "shader-lab-glow-bloom-and-post-camera-finish--camera-finish",
+                    "review": "Reviewed: letterbox is 2:1 and the camera pulled back so the graph fits.",
+                    "standout": true
                 }
             ]
         },
@@ -917,9 +1110,11 @@
                     "category": "node",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "Top hubs lens the graph behind them with an accretion disk.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Top PageRank hubs become black holes: a point-mass lens bends the graph behind them into Einstein rings, with a black horizon, photon ring and a tilted Doppler-beamed accretion disk lensed over the top.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-black-hole-hub--black-hole-hub",
+                    "standout": true,
+                    "review": "Reviewed: draws, lenses and disks are correct and survive hover, click and story switches; the heaviest in the batch (about half the frame rate of the others on the CPU renderer)."
                 },
                 {
                     "slug": "heat-haze-edges",
@@ -927,9 +1122,11 @@
                     "category": "edge",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Busy edges shimmer and distort what is behind them.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Edges run hot by weight (and when touching the hovered node); a wide copy writes rising noise offsets into a half-float target and a pass refracts nodes, edges and a backdrop grid behind them.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-heat-haze-edges--heat-haze-edges",
+                    "standout": false,
+                    "review": "Reviewed: the wobble was too subtle to notice, so the default strength is now 18 (was 10) and the backdrop grid 0.5 (was 0.35), which makes the bending of the grid and nodes behind hot edges visible."
                 },
                 {
                     "slug": "shockwave",
@@ -937,9 +1134,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "A chromatic ring bursts from changes; edges bend as it passes.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Click a node (or wait for a random hub) to send a spherical wave: nodes and bent edges are pushed and swell as the front passes, and a pass ripples the image with a slight RGB split and a thin bright ring at the front; up to 8 at once.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-shockwave--shockwave",
+                    "standout": true,
+                    "review": "Reviewed: the ring was only a faint wide haze on the dark background; the post pass now adds a thin bright line at the wavefront (plus a softer halo) and ringGlow defaults to 0.9, so each wave reads as a crisp expanding ring."
                 },
                 {
                     "slug": "nebula-backdrop",
@@ -947,9 +1146,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "Domain-warped gas and parallax stars tinted by nearby communities.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Full-screen backdrop of three-deep domain-warped fbm gas with dust lanes and three drifting twinkling star layers, tinted near the biggest communities' on-screen centers.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-nebula-backdrop--nebula-backdrop",
+                    "standout": true,
+                    "review": "Reviewed: no changes; the strongest still in the batch, nodes and edges stay readable over the gas."
                 },
                 {
                     "slug": "god-rays",
@@ -957,9 +1158,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Light shafts from the selected hub with node and edge shadows.",
-                    "status": "planned",
-                    "story": null
+                    "what": "The selected hub becomes a sun: an occlusion pass blacks out nodes and edges over its disc, a 72-step radial blur casts their shadows as light shafts, added over the scene.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-god-rays--god-rays",
+                    "standout": true,
+                    "review": "Reviewed: no changes; shafts follow the selected hub and click moves the light. The graph is dimmed away from the sun by design."
                 },
                 {
                     "slug": "caustic-floor",
@@ -967,9 +1170,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 4,
-                    "what": "Rippling pool caustics beneath a 3D graph, ripples where nodes move.",
-                    "status": "planned",
-                    "story": null
+                    "what": "A pool floor under the graph shows animated, slightly dispersed water caustics; bobbing nodes catch the same light, and ripples from moving or hovered nodes bend the pattern.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-caustic-floor--caustic-floor",
+                    "standout": false,
+                    "review": "Reviewed: no changes; caustics are bright and convincing, the graph above is clear."
                 },
                 {
                     "slug": "particle-morph",
@@ -977,9 +1182,11 @@
                     "category": "whole-graph",
                     "purpose": "aesthetic",
                     "wow": 5,
-                    "what": "Nodes burst into curl-noise particles and reform at new positions.",
-                    "status": "planned",
-                    "story": null
+                    "what": "Every few seconds the layout switches (force, rings, sphere, rank spiral, grid): nodes dissolve into curl-noise particle clouds that stream and reform at their new places as edges glide over.",
+                    "status": "reviewed",
+                    "story": "shader-lab-scene-render-targets-backdrops-and-transitions-particle-morph--particle-morph",
+                    "standout": true,
+                    "review": "Reviewed: no changes; the dissolve, curl-noise stream and re-form into rings and sphere is the most striking motion in the batch. A still can land in the hold phase, so the screenshot is taken mid-morph."
                 }
             ]
         }

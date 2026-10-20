@@ -41,7 +41,7 @@ async function nodes(doc: string, property: string): Promise<Record<string, unkn
  * @param property - the property
  * @returns the values
  */
-async function edges(doc: string, property: string): Promise<unknown[]> {
+async function edges(doc: string, property: string): Promise<readonly unknown[]> {
     const { snapshot, styles } = await load(doc);
     return resolveStyles(styles, "edge", property as StyleProperty, snapshot);
 }

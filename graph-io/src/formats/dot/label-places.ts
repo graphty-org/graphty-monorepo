@@ -68,7 +68,10 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
         const node = head ? t : s;
         const tip =
             (head ? route.end : route.start) ?? boundary(cx, node, head ? target : source, head ? source : target);
-        const toward = head ? (route.points.at(-2) ?? source) : (route.points[1] ?? target);
+        // the nearest route point back from the end that is not the end itself (a spline with no arrow ends at it);
+        // the route's last point is the node's center, past the end
+        const back = head ? route.points.slice(0, -1).reverse() : route.points.slice(1);
+        const toward = back.find((p) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) > 1e-6) ?? (head ? source : target);
         const at = (stored ? point(get(`${end}_lp`)) : null) ?? portLabel(get, tip, toward);
         if (at !== null) {
             const prefix = head ? "target" : "source";

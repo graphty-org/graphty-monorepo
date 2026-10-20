@@ -111,6 +111,13 @@ describe("DOT styles: label places", () => {
         expect((await edges(doc, "targetLabelOffsetY"))[0]).toBeCloseTo(-10, 5);
     });
 
+    it("turns an end label from the line where a stored route with no arrow tip ends", async () => {
+        // no e, point: the line ends at the spline's own end, so the angle is taken from the point before it
+        const doc = `graph { ${ends}; a -- b [headlabel=H, labelangle=90, pos="26,50 50,50 70,50 94,50"] }`;
+        expect((await edges(doc, "targetLabelOffsetX"))[0]).toBeCloseTo(0, 5);
+        expect((await edges(doc, "targetLabelOffsetY"))[0]).toBeCloseTo(10, 5);
+    });
+
     it("runs a stored route on to its arrow tip", async () => {
         const doc = `digraph { ${ends}; a -> b [pos="e,94,50 26,50 40,80 70,80 84,52"] }`;
         expect(

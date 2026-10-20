@@ -3265,6 +3265,13 @@ Still open:
 - Comparator: Graphviz draws `curve`, `icurve`, `lcurve` and `rcurve` arrows as a stem plus an open arc, which the
   oracle side reads as no arrow. It writes colored segments (`color="red;0.3:blue"`) as one path per segment, and
   the oracle side takes one segment as the edge. Both are in `associate.ts`, which other work is changing.
+- A quoted DOT label that looks like an HTML string (`label="<I>"`, `label="<BR ALIGN=LEFT/>"`, the captions of
+  `dot-specimen-labels-p2`) is read as an HTML-like label: graphty draws `I` and `BR ALIGN=LEFT/` where Graphviz
+  draws the text as written, brackets included, and the `<BR ALIGN>` reading lines up such a caption too. The DOT
+  tokenizer knows which ids were HTML strings (`DotToken.html`), but the importer stores both spellings as the same
+  text, so the style reader cannot tell them apart (`isHtmlString`). Graph-io work: carry the HTML flag of a label
+  into the snapshot (or keep a quoted string's text distinguishable) and read only true HTML strings as HTML.
+  Not caught by the comparator, because captions are dropped from both scenes.
 
 ## Specimen sheets: Cytoscape session settings (fix round 3, sessions, 2026-10-20)
 

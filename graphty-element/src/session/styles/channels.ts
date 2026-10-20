@@ -441,6 +441,7 @@ export interface ChannelValues {
     "edge.arrowHeadWidth": number;
     "edge.arrowHeadSide": "left" | "right";
     "edge.arrowHeadPosition": number;
+    "edge.arrowHeadGap": number;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
@@ -458,6 +459,7 @@ export interface ChannelValues {
     "edge.arrowTailWidth": number;
     "edge.arrowTailSide": "left" | "right";
     "edge.arrowTailPosition": number;
+    "edge.arrowTailGap": number;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
@@ -773,7 +775,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -845,6 +847,20 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             max: 1,
             stylePath: `arrow${end}.position`,
             renderable: true,
+        },
+        {
+            ...id("Gap"),
+            plainName: `Arrow ${end} Gap`,
+            shortName: `${end} gap`,
+            group: "arrows",
+            default: 0,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.gap`,
+            renderable: true,
+            caveat:
+                "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
+                "line stops there too. 0 puts the cap against the node.",
         },
         {
             ...id("Color"),

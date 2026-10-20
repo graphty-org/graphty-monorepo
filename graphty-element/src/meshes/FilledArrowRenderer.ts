@@ -131,6 +131,9 @@ export interface FilledArrowOptions {
     clipEndX?: number; // X-axis clipping: undefined = no clipping, number = clip at X position
 }
 
+/** How long a tee cap is along its line, as a fraction of its size: a bar a third as deep as its 1.5 width. */
+export const TEE_DEPTH = 0.5;
+
 /**
  * Renderer for filled arrow heads using uniform screen-space scaling
  *
@@ -614,7 +617,7 @@ void main() {
 
         // Normalized dimensions - 3:1 rectangle (width:depth), 50% larger than base size
         const width = 1.5; // Z-axis (horizontal span)
-        const depth = width / 3; // X-axis (shallow depth) = 0.5
+        const depth = TEE_DEPTH; // X-axis (shallow depth) = width / 3
         const halfWidth = width / 2;
 
         // Front edge at origin, extends backward

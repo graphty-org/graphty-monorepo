@@ -73,6 +73,12 @@ const ArrowStyle = z.strictObject({
      */
     position: z.number().min(0).max(1).optional(),
     /**
+     * How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the line stops
+     * there too, leaving the gap empty (Cytoscape desktop draws its T bar four of its lengths off the node, its half
+     * circles one). Unset or 0, the cap touches the node. A cap drawn part-way along (`position`) ignores it.
+     */
+    gap: z.number().nonnegative().optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
@@ -101,7 +107,7 @@ const ArrowStyle = z.strictObject({
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */
-const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true });
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.

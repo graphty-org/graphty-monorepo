@@ -176,6 +176,7 @@ const DECLARED = [
     "edge.arrowHeadWidth",
     "edge.arrowHeadSide",
     "edge.arrowHeadPosition",
+    "edge.arrowHeadGap",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
@@ -193,6 +194,7 @@ const DECLARED = [
     "edge.arrowTailWidth",
     "edge.arrowTailSide",
     "edge.arrowTailPosition",
+    "edge.arrowTailGap",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
@@ -279,9 +281,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighteen node channels and one hundred and ten edge channels", () => {
+    it("splits into one hundred and eighteen node channels and one hundred and twelve edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 118);
-        assert.strictEqual(channelsFor("edge").length, 110);
+        assert.strictEqual(channelsFor("edge").length, 112);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

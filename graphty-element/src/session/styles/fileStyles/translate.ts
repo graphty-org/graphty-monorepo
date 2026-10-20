@@ -763,6 +763,8 @@ function channelPlans(
         ["midTargetArrowImageWidth", []],
         ["midTargetArrowImageHeight", []],
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
+        ["targetArrowGap", [id("edge.arrowHeadGap")]],
+        ["sourceArrowGap", [id("edge.arrowTailGap")]],
         ["targetArrowSide", [id("edge.arrowHeadSide")]],
         ["sourceArrowSide", [id("edge.arrowTailSide")]],
         ["curved", [id("edge.curvature")]],

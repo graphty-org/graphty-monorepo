@@ -32,6 +32,7 @@ import {
     surfaceReach,
     type Xyz,
 } from "./meshes/edgeRoute";
+import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
@@ -2109,6 +2110,8 @@ export class Edge {
         if (along !== null) {
             dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
             direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+        } else {
+            dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
         }
 
         const arrowType = arrowStyle.arrowHead?.type;
@@ -2166,7 +2169,7 @@ export class Edge {
         // Calculate surface intersection points
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
         const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
+        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)));
 
         // Use common arrow geometry functions for positioning
         const arrowType = style.arrowHead?.type;
@@ -2243,6 +2246,9 @@ export class Edge {
             arrowTailCap.place(EdgeMesh.calculateArrowPosition(tip, toward, tailLength, tailGeometry), toward);
             return srcPoint;
         }
+
+        // a tail standing off its node: the cap and the line's start both move out along the line
+        srcPoint = srcPoint.add(tailDirection.scale(Edge.capGap(tailStyle.arrowTail)));
 
         // Calculate tail position using common function
         // For tail, we negate the direction since it points away from source
@@ -2489,7 +2495,25 @@ export class Edge {
         // Use common function to calculate line endpoint
         // Direction points FROM source TO destination (forward direction)
         const direction = dstPoint.subtract(srcPoint).normalize();
-        return EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
+        const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
+        return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+    }
+
+    /**
+     * How far off its node an end cap is drawn (`gap` times the cap's length), in scene units: 0 for no cap, no gap,
+     * or a cap drawn part-way along its line.
+     * @param arrow - The end's arrow style.
+     * @returns The distance from the node's surface to the cap's tip.
+     */
+    private static capGap(arrow: EdgeStyleConfig["arrowHead"]): number {
+        const gap = arrow?.gap ?? 0;
+        if (gap <= 0 || (arrow?.position ?? 0) > 0 || !arrow?.type || arrow.type === "none") {
+            return 0;
+        }
+
+        // the cap's own length: its size, except a tee's bar, which is drawn shallower than its size
+        const depth = arrow.type === "tee" ? TEE_DEPTH : 1;
+        return gap * depth * EdgeMesh.calculateArrowLength() * (arrow.size ?? 1);
     }
 
     /**

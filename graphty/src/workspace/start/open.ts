@@ -4,9 +4,16 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
+import {
+    type DatasetMeta,
+    DEFAULT_DATASET_BASE_URL,
+    type GeneratorDescriptor,
+    type GeneratorParams,
+} from "@graphty/graphty-element/catalog";
 import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
+import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
 import { routeToReplace } from "../replace/commands";
@@ -53,6 +60,43 @@ const DATASET_BASE =
  */
 export function datasetBase(): { readonly baseUrl?: string } {
     return DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE };
+}
+
+/**
+ * The address of the picture graph-samples publishes of a dataset or a generator, beside the
+ * datasets' files.
+ * @param entry - the dataset's metadata or the generator's descriptor, from graph-samples' catalog.
+ * @param entry.thumbnail - the picture's file name, when it has one.
+ * @returns the address, or undefined when it has no picture.
+ */
+export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
+    return entry.thumbnail === undefined
+        ? undefined
+        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+}
+
+/**
+ * Opens one of graph-samples' datasets as a new project named after it, with nothing run: the
+ * element downloads it and loads it.
+ * @param workspace - the workspace store.
+ * @param dataset - the dataset's metadata, from graph-samples' catalog.
+ */
+export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+    openProject(workspace, dataset.title, (session) => session.data.loadDataset(dataset.name, datasetBase()));
+}
+
+/**
+ * Opens a generated graph as a new project named after its generator, with nothing run.
+ * @param workspace - the workspace store.
+ * @param generator - the generator, from graph-samples' catalog.
+ * @param params - its parameters.
+ */
+export function openGenerated(
+    workspace: WorkspaceStore,
+    generator: GeneratorDescriptor,
+    params: GeneratorParams,
+): void {
+    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
 }
 
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
@@ -134,6 +178,26 @@ export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): voi
     openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
         drawFirst(workspace, next, incoming.source),
     );
+}
+
+/**
+ * Opens one of the app's own samples as a new project named after it, drawn as a first file is.
+ * @param workspace - the workspace store.
+ * @param sample - the sample.
+ */
+export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
+    openSeparate(workspace, { name: sample.name, source: { config: { url: sample.url }, name: sample.name } });
+}
+
+/**
+ * Opens the graph file at a web address as a new project named after the file, drawn as a first
+ * file is. The element reads the format from the address and the file.
+ * @param workspace - the workspace store.
+ * @param url - the address.
+ */
+export function openUrl(workspace: WorkspaceStore, url: string): void {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
+    openSeparate(workspace, { name, source: { config: { url }, name } });
 }
 
 /**

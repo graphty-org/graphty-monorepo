@@ -1,3 +1,5 @@
+import "./samples-dialog.css";
+
 import { EntityChip, SearchInput } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
@@ -7,8 +9,8 @@ import {
     type GeneratorDescriptor,
     sourceDescriptors,
 } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Badge, Group, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { ActionIcon, Badge, Chip, Group, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { SquareArrowOutUpRight, Table2, Waypoints } from "lucide-react";
 import React, { useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
@@ -19,7 +21,16 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { addGraph, addSource, datasetBase, type GraphLoad, type Incoming, openProject, openSeparate } from "./open";
+import {
+    addGraph,
+    addSource,
+    datasetBase,
+    type GraphLoad,
+    type Incoming,
+    openProject,
+    openSeparate,
+    pictureOf,
+} from "./open";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "./samples";
 
 /** The id of the graph-samples source, whose samples are listed as Datasets rather than Live. */
@@ -51,6 +62,8 @@ interface SampleEntry {
     readonly edges?: number;
     readonly rows?: number;
     readonly bytes?: number;
+    /** The picture graph-samples publishes of it, the one the start page's tile shows. */
+    readonly picture?: string;
     /** What the search box matches, lowercase. */
     readonly words: string;
     /** Takes it to the target, asking first where it needs a word or parameters. */
@@ -151,6 +164,7 @@ function sampleEntries(
             provider: OWN,
             nodes: copy?.nodes,
             edges: copy?.edges,
+            picture: copy === undefined ? undefined : pictureOf(copy),
             words: `${sample.name} ${sample.sentence} ${OWN}`.toLowerCase(),
             open: (target) => {
                 bringFile(ctx, incoming, target);
@@ -195,6 +209,7 @@ function sampleEntries(
             edges: dataset.edges,
             // The download is named only where it is worth a word: a large dataset.
             bytes: isLarge(dataset) ? dataset.bytes : undefined,
+            picture: pictureOf(dataset),
             words: `${dataset.title} ${dataset.name} ${DATASET_HOST} ${dataset.description}`.toLowerCase(),
             open: (target) => {
                 if (isLarge(dataset)) {
@@ -210,6 +225,7 @@ function sampleEntries(
         name: generator.plainName,
         group: "Generated",
         provider: OWN,
+        picture: pictureOf(generator),
         words: `${generator.plainName} ${generator.name} generated ${generator.description}`.toLowerCase(),
         open: (target) => {
             configure(generator, target);
@@ -234,54 +250,56 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
 }
 
 /**
- * One row: the name, the provider and the size, and, while the project holds data, Open as a
- * separate graph beside it.
- * @param props - the row
+ * One tile: the picture the start page shows of it (or a plain stand-in), the name, and its size
+ * as chips; while the project holds data, Open as a separate graph in its corner.
+ * @param props - the tile
  * @param props.entry - the sample
  * @param props.separable - whether to offer Open as a separate graph
- * @returns the row
+ * @returns the tile
  */
-function SampleRow({ entry, separable }: { entry: SampleEntry; separable: boolean }): React.JSX.Element {
+function SampleTile({ entry, separable }: { entry: SampleEntry; separable: boolean }): React.JSX.Element {
     const counted = entry.nodes !== undefined || entry.edges !== undefined;
     return (
-        <Group gap={4} wrap="nowrap">
+        <div className="ws-samples-tile">
             <UnstyledButton
-                style={{ flex: 1, minWidth: 0 }}
+                className="ws-samples-open"
+                title={entry.provider}
                 onClick={() => {
                     entry.open("add");
                 }}
             >
-                <Group gap="xs" wrap="nowrap" justify="space-between">
-                    <Text size="sm" truncate>
-                        {entry.name}
-                    </Text>
-                    <Group gap={4} wrap="nowrap">
+                <span className="ws-samples-name">{entry.name}</span>
+                {entry.picture === undefined ? (
+                    <span className="ws-samples-pic ws-samples-none" aria-hidden>
+                        {entry.rows === undefined ? <Waypoints /> : <Table2 />}
+                    </span>
+                ) : (
+                    <img className="ws-samples-pic" src={entry.picture} alt="" loading="lazy" />
+                )}
+                <Group gap={4} wrap="nowrap" className="ws-samples-size">
+                    {entry.nodes === undefined ? null : (
+                        <EntityChip kind="node">{formatNumber(entry.nodes)}</EntityChip>
+                    )}
+                    {entry.edges === undefined ? null : (
+                        <EntityChip kind="edge">{formatNumber(entry.edges)}</EntityChip>
+                    )}
+                    {!counted && entry.rows !== undefined ? (
                         <Badge size="xs" variant="light" color="gray" tt="none">
-                            {entry.provider}
+                            {formatNumber(entry.rows)} rows
                         </Badge>
-                        {entry.nodes === undefined ? null : (
-                            <EntityChip kind="node">{formatNumber(entry.nodes)}</EntityChip>
-                        )}
-                        {entry.edges === undefined ? null : (
-                            <EntityChip kind="edge">{formatNumber(entry.edges)}</EntityChip>
-                        )}
-                        {!counted && entry.rows !== undefined ? (
-                            <Text size="xs" c="dimmed">
-                                {formatNumber(entry.rows)} rows
-                            </Text>
-                        ) : null}
-                        {entry.bytes === undefined ? null : (
-                            <Text size="xs" c="dimmed">
-                                {megabytes(entry.bytes)}
-                            </Text>
-                        )}
-                    </Group>
+                    ) : null}
+                    {entry.bytes === undefined ? null : (
+                        <Badge size="xs" variant="light" color="gray" tt="none">
+                            {megabytes(entry.bytes)}
+                        </Badge>
+                    )}
                 </Group>
             </UnstyledButton>
             {separable ? (
                 <Tooltip label="Open as a separate graph">
                     <ActionIcon
-                        variant="subtle"
+                        className="ws-samples-separate"
+                        variant="default"
                         size="sm"
                         aria-label={`Open ${entry.name} as a separate graph`}
                         onClick={() => {
@@ -292,16 +310,16 @@ function SampleRow({ entry, separable }: { entry: SampleEntry; separable: boolea
                     </ActionIcon>
                 </Tooltip>
             ) : null}
-        </Group>
+        </div>
     );
 }
 
 /**
- * Samples..., the one place samples are picked, from the start screen and from Sources "+": the
- * prototype's fixture files by subject, the live server samples, graph-samples' datasets and its
- * generators, each tagged with its provider and size, narrowed by a search box. Every sample goes
- * into the project the way a dropped file does (addSource); while the project holds data, each row
- * also offers Open as a separate graph.
+ * Samples..., from Sources "+": the prototype's fixture files by subject, the app's own graphs, the
+ * live server samples, graph-samples' datasets and its generators, as tiles with the start page's
+ * pictures and their sizes as chips, narrowed by a search box and a group filter. Every sample
+ * goes into the project the way a dropped file does (addSource); while the project holds data,
+ * each tile also offers Open as a separate graph.
  * @returns the dialog, open while the workspace dialog is "samples"
  */
 export function SamplesDialog(): React.JSX.Element {
@@ -309,6 +327,7 @@ export function SamplesDialog(): React.JSX.Element {
     useSessionVersion(ctx.session);
     const opened = useWorkspaceState((state) => state.dialog === "samples");
     const [text, setText] = useState("");
+    const [group, setGroup] = useState("");
     const [asking, setAsking] = useState<{ dataset: DatasetMeta; target: Target } | null>(null);
     const [configuring, setConfiguring] = useState<{ generator: GeneratorDescriptor; target: Target } | null>(null);
     const close = (): void => {
@@ -324,7 +343,10 @@ export function SamplesDialog(): React.JSX.Element {
         },
     );
     const query = text.trim().toLowerCase();
-    const shown = entries.filter((entry) => query === "" || entry.words.includes(query));
+    const allGroups = [...new Set(entries.map((entry) => entry.group))];
+    const shown = entries.filter(
+        (entry) => (group === "" || entry.group === group) && (query === "" || entry.words.includes(query)),
+    );
     const groups = [...new Set(shown.map((entry) => entry.group))];
     const separable = ctx.session !== null && ctx.session.data.sources().length > 0;
     return (
@@ -334,22 +356,32 @@ export function SamplesDialog(): React.JSX.Element {
                 onClose={close}
                 onExitTransitionEnd={() => {
                     setText("");
+                    setGroup("");
                 }}
                 title="Samples"
-                size="md"
+                size={720}
             >
-                <Stack gap="md">
+                <Stack gap="sm">
                     <SearchInput aria-label="Search samples" placeholder="Search" value={text} onChange={setText} />
-                    {groups.map((group) => (
-                        <section key={group} aria-label={group}>
-                            <Text size="xs" fw={600} c="dimmed" mb={2}>
-                                {group}
+                    <Chip.Group multiple={false} value={group} onChange={setGroup}>
+                        <Group gap={4} role="radiogroup" aria-label="Group">
+                            {["", ...allGroups].map((each) => (
+                                <Chip key={each} value={each} size="xs" variant="light">
+                                    {each === "" ? "All" : each}
+                                </Chip>
+                            ))}
+                        </Group>
+                    </Chip.Group>
+                    {groups.map((each) => (
+                        <section key={each} aria-label={each}>
+                            <Text size="xs" fw={600} c="dimmed" mb={4}>
+                                {each}
                             </Text>
-                            <Stack gap={0}>
+                            <div className="ws-samples-grid">
                                 {shown
-                                    .filter((entry) => entry.group === group)
+                                    .filter((entry) => entry.group === each)
                                     .map((entry) => (
-                                        <SampleRow
+                                        <SampleTile
                                             key={entry.key}
                                             separable={separable}
                                             entry={{
@@ -361,7 +393,7 @@ export function SamplesDialog(): React.JSX.Element {
                                             }}
                                         />
                                     ))}
-                            </Stack>
+                            </div>
                         </section>
                     ))}
                     {shown.length === 0 ? (

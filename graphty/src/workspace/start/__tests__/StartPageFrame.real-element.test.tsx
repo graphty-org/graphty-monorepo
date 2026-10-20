@@ -2,7 +2,7 @@
  * The start page inside the app's own frame (index.css, which keeps the workspace from ever
  * scrolling), on the REAL graphty-element: the page scrolls both ways by wheel, touch and keyboard;
  * its bar of facts ends the first view at iPad sizes; the theme button switches the theme in place;
- * and the Samples dialog offers every dataset graph-samples lists that a browser opens in a moment.
+ * and the sample library offers every dataset graph-samples lists that a browser opens in a moment.
  */
 
 // The app's frame, as main.tsx loads it.
@@ -16,7 +16,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
-import { openSamples, sampleRow } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
@@ -54,32 +53,29 @@ function scrolled(): number {
 }
 
 /**
- * Whether the page is scrolled as far down as it goes.
- * @returns true once it is.
+ * Whether the page has come to rest at the samples: their top just under the sticky header, or
+ * the page scrolled as far as it goes.
+ * @param samples - The samples section.
+ * @returns true once it has.
  */
-function atEnd(): boolean {
+function atSamples(samples: HTMLElement): boolean {
     const end = (document.scrollingElement?.scrollHeight ?? 0) - window.innerHeight;
-    return end > 0 && scrolled() >= end - 1;
+    const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
+    return Math.abs(samples.getBoundingClientRect().top - header) < 1 || scrolled() >= end - 1;
 }
 
 /**
- * Opens the start page and scrolls it to the end by wheel, over the headline (the graph's canvas
- * keeps the wheel for zooming the graph).
+ * Opens the start page and presses Samples, which scrolls the page down to them.
+ * @returns the samples section.
  */
-async function scrollDown(): Promise<void> {
+async function showSamples(): Promise<HTMLElement> {
     await startPage();
-    await wheelOver(screen.getByRole("heading", { level: 1 }), 5000);
+    const samples = screen.getByRole("region", { name: "Sample library" });
+    await userEvent.click(screen.getByRole("button", { name: "Samples" }));
     await waitFor(() => {
-        assert.isTrue(atEnd(), "the wheel scrolled the page down");
+        assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
     });
-}
-
-/**
- * The foot of the page, where a pointer scrolls it back up.
- * @returns the footer.
- */
-function foot(): HTMLElement {
-    return screen.getByRole("contentinfo");
+    return samples;
 }
 
 beforeEach(async () => {
@@ -96,17 +92,26 @@ afterEach(async () => {
 });
 
 describe("the start page in the app's frame", () => {
-    it("scrolls down, and back up again, by wheel", async () => {
-        await scrollDown();
+    it("scrolls down to the samples, and back up and down again by wheel", async () => {
+        const samples = await showSamples();
 
-        await wheelOver(foot(), -5000);
+        // The wheel over the samples, then over the headline (the graph's canvas keeps the wheel
+        // for zooming the graph).
+        await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
+        });
+        // As far as the samples, not past them: the library runs on well below its top.
+        const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
+        await wheelOver(screen.getByRole("heading", { level: 1 }), samples.getBoundingClientRect().top - header);
+        await waitFor(() => {
+            assert.isTrue(atSamples(samples), "the wheel scrolled it down");
         });
     });
 
     it("shows the header's own lockup only once the page is scrolled past the big one", async () => {
         await startPage();
+        const samples = screen.getByRole("region", { name: "Sample library" });
         const header = document.querySelector<HTMLElement>(".ws-land-top");
         assert.isUndefined(header?.dataset.scrolled, "at the top, the big lockup is in view");
 
@@ -118,30 +123,30 @@ describe("the start page in the app's frame", () => {
         });
         assert.isUndefined(header?.dataset.scrolled, "a resize did not scroll the page");
 
-        await wheelOver(screen.getByRole("heading", { level: 1 }), 5000);
+        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
         await waitFor(() => {
-            assert.isTrue(atEnd(), "the wheel scrolled the page down");
+            assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
         });
-        await wheelOver(foot(), -5000);
+        await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.isUndefined(header?.dataset.scrolled, "back at the top, it hides it again");
         });
     });
 
-    it("scrolls back up by touch", async () => {
-        await scrollDown();
+    it("scrolls back up from the samples by touch", async () => {
+        await showSamples();
 
         // A finger moving down the page scrolls it up.
         const before = scrolled();
-        await swipeOver(foot(), 400);
+        await swipeOver(screen.getByRole("heading", { name: "Sample library" }), 400);
         await waitFor(() => {
             assert.isBelow(scrolled(), before, "a swipe scrolled it back up");
         });
     });
 
-    it("scrolls back up, and down again, by keyboard", async () => {
-        await scrollDown();
+    it("scrolls back up from the samples, and down again, by keyboard", async () => {
+        await showSamples();
 
         await userEvent.keyboard("{Home}");
         await waitFor(() => {
@@ -173,8 +178,10 @@ describe("the start page in the app's frame", () => {
                 const box = bar.getBoundingClientRect();
                 assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
                 assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");
+                // The count comes from the hero's session, which the page gets only once the
+                // sample's import has resolved: after the element already holds its 77 nodes.
+                assert.isNotNull(bar.textContent?.match(/\d+ algorithms/), "the bar names the algorithms");
             });
-            assert.isNotNull(bar.textContent?.match(/\d+ algorithms/), "the bar names the algorithms");
         });
     }
 
@@ -194,25 +201,22 @@ describe("the start page in the app's frame", () => {
 
     it("offers every dataset graph-samples lists that graphty-element opens, and opens one", async () => {
         const store = await startPage();
-        const dialog = await openSamples();
-        const offered = [
-            ...within(within(dialog).getByRole("region", { name: "Graphs" })).getAllByRole("button"),
-            ...within(within(dialog).getByRole("region", { name: "Datasets" })).getAllByRole("button"),
-        ];
+        const offered = screen
+            .getAllByRole("button", { name: /^Open the .+ sample$/ })
+            .map((button) => button.getAttribute("aria-label"));
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        // The app's own four copies stand in for theirs in graph-samples, each listed once.
         assert.lengthOf(offered, opens.length);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
             "Generic GO slim (Gene Ontology)",
         ]) {
-            assert.isNotNull(sampleRow(dialog, title));
+            assert.include(offered, `Open the ${title} sample`);
         }
 
-        await userEvent.click(sampleRow(dialog, "Doubtful Sound dolphins"));
+        await userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" }));
         await waitFor(
             () => {
                 const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
@@ -230,12 +234,13 @@ describe("the start page in the app's frame", () => {
     it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {
         const store = await startPage();
 
-        const large = sampleRow(await openSamples(), "Gene Ontology (go-basic)");
-        assert.include(large.textContent, "1.4 MB");
+        const large = screen.getByRole("button", { name: "Open the Gene Ontology (go-basic) sample" });
+        assert.include(large.textContent, "48,340 nodes, 71,496 edges");
+        assert.include(large.textContent, "Large: 1.4 MB, slower to open");
         await userEvent.click(large);
-        const asked = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
-        assert.include(asked.textContent, "48,340 nodes and 71,496 edges, a 1.4 MB download.");
-        assert.include(asked.textContent, "takes a while to open");
+        const dialog = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
+        assert.include(dialog.textContent, "48,340 nodes and 71,496 edges, a 1.4 MB download.");
+        assert.include(dialog.textContent, "takes a while to open");
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
@@ -243,7 +248,7 @@ describe("the start page in the app's frame", () => {
         assert.isNull(store.get().project, "nothing opened");
 
         // The license is where the data comes from, said once, under the size; Open is always there.
-        await userEvent.click(sampleRow(await openSamples(), "Gene Ontology (go-basic)"));
+        await userEvent.click(large);
         const again = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
         assert.include(again.textContent, "License: CC BY 4.0");
         assert.isNotNull(within(again).queryByRole("button", { name: "Open" }));
@@ -252,34 +257,32 @@ describe("the start page in the app's frame", () => {
             assert.isNull(screen.queryByRole("dialog"));
         });
 
-        // A dataset past graphty-element's published ceilings has no row: it could only open empty.
-        const samples = await openSamples();
+        // A dataset past graphty-element's published ceilings has no tile: it could only open empty.
         for (const dataset of DATASET_DESCRIPTORS) {
-            const tile = within(samples)
-                .queryAllByRole("button")
-                .find((button) => button.textContent.startsWith(dataset.title));
+            const tile = screen.queryByRole("button", { name: `Open the ${dataset.title} sample` });
             const fits = dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn;
             if (!fits) {
-                assert.isUndefined(tile, `${dataset.name} is left out`);
+                assert.isNull(tile, `${dataset.name} is left out`);
             }
         }
-        assert.isNull(screen.queryByText(/Too large/), "no row offers what does not open");
+        assert.isNull(screen.queryByText(/Too large/), "no tile offers what does not open");
     });
 
     it("lists every generator, and generates a small graph with the parameters set", async () => {
         const store = await startPage();
-        const samples = await openSamples();
-        const generated = () =>
-            within(within(samples).getByRole("region", { name: "Generated" })).getAllByRole("button");
-        assert.lengthOf(generated(), GENERATOR_DESCRIPTORS.length);
+        const generators = screen.getAllByRole("button", { name: /^Generate a graph: / });
+        assert.lengthOf(generators, GENERATOR_DESCRIPTORS.length);
 
-        await userEvent.type(within(samples).getByRole("searchbox", { name: "Search samples" }), "small world");
+        const library = screen.getByRole("region", { name: "Sample library" });
+        await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "small world");
         assert.deepEqual(
-            generated().map((button) => button.textContent),
-            ["Newman-Wattsgraphty", "Watts-Strogatzgraphty"],
+            within(library)
+                .getAllByRole("button", { name: /^Generate a graph: / })
+                .map((button) => button.getAttribute("aria-label")),
+            ["Generate a graph: Newman-Watts", "Generate a graph: Watts-Strogatz"],
         );
 
-        await userEvent.click(sampleRow(samples, "Watts-Strogatz"));
+        await userEvent.click(screen.getByRole("button", { name: "Generate a graph: Watts-Strogatz" }));
         const dialog = await screen.findByRole("dialog", { name: "Watts-Strogatz" });
         const nodes = within(dialog).getByRole("textbox", { name: "Nodes" });
         assert.equal((nodes as HTMLInputElement).value, "60");

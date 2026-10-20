@@ -194,7 +194,8 @@ const CSS_COLOR_WORD_BY_HEX: ReadonlyMap<string, string> = new Map(
 /**
  * Hue bands, by the hue each ends at, and their names. Green runs to 170 so a bluish green (the
  * Okabe-Ito 009E73) reads green; indigo (235-260), violet and purple are bands of their own, so a
- * blue-violet such as 6366F1 is not "blue" and 800080's hue is "purple", not "pink".
+ * blue-violet such as 6366F1 is not "blue" and 800080's hue is "purple", not "pink". Red starts at
+ * 340, so a crimson such as BE0032 (hue 344) reads red; pinks such as EC4899 sit near 330.
  */
 const HUES: readonly (readonly [number, string])[] = [
     [15, "red"],
@@ -206,7 +207,7 @@ const HUES: readonly (readonly [number, string])[] = [
     [260, "indigo"],
     [280, "violet"],
     [320, "purple"],
-    [350, "pink"],
+    [340, "pink"],
     [360, "red"],
 ];
 

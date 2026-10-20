@@ -544,7 +544,8 @@ allowlist, so the request is on the same origin and in the main file's folder or
 to the set and checks again. The files together are held to `maxBytes`, at most 64 files are added
 (`E_MODEL_TOO_LARGE { what: "count" }`), each request is made like the main one, and a file that
 does not answer is `E_MODEL_FETCH`. A reference to another host, or above the folder, stays
-`E_MODEL_EXTERNAL_URL` and is never requested.
+`E_MODEL_EXTERNAL_URL` and is never requested. Sites laid out differently -- other folders, other cases, signed
+URLs, parts on other hosts, web pages, zips -- are handled by section 12.
 
 **A second guard that does not depend on parsing.** For the length of each load, every request
 Babylon makes passes one hook (the glTF loader's `preprocessUrlAsync` and Babylon's global URL
@@ -730,6 +731,12 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                                                 | Show the "Turn upright" control near the model                                                                                                                        |
 | `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                                        | "Layers that used this model now show the plain shape."                                                                                                               |
 | `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                                          | "This project names a model on the web; others may not be able to open it."                                                                                           |
+| `E_MODEL_WEB_PAGE`            | `url`, `host`, `part?`, `suggested?`                                                                                                 | The URL answered with a web page, not a model (12.6)                                               | "That address is a web page, not the model file."                                                                                                                     |
+| `E_MODEL_PART_AMBIGUOUS`      | `name`, `referencedBy`, `candidates`                                                                                                 | More than one file could be the part (12.5)                                                        | A select of the candidates on the part's row                                                                                                                          |
+| `E_MODEL_PART_REQUIRED`       | `name`, `role`                                                                                                                       | Thrown by `assets.supply` for a skip of geometry (12.4)                                            | (a programming error; the app never offers it)                                                                                                                        |
+| `W_MODEL_PART_SUBSTITUTED`    | `name`, `used`, `referencedBy`                                                                                                       | A reference matched one file by case or base name (12.5)                                           | "Used maps/wood.png for wood.PNG."                                                                                                                                    |
+| `W_MODEL_PART_SKIPPED`        | `name`, `role`                                                                                                                       | Drawn without a picture or `.mtl` the reader skipped (12.4)                                        | "Drawn without wood.png."                                                                                                                                             |
+| `W_MODEL_PART_UNUSED`         | `fileName`                                                                                                                           | A supplied file matched no missing part (12.4)                                                     | "notes.txt is not a part of this model."                                                                                                                              |
 
 Later packages add `W_MODEL_ANIMATION_UNKNOWN`, `W_MODEL_ANIMATION_LIMITED` (3.6, 3.7) and
 `E_MODEL_CRASHED_LAST_TIME` (7.3).
@@ -883,7 +890,7 @@ Every model is hostile input, whether a user dropped it or a project file embedd
   and a root URL that cannot resolve against the page (3.3).
 - **No network from a document, data or the AI without the reader.** Only layers added by code, or
   hosts the page or the reader allowed, fetch URLs; everything else waits in `session.network`
-  (2.6). A model's own references reach only its own folder on its own origin (3.3).
+  (2.6). A model's own references reach only its own folder on its own origin (3.3); a part on another host is fetched only when the reader supplies its URL, through the same gate (12.7).
 - **Allocation bombs.** glTF structure, accessor and count checks before Babylon sees the file;
   per-use triangle counting; OBJ, STL and PLY scans (3.3).
 - **Decompression bombs.** Streaming unzip with real byte counts and ratio caps (3.1); image
@@ -959,20 +966,21 @@ The app writes words and arranges controls; every fact and every check comes fro
 
 Packages 1 to 6 are the prototype; 1 to 5 are graphty-element.
 
-| #   | Package                                  | Contents                                                                                                                                                                                                                                                                                                                                                             |
-| --- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Dependency and model chunk               | `@babylonjs/loaders@8.56.2` and `fflate`; one lazily imported chunk registering only the glTF, OBJ, STL and PLY plugins; PBR shaders and the neutral `.env` bundled; every CDN-defaulted Babylon URL off; the chunk's own budget and the `./bundle` budget raised by the measured amount; a request-guard test in Chromium and WebKit                                |
-| 2   | Asset intake (`./session`, Babylon-free) | `session.assets` (`add`, `ready`, `get`, `list`, `inspect`, `remove`, `files`, `setLimits`, `allowHosts`); every source shape; streaming unzip; detection and `detectModelFormat`; main-file choice; reference allowlist; glTF structure and count checks; OBJ, STL and PLY scans; digests and names; limits; the intake codes                                       |
-| 3   | Channels and drawing                     | The `node.model*` channels in schema, interner and catalog; URL provenance (2.6); `ModelCache` with reference counts; guarded `LoadAssetContainerAsync`; rest-pose bake, grouped merge, fit with `sizeMode`, up axis, center; environment; compile and freeze; tint gating; bounding-box picking; sphere radius for edges; coalesced swap-in; the event and warnings |
-| 4   | Per-node models from data                | `styles.encode` with a value map to `node.model`, asset ids only                                                                                                                                                                                                                                                                                                     |
-| 5   | Samples, catalog, docs, stories          | The CC0 samples with PNG thumbnails, `session.catalog.models()`; the guide page "Drawing nodes as models" (first example 2.1, then 2.2); Storybook stories                                                                                                                                                                                                           |
-| 6   | App, minimal                             | "Model..." in the shape control with samples, file choice and drop; drop on canvas; "Turn upright" and "Use node color"; error text for every code                                                                                                                                                                                                                   |
-| 7   | Project storage                          | The `graphty-assets` member and its rules (7.3; built)                                                                                                                                                                                                                                                                                                               |
-| 8   | Decoders                                 | Draco and meshopt as lazy chunks with output checks; KTX2 as an optional peer; `./bundle` behavior stated                                                                                                                                                                                                                                                            |
-| 9   | Level of detail                          | Opt-in LOD channel, budget-derived distance with hysteresis, `MSFT_lod`                                                                                                                                                                                                                                                                                              |
-| 10  | Extension point                          | `registerModelLoader` with `convert`, then `load`                                                                                                                                                                                                                                                                                                                    |
-| 11  | Animation                                | Clips on clones up to `maxAnimatedNodes`, then baked vertex animation                                                                                                                                                                                                                                                                                                |
-| 12  | Polish                                   | Live thumbnails of dropped models, 2D impostors, `assets.addAll` for model kits, the app's asset list and advanced panel, intake parsing in a worker                                                                                                                                                                                                                 |
+| #     | Package                                  | Contents                                                                                                                                                                                                                                                                                                                                                             |
+| ----- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Dependency and model chunk               | `@babylonjs/loaders@8.56.2` and `fflate`; one lazily imported chunk registering only the glTF, OBJ, STL and PLY plugins; PBR shaders and the neutral `.env` bundled; every CDN-defaulted Babylon URL off; the chunk's own budget and the `./bundle` budget raised by the measured amount; a request-guard test in Chromium and WebKit                                |
+| 2     | Asset intake (`./session`, Babylon-free) | `session.assets` (`add`, `ready`, `get`, `list`, `inspect`, `remove`, `files`, `setLimits`, `allowHosts`); every source shape; streaming unzip; detection and `detectModelFormat`; main-file choice; reference allowlist; glTF structure and count checks; OBJ, STL and PLY scans; digests and names; limits; the intake codes                                       |
+| 3     | Channels and drawing                     | The `node.model*` channels in schema, interner and catalog; URL provenance (2.6); `ModelCache` with reference counts; guarded `LoadAssetContainerAsync`; rest-pose bake, grouped merge, fit with `sizeMode`, up axis, center; environment; compile and freeze; tint gating; bounding-box picking; sphere radius for edges; coalesced swap-in; the event and warnings |
+| 4     | Per-node models from data                | `styles.encode` with a value map to `node.model`, asset ids only                                                                                                                                                                                                                                                                                                     |
+| 5     | Samples, catalog, docs, stories          | The CC0 samples with PNG thumbnails, `session.catalog.models()`; the guide page "Drawing nodes as models" (first example 2.1, then 2.2); Storybook stories                                                                                                                                                                                                           |
+| 6     | App, minimal                             | "Model..." in the shape control with samples, file choice and drop; drop on canvas; "Turn upright" and "Use node color"; error text for every code                                                                                                                                                                                                                   |
+| 7     | Project storage                          | The `graphty-assets` member and its rules (7.3; built)                                                                                                                                                                                                                                                                                                               |
+| 8     | Decoders                                 | Draco and meshopt as lazy chunks with output checks; KTX2 as an optional peer; `./bundle` behavior stated                                                                                                                                                                                                                                                            |
+| 9     | Level of detail                          | Opt-in LOD channel, budget-derived distance with hysteresis, `MSFT_lod`                                                                                                                                                                                                                                                                                              |
+| 10    | Extension point                          | `registerModelLoader` with `convert`, then `load`                                                                                                                                                                                                                                                                                                                    |
+| 11    | Animation                                | Clips on clones up to `maxAnimatedNodes`, then baked vertex animation                                                                                                                                                                                                                                                                                                |
+| 12    | Polish                                   | Live thumbnails of dropped models, 2D impostors, `assets.addAll` for model kits, the app's asset list and advanced panel, intake parsing in a worker                                                                                                                                                                                                                 |
+| 13-15 | Sites laid out differently               | Section 12.11                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Sample models to bundle (all CC0, a few hundred KB in total)
 
@@ -1034,5 +1042,280 @@ Not taken, or taken differently, with the reason:
 | Full x, y, z rotation                                            | Changed: `node.modelTurn` about the up axis covers facing; an arbitrary tuple is not a channel value                                      |
 | `animationPaused`                                                | Dropped: `node.modelAnimation: false` already stops it                                                                                    |
 | Asking the owner now about 7.3 storage                           | Asked once the prototype worked; the owner chose embedding (2026-10-20)                                                                   |
+
+## 12. Loading models from sites with different layouts
+
+**Owner request (2026-10-20):** "auto-detect where we can but allow users to manually enter all
+the URLs for models where needed." Sites do not lay out a model's files the same way, so a URL
+that names only the main file is not always enough. This section adds an automatic second try
+for the common layouts, a `.zip` URL as a first-class source, and a way to hand the element each
+part it could not find, by URL or by file, after which the load carries on. Everything here is
+additive: no existing name, type, default or code changes meaning.
+
+### 12.1 How real sources lay out their files (surveyed 2026-10-20)
+
+| Source                                                         | What a URL gives                                                                                                                                                                                                                        | CORS                   | What happens today, and with this section                                                                                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Khronos glTF-Sample-Assets, `raw.githubusercontent.com`        | A `.gltf` whose `.bin` and PNGs sit beside it (`FlightHelmet.gltf` names `FlightHelmet.bin` and bare PNG names). Served as `text/plain`, so the type header cannot be trusted                                                           | `*`                    | Loads today: same folder. Detection stays by bytes                                                                                                                          |
+| The same file's `github.com/.../blob/...` page                 | An HTML page                                                                                                                                                                                                                            | none                   | Today `E_MODEL_FORMAT_UNKNOWN`; now `E_MODEL_WEB_PAGE` with `suggested` naming the `raw.githubusercontent.com` URL (12.6)                                                   |
+| `github.com/.../raw/...`                                       | A 302 to `raw.githubusercontent.com`, then the file                                                                                                                                                                                     | `*` after the redirect | Loads today                                                                                                                                                                 |
+| jsDelivr (`cdn.jsdelivr.net/gh/...`)                           | The file, with a correct `model/gltf+json` type                                                                                                                                                                                         | `*`                    | Loads today                                                                                                                                                                 |
+| GitHub release assets, repository archive zips (`codeload`)    | A 302 to a signed blob URL (`release-assets.githubusercontent.com/...?sp=r&sv=...`); the archive sends `Access-Control-Allow-Origin: https://render.githubusercontent.com` only                                                         | none for other sites   | `E_MODEL_FETCH { status: null }`: a browser cannot read them. The reader downloads and drops the file (the app's words already say so)                                      |
+| Poly Pizza (`static.poly.pizza/<uuid>.glb`)                    | One self-contained GLB (type header `gltf-binary`, not a real media type). The model page `poly.pizza/m/<id>` is HTML                                                                                                                   | `*` on the GLB         | The GLB loads today; the page is `E_MODEL_WEB_PAGE`                                                                                                                         |
+| Kenney (`kenney.nl/media/.../kenney_<kit>.zip`)                | One zip per kit: 1,557 entries for the furniture kit, the same 141 models in `Models/GLTF format/`, `OBJ format/`, `STL format/`, `FBX format/`, `DAE format/`; the MTL files carry colors only                                         | none                   | A browser cannot fetch it (`E_MODEL_FETCH`); dropped, the kit is over the 1,024-entry cap (`E_MODEL_ZIP { reason: "entries" }`). The reader drops one model's files instead |
+| Sketchfab                                                      | The model page is HTML. A download needs a signed-in reader and yields a time-limited signed storage URL to a zip holding `scene.gltf`, `scene.bin`, `textures/` (PNG and JPEG) and `license.txt`                                       | the page: none         | The page is `E_MODEL_WEB_PAGE`; the downloaded zip, dropped or pasted while its signed URL is fresh, loads as a zip (12.3)                                                  |
+| S3, GCS and Azure signed URLs                                  | The object, authorized by the query string (`X-Amz-Signature`, `X-Goog-Signature`, `sig=`). One signature covers one object, except an Azure container SAS (`sr=c`), which covers every object in the container                         | per bucket             | Today a companion is requested with no query and fails (403). Now: the main URL's query is kept, a 401 or 403 companion is retried once with it (12.2), else it is a row    |
+| OBJ packs from asset stores and exporters                      | `model.obj` + `model.mtl`, textures in `textures/`, `Textures/` or `maps/`; MTL lines name `Wood.JPG` for `wood.jpg`, `textures\wood.png` with backslashes, or an absolute path from the author's disk (`C:\Users\me\Desktop\wood.png`) | varies                 | Today a case or folder mismatch is `E_MODEL_MISSING_FILE` and an absolute path `E_MODEL_EXTERNAL_URL`; now tolerant matching (12.5) finds the one file meant                |
+| Static hosts with a single-page-app fallback (Netlify, Vercel) | A missing file answers `200` with the site's `index.html`                                                                                                                                                                               | varies                 | Today the HTML is stored as the part and fails later; now a companion that answers with a web page is missing (12.2)                                                        |
+
+What follows from the survey: most URLs that load at all are same-folder layouts, which the first
+try already covers; the rest break in five ways -- a case or folder mismatch, a signed query, a
+part on another host, a web page instead of a file, and a zip -- and each gets one rule below.
+Hosts that send no CORS header cannot be fixed by any rule in a browser: their files are dropped.
+
+### 12.2 The automatic tries, in order
+
+For each reference the main file names, after the allowlist (3.3) and tolerant matching (12.5)
+find nothing in the set, a model fetched by URL tries, in this order, stopping at the first file:
+
+1. **Beside the main file** -- the reference resolved against the main file's URL, as today.
+2. **With the main URL's query** -- only when the main URL has a query and try 1 answered 401 or
+   403: the same URL once more, carrying the main URL's query. Same origin and same folder tree,
+   so the query goes back to the server that issued it.
+3. **By base name in the usual texture folders** -- only for a texture whose reference has no
+   folder or whose folder was not found: `<folder of main>/<base>`, then `textures/<base>` and
+   `Textures/<base>` below the main file's folder. Never above it, never another host.
+
+Every try counts toward the set's `maxBytes` and toward a new cap of **16 requests per part**
+beyond the first; the set's 64-file cap is unchanged. A try that answers with a web page (12.6
+detection) is a miss, not a file. The first part not found after the tries is not the end of the
+load: the element finishes trying every reference it can see, then reports every part still
+missing at once (12.4).
+
+### 12.3 A `.zip` URL
+
+A URL whose bytes start `PK\x03\x04` is unpacked exactly as a dropped zip (3.1): fflate's
+streaming `Unzip`, real byte counts, at most 1,024 entries, names of at most 512 characters, a
+ratio cap of 100 per entry, `__MACOSX/` skipped, no zip inside a zip, the common top folder
+stripped. The main file is picked as for a drop (3.2), and a zip never triggers the automatic
+tries of 12.2: what is not inside it is a row (12.4). This already works for a URL a layer or
+`assets.add` names; this section fixes it as a contract with its own tests.
+
+When the zip holds several models (`E_MODEL_AMBIGUOUS { candidates }`), the caller picks one with
+`assets.supply(ref, { main })` (12.4) instead of re-adding the URL. `candidates` is cut to its
+first 64 paths, sorted, with `more: number` giving how many were left out.
+
+### 12.4 Supplying a part afterwards: `assets.supply`
+
+A model that is missing parts is held by the session instead of thrown away, so the reader can
+hand over the parts and the load carries on from where it stopped.
+
+```ts
+export interface AssetsApi {
+    // ...section 2.4, unchanged...
+    /**
+     * Answer what a rejected model is missing, then check it again. Resolves with the new record:
+     * accepted, or rejected with what is still missing (an .mtl, once given, may name pictures).
+     * @param ref - What a layer named (a URL or an asset id), or the record's id.
+     */
+    supply(ref: string, answer: PartAnswer, options?: { signal?: AbortSignal }): Promise<AssetRecord>;
+}
+
+export type PartAnswer =
+    /** Fetch this URL as the part. Another host is allowed, through session.network (12.7). */
+    | { readonly name: string; readonly url: string }
+    /** This file is the part. With no name, it is matched to a missing part by path, then by base name. */
+    | { readonly name?: string; readonly file: NamedBlob | Uint8Array }
+    /** Use a file the set already holds for an ambiguous reference (E_MODEL_PART_AMBIGUOUS). */
+    | { readonly name: string; readonly use: string }
+    /** Draw without this part. Pictures and .mtl files only; never a .bin or other geometry. */
+    | { readonly name: string; readonly skip: true }
+    /** Which file of the set is the model (E_MODEL_AMBIGUOUS). */
+    | { readonly main: string };
+```
+
+The simple path, for a page with no interface of its own:
+
+```ts
+const rack = await graph.session.assets.ready("https://example.com/rack.gltf");
+for (const problem of rack.problems) {
+    if (problem.code === "E_MODEL_MISSING_FILE") {
+        const url = prompt(`URL of ${problem.params.name}?`);
+        if (url) await graph.session.assets.supply(rack.url ?? rack.id, { name: String(problem.params.name), url });
+    }
+}
+```
+
+Rules:
+
+- **What is reported.** A rejected record lists one `E_MODEL_MISSING_FILE` per part still
+  missing, all at once, each with the new params `role` and `optional` (12.8), in the order the
+  main file names them. `E_MODEL_PART_AMBIGUOUS` (12.5) is listed the same way. The reader sees
+  every row in one go, except the pictures an `.mtl` names, which appear once the `.mtl` is in.
+- **Matching a name.** `name` is matched against the missing parts' `name` exactly, then after
+  normalizing the path (3.3) and case. A file with no `name` is matched by its
+  `webkitRelativePath` (normalized), then by its base name, case-insensitively; it must match
+  exactly one missing part, else the call settles with `W_MODEL_PART_UNUSED { fileName }` added
+  and nothing else changed. A name no part is missing is the same warning, not an error: a
+  reader who drops a folder on one row loses nothing.
+- **Resume.** The part is checked with the same checks as any file in the set (an image must
+  read as PNG, JPEG or WebP; sizes, counts and structure as in 3.3), added under the missing
+  part's name, and the whole set is checked again from the main file. Calls for one ref run one
+  at a time in the order made. The record keeps its provisional id while rejected and takes its
+  digest id when accepted; `model:changed` fires `pending`, then `accepted` and `drawn` (or
+  `rejected` with what is still missing), under the ref the layers named, so every layer naming it
+  redraws with no new call.
+- **What is held.** A rejected model's set stays in the session until it is accepted, removed
+  (`assets.remove(ref)` also takes a URL or provisional id), or the session ends. Held bytes count
+  toward `sessionBytes` like stored ones; no time limit ends a hold.
+- **Ids.** The digest covers the files as given, supplied parts included, under the names the
+  model uses. Skipped parts are listed on the record (`skipped`, below) and are not in the
+  digest. The same files with the same skips are the same asset however they arrived.
+- **Errors in the call itself** are thrown as `GraphtyError`: `E_MODEL_UNKNOWN_ASSET` for a ref
+  the session does not hold; `E_BAD_COMMAND` for a record that is not rejected for a missing,
+  ambiguous or unchosen part; `E_MODEL_PART_REQUIRED { name, role }` for a skip of a geometry part.
+- **AssetRecord** gains `readonly skipped?: readonly string[]` (the parts drawn without) and
+  `ModelChange` is unchanged.
+
+Skipping a picture draws the material without that map (a glTF image whose name was skipped is
+replaced at load by a 1 x 1 white PNG made by the element, so `baseColorFactor` still applies; an
+OBJ `map_*` line naming it is dropped before loading) and adds `W_MODEL_PART_SKIPPED { name,
+role }` to the accepted record. Skipping an `.mtl` draws the OBJ with the default material. A
+skip is remembered: saving embeds the set with `skipped` (12.9), so reopening asks nothing.
+
+### 12.5 Tolerant matching
+
+A reference that is not a key of the set as written is matched, in order:
+
+1. **Path, normalized.** Backslashes become slashes, `./` is dropped, percent-escapes decoded
+   once (3.3). `textures\wood.png` finds `textures/wood.png`.
+2. **Path, any case.** `Textures/Wood.JPG` finds `textures/wood.jpg`.
+3. **Base name, any case, anywhere in the set.** `wood.png` finds `maps/wood.png`.
+
+A local absolute path an author's exporter wrote (`C:\Users\me\wood.png`, `/home/me/wood.png`,
+`file:///C:/wood.png`) is treated as its base name and matched by step 3 only; it is never
+fetched as written. `http(s):`, `//host`, `blob:` and `..` leaving the set stay
+`E_MODEL_EXTERNAL_URL` (3.3). Steps 2 and 3 apply only when exactly one file matches; that use is
+reported as `W_MODEL_PART_SUBSTITUTED { name, used, referencedBy }` on the accepted record. Two or
+more matches are `E_MODEL_PART_AMBIGUOUS { name, referencedBy, candidates }`, which a caller
+settles with `supply(ref, { name, use })`; the element never guesses. For a model fetched by URL,
+tolerant matching runs over the set before any try of 12.2, so a file already fetched is never
+requested twice. The loader sees only the matched paths: the request guard's map (3.3) and the
+OBJ rewrite use the resolution, so a substituted file is the only one Babylon can reach.
+
+### 12.6 A URL that is a web page
+
+A response whose first non-whitespace bytes (after a UTF-8 byte order mark, within the first
+1,024 bytes) are `<!doctype html`, `<html`, `<head` or `<body`, case-insensitively, and that
+matches no model or picture format by its bytes (section 5), is a web page. Detection is by bytes
+only: hosts send `text/plain` and `gltf-binary` for real models, so the type header decides
+nothing.
+
+- As the main file, or as a part someone supplied by URL: `E_MODEL_WEB_PAGE { url, host, part?,
+suggested? }`. `url` is shown without its query. `part` is the part's name when it was a
+  supplied part. `suggested` is set only when the element knows the address of the file behind a
+  page by its pattern, with no fetch: `github.com/<o>/<r>/blob/<ref>/<path>` gives
+  `https://raw.githubusercontent.com/<o>/<r>/<ref>/<path>`, and `<gitlab host>/<p>/-/blob/<ref>/<path>`
+  gives the same with `/-/raw/`. The element does not follow it: it is another address, which the
+  application offers to the reader and which then passes the gate like any other.
+- As an automatic try (12.2): a miss, so the part becomes a row instead of a web page stored as a
+  `.bin`.
+
+### 12.7 Security
+
+Nothing in this section raises a limit or opens a path the design closed.
+
+- **Parts by URL go through the gate.** A supplied part URL on the main file's own origin is
+  fetched as an automatic try is. On any other host it is a question in `session.network` (2.6),
+  `W_URL_NEEDS_APPROVAL` with `kind` the part's kind (`"model"` for geometry and `.mtl`,
+  `"texture"` for a picture) and the new `by: "supplied"` (`NetworkRequestAsker` is an open union),
+  unless the host is already allowed by the page, the reader or the project. A denied part is
+  `E_MODEL_URL_BLOCKED { hosts, denied: true, part }` on the record and stays a row.
+- **Private addresses stay refused** for a supplied part URL, whoever calls `supply`: private,
+  loopback and link-local hosts (`isPrivateHost`) are `E_MODEL_URL_BLOCKED`. A developer with a
+  part on their own machine passes it as a file.
+- **The query is kept for the fetch** (signed cloud URLs need it) and removed everywhere it could
+  be shown or kept: problems, events, `network.pending()` and saved projects (12.9).
+- **No credentials.** Every request is made as in 3.1: `credentials: "omit"`, `referrerPolicy:
+"no-referrer"`, the time limit, a URL holding a user name and password refused.
+- **Limits.** Supplied and fetched parts count toward the set's `maxBytes` (text files toward
+  `maxTextBytes`), the 64-file cap, `maxTextureBytes` and every structure check; the automatic
+  tries toward 16 requests per part. A zip by URL has every limit of a dropped zip.
+- **Tolerant matching stays inside the set.** It only picks among files the set already holds;
+  it never builds a request from a local absolute path.
+- **The request guard is unchanged:** Babylon reaches only the `blob:` URLs made for the load.
+
+### 12.8 Codes
+
+New codes (graphty-element `codes.ts`), all `{ code, params }`, params from files cut to 256
+characters, URLs without their query:
+
+| Code                       | params                               | When                                                                           |
+| -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `E_MODEL_WEB_PAGE`         | `url`, `host`, `part?`, `suggested?` | The URL answered with an HTML page, not a model or picture (12.6)              |
+| `E_MODEL_PART_AMBIGUOUS`   | `name`, `referencedBy`, `candidates` | Tolerant matching found more than one file (12.5)                              |
+| `E_MODEL_PART_REQUIRED`    | `name`, `role`                       | Thrown by `supply` for a skip of a geometry part (12.4)                        |
+| `W_MODEL_PART_SUBSTITUTED` | `name`, `used`, `referencedBy`       | A reference resolved by case or base name to the one file that matched (12.5)  |
+| `W_MODEL_PART_SKIPPED`     | `name`, `role`                       | The model is drawn without a picture or `.mtl` the reader chose to skip (12.4) |
+| `W_MODEL_PART_UNUSED`      | `fileName`                           | A supplied file matched no missing part (12.4)                                 |
+
+New params on existing codes (additive):
+
+| Code                   | New params                                                                                                                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_MODEL_MISSING_FILE` | `role: "geometry" \| "materials" \| "texture"` (OPEN UNION), `optional: boolean` (true for a skippable part), `tried?: string[]` (the addresses tried, without queries, at most 4) |
+| `E_MODEL_URL_BLOCKED`  | `part?` (the part's name, for a supplied part)                                                                                                                                     |
+| `E_MODEL_AMBIGUOUS`    | `more?: number` (12.3)                                                                                                                                                             |
+
+`role` is `"geometry"` for glTF `buffers[].uri` and anything an OBJ needs to have faces,
+`"materials"` for an `.mtl`, `"texture"` for glTF `images[].uri` and `map_*` lines.
+
+### 12.9 Saving
+
+A model with supplied or skipped parts is always embedded: its parts came from several places,
+some by signed URLs that expire, so no single URL can bring it back. `save({ assets: { [url]:
+"url" } })` for such a model embeds it and reports `W_MODEL_NOT_KEPT_BY_URL { url, reason:
+"parts" }` in the save result. The `graphty-assets` entry gains `skipped?: string[]` (schema and
+`design/documents/assets.md` updated, a conformance row added); reading an entry with `skipped`
+applies the same skips before checking, so the reopened model is the same asset with the same
+id. A part's URL is never written to a project file.
+
+### 12.10 The graphty app: missing-part rows
+
+The app shows facts the element reports; it decides nothing. Where: under the model choice in
+the Model picker (`ModelPicker.tsx`) after a paste or drop, and under the layer's model line when
+its model was rejected for missing parts (the warning badge opens the same rows).
+
+- **One row per `E_MODEL_MISSING_FILE` and `E_MODEL_PART_AMBIGUOUS`**, in the record's order, as
+  Figma property rows: the label column is the part's file name (`params.name`, truncated in the
+  middle, full name in the tooltip) with a small role tag the app words from `role` ("Mesh",
+  "Materials", "Texture"); the value column holds the controls. No sentences in the rows.
+- **Controls per row:** a "Paste URL" text field (Enter submits `supply(ref, { name, url })`), a
+  "Drop file" target that is also a button opening the file chooser (`supply(ref, { name, file
+})`), and, only when `params.optional` is true, "Load without it" (`supply(ref, { name, skip:
+true })`). An ambiguous row shows a select of `params.candidates` instead (`supply(ref, { name,
+use })`). A row shows a spinner while its call runs and disappears when the part is in; a new
+  row appearing (pictures an `.mtl` names) is announced to screen readers.
+- **Dropping several files on the rows block** (not one row) sends each with no `name`, so the
+  element matches them; `W_MODEL_PART_UNUSED` shows as an inline note under the block.
+- **A row's error** is written next to its field from the codes: `E_MODEL_FETCH`,
+  `E_MODEL_URL_BLOCKED`, `E_MODEL_WEB_PAGE` ("That address is a web page, not the file." and, with
+  `suggested`, a "Use the file's address" button that pastes it), `E_MODEL_TOO_LARGE`.
+- **A pasted URL on another site** raises the app's existing web-address question (2.6) through
+  `network:pending`; the app words `by: "supplied"` as "Load a part of this model from <host>?".
+- **Several models in a zip** (`E_MODEL_AMBIGUOUS`): one row labeled "Model" with a select of
+  `candidates` (and "+N more" from `more`), answered with `supply(ref, { main })`.
+- **Warnings** on the accepted model, worded from codes: `W_MODEL_PART_SUBSTITUTED` ("Used
+  maps/wood.png for wood.PNG"), `W_MODEL_PART_SKIPPED` ("Drawn without wood.png").
+
+### 12.11 Work packages
+
+| #   | Package                                                       | Contents                                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 13  | Element: resolution and detection (`./session`, Babylon-free) | Tolerant matching (12.5); every missing part reported at once with `role`, `optional`, `tried`; the automatic tries of 12.2; web-page detection and `suggested` (12.6); zip URL contract and `more` (12.3); new codes |
+| 14  | Element: `assets.supply` and resume                           | `supply` with every `PartAnswer`; held sets; the gate for part URLs (`by: "supplied"`); skips drawn as described; redraw of every layer naming the ref; `skipped` on the record and in the assets member (12.9)       |
+| 15  | App: missing-part rows                                        | 12.10                                                                                                                                                                                                                 |
+
+---
 
 See also: `design/documents/container.md` for the project file container this design extends.

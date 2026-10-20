@@ -16,34 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, re-walk of the label clearance and ring fix on a fresh build of e0bf7c63e,
-   `design/ui/studio/tmp/r1-dry1-recheck-labels-overlap-ring/` a and b) Holds. Les Miserables:
-   0 hidden at default size with no words touching; 1 hidden after 5 wheel turns in toward
-   Cosette (perspective: nearer nodes grow faster than the fixed 3 px clearance, so zooming in
-   can add one -- not a regression, the count is honest); size 96 gives 7 hidden, 3 turns out
-   12; Size box Enter keeps focus, Tab to "Reset Size to default", Shift+Tab back, Escape closes
-   onto the gear. Cosette and Lucy Grant (volunteers at 96, 0 hidden) selected: labels clear the
-   ring. An edge still draws over a selected node's label (the known red
-   `label-drawn-over-edges` test, older than this fix).
+0. (2026-10-19, crimson is red) compact-mantine `colorWord` (`utils/color-utils.ts`, the one
+   function every spoken color name goes through: picker swatches, the layer table, the folder
+   Color button, legend words): the red band now starts at hue 340, not 350, so BE0032 (hue 344,
+   Kelly's red in the 19-color palette) reads "red", not "pink". Hot and deep pinks sit near 330
+   (EC4899, CC79A7, FF69B4) and stay pink; F783AC (hue 339) stays pink. Test: `color-utils.test.ts`
+   "calls a crimson red and keeps pink for pinks" (red before the change). Walk on a fresh build
+   (`design/ui/studio/tmp/r1-dry1-color-word-crimson/walk/`): College football, Louvain, folder
+   Color: table swatch "Layer Group 5 color, red" (13), picker swatch "red BE0032, the color before
+   this edit" (15). The session's first page load was blank (02, 03); `--reopen` loaded it (04) --
+   the session waited minutes for a browser slot, mechanism not traced. graphty `words.test.ts`
+   "draws the vary glyph..." is red ("Node color by attribute" vs "Color by attribute"), not mine.
+   Re-walk of the label clearance fix (Top of mind 0 before this):
+   `git show 50ecd91e4:design/ui/studio/notes/engineer.md`.
 
-1. (2026-10-19, label count and the selection ring) Measured first with an in-page probe of the
-   frozen build (`design/ui/studio/tmp/r1-dry1-labels-overlap-ring/probe.mjs`, word rectangles
-   from each label plane's corners): at default size Les Miserables draws NO overlapping words,
-   only 3 pairs within 2 px, and at size 96 the count did change with zoom (10 to 8). So "0
-   hidden" was honest by the old rule; the reader's "touching" was the defect. graphty-element
-   `LabelDeclutter`: `LABEL_CLEARANCE` (3 px) between kept words and from other nodes' circles
-   (`isClear`, `coversNode`, the node grid's buckets widened to match), fixed in pixels so the
-   camera decides it; `projectNode` sizes a node by `node.label.ringScale` (new getter on the
-   unexported `RichTextLabel`, no API change), so a label moved beside a selected node clears the
-   ring, not the node. Tests: `label-declutter` "hides a label whose words touch a kept one, and
-   shows it again when a zoom opens the gap" (real wheel), `label-clears-halo` "are apart when the
-   label was moved beside its node" (both fail on HEAD). Walks w2 (Les Mis: 0 hidden at default
-   size with nothing touching, 14 at 96, 13 zoomed in, 14 back), w3 (volunteers at 96: 0 hidden,
-   nothing within 3 px; Lucy Grant selected, ring clear, crop w3/15). Red before and after (not
-   mine): `label-drawn-over-edges` "draws a selected node's label over its selection ring" (x2).
-   Earlier Top-of-mind 0 and 0a (size clamp; Analyze Enter, tooltip, message; labels third
-   hand-out): `git show 9ed873a75:design/ui/studio/notes/engineer.md`.
-
+1. (2026-10-19, label count and the selection ring) graphty-element `LabelDeclutter` keeps a
+   fixed 3 px `LABEL_CLEARANCE` between kept words and other nodes' circles, and sizes a node by
+   `node.label.ringScale` so a moved label clears the selection ring; measured first with an
+   in-page probe, re-walked and holding. In full, with the probe, tests and walks:
+   `git show 50ecd91e4:design/ui/studio/notes/engineer.md`, Top of mind 0 and 1.
 2. (2026-10-18, layer rows and the key agree with what a layer draws: `styles.groups` counted over
    the layer's selector, `rows.ts` `builtParts`, `legendWords.ts` `heldRows`/`coveredLine`) in
    full, with its walks and the tests red on HEAD then, in

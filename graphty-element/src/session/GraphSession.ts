@@ -45,7 +45,7 @@ import type {
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
-import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
+import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -68,7 +68,7 @@ import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
 import { noteMembers } from "./notes/select";
-import { boundTargets } from "./notes/status";
+import { boundTargets, edgeRowsOf } from "./notes/status";
 import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
@@ -2380,6 +2380,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Kept sets, published as `session.sets`.
     const edgeMember = (id: EdgeId): EdgeMember | undefined =>
         sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
+    dispatcher.services.edgeIdentity = {
+        member: edgeMember,
+        idsOf: (members) => {
+            const now = snapshot();
+            const counters = now.edges.typed(EDGE_ID_COLUMN, "u32");
+            return Array.from(edgeRowsOf(now, members), (row) =>
+                row < 0 || counters === null ? undefined : edgeIdOf(counters.data[row]),
+            );
+        },
+    };
     // Which halves carry a value path: what a dependency and an attribute filter leaf read.
     const fieldKinds = (path: Path): readonly string[] =>
         fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields);

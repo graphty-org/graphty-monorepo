@@ -17,6 +17,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0t. (2026-10-20) A replacing load keeps a hand-picked edge layer on the same edges. A session edge
+id is a counter that never rewinds, so Replace with the same CSV (no file edge ids) left an `ids`
+layer naming dead ids (matched 0). Fix in `data.import`'s execute (`session/commands/data.ts`):
+before the load, `pickedEdges` reads each unlocked `{match:"ids"}` layer's edges as stable members
+(file id, else ordinal among its pair's edges); after it, `repickEdges` binds them in the new
+snapshot and dispatches `style.patch update` inline, so the remap is in the import's own step and
+one Undo takes both back. The session hands the identity in as `services.edgeIdentity`
+(`GraphSession.ts`, next to `edgeMember`; `edgeRowsOf` from `notes/status.ts`). Node ids are file
+ids and need no remap. Internal only, no public API. Test:
+`graphty-element/test/session/replace-keeps-picked-edges.test.ts` (fails without: matched 0).
+Walk on a fresh build: `design/ui/studio/tmp/r1-dry1-replace-keeps-picked-ties/walk/` 13 (before)
+and 17/18 (after Replace: "8 edges" 8, red, width 24) and 19 (Undo keeps 8). Not re-walked: the
+T45A success path (it has no replacing load, so this code is not on it). Still open beside it: a
+note pinned to a CSV edge has the same dead-id problem on Replace.
 0s. (2026-10-20) A saved style document reads a renamed channel under its new name:
 `readRenamedChannels` in `graphty-element/src/session/styles/channels.ts` (a table, old name ->
 new) runs on each layer in `planTemplate` (StylesApi), so `project.open` and `applyTemplate` both
@@ -31,9 +45,8 @@ note wraps in a 110 px number box; run fields unreachable by name in a rule (`=P
 Lesson: a hover left by an earlier `--click` looks like an arrow-key highlight -- check the
 pointer's last position first.
 
-1. (2026-10-19) Earlier re-walk (key and layer rows, New layer from selection, selection words,
-   Color by kind keys, Why this look) and dimmed Undo and Redo as Tab stops: in full in
-   `git show fd71d1807:design/ui/studio/notes/engineer.md`, Top of mind 0 and 1.
+1. Older Top-of-mind entries, in full: 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
+   `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
 2. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
    with a selection clears the selection and keeps focus on the header; decided.md says it moves
    focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
@@ -42,45 +55,39 @@ pointer's last position first.
    `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
    Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
    Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
-3. Earlier 2026-10-19 entries, in full: Escape in the inspector and the tooltip re-read, style
-   fields' Tab, remove and Escape (`git show 393580a87:...`, Top of mind 1, 2); why-this-look,
-   layer list, grid Tab stop, find box, heading ring, filter Tab, announcements (`e0482cf5e`,
-   0 to 7); Undo, Select all, table sort, F6 (`1c6a68ee4`, 5, 6); label line, card keys, names
-   (`d60b1956b`, 0 to 1b). All paths `design/ui/studio/notes/engineer.md`.
-4. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+3. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-5. 2026-10-18 entries: `git show e247f1900:design/ui/studio/notes/engineer.md`, 0c to 6.
-6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+4. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+5. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+6. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+7. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-    BoundValue for one layer and for several (owner 2026-10-16).
-12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+8. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+9. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+   `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
+   round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
+   built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+   BoundValue for one layer and for several (owner 2026-10-16).
+10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -89,6 +96,11 @@ pointer's last position first.
 
 ## Decisions and reasons
 
+- (2026-10-20) **A replacing load remaps hand-picked edge layers in the import command, not in the
+  app or in the store.** The command already sweeps file layers in the same step
+  (`applyFileStyles`), so the remap undoes with the load; the app holding old ids and rewriting
+  them would be a workaround, and the store knows nothing of layers. Only edges: node ids survive
+  a reload. An edge the new file lacks keeps its old id (matches nothing), never guessed.
 - (2026-10-20) **A renamed channel is read in the style document reader, not in the project file
   reader.** `planTemplate` is where every saved style document (a project's member, a style file
   applied by a consumer) becomes layers, so one place covers both; `projectFile.ts` would have left
@@ -122,92 +134,7 @@ pointer's last position first.
   value the reader cannot find on the canvas; the Style panel already names the covering layer.
 - (2026-10-19) **A layer's kind is the union of its looks and its conditions.** A condition is
   the reader building that half as surely as a look is.
-
-- (2026-10-18) **A finding against an older build is checked against HEAD before any code.** The
-  Analyze findings (Enter, tooltip, run message) came from pilot screenshots of build 58556989e;
-  117 commits later all three were fixed and tested, so the right change was none.
-- (2026-10-18) **The key reads which values a layer holds from `styles.groups`, fixed in the
-  element.** Its count claimed the layer's elements and gave the graph's; computing per-layer
-  counts in the app (or via `preview({ within })`) would have worked around a documented defect.
-  Display order and which rows to show stay the app's, so ordering the key like the table is app
-  code. **A row counts the half being built**: a condition with nothing set yet is what the reader
-  is making, so "Node and edge layer, 63" on a node card at 0 of 24 was false.
-- (2026-10-18) **The app names a rule's columns through the element, not by parsing.** The rule
-  language is the element's; `renamePaths` already rewrote paths for `checkRule`'s suggestion, so
-  exporting it was the smallest additive door. Structure values had no name fact anywhere (panels
-  hard-coded "Degree"), so `data.structureValues()` was added beside `readableValues()` rather
-  than into it: new entries there would change an existing call's result. The example rule stays
-  in rule text (bare column names), since it teaches what to type.
-- (2026-10-18) **After a corrected rule runs, the box keeps the reader's words.** Writing the
-  corrected path into the box put `=graphty.degree > 10` on screen, the very path the reader never
-  sees elsewhere. Whether a bare name should read the structure stays the owner's question.
-- (2026-10-18) **`picked` adds to aria-selected rather than replacing `current`'s.** Tests and the
-  combobox pattern read the current option as aria-selected; a picked row is marked too, with a
-  visible check so the mark is not color alone.
-
-- (2026-10-18) **An unset select holds no value; its default is the placeholder.** A check must
-  mean "set here", and Mantine will not fire a pick equal to its value, so holding the default made
-  the starting value impossible to choose. Reverses "the value beneath carries the same check".
-  Cost: code that read the unset input's `.value` reads "" (one graphty test); recorded for the
-  owner as not blocking.
-- (2026-10-18) **An own walk timer in StyleSelect fought the shared type-ahead.** Walking to the
-  default from `onDropdownOpen` raced Mantine's own open update (it runs after and resets the
-  store index, so Enter picked nothing while the cell looked lit) and, delayed past it, undid a
-  letter-typed open. One shared notion of "the option a list opens on" (`inForce`) fixed both.
-- (2026-10-18) **A dead stop leaves the Tab order; a dimmed command stays.** A full "+" adds
-  nothing and its lines are their own stops; Undo with nothing to undo is still the command the
-  reader looks for. Reverses the earlier "every + is a Tab stop" call (tests updated).
-- (2026-10-18) **A condition card's undo step is one finished change, not one open.** Typed then
-  dragged was one step, so Control+Z threw away the typed value with the drag. Typing that writes
-  per keystroke (a text card) still merges while focus stays in that box. Reverses "each
-  open-and-close is one undo step" (tier3 design 2026-10-16).
-- (2026-10-18) **Undo's accessible name says what it undoes.** Reverses "the accessible names stay
-  the verbs": a screen reader hears the tooltip's words only on hover, so the name carries them.
-- (2026-10-18) **Escape clears the selection in the inspector except in a field.** The canvas
-  menu promises "Clear selection Escape"; a heading or a button holds nothing Escape could undo.
-- (2026-10-18) **The next stop is found by page order from the opener's toolbar,** not by the
-  opener's index among Tab stops: a roving toolbar has one stop, which may be another tool.
-- (2026-10-18) **The caret's tooltip is fixed in placement, not given a fixed side.** Every side
-  covers something in a tree; weighting the row's own words generalizes the own-heading rule.
-- (2026-10-18) **Group colors go in a bound pill's name, not its description.** The study tool
-  and many screen readers read a description late or not at all, and the chits are not controls;
-  the name is what Tab lands on. Order is facts then groups so `^... colors$`-style names became
-  `...: ` prefixes in tests. Applies to every categorical line (shape and Layer pills too).
-- (2026-10-18) **A merged key section takes no name,** rather than labelling the row: one element
-  says "Color: Poster". `CanvasOverlays.test` finds the section by role inside the Legend.
-
-- (2026-10-18) **A larger selection disables a node-reading analysis rather than opening it
-  empty.** An open form with Source and Sink unset has no way to fill them (the Analyze form reads
-  ends only from the selection), so Run would only refuse; the row's reason says what to do.
-  Applies to every algorithm whose options read nodes, not only Most flow.
-- (2026-10-18) **Id columns are told apart by the element's `holdsNodeIds` / role `key`, in the
-  app's words, not by the element dropping their mean.** Changing what `selection.statistics()`
-  returns would be breaking; which statistic a reader sees is the app's choice.
-- (2026-10-18) **Category gets its own icon (Boxes) instead of text losing Aa.** The read-the-file
-  page and the summary already call such columns categories; one icon per concept.
-- (2026-10-18) **Focus is kept by the line, not by `useFocusLine`.** The tab was never redrawn
-  (the walk and a DOM identity check showed the tab, section and line elements unchanged); only
-  the control inside the line was replaced. Making every control one component across waiting,
-  set and bound would be a large rewrite; a line that takes focus back whenever its own focused
-  control leaves the page covers every swap (first value, Undo to a binding, any later one) in
-  one place. It acts only when focus fell to the page, so a caller that placed focus wins.
-- (2026-10-18) Further dated decisions (tooltip weighting, labels on the drawing, the key's
-  room, the filter step reusing the condition card, refusing Highest above the count, chip
-  nouns, "Edit edges", condition-change names, bulk-step counts, `pickColor` casing, the open
-  sample's URL, canvas-click drops, counts versus name room) in full in
-  `git show b824a5e61:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
-- (2026-10-18) **Staging a shared file by HEAD line numbers, never `git apply --cached -U0`.** A
-  zero-context hunk applied after a skipped foreign hunk landed 18 lines off (StylePanel would
-  not parse). `hunks2.py` in `tmp/r1-dry2-r1-3-10` rewrites HEAD's lines bottom-up and stages
-  the blob; check the index by `git checkout-index --prefix=graphty/tmp/<dir>/` and `tsc` on it.
-
-- Ten decisions of 2026-10-18 (focus after an open, "Same size at any depth", "+" never writes,
-  the node "+" start, a list closing on focus leaving, "Selected" said per cell, already-met items,
-  key line names) are in full in `git show 28e989215:design/ui/studio/notes/engineer.md`.
-- Thirty further decisions of 2026-10-18 (color box, redo of a run, inspector summaries, the key's
-  room, find box words, focus) are in full in `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
-
-Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 14b7a7606:design/ui/studio/notes/engineer.md`.
+- Entries dated before 2026-10-19, in full: `git show 3892643e51:design/ui/studio/notes/engineer.md`.
 
 ## Thinking
 
@@ -224,6 +151,9 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-20) Worked, in real.mjs: selecting every find match is the "kind is family (8)" value
+  row (Enter, or a click on one edge row, selects only that edge and closes the list). Line + is
+  `--click-at` on "Add to edge line"; the hex box takes `--type FF0000 --key Enter`.
 - (2026-10-20) Worked: Node test opening the two study project files straight from
   `design/ui/studio/tool/files/` with `createGraphSession().project.open` -- it failed with the
   reader removed (E_UNKNOWN_CHANNEL, no layers) and passes with it. `createGraphSession` takes no
@@ -296,6 +226,7 @@ build --outDir <private dist>` in the copy's `graphty/`: 30 s, no tsc, nothing s
   `onDropdownOpen` order, two-part layers, gml ids, tooltip waits, proving failure by copying HEAD,
   focusin stack traces, private-index commits, the 3D wheel zoom-out symmetry finding) in full in
   `git show 393580a87:design/ui/studio/notes/engineer.md`, "Tried: worked / did not work".
+- Entries dated before 2026-10-19, in full: `git show 3892643e51:design/ui/studio/notes/engineer.md`.
 
 ## Sources
 

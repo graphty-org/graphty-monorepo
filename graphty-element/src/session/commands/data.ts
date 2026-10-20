@@ -29,7 +29,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
+import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -42,6 +42,7 @@ import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply"
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
+import type { Selector } from "../styles/selector";
 import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
@@ -331,6 +332,22 @@ export interface DataService {
      * @param draft - The command's draft.
      */
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
+}
+
+/** A session's stable edge identity, read from its current snapshot. */
+export interface EdgeIdentityService {
+    /**
+     * An edge's stable identity: its file id, else its ordinal among its pair's edges in its load.
+     * @param id - The session edge id.
+     * @returns The member, or undefined when the graph holds no such edge.
+     */
+    member(id: EdgeId): EdgeMember | undefined;
+    /**
+     * The session ids of the edges stable members name now.
+     * @param members - The members.
+     * @returns One entry per member: its edge's id, or undefined when it binds no single edge.
+     */
+    idsOf(members: readonly EdgeMember[]): (EdgeId | undefined)[];
 }
 
 /** The graph value naming where the graph was last loaded from. */
@@ -690,7 +707,13 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             adviseLayout(ctx, () => sceneScale);
         }
 
+        const replacing = command.mode !== "merge" && command.measure === undefined;
+        const picked = replacing ? pickedEdges(ctx) : [];
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        if (outcome !== null && outcome !== undefined) {
+            await repickEdges(picked, ctx);
+        }
+
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
@@ -700,6 +723,62 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
+
+/** A user layer naming edges by id, with each edge's stable identity before a replacing load. */
+interface PickedEdges {
+    readonly id: LayerId;
+    readonly selector: Extract<Selector, { match: "ids" }>;
+    readonly members: readonly (EdgeMember | undefined)[];
+}
+
+/**
+ * The user layers whose `ids` selector names edges, read before a replacing load: a session edge
+ * id is a counter that never rewinds, so the same file loaded again issues new ids.
+ * @param ctx - The import's context.
+ * @returns Each such layer with its edges' stable identities.
+ */
+function pickedEdges(ctx: UndoableContext): PickedEdges[] {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return [];
+    }
+
+    const picked: PickedEdges[] = [];
+    for (const { layer } of ctx.state.styles) {
+        const { selector } = layer;
+        if (layer.locked || selector.match !== "ids" || selector.edges === undefined || selector.edges.length === 0) {
+            continue;
+        }
+
+        picked.push({ id: layer.id, selector, members: selector.edges.map((edge) => identity.member(edge)) });
+    }
+
+    return picked;
+}
+
+/**
+ * Point each hand-picked layer at the ids the replacing load gave the same edges, in the load's
+ * step, so loading the same file again keeps the layer's members. An edge the new graph does not
+ * hold keeps its old id, which matches nothing.
+ * @param picked - What {@link pickedEdges} read before the load.
+ * @param ctx - The import's context.
+ */
+async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext): Promise<void> {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return;
+    }
+
+    for (const { id, selector, members } of picked) {
+        const bound = members.filter((member): member is EdgeMember => member !== undefined);
+        const ids = identity.idsOf(bound);
+        let at = 0;
+        const edges = (selector.edges ?? []).map((edge, k) => (members[k] === undefined ? edge : (ids[at++] ?? edge)));
+        if (edges.some((edge, k) => edge !== selector.edges?.[k])) {
+            await ctx.inline({ op: "style.patch", action: "update", id, patch: { selector: { ...selector, edges } } });
+        }
+    }
+}
 
 /**
  * Choose the layout recommended for what an import loads, once it is loaded, merged into the

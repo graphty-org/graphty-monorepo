@@ -1324,6 +1324,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
+    const knockouts = new Map<string, { arrow: PArrow; box: PBox }>();
     for (const p of free()) {
         const picture = p.kind === "image";
         if ((p.kind !== "shape" && !picture) || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
@@ -1354,7 +1355,20 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
         if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {
-            best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
+            const arrow = arrowFrom(p, best.e.points, best.end, canvas);
+            // Cytoscape.js erases the canvas under a translucent edge's arrowhead before it paints it (cytoscape.js
+            // 3.34.3 `drawArrowhead`: the same shape filled white under `destination-out`, which the SVG replay records
+            // as a white fill): that erasure is not a hollow arrow of its own, the arrow painted over it is the head
+            const key = `${best.e.id}\u0000${best.end}`;
+            const under = knockouts.get(key);
+            if (under !== undefined && arrow.filled && sameBox(under.box, p.box)) {
+                best.e.arrows.splice(best.e.arrows.indexOf(under.arrow), 1, arrow);
+                continue;
+            }
+            if (!arrow.filled && p.fill !== null) {
+                knockouts.set(key, { arrow, box: p.box });
+            }
+            best.e.arrows.push(arrow);
             if (best.end !== "middle") {
                 best.e.points = extendToTip(best.e.points, p.points, best.end);
             }

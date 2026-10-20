@@ -831,7 +831,7 @@ describe("arrowheads", () => {
      * @param look.stroke - its outline
      * @returns the arrow the reader finds
      */
-    const readHead = (look: { fill: PFill; stroke: PStroke }): PArrow | undefined => {
+    const readHeads = (looks: readonly { fill: PFill | null; stroke: PStroke | null }[]): PArrow[] => {
         let index = 0;
         const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
             index: index++,
@@ -858,19 +858,33 @@ describe("arrowheads", () => {
                 ],
                 stroke: stroke("#0000ff"),
             }),
-            prim({
-                tag: "polygon",
-                points: [
-                    [270, 96],
-                    [280, 100],
-                    [270, 104],
-                    [270, 96],
-                ],
-                ...look,
-            }),
+            ...looks.map((look) =>
+                prim({
+                    tag: "polygon",
+                    points: [
+                        [270, 96],
+                        [280, 100],
+                        [270, 104],
+                        [270, 96],
+                    ],
+                    ...look,
+                }),
+            ),
         ];
-        return associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene.edges[0]?.arrows[0];
+        return associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene.edges[0]?.arrows ?? [];
     };
+    const readHead = (look: { fill: PFill; stroke: PStroke }): PArrow | undefined => readHeads([look])[0];
+
+    it("reads a translucent Cytoscape.js arrowhead painted over its erasure as one filled arrowhead", () => {
+        // drawArrowhead erases the shape (recorded as a white fill), then fills it at the edge's opacity
+        const heads = readHeads([
+            { fill: fill("#ffffff"), stroke: null },
+            { fill: { ...fill("#008000"), opacity: 0.2 }, stroke: null },
+        ]);
+        assert.strictEqual(heads.length, 1);
+        assert.isTrue(heads[0]?.filled);
+        assert.strictEqual(heads[0]?.color, "#008000");
+    });
 
     it("reads an arrowhead filled in the canvas's own color as hollow, and gives it its outline's color", () => {
         const head = readHead({ fill: fill("#ffffff"), stroke: stroke("#ff0000", 1) });

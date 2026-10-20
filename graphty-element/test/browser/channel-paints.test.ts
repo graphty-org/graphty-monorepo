@@ -93,6 +93,9 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
     "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
     "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
+    // Where runs of different sizes meet changes only a line holding runs of different sizes.
+    "node.labelRunAlign": { "node.label": "a<size='300%'>M</size>" },
+    "edge.labelRunAlign": { "edge.label": "a<size='300%'>M</size>" },
     // A node's further parts are outlined, and its lines drawn, in its border; a line's own width needs a line.
     "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },

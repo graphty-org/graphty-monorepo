@@ -32,7 +32,7 @@ export class RichTextParser {
 
         const styleStack: RichTextStyle[] = [{ ...this.defaultStyle }];
 
-        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg)(?:='([^']*)')?>/g;
+        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg|shift)(?:='([^']*)')?>/g;
         let match;
 
         while ((match = tagRegex.exec(line)) !== null) {
@@ -76,6 +76,13 @@ export class RichTextParser {
                     case "bg":
                         newStyle.background = tagValue || null;
                         break;
+                    case "shift": {
+                        // how far down the run is drawn: in percent of the label's own size, or in its units
+                        const v = Number.parseFloat(tagValue ?? "");
+                        const by = tagValue?.endsWith("%") ? (this.defaultStyle.size * v) / 100 : v;
+                        newStyle.shift = (newStyle.shift ?? 0) + (Number.isFinite(by) ? by : 0);
+                        break;
+                    }
                     default:
                         break;
                 }
@@ -104,16 +111,13 @@ export class RichTextParser {
      * @param options.lineHeight - Line height multiplier
      * @param options.textOutline - Whether text outline is enabled
      * @param options.textOutlineWidth - Width of text outline
+     * @param options.runAlign - Where runs of different sizes meet on a line
      * @returns Maximum width and total height of the text
      */
     measureText(
         parsedContent: TextSegment[][],
         ctx: CanvasRenderingContext2D,
-        options: {
-            lineHeight: number;
-            textOutline: boolean;
-            textOutlineWidth: number;
-        },
+        options: LineOptions,
     ): { maxWidth: number; totalHeight: number } {
         let maxWidth = 0;
         let totalHeight = 0;
@@ -130,43 +134,83 @@ export class RichTextParser {
     }
 }
 
+/** How a label's runs of different sizes meet on a line: their alphabetic baselines, hanging baselines or middles. */
+export type RunAlign = "baseline" | "hanging" | "middle";
+
+/** How a line is laid out. */
+export interface LineOptions {
+    /** Line height multiplier. */
+    lineHeight: number;
+    /** Whether the text is outlined. */
+    textOutline: boolean;
+    /** How wide its outline is. */
+    textOutlineWidth: number;
+    /** Where runs of different sizes meet (`runAlign`); unset, on their alphabetic baselines. */
+    runAlign?: RunAlign;
+}
+
 /**
  * Measures one line of segments from the font's own metrics.
  *
- * The line's ink height is the tallest ascent plus the deepest descent over its segments, each
- * the larger of the font box (`fontBoundingBoxAscent` / `fontBoundingBoxDescent`) and the actual
- * glyph box, plus the outline on both sides. The line box is that height times `lineHeight`, and
- * the extra leading is split evenly above and below, as CSS does. The label's panel height and
- * the renderer's line advance both come from here, so they cannot disagree.
+ * Each run sits on the line where `runAlign` says: its alphabetic baseline on the line's (the default), its hanging
+ * baseline on the line's hanging baseline (vis-network's labels below a node, drawn with `textBaseline` hanging), or
+ * its middle on the line's middle (its labels drawn with `textBaseline` middle), the line's own being its tallest
+ * run's; then each run is moved down by its own `shift`. The line's ink height is the tallest ascent plus the deepest
+ * descent over its runs as they sit, each the larger of the font box (`fontBoundingBoxAscent` /
+ * `fontBoundingBoxDescent`) and the actual glyph box, plus the outline on both sides. The line box is that height
+ * times `lineHeight`, and the extra leading is split evenly above and below, as CSS does. The label's panel height
+ * and the renderer's line advance both come from here, so they cannot disagree.
  * @param ctx - Canvas rendering context for measurement
  * @param lineSegments - The segments of one line
  * @param options - Layout options
- * @param options.lineHeight - Line height multiplier
- * @param options.textOutline - Whether text outline is enabled
- * @param options.textOutlineWidth - Width of text outline
- * @returns The line's advance width, its line box height, and the distance from the top of the
- * line box to the alphabetic baseline
+ * @returns The line's advance width, its line box height, the distance from the top of the line box to the
+ * alphabetic baseline, and how far below that baseline each run's own baseline is drawn
  */
 export function measureLine(
     ctx: CanvasRenderingContext2D,
     lineSegments: TextSegment[],
-    options: { lineHeight: number; textOutline: boolean; textOutlineWidth: number },
-): { width: number; lineBox: number; baseline: number } {
+    options: LineOptions,
+): { width: number; lineBox: number; baseline: number; offsets: number[] } {
     let width = 0;
-    let ascent = 0;
-    let descent = 0;
     let maxSize = 0;
-
-    for (const { text, style } of lineSegments) {
+    ctx.textBaseline = "alphabetic";
+    const runs = lineSegments.map(({ text, style }) => {
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         const metrics = ctx.measureText(text);
         width += metrics.width;
-        // The font box keeps every label in one font the same height whatever its letters; the
-        // glyph box covers a face (a script font, say) whose ink overflows its own font box.
-        ascent = Math.max(ascent, metrics.fontBoundingBoxAscent || 0, metrics.actualBoundingBoxAscent || 0);
-        descent = Math.max(descent, metrics.fontBoundingBoxDescent || 0, metrics.actualBoundingBoxDescent || 0);
         maxSize = Math.max(maxSize, style.size);
-    }
+        const fontAscent = metrics.fontBoundingBoxAscent || 0;
+        const fontDescent = metrics.fontBoundingBoxDescent || 0;
+        return {
+            // The font box keeps every label in one font the same height whatever its letters; the
+            // glyph box covers a face (a script font, say) whose ink overflows its own font box.
+            ascent: Math.max(fontAscent, metrics.actualBoundingBoxAscent || 0),
+            descent: Math.max(fontDescent, metrics.actualBoundingBoxDescent || 0),
+            fontAscent,
+            // a browser that reports no hanging baseline draws it at 80% of the ascent, as Chromium does
+            hanging: Math.abs(metrics.hangingBaseline || 0) || 0.8 * fontAscent,
+            middle: ((metrics.emHeightAscent || fontAscent) - (metrics.emHeightDescent || fontDescent)) / 2,
+            shift: style.shift ?? 0,
+        };
+    });
+    // the line's own baseline is its tallest run's
+    const tallest = runs.reduce<(typeof runs)[number] | null>(
+        (best, r) => (best === null || r.fontAscent > best.fontAscent ? r : best),
+        null,
+    );
+    const offsets = runs.map((r) => {
+        const along = (key: "hanging" | "middle"): number => (tallest === null ? 0 : tallest[key] - r[key]);
+        const placed = { baseline: 0, hanging: -along("hanging"), middle: -along("middle") }[
+            options.runAlign ?? "baseline"
+        ];
+        return placed + r.shift;
+    });
+    let ascent = 0;
+    let descent = 0;
+    runs.forEach((r, i) => {
+        ascent = Math.max(ascent, r.ascent - offsets[i]);
+        descent = Math.max(descent, r.descent + offsets[i]);
+    });
 
     // A context that reports no vertical metrics at all: fall back to the em square.
     if (ascent + descent === 0) {
@@ -177,7 +221,7 @@ export function measureLine(
     const inkHeight = ascent + descent + outline * 2;
     const lineBox = inkHeight * options.lineHeight;
 
-    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent };
+    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent, offsets };
 }
 
 /** How a label's lines are fitted to its wrap width. */

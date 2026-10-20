@@ -144,6 +144,7 @@ const RICH_TEXT_KEYS = {
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
+    runAlign: "runAlign",
     rotation: "rotation",
     color: "textColor",
     lineHeight: "lineHeight",

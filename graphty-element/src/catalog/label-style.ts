@@ -146,6 +146,12 @@ export interface LabelStyle {
      */
     wrapSpaceCount?: number;
     /**
+     * Where runs of different sizes in one line of label markup meet: their alphabetic baselines ("baseline"), their
+     * hanging baselines, so their tops line up ("hanging", as vis-network draws a label below a node), or their middles
+     * ("middle"). Unset, their alphabetic baselines.
+     */
+    runAlign?: "baseline" | "hanging" | "middle";
+    /**
      * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
      * Unset or 0, it reads level.
      */
@@ -340,6 +346,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
+    runAlign: 0,
     rotation: 0,
     lineHeight: 0,
     minScreenSize: 0,

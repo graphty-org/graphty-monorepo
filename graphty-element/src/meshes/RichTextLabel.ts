@@ -85,6 +85,8 @@ export interface RichTextStyle {
     style: string;
     color: string;
     background: string | null;
+    /** How far below the line's baseline this run is drawn, in canvas pixels (the markup's `shift`). */
+    shift?: number;
 }
 
 export interface TextSegment {
@@ -171,6 +173,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
+    | "runAlign"
     | "minScreenSize"
     | "minNodeScreenSize"
     | "declutter"
@@ -589,6 +592,7 @@ export class RichTextLabel {
             textOutlineColor: this.options.textOutlineColor,
             textOutlineWidth: this.options.textOutlineWidth,
             textOutlineJoin: this.options.textOutlineJoin,
+            runAlign: this.options.runAlign,
         });
 
         this.pointerRenderer = new PointerRenderer();
@@ -659,6 +663,7 @@ export class RichTextLabel {
             lineHeight: this.options.lineHeight,
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
+            runAlign: this.options.runAlign,
         });
 
         this.textSize = { width: maxWidth, height: totalHeight };
@@ -755,6 +760,7 @@ export class RichTextLabel {
             lineHeight: DEFAULT_LINE_HEIGHT,
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
+            runAlign: this.options.runAlign,
         });
         const oneLine = this.actualDimensions.height - totalHeight + lineBox;
         this.oneLinePx = oneLine;
@@ -1311,6 +1317,7 @@ export class RichTextLabel {
             lineHeight: DEFAULT_LINE_HEIGHT,
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
+            runAlign: this.options.runAlign,
         });
         // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its
         // panel's padding and its borders (see `_calculateDimensions`).

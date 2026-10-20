@@ -223,6 +223,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
 | `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
 | `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
+| `node.labelRunAlign`          | `baseline`, `hanging` or `middle`: where runs of different sizes in one line of label markup meet                                                |
 | `node.labelMinScreenSize`     | a number of screen pixels: the label is hidden while its letters are drawn smaller                                                               |
 | `node.labelOnTop`             | true or false: draw the label over every node and edge                                                                                           |
 | `node.labelDeclutter`         | `degree` or `size`: hide the label where it overlaps one kept before it                                                                          |
@@ -281,6 +282,7 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                  |
 | `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                  |
 | `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                |
+| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                      |
 | `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                 |
 | `edge.labelOnTop`             | as `node.labelOnTop`                                                                                         |
 | `edge.labelRotation`          | as `node.labelRotation`                                                                                      |
@@ -313,7 +315,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
-`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with

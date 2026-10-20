@@ -238,6 +238,9 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
 export type LabelWeightValue = "normal" | "bold";
 
+/** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
+export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
+
 /** How a node's size is read: as the common node extent, or as the shape's largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
@@ -311,6 +314,7 @@ export interface ChannelValues {
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
+    "node.labelRunAlign": LabelRunAlignValue;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
@@ -521,6 +525,7 @@ export interface ChannelValues {
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
+    "edge.labelRunAlign": LabelRunAlignValue;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
     "edge.labelRotation": number;
@@ -1093,7 +1098,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1108,6 +1113,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -1286,6 +1292,14 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How many blanks one blank between two words counts as against the wrap width; it is still " +
                 "drawn once. Unset, one.",
         }),
+        row("RunAlign", "Run Align", {
+            accepts: "enum",
+            values: LABEL_RUN_ALIGN_VALUES,
+            caveat:
+                'Where runs of different sizes in one line of label markup meet: "baseline" puts their ' +
+                'alphabetic baselines on one line, "hanging" their hanging baselines, so their tops line ' +
+                'up (vis-network\'s labels below a node), "middle" their middles. Unset, "baseline".',
+        }),
         // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
@@ -1401,6 +1415,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -1424,6 +1439,9 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
 
 /** Every weight the `labelWeight` channels take. */
 const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+
+/** Every place the `labelRunAlign` channels take. */
+const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
 
 /**
  * A node label field channel: an edge label belongs to no node, so an
@@ -1470,7 +1488,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
             channel,
         );
 

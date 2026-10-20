@@ -668,6 +668,7 @@ function channelPlans(
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
+            ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelTextAlign", [label("labelTextAlign")]],
@@ -823,6 +824,7 @@ function channelPlans(
         ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
+        ["labelRunAlign", [id("edge.labelRunAlign")]],
         ["labelRotation", [label("labelRotation")]],
         ["labelBackground", [label("labelBackground")]],
         ["labelOutlineColor", [label("labelOutline")]],
@@ -1066,7 +1068,8 @@ function runTags(run: Record<string, unknown>): [string, string][] {
 /**
  * A label drawn in runs of styles of their own (the neutral `labelRuns`, a JSON array of runs) as the label markup
  * the element draws: each run's words in the tags of its weight, slant, face and color, every line of a run tagged
- * on its own (the markup does not carry across a line break), and its size as a share of the label's.
+ * on its own (the markup does not carry across a line break), and its size and its `shift` (how far below the line it
+ * is drawn, in the units of its size) as shares of the label's.
  * @param runs - the runs, as JSON
  * @param size - the label's own size, in the runs' unit, or null when it has none
  * @returns the label with its markup, or null when the runs cannot be read
@@ -1088,9 +1091,13 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
             }
             const r = run as Record<string, unknown>;
             const tags = runTags(r);
-            // a run's size, as a share of the label's own
+            // a run's size, and how far below the line it is drawn, as shares of the label's own size
+            const share = (v: number): string => `${String(Math.round((v / (size as number)) * 1e4) / 100)}%`;
             if (typeof r.size === "number" && typeof size === "number" && size > 0 && r.size !== size) {
-                tags.push(["size", `${String(Math.round((r.size / size) * 1e4) / 100)}%`]);
+                tags.push(["size", share(r.size)]);
+            }
+            if (typeof r.shift === "number" && r.shift !== 0 && typeof size === "number" && size > 0) {
+                tags.push(["shift", share(r.shift)]);
             }
             const open = tags.map(([tag, v]) => (v === "" ? `<${tag}>` : `<${tag}='${v}'>`)).join("");
             const close = tags

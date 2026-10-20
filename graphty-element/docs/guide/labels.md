@@ -116,6 +116,15 @@ element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true }
   about 5 ms a pass at 1,000 nodes and 60 to 80 ms at 10,000, on a workstation. A pass runs only on
   a frame where something above changed.
 
+## Label markup
+
+A label's words may carry markup tags, each closed by its own end tag: `<bold>`, `<italic>`,
+`<color='#ff0000'>`, `<font='monospace'>`, `<size='150%'>` (or a size in pixels), `<bg='#ffd700'>`
+and `<shift='60%'>`, which draws the run that far below the line (a share of the label's own size;
+negative is above). Where runs of different sizes meet on one line is the label style's `runAlign`
+(`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
+their tops line up, or on their middles.
+
 ## One node's label
 
 `element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or

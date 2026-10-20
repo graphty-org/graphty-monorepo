@@ -16,25 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, F6 regions; graphty app) `PANELS` in `frame/focus.ts` is now top bar
-   (`.ws-header`), Data page, left panel, drawing, toolbar, table, inspector; `NOT_A_LANDING`
-   (`[role="separator"]`) keeps F6 off a resize handle, also as a remembered control. From the
-   inspector heading F6 x5: Main menu, "Graph <name>" (left panel's first stop), Canvas, Analyze,
-   heading; Shift+F6 reverses. Walk `design/ui/studio/tmp/r1-dry1-f6-regions/f6/` 09-19 (focus
-   lines in screen-reader mode). Test: `FocusAndTabOrder.real-element` "F6 moves round the five
-   regions..." (userEvent F6/Shift+F6; red on the old order) and `focus.test` "never lands on a
-   resize handle". NOTE: decided.md's "Enter on a layer row ... F6 goes to the inspector" now
-   takes three presses (left -> canvas -> toolbar -> inspector), as the five-region order sets;
-   Shift+F6 from the tree goes to the top bar. The inspector heading takes F6 with no visible
-   ring (`outline: none` in `Inspector.tsx`), against decided.md's "heading draws a visible ring":
-   open, not this unit. Pre-existing red: "Tab out of the Vary by list" (same on old focus.ts).
-   START-SCREEN SLOWNESS (the 2-minute Shift+Tab): the study tool, not the app. `canvasMoves` in
-   `real.mjs` called `locator("graphty-element").boundingBox()` with no element on the page;
-   Playwright waits its default 30 s for one, so EVERY start-screen step took 30.6 s (T48A
-   e3c-keys 01-13 are 30 s apart, then 1 s once a graph opened). Fixed: `count()` first, then a
-   1 s bound; start-screen Tab/Shift+Tab now 0.6 s.
-   0a. (2026-10-19, "New layer from selection" makes the layer at once) in full in
-   `git show 18f1cae06:design/ui/studio/notes/engineer.md`, Top of mind 0.
+0. (2026-10-19, table: Show in table and sorting; compact-mantine `DataTable`, graphty `table/`)
+   (a) `DataTable` `markedColumn` (header boxed with `--cm-border-selected`, cells tinted
+   `--cm-bg-selected-secondary`; a selected row's fill still wins). TableDock keeps
+   `{kind, id}` from Show in table, scrolls the header into view, focuses its sort button, and
+   clears the mark on any pointerdown in the dock. (b) `handleSort` sets `scrollTop = 0` (jsdom
+   has no `scrollTo`, so not that). (c) label `sortNext(next, header, id)`: tooltip when the
+   column has no `headerTooltip`, and `aria-description` on the sort button (Mantine's tooltip
+   only describes while open; a click closes it until the pointer leaves and returns). The app
+   words it from `orderWords` in `columns.ts` (shared with the caption). A number column in the
+   app sorts highest first on the first click (the study's "lowest first" first click was on the
+   frozen build). Tests: DataTable.header.browser (3 new), TableDock.real-element "a sort shows
+   its first rows...", DataPlace "Show in table brings a column off the right edge" (mark, focus,
+   cleared). Walk `design/ui/studio/tmp/r1-dry1-table-show-and-sort/sources/` 11 (marked), 13,
+   15, 18 (hints), 14, 17 (top after sort from the end), 19 (order loaded), 21 (name marked).
+   Pre-existing red: DataPage "All 12 rows" twice; Groups "Les Miserables: back from a group"
+   timed out (its columns do not sort; another agent's Style changes were uncommitted).
+   0a. (2026-10-19, F6 regions; start-screen slowness was the study tool) in full in
+   `git show ab5c74c0b:design/ui/studio/notes/engineer.md`, Top of mind 0; "New layer from
+   selection" makes the layer at once: `git show 18f1cae06:...`, Top of mind 0.
 1. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
@@ -196,6 +196,10 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-19 Tooltip text as the only hint after a click: did not work (Mantine closes the
+  tooltip on click and keeps it shut while the pointer stays); the hint also goes on the button
+  as `aria-description`, and the tooltip shows it again on the next hover. Worked.
 
 - (2026-10-19) New layer from selection as `addRow` of one kind with nothing set: DID NOT WORK at
   first -- the element refused it ("writes no channel"), caught as a notice; the screenshot of the

@@ -4,6 +4,21 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-19 -- Decided by the team: a table header says what its next click does; a sort starts at the top; a column can be marked (compact-mantine)
+
+Additive. `DataTable` gains an optional `markedColumn` prop (a column id): that column's header is
+boxed and its cells tinted, so a reader sent to a column from elsewhere sees which one it is. The
+labels gain an optional `sortNext(next, header, columnId)`, the hint on a sortable header: what the
+next activation does ("Sort by Degree, descending", "Stop sorting by Degree" by default), shown as
+the header's tooltip when the column has no `headerTooltip` of its own, and read as the sort
+button's description. The hint names the column, so a header cut short still shows its whole name
+in it. A sort asked from a header now scrolls the rows back to the first one: kept, the old scroll
+showed the middle or the end of the new order. No default value changes and nothing is removed.
+
+The graphty app words the hint as its sort caption does ("Sort by donations, highest first") and
+marks the column "Show in table" asked for, with focus on its header, until the reader clicks in
+the table.
+
 ## 2026-10-19 -- For the owner: should a value beyond a written domain be drawn past the range's end?
 
 graphty-element's continuous scales (linear, log, pow, sqrt and the rest) place a value between the

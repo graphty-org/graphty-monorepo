@@ -340,8 +340,10 @@ export function TableDock(): React.JSX.Element {
     const { views, members } = arrangement;
 
     // Show in table: bring the asked-for column into view, checking it first if the reader
-    // unchecked it, then forget the ask.
+    // unchecked it, mark it and put focus on its header, then forget the ask. The mark stays
+    // until the reader clicks in the table.
     const wanted = useWorkspaceState((state) => state.dockColumn);
+    const [marked, setMarked] = useState<{ kind: RecordKind; id: string } | null>(null);
     const root = useRef<HTMLDivElement>(null);
     const nodesTab = useRef<HTMLButtonElement>(null);
     useEffect(() => {
@@ -361,9 +363,11 @@ export function TableDock(): React.JSX.Element {
         }
         const at = shownColumns(columnChoices(session, kind), view).findIndex((choice) => choice.id === wanted);
         if (at >= 0) {
-            root.current
-                ?.querySelector(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`)
-                ?.scrollIntoView({ block: "nearest", inline: "center" });
+            const header = root.current?.querySelector<HTMLElement>(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`);
+            header?.scrollIntoView({ block: "nearest", inline: "center" });
+            // The sort button holds a sortable header's tab stop.
+            (header?.querySelector<HTMLElement>("button") ?? header)?.focus({ preventScroll: true });
+            setMarked({ kind, id: wanted });
         }
         store.set({ dockColumn: null });
     }, [wanted, session, store, arrangement]);
@@ -419,7 +423,14 @@ export function TableDock(): React.JSX.Element {
     return (
         // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
         // always does its job, where nothing in the grid has an Escape of its own.
-        <div className="ws-table" ref={root} onKeyDown={leaveGrid}>
+        <div
+            className="ws-table"
+            ref={root}
+            onKeyDown={leaveGrid}
+            onPointerDown={() => {
+                setMarked(null);
+            }}
+        >
             <div className="ws-table-strip">
                 <Tabs
                     className="ws-table-tabs"
@@ -486,6 +497,7 @@ export function TableDock(): React.JSX.Element {
                         store.set({ announcement: sortCaption(column, sort?.desc ?? false) });
                     }}
                     height={tableHeight}
+                    marked={marked?.kind === kind ? marked.id : undefined}
                     onMoveColumn={(id, by) => {
                         const ids = visible.filter((choice) => choice.group !== "key").map((choice) => choice.id);
                         const from = ids.indexOf(id);

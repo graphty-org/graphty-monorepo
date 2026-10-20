@@ -313,6 +313,14 @@ describe("the Data place on the real element", () => {
             const shown = header?.getBoundingClientRect();
             const box = viewport.getBoundingClientRect();
             assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
+            // Marked, and focus on it, so the reader sees and hears which column it is.
+            assert.isTrue(header?.hasAttribute("data-marked"));
+            assert.isTrue(header?.contains(document.activeElement));
+        });
+        // The mark stays until the reader clicks in the table.
+        await userEvent.click(within(dock).getAllByRole("rowheader")[0]);
+        await waitFor(() => {
+            assert.isEmpty(dock.querySelectorAll("[data-marked]"));
         });
     });
 

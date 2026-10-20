@@ -248,4 +248,50 @@ describe("the table dock", () => {
             assert.lengthOf(drawnRows("Edges"), 13);
         });
     });
+
+    it("a sort shows its first rows, and the header says what its next click does", async () => {
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        // More rows than the dock shows, so the grid scrolls.
+        await session.data.addNodes(Array.from({ length: 60 }, (_, i) => ({ id: `m${String(i)}`, score: i })));
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await within(dock).findByText("60 nodes");
+        const viewport = within(dock).getByTestId("data-table-viewport");
+        // The reader goes to the last row.
+        await userEvent.click(within(dock).getAllByRole("rowheader", { name: "m0" })[0]);
+        await userEvent.keyboard("{Control>}{End}{/Control}");
+        await waitFor(() => {
+            assert.isAbove(viewport.scrollTop, 0);
+        });
+
+        const score = within(dock).getByRole("button", { name: /^score/ });
+        // A number column sorts highest first on its first click, and its hint says so.
+        assert.equal(score.getAttribute("aria-description"), "Sort by score, highest first");
+        await userEvent.click(score);
+        await within(dock).findByText("Sorted by score, highest first");
+        // Highest first shows the highest rows: the grid is back at its top.
+        await waitFor(() => {
+            assert.equal(viewport.scrollTop, 0);
+            assert.deepEqual(drawnIds().slice(0, 2), ["m59", "m58"]);
+        });
+        assert.equal(score.getAttribute("aria-description"), "Sort by score, lowest first");
+        await userEvent.click(score);
+        await within(dock).findByText("Sorted by score, lowest first");
+        // The third click turns the sort off, and the hint says so.
+        assert.equal(score.getAttribute("aria-description"), "Stop sorting by score");
+        await userEvent.click(score);
+        await within(dock).findByText("In the order loaded");
+    });
 });

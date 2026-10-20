@@ -11,7 +11,7 @@ import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
 import { formatNumber } from "../inspector/words";
-import { elementSort, type RecordKind, type TableColumnChoice } from "./columns";
+import { elementSort, type RecordKind, sortHint, type TableColumnChoice } from "./columns";
 
 /** How many records past the drawn rows a window reads, above and below. */
 const WINDOW_PAD = 50;
@@ -35,6 +35,8 @@ interface RecordTableProps {
     height: number;
     /** Moves a column one place left (-1) or right (1) among the columns that are not keys. */
     onMoveColumn: (id: string, by: -1 | 1) => void;
+    /** The column "Show in table" asked for, marked; none when undefined. */
+    marked?: string;
 }
 
 /**
@@ -65,6 +67,7 @@ function tableValue(value: unknown): DataTableValue {
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
  * @param props.onMoveColumn - Moves a column one place
+ * @param props.marked - The column to mark
  * @returns The table
  */
 export function RecordTable({
@@ -76,6 +79,7 @@ export function RecordTable({
     onSortChange,
     height,
     onMoveColumn,
+    marked,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -162,6 +166,14 @@ export function RecordTable({
             columnSizing="content"
             // The inspector's and the key's spelling, so one score reads alike in all three.
             formatNumber={formatNumber}
+            markedColumn={marked}
+            // The header's hint says what the next click does, in the sort caption's words.
+            labels={{
+                sortNext: (next, header, id) => {
+                    const column = columns.find((choice) => choice.id === id);
+                    return column === undefined ? header : sortHint(column, next);
+                },
+            }}
             sorting={sort === null ? [] : [sort]}
             onSortingChange={(next) => {
                 onSortChange(next[0] ?? null);

@@ -185,6 +185,7 @@ function DataTableInner<TRow extends object>(
         sorting,
         defaultSorting,
         onSortingChange,
+        markedColumn,
         hiddenColumns,
         defaultHiddenColumns,
         onHiddenColumnsChange,
@@ -573,6 +574,11 @@ function DataTableInner<TRow extends object>(
         // and the third returns the table to its natural order.
         column.toggleSorting(undefined, event.shiftKey && column.getCanMultiSort());
         sortEventRef.current = undefined;
+        // A new order starts at its first row: kept, the old scroll showed the middle or the end
+        // of the new order, so "largest first" opened on the smallest rows.
+        if (scrollRef.current !== null) {
+            scrollRef.current.scrollTop = 0;
+        }
     };
 
     /**
@@ -960,6 +966,17 @@ function DataTableInner<TRow extends object>(
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
                                 const hasMenu = config?.menu !== undefined && config.menu !== null;
+                                const headerText = config?.header ?? column.id;
+                                // What the next activation does, said before it is done.
+                                const nextOrder = column.getNextSortingOrder();
+                                const sortHint = sortable
+                                    ? (labels.sortNext ?? defaultLabels.sortNext)(
+                                          nextOrder === false ? "none" : ariaSortOf(nextOrder),
+                                          headerText,
+                                          column.id,
+                                      )
+                                    : undefined;
+                                const tooltip = config?.headerTooltip ?? sortHint;
                                 const caption = (
                                     <>
                                         {config?.icon !== undefined && config.icon !== null && (
@@ -982,11 +999,8 @@ function DataTableInner<TRow extends object>(
                                             dir="auto"
                                             // A header with a tooltip of its own does not also show
                                             // its cut text in one.
-                                            data-cut-tip={
-                                                config?.headerTooltip === undefined
-                                                    ? (config?.header ?? column.id)
-                                                    : undefined
-                                            }
+                                            // The hint names the column too.
+                                            data-cut-tip={tooltip === undefined ? headerText : undefined}
                                             style={{
                                                 flex: "0 1 auto",
                                                 minWidth: 0,
@@ -1038,6 +1052,7 @@ function DataTableInner<TRow extends object>(
                                         data-grid-column={sortable ? undefined : index}
                                         tabIndex={sortable ? undefined : rovingTabIndex}
                                         className="cm-dt-cell cm-dt-header"
+                                        data-marked={column.id === markedColumn ? "" : undefined}
                                         // A header that is not a button keeps room for the menu
                                         // caret itself; a sort button does it on the button.
                                         data-with-menu={hasMenu && !sortable ? "" : undefined}
@@ -1066,7 +1081,7 @@ function DataTableInner<TRow extends object>(
                                     >
                                         {sortable
                                             ? withTooltip(
-                                                  config?.headerTooltip,
+                                                  tooltip,
                                                   // A cell holding one control puts
                                                   // the tab stop on the control, so a
                                                   // screen reader says "button" and a
@@ -1082,6 +1097,10 @@ function DataTableInner<TRow extends object>(
                                                           sorted === false
                                                               ? undefined
                                                               : `${config?.header ?? column.id}, ${(labels.sortedBy ?? defaultLabels.sortedBy)(sorted === "desc")}`
+                                                      }
+                                                      // The hint, read whether or not its tooltip is open.
+                                                      aria-description={
+                                                          config?.headerTooltip === undefined ? sortHint : undefined
                                                       }
                                                       data-grid-row={HEADER_ROW}
                                                       data-grid-column={index}
@@ -1251,6 +1270,7 @@ function DataTableInner<TRow extends object>(
                                                 // in a tooltip (showCut), and a screen reader reads
                                                 // all of it, since the ellipsis is only drawn.
                                                 className="cm-dt-cell"
+                                                data-marked={column.id === markedColumn ? "" : undefined}
                                                 onFocus={() => {
                                                     setFocus((previous) =>
                                                         samePosition(previous, { row: item.index, column: index })

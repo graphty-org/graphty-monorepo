@@ -550,7 +550,7 @@
             "edgePath": 0.9298245614035088,
             "selfLoops": 1,
             "edgeLabel": 1,
-            "groups": 0.5
+            "groups": 0.25
         },
         "gexf-qvge-mine-airing": {
             "position": 1,

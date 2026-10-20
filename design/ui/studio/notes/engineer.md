@@ -16,7 +16,23 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, targeted re-walk of the tooltip, list and color picker fixes 423fb38cc,
+0. (2026-10-19, Which nodes in one click; graphty `WhichPicker.tsx`, node and edge sides) A click
+   or Enter on the collapsed "All N nodes: add a condition to narrow" line now opens the picker
+   AND the attribute list, focus in "Find an attribute" (`listFirst` -> `Cards` -> `AddCondition`
+   `openFirst`, a run-once ref so a later Escape keeps the list closed). "Add a condition" only
+   opens, never toggles: pressed on an open list it puts focus back in the search. A layer with a
+   condition still opens closed, focus on its first card. Kept: `autoOpen` on arrival (a blank
+   row) still opens the picker with the list closed and focus on Add a condition -- opening a
+   portal list on arrival would take focus from the tabs; one click on the button is enough now.
+   Test: ConditionLists "one click on a layer with no card..." (red on the old picker, green now).
+   Walked on a fresh build: `design/ui/studio/tmp/r1-dry1-which-nodes-one-click/pointer/` 04-05
+   (one click, typing filters), 06-08 (Add a condition keeps it open, letters kept), 11 (Enter on
+   the line), 16 (with a condition: closed), 19-20 (Which edges). Pre-existing, not from this:
+   FocusAfterAdding "a new node Color line" fails the same with and without the change (no
+   "Color" menuitem under Add to node fill); the Edge tab's footer said "Nodes: nothing set"
+   while a node condition narrowed the layer (pointer/18).
+
+1. (2026-10-19, targeted re-walk of the tooltip, list and color picker fixes 423fb38cc,
    a340d0c6f, 8f49cc133; nothing changed) graphty/dist built 18:32 from a clean tree holding all
    three (stamp a340d0c6f8c3; picker sources edited before the build, committed after). Walks in
    `design/ui/studio/tmp/r1-dry1-recheck-tooltips-own-control/`: tips, lists, picker, plus
@@ -39,7 +55,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Seen once, not reproduced: the bind pop-out showed open on a hover after Escape had closed it
    (tips/46-47); 54-61 repeated the sequence and it stayed shut.
 
-1. (2026-10-19, the drawing stays put when the key appears) `useOverlayInset` in
+2. (2026-10-19, the drawing stays put when the key appears) `useOverlayInset` in
    `graphty/src/workspace/canvas/viewInsets.ts` now only reports each overlay's margin to the
    element; it never calls `zoomToFit`. Removed both frames it did: the key arriving over a drawn
    node (made the drawing jump right and shrink at the first color) and the canvas changing size

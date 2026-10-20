@@ -2664,7 +2664,7 @@ Still open, and why:
 - HAYSTACK edges drawn on top of each other (`edges-lines`, `stacking-haystack`; found verifying fix round 2): graph-io
   now draws them straight and unfanned, and the sheet passes, but Cytoscape 3.10.5 ends each HAYSTACK edge at its own
   point inside each node (the three edges of `stacking-haystack` start at x 841.4, 846.8 and 844.6 and stand up to 3 px
-  apart), so the reader sees three thin lines. graphty draws all three centre to centre, exactly on top of each other,
+  apart), so the reader sees three thin lines. graphty draws all three center to center, exactly on top of each other,
   so two are hidden. The comparator does not notice, because each graphty edge lies within its route tolerance of an
   oracle edge. Fixing it needs a neutral per-edge end offset in graph-io and a way for graphty-element to draw it.
   Desktop's offsets come from its own random generator, so they could only be matched approximately. Open.

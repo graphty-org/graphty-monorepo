@@ -580,6 +580,11 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
       (EdgeRenderer.CurvedEdgeRenderer, ArrowRenderer). graph-io now hides such an undirected edge and draws a
       directed one with no line. On `sigma-ediaspora` the 30 arrowheads Gephi still draws are oracle strays that no
       oracle line carries (a comparator reading of an arrowhead with no line).
+    - Open (comparator): `cns-wos` node.present 221/225 (n5, n23, n50, n100): each lies wholly under a node drawn at
+      (nearly) the same place, which graphty's scene marks hidden (`occluders`), while the oracle's reading of Gephi's
+      SVG counts every circle, covered or not. Gephi draws the same cover (its node items run largest first, file
+      order among equals, the order graphty-element draws them in); the oracle side should judge cover as the
+      graphty side does.
     - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
       gap (graph-io vocabulary, then graphty-element).
     - Fixed (oracle, 2026-10-19, fix round 2): Gephi's SVG wrote a label's text with the space before `&` and `<`

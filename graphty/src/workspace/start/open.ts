@@ -10,18 +10,12 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type {
-    DataSourceInput,
-    GraphSession,
-    LoadDraft,
-    LoadMapping,
-    ReplaceReport,
-    SourceKey,
-} from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, LoadDraft, LoadMapping } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
+import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -186,53 +180,6 @@ async function drawFirst(workspace: WorkspaceStore, session: GraphSession, sourc
 }
 
 /**
- * Replaces a loaded source with a newer copy at once, keeping styles, filters and runs (spec
- * section 3.7), and says what changed with Undo beside it.
- * @param workspace - the workspace store.
- * @param session - the project's session.
- * @param key - the source the copy replaces.
- * @param incoming - the copy.
- */
-export async function replaceWith(
-    workspace: WorkspaceStore,
-    session: GraphSession,
-    key: SourceKey,
-    incoming: Incoming,
-): Promise<void> {
-    const before = session.data.sources().find((each) => each.key === key)?.name ?? "";
-    const report = await session.data.replaceSource(key, incoming.source);
-    workspace.set({
-        notice: {
-            message: replacedWords(before, incoming.name, report),
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
-}
-
-/**
- * The replace receipt's words: the two names, then what changed, nonzero counts only.
- * @param before - the replaced source's name.
- * @param after - the copy's name.
- * @param report - what the element counted.
- * @returns the words, such as "Replaced a.csv with b.csv: edges +12 -3, 40 changed".
- */
-export function replacedWords(before: string, after: string, report: ReplaceReport): string {
-    const counts = (["nodes", "edges"] as const).flatMap((kind) => {
-        const { added, removed, changed } = report[kind];
-        const parts = [added > 0 ? `+${String(added)}` : "", removed > 0 ? `-${String(removed)}` : ""].filter(Boolean);
-        const moved = parts.length === 0 ? [] : [`${kind} ${parts.join(" ")}`];
-        return changed > 0 ? [...moved, `${String(changed)} ${kind} changed`] : moved;
-    });
-    const head = `Replaced ${before} with ${after}`;
-    return counts.length === 0 ? head : `${head}: ${counts.join(", ")}`;
-}
-
-/**
  * A second source while the graph holds data (spec sections 2.1, 3.6 and 3.7): a copy of a loaded
  * source replaces it; anything else is read as a table to join and waits for the join screen.
  * @param workspace - the workspace store.
@@ -240,9 +187,7 @@ export function replacedWords(before: string, after: string, report: ReplaceRepo
  * @param incoming - the source.
  */
 async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming: Incoming): Promise<void> {
-    const key = await session.data.matchesSource(incoming.source);
-    if (key !== null) {
-        await replaceWith(workspace, session, key, incoming);
+    if (await routeToReplace(workspace, session, incoming)) {
         return;
     }
     const draft = await session.data.prepare(incoming.source, { onto: "graph", guess: "values" });
@@ -309,7 +254,7 @@ export function openFile(ctx: CommandContext, file: File): void {
  * Asks the browser for files: one, or a node file and an edge file.
  * @returns the files, empty when the reader cancels.
  */
-function pickFiles(): Promise<File[]> {
+export function pickFiles(): Promise<File[]> {
     return new Promise((resolve) => {
         const input = document.createElement("input");
         input.type = "file";

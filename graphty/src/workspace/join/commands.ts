@@ -16,7 +16,8 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { openSeparate, replaceWith } from "../start/open";
+import { replaceWith } from "../replace/commands";
+import { openSeparate } from "../start/open";
 
 /** What the Join button does: the dropdown's four choices. */
 export type JoinHow = "join" | "rows" | "replace" | "separate";

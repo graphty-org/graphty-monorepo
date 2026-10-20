@@ -9,7 +9,7 @@
 
 import type { AutosaveEntry, Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { DataSourceInput, GraphSession, LoadDraft, SourceKey } from "@graphty/graphty-element/session";
-import { useSyncExternalStore } from "react";
+import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
 
@@ -21,7 +21,10 @@ type Page = "panels" | "data-page";
 
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
+    /** Its words; the notice shows them unless it has content. */
     readonly message: string;
+    /** What it shows instead of the words, such as the replace receipt's chips. */
+    readonly content?: ReactNode;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 

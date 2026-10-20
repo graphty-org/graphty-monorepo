@@ -23,7 +23,7 @@ export function NoticeView({ notice, onClose }: Readonly<NoticeViewProps>): Reac
     const { action } = notice;
     return (
         <Toast
-            message={notice.message}
+            message={notice.content ?? notice.message}
             withCloseButton
             onClose={onClose}
             action={

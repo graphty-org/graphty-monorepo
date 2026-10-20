@@ -268,7 +268,7 @@ describe("the loading doors on the real element", () => {
         await holds(session, 40, 150);
         drop(await fixture("ships-to-2024-10.csv"));
         const receipt = await screen.findByText(
-            "Replaced ships-to-2024-09.csv with ships-to-2024-10.csv: edges +12 -3, 40 edges changed",
+            "Replaced ships-to-2024-09.csv with ships-to-2024-10.csv",
             {},
             { timeout: TIMEOUT_MS },
         );
@@ -276,6 +276,10 @@ describe("the loading doors on the real element", () => {
         // The receipt's own Undo, not the header's.
         const toast = receipt.closest<HTMLElement>('[role="group"]');
         assert.isNotNull(toast);
+        assert.deepEqual(
+            [...(toast?.querySelectorAll(".cm-entity-text") ?? [])].map((chip) => chip.textContent),
+            ["+12", "-3", "40 changed"],
+        );
         await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
         await holds(session, 40, 150);
     });

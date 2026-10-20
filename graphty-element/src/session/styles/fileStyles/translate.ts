@@ -1008,7 +1008,7 @@ const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
 
 /** The properties the translation draws in passes of their own, per kind. */
 const COMPOSITE: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["width", "height", "fillOpacity", "opacity", "borderOpacity", "visible"]),
+    node: new Set(["width", "height", "fillOpacity", "opacity", "visible"]),
     edge: new Set(["visible"]),
 };
 
@@ -2478,19 +2478,6 @@ class KindTranslation {
                 return round((typeof fill === "number" ? fill : 1) * (typeof whole === "number" ? whole : 1));
             },
             "node.opacity",
-        );
-        // the whole node's opacity reaches its border too
-        this.#composite(
-            ["borderOpacity", "opacity"],
-            "borderOpacity",
-            (border, whole) => {
-                if (typeof border !== "number" && typeof whole !== "number") {
-                    return null;
-                }
-
-                return round((typeof border === "number" ? border : 1) * (typeof whole === "number" ? whole : 1));
-            },
-            "node.borderOpacity",
         );
     }
 

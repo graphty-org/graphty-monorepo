@@ -323,17 +323,6 @@ export interface NodeStyleValues {
     readonly labelBorderColor: StyleColor;
     /** How thick that line is, in the units of `labelSize`; 0 draws none. */
     readonly labelBorderWidth: number;
-    /** How opaque the outline round the label's letters is, from 0 (none) to 1, over its color. Unset, 1. */
-    readonly labelOutlineOpacity: number;
-    /** How opaque the line round the box behind the label's words is, from 0 (none) to 1, over its color. Unset, 1. */
-    readonly labelBorderOpacity: number;
-    /**
-     * How far the box behind the label's words (its background and border) reaches past the words' line box on every
-     * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
-     */
-    readonly labelPadding: number;
-    /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
-    readonly labelLineHeight: number;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -633,17 +622,6 @@ export interface EdgeStyleValues {
     readonly labelBorderColor: StyleColor;
     /** How thick that line is, in the units of `labelSize`; 0 draws none. */
     readonly labelBorderWidth: number;
-    /** How opaque the outline round the label's letters is, from 0 (none) to 1, over its color. Unset, 1. */
-    readonly labelOutlineOpacity: number;
-    /** How opaque the line round the box behind the label's words is, from 0 (none) to 1, over its color. Unset, 1. */
-    readonly labelBorderOpacity: number;
-    /**
-     * How far the box behind the label's words (its background and border) reaches past the words' line box on every
-     * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
-     */
-    readonly labelPadding: number;
-    /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
-    readonly labelLineHeight: number;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */

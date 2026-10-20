@@ -743,22 +743,9 @@ function nodeLabelRules(
 }
 
 /**
- * Gephi's alpha for a Preview opacity in percent: Java's `Color` keeps it as one of 256 steps, cut down to a whole
- * step (`labels-p10`'s 30 is drawn 76 / 255, not 77).
- * @param percent - the opacity, 0 to 100
- * @returns the alpha, 0 to 1
- */
-function gephiAlpha(percent: number): number {
-    // ponytail: 1e-9 keeps a step that floating point lands a hair under (0.4 x 255) on its step
-    return Math.floor((Math.min(Math.max(percent, 0), 100) / 100) * 255 + 1e-9) / 255;
-}
-
-/**
  * The label box of `node.label.box`: Gephi strokes an unfilled box round the label, 0.08 of the node's size wide, in
- * the color `node.label.box.color` derives from the node's and at `node.label.box.opacity` (`gexf-specimen-labels-p11`,
- * `-p12`, `-p13`, `-p20`, `-p21`). The box is the text's own bounds -- its advance width and its font's ascent plus
- * descent, with no leading -- grown by the stroke's width, so the stroke's inner edge lies on the text's bounds
- * (`labels-p11`: a 15 px "Label" is 40.47 x 17.46 inside a 2.0 stroke): no padding, a line height of 1.
+ * the color `node.label.box.color` derives from the node's (`gexf-specimen-labels-p11`, `-p12`, `-p20`, `-p21`). Its
+ * opacity (`node.label.box.opacity`) is not drawn: the style vocabulary has no label border opacity.
  * @param node - the node rules, changed in place
  * @param channels - each node's color channels
  * @param nodes - the node values
@@ -788,11 +775,6 @@ function labelBox(
         channels.map((_, i) => 0.04 * nodeWidth(nodes, i)),
         "LABEL_BOX",
     );
-    everyElement(node, "node", "preview-box", {
-        labelBorderOpacity: gephiAlpha(preview.num("node.label.box.opacity")),
-        labelPadding: 0,
-        labelLineHeight: 1,
-    });
 }
 
 /**
@@ -814,8 +796,8 @@ function fontValues(font: GephiFont, custom: boolean): Record<string, StyleValue
 
 /**
  * The label outline of `<target>.label.outline.size` and `.color`: a stroke size / 32 of the label's size wide, round
- * each letter, in the color its mode derives from the element's color and at `.outline.opacity` (Gephi's default 80;
- * `gexf-specimen-labels-p9`, `-p10`, `-p17` .. `-p19`, `edge-labels-p5`, `-p6`).
+ * each letter, in the color its mode derives from the element's color (`gexf-specimen-labels-p9`, `-p17` .. `-p19`).
+ * Its opacity (`.outline.opacity`) is not drawn: the style vocabulary has no label outline opacity.
  * @param out - the rules, changed in place
  * @param target - nodes or edges
  * @param colors - each element's color channels
@@ -848,9 +830,6 @@ function labelOutline(
         colors.map((c) => hexOf(dependantColor(mode, c) ?? [255, 255, 255])),
         "LABEL_OUTLINE",
     );
-    everyElement(out, target, "preview-outline", {
-        labelOutlineOpacity: gephiAlpha(preview.num(`${target}.label.outline.opacity`)),
-    });
 }
 
 /** How many points a Gephi self-loop's circle is drawn through. */
@@ -1121,13 +1100,13 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
     } else {
         exactFromBlock(snapshot, block, node, edge);
     }
-    const labels = drawnLabels(node.label, preview, "node", block !== null);
+    const labels = drawnLabels(node.label, preview, "node");
     if (labels === undefined) {
         delete node.label;
     } else {
         node.label = labels;
     }
-    const edgeLabels = drawnLabels(edgeLabelValues(snapshot), preview, "edge", block !== null);
+    const edgeLabels = drawnLabels(edgeLabelValues(snapshot), preview, "edge");
     if (edgeLabels !== undefined) {
         edge.label = edgeLabels;
     }

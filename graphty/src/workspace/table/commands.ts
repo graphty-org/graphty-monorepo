@@ -18,7 +18,9 @@ export const registration = defineRegistration({
                 if (session === null) {
                     return "The graph is still loading";
                 }
-                return session.data.sources().length === 0 ? "No data yet" : null;
+                // A loaded source, or nodes added without one (through the element's API).
+                const empty = session.data.sources().length === 0 && session.data.statistics().nodeCount === 0;
+                return empty ? "No data yet" : null;
             },
             run: ({ workspace }) => {
                 workspace.set((state) => ({ dockOpen: !state.dockOpen }));

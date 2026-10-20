@@ -14,8 +14,10 @@ const table = registration.commands.find((command) => command.id === "table.togg
  * @param sources - how many sources it holds.
  * @returns the session.
  */
-function holding(sources: number): GraphSession {
-    return { data: { sources: () => Array.from({ length: sources }, () => ({})) } } as unknown as GraphSession;
+function holding(sources: number, nodeCount = 0): GraphSession {
+    return {
+        data: { sources: () => Array.from({ length: sources }, () => ({})), statistics: () => ({ nodeCount }) },
+    } as unknown as GraphSession;
 }
 
 describe("Table", () => {
@@ -27,5 +29,9 @@ describe("Table", () => {
 
     it("is enabled once a source is loaded, even one that draws no node", () => {
         assert.isNull(table?.disabled?.({ workspace, session: holding(1), element: null }));
+    });
+
+    it("is enabled for nodes added without a source", () => {
+        assert.isNull(table?.disabled?.({ workspace, session: holding(0, 3), element: null }));
     });
 });

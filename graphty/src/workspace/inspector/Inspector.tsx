@@ -43,7 +43,7 @@ import { identityOf, type InspectedKindId, type Resolved, resolveInspected } fro
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
-import { type Draft, memberReturn, swatchOf } from "./reads";
+import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { count, edgeName, groupName, KIND_WORDS, leftOutOf, PATH_WORD, runTime, selectionWords } from "./words";
@@ -170,14 +170,10 @@ export function Inspector(): React.JSX.Element {
         // for it again: its inspector comes back.
         const stops = [
             // A selection emptied (Escape, Clear selection) shows nothing new: the open row stays,
-            // so one Escape does one thing. A node opened from a layer's members goes back to
-            // that layer when it is cleared.
+            // so one Escape does one thing.
             session.on("selection:changed", () => {
-                const back = memberReturn(session, store.get().inspected);
                 if (session.selection.size > 0) {
                     close();
-                } else if (back !== null) {
-                    store.set({ inspected: back });
                 }
             }),
             // A right-click on empty canvas asks for a menu and lets go of nothing.

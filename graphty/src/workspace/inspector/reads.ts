@@ -13,7 +13,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { runName } from "../runWords";
-import type { WorkspaceState } from "../state/store";
 
 /** A finished run with its result, and the field its result is read by. */
 interface FinishedRun {
@@ -44,65 +43,6 @@ export function finishedRuns(session: GraphSession): FinishedRun[] {
  */
 export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
-}
-
-/** A row the inspector shows. */
-type Inspected = NonNullable<WorkspaceState["inspected"]>;
-
-/** The layer a member row opened its node from: clearing that node returns the inspector there. */
-let memberOrigin: { readonly inspected: Inspected; readonly node: NodeId } | null = null;
-
-/** The member row the layer's Values puts focus on once it is drawn again. */
-let memberFocus: string | null = null;
-
-/**
- * Opens one of a layer's members (a row of its Members, Top or Now list): selects the node alone,
- * puts focus on the node's view, and remembers the layer, so clearing the node returns to it.
- * @param session - the session.
- * @param inspected - the layer row the inspector shows.
- * @param id - the member.
- */
-export function openMember(session: GraphSession, inspected: Inspected | null, id: NodeId): void {
-    memberOrigin = inspected === null ? null : { inspected, node: id };
-    focusValuesNext();
-    selectNode(session, id);
-}
-
-/**
- * Reads a selection change for the member a layer opened: a change to that node alone keeps it;
- * any other change lets it go, and an emptied selection, while the inspector shows it, hands back
- * the layer it came from, with focus to go on the member's row.
- * @param session - the session.
- * @param showing - the row the inspector shows now, or null for the selection.
- * @returns the layer to show again, on its Values tab, or null.
- */
-export function memberReturn(session: GraphSession, showing: Inspected | null): Inspected | null {
-    const origin = memberOrigin;
-    const { nodes, edges } = session.selection;
-    if (origin !== null && nodes.length === 1 && edges.length === 0 && nodes[0] === origin.node) {
-        return null;
-    }
-    memberOrigin = null;
-    memberFocus = null;
-    if (origin === null || nodes.length + edges.length > 0 || showing !== null) {
-        return null;
-    }
-    memberFocus = String(origin.node);
-    return { ...origin.inspected, tab: "values" };
-}
-
-/**
- * Takes the member row the layer's Values should focus, once.
- * @param ids - the members the view draws as rows.
- * @returns the member to focus, or null.
- */
-export function takeMemberFocus(ids: readonly NodeId[]): NodeId | null {
-    const id = ids.find((member) => String(member) === memberFocus);
-    if (id === undefined) {
-        return null;
-    }
-    memberFocus = null;
-    return id;
 }
 
 /** Set by a find pick, so the next node or edge view puts keyboard focus on the inspector's title. */

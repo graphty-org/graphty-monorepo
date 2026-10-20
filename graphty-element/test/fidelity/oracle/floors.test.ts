@@ -37,6 +37,15 @@ describe("oracle floors", () => {
         );
     });
 
+    it("lets a property at a floor of 0 go unjudged, and fails one above 0 that is no longer judged", () => {
+        const stored = empty();
+        stored.floors.s = { "node.fill": 0.5, "stray.present": 0 };
+        const check = checkScored("s", scored(0.5, {}), false, stored, "2026-10-18");
+        assert.deepEqual(check.dropped, []);
+        stored.floors.s["stray.present"] = 0.2;
+        assert.lengthOf(checkScored("s", scored(0.5, {}), false, stored, "2026-10-18").dropped, 1);
+    });
+
     it("asks for a record of a property whose failures were never recorded", () => {
         const stored = empty();
         stored.floors.s = { "node.fill": 1 };

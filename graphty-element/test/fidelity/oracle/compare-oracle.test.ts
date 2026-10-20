@@ -900,6 +900,26 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out a wrapped caption whose first line is another caption's words", () => {
+        // vis-network wraps "w=3 color" under "w=3", the whole caption of the specimen beside it
+        const g = {
+            ...graphtyScene(),
+            texts: [
+                text("w=3 color", 50, 50, 12, { owner: "cap-stroke" }),
+                text("w=3", 150, 50, 12, { owner: "cap-stroke-default" }),
+            ],
+        };
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [text("w=3", 50, 50), text("color", 50, 60), text("w=3", 150, 50), text("note", 9, 9)],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["note"],
+        );
+    });
+
     it("leaves out a caption node a sheet ids by number once it is named by its cap-* attribute", () => {
         // a GML sheet ids its caption node 5 and keeps "cap-fill-red" in its comment; the program draws it as a node
         const o = { ...graphtyScene(), side: "oracle" as const };

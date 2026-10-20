@@ -722,3 +722,35 @@ describe("a label wrapped into stacked lines", () => {
         assert.deepEqual(stacked?.box, { x0: 85, y0: 95, x1: 115, y1: 117 });
     });
 });
+
+describe("a label drawn as runs side by side", () => {
+    it("is one text of the runs' words, a space where they are apart", () => {
+        const run = (content: string, x0: number, w: number, size = 10): Prim => {
+            const t = text(content, x0 + w / 2, 100, { anchor: "start" }, w, size);
+            return {
+                index: x0,
+                tag: "text",
+                kind: "text",
+                box: t.box,
+                points: [],
+                closed: false,
+                corners: 0,
+                fill: null,
+                stroke: null,
+                text: t,
+                markers: { start: false, end: false },
+                hint: null,
+            };
+        };
+        // vis-network's "<b>B</b> <i>I</i> <code>M</code>": three texts on one line, the mono one larger
+        const out = stackedTexts([run("B", 100, 7), run("I", 110, 3), run("M", 116, 8, 14), run("far", 200, 12)]);
+        assert.include(
+            out.map((p) => p.text?.content),
+            "B I M",
+        );
+        assert.notInclude(
+            out.map((p) => p.text?.content),
+            "B I M far",
+        );
+    });
+});

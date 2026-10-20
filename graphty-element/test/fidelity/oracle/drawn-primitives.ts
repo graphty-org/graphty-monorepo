@@ -5,10 +5,10 @@
  * (`drawn-scene.ts`) carries -- a label's weight, style, family and rotation, a gradient fill,
  * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM.
  */
-import type { Scene, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
+import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
-import { measureArrow, mergeTexts } from "./associate";
+import { extendToTip, measureArrow, mergeTexts } from "./associate";
 import {
     type ArrowShape,
     compareIds,
@@ -154,6 +154,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     "half-open": "half",
     "half-circle": "half-circle",
     "open-half-circle": "half-circle",
+    // the round side of a half circle alone, bulging toward the node (vis-network's curve), drawn as a stroke
+    curve: "half-circle",
     // a triangle with a bar behind it reads as the triangle
     "triangle-tee": "triangle",
     "triangle-cross": "triangle",
@@ -185,6 +187,9 @@ const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
 
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
+
+/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc). */
+const STROKED_NAMES: readonly string[] = ["curve"];
 
 /**
  * A cap's shape class by its mesh's name (`arrow-2d-open-normal`, `sphere-dot-arrow-3d`): the longest cap type the name
@@ -249,6 +254,36 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
 }
 
 /**
+ * The glyph a node with no body draws, as the free text a program draws it as: its character over the node's box.
+ * @param n - the node
+ * @param glyph - its glyph and color, or null
+ * @returns the text, none without a glyph
+ */
+function glyphTexts(n: SceneNode, glyph: { text: string; color: string | null } | null): PText[] {
+    if (glyph === null) {
+        return [];
+    }
+    const box = { x0: n.x - n.w / 2, y0: n.y - n.h / 2, x1: n.x + n.w / 2, y1: n.y + n.h / 2 };
+    return [
+        {
+            content: glyph.text,
+            x: n.x,
+            y: n.y,
+            box,
+            sizePx: n.h,
+            family: "",
+            weight: 400,
+            style: "normal",
+            anchor: "middle",
+            rotation: 0,
+            color: glyph.color ?? "#000000",
+            opacity: 1,
+            owner: n.id,
+        },
+    ];
+}
+
+/**
  * graphty's drawing as primitives.
  * @param scene - `extractScene` of the drawing
  * @param drawn - `readDrawn` of the same frame
@@ -271,6 +306,13 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const label = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        // a node that draws no body (shape "none", no picture in its place) is its label and its glyph alone, as a
+        // program draws a text-only or an icon-only node (vis-network's text and icon shapes): the comparison reads
+        // those as free texts, never as a node shape (withoutCaptions)
+        const faceless =
+            d?.faceless === true
+                ? [...(label === null ? [] : [{ ...label, owner: n.id }]), ...glyphTexts(n, d.glyph ?? null)]
+                : undefined;
         // A fill under one render pixel is drawn all the same: the comparison judges it at the oracle's scale, where a
         // layout graphty spreads wider than the program's does not shrink it out of sight (`compareOracle`).
         const sub = n.drawn;
@@ -328,6 +370,7 @@ export function drawnPrimitives(
                     : null,
             label,
             inset: inset > 0,
+            ...(faceless === undefined ? {} : { faceless }),
         });
     }
     const edges = scene.edges.flatMap((e) => {
@@ -340,7 +383,9 @@ export function drawnPrimitives(
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
             .map((c) => {
                 const end = CAP_END[c.end];
-                const open = c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n));
+                const open =
+                    (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
+                    STROKED_NAMES.some((n) => c.name.includes(n));
                 // a cap part-way along is classed against the line's direction, source to target, as the oracle's
                 // is: a mid tail points back along it
                 const named = arrowShapeNamed(c.name);
@@ -351,6 +396,15 @@ export function drawnPrimitives(
                     ? { end, length: c.sizePx, width: c.sizePx, ...look }
                     : measureArrow(c.outline, d.points, end, look);
             });
+        // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
+        // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip)
+        let { points } = e;
+        for (const c of d.caps) {
+            const end = CAP_END[c.end];
+            if (end !== "middle" && c.outline !== null && c.opacity > 0 && c.sizePx > 0) {
+                points = extendToTip(points, c.outline, end);
+            }
+        }
         const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or
         // dotted one measured off its drawn elements
@@ -365,7 +419,7 @@ export function drawnPrimitives(
                 id: e.id,
                 source: e.source,
                 target: e.target,
-                points: e.points,
+                points,
                 stroke: {
                     // a line painted in a gradient shows its first stop's color, as the oracle's does
                     color: gradient?.stops[0]?.color ?? e.color,

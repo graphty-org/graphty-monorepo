@@ -590,6 +590,27 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
 }
 
 /**
+ * Whether a primitive is an open stroke bent like part of a circle (bulging from its chord by a fifth of it up to
+ * all of it): an arrowhead drawn as a stroke, where it caps a line's end.
+ * @param p - the primitive
+ * @returns true for such a stroke
+ */
+function strokedArc(p: Prim): boolean {
+    if (p.kind !== "path" || p.closed || p.fill !== null || p.stroke === null || p.points.length < 5) {
+        return false;
+    }
+    const [a, b] = [p.points[0], p.points.at(-1) ?? p.points[0]];
+    const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (chord <= 0) {
+        return false;
+    }
+    const bulge = Math.max(
+        ...p.points.map((q) => Math.abs((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])) / chord),
+    );
+    return bulge >= 0.2 * chord && bulge <= chord;
+}
+
+/**
  * Splits a Graphviz edge title (`a->b`, `a--b`, `a:port->b`) into its ends: the split, and the
  * port stripping, that name known nodes; an id may itself hold `->`, `--` or `:`.
  * @param title - the title
@@ -1252,7 +1273,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const geoEdges = new Map<string, number>();
     /** Where in the drawing each edge found by geometry was drawn: what is drawn first lies under what comes after. */
     const drawnAt = new Map<PEdge, number>();
-    const arcs: { readonly p: Prim; readonly piece: PEdge }[] = [];
+    const arcs: { readonly p: Prim; readonly piece: PEdge | null }[] = [];
     // An edge's line a program drew as a filled band (Cytoscape desktop's zigzag, sine-wave, dotted, slashed and double
     // edges), its route the band's axis: one of the pairs graphty draws, between two nodes, read after the lines.
     const bands = free().flatMap((p) => {
@@ -1319,9 +1340,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         drawnAt.set(edge, p.index);
         if (!(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
-        } else if (p.points.length >= 5 && Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h)) {
+        } else if (
+            p.points.length >= 5 &&
+            (Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h) ||
+                (strokedArc(p) && Math.max(bw(p.box), bh(p.box)) <= 3 * Math.max(a.w, a.h, 8)))
+        ) {
             // a small curved open stroke beside one node may be an arrowhead drawn as a stroke (Cytoscape's open
-            // half circle), judged with the arrowheads below
+            // half circle; vis-network's curve and inv_curve, a half circle larger than a small node), judged with the
+            // arrowheads below
             arcs.push({ p, piece: edge });
         }
     }
@@ -1415,6 +1441,13 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }
     }
     // a small open stroke at an edge's end is its arrowhead, beside the line, which it does not carry on
+    // a small curved open stroke no edge took, across an edge's end: that end's arrowhead drawn as a stroke (vis-network's
+    // curve and inv_curve caps, a semicircle a third of the arrow's length across the line at its end)
+    for (const p of free()) {
+        if (strokedArc(p)) {
+            arcs.push({ p, piece: null });
+        }
+    }
     for (const { p, piece } of arcs) {
         const best = arrowheadEdge(
             p,
@@ -1428,7 +1461,13 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             best.e.arrows.every((x) => x.end !== best.end) &&
             capsAcross(p.points, best.e, best.end)
         ) {
-            best.e.arrows.push(arrowFrom(p, best.e.points, best.end, canvas));
+            if (piece === null) {
+                take(p);
+            }
+            const arrow = arrowFrom(p, best.e.points, best.end, canvas);
+            // a stroke bent round is the round side of a half circle alone, whichever way it bulges (vis-network's
+            // curve bulges toward the node, its inv_curve away from it): hollow
+            best.e.arrows.push(strokedArc(p) ? { ...arrow, shape: "half-circle", filled: false } : arrow);
         }
     }
 
@@ -1498,7 +1537,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     }
     // closest pairs first, as node labels are: many edges of a line can carry the same words, and an edge met early
     // must not take a text that sits nearer the edge it belongs to
-    const freeTexts = free().filter((p) => p.text !== null);
+    const freeTexts = [...free().filter((p) => p.text !== null), ...besideTexts(free().filter((p) => p.text !== null))];
     const wantOf = (e: PEdge): string | undefined =>
         (guideEdges.get(`${e.source}\u0000${e.target}`) ?? guideEdges.get(`${e.target}\u0000${e.source}`))?.label
             ?.content;
@@ -1516,8 +1555,9 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     edgeCandidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
-        if (e.label === null && !used.has(c.p.index) && c.p.text) {
-            take(c.p);
+        const parts = runParts.get(c.p) ?? [c.p];
+        if (e.label === null && parts.every((q) => !used.has(q.index)) && c.p.text) {
+            parts.forEach(take);
             e.label = c.p.text;
         }
     }
@@ -1982,7 +2022,58 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
             runs.push(stacked);
         }
     }
-    return [...texts, ...runs];
+    return [...texts, ...runs, ...besideTexts(texts)];
+}
+
+/**
+ * Each run of two to eight texts side by side on one line as one text: a program that draws a label's font changes
+ * as texts of their own (vis-network's multi-font blocks, "<b>B</b> <i>I</i>" as "B" and "I") draws one line where
+ * graphty's label is one text. A run is a text starting where the one before it ends (within half its font size)
+ * whose middle lies within that one's height, as {@link joinRuns} joins a node's lines; the words are joined with a
+ * space where the texts are apart by more than a sixth of the font size.
+ * @param texts - the text primitives
+ * @returns the runs (each the first text's primitive with the run's words and box)
+ */
+function besideTexts(texts: readonly Prim[]): Prim[] {
+    const size = (p: Prim): number => Math.max(p.text?.sizePx ?? 1, 1);
+    const beside = (p: Prim): Prim | undefined =>
+        texts.find(
+            (q) =>
+                q !== p &&
+                q.text !== null &&
+                q.box.x0 - p.box.x1 >= -0.2 * size(p) &&
+                q.box.x0 - p.box.x1 <= 0.5 * size(p) &&
+                cy(q.box) >= p.box.y0 &&
+                cy(q.box) <= p.box.y1 &&
+                cy(p.box) >= q.box.y0 &&
+                cy(p.box) <= q.box.y1,
+        );
+    const runs: Prim[] = [];
+    for (const first of texts) {
+        let run = [first];
+        let content = first.text?.content ?? "";
+        for (let next = beside(first); next !== undefined && run.length < 8 && !run.includes(next);) {
+            const last = run[run.length - 1];
+            const apart = next.box.x0 - last.box.x1 > size(last) / 6;
+            content = `${content}${apart ? " " : ""}${next.text?.content ?? ""}`;
+            run = [...run, next];
+            const box = union(run.map((q) => q.box));
+            const joined: Prim = {
+                ...first,
+                box,
+                text: {
+                    ...(first.text as PText),
+                    content,
+                    box: union(run.map((q) => q.text?.box ?? q.box)),
+                    lines: [union(run.map((q) => q.text?.box ?? q.box))],
+                },
+            };
+            runParts.set(joined, run);
+            runs.push(joined);
+            next = beside(next);
+        }
+    }
+    return runs;
 }
 
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */

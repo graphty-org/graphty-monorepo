@@ -223,6 +223,9 @@ describe("line classes", () => {
         // a round cap draws a zero-length dash as a dot a width across, and eats a width of each gap
         assert.strictEqual(dashClassOf([0, 6], 2, "round"), "dotted");
         assert.strictEqual(dashClassOf([8, 2.2], 2, "round"), "solid");
+        // a gap of a tenth of the pattern still shows, also as a drawing scaled by 0.936 measures it
+        assert.strictEqual(dashClassOf([5, 5], 4, "round"), "dashed");
+        assert.strictEqual(dashClassOf([4.678, 4.678], 3.742, "round"), "dashed");
         // Cytoscape's dash-dot under round caps: a dot two widths long beside a dash five
         assert.strictEqual(dashClassOf([12, 6, 3, 6], 3, "round"), "dash-dot");
     });

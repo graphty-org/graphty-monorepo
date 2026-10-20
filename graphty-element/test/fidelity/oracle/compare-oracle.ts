@@ -929,6 +929,27 @@ const captionWordsOf = (scene: PScene): string[] => [
 ];
 
 /**
+ * A scene whose nodes graphty draws no body for (`faceless`) are the texts they draw instead, their label and glyph:
+ * no node, as the program's text-only and icon-only nodes are no node on its side. One the other side does draw a
+ * node for stays a node, judged as one.
+ * @param scene - either side
+ * @param other - the other side, or null
+ * @returns the scene, those nodes as texts
+ */
+export function facelessAsTexts(scene: PScene, other: PScene | null = null): PScene {
+    const drawn = new Set(other?.nodes.map((n) => n.id) ?? []);
+    const asTexts = (n: PNode): boolean => n.faceless !== undefined && !drawn.has(n.id);
+    if (!scene.nodes.some(asTexts)) {
+        return scene;
+    }
+    return {
+        ...scene,
+        nodes: scene.nodes.filter((n) => !asTexts(n)),
+        texts: [...scene.texts, ...scene.nodes.flatMap((n) => (asTexts(n) ? (n.faceless ?? []) : []))],
+    };
+}
+
+/**
  * A scene without a specimen sheet's caption nodes (`cap-*`, text "<property>=<value>" under each specimen): they
  * describe the sheet and are not judged. A caption's words left as free text are dropped too, and so are the lines of
  * a caption the program wrapped (two to four lines stacked one under another, whose words run together are a
@@ -942,7 +963,7 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     const squash = (w: string): string => w.replace(/\s+/g, "");
     const words = new Set([...captionWordsOf(scene), ...(other === null ? [] : captionWordsOf(other))].map(squash));
     if (ids.size === 0 && words.size === 0) {
-        return scene;
+        return facelessAsTexts(scene, other);
     }
     const { texts } = scene;
     const below = (a: PText): PText | undefined =>
@@ -958,8 +979,12 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     for (const t of texts) {
         if (t.owner?.startsWith("cap-") === true || words.has(squash(t.content))) {
             dropped.add(t);
-            continue;
+            if (t.owner?.startsWith("cap-") === true) {
+                continue;
+            }
         }
+        // a line that is a caption's words on its own may also be the first line of a longer caption wrapped under it
+        // ("font.strokeWidth=3" over "strokeColor")
         const run = [t];
         for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
             run.push(next);
@@ -983,13 +1008,18 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     // a caption's words the association gave a specimen beside it as its label (a tall node reaching down to its
     // caption) are the caption's, not the specimen's
     const captionLabel = (n: PNode): boolean => n.label !== null && words.has(squash(n.label.content));
-    return {
-        ...scene,
-        nodes: scene.nodes.filter((n) => !ids.has(n.id)).map((n) => (captionLabel(n) ? { ...n, label: null } : n)),
-        edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
-        texts: texts.filter((t) => !dropped.has(t)),
-        strays: scene.strays.filter((s) => !bodyOf(s)),
-    };
+    // a node graphty draws no body for is the texts it draws instead (its label, its glyph), as the program's
+    // text-only and icon-only nodes are free texts on its side
+    return facelessAsTexts(
+        {
+            ...scene,
+            nodes: scene.nodes.filter((n) => !ids.has(n.id)).map((n) => (captionLabel(n) ? { ...n, label: null } : n)),
+            edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
+            texts: texts.filter((t) => !dropped.has(t)),
+            strays: scene.strays.filter((s) => !bodyOf(s)),
+        },
+        other,
+    );
 }
 
 /**

@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
+import { withoutCaptions } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 
 type Cap = DrawnEdge["caps"][number];
@@ -77,6 +78,31 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({})]).edges[0].arrows, 1);
+    });
+
+    it("carries a line on to the tip of a cap placed by its middle, a circle's far side", () => {
+        const ring = Array.from({ length: 16 }, (_v, k): [number, number] => [
+            100 + 5 * Math.cos((k * Math.PI) / 8),
+            5 * Math.sin((k * Math.PI) / 8),
+        ]);
+        const circle = graphOf([cap({ name: "arrow-2d-dot", outline: ring })]).edges[0];
+        assert.closeTo(circle.points.at(-1)?.[0] ?? 0, 105, 1e-9);
+        // a cap whose tip is the line's end leaves the line as it is
+        const head = graphOf([
+            cap({
+                outline: [
+                    [100, 0],
+                    [90, 3],
+                    [90, -3],
+                ],
+            }),
+        ]).edges[0];
+        assert.deepEqual(head.points.at(-1), [100, 0]);
+    });
+
+    it("reads vis-network's curve cap, a stroked arc, as a hollow half circle", () => {
+        const [arrow] = graphOf([cap({ name: "arrow-2d-curve" })]).edges[0].arrows;
+        assert.deepEqual([arrow.shape, arrow.filled], ["half-circle", false]);
     });
 
     it("reads a cap's shape class, fill and color from its mesh", () => {
@@ -309,6 +335,81 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.deepEqual(
             p.texts.map((t) => t.content),
             ["Q"],
+        );
+    });
+
+    it("reads a node that draws no body as its label and its glyph, free texts, as a program's text or icon node", () => {
+        const label = {
+            text: "Label",
+            box: { x0: 40, y0: 45, x1: 60, y1: 55 },
+            fontPx: 10,
+            color: "#000000",
+            enabled: true,
+            onTop: false,
+            family: "DejaVu Sans",
+            weight: 400,
+            style: "normal",
+            rotation: 0,
+            textBox: null,
+            opacity: 1,
+            lineCount: 1,
+            align: "middle",
+            outline: null,
+            background: null,
+        } as unknown as NonNullable<DrawnNode["label"]>;
+        const sceneNode = (id: string, labelled: boolean): Record<string, unknown> => ({
+            id,
+            x: 50,
+            y: 50,
+            w: 20,
+            h: 28,
+            shape: "other",
+            fill: null,
+            fillOpacity: 1,
+            border: { color: null, width: 0, style: "solid" },
+            label: labelled ? { text: "Label", visible: true } : null,
+            visible: true,
+            drawn: { subPixel: false, fillCovered: false, fillDrawn: null },
+        });
+        const scene = {
+            nodes: [sceneNode("text", true), sceneNode("icon", false)],
+            edges: [],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const node = (over: Partial<DrawnNode>): DrawnNode =>
+            ({
+                insetPx: 0,
+                label: null,
+                gradient: false,
+                ramp: null,
+                faceless: true,
+                glyph: null,
+                ...over,
+            }) as unknown as DrawnNode;
+        const drawn: DrawnGraph = {
+            nodes: new Map([
+                ["text", node({ label })],
+                ["icon", node({ glyph: { text: "A", color: "#1f77b4" } })],
+            ]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        // kept as nodes for the raster comparison's masks, read as texts by the comparison
+        assert.deepEqual(
+            p.nodes.map((n) => (n.faceless ?? []).map((t) => [t.content, t.owner, t.color])),
+            [[["A", "icon", "#1f77b4"]], [["Label", "text", "#000000"]]],
+        );
+        const read = withoutCaptions(p);
+        assert.lengthOf(read.nodes, 0);
+        assert.deepEqual(
+            read.texts.map((t) => t.content),
+            ["A", "Label"],
         );
     });
 });

@@ -194,6 +194,12 @@ export interface PNode {
      * on it), so its fill lies inside the outline the program strokes, not on it.
      */
     inset?: boolean;
+    /**
+     * graphty's side only: a node that draws no body (shape "none", no picture), as the texts it draws instead, its
+     * label and its glyph. The comparison reads them as free texts and leaves the node out (`withoutCaptions`); the
+     * raster comparison still masks its box.
+     */
+    faceless?: PText[];
 }
 
 /**
@@ -327,7 +333,10 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
     const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
     const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
-    if (sum(off) <= 0.1 * (sum(on) + sum(off))) {
+    // a gap under a tenth of the pattern reads as no gap; one of a tenth still shows (vis-network's [5, 5] dashes at
+    // width 4 under round caps: gaps of 1 px in a 10 px pattern, drawn and visible), and a drawing measured at a scale
+    // gives that tenth back only within a few parts in a thousand
+    if (sum(off) < 0.099 * (sum(on) + sum(off))) {
         return "solid";
     }
     const dot = Math.max(1, width) * 1.5;

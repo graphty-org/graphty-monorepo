@@ -101,6 +101,11 @@ export function checkScored(
         if (rate !== undefined && rate >= floor - EPSILON) {
             return [];
         }
+        // a property no longer judged at a floor of 0 asked for nothing: every element it judged failed, and now there
+        // is none to judge (a sheet whose every oracle shape is now associated has no stray left)
+        if (rate === undefined && floor <= 0) {
+            return [];
+        }
         const drop = stored.allowedDrops[`${key}/${p}`];
         const lapsed = drop === undefined ? null : dropLapsed(drop, rate, today);
         if (drop !== undefined && lapsed === null) {

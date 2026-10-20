@@ -594,6 +594,13 @@ export interface DrawnNode {
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     label: DrawnLabel | null;
+    /**
+     * A node with no body (shape "none") that asks for no image: it draws only its label and its glyph, as a program
+     * draws a text-only or an icon-only node (vis-network's `text` and `icon` shapes).
+     */
+    faceless?: boolean;
+    /** The character or short text the node draws over its face, and its color, or null for none. */
+    glyph?: { text: string; color: string | null } | null;
 }
 
 /** A node's border ring as drawn. */
@@ -807,6 +814,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
         .sort((a, b) => b.reachPx - a.reachPx)[0];
     const outer = readOuterBorder(node, p);
+    const { drawnStyle } = node as unknown as NodeInternals;
     // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
     // its inner edge, past the border and the gap, and the ring is its stroke
     const own = readBorder(node, p);
@@ -847,6 +855,15 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         label: readLabel(node.label, p),
         // the image of a node with no body is the node itself
         pieces: pieces.filter((piece) => piece !== picture),
+        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
+        faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
+        glyph:
+            typeof drawnStyle?.glyph?.text === "string" && drawnStyle.glyph.text !== ""
+                ? {
+                      text: drawnStyle.glyph.text,
+                      color: drawnStyle.glyph.color === undefined ? null : cssColor(drawnStyle.glyph.color).hex,
+                  }
+                : null,
     };
 }
 

@@ -1215,19 +1215,20 @@ function readOgdfLabelPlace(
 }
 
 /**
- * Hides the edges Gephi's own GML importer leaves out: an edge whose `directed` key disagrees with the graph's (a
- * mixed graph's other kind; Gephi 0.11 loads 4 of `specimen-arrows-p6`'s 5 edges, and a mixed file it wrote itself
- * loses its edges the same way). The edge and its data stay; Gephi draws nothing there, so graphty draws nothing.
+ * Hides the edges Gephi's own GML importer leaves out: an edge whose `directed` key disagrees with the graph's
+ * `directed` header (Gephi 0.11 loads 4 of `specimen-arrows-p6`'s 5 edges). A file with no header is read as mixed and
+ * every edge is loaded. The edge and its data stay; Gephi draws nothing there, so graphty draws nothing.
  * @param snapshot - the graph
  * @param values - the edge values read so far, given `visible`
  */
 function hideGephiDroppedEdges(snapshot: GraphSnapshot, values: ValueColumns): void {
     const header = (snapshot.meta.extra.gml as Record<string, unknown> | undefined)?.directed;
     const directed = snapshot.edges.byRole("directed");
-    if (directed === null) {
+    // with no `directed` header Gephi reads a mixed graph and loads every edge (Gephi Toolkit 0.11.3, checked)
+    if (directed === null || header === undefined) {
         return;
     }
-    const graphDirected = Number(header ?? 0) === 1;
+    const graphDirected = Number(header) === 1;
     for (let e = 0; e < snapshot.edgeCount; e++) {
         const v = plainCell(directed.value(e));
         if (typeof v === "boolean" && v !== graphDirected) {

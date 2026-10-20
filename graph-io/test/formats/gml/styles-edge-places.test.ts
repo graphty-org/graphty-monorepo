@@ -123,11 +123,11 @@ describe("GML styles: where the program places an edge's label", () => {
 
 describe("GML styles: what Gephi leaves out", () => {
     it("hides an edge whose directed key disagrees with a Gephi graph's, which Gephi's importer never loads", async () => {
-        const doc = (graph: 0 | 1): string =>
+        const doc = (graph: 0 | 1 | null): string =>
             [
                 "graph [",
                 '  Creator "Gephi"',
-                `  directed ${String(graph)}`,
+                graph === null ? "" : `  directed ${String(graph)}`,
                 '  node [ id 0 label "a" graphics [ x 0.0 y 0.0 w 10.0 ] ]',
                 '  node [ id 1 label "b" graphics [ x 100.0 y 0.0 w 10.0 ] ]',
                 "  edge [ id 1 source 0 target 1 directed 0 ]",
@@ -139,5 +139,7 @@ describe("GML styles: what Gephi leaves out", () => {
         // an undirected graph: the directed edge is the one Gephi leaves out
         const undirected = (await load(doc(0))).edge("visible");
         expect(undirected.filter((v) => v === false)).toHaveLength(1);
+        // no directed header: Gephi reads a mixed graph and loads every edge
+        expect((await load(doc(null))).edge("visible").filter((v) => v === false)).toHaveLength(0);
     });
 });

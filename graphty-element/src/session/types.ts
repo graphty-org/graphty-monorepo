@@ -613,6 +613,37 @@ export interface ValueCounts {
 }
 
 /**
+ * What a column's values are read as: what `session.data.setType(column, type)` converts them to.
+ *
+ * - `"text"`: strings, free text.
+ * - `"number"`: finite numbers; text such as `"12.5"` converts, `"N/A"` does not.
+ * - `"boolean"`: `true` and `false`; `yes`, `no`, `y`, `n`, `true`, `false`, `1` and `0` convert.
+ * - `"date"`: instants, held as ISO 8601 strings (`"2024-09-01T00:00:00.000Z"`); text `Date.parse`
+ *   reads, milliseconds since 1970, and a four-digit year convert. The column's type reads `"time"`.
+ * - `"category"`: strings, read as groups (`type: "category"`, measured categorical).
+ *
+ * OPEN UNION: types may be added in a minor release; handle unknown types.
+ * @since 3.30.0
+ */
+export type ValueType = "text" | "number" | "boolean" | "date" | "category";
+
+/**
+ * What converting a column to a type would do, before it is done: what
+ * `session.data.previewType(column, type)` returns. A value that does not convert becomes blank.
+ * @since 3.30.0
+ */
+export interface TypeChangePreview {
+    /** How many values hold a value of the type afterwards, those that already did among them. */
+    readonly converts: number;
+    /** How many values do not convert, and become blank. */
+    readonly fails: number;
+    /**
+     * Up to five values and what each becomes, the ones that fail first (`converted: null`).
+     */
+    readonly examples: readonly { readonly value: unknown; readonly converted: unknown }[];
+}
+
+/**
  * How one data column's values are distributed: what `session.data.histogram(column)` returns.
  *
  * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
@@ -1078,6 +1109,88 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * Give a column a role -- the node label, the edge weight, an edge's source -- or take every
+     * role it plays away with `null`, as one undoable step. A role is written to the data
+     * configuration (`data.knownFields`), so a kind has one column per role: giving it to this
+     * column takes it from the one that had it. The roles that make the rows -- `key` for nodes,
+     * `source`, `target` and `edgeId` for edges -- are read when the rows load, so giving one to
+     * another column while rows of that kind are loaded is refused: load them again with the
+     * choice (`LoadDraft.load({ mapping })`). `null` never takes `key` away, since every node has
+     * an id.
+     *
+     * ```ts
+     * await session.data.setRole({ kind: "node", name: "title" }, "label");
+     * await session.data.setRole({ kind: "edge", name: "confidence" }, "weight");
+     * ```
+     * @param column - the column; an attribute descriptor can be passed as it is
+     * @param role - the role, or null for none
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
+     *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
+     *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     * @since 3.30.0
+     */
+    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    /**
+     * What converting a column to a type would do: how many values convert and how many become
+     * blank, with examples. Changes nothing.
+     *
+     * ```ts
+     * const preview = session.data.previewType({ kind: "node", name: "amount" }, "number");
+     * preview.fails; // 1, the "N/A"
+     * ```
+     * @param column - the column
+     * @param type - the type
+     * @returns the preview
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a type that is not one.
+     * @since 3.30.0
+     */
+    previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
+    /**
+     * Convert a column's values to a type, as one undoable step: what
+     * {@link SessionDataApi.previewType} says, with the values that do not convert made blank.
+     * The column's descriptor then reports the type (`date` reads `"time"`), saved with the project.
+     * @param column - the column
+     * @param type - the type
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` for a type that is not one.
+     * @since 3.30.0
+     */
+    setType(column: ColumnRef, type: ValueType): Promise<void>;
+    /**
+     * Give a column a new name, as one undoable step. Every record's value moves to the new key,
+     * and what read the old name follows it: style layer selectors and bindings, the filter, the
+     * filter steps and the time window, the roles, the declaration, the value names and the
+     * hidden flag; a finished run that weighed its edges by it lists under the new name in
+     * `usedBy`. Kept sets are not rewritten.
+     * @param column - the column
+     * @param name - its new name, not one another column of the kind has
+     * @returns settles once the step is recorded; the same name changes nothing
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
+     *     `E_BAD_COMMAND` (`details.reason` `"empty-name"` or `"name-taken"`) for a name it cannot take.
+     * @since 3.30.0
+     */
+    renameColumn(column: ColumnRef, name: string): Promise<void>;
+    /**
+     * Hide columns, or show them again, as one undoable step saved with the project. A hidden
+     * column keeps its values and reads `hidden: true` in {@link SessionDataApi.attributes}; what a
+     * consumer leaves out for it (a table, a field list) is the consumer's choice.
+     *
+     * ```ts
+     * const others = session.data.attributes().filter((a) => a.kind === "node" && a.name !== "holder");
+     * await session.data.setHidden(others, true); // hide others
+     * ```
+     * @param columns - the columns
+     * @param hidden - true to hide, false to show
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries.
+     * @since 3.30.0
+     */
+    setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     /**
      * Name one value of a path -- a community the run calls group 3, "Students" -- or take its
      * name away with `null`. One undoable step, saved with the project. A name is not a data edit:
@@ -1552,8 +1665,12 @@ export interface DraftColumn extends Pick<
     readonly suggested?: ColumnRole;
 }
 
-/** What a column can be to a load. */
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId";
+/**
+ * What a column can be to a load. `kind` is the column whose values name each row's kind: a
+ * node's, which loads as its `kind` attribute and keeps ids of different kinds apart under
+ * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute.
+ */
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind";
 
 /** One row of a draft table. */
 export interface DraftRow {
@@ -1616,6 +1733,16 @@ export interface TableMapping {
     readonly time?: string | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
     readonly edgeId?: string | null;
+    /** The column naming each row's kind, which loads as the node's or edge's `kind` attribute. */
+    readonly kind?: string | null;
+    /**
+     * An edge table's source nodes' kind: a kind name every source node takes, or `{ column }`
+     * whose values name each row's. The node loads with it as its `kind` attribute. Unlike every
+     * other key, a bare string here is a kind name, never a column.
+     */
+    readonly sourceKind?: string | Endpoint | null;
+    /** An edge table's target nodes' kind, as {@link TableMapping.sourceKind}. */
+    readonly targetKind?: string | Endpoint | null;
 }
 
 /** An edge endpoint column. */
@@ -1659,6 +1786,13 @@ export interface LoadChoices extends ImportOptions {
      * OPEN UNION: later releases may add policies.
      */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /**
+     * An id value that appears under two kinds (`kind`, `sourceKind`, `targetKind`): `"shared"`
+     * (the default) makes one node of it, with the first kind it appeared under; `"scoped"` makes
+     * one node per kind, each such id becoming `<kind>:<value>`. Ids that appear under one kind
+     * keep their value. `LoadReport.kinds.sharedIds` counts them.
+     */
+    readonly kindIds?: "shared" | "scoped";
     /**
      * For `mode: "merge"`: a node the graph already holds keeps its attributes (`"keep"`, the
      * default) or takes the incoming row's values over them (`"update"`).
@@ -2272,6 +2406,11 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.join` | `key`: the joined table's load; `name`: its name, or null; `shape`; `matched` |
  * | `data.edit-join` | `key`; `name`; `shape`; `matched` |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
+ * | `data.set-role` | `kind`: `"node"` or `"edge"`; `column`: the column's name; `role`: the role, or null |
+ * | `data.set-type` | `kind`; `column`; `type`: the value type; `fails`: how many values became blank |
+ * | `data.rename-column` | `kind`; `column`: the old name; `name`: the new name |
+ * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
+ * | `data.columns` | none: the column settings a project file restored |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.remove-layers` | `count` |
@@ -2336,6 +2475,12 @@ export type HistoryCode =
     | "data.join"
     | "data.edit-join"
     | "data.label"
+    | "data.set-role"
+    | "data.set-type"
+    | "data.rename-column"
+    | "data.hide-columns"
+    | "data.show-columns"
+    | "data.columns"
     | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
@@ -2541,6 +2686,8 @@ export interface CommandOutcomeMap {
     "data.setSource": Promise<void>;
     /** Settles once the name is recorded. */
     "data.label": Promise<void>;
+    /** Settles once the column settings are recorded. */
+    "data.columns": Promise<void>;
     /** Settles once the style values are recorded. */
     "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -2972,6 +3119,16 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
+     * What was done to the data and how it is drawn, as a document that names columns by name
+     * and role and never names a node or an edge: the sources, the columns (roles, types,
+     * declarations, hidden), the joins, the ignored issues, the filter and the style layers. A
+     * filter leaf or a style layer that names elements is left out and counted in `leftOut`.
+     * Read from the current state, so an undone step is not in it.
+     * @returns The recipe, frozen.
+     * @since 3.30.0
+     */
+    recipe(): RecipeDocument;
+    /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records
      * nothing.
@@ -3118,16 +3275,6 @@ export interface SessionRunsOptions {
     /** Reads the most recent timing of each algorithm on this machine. */
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
 }
-    /**
-     * What was done to the data and how it is drawn, as a document that names columns by name
-     * and role and never names a node or an edge: the sources, the columns (roles, types,
-     * declarations, hidden), the joins, the ignored issues, the filter and the style layers. A
-     * filter leaf or a style layer that names elements is left out and counted in `leftOut`.
-     * Read from the current state, so an undone step is not in it.
-     * @returns The recipe, frozen.
-     * @since 3.30.0
-     */
-    recipe(): RecipeDocument;
 
 /**
  * The part of the acceleration controller a session uses.

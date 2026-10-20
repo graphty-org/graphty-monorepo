@@ -48,6 +48,8 @@ export type IssueId = string;
  *   `params.lines`, `params.issues` (the reader's codes).
  * - `mixed-type`: a column holds values of several types and is not a number column;
  *   `params.types` counts each.
+ * - `could-be-yes-no`: a text column holds only yes and no (or true and false); `count` is the
+ *   values, `params.values` the spellings.
  *
  * OPEN UNION: codes may be added in a minor release; handle unknown codes.
  * @since 3.30.0
@@ -62,7 +64,8 @@ export type IssueCode =
     | "case-variant"
     | "blank-id"
     | "refused-row"
-    | "mixed-type";
+    | "mixed-type"
+    | "could-be-yes-no";
 
 /**
  * A fix `data.fix` can apply to an issue that lists it.
@@ -77,6 +80,7 @@ export type IssueCode =
  * - `merge-rows`: write each later row's values onto the node, later rows winning.
  * - `trim`: take the spaces off both ends.
  * - `merge-case`: rewrite every spelling to the commonest one.
+ * - `read-yes-no`: yes and true become `true`, no and false become `false`.
  *
  * OPEN UNION: fixes may be added in a minor release.
  * @since 3.30.0
@@ -91,7 +95,8 @@ export type FixCode =
     | "keep-first"
     | "merge-rows"
     | "trim"
-    | "merge-case";
+    | "merge-case"
+    | "read-yes-no";
 
 /**
  * One problem with the loaded data: what `session.data.issues()` lists. Neutral facts: a reader
@@ -253,6 +258,14 @@ export interface FoundIssue {
     readonly issue: Omit<DataIssue, "ignored">;
     readonly plan: (fix: FixCode) => FixPlan;
 }
+
+/** The spellings a yes/no column holds, and the truth value each reads as. */
+const YES_NO: ReadonlyMap<string, boolean> = new Map([
+    ["yes", true],
+    ["no", false],
+    ["true", true],
+    ["false", false],
+]);
 
 type ValueKind = "blank" | "number" | "decimal-comma" | "boolean" | "text" | "other";
 
@@ -466,6 +479,14 @@ function columnIssues(
             );
             issue("mixed-type", minority, { types }, null, (cell) => cell.value);
         }
+    }
+
+    const texts = cells("text");
+    const spelled = new Set(texts.map((cell) => String(cell.value).trim().toLowerCase()));
+    if (texts.length === filled && spelled.size > 0 && [...spelled].every((each) => YES_NO.has(each))) {
+        issue("could-be-yes-no", texts, { values: [...spelled] }, "read-yes-no", (cell) =>
+            YES_NO.get(String(cell.value).trim().toLowerCase()),
+        );
     }
 
     issue("padded-space", padded, { examples: examples(padded) }, "trim", (cell) => String(cell.value).trim());

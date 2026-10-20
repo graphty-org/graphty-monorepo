@@ -50,6 +50,7 @@ export const COMMANDS = Object.freeze({
     "data.setSource": { undo: "undoable" },
     "data.setFileStyles": { undo: "undoable" },
     "data.label": { undo: "undoable" },
+    "data.columns": { undo: "undoable" },
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },

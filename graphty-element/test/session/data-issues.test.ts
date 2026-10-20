@@ -57,6 +57,7 @@ describe("session.data.issues", () => {
             "repeated-edge:edge": 5,
             "decimal-comma:edge:amount": 3,
             "not-a-number:edge:amount": 1,
+            "could-be-yes-no:node:flagged": 298,
         });
 
         const refused = issue(session, "refused-row");
@@ -135,6 +136,23 @@ describe("data.fix", () => {
         session.dispose();
     });
 
+    it("reads a column of yes and no as truth values", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", flagged: "yes" },
+            { id: "b", flagged: "No" },
+            { id: "c", flagged: null },
+        ]);
+        assert.deepEqual(issue(session, "could-be-yes-no:node:flagged")?.params, { values: ["yes", "no"] });
+        await session.data.fix("could-be-yes-no:node:flagged", "read-yes-no");
+        assert.deepEqual(
+            session.data.nodes().map((node) => node.flagged),
+            [true, false, null],
+        );
+        assert.isUndefined(issue(session, "could-be-yes-no:node:flagged"));
+        session.dispose();
+    });
+
     it("makes a value that is not a number blank", async () => {
         const session = await fraud();
         await session.data.fix("not-a-number:edge:amount", "make-blank");
@@ -168,7 +186,7 @@ describe("data.fix", () => {
         assert.deepEqual(session.data.statistics().edgeCount, edgeCount);
         assert.deepEqual(
             session.data.issues().map((each) => each.id),
-            ["refused-row", "decimal-comma:edge:amount", "not-a-number:edge:amount"],
+            ["refused-row", "could-be-yes-no:node:flagged", "decimal-comma:edge:amount", "not-a-number:edge:amount"],
         );
 
         await session.undo();

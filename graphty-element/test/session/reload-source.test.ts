@@ -97,6 +97,19 @@ describe("data.reloadSource", () => {
         assert.notInclude(ids(session), "alice");
     });
 
+    it("reads the rows as nodes and back as edges", async () => {
+        const session = await loaded();
+        const [{ key }] = session.data.sources();
+        await session.data.reloadSource(key, { mapping: { rowsAre: "nodes" } });
+        assert.strictEqual(session.data.statistics().nodeCount, 4);
+        assert.strictEqual(session.data.statistics().edgeCount, 0);
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, { rowsAre: "nodes" });
+
+        await session.data.reloadSource(key, { mapping: { rowsAre: "edges", source: "user", target: "host" } });
+        assert.strictEqual(session.data.statistics().edgeCount, 4);
+        assert.include(ids(session), "alice");
+    });
+
     it("refuses a key it does not list and a load it did not read", async () => {
         const session = await loaded();
         try {

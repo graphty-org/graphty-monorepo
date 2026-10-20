@@ -1121,6 +1121,12 @@ export interface AttributeDescriptor {
      * when no load recorded what it supplied.
      */
     sources?: readonly SourceKey[];
+    /**
+     * True when the column was hidden with `session.data.setHidden`; absent otherwise. Its values
+     * are all still there: what to leave out for a hidden column is the consumer's choice.
+     * @since 3.30.0
+     */
+    hidden?: boolean;
 }
 
 /**
@@ -1493,17 +1499,17 @@ export interface CatalogApi {
      */
     datasets(): readonly DatasetMeta[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #331).
-     */
-    themes(): readonly ThemeDescriptor[];
-    /**
-    /**
      * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
      * background each sets, so an export dialog can show them. Static; also published as
      * `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog` entry.
      */
     screenshotPresets(): readonly ScreenshotPreset[];
+    /**
+     * @deprecated Not implemented. Removed at the next major release unless it is implemented
+     * first (issue #331).
+     */
+    themes(): readonly ThemeDescriptor[];
+    /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #332).
      */

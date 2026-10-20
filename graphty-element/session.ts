@@ -152,7 +152,9 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    TypeChangePreview,
     ValueCounts,
+    ValueType,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -165,12 +167,10 @@ export { createGraphSession } from "./src/session";
  * Read it at any time from `session.data.lastImport()`, or take it off the detail of
  * `data-loaded` and `data-loading-complete`.
  */
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
-export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
-
-// ---------------------------------------------------------------------------------------------
 export type {
     RecipeColumn,
     RecipeDocument,
@@ -179,6 +179,8 @@ export type {
     RecipeLeftOutCode,
     RecipeSource,
 } from "./src/session/recipe";
+
+// ---------------------------------------------------------------------------------------------
 // The node coordinates
 // ---------------------------------------------------------------------------------------------
 
@@ -546,9 +548,9 @@ export type {
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleFileDocument,
     StylesApi,
     StyleSuggestion,
-    StyleFileDocument,
     TemplateOptions,
     TemplatePosition,
     TemplateReport,

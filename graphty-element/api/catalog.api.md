@@ -153,6 +153,7 @@ export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean"
 // @public
 export interface AttributeDescriptor {
     completeness: number;
+    hidden?: boolean;
     // (undocumented)
     kind: "node" | "edge";
     // (undocumented)
@@ -290,8 +291,8 @@ export interface CatalogApi {
     palettes(): readonly PaletteDescriptor[];
     // (undocumented)
     scales(): readonly ScaleDescriptor[];
-    // @deprecated (undocumented)
     screenshotPresets(): readonly ScreenshotPreset[];
+    // @deprecated (undocumented)
     themes(): readonly ThemeDescriptor[];
     // @deprecated (undocumented)
     timeAttributes(): readonly AttributeDescriptor[];
@@ -1696,7 +1697,6 @@ export type ScopeInput = Exclude<Scope, {
 };
 
 // @public
-// @public
 export const SCREENSHOT_PRESET_DESCRIPTORS: readonly ScreenshotPreset[];
 
 // @public
@@ -1719,6 +1719,7 @@ export interface ScreenshotPreset {
 // @public
 export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
 
+// @public
 export type SelectionDirection = "in" | "out" | "all";
 
 // @public

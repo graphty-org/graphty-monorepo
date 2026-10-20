@@ -55,6 +55,12 @@ import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
 /**
+ * The kinds a draft gave the rows it hands over, by those rows: the report's `kinds`. Kept beside
+ * the rows rather than in them, as `HELD_READERS` keeps their reader.
+ */
+export const HELD_KINDS = new WeakMap<HeldRows, NonNullable<LoadReport["kinds"]>>();
+
+/**
  * A load's input token as its `data.sources()` entry keeps it, out of sight of the entry's type.
  * @param command - The import.
  * @param command.input - The token, when the rows were read from something the session holds.
@@ -1438,7 +1444,12 @@ export class Ingest<K extends KnownEdge> {
                 // what `edgesLoaded` has always claimed to be and never was: it counted records
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
-                const report = this.sealLoad(type, tally, writer);
+                const report = this.sealLoad(
+                    type,
+                    tally,
+                    writer,
+                    held === undefined ? undefined : HELD_KINDS.get(held),
+                );
                 this.sealedTally = tally;
                 await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
 
@@ -1498,9 +1509,10 @@ export class Ingest<K extends KnownEdge> {
      * @param format - the data source that read the file
      * @param tally - what the load counted
      * @param writer - the graph primitives to write through
+     * @param kinds - the kinds the draft gave the rows, when it gave any
      * @returns the report
      */
-    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter): LoadReport {
+    private sealLoad(format: string, tally: ImportTally, writer: GraphWriter, kinds?: LoadReport["kinds"]): LoadReport {
         const { knownFields } = this.host.dataConfig();
         const endpoints = this.loadEndpoints ?? {
             // A file with no edge records at all: nothing was probed, so nothing was decided, and
@@ -1510,13 +1522,14 @@ export class Ingest<K extends KnownEdge> {
             resolvedFrom: "source/target" as const,
         };
 
-        const report = sealImportReport(tally, {
+        const sealed = sealImportReport(tally, {
             format,
             endpoints,
             policy: knownFields.repeatedEdges,
             idPath: knownFields.edgeIdPath,
             ...this.heldCounts(),
         });
+        const report = kinds === undefined ? sealed : Object.freeze({ ...sealed, kinds });
         writer.setGraphValues({ importReport: report });
         return report;
     }

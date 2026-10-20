@@ -645,6 +645,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
     },
     {
+        name: "data.columns",
+        tags: BOTH,
+        command: {
+            op: "data.columns",
+            settings: { hidden: ["node:name"], types: { "node:name": "category" }, renamed: {} },
+        },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {

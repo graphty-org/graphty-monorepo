@@ -16,6 +16,7 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
@@ -494,6 +495,9 @@ export function graphIdsOf(session: GraphSession): GraphIds {
 /** The version of the column declarations the session member carries. */
 const DECLARATIONS_VERSION = 1;
 
+/** The version of the session member's `columns` field. */
+const COLUMNS_VERSION = 1;
+
 /**
  * The `graphty-data` member: the records, the direction and the source. The only builder that
  * reads the records.
@@ -568,6 +572,7 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         }),
     );
     const { layout, visibility } = session;
+    const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
     const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
     const columns = [...dispatcher.state.attributes].map(([key, declaration]) => {
         const split = key.indexOf(":");
@@ -590,6 +595,17 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // The hidden columns, the types columns were given and the renames, when any was made.
+        ...(columnSettings === undefined
+            ? {}
+            : {
+                  columns: {
+                      version: COLUMNS_VERSION,
+                      hidden: columnSettings.hidden,
+                      types: columnSettings.types,
+                      renamed: columnSettings.renamed,
+                  },
+              }),
         // Written only when a value is named, so a project without names saves as before.
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
@@ -1317,6 +1333,7 @@ async function readProject(
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
     await readDeclarations(opening, state.declarations);
+    await readColumnSettings(opening, state.columns);
 
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
@@ -1556,6 +1573,35 @@ async function readDeclarations(opening: Opening, declarations: unknown): Promis
             `${String(kind)}:${String(name)}`,
         );
     }
+}
+
+/**
+ * Restore the column settings the session member saved: the hidden columns, the types and the
+ * renames. The saved rows already hold the converted values and the new names, so only the
+ * settings are restored. A newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param columns - The session member's `columns` field.
+ */
+async function readColumnSettings(opening: Opening, columns: unknown): Promise<void> {
+    if (!isObject(columns)) {
+        return;
+    }
+
+    if (columns.version !== COLUMNS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "attributes", found: columns.version as number },
+        });
+        return;
+    }
+
+    const { hidden, types, renamed } = columns;
+    await attempt(opening, "attributes", () =>
+        opening.tx.execute({
+            op: "data.columns",
+            settings: { hidden, types, renamed } as unknown as ColumnSettings,
+        }),
+    );
 }
 
 /**

@@ -72,14 +72,51 @@ describe("value-based role guesses", () => {
         assert.strictEqual(roles.account, "key");
     });
 
-    it("guesses no ends for columns that share a stray value, and no key from a column of times", async () => {
+    it("reads an event table's two repeating columns as its ends, and no key from a column of times", async () => {
         const rows = Array.from(
             { length: 30 },
             (_unused, at) =>
-                `2024-03-01T${String(at % 24).padStart(2, "0")}:${String(at).padStart(2, "0")}:00Z,user${String(at % 5)},host${String(at % 3)},admin`,
+                `2024-03-01T${String(at % 24).padStart(2, "0")}:${String(at).padStart(2, "0")}:00Z,user${String(at % 5)},host${String(at % 3)},admin,${at % 2 === 0 ? "ok" : "fail"}`,
         );
-        const { roles } = await guessed(["time,user,host,owner", ...rows].join("\n"), "log.csv");
-        assert.notInclude(Object.values(roles), "source");
+        const { roles, rowsAre } = await guessed(["time,user,host,owner,result", ...rows].join("\n"), "log.csv");
+        assert.strictEqual(rowsAre, "edges");
+        assert.strictEqual(roles.user, "source");
+        assert.strictEqual(roles.host, "target");
         assert.notInclude(Object.values(roles), "key");
+    });
+
+    it("keeps a node table with a unique key as nodes, whatever its repeating columns", async () => {
+        const rows = Array.from(
+            { length: 30 },
+            (_unused, at) => `s${String(at)},Firm ${String(at)},c${String(at % 4)},r${String(at % 3)}`,
+        );
+        const { roles, rowsAre } = await guessed(["code,name,country,region", ...rows].join("\n"), "suppliers.csv");
+        assert.strictEqual(rowsAre, "nodes");
+        assert.strictEqual(roles.code, "key");
+        assert.strictEqual(roles.name, "label");
+    });
+
+    it("guesses a confidence as the weight, read as a similarity", async () => {
+        const session = createGraphSession();
+        const rows = PROTEINS.map(
+            (protein, at) => `${protein}\t${PROTEINS[(at + 1) % 12]}\t0.${String(at + 1)}\tassay`,
+        );
+        const draft = await session.data.prepare(
+            { config: { file: new File([["bait\tprey\tconfidence\tevidence", ...rows].join("\n")], "ppi.tsv") } },
+            { guess: "values" },
+        );
+        assert.strictEqual(draft.tables[0].columns.find((column) => column.name === "confidence")?.suggested, "weight");
+        await draft.load({ mapping: draft.mapping });
+        assert.strictEqual(session.config.data.knownFields.edgeWeightPath, "confidence");
+        assert.strictEqual(session.config.data.knownFields.edgeWeightMeaning, "similarity");
+        await session.undo();
+        assert.isUndefined(session.config.data.knownFields.edgeWeightMeaning);
+        session.dispose();
+    });
+
+    it("guesses the one numeric column of an edge table as its weight", async () => {
+        const rows = PROTEINS.map((protein, at) => `${protein},${PROTEINS[(at + 1) % 12]},${String(at * 10)},wire`);
+        const { roles } = await guessed(["from,to,amount,kind", ...rows].join("\n"), "transfers.csv");
+        assert.strictEqual(roles.amount, "weight");
     });
 });

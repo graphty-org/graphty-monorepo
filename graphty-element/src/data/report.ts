@@ -155,6 +155,14 @@ export interface LoadReport extends ImportReport {
      * facts. Absent when the load was not asked to read styles.
      */
     readonly styles?: LoadStyleReport;
+    /**
+     * The kinds of node the load gave, when its mapping named any (a node table's `kind` column,
+     * an edge table's `sourceKind` or `targetKind`). `sharedIds` is how many id values appear under
+     * two or more kinds -- one node each under `LoadChoices.kindIds` `"shared"`, one per kind under
+     * `"scoped"` -- and `byKind` how many distinct id values each kind holds, the same under either
+     * choice. Absent when the mapping names no kind.
+     */
+    readonly kinds?: { readonly sharedIds: number; readonly byKind: Readonly<Record<string, number>> };
 }
 
 /**

@@ -56,6 +56,7 @@ describe("data issues on a renderer", () => {
             "repeated-edge:edge": 5,
             "decimal-comma:edge:amount": 3,
             "not-a-number:edge:amount": 1,
+            "could-be-yes-no:node:flagged": 298,
         });
 
         const nodes = graph.getNodeCount();

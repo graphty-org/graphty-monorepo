@@ -2067,7 +2067,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },
-            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
+            readers: () => ({
+                styles: dispatcher.state.styles,
+                runs: dispatcher.state.runs,
+                visibility: dispatcher.state.visibility,
+            }),
         },
         {
             revision: () => inputs.tick.value,

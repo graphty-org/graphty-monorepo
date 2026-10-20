@@ -20,7 +20,7 @@ import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
-import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
     ColumnRole,
@@ -29,6 +29,7 @@ import type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    Endpoint,
     JoinChoices,
     JoinReport,
     JoinShape,
@@ -100,9 +101,12 @@ export interface ReadSource {
 export const LOAD_ROLES: Readonly<
     Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
 > = Object.freeze({
-    nodes: Object.freeze({ takes: Object.freeze(["key", "label", "time"] as const), requires: Object.freeze([]) }),
+    nodes: Object.freeze({
+        takes: Object.freeze(["key", "label", "time", "kind"] as const),
+        requires: Object.freeze([]),
+    }),
     edges: Object.freeze({
-        takes: Object.freeze(["source", "target", "weight", "time", "edgeId"] as const),
+        takes: Object.freeze(["source", "target", "weight", "time", "edgeId", "kind"] as const),
         requires: Object.freeze(["source", "target"] as const),
     }),
 });
@@ -110,7 +114,7 @@ export const LOAD_ROLES: Readonly<
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
     nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
-    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes]),
+    edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes, "sourceKind", "targetKind"]),
 };
 
 /** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
@@ -131,6 +135,9 @@ function keptChoices(choices: LoadChoices): { choices?: LoadChoices } {
 
     return Object.keys(kept).length === 0 ? {} : { choices: Object.freeze(kept) };
 }
+
+/** The attribute a row's kind loads as. */
+const KIND = "kind";
 
 /** The endpoint column pairs a CSV edge table is probed for, as the CSV reader probes them. */
 const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
@@ -173,7 +180,7 @@ export function keyExpression(name: string): string {
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
  */
-function fileName(value: unknown): string | undefined {
+export function fileName(value: unknown): string | undefined {
     if (typeof value === "string") {
         return value.split(/[?#]/)[0]?.split("/").pop();
     }
@@ -344,18 +351,27 @@ const SHARED_ENDS = 0.5;
 /** How nearly every value of a text column must be its own for it to read as a node table's key. */
 const NEARLY_UNIQUE = 0.95;
 
+/** The fewest distinct values a column names for its repeats to read as an event's end. */
+const REPEATING_MIN = 3;
+
+/** Column names whose numbers measure how alike or how strongly tied two ends are. */
+const SIMILARITY_COLUMNS: readonly string[] = ["confidence", "score", "strength"];
+
+/** Column names a node's label is read from when no label path is configured. */
+const LABEL_COLUMNS: readonly string[] = ["name", "Name", "title", "Title"];
+
 /** A value that starts with a calendar date, which reads as a time, never as an id. */
 const DATE_LIKE = /^\d{4}-\d{2}-\d{2}/;
 
 /**
- * The distinct values of each text column of a table, for the guesses that read values.
+ * The distinct values of each text or category column of a table, for the guesses that read values.
  * @param held - The table.
  * @returns By column name, its distinct non-blank text values.
  */
 function textValues(held: HeldTable): Map<string, Set<string>> {
     const out = new Map<string, Set<string>>();
     for (const column of held.table.columns) {
-        if (column.type === "string") {
+        if (column.type === "string" || column.type === "category") {
             out.set(column.name, new Set());
         }
     }
@@ -424,6 +440,39 @@ function sharedEnds(values: ReadonlyMap<string, ReadonlySet<string>>): readonly 
 }
 
 /**
+ * The first two text columns whose values repeat, read as an event table's ends when no two
+ * columns name the same things (`user` and `host` of an access log): each names a few things many
+ * times over, more than a yes/no column does.
+ * @param held - The table.
+ * @param values - Each text column's distinct values.
+ * @returns The pair, the earlier column the source, or undefined.
+ */
+function repeatingEnds(
+    held: HeldTable,
+    values: ReadonlyMap<string, ReadonlySet<string>>,
+): readonly [string, string] | undefined {
+    const repeating = [...values]
+        .filter(([, distinct]) => distinct.size >= REPEATING_MIN && distinct.size <= held.rows.length / 2)
+        .map(([name]) => name);
+    return repeating.length >= 2 ? [repeating[0], repeating[1]] : undefined;
+}
+
+/**
+ * The numeric column an edge table's weight is most likely read from, when no header names one:
+ * a confidence, score or strength, else the one numeric column it has.
+ * @param held - The table.
+ * @param ends - The source and target columns, which are never the weight.
+ * @returns The column, or null.
+ */
+function guessedWeight(held: HeldTable, ends: readonly string[] | undefined): string | null {
+    const numeric = held.table.columns
+        .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
+        .map((column) => column.name);
+    const named = numeric.find((name) => SIMILARITY_COLUMNS.includes(name.toLowerCase()));
+    return named ?? (numeric.length === 1 ? numeric[0] : null);
+}
+
+/**
  * The first complete text column whose values are nearly all distinct, read as a node table's key
  * when no header names one (`account`, `symbol`).
  * @param held - The table.
@@ -477,10 +526,11 @@ function guessTable(
         guess === "values" && named === undefined && namedId === undefined && held.table.id !== "nodes"
             ? textValues(held)
             : null;
-    const pair = named ?? (values === null ? undefined : sharedEnds(values));
-    const idColumn =
-        namedId ??
-        (values !== null && pair === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined);
+    const shared = named ?? (values === null ? undefined : sharedEnds(values));
+    const uniqueKey =
+        values !== null && shared === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined;
+    const pair = shared ?? (values === null || uniqueKey !== undefined ? undefined : repeatingEnds(held, values));
+    const idColumn = namedId ?? (pair === undefined ? uniqueKey : undefined);
     const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
     const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
     // One file of a pair says what it holds by its columns, whichever half it was handed over as;
@@ -494,12 +544,17 @@ function guessTable(
         return {
             rowsAre: "nodes",
             key,
-            label: present(knownFields.nodeLabelPath),
+            label:
+                present(knownFields.nodeLabelPath) ??
+                (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
             time: present(knownFields.nodeTimePath),
         };
     }
 
-    const weight = present(knownFields.edgeWeightPath) ?? present("value");
+    const weight =
+        present(knownFields.edgeWeightPath) ??
+        present("value") ??
+        (guess === "values" ? guessedWeight(held, pair) : null);
     return {
         rowsAre: "edges",
         ...(pair === undefined ? {} : { source: { column: pair[0] }, target: { column: pair[1] } }),
@@ -573,7 +628,12 @@ export class Draft implements LoadDraft {
      * @param styles - Whether the file carries styles; see {@link draftStyles}.
      * @param guess - How the roles are guessed; see `data.prepare`'s `guess` option.
      */
-    constructor(read: ReadSource, host: DraftHost, styles: LoadDraft["styles"] = null, guess: DraftGuess = "names") {
+    constructor(
+        read: ReadSource,
+        host: DraftHost,
+        styles: LoadDraft["styles"] = null,
+        private readonly guess: DraftGuess = "names",
+    ) {
         this.read = read;
         this.host = host;
         this.styles = styles;
@@ -893,7 +953,7 @@ export class Draft implements LoadDraft {
             const base =
                 choice.rowsAre === undefined || choice.rowsAre === guessed.rowsAre
                     ? guessed
-                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config());
+                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config(), this.guess);
             tables[id] = withChoice(held, base, choice);
         }
 
@@ -934,10 +994,16 @@ export class Draft implements LoadDraft {
         // A graph file's label column, which the element reads by itself, labels the nodes as the
         // draft's mapping says it will, unless a label path is configured already.
         const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
-        const knownFields =
+        const labelled =
             label === null || this.host.config().knownFields.nodeLabelPath !== null
                 ? named
                 : { ...named, nodeLabelPath: label };
+        // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
+        const similar =
+            typeof named.edgeWeightPath === "string" &&
+            SIMILARITY_COLUMNS.includes(named.edgeWeightPath.toLowerCase()) &&
+            this.host.config().knownFields.edgeWeightMeaning === undefined;
+        const knownFields = similar ? { ...labelled, edgeWeightMeaning: "similarity" as const } : labelled;
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             const held: HeldRows = {
@@ -969,23 +1035,39 @@ export class Draft implements LoadDraft {
         const nodeRoles = nodeTable === undefined ? undefined : mapping.tables[nodeTable.table.id];
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
-        const edges = edgeTable?.rows ?? [];
         const nodeRows = nodeTable?.rows ?? [];
-        return {
-            mapping,
-            knownFields,
-            held: {
-                nodes: key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
-                edges,
-                declaredDirection: readGephiTypeColumn(edges),
-                errors: read.errors,
-                errorLimit: read.errorLimit,
-                ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
-                ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
-                ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
-                ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
+        const kinds = withKinds(
+            key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
+            edgeTable?.rows ?? [],
+            {
+                key: key ?? ROW_ID,
+                nodeKind: nodeRoles?.kind ?? null,
+                edges: edgeRoles,
+                synthesize: nodeTable === undefined,
+                scoped: choices.kindIds === "scoped",
             },
+        );
+        const { edges } = kinds;
+        const held: HeldRows = {
+            nodes:
+                // A merge keeps the ends the graph does not hold as unknown ends, for data.issues().
+                nodeTable === undefined && choices.mode !== "merge"
+                    ? withEndpointNodes(kinds.nodes, edges, [edgeRoles?.source?.column, edgeRoles?.target?.column])
+                    : kinds.nodes,
+            edges,
+            declaredDirection: readGephiTypeColumn(edges),
+            errors: read.errors,
+            errorLimit: read.errorLimit,
+            ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
+            ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
+            ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
+            ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
         };
+        if (kinds.report !== undefined) {
+            HELD_KINDS.set(held, kinds.report);
+        }
+
+        return { mapping, knownFields, held };
     }
 
     /**
@@ -1139,6 +1221,7 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
     set("label", roles.label);
     set("time", roles.time);
     set("edgeId", roles.edgeId);
+    set("kind", roles.kind);
     return out;
 }
 
@@ -1185,6 +1268,11 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
         return value;
     }
 
+    // A bare string is a kind name, not a column.
+    if ((role === "sourceKind" || role === "targetKind") && typeof value === "string") {
+        return value;
+    }
+
     if (typeof column !== "string") {
         throw badCommand(`The ${role} role takes a column name or null.`, { table: held.table.id, role });
     }
@@ -1194,7 +1282,8 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
         held.order.map((name) => ({ kind, name })),
         { kind, name: column },
     );
-    return role === "source" || role === "target" ? { column } : value;
+    // An end is always held as `{ column }`; a kind column given as `{ column }` stays one.
+    return role === "source" || role === "target" || typeof value === "object" ? { column } : value;
 }
 
 /**
@@ -1254,4 +1343,176 @@ function knownFieldsOf(
     }
 
     return out;
+}
+
+/**
+ * An edge table's nodes, when the load has no node table: a row of its own for every value an end
+ * names, so each node the edges make is drawn. A node the store holds with no row of its own waits
+ * for one, as a streamed edge waits for its endpoint, and an edge table alone never sends one.
+ * @param nodes - The node rows already made (the kinds' own, keyed by the row id).
+ * @param edges - The edge rows.
+ * @param ends - The source and target columns.
+ * @returns The node rows, the given ones first.
+ */
+function withEndpointNodes(
+    nodes: readonly Record<string, unknown>[],
+    edges: readonly Record<string, unknown>[],
+    ends: readonly (string | undefined)[],
+): readonly Record<string, unknown>[] {
+    const columns = ends.filter((column): column is string => column !== undefined);
+    const seen = new Set(nodes.map((row) => row[ROW_ID]));
+    const out = [...nodes];
+    for (const row of edges) {
+        for (const column of columns) {
+            const id = row[column];
+            if (isStorableId(id) && !seen.has(id)) {
+                seen.add(id);
+                out.push({ [ROW_ID]: id });
+            }
+        }
+    }
+
+    return out;
+}
+
+/** What {@link withKinds} reads a load's kinds by. */
+interface KindRoles {
+    /** The node table's id column. */
+    readonly key: string;
+    /** The node table's kind column, or null. */
+    readonly nodeKind: string | null;
+    /** The edge table's roles, when there is one. */
+    readonly edges: TableMappingRead | undefined;
+    /** Whether the edges' nodes come from the edges alone, so their kinds need node rows of their own. */
+    readonly synthesize: boolean;
+    /** `LoadChoices.kindIds` is `"scoped"`. */
+    readonly scoped: boolean;
+}
+
+/**
+ * A row's kind, by a kind name or a column.
+ * @param row - The row.
+ * @param spec - A kind name, `{ column }`, or a column name when `named` is false.
+ * @param named - Whether a bare string is a kind name (an endpoint kind) or a column (a kind role).
+ * @returns The kind, or undefined when the row has none.
+ */
+function kindOf(row: Readonly<Record<string, unknown>>, spec: unknown, named: boolean): string | undefined {
+    if (spec === null || spec === undefined) {
+        return undefined;
+    }
+
+    if (typeof spec === "string" && named) {
+        return spec;
+    }
+
+    const value = row[typeof spec === "string" ? spec : (spec as { column: string }).column];
+    // A kind is a name: an empty cell, or a value that is not text, a number or a truth value, names none.
+    const nameable = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+    return nameable && value !== "" ? String(value) : undefined;
+}
+
+/**
+ * The rows a load hands over with their kinds applied: each node with a kind carries it as its
+ * `kind` attribute, an edge kind column loads as the edge's `kind`, and under `"scoped"` an id
+ * value that appears under two kinds becomes `<kind>:<value>` wherever it appears with a kind.
+ * @param nodes - The node rows, each with an id at `roles.key`.
+ * @param edges - The edge rows.
+ * @param roles - Where the kinds are read.
+ * @returns The rows, and the report's `kinds` when the mapping names any node kind.
+ */
+function withKinds(
+    nodes: readonly Record<string, unknown>[],
+    edges: readonly Record<string, unknown>[],
+    roles: KindRoles,
+): {
+    nodes: readonly Record<string, unknown>[];
+    edges: readonly Record<string, unknown>[];
+    report?: LoadReport["kinds"];
+} {
+    const { key, nodeKind } = roles;
+    const source = roles.edges?.source?.column;
+    const target = roles.edges?.target?.column;
+    const ends = [
+        { column: source, kind: roles.edges?.sourceKind },
+        { column: target, kind: roles.edges?.targetKind },
+    ].filter(
+        (end): end is { column: string; kind: string | Endpoint } =>
+            end.column !== undefined && end.kind !== undefined && end.kind !== null,
+    );
+    const edgeKind = roles.edges?.kind ?? null;
+    if (nodeKind === null && ends.length === 0 && edgeKind === null) {
+        return { nodes, edges };
+    }
+
+    // Every id value's kinds, in the order first seen.
+    const kindsOf = new Map<unknown, string[]>();
+    const note = (id: unknown, kind: string | undefined): void => {
+        if (kind === undefined || !isStorableId(id)) {
+            return;
+        }
+
+        const seen = kindsOf.get(id) ?? [];
+        if (!seen.includes(kind)) {
+            seen.push(kind);
+        }
+
+        kindsOf.set(id, seen);
+    };
+    for (const row of nodes) {
+        note(row[key], kindOf(row, nodeKind, false));
+    }
+
+    for (const row of edges) {
+        for (const end of ends) {
+            note(row[end.column], kindOf(row, end.kind, true));
+        }
+    }
+
+    const idOf = (id: unknown, kind: string | undefined): unknown =>
+        roles.scoped && kind !== undefined && (kindsOf.get(id)?.length ?? 0) > 1 ? `${kind}:${String(id)}` : id;
+    // ponytail: a node row with no kind of its own takes the first kind an edge gave its id.
+    const outNodes = nodes.map((row) => {
+        const kind = kindOf(row, nodeKind, false) ?? kindsOf.get(row[key])?.[0];
+        return kind === undefined ? row : { ...row, [key]: idOf(row[key], kind), [KIND]: kind };
+    });
+    const made = new Set<unknown>();
+    const outEdges = edges.map((row) => {
+        const out: Record<string, unknown> = { ...row };
+        for (const end of ends) {
+            const kind = kindOf(row, end.kind, true);
+            const id = idOf(row[end.column], kind);
+            out[end.column] = id;
+            // ponytail: with a node table, an end no node row names is made by the edge, without a
+            // kind; give it a node row here too if that matters (it would end its "unmatched" count).
+            if (roles.synthesize && kind !== undefined && isStorableId(id) && !made.has(id)) {
+                made.add(id);
+                outNodes.push({ [key]: id, [KIND]: kind });
+            }
+        }
+
+        if (edgeKind !== null) {
+            out[KIND] = row[edgeKind];
+        }
+
+        return out;
+    });
+
+    if (nodeKind === null && ends.length === 0) {
+        return { nodes: outNodes, edges: outEdges };
+    }
+
+    const byKind: Record<string, number> = {};
+    let sharedIds = 0;
+    for (const kinds of kindsOf.values()) {
+        sharedIds += kinds.length > 1 ? 1 : 0;
+        for (const kind of kinds) {
+            byKind[kind] = (byKind[kind] ?? 0) + 1;
+        }
+    }
+
+    return {
+        nodes: outNodes,
+        edges: outEdges,
+        report: Object.freeze({ sharedIds, byKind: Object.freeze(byKind) }),
+    };
 }

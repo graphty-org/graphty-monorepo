@@ -144,4 +144,36 @@ describe("DataTable reading", () => {
         const grid = screen.getByRole("grid");
         expect(grid.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+    it("keeps a cell's controls out of the Tab order until the arrows reach their cell", async () => {
+        const columns: DataTableColumn<Person>[] = [
+            ...COLUMNS.slice(0, 2),
+            {
+                id: "act",
+                header: "Actions",
+                value: () => "",
+                cell: (person) => <button type="button">{`Act on ${person.name}`}</button>,
+            },
+        ];
+        render(
+            <MantineProvider theme={compactTheme}>
+                <button type="button">Before</button>
+                <DataTable columns={columns} data={PEOPLE} getRowId={(person) => person.id} label="People" />
+                <button type="button">After</button>
+            </MantineProvider>,
+        );
+        const grid = screen.getByRole("grid");
+        screen.getByRole("button", { name: "Before" }).focus();
+        await userEvent.tab();
+        expect(grid.contains(document.activeElement)).toBe(true);
+        // One Tab leaves the grid: no row's button on the way.
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
+        // Back in, the arrows reach the second row's button cell, and Tab then reaches its button.
+        await userEvent.tab({ shift: true });
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{End}");
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Act on Myriel" }));
+        await userEvent.tab();
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
+    });
 });

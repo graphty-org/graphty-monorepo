@@ -790,7 +790,9 @@ function GroupRows({
                         event.stopPropagation();
                     }}
                     onKeyDown={(event) => {
-                        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+                        // Escape goes on to the popout, which closes from any control in it; the
+                        // row's menu, when open, uses its Escape up first.
+                        if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Escape") {
                             event.stopPropagation();
                         }
                     }}

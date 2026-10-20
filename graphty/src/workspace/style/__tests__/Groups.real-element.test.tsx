@@ -286,6 +286,45 @@ describe("per-group settings", () => {
         });
     });
 
+    it("Les Miserables: the group grid is one Tab stop, and Escape on a row's actions closes the popover", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const grid = within(popover).getByRole("grid", { name: /groups$/ });
+        const pill = within(screen.getByTestId("style-tab")).getByRole("button", { name: /^Node color: / });
+
+        // Tab walks into the grid at one cell, and the next Tab leaves it: no row's controls on the way.
+        for (let step = 0; step < 20 && !grid.contains(document.activeElement); step++) {
+            await userEvent.tab();
+        }
+        assert.isTrue(grid.contains(document.activeElement), "Tab reaches the grid");
+        await userEvent.tab();
+        assert.isFalse(grid.contains(document.activeElement), "one more Tab leaves the grid");
+
+        // The arrows reach the second row's actions cell; Tab then reaches its eye and its menu.
+        await userEvent.tab({ shift: true });
+        assert.isTrue(grid.contains(document.activeElement), "Shift+Tab comes back to the grid");
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{End}");
+        const second = gridRows(popover)[1];
+        await waitFor(() => {
+            assert.isTrue(second.contains(document.activeElement));
+        });
+        await userEvent.tab();
+        assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Hide /);
+        await userEvent.tab();
+        assert.match(document.activeElement?.getAttribute("aria-label") ?? "", / actions$/);
+
+        // Escape there closes the popover, as from any control in it, and focus goes back to the pill.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("group", { name: "Color binding" }));
+        });
+        await waitFor(() => {
+            assert.equal(document.activeElement, pill);
+        });
+    });
+
     it("Les Miserables: back from a group, Shift+arrow picks two, Enter opens both, Mixed, one undo step", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);

@@ -94,6 +94,9 @@ const GRID_GAP = 1;
 // An empty array that keeps its identity between renders, so that a table given
 // no selection, no sort and no hidden columns does not look like it has been
 // given new ones on every render.
+/** What in a cell takes focus by Tab: the controls a column's own drawing puts there. */
+const CELL_CONTROLS = "a[href], button, input, select, textarea, [tabindex]";
+
 const EMPTY_IDS: readonly string[] = [];
 const EMPTY_SORT: readonly DataTableSort[] = [];
 
@@ -495,6 +498,34 @@ function DataTableInner<TRow extends object>(
 
         focusPendingRef.current = false;
         cell.focus();
+    });
+
+    // A control drawn in a cell (a button, a field) is in the tab order only while its cell is the
+    // one the grid would focus, so Tab leaves the grid in one stop instead of walking every row's
+    // controls; the arrows reach the cell, and Tab then reaches what is in it. Done after every
+    // drawing, since rows come and go as the table scrolls.
+    useLayoutEffect(() => {
+        const grid = gridRef.current;
+        if (grid === null) {
+            return;
+        }
+        for (const cell of grid.querySelectorAll<HTMLElement>("td[data-grid-row]")) {
+            const current = cell.tabIndex === 0;
+            for (const control of cell.querySelectorAll<HTMLElement>(CELL_CONTROLS)) {
+                if (!current && control.tabIndex >= 0) {
+                    control.dataset.cmDtParked = control.getAttribute("tabindex") ?? "";
+                    control.tabIndex = -1;
+                } else if (current && control.dataset.cmDtParked !== undefined) {
+                    const was = control.dataset.cmDtParked;
+                    delete control.dataset.cmDtParked;
+                    if (was === "") {
+                        control.removeAttribute("tabindex");
+                    } else {
+                        control.setAttribute("tabindex", was);
+                    }
+                }
+            }
+        }
     });
 
     /**

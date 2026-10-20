@@ -16,7 +16,24 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
+0. (2026-10-19, a grid is one Tab stop; compact-mantine `DataTable/DataTable.tsx`) A control a
+   column draws in a cell (a button, a field) is now in the Tab order only while its cell is the
+   grid's roving cell: a layout effect after every drawing parks the rest at tabindex -1 (remembering
+   the old value in `data-cm-dt-parked`) and restores the roving cell's. So Tab leaves the grid in
+   one stop; arrows (End) reach a cell, then Tab reaches its eye and menu. Every DataTable gets it
+   (group grid in "Color by", Data page, table dock). Known ceiling: a control a cell's own state
+   adds without the table drawing again is not parked until the next table render. And Escape on a
+   group row's actions button now closes the "Color by" popout: the actions cell in
+   `style/Groups.tsx` stopped every key but the arrows from bubbling, which kept Escape from the
+   popout manager's document listener; it now lets Escape through, as the field cell already did.
+   Tests: `DataTable.reading.browser` "keeps a cell's controls out of the Tab order" (red without),
+   `Groups.real-element` "the group grid is one Tab stop, and Escape on a row's actions closes"
+   (red without either change). Walk: `design/ui/studio/tmp/r1-dry1-color-by-dialog-keys/walk/`
+   12 (grid), 13 (one Tab: No value), 21-23 (arrows, Hide, actions), 24 (Escape: closed, focus on
+   the Color box). Pre-existing reds seen: `Groups.real-element` "Shift+arrow picks two" times out
+   with or without the DataTable change; `DataPage.real-element` "draws every sample row" finds two
+   "All 12 rows" texts. Tab from the last control (No value) leaves the popout and closes it.
+1. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
    line, Control+A on the canvas and in the canvas menu, and Tab in Filter analyses (Shift+A and
    toolbar) all hold their acceptance; nothing they touch got worse. Screenshots:
    `design/ui/studio/tmp/r1-dry1-recheck-quick-actions-label-line/` (`label/`, `selall/`,
@@ -29,7 +46,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    stopPropagation if the picker sits in a focus trap. Also seen, minor: Escape from an analysis
    card back to the list re-highlights the first match, not the one that was opened.
 
-1. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
+2. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
    another letter case is that column: `elementRule` takes the element's `checkRule` suggestion
    when every unknown name equals its first candidate's shown name or rule path ignoring case
    (`caseOnly`), so `=degree > 30` runs with no "Did you mean Degree?". A real correction still
@@ -51,7 +68,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Pre-existing red, not mine: inspector tasks T8 and "an edge, an attribute...", graph-place
    tasks "a click on a drawn name", FocusAfterAdding "a new node Color line" (other agents'
    uncommitted Style work). This file is past 25 KB; another agent was summarizing it.
-2. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
+3. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
    graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
    opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older
    "a heading takes no focus mark" call; decided.md now asks for the ring (WCAG 2.4.7). Fix in the
@@ -69,7 +86,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    list", FindBoxPlain two timeouts. `nx run graphty:build` fails while an untracked
    `compact-mantine-headproof/` copy sits in the worktree (duplicate project name); `npm run build`
    in the package works.
-3. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
+4. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
    with letters typed and an option highlighted opens that analysis's card, focus on Run (the
    decided rule for every list); with nothing typed, or Shift+Tab, it still leaves and closes.
    TRAP: the popover has `trapFocus`, and Mantine's focus trap listens for Tab on the DOCUMENT, so
@@ -79,7 +96,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    analyses with letters typed takes the highlighted analysis" (red without the change, and red
    without the stopPropagation alone). Walk: `design/ui/studio/tmp/r1-dry1-analysis-filter-tab/walk2/`
    05 (cluster, Clustering coefficient highlighted), 06 (its card, Run focused), 07 (Enter ran it).
-4. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
+5. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
    is now spoken by name: `selectionNameWords` / `selectedNameWords` / `framedWords` in
    `inspector/words.ts` (one node -> `nodeName`, one edge -> `edgeName`, else `sizeWords`). The
    shared announcer is the `selection:changed` handler in `canvas/CanvasOverlays.tsx` -- every
@@ -97,52 +114,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `GraphPlace.test` rule tests red only with another agent's uncommitted FindBox case-folding
    work. The other agent was editing `FindBox.tsx` and `FindBoxWords` at the same time: commit
    built from HEAD blobs with only my lines.
-5. (2026-10-19, inspector after Undo; compact-mantine `utils/chosen.ts`) A folder's or several
-   layers' Shape passes `value={undefined}` until the write lands, so Mantine's `useUncontrolled`
-   kept the pick Box in its own copy; after Undo the stale copy showed Box and a second Box was
-   no change. The panels already re-read on `history:changed`. Fix in the shared controls:
-   `useChosen` (taken out of `CompactColorInput`, which had the same trap) drops its copy when
-   the caller's value changes; `StyleSelect` and `CompactColorInput` use it; the event is passed
-   only when present (an explicit `undefined` broke `toHaveBeenCalledWith`). Tests red first:
-   compact-mantine "a caller taking its value/color back"; graphty `InspectorAfterUndo`. Walk:
-   `design/ui/studio/tmp/r1-dry1-inspector-after-undo/folder/` 13-16 (Box, Undo italic
-   Icosphere, Box again writes), 20-22 (color, two Undos). Trap left: any control on
-   `useUncontrolled` whose caller holds `undefined` while a write is in flight.
-
-6. (2026-10-19, Select all; graphty app only) Command `selection.all` in `frame/commands.ts`
-   ("Select all", group Selection, keys `Mod+A`, disabled by `nothingDrawn`) runs
-   `session.selection.apply({ scope: "visible" })`; the empty-canvas menu (`EMPTY_CANVAS` in
-   `canvas/CanvasMenu.tsx`) lists it before Clear selection. No notice of its own: the
-   `selection:changed` listener in `CanvasOverlays.tsx` already announces "N nodes, M edges
-   selected". Control+A in a text box is untouched because `firesWhileTyping("Mod+A")` is false
-   (`a` is a field key), so the command never runs there and the browser selects the text. It
-   selects every visible node AND the edges among them: the element has no node-only "everything"
-   target (`{ scope }` brings induced edges; `{ text }` is a search). Test:
-   `frame/__tests__/Workspace.real-element.test.tsx` "selects every node with Control+A ..." (find
-   box keeps its text selection and selects no node; canvas Control+A; menu row), red without the
-   change. Walk: `design/ui/studio/tmp/r1-dry1-select-all/walk/` 03 (77 nodes, 254 edges
-   selected), 05 (menu row with Ctrl+A), 06, 10 (find box text selected). Pre-existing red, not
-   mine: `KeysLeaveNothingOpen` "Tab from a card's value reaches the card's remove button" (lands
-   on "Add a condition"), red with my change reverted too.
-   0a. (2026-10-19, table: Show in table and sorting; compact-mantine `DataTable`, graphty `table/`)
-   (a) `DataTable` `markedColumn` (header boxed with `--cm-border-selected`, cells tinted
-   `--cm-bg-selected-secondary`; a selected row's fill still wins). TableDock keeps
-   `{kind, id}` from Show in table, scrolls the header into view, focuses its sort button, and
-   clears the mark on any pointerdown in the dock. (b) `handleSort` sets `scrollTop = 0` (jsdom
-   has no `scrollTo`, so not that). (c) label `sortNext(next, header, id)`: tooltip when the
-   column has no `headerTooltip`, and `aria-description` on the sort button (Mantine's tooltip
-   only describes while open; a click closes it until the pointer leaves and returns). The app
-   words it from `orderWords` in `columns.ts` (shared with the caption). A number column in the
-   app sorts highest first on the first click (the study's "lowest first" first click was on the
-   frozen build). Tests: DataTable.header.browser (3 new), TableDock.real-element "a sort shows
-   its first rows...", DataPlace "Show in table brings a column off the right edge" (mark, focus,
-   cleared). Walk `design/ui/studio/tmp/r1-dry1-table-show-and-sort/sources/` 11 (marked), 13,
-   15, 18 (hints), 14, 17 (top after sort from the end), 19 (order loaded), 21 (name marked).
-   Pre-existing red: DataPage "All 12 rows" twice; Groups "Les Miserables: back from a group"
-   timed out (its columns do not sort; another agent's Style changes were uncommitted).
-   0a. (2026-10-19, F6 regions; start-screen slowness was the study tool) in full in
-   `git show ab5c74c0b:design/ui/studio/notes/engineer.md`, Top of mind 0; "New layer from
-   selection" makes the layer at once: `git show 18f1cae06:...`, Top of mind 0.
+6. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
+   table Show in table and sorting, F6 regions) in full in
+   `git show 1c6a68ee4:design/ui/studio/notes/engineer.md`, Top of mind 5 and 6.
 7. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
@@ -308,6 +282,7 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-19) DID NOT WORK, and cost another agent its uncommitted notes edit: `open(p, "w").write(f(open(p).read()))` in Python truncates the file BEFORE it reads it (the write target is evaluated first), so the read is empty. Read into a variable first, then open for writing. The lost edit (a condensation of Top of mind) was redone from its transcript.
 - (2026-10-19) Did not work: Tab in Analyze's filter calling `open()` with only `preventDefault`:
   the card opened but focus sat on Back, because the focus trap's document listener still saw the
   Tab. Worked: also `stopPropagation`. The first test only checked "focus inside the card" and

@@ -907,6 +907,7 @@ export const READ_ONLY: readonly string[] = [
     "Sink.write",
     "SnapshotLayoutInput.column",
     "SnapshotLayoutInput.dataPositions",
+    "SnapshotLayoutInput.nodeExtents",
     "SnapshotLayoutInput.nodeSizes",
     "SnapshotLayoutInput.report",
     "SnapshotLayoutInput.warn",

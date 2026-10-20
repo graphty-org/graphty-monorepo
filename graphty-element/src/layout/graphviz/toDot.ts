@@ -38,16 +38,30 @@ function isPlainName(name: string): boolean {
 }
 
 /**
+ * Whether a value is a usable node length.
+ * @param value - the value
+ * @returns true for a finite positive number
+ */
+function isLength(value: number | undefined): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
  * Write the graph as DOT.
  * @param stored - the graph as the element stores it: direction and every parallel edge
  * @param attributes - graph attributes, already as Graphviz text
  * @param sizes - the drawn size of each node, in scene units; NaN or absent for the default
+ * @param extents - the drawn width and height of each node, two per row, in scene units: a row
+ *     with two different sides is a box that size, the rest are circles as wide as `sizes` says
+ * @param skip - the rows left out, with their edges: groups the element draws round their members
  * @returns the DOT text
  */
 export function toDot(
     stored: GraphSnapshot,
     attributes: Readonly<Record<string, string>>,
     sizes?: ArrayLike<number>,
+    extents?: ArrayLike<number>,
+    skip: (row: number) => boolean = () => false,
 ): string {
     const lines: string[] = [];
     const arrow = stored.directed ? "->" : "--";
@@ -61,13 +75,25 @@ export function toDot(
 
     lines.push('node [shape=circle, fixedsize=true, label=""];');
     for (let row = 0; row < stored.nodeCount; row++) {
+        if (skip(row)) {
+            continue;
+        }
+        const width = extents?.[2 * row];
+        const height = extents?.[2 * row + 1];
+        if (isLength(width) && isLength(height) && width !== height) {
+            lines.push(`n${row} [shape=box, width=${width}, height=${height}];`);
+            continue;
+        }
         const size = sizes?.[row];
-        const inches = typeof size === "number" && Number.isFinite(size) && size > 0 ? size : DEFAULT_NODE_SIZE;
+        const inches = isLength(size) ? size : DEFAULT_NODE_SIZE;
         lines.push(`n${row} [width=${inches}];`);
     }
 
     const { src, dst } = stored.edgeList();
     for (let e = 0; e < src.length; e++) {
+        if (skip(src[e]) || skip(dst[e])) {
+            continue;
+        }
         lines.push(`n${src[e]} ${arrow} n${dst[e]};`);
     }
 

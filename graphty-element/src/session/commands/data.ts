@@ -33,6 +33,8 @@ import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
+import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
@@ -683,12 +685,20 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         }
 
         const { unplaced, placed = [] } = advice;
-        const scale = advice.id === "fixed" || unplaced !== undefined ? sceneScale() : null;
+        const graphviz = GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === advice.id);
+        const scale = advice.id === "fixed" || graphviz || unplaced !== undefined ? sceneScale() : null;
         // A file that placed only some nodes: every placed node goes back where the file put it,
         // in the unit the fixed layout would draw it in (a layout may have moved it since), and
         // the advised layout runs over the unplaced ones, holding the rest still.
         const resize = scale ?? 1;
-        const options = advice.id === "fixed" && scale !== null ? { ...advice.options, scale } : advice.options;
+        // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
+        // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
+        // size against the spaces Graphviz leaves between them.
+        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
+        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
+        const options =
+            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
         const layout = dispatch({
             op: "layout.set",
             id: advice.id,

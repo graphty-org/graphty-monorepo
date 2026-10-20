@@ -9,18 +9,18 @@
 // #region example
 import "@graphty/graphty-element";
 
-const graph = document.querySelector("graphty-element")!;
-graph.nodeData = [
+const element = document.querySelector("graphty-element")!;
+element.nodeData = [
     { id: "web", kind: "server" },
     { id: "db", kind: "server" },
     { id: "alice", kind: "person" },
 ];
-graph.edgeData = [
+element.edgeData = [
     { source: "alice", target: "web" },
     { source: "web", target: "db" },
 ];
 
-await graph.session.styles.add({
+await element.session.styles.add({
     name: "Servers as racks",
     target: "node",
     selector: { match: "expression", where: "data.kind == 'server'" },

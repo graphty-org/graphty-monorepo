@@ -154,6 +154,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // a 3D model reference exactly as a style layer wrote it: a model id or a URL
+    "ref",
 ]);
 
 const DECLARATION =

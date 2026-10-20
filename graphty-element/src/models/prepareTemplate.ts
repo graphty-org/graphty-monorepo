@@ -32,7 +32,9 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { ModelTemplate, TemplateOptions } from "./ModelCache";
 
 /**
- * The rotation that turns the file's up axis to +Y, then turns the model about +Y.
+ * The rotation that turns the file's up axis to +Y, then turns the model about +Y. A turn of 0 faces
+ * the model's front (+Z in a glTF file, after the loader's change of handedness) toward -Z, where
+ * the element's default camera stands, so a model shows its front rather than its back.
  * @param up - The file's up axis.
  * @param turnDegrees - The turn about the up axis, in degrees.
  * @returns The matrix.
@@ -48,7 +50,7 @@ function orientation(up: TemplateOptions["up"], turnDegrees: number): Matrix {
         "-x": Matrix.RotationZ(-quarter),
     };
 
-    return tilt[up].multiply(Matrix.RotationY((turnDegrees * Math.PI) / 180));
+    return tilt[up].multiply(Matrix.RotationY(Math.PI + (turnDegrees * Math.PI) / 180));
 }
 
 /**

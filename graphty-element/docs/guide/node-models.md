@@ -10,18 +10,18 @@ one shared copy. You do not need to know anything about 3D file formats to use i
 ```ts
 import "@graphty/graphty-element";
 
-const graph = document.querySelector("graphty-element")!;
-graph.nodeData = [
+const element = document.querySelector("graphty-element")!;
+element.nodeData = [
     { id: "web", kind: "server" },
     { id: "db", kind: "server" },
     { id: "alice", kind: "person" },
 ];
-graph.edgeData = [
+element.edgeData = [
     { source: "alice", target: "web" },
     { source: "web", target: "db" },
 ];
 
-await graph.session.styles.add({
+await element.session.styles.add({
     name: "Servers as racks",
     target: "node",
     selector: { match: "expression", where: "data.kind == 'server'" },
@@ -43,7 +43,7 @@ download the file and give it to the element as a file instead (see
 model, ask for the same string the layer names:
 
 ```ts
-const record = await graph.session.assets.ready("https://example.com/models/rack.glb");
+const record = await element.session.assets.ready("https://example.com/models/rack.glb");
 if (record.state === "rejected") {
     for (const problem of record.problems) console.warn(problem.code, problem.params);
 }
@@ -55,7 +55,7 @@ refused) and `failed` (the files were fine but could not be drawn). The event fi
 not once per node, and `detail.ref` is exactly what your layer wrote:
 
 ```ts
-graph.addEventListener("graphty-model-change", (event) => {
+element.addEventListener("graphty-model-change", (event) => {
     const { ref, state, problems, layerIds } = event.detail;
     if (state === "rejected" || state === "failed") {
         console.warn(
@@ -67,7 +67,7 @@ graph.addEventListener("graphty-model-change", (event) => {
 });
 ```
 
-A page that starts listening late reads the same facts at any time: `graph.session.assets.states()`
+A page that starts listening late reads the same facts at any time: `element.session.assets.states()`
 lists the latest change of every model a layer has named, so
 `states().find((m) => m.ref === ref)?.state` says where one stands now, warnings included.
 
@@ -80,7 +80,7 @@ graphty-element ships four models that need no file and no network: a box, a ser
 a tree. Name one by its id:
 
 ```ts
-await graph.session.styles.add({
+await element.session.styles.add({
     name: "People",
     target: "node",
     selector: { match: "expression", where: "data.kind == 'person'" },
@@ -92,11 +92,11 @@ await graph.session.styles.add({
 128 x 128 PNG with a transparent background), so a picker can show them:
 
 ```ts
-for (const model of graph.session.catalog.models()) {
+for (const model of element.session.catalog.models()) {
     const button = document.createElement("button");
     button.innerHTML = `<img src="${model.thumbnail}" alt=""> ${model.plainName}`;
     button.onclick = () =>
-        graph.session.styles.add({
+        element.session.styles.add({
             name: model.plainName,
             target: "node",
             selector: { match: "everything" },
@@ -117,7 +117,7 @@ Most graphs have a column that says what each node is: hosts, users and processe
 factories and ports. One encoding draws each kind as its own model:
 
 ```ts
-await graph.session.styles.encode({
+await element.session.styles.encode({
     column: { kind: "node", name: "kind" },
     channel: "node.model",
     values: { server: "asset:sample/server", person: "asset:sample/person" },
@@ -133,7 +133,7 @@ because a column of addresses would make the page fetch whatever the data names.
 from the web per kind, add it first and use its id:
 
 ```ts
-const rack = await graph.session.assets.add("https://example.com/models/rack.glb", { name: "asset:rack" });
+const rack = await element.session.assets.add("https://example.com/models/rack.glb", { name: "asset:rack" });
 // rack.id is "asset:rack"; name it in the encoding's values.
 ```
 
@@ -145,12 +145,12 @@ file, several files, a folder or a `.zip`. It resolves once the files are checke
 ```ts
 const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
 input.addEventListener("change", async () => {
-    const asset = await graph.session.assets.add(input.files!);
+    const asset = await element.session.assets.add(input.files!);
     if (asset.state === "rejected") {
         for (const problem of asset.problems) console.warn(problem.code, problem.params);
         return;
     }
-    await graph.session.styles.add({
+    await element.session.styles.add({
         name: "My model",
         target: "node",
         selector: { match: "everything" },
@@ -174,11 +174,11 @@ canvas.addEventListener("drop", async (event) => {
     const head = new Uint8Array(await first.slice(0, 1024).arrayBuffer());
     const model = detectModelFormat({ filename: first.name, head });
     if (model === undefined) {
-        await graph.loadFromFile(first); // graph data
+        await element.loadFromFile(first); // graph data
     } else if (!model.supported) {
         console.warn("A model format graphty-element cannot load:", model.format);
     } else {
-        const asset = await graph.session.assets.add(files);
+        const asset = await element.session.assets.add(files);
         // ... name asset.id in a layer, as above
     }
 });
@@ -204,7 +204,7 @@ colors are multiplied by `node.color`, so shading and detail stay and the hue fo
 That is why the samples are light gray: gray times a color is that color.
 
 ```ts
-await graph.session.styles.add({
+await element.session.styles.add({
     name: "Tinted racks",
     target: "node",
     selector: { match: "expression", where: "data.kind == 'server'" },
@@ -227,7 +227,7 @@ size. The model's own units do not matter. These channels adjust how it sits:
 | `node.model`         | a model id or a URL                                         | unset        | Draw the node as this model. Unset: draw `node.shape`                               |
 | `node.modelTint`     | `true`, `false` or `"replace"`                              | `false`      | Multiply the model's colors by `node.color`, or paint it in `node.color`            |
 | `node.modelSourceUp` | `"y"`, `"z"`, `"-y"`, `"-z"`, `"x"`, `"-x"` or `"detected"` | `"detected"` | Which direction is up in the file; the element turns that direction up on screen    |
-| `node.modelTurn`     | degrees, -360 to 360                                        | `0`          | Turn the model about its up direction, to face it another way                       |
+| `node.modelTurn`     | degrees, -360 to 360                                        | `0`          | Turn the model about its up direction; at `0` its front faces the starting camera   |
 | `node.modelFit`      | `"contain"` or `"stretch"`                                  | `"contain"`  | Keep its proportions, or stretch it to `node.width`, `node.height` and `node.depth` |
 | `node.modelCenter`   | `"bounds"` or `"origin"`                                    | `"bounds"`   | Center the model on the node, or keep the file's own pivot point                    |
 
@@ -242,7 +242,7 @@ that make STL files, and reports `W_MODEL_UP_GUESSED` so a page can offer a "tur
 control. If the guess is wrong, say which way is up in the file:
 
 ```ts
-await graph.session.styles.add({
+await element.session.styles.add({
     name: "Upright part",
     target: "node",
     selector: { match: "expression", where: "data.kind == 'part'" },
@@ -261,7 +261,7 @@ making a reader's browser contact a server nobody chose.
 To let such layers fetch from hosts you trust, name the hosts in your page's code:
 
 ```ts
-graph.session.assets.allowHosts(["models.example.com"]);
+element.session.assets.allowHosts(["models.example.com"]);
 ```
 
 Every model request is made with no cookies and no referrer, and has a time limit.
@@ -273,7 +273,7 @@ model, 1,000,000 triangles, 64 MB of decoded pictures, and 256 MB held by the se
 among others. Only your page's code can change them; a project file never can:
 
 ```ts
-graph.session.assets.setLimits({ maxTriangles: 2_000_000 });
+element.session.assets.setLimits({ maxTriangles: 2_000_000 });
 ```
 
 ## Problems and their codes

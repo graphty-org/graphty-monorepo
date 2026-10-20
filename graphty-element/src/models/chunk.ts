@@ -158,7 +158,7 @@ function useBundledPbrShaders(scene: Scene): void {
 const environments = new WeakMap<Scene, BaseTexture>();
 
 /**
- * The small neutral environment bundled with this chunk: a uniform mid-gray in every direction,
+ * The small neutral environment bundled with this chunk: a uniform dark gray in every direction,
  * prefiltered, for PBR materials to reflect when the scene has no `environmentTexture` of its
  * own. It is read from bytes inside the chunk, so it makes no request.
  * @param scene - The scene the texture belongs to.

@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 
+import { useModelStates } from "../canvas/models";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { modelWords } from "../style/words";
 import { deleteRow, setRowHidden } from "./actions";
 import { findRow, type PaintRow, type RowKind } from "./rows";
 
@@ -118,6 +120,17 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
     const inspected = useWorkspaceState((state) => state.inspected);
     // The reader's own opening and closing of a group run, over the default (open when few).
     const [opened, setOpened] = useState<ReadonlyMap<string, boolean>>(new Map());
+    // The layers whose model graphty-element refused or could not draw, with the first reason.
+    const states = useModelStates(session);
+    const failed = new Map<string, string>();
+    for (const layer of session?.styles.list() ?? []) {
+        const ref = layer.set?.["node.model"];
+        const change = states.find((c) => c.ref === ref && (c.state === "rejected" || c.state === "failed"));
+        if (change !== undefined) {
+            const [first] = change.problems;
+            failed.set(layer.id, first === undefined ? "The model could not be drawn." : modelWords(first));
+        }
+    }
 
     const toItem = (row: PaintRow): TreeNodeData => {
         const eye =
@@ -134,6 +147,15 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                     }}
                 />
             ) : null;
+        const problem = row.layerIds.map((id) => failed.get(id)).find((p) => p !== undefined);
+        const badge =
+            problem === undefined ? null : (
+                <Tooltip key="model" label={problem}>
+                    <span data-pinned="" role="img" aria-label={`Model not drawn: ${problem}`}>
+                        <TriangleAlert size={14} color="var(--cm-text-warning, var(--mantine-color-yellow-7))" />
+                    </span>
+                </Tooltip>
+            );
         const count =
             row.count === undefined ? null : (
                 <span key="count" className="ws-paint-count" data-pinned="">
@@ -149,6 +171,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             children: row.children?.map(toItem),
             actions: (
                 <>
+                    {badge}
                     {swatchOf(row)}
                     {count}
                     {eye}

@@ -6,6 +6,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
+import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
@@ -36,6 +37,7 @@ interface FrameProps {
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
     const { store } = useWorkspace();
+    const canvasDrop = useCanvasDrop();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -74,7 +76,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     />
                 </aside>
                 <main className="ws-main" aria-label="Graph" hidden={!panels}>
-                    <div className="ws-canvas">
+                    <div className="ws-canvas" data-testid="canvas" {...canvasDrop}>
                         <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />

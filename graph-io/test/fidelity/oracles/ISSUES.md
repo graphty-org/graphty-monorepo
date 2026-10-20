@@ -2555,7 +2555,11 @@ Not fixed, and why:
   stand-in has nothing under (`stray.extra` 0 and 0.061, floored). Still open: the lines between lanes and around
   the header (`yed.table.section.color`; graphty-element has no band divider), row and column headers
   (`yed.table.header.color.alternating`, row and column `y:Insets`), a table with both several rows and several
-  columns (bands run one way only; its rows are drawn), and yEd's own defaults for an unset color, which are not
+  columns (bands run one way only; its rows are drawn), `yed.table.lane.style` (which of rows or columns take the
+  lane colors; graph-io always colors the rows unless the columns sit side by side), `yed.table.header.height`, the
+  lane labels (`table-row-label`, `table-column-label`: a second `y:NodeLabel` in a `y:RowNodeLabelModel` or
+  `y:ColumnNodeLabelModel`, which graph-io drops with an `EXTRA_LABELS` note because a node carries one label, so
+  graphty draws no "Lane" text), and yEd's own defaults for an unset color, which are not
   documented. None of this can be judged here: draw.io draws its own table (63 tall lanes in `#C0C0C0` with black
   lines and the header label above them), so the stand-in's `node.stroke` and height rows keep failing until the
   owner's yEd export of `groups` and `groups-p2` replaces it.

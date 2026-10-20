@@ -3,9 +3,9 @@
 Status: proposed, 2026-10-19. This document ranks what the graphty app and graphty-element must
 do to get data into a graph and keep it in shape. It covers loading several sources (files, and
 network sources such as databases and web APIs), combining them, setting column roles and types,
-filtering, cleaning, and repeating the same steps on new data. It also decides which of those jobs
-belong on the first, always-visible layer of the app and which wait one step in, and it records
-what a saved project file holds.
+filtering, cleaning, and repeating the same steps on new data. It orders them by priority, says
+where in the app each one appears and what reveals it, sets the order to build them in, and
+records what a saved project file holds.
 
 See [data-management-evidence.md](data-management-evidence.md) for every source, the full persona
 and job tables, and the complete text of each requirement.
@@ -47,29 +47,12 @@ They are design hypotheses, not measured users, and the design-studio results ci
 from simulated sessions. Where persona evidence and competitor products disagree, the competitors
 break the tie.
 
-| Data job                              | Personas who do it | Every session for                                        | Blocking for                                                 |
-| ------------------------------------- | ------------------ | -------------------------------------------------------- | ------------------------------------------------------------ |
-| Load one file                         | 13 of 14           | 9 personas, from explorer to lab researcher              | all but knowledge engineer                                   |
-| Filter or hide                        | 12                 | analyst, expert, fraud, intelligence, security, genomics | analyst, security                                            |
-| Export data                           | 11                 | genomics, recommender                                    | expert, marketing, recommender                               |
-| Check what loaded                     | 10                 | explorer, analyst, expert, genomics, knowledge engineer  | analyst, knowledge engineer                                  |
-| Set id, source, target, weight        | 10                 | security, recommender, lab researcher                    | explorer, analyst, supply chain, recommender, lab researcher |
-| Join a table onto nodes               | 9                  | genomics                                                 | genomics, bioinformatics                                     |
-| Repeat steps on new data              | 9                  | --                                                       | -- (often for five)                                          |
-| Set time, kind, place                 | 9                  | fraud, security                                          | --                                                           |
-| Preview before loading                | 8                  | explorer, analyst, knowledge engineer, lab researcher    | genomics, lab researcher                                     |
-| Select by condition                   | 8                  | explorer, fraud, intelligence, security                  | fraud                                                        |
-| Node table plus edge table            | 8                  | --                                                       | supply chain                                                 |
-| Add a second file                     | 7                  | --                                                       | intelligence, knowledge engineer                             |
-| Fix a column's type                   | 7                  | --                                                       | --                                                           |
-| Replace with newer data               | 6                  | --                                                       | supply chain                                                 |
-| Load from a server or list of ids     | 6                  | genomics, knowledge engineer, security                   | genomics, knowledge engineer                                 |
-| Expand a neighborhood from the server | 6                  | fraud                                                    | fraud                                                        |
-| Merge duplicate nodes                 | 6                  | knowledge engineer                                       | knowledge engineer                                           |
-| Merge or compare two graphs           | 5                  | --                                                       | --                                                           |
-
-The jobs in the bottom third of the table are rare for most personas but blocking for one or two
-specialists. That is the shape progressive disclosure is for.
+The evidence appendix, section C, has the full grid of jobs by persona and the summary by job.
+The most common jobs are loading one file (13 personas), filtering or hiding (12), exporting (11),
+checking what loaded and setting the id, source, target and weight columns (10 each). Joining a
+table, repeating steps on new data, adding a second file, merging duplicates and comparing graphs
+are each done by five to nine personas and blocking for at most two: rare for most, essential for a
+few specialists. That is the shape progressive disclosure is for.
 
 For five personas the data is not a file at all, so connecting to their source is a primary job
 even though it is rare across the whole set. Genomics starts from a gene list and pulls the network
@@ -80,9 +63,18 @@ them. The evidence appendix, section C, quotes the persona files.
 
 ## Ranked requirements
 
-Each requirement gives its rank, owner and whether it exists today on the `golden` branch, then a
-test that decides whether it is done. Every primary test is also run by keyboard alone, and once on
-a graph above the large-graph threshold.
+Each requirement gives its owner and whether it exists today on the `golden` branch, then a test
+that decides whether it is done. Every primary test is also run by keyboard alone, and once on a
+graph above the large-graph threshold.
+
+**Order within a tier is priority, highest first.** A requirement's number is only its name: it
+stays fixed so the evidence appendix and other documents can cite it, and it says nothing about
+rank. Priority is how often the personas do the requirement's data job times how much it matters
+to them (every session 4, often 3, sometimes 2, rarely 1; blocking 3, important 2, nice 1), summed
+over the personas; the scores are in the evidence appendix, section C, "Priority scores". Where a
+requirement covers only a narrow part of its job (a single persona's case), it ranks below
+requirements that cover the whole job. The build order later in this document can pull a
+requirement into an earlier slice than its tier when another requirement needs it.
 
 ### Prerequisites: build these first
 
@@ -116,10 +108,6 @@ same counts.
 needed, every check is green and focus is on Load. _Test:_ a clean GraphML file and a two-column
 CSV each draw after exactly one Enter; "no choice needed" is an element fact.
 
-**6. A dropped file goes where it belongs** (both; unverified). A recipe, style file or project
-opens as that, not as data. A file nobody recognizes offers "Read as..." with the registered
-formats. _Test:_ a dropped recipe opens Apply; a `.txt` edge list can be read as CSV.
-
 **7. Column roles at load** (both; partly). Each column shows its guessed role, including time and
 a node or edge kind, and the graph's direction. The reader can change any role, skip a column, flip
 rows between nodes and edges, or set direction, each in one action. When every guess is confident,
@@ -133,30 +121,32 @@ and a reason, plus "Skip these rows". A clean file shows none of these lines. _T
 mixed-problems fixture shows exactly 18 unknown ends, 5 repeated edges, 2 repeated ids, 3
 decimal-comma weights and refused row 412 with its reason.
 
-**9. The weight's role is visible and never blocks** (both; partly). The weight line shows whether
-the number is a distance, a similarity, a capacity or unknown, with the element's guess. The role is
-stored on the attribute and read by every later run. _Test:_ for edges A-B 0.9, B-C 0.9, A-C 0.1,
-the shortest path A to C goes through B as a similarity and is direct as a distance; with the role
-unknown the file still loads with one Enter.
-
 **10. What loaded, in plain words** (app; element done). Node and edge counts, direction, the
 number of separate groups and the largest, nodes with no links, and each attribute's type and
 percent filled, all read from the element. _Test:_ an export with 214 unlinked nodes reads "3
 separate groups; 214 with no links"; the app counts nothing itself.
-
-**11. Find by name or value** (app; yes). Typing a name or value selects the match and brings it
-into view. _Test:_ an account number selects and centers that node.
 
 **12. One condition card: Select or Hide** (both; partly). The reader states conditions, which must
 all hold, and chooses Select or Hide. The card shows "X of Y". Hiding never deletes data. _Test:_
 "score > 0.7" with Hide shows 140 of 900; with Select, 140 are selected and none hidden; an export
 still holds 900.
 
-**13. Add a second file to this graph** (both; partly). Inside a project a second file offers three
-verbs, pre-chosen from how its ids and headers match the graph: Add to this graph, Add columns to
-nodes, Replace data. Add lets the reader keep or update existing nodes and shows added, updated and
-unchanged counts before committing. _Test:_ a file sharing 14 ids shows "added 26 nodes, 62 edges,
-updated 14" before commit; "Open as a new graph" is not offered inside a project.
+**11. Find by name or value** (app; yes). Typing a name or value selects the match and brings it
+into view. _Test:_ an account number selects and centers that node.
+
+**20. Export everything** (element; yes). Node and edge tables carry every computed and joined
+column, and any loss the format causes is stated before writing. _Test:_ after a run and a join the
+CSV holds both columns.
+
+**18. Autosave and reopen** (both; partly). Reopening a project restores every source, mapping,
+join, filter and set, and names anything that did not reload. _Test:_ after a page reload the same
+counts, join and filter return.
+
+**9. The weight's role is visible and never blocks** (both; partly). The weight line shows whether
+the number is a distance, a similarity, a capacity or unknown, with the element's guess. The role is
+stored on the attribute and read by every later run. _Test:_ for edges A-B 0.9, B-C 0.9, A-C 0.1,
+the shortest path A to C goes through B as a similarity and is direct as a distance; with the role
+unknown the file still loads with one Enter.
 
 **14. Join a table onto nodes** (element; no). "Add columns to nodes" suggests the key column. Before
 committing it shows matched rows, table rows not in the graph, nodes that get no value, repeated
@@ -165,9 +155,19 @@ The table is saved as a source and the join as a recipe command naming the key c
 project file records", item 9). _Test:_ a 340-row table joined by symbol reports 318 matched, 22 not
 in the graph, TP53 matching 2 rows, and "19 more match ignoring case [Use]".
 
+**13. Add a second file to this graph** (both; partly). Inside a project a second file offers three
+verbs, pre-chosen from how its ids and headers match the graph: Add to this graph, Add columns to
+nodes, Replace data. Add lets the reader keep or update existing nodes and shows added, updated and
+unchanged counts before committing. _Test:_ a file sharing 14 ids shows "added 26 nodes, 62 edges,
+updated 14" before commit; "Open as a new graph" is not offered inside a project.
+
 **15. A node file and an edge file together** (both; yes). Both load as one network in one visit,
 in either order. _Test:_ `suppliers.csv` and `ships_to.csv` in either order give 120 nodes and 400
 edges with supplier attributes.
+
+**6. A dropped file goes where it belongs** (both; unverified). A recipe, style file or project
+opens as that, not as data. A file nobody recognizes offers "Read as..." with the registered
+formats. _Test:_ a dropped recipe opens Apply; a `.txt` edge list can be read as CSV.
 
 **16. Replace data, keep the analysis** (both; partly). Replace is a visible control. It keeps
 styles, runs, sets, notes, filters and joins, re-applies the joins with their match lines, reruns
@@ -180,30 +180,23 @@ do not fit it. Changing the type takes one action and first says how many values
 and what happens to them. The change is a recipe command and is saved in the graph's columns
 schema. _Test:_ an amount column with one "N/A" among 500 numbers loads as a number with "1 blank".
 
-**18. Autosave and reopen** (both; partly). Reopening a project restores every source, mapping,
-join, filter and set, and names anything that did not reload. _Test:_ after a page reload the same
-counts, join and filter return.
-
 **19. Known file shapes map themselves** (both; no). A file whose headers match a mapping the reader
 used before, or a known export such as STRING's, is mapped by header name, with one line "Used your
 mapping from sept.csv. Change". New columns are listed. _Test:_ a second export with the same
 headers in another order needs no changes.
-
-**20. Export everything** (element; yes). Node and edge tables carry every computed and joined
-column, and any loss the format causes is stated before writing. _Test:_ after a run and a join the
-CSV holds both columns.
-
-**21. Open a sample** (both; yes). The start screen opens samples and generated graphs in one
-click.
 
 **22. Apply a recipe someone gave you** (both; no). One command applies it. Columns bind by role
 and then by name, the reader confirms only weight roles and mismatched measurement levels,
 everything unbound is listed before anything runs, and one undo reverses it. _Test:_ a recipe
 needing `padj` on a table without it lists "column padj not found" before any step runs.
 
+**21. Open a sample** (both; yes). The start screen opens samples and generated graphs in one
+click.
+
 #### Primary for readers whose data lives on a server
 
-Requirements 23 to 27 are first-layer jobs for the five server-data personas above. graphty-element
+Requirements 23 to 27 are first-layer jobs for the five server-data personas above, in priority
+order for those readers; this list runs beside the file list above, not after it. graphty-element
 can already do each of them; the app cannot yet. Its "Open network data" dialog
 (`graphty/src/workspace/start/NetworkDataDialog.tsx`) lists NDEx, Neo4j and a web API as "on the
 way" and opens only a graph file at a web address.
@@ -242,83 +235,225 @@ shows its graph, fetches nothing until approved, and the saved file holds no pas
 ### Secondary: one step in
 
 - **28. Filters become an ordered list of steps once there are two, each switchable and showing what it removed** (element; no). _Done when:_ switching off step 1 restores its elements; both steps survive reopening.
+- **35. Export only what is shown, a set or the selection, and leave out chosen columns** (element; no). _Done when:_ "showing 140 of 900" exports 140 nodes.
+- **39. Change a role after loading, as one undo step** (element; no). _Done when:_ changing the weight column reruns runs; undo restores it.
+- **32. Graph properties: how parallel edges combine, self-loops, two-mode, "treat as undirected" when mostly reciprocal** (element; partly). _Done when:_ merging with sum adds weights and a count column.
+- **43. Paste a gene list, pick species and confidence, get the STRING network** (both; element partly: the STRING mapping loads from a list and a species but reports no found and not-found counts; app no). _Done when:_ "287 found, 13 not found".
+- **36. The list of data steps in order, with undo per step and a methods paragraph** (element; partly). _Done when:_ five steps listed; the text names files, settings and counts.
+- **33. Time as a start and end with a unit; unreadable times counted** (element; partly). _Done when:_ 7 unreadable values counted.
 - **29. Sources list with counts, each naming its file, URL or source and query; once there are two sources, an element's details name its source** (element; partly: network loads are listed with their query and each node carries `_source.loads`; file loads are not listed yet). _Done when:_ two files and one Neo4j query list three sources; an edge names its source.
+- **48. Refresh a source load: say whether the source changed, re-run its query and expansions, and apply only the difference as one undo step** (element; no). _Done when:_ an NDEx network edited upstream reads "changed", and a refresh reports nodes added, removed and updated.
 - **30. Cleanup offers in the load report: blank ids, padded spaces, case-only id variants, mixed types, self-loops, missing weights** (both; partly). _Done when:_ "Acme " and 40 blank ids show two offers; undo restores the originals.
 - **31. Merge exact and case- or space-variant duplicate nodes, approved per group, with a rule per attribute** (element; no). _Done when:_ three spellings of Acme merge; undo restores three nodes.
-- **32. Graph properties: how parallel edges combine, self-loops, two-mode, "treat as undirected" when mostly reciprocal** (element; partly). _Done when:_ merging with sum adds weights and a count column.
-- **33. Time as a start and end with a unit; unreadable times counted** (element; partly). _Done when:_ 7 unreadable values counted.
-- **34. Name, reapply and combine saved filters and sets; one list to rename, delete or export saved items** (app; element done). _Done when:_ a saved filter reapplies after reopening.
-- **35. Export only what is shown, a set or the selection, and leave out chosen columns** (element; no). _Done when:_ "showing 140 of 900" exports 140 nodes.
-- **36. The list of data steps in order, with undo per step and a methods paragraph** (element; partly). _Done when:_ five steps listed; the text names files, settings and counts.
-- **37. Rename (everything that reads the column follows), delete, fill empty values** (element; no). _Done when:_ a style and a filter keep working after a rename.
-- **38. Hide and reorder table columns, remembered** (app; partly). _Done when:_ the same five columns show after reopening.
-- **39. Change a role after loading, as one undo step** (element; no). _Done when:_ changing the weight column reruns runs; undo restores it.
-- **40. Edit a cell, add or remove a node or edge, marked as edited** (both; element verbs exist). _Done when:_ edits survive reopening and undo singly.
-- **41. Keep only the largest group; save a set as a subnetwork** (element; no). _Done when:_ the full network stays reachable.
+- **46. A file over the drawing limit offers a way through (busiest N nodes) instead of a bare refusal** (element; refusal only). _Done when:_ size, limit and the left-out count are shown.
 - **42. One event table makes several kinds of node; two columns share one id space** (element; no). _Done when:_ an auth log gives users and hosts as two kinds.
-- **43. Paste a gene list, pick species and confidence, get the STRING network** (both; element partly: the STRING mapping loads from a list and a species but reports no found and not-found counts; app no). _Done when:_ "287 found, 13 not found".
+- **37. Rename (everything that reads the column follows), delete, fill empty values** (element; no). _Done when:_ a style and a filter keep working after a rename.
+- **34. Name, reapply and combine saved filters and sets; one list to rename, delete or export saved items** (app; element done). _Done when:_ a saved filter reapplies after reopening.
 - **44. Import a list of ids (or a GMT file) as a saved set** (element; no). _Done when:_ "47 matched, 3 not in graph".
 - **45. Join a table onto edges by edge id or by source and target** (element; no). Saved like a node join: the table is a source, the join a recipe command naming its key columns. _Done when:_ "380 of 400 edges matched".
-- **46. A file over the drawing limit offers a way through (busiest N nodes) instead of a bare refusal** (element; refusal only). _Done when:_ size, limit and the left-out count are shown.
+- **41. Keep only the largest group; save a set as a subnetwork** (element; no). _Done when:_ the full network stays reachable.
+- **38. Hide and reorder table columns, remembered** (app; partly). _Done when:_ the same five columns show after reopening.
+- **40. Edit a cell, add or remove a node or edge, marked as edited** (both; element verbs exist). _Done when:_ edits survive reopening and undo singly.
 - **47. Draw a file's own colors and sizes as a removable style layer** (element; unverified). _Done when:_ removing the layer restores the default.
-- **48. Refresh a source load: say whether the source changed, re-run its query and expansions, and apply only the difference as one undo step** (element; no). _Done when:_ an NDEx network edited upstream reads "changed", and a refresh reports nodes added, removed and updated.
 
 ### Advanced: for experts
 
 - **49. Save the current steps as a recipe that names columns by role or name, never node ids** (element).
+- **53. A new source with no code: a REST mapping for any JSON API, or a custom source an extension registers** (element; yes: the `rest` source and `registerSource` in `./extend`; app no).
 - **50. A column computed from an expression in the existing JMESPath dialect** (element).
 - **51. Similar-name duplicate groups (IBM, I.B.M.), approved one at a time** (element).
+- **58. Match nodes across graphs or tables** (element; no). By a key column with its id system, or through an id-mapping table. The project stores the rule and recomputes the matches on open, with matched and unmatched counts; it never stores matched pairs. Joins (14, 45), mapping tables (52) and set operations (56) all use it. _Done when:_ a tumor and a normal network matched by Ensembl gene report "4,210 matched, 37 only in tumor", and the same counts return after reopening.
 - **52. A mapping table that translates ids between systems before a join** (element). The mapping table is itself a source, and the join records which table it used (item 9 below).
-- **53. A new source with no code: a REST mapping for any JSON API, or a custom source an extension registers** (element; yes: the `rest` source and `registerSource` in `./extend`; app no).
+- **57. Earlier data, compared after Replace** (element; no). After Replace the earlier data stays as another named graph ("September") and is compared with requirement 56; there is no separate versioning.
+- **56. Union, intersection and difference of two named graphs** (element; no). The result is its own named graph plus a recipe command naming its inputs and the operation, so it can be rebuilt (item 9 below).
 - **54. Remove one source, keeping elements another source also supplied** (element; no).
 - **55. Project a two-mode graph onto one kind with a stated weighting** (element).
-- **56. Union, intersection and difference of two named graphs** (element; no). The result is its own named graph plus a recipe command naming its inputs and the operation, so it can be rebuilt (item 9 below).
-- **57. Earlier data, compared after Replace** (element; no). After Replace the earlier data stays as another named graph ("September") and is compared with requirement 56; there is no separate versioning.
-- **58. Match nodes across graphs or tables** (element; no). By a key column with its id system, or through an id-mapping table. The project stores the rule and recomputes the matches on open, with matched and unmatched counts; it never stores matched pairs. Joins (14, 45), mapping tables (52) and set operations (56) all use it. _Done when:_ a tumor and a normal network matched by Ensembl gene report "4,210 matched, 37 only in tumor", and the same counts return after reopening.
 
 ### Later: blocked on something else
 
 - **59. Latitude, longitude and country roles.** Waiting for a map view; nothing reads a place yet. The place role is already in the file format, so files saved now keep it.
 - **60. Load only a time window or the strongest ties from a file.** Deferred because the too-large path covers the urgent half; for network sources, size limits and expansion already load only part.
 
-## Progressive disclosure for data
+## Where each feature appears
 
-**First screen.** Every way in opens the Data page, which says the file stays in this browser. A
-confident file shows its first rows, one line stating the mapping (from, to, weight and its role,
-direction) with Change, and focus on Load. An uncertain file opens the per-column choices for the
-uncertain columns only, each with its type and a count of values that do not fit. The load report
-shows only nonzero lines. After loading, the Data place shows what loaded in plain words. The find
-box and the condition card are always on the toolbar, Replace data is a visible control, and export
-and autosave are always there. Inside a project, a second file offers Add, Add columns to nodes and
-Replace with the match line visible before committing.
+The app's places, as built on `golden` (`graphty/src/workspace/`) and designed in
+`design/ui/tier1-real-app/tier1-design.md`, section 2, and
+`design/ui/app-shell-progressive-disclosure-design.md`, sections 5.3 and 6:
 
-**First screen for server data.** "Open network data" sits beside Open. It lists the registered
-sources, draws each one's fields from its descriptor, and offers Test before Load. Once a graph came
-from a source, a node's menu offers Expand and Collapse, a capped load offers Load more, and a
-reopened project lists its waiting loads to approve.
+- **Start screen**: outside a project. Open project or file..., New from data..., the samples, and
+  the "Open network data" dialog.
+- **Data page**: a full page every data door opens. Its Tables list, model strip, table header
+  strip ("Each row is", the weight line, File settings), sample grid with a role menu per column,
+  match report (the load report) and footer (Direction, Load).
+- **Data place**: the Data button on the rail. Its Sources section (a row per load, "+" to add, a
+  row menu) and Attributes section (type glyph, fill, an attribute menu). The Filters, Steps and
+  Saved sections are designed but not built.
+- **Graph place**: the Graph button on the rail. The find box, the paint tree, and the title line
+  that becomes the Graphs switcher once a project holds two graphs.
+- **Inspector**: right panel, showing the selected node, edge, attribute or row.
+- **Table dock**: the table along the bottom of the canvas (Shift+T). Nodes and Edges tabs, the
+  "Columns: 8 of 69" chooser, a column menu, and a row menu that is the node's menu.
+- **Node's menu**: the same menu from a node on the canvas, its table row and its inspector.
+- **Toolbar and selection bar**: Analyze, Layout, View, Legend and Quick actions; the selection
+  bar above them while something is selected.
+- **Header**: the main menu (Save, Export...), Undo and Redo, the autosave chip, and the filter
+  chip (designed, not built).
+- **Quick actions**: the command palette (Ctrl+K), which lists every command that exists.
 
-**One step in.** Ordered filter steps, the sources list, cleanup and duplicate offers (which appear
-in the load report only when found), graph properties, time spans, column edits, re-mapping, cell
-edits, saved items, export scope, the step list, subnetworks, event tables, gene lists, id lists,
-edge joins, the too-large path, file styles and refreshing a source load.
+### The first-screen rule
 
-**Expert.** Writing recipes, expressions, similar-name duplicates, id mapping tables, matching
-nodes across graphs, defining a new source, removing a source, projections, and set operations and
-comparisons across named graphs.
+The first screen is everything from opening a door to the first drawing, plus the drawn graph
+before the reader's second action. It shows only what this reader's own data needs now. It must
+not show:
+
+- a control from a later tier, even disabled or tagged "Coming"
+- a control at its default value; only a deviation is drawn, so a confident mapping is one line
+  with Change
+- a load-report line, cleanup offer or duplicate offer whose count is zero
+- a verb whose precondition is missing: Add and Replace outside a project; Expand, Load more,
+  Refresh and Approve for a graph that came from a file; a filter step list before the second
+  filter; a source name in an element's details while there is one source; the Graphs switcher
+  while there is one graph
+- a word from inside the element: join key, schema, recipe command, rule tree, journal, projection
+
+_Test:_ a screenshot audit of the first screen for a clean CSV, a messy CSV and a Neo4j load finds
+none of these, and a keyboard user reaches every primary requirement's control from it.
+
+### Disclosure map
+
+"Always" is drawn whenever its place is open. "When" is drawn only once its trigger holds.
+"Asked" is reached only through the named control and Quick actions. Every row is also listed in
+Quick actions once it exists, and nothing is reachable only there.
+
+**Primary (23 to 27 are the server list)**
+
+| Req | Where it lives                                                          | How it is revealed                                    |
+| --- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
+| 4   | Start screen; a drop; Ctrl+V; Sources "+"; the empty-canvas card        | Always                                                |
+| 5   | Data page footer: Load                                                  | Always; focused when no choice is needed              |
+| 7   | Data page: mapping line, role menus, "Each row is", Direction           | Line always; menus when a guess is unsure, or asked   |
+| 8   | Data page match report; then the source row in the Data place           | When a count is nonzero                               |
+| 10  | Data place: summary line; Attributes (type, fill)                       | Always after a load                                   |
+| 12  | Condition card: attribute menu Select where..., Hide where...; find box | Asked; header filter chip while hiding                |
+| 11  | Graph place find box ("/")                                              | Always                                                |
+| 20  | Main menu Export... (Mod+E); table options menu                         | Always; loss line when the format drops something     |
+| 18  | Header autosave chip; Recovered work on the start screen                | Chip always; a list when something did not reload     |
+| 9   | Data page weight line; the weight attribute's inspector                 | When an edge table has a number column; meaning asked |
+| 14  | Data page verb Add columns to nodes; match lines                        | Pre-chosen when a table's key matches node ids        |
+| 13  | Data page "Add to <project>": its three verbs                           | When a file arrives inside a project                  |
+| 15  | Data page Tables list and model strip                                   | When a node table and an edge table are on the page   |
+| 6   | Every drop target; File settings: Read as...                            | Routing always; Read as... when no format matches     |
+| 16  | Source row menu: Replace with file...; the Replace data verb            | Always on the row menu; its report stays on the row   |
+| 17  | Type glyph: attribute row, sample grid, table header                    | Count when a value does not fit; change asked         |
+| 19  | Data page mapping line: "Used your mapping from sept.csv. Change"       | When headers match a saved mapping or a known export  |
+| 22  | Open project or file... or a drop, with a recipe; the Apply sheet       | Asked: opening a recipe file                          |
+| 21  | Start screen samples                                                    | Always on the start screen                            |
+| 23  | "Open network data" by Open; Sources "+" > From a source...             | Always; Test before Load                              |
+| 24  | The same dialog: search, query or parameters                            | When the connection test passes                       |
+| 25  | Node's menu: Expand..., Collapse; "has more" in the inspector           | When the graph came from a source that can expand     |
+| 26  | The source row ("5,000 of 40,000", Load more); a notice                 | When a load reached its cap                           |
+| 27  | Sources section: waiting loads with Approve; sign-in prompt             | When a reopened project holds a source load           |
+
+**Secondary**
+
+| Req | Where it lives                                                         | How it is revealed                                     |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| 28  | Data place Filters section; the filter chip opens it                   | When a second filter is added                          |
+| 35  | Export dialog: What (shown, a set, selection); Columns                 | When a filter, set or selection exists                 |
+| 39  | Source row menu: Edit source... (the Data page at that table)          | Asked                                                  |
+| 32  | Data page footer by Direction; "Treat as undirected" line              | When repeats, self-loops or reciprocal edges are found |
+| 43  | "Open network data" > STRING: gene list, species, confidence           | Asked: choosing STRING                                 |
+| 36  | Data place Steps section, collapsed; Copy as methods text              | When the project has two data steps                    |
+| 33  | A time column's role menu: Start, End, unit                            | When a column is guessed or set as time                |
+| 29  | Data place Sources; "From: <source>" in an element's inspector         | Sources always; the line when there are two sources    |
+| 48  | Source row menu: Refresh; a "changed" mark on the row                  | For a source or URL load; mark when it changed         |
+| 30  | Match report lines, each with its fix and count                        | When the report finds that problem                     |
+| 31  | Report line "3 possible duplicate groups. Review"                      | When found; else asked: Find duplicates...             |
+| 46  | Data page, in place of the refusal: size, limit, a way through         | When the file is over the drawing limit                |
+| 42  | "Each row is: an event"; a role menu per entity column                 | Asked: the "Each row is" choice                        |
+| 37  | Attribute and table column menus: Rename, Delete, Fill empty...        | Asked; Fill empty when there are empty values          |
+| 34  | Data place Saved section; Save as set on the condition card            | Section when the first item is saved                   |
+| 44  | Saved section "+" > Import a list...; a dropped GMT file               | Asked                                                  |
+| 45  | Data page verb Add columns to edges                                    | When columns match edge ids or source and target       |
+| 41  | Summary link Keep only the largest group; set menu                     | Link when there are two groups; menu asked             |
+| 38  | Table dock "Columns: 8 of 69" chooser; dragged headers                 | Asked                                                  |
+| 40  | A table cell (Enter edits); node's menu: Delete; Add node, Add edge    | Asked; "edited" mark when a value was edited           |
+| 47  | Data page line "This file has its own colors. Use them"; its layer row | When the file carries colors or sizes                  |
+
+**Advanced**
+
+| Req | Where it lives                                                   | How it is revealed                          |
+| --- | ---------------------------------------------------------------- | ------------------------------------------- |
+| 49  | Steps section: Save as recipe; Export... > Recipe                | Asked                                       |
+| 53  | "Open network data" > Other web API...; extension sources listed | Asked                                       |
+| 50  | Attributes "+" > Computed column...                              | Asked                                       |
+| 51  | Duplicates sheet: Include similar names                          | Asked                                       |
+| 58  | "Match by" line of the join and combine sheets                   | When matching needs a choice                |
+| 52  | "Match by" > Through a mapping table...                          | Asked                                       |
+| 57  | Replace's confirmation: Keep September as another graph (off)    | When Replace runs                           |
+| 56  | Graphs switcher: Combine..., Compare...                          | When the project holds two graphs           |
+| 54  | Source row menu: Remove                                          | When the graph has two sources              |
+| 55  | Graphs switcher: Project onto one kind...                        | When the graph is two-mode (requirement 32) |
+
+**Later** (59, 60): not drawn.
 
 **The one condition card.** A filter, a style layer's target, a saved set and an algorithm's or
 export's scope are one card of conditions that must all hold, with "X of Y" counted by the element,
 ending in a verb: Select, Hide, Style these, Save as set, or Run on these. It needs requirement 3's
 single element shape, or the app would have to translate it into three.
 
+## Build order
+
+The tiers say where a feature appears; the slices say when it is built. Each slice ships whole, and
+its test is run in a fresh browser, by keyboard alone, against the first-screen rule.
+
+**Prerequisites: 1, 2, 3.** _Done when:_ each of their tests passes, and the Data page builds
+against graphty-element's load APIs with no role list or workaround of its own.
+
+**Slice 1: a complete first session for a file reader and a server reader.** 4, 5, 7, 8, 10, 11,
+12, 20, 18 and 21 for files; 23, 24, 26 and 27 for servers. Requirement 27 ships with the first
+server load because autosave saves source loads, and a reopened project must not query on its own.
+_Done when:_ two scripted sessions pass. A file reader drops `bait_prey.tsv`, loads it with the
+guessed roles in one Enter, reads what loaded, finds a protein, hides "confidence < 0.4" with the
+card, reloads the page to the same graph and filter, and exports a CSV holding every column. A
+server reader connects to a test Neo4j, tests the connection, runs a query capped at 5,000 nodes,
+presses Load more, reloads the page, approves the waiting load, and finds no password in the saved
+file.
+
+**Slice 2: a second table, newer data, and a server neighborhood.** 9, 14, 13, 15, 6, 16, 17 and
+25, plus secondary 29, because a graph with two sources needs its sources listed. _Done when:_ a
+supply-chain session loads `suppliers.csv` and `ships_to.csv` in either order, joins a 340-row
+table with its match lines, loads an amount column with one "N/A" as a number, and replaces
+September with October keeping styles and notes, with one undo back; a fraud session expands an
+account by at most 50 nodes and collapses it; the Data place lists every source with its counts;
+the weight test of requirement 9 passes.
+
+**Slice 3: repeat work.** 19 and 22, then secondary 28, 35, 39, 36, 48, 43 and 33. _Done when:_
+an analyst opens this month's file and gets last month's mapping with no changes, applies last
+month's recipe, adds two filter steps and switches the first off, changes the weight column after
+loading, exports only what is shown, and copies a methods paragraph naming every step; a genomics
+reader pastes 300 genes and reads "287 found, 13 not found"; a refreshed NDEx network reports what
+changed.
+
+**Slice 4: cleaning and shaping.** 32, 30, 31, 46, 42 and 37. _Done when:_ the knowledge
+engineer's messy fixture offers fixes for padded and blank ids, merges three spellings of Acme
+with undo back to three, combines parallel edges with sum and a count, and renames a column a
+style and a filter both read; an authentication log gives users and hosts as two kinds; a
+2,000,000-edge file loads its busiest 50,000 nodes and says what it left out.
+
+**Slice 5: the rest of secondary.** 34, 44, 45, 41, 38, 40 and 47. _Done when:_ each
+requirement's test passes, and a saved filter, an imported id set, an edge join, a hidden column
+and an edited cell all survive reopening.
+
+**After secondary.** The advanced requirements in their priority order, each done when its test
+passes, with three dependencies: 58 before 52 and 56, 56 before 57, and 29 before 54. The later
+requirements wait for what blocks them: 59 for a map view, 60 until the too-large path of
+requirement 46 proves not enough.
+
 ## What competitors teach, and what this supersedes
 
-Competitor products shaped these requirements: let the reader point at columns instead of
-demanding fixed headers; make a join say why it matched nothing before it commits; fix a type on
-the column itself; prefer two plain verbs to three subtle ones; offer cleanup only when the data
-needs it; bind recorded steps by column role or name, never by position; and keep one filter card
-first, because ordered filter trees confuse newcomers. Several earlier designs are replaced or
-updated by this one. Both lists, with their sources, are in the evidence appendix, section J.
+The competitor lessons behind these requirements, and the earlier designs this one replaces or
+updates, are in the evidence appendix, section J.
 
 ## Decisions
 
@@ -356,22 +491,9 @@ kind or a new optional field; nothing that exists changes.
 8. **A columns member per graph, written as JSON Schema (draft 2020-12).** One schema describes the
    node record and one the edge record, using standard keywords plus a published graphty
    vocabulary: its own meta-schema declaring the graphty keywords.
-    - Standard keywords carry the type, `format` (date-time, date, duration, uri), `enum`, and
-      title and description.
-    - The graphty vocabulary carries: the column's role; the weight's meaning (distance,
-      similarity, capacity, unknown) and whether higher means stronger; the id system (Ensembl
-      gene, UniProt, email); the time kind (instant, start, end, duration); precision; the original
-      format and time zone, so an export writes the values back as they came; the measurement
-      level, including ordered categories; a unit or currency; the missing-value markers seen on
-      import; a multi-valued separator; and the keys used to match nodes across graphs or tables.
-    - Values in the data are stored normalized: ids as strings, numbers as numbers, times as ISO
-      8601 in UTC, lists as arrays, blanks as missing.
-    - A column with no recorded role is inferred on open, as today.
-    - Node positions stay with the layout, and a file's own colors and sizes stay a style layer;
-      neither is a column role.
-    - Recipes refer to columns by role, so a recipe survives renamed columns. Each column change a
-      person makes is also a recipe command, so applying a recipe to new data reproduces the
-      types.
+   The keywords it carries, how values are stored and what each column role records are in the
+   evidence appendix, section K. A column with no recorded role is inferred on open, as today, and
+   recipes refer to columns by role, so a recipe survives renamed columns.
 9. **Joins between graphs.**
     - A table joined onto a graph: the table is a source, and the join is a recipe command naming
       the key columns (requirements 14 and 45).
@@ -381,31 +503,8 @@ kind or a new optional field; nothing that exists changes.
       or an id-mapping table that is itself a source) and recomputes matches on open. It never
       stores matched pairs (requirements 52 and 58).
 
-The column roles and what the columns member records for each:
-
-| Role                     | Recorded besides type and format                          | Stored as                           |
-| ------------------------ | --------------------------------------------------------- | ----------------------------------- |
-| node id                  | id system; whether it is a key for matching across graphs | string                              |
-| edge source, edge target | id system of the node ids they name                       | string                              |
-| edge id                  | id system                                                 | string                              |
-| weight                   | meaning; whether higher is stronger; unit                 | number                              |
-| time                     | time kind; precision; original format and time zone       | ISO 8601 in UTC; durations ISO 8601 |
-| label                    | --                                                        | string                              |
-| kind                     | the kinds (`enum`)                                        | string                              |
-| category                 | the categories (`enum`); whether they are ordered         | string                              |
-| place                    | original format; precision                                | string or number, as its type says  |
-| link                     | --                                                        | string, `format: uri`               |
-| image                    | --                                                        | string, `format: uri`               |
-
-Any column, with a role or none, can also record a unit or currency, missing-value markers and a
-multi-valued separator (stored as an array).
-
-**Why JSON Schema rather than Frictionless Table Schema.** Values are already stored normalized, so
-Table Schema's rules for parsing raw text are not needed. The document file already uses JSON
-Schema, so the whole file has one schema language, and standard validators check embedded data
-against it. graphty's own meanings need a vocabulary in either language. A Table Schema that comes
-with a CSV (a `datapackage.json` beside it) is read by graph-io at import and mapped into the
-columns member; graphty never writes one.
+Why the columns member is JSON Schema rather than Frictionless Table Schema is in the evidence
+appendix, section K.
 
 **What cannot change once files are saved.** The vocabulary's keyword names and the shape of the
 sources record are read forever once files exist. Each needs a written spec and conformance cases
@@ -413,24 +512,14 @@ sources record are read forever once files exist. Each needs a written spec and 
 
 ### Decided here
 
-These are additive, so the team decides them; each lands without the owner's approval.
+These are additive, so the team decides them; each lands without the owner's approval. The
+reasoning for each is in the evidence appendix, section L.
 
-1. **Column roles gain a node or edge kind and a skip choice by a new field, not by widening
-   `ColumnRole`.** `ColumnRole` is a closed union that `DraftColumn.suggested` returns, so a new
-   member would break a consumer's exhaustive switch. `DraftColumn` gains a field typed as an open
-   union (`ColumnRole` plus `"kind"`, `"skip"` and any string), and the table mapping gains optional
-   `kind` and `skip` entries. Widening `ColumnRole` itself can ride in the grouped graphty-element
-   major the owner has on hold.
-2. **A date is a time measurement with an optional unit and format, not a new kind.** `Measurement`
-   is already an open union that includes `"time"`, and optional fields on a measurement
-   declaration break nothing. Column types and time roles (requirements 17 and 33) need it now.
-3. **The weight meaning "similarity" is accepted beside "strength".** Every input accepts both,
-   values read back keep saying `"strength"` so no consumer's switch breaks, and `"strength"` is
-   deprecated and replaced in the next planned graphty-element major.
-   `design/ui/framework/graph-conventions.md` (line 88) asks for the clearer word.
-4. **Ordered filter steps take one kind of step.** The published API has one filter per session
-   (`session.visibility.filter`) plus one time window, and no `FilterStep`, so the list of steps is
-   a new shape. The team takes decision 25 of `design/ui/framework/one-way-doors.md`: one kind,
-   every step bounding every computation. Steps are saved as recipe commands.
-5. **Network-source limits default to none in the element and are set by the app**, because the
-   right cap depends on the consumer's screen and machine.
+1. Column roles gain a node or edge kind and a skip choice through a new open-union field on
+   `DraftColumn`, not by widening the closed `ColumnRole` union.
+2. A date is a time measurement with an optional unit and format, not a new kind.
+3. The weight meaning "similarity" is accepted beside "strength"; values read back keep saying
+   `"strength"` until the next planned graphty-element major.
+4. Ordered filter steps take one kind of step, each bounding every computation, saved as recipe
+   commands.
+5. Network-source limits default to none in the element and are set by the app.

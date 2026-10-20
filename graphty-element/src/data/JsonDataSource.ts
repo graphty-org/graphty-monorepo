@@ -58,6 +58,9 @@ export const JsonDataSourceConfig = z.object({
     nodeIdPath: z.string().optional(),
     // An OBO Graphs document's ids: short prefixed ids (the default) or the IRIs the file holds.
     oboIds: z.enum(["curie", "iri"]).optional(),
+    // A graphology or Gephi JSON document's sigma.js settings (`{ renderEdgeLabels: true }`): the application's, never
+    // in the file, so a file is drawn under sigma's defaults unless they are given here. graph-io's `sigmaSettings`.
+    sigmaSettings: z.record(z.string(), z.unknown()).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
     node: JsonNodeConfig,
@@ -646,6 +649,9 @@ export class JsonDataSource extends DataSource {
                 ids: "keep",
                 weightFrom: null,
                 ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+                ...(dialect === "graphology" && this.opts.sigmaSettings !== undefined
+                    ? { sigmaSettings: this.opts.sigmaSettings }
+                    : {}),
             },
             this.errorAggregator,
             { firstDeclarationWins: true },

@@ -1547,15 +1547,17 @@ export function compareOracle(
                 o.stroke.color,
                 g.stroke.color,
             );
-            // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read
+            // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read; a width in
+            // screen pixels (a line at its screen floor, sigma's minEdgeThickness) is the same whatever the frame's scale
             if (Number.isFinite(o.stroke.width)) {
+                const gWidth = g.stroke.width * (g.stroke.screen === true ? 1 : lengthScale);
                 j.add(
                     "edge.width",
                     "edge",
                     id,
-                    ratioMiss((g.stroke.width * lengthScale) / Math.max(o.stroke.width, 1e-9), T.edgeWidthRatio),
+                    ratioMiss(gWidth / Math.max(o.stroke.width, 1e-9), T.edgeWidthRatio),
                     o.stroke.width,
-                    g.stroke.width * lengthScale,
+                    gWidth,
                 );
             }
             j.add(

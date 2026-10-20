@@ -79,7 +79,8 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 /**
  * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
  * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
- * `gephiPreview`.
+ * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader takes as
+ * `sigmaSettings`.
  * @param meta - the oracle's metadata
  * @param format - graph-io's format name of the sample
  * @returns the options, empty for none
@@ -88,6 +89,14 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
     const preview = meta.previewProperties;
     if (format === "pajek" && meta.program === "Pajek") {
         return { pajekDraw: pajekDrawOf(meta) };
+    }
+    if (
+        format === "json" &&
+        meta.program === "sigma.js" &&
+        typeof meta.settings === "object" &&
+        meta.settings !== null
+    ) {
+        return { sigmaSettings: meta.settings };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
 }

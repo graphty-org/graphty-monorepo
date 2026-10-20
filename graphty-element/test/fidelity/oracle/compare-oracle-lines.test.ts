@@ -158,6 +158,28 @@ describe("line widths", () => {
         assert.deepEqual(failing(o, g(2.1)), []);
         assert.deepEqual(failing(o, g(2.35)), ["node.strokeWidth"]);
     });
+
+    it("judges a line drawn at its screen floor as drawn, whatever the frame's scale (sigma's minEdgeThickness)", () => {
+        // graphty frames the graph half as large: a length is read at twice its pixels, a screen floor at its own
+        const half = (over: Partial<PStroke>): PScene =>
+            scene(
+                "graphty",
+                [
+                    edge({
+                        points: [
+                            [60, 50],
+                            [140, 50],
+                        ],
+                        stroke: stroke("#0000ff", 0.85, over),
+                    }),
+                ],
+                NODES.map(([id, x, y]) => node(id, x / 2, y / 2, { w: 20, h: 20 })),
+            );
+        const o = scene("oracle", [edge({ stroke: stroke("#0000ff", 0.85) })]);
+        const width = (g: PScene): number | null => compareOracle("t", o, g).properties["edge.width"].passRate;
+        assert.strictEqual(width(half({ screen: true })), 1);
+        assert.strictEqual(width(half({})), 0);
+    });
 });
 
 describe("group outlines", () => {

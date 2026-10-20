@@ -858,6 +858,8 @@ export interface DrawnEdge {
     /** The path on screen, source end first. */
     points: [number, number][];
     thicknessPx: number;
+    /** Its thickness is its line's screen floor (`line.minScreenWidth`): the same pixels on screen at every zoom. */
+    screenFloored?: boolean;
     color: string | null;
     opacity: number;
     pattern: string | null;
@@ -903,8 +905,7 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
         _floats?: Record<string, number>;
         options?: { defines?: string[] };
     } | null;
-    // the join shader never draws a line under `minWidth` pixels (line.minScreenWidth)
-    const min = material?._floats?.minWidth ?? 0;
+    const min = screenFloorOf(mesh);
     if (typeof flat === "number") {
         return Math.max(flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at), min);
     }
@@ -915,6 +916,15 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     // a line whose width is in world units (a joined line through bends drawn at the file's width), not pixels
     const world = material?.options?.defines?.includes("#define WORLD_WIDTH") === true;
     return Math.max(world ? width * p.pxPerWorld(at) : width / 2 / p.point(at).w, min);
+}
+
+/**
+ * The fewest pixels a line mesh is drawn wide: its join shader never draws it under `minWidth` (`line.minScreenWidth`).
+ * @param mesh - the batch mesh
+ * @returns pixels, 0 for no floor
+ */
+function screenFloorOf(mesh: Mesh): number {
+    return (mesh.material as unknown as { _floats?: Record<string, number> } | null)?._floats?.minWidth ?? 0;
 }
 
 /**
@@ -1052,6 +1062,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let world: Vector3[] = [];
     let kind: DrawnEdge["kind"] = "other";
     let thicknessPx = 0;
+    let screenFloored = false;
     let color: string | null = null;
     let opacity = 1;
     let pattern: string | null = null;
@@ -1072,6 +1083,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         }
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         thicknessPx = lineThickness(batch.mesh, mid, p);
+        screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
         const m = materialColor(batch.mesh.material);
         color = m ? hex(m.rgb) : null;
         // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
@@ -1150,6 +1162,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             return [s.x, s.y];
         }),
         thicknessPx,
+        ...(screenFloored ? { screenFloored } : {}),
         color,
         opacity,
         pattern,

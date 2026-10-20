@@ -371,6 +371,8 @@ export function drawnPrimitives(
                     color: gradient?.stops[0]?.color ?? e.color,
                     opacity: e.opacity,
                     width: e.width,
+                    // a line drawn at its screen floor is that many pixels at any zoom, as a program's floor is
+                    ...(d.screenFloored === true ? { screen: true } : {}),
                     // the elements and gaps it drew, where its class was measured off them
                     dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,

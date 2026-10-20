@@ -135,6 +135,8 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["label", { property: "label", type: "text" }],
     ["color", { property: "labelColor", type: "color" }],
     ["font-size", { property: "labelSize", type: "size" }],
+    ["text-outline-color", { property: "labelOutlineColor", type: "color" }],
+    ["text-outline-width", { property: "labelOutlineWidth", type: "size" }],
     ["font-family", { property: "labelFont", type: "fontFamily" }],
     ["font-weight", { property: "labelWeight", type: "fontWeight" }],
     ["font-style", { property: "labelItalic", type: "enum", enums: ["italic", "normal", "oblique"] }],

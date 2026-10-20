@@ -10,7 +10,7 @@ import {
     Tooltip,
 } from "@mantine/core";
 import { clampUseMovePosition, useMove } from "@mantine/hooks";
-import React, { type ReactNode, useEffect, useRef, useState } from "react";
+import React, { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
 import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
@@ -63,7 +63,25 @@ export interface ColorPickerPanelLabels {
      * held when the picker opened (the color before this edit).
      */
     swatch: (word: string, hex: string, start: boolean) => string;
+    /**
+     * Drawn under the value row, and spoken, after Enter on text that reads as no color in the
+     * format: what the box takes instead. The text stays in the box, marked, to be corrected.
+     */
+    refused: (typed: string, format: ColorPickerFormat) => string;
+    /**
+     * Drawn and spoken when the reader leaves the value box holding text that reads as no color:
+     * the box went back to `kept`, the value it shows for the color in force.
+     */
+    refusedKept: (typed: string, kept: string, format: ColorPickerFormat) => string;
 }
+
+/** What the value box takes, in each format, as the refusal says it. */
+const TAKES: Record<ColorPickerFormat, string> = {
+    hex: "Type a color name or a hex code such as 2E8B57.",
+    rgb: "Type three numbers such as 46, 139, 87.",
+    hsl: "Type three numbers such as 146, 50, 36.",
+    hsb: "Type three numbers such as 146, 67, 55.",
+};
 
 const DEFAULT_LABELS: ColorPickerPanelLabels = {
     saturation: "Saturation and brightness",
@@ -79,6 +97,8 @@ const DEFAULT_LABELS: ColorPickerPanelLabels = {
     colorWord,
     swatch: (word, hex, start) =>
         `${[word, hex].filter(Boolean).join(" ")}${start ? ", the color before this edit" : ""}`,
+    refused: (typed, format) => `"${typed}" is not a color. ${TAKES[format]}`,
+    refusedKept: (typed, kept, format) => `"${typed}" is not a color, so this stays ${kept}. ${TAKES[format]}`,
 };
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
@@ -314,6 +334,10 @@ export function ColorPickerPanel({
     hsvaRef.current = hsva;
     const [format, setFormat] = useState<ColorPickerFormat>(defaultFormat);
     const [draft, setDraft] = useState(formatValue(hsva, format));
+    // Why the last entry in the value box was refused, until the next edit. `held` while the box
+    // still holds the refused text (after Enter), false once it went back (it was left).
+    const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
+    const refusalId = useId();
     // The color the picker opened on, and the swatches it has shown since, in their first order.
     const [start] = useState(() => normalizeHexa(value));
     const [shown, setShown] = useState<readonly string[]>(() => {
@@ -341,6 +365,8 @@ export function ColorPickerPanel({
 
     useEffect(() => {
         setDraft(formatValue(hsva, format));
+        // A new color or format answers an earlier refusal.
+        setRefusal(undefined);
     }, [hsva, format]);
 
     /**
@@ -405,16 +431,40 @@ export function ColorPickerPanel({
         settle();
     };
 
-    const commitDraft = (): void => {
+    /**
+     * Apply what was typed in the value box. Text that reads as no color is refused with a line
+     * saying what the box takes: Enter keeps it, marked, to be corrected; leaving the box redraws
+     * the color in force.
+     * @param byEnter - Enter ended the edit
+     * @returns whether the text was refused
+     */
+    const commitDraft = (byEnter = false): boolean => {
         const parsed = parseValue(draft, format, hsvaRef.current.a);
         if (parsed === undefined) {
-            setDraft(formatValue(hsvaRef.current, format));
-            return;
+            const typed = draft.trim();
+            const shownValue = formatValue(hsvaRef.current, format);
+            const refused = typed !== "" && draft !== shownValue;
+            setRefusal(
+                refused
+                    ? {
+                          message: byEnter
+                              ? labels.refused(typed, format)
+                              : labels.refusedKept(typed, shownValue, format),
+                          held: byEnter,
+                      }
+                    : undefined,
+            );
+            if (!refused || !byEnter) {
+                setDraft(shownValue);
+            }
+            return refused;
         }
+        setRefusal(undefined);
         if (toHexa(parsed) !== toHexa(hsvaRef.current)) {
             emit(parsed);
             settle();
         }
+        return false;
     };
 
     const eyeDropper = typeof window === "undefined" ? undefined : (window as EyeDropperWindow).EyeDropper;
@@ -576,11 +626,14 @@ export function ColorPickerPanel({
                                     autoComplete="off"
                                     spellCheck={false}
                                     aria-label={labels.value}
+                                    aria-describedby={refusal === undefined ? undefined : refusalId}
+                                    aria-invalid={refusal?.held === true || undefined}
                                     data-testid="color-picker-value"
                                     // A pop-out opened on the picker starts in its value box, so typing a hex sets it.
                                     data-autofocus
                                     value={draft}
                                     onChange={(event) => {
+                                        setRefusal(undefined);
                                         setDraft(event.currentTarget.value);
                                     }}
                                     onFocus={(event) => {
@@ -591,8 +644,10 @@ export function ColorPickerPanel({
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
-                                            commitDraft();
-                                            if (closeOnEnter && popout !== null) {
+                                            // Refused text keeps the picker open, to be corrected.
+                                            if (commitDraft(true)) {
+                                                event.preventDefault();
+                                            } else if (closeOnEnter && popout !== null) {
                                                 // Without this the Enter would go on to press the
                                                 // trigger that close() focuses, opening it again.
                                                 event.preventDefault();
@@ -600,6 +655,7 @@ export function ColorPickerPanel({
                                             }
                                         } else if (event.key === "Escape") {
                                             const shownValue = formatValue(hsvaRef.current, format);
+                                            setRefusal(undefined);
                                             revertOnEscape(
                                                 event,
                                                 () => {
@@ -623,6 +679,17 @@ export function ColorPickerPanel({
                                 )}
                             </div>
                         </div>
+                        {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
+                        {refusal !== undefined && (
+                            <div
+                                id={refusalId}
+                                role="alert"
+                                className="cm-field-error cm-color-picker-message"
+                                data-testid="color-picker-message"
+                            >
+                                {refusal.message}
+                            </div>
+                        )}
                     </div>
 
                     {shown.length > 0 && (

@@ -284,6 +284,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // Set when Tab leaves the panel: focus has already moved on, so closing does not take it back
     // to the trigger.
     const leftByTab = useRef(false);
+    // The field a panel opened in when it is not the panel's first stop (data-autofocus), and every
+    // stop focused since it opened: such a panel walks all its stops before Tab leaves it.
+    const entryRef = useRef<HTMLElement | null>(null);
+    const visitedRef = useRef(new Set<EventTarget>());
 
     // The manager is handed a close callback that never changes identity, and
     // reads the current one through a ref. Registration would otherwise be torn
@@ -349,6 +353,14 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             const stops = tabStops(panel);
             const edge = event.shiftKey ? (stops[0] ?? panel) : stops.at(-1);
             if (event.target !== edge && !(event.shiftKey && event.target === panel)) {
+                return;
+            }
+            // Opened in its middle, a forward walk would never reach the stops above where it
+            // started: past either end Tab wraps to the other end while a stop has not had focus.
+            const entry = entryRef.current;
+            if (entry !== null && entry !== stops[0] && stops.some((stop) => !visitedRef.current.has(stop))) {
+                event.preventDefault();
+                (event.shiftKey ? stops.at(-1) : stops[0])?.focus();
                 return;
             }
             const { inline, block } = resolveAnchors();
@@ -542,8 +554,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             // data-autofocus (Mantine's convention) takes focus instead of the
             // panel, which is how a settings panel starts in its first field.
             const timer = setTimeout(() => {
-                const target = panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? panelRef.current;
-                target?.focus();
+                const field = panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? null;
+                visitedRef.current = new Set();
+                entryRef.current = field;
+                (field ?? panelRef.current)?.focus();
             }, 0);
             return () => {
                 clearTimeout(timer);
@@ -596,6 +610,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             tabIndex={-1}
             onClick={handlePanelClick}
             onKeyDown={handleTabOut}
+            onFocus={(event) => {
+                visitedRef.current.add(event.target);
+            }}
             data-testid="popout-panel"
             data-popout-id={id}
             {...(parentId && { "data-parent-id": parentId })}

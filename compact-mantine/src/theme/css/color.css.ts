@@ -335,6 +335,8 @@ const css = `
     align-items: center;
     margin-top: 8px;
 }
+/* Why the value box refused its text, on a line of its own under the value row. */
+.cm-color-picker-message { margin-top: 4px; }
 /* Figma's format button sizes to its word (55.17 for "Hex"); the joined field takes the rest, up
    to 144. */
 .cm-color-picker-format { flex: none; min-width: 55px; }

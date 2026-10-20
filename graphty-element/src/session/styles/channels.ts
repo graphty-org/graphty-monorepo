@@ -262,6 +262,8 @@ export type NodeImageAutoSizeValue = NonNullable<NonNullable<NodeStyleConfig["im
 export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
 /** Which way a node's stripes follow one another. */
 export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
+/** What a node's chart draws (`node.chartKind`). */
+export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
@@ -428,6 +430,18 @@ export interface ChannelValues {
     "node.stripeOpacities": string;
     "node.stripeDirection": NodeStripeDirectionValue;
     "node.stripeSize": number;
+    "node.chartKind": NodeChartKindValue;
+    "node.chartValues": string;
+    "node.chartColors": string;
+    "node.chartMin": number;
+    "node.chartMax": number;
+    "node.chartHorizontal": boolean;
+    "node.chartSize": number;
+    "node.chartMargin": number;
+    "node.chartGap": number;
+    "node.chartLineWidth": number;
+    "node.chartBorderColor": ColorValue;
+    "node.chartBorderWidth": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
@@ -571,6 +585,7 @@ export type ColorChannel =
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
+    | "node.chartBorderColor"
     | "node.labelBackground"
     | "node.labelOutline"
     | "node.labelBorder"
@@ -761,6 +776,20 @@ const NODE_IMAGE_AUTO_SIZE_VALUES: readonly NodeImageAutoSizeValue[] = ["proport
 const NODE_IMAGE_CLIP_VALUES: readonly NodeImageClipValue[] = ["node", "none"];
 /** Which way a node's stripes run. */
 const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down", "right"];
+
+/** What a node's chart draws. */
+const NODE_CHART_KIND_VALUES: readonly NodeChartKindValue[] = ["bar", "stacked-bar", "line", "box", "cells"];
+
+const NODE_CHART_CAVEAT =
+    "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
+    "`node.chartColors` (CSS colors separated by spaces, item i in color i, the last for the rest) are set: " +
+    '`node.chartKind` "bar" (bars side by side), "stacked-bar" (the values piled into one bar), "line", "box" ' +
+    "(the values are the low whisker, the quartiles and median, the high whisker; its median in the second " +
+    'color, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
+    "node's; the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
+    "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
+    "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
+    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
 
 const NODE_PIE_CAVEAT =
     "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
@@ -2519,6 +2548,150 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "stripes.size",
         renderable: true,
         caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.chartKind": {
+        channel: "node.chartKind",
+        target: "node",
+        plainName: "Node Chart Kind",
+        shortName: "Chart kind",
+        group: "shape",
+        default: "bar",
+        accepts: "enum",
+        values: NODE_CHART_KIND_VALUES,
+        stylePath: "chart.kind",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartValues": {
+        channel: "node.chartValues",
+        target: "node",
+        plainName: "Node Chart Values",
+        shortName: "Chart values",
+        group: "shape",
+        accepts: "text",
+        stylePath: "chart.values",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartColors": {
+        channel: "node.chartColors",
+        target: "node",
+        plainName: "Node Chart Colors",
+        shortName: "Chart colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "chart.colors",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMin": {
+        channel: "node.chartMin",
+        target: "node",
+        plainName: "Node Chart Min",
+        shortName: "Chart min",
+        group: "shape",
+        accepts: "number",
+        stylePath: "chart.min",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMax": {
+        channel: "node.chartMax",
+        target: "node",
+        plainName: "Node Chart Max",
+        shortName: "Chart max",
+        group: "shape",
+        accepts: "number",
+        stylePath: "chart.max",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartHorizontal": {
+        channel: "node.chartHorizontal",
+        target: "node",
+        plainName: "Node Chart Horizontal",
+        shortName: "Chart horizontal",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "chart.horizontal",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartSize": {
+        channel: "node.chartSize",
+        target: "node",
+        plainName: "Node Chart Size",
+        shortName: "Chart size",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.size",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMargin": {
+        channel: "node.chartMargin",
+        target: "node",
+        plainName: "Node Chart Margin",
+        shortName: "Chart margin",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.margin",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartGap": {
+        channel: "node.chartGap",
+        target: "node",
+        plainName: "Node Chart Gap",
+        shortName: "Chart gap",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "chart.gap",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartLineWidth": {
+        channel: "node.chartLineWidth",
+        target: "node",
+        plainName: "Node Chart Line Width",
+        shortName: "Chart line width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.lineWidth",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBorderColor": {
+        channel: "node.chartBorderColor",
+        target: "node",
+        plainName: "Node Chart Border Color",
+        shortName: "Chart border color",
+        group: "shape",
+        accepts: "color",
+        stylePath: "chart.borderColor",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBorderWidth": {
+        channel: "node.chartBorderWidth",
+        target: "node",
+        plainName: "Node Chart Border Width",
+        shortName: "Chart border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.borderWidth",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
     },
     "node.cornerRadius": {
         channel: "node.cornerRadius",

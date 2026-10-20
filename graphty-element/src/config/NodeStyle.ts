@@ -457,6 +457,38 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     /**
+     * A chart drawn over the node's face (Cytoscape's bar, line, box and heat map charts): `kind`
+     * "bar" (the default) draws a bar per value side by side, "stacked-bar" one bar of the values
+     * piled up, "line" a line through the values, "box" a box and whiskers (`values` are the low
+     * whisker, the lower quartile, the median, the upper quartile and the high whisker), "cells" a
+     * row of colored cells, one per value. `values` are numbers separated by spaces; `colors` CSS
+     * colors separated by spaces, item i drawn in color i and the last color for the rest (a box's
+     * whiskers in the first, its median in the second, else black). The plot is a box `size`
+     * (default 1) times the node's, centred on it; the values run along it from `min` (default the
+     * smaller of 0 and the least value) to `max` (default the greatest), bottom to top, or left to
+     * right with `horizontal`; the categories run along the other side, left to right or top to
+     * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
+     * `gap` (a share of the side, default 0) split between them. A bar runs from 0 (or the nearer
+     * end of the range) to its value. `lineWidth` is a line's and a whisker's width, `borderWidth` /
+     * `borderColor` a bar's and a box's outline, in the units of `shape.size`.
+     */
+    chart: z
+        .strictObject({
+            kind: z.enum(["bar", "stacked-bar", "line", "box", "cells"]).optional(),
+            values: z.string().optional(),
+            colors: z.string().optional(),
+            min: z.number().optional(),
+            max: z.number().optional(),
+            horizontal: z.boolean().optional(),
+            size: z.number().nonnegative().optional(),
+            margin: z.number().optional(),
+            gap: z.number().min(0).max(1).optional(),
+            lineWidth: z.number().nonnegative().optional(),
+            borderColor: ColorStyle.optional(),
+            borderWidth: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
      * A character or a short text drawn over the node's face, centered on it (vis-network's icon
      * nodes, a font's icon glyph): `text` in the CSS font family `font` (unset, sans-serif) at
      * `size` (the font's size, in the units of `shape.size`; unset, the node's shorter side) and CSS

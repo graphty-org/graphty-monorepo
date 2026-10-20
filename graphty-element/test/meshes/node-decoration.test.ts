@@ -6,6 +6,7 @@ import { assert, describe, test } from "vitest";
 
 import {
     boxOf,
+    chartPieces,
     clipToBox,
     databaseRim,
     imageBox,
@@ -233,5 +234,110 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         // its outline is its four sides, half the border's width either side of them
         assert.equal(lines.length, 4);
         assert.deepEqual(boxOf(lines.flatMap((p) => p.outline)), { x0: -12.5, y0: -6.5, x1: 12.5, y1: -2.5 });
+    });
+});
+
+describe("a chart", () => {
+    // Cytoscape 3.10.5's bar chart of 3, 5 and 2 over 0..10 on a 60 node: a plot 52.1 across, bars 16.5 wide from
+    // 24.75 left of the middle, the first 15.63 tall (xgmml-specimen-images-charts, bar-grouped)
+    const plot = 52.1 / 60;
+    const bars = { values: "3 5 2", colors: "#d62728 #2ca02c #1f77b4", min: 0, max: 10, size: plot, margin: 0.025 };
+
+    test("draws a bar per value side by side, up from 0, each in its own color", () => {
+        const pieces = chartPieces(bars, 60, 60);
+        assert.lengthOf(pieces, 3);
+        const [a, b, c] = pieces.map((p) => boxOf(p.outline));
+        assert.approximately(a.x0, -24.75, 0.01);
+        assert.approximately(a.x1, -8.25, 0.01);
+        assert.approximately(c.x1, 24.75, 0.01);
+        assert.approximately(a.y0, -26.05, 0.01);
+        assert.approximately(a.y1, -26.05 + 15.63, 0.01);
+        assert.approximately(b.y1, 0, 0.01);
+        assert.deepEqual(pieces[1].rgb, [0x2c / 255, 0xa0 / 255, 0x2c / 255]);
+    });
+
+    test("leaves its gap between the bars and lays them across the node when horizontal", () => {
+        // cy_separation 0.5: bars 7.82 wide
+        const [a, b] = chartPieces({ ...bars, gap: 0.5 }, 60, 60).map((p) => boxOf(p.outline));
+        assert.approximately(a.x1 - a.x0, 7.815, 0.01);
+        assert.approximately(b.x0 - a.x1, 13.025, 0.01);
+        // horizontal: the first bar along the top, 15.63 long from the left
+        const [h] = chartPieces({ ...bars, horizontal: true }, 60, 60).map((p) => boxOf(p.outline));
+        assert.approximately(h.x0, -26.05, 0.01);
+        assert.approximately(h.x1, -10.42, 0.01);
+        assert.approximately(h.y1, 24.75, 0.01);
+    });
+
+    test("piles the values into one bar, outlines its bars, and draws a bar down from 0 for a value below it", () => {
+        const stacked = chartPieces({ ...bars, kind: "stacked-bar" }, 60, 60).map((p) => boxOf(p.outline));
+        assert.approximately(stacked[1].y0, stacked[0].y1, 1e-9);
+        assert.approximately(stacked[2].y1, -26.05 + 52.1, 0.01);
+        const outlined = chartPieces({ ...bars, borderColor: "#404040", borderWidth: 0.125 }, 60, 60);
+        // each bar and its four sides, the sides line work rather than pieces of their own
+        assert.lengthOf(outlined, 15);
+        assert.lengthOf(
+            outlined.filter((p) => p.line !== true),
+            3,
+        );
+        const [down] = chartPieces({ ...bars, values: "-3", min: -10 }, 60, 60).map((p) => boxOf(p.outline));
+        assert.approximately(down.y1, 0, 1e-9);
+        assert.approximately(down.y0, -7.815, 0.01);
+    });
+
+    test("draws a line through the values at their categories' middles", () => {
+        // Cytoscape's line chart of 2 5 3 8 4: points 10.68 apart from 21.36 left, 2 at 16.58 below the middle
+        const pieces = chartPieces(
+            {
+                kind: "line",
+                values: "2 5 3 8 4",
+                colors: "#1f77b4",
+                min: 0,
+                max: 11,
+                size: plot,
+                margin: -0.0125,
+                lineWidth: 0.5,
+            },
+            60,
+            60,
+        );
+        // one piece a segment, line work all
+        assert.lengthOf(pieces, 4);
+        assert.isTrue(pieces.every((p) => p.line === true));
+        const first = boxOf(pieces[0].outline);
+        assert.approximately((first.x0 + first.x1) / 2, (-21.36 - 10.68) / 2, 0.02);
+        assert.approximately(Math.min(first.y0, first.y1) + 0.25, -16.58, 0.3);
+    });
+
+    test("draws a box from the quartiles with whiskers and its median, and a row of cells", () => {
+        const pieces = chartPieces(
+            { kind: "box", values: "2 3 4 5 8", colors: "#1f77b4", min: 0, max: 10, size: plot, margin: 0.025 },
+            60,
+            60,
+        );
+        const box = pieces.filter((p) => p.line !== true).map((p) => boxOf(p.outline));
+        assert.lengthOf(box, 1);
+        assert.approximately(box[0].y0, -26.05 + 3 * 5.21, 0.01);
+        assert.approximately(box[0].y1, 0, 0.01);
+        // two whiskers, two caps and the median, the median black
+        assert.lengthOf(
+            pieces.filter((p) => p.line === true),
+            5,
+        );
+        assert.deepEqual(pieces.at(-1)?.rgb, [0, 0, 0]);
+        const cells = chartPieces(
+            { kind: "cells", values: "3 5 2", colors: "#b7cce1 #8cafd2 #ccdae8", horizontal: true },
+            60,
+            60,
+        );
+        const [top, , bottom] = cells.map((p) => boxOf(p.outline));
+        assert.approximately(top.y1, 30, 1e-9);
+        assert.approximately(bottom.y0, -30, 1e-9);
+        assert.approximately(top.x1 - top.x0, 60, 1e-9);
+    });
+
+    test("draws nothing without values or colors", () => {
+        assert.lengthOf(chartPieces(undefined, 60, 60), 0);
+        assert.lengthOf(chartPieces({ values: "1 2" }, 60, 60), 0);
+        assert.lengthOf(chartPieces({ colors: "#ff0000" }, 60, 60), 0);
     });
 });

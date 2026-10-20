@@ -127,6 +127,50 @@ describe("a node's stripes", () => {
     });
 });
 
+describe("a node's chart", () => {
+    test("is drawn as bars in their own colors over the node, each its value's share of the plot", async () => {
+        const { faced } = await oneNode({
+            "node.width": 4,
+            "node.height": 4,
+            "node.chartValues": "1 3",
+            "node.chartColors": "#ff0000 #0000ff",
+            "node.chartMax": 4,
+        });
+        const [a, b] = faced.decorationPieces;
+        // a plot the node's 4 x 4 (6 world units), the bars side by side up from its bottom
+        assert.approximately(a.box.x0, -2 * PER, 1e-6);
+        assert.approximately(a.box.x1, 0, 1e-6);
+        assert.approximately(b.box.x1, 2 * PER, 1e-6);
+        assert.approximately(a.box.y0, -2 * PER, 1e-6);
+        assert.approximately(a.box.y1, -2 * PER + PER, 1e-6);
+        assert.approximately(b.box.y1, -2 * PER + 3 * PER, 1e-6);
+    });
+
+    test("is drawn in its colors over the node's fill", async () => {
+        await oneNode({
+            "node.color": "#c8c8c8",
+            "node.width": 4,
+            "node.height": 4,
+            "node.chartValues": "4 4",
+            "node.chartColors": "#ff0000 #0000ff",
+        });
+        assert(graph);
+        const center = graph.nodeScreenPosition("A");
+        assert(center, "the node is on screen");
+        const left = await pixelAt({ x: center.x - 10, y: center.y });
+        const right = await pixelAt({ x: center.x + 10, y: center.y });
+        assert.isAbove(left[0], 200, `the first bar is red: ${left.join(",")}`);
+        assert.isBelow(left[2], 60);
+        assert.isAbove(right[2], 200, `the second bar is blue: ${right.join(",")}`);
+        assert.isBelow(right[0], 60);
+    });
+
+    test("is not drawn without values", async () => {
+        const { faced } = await oneNode({ "node.chartColors": "#ff0000" });
+        assert.lengthOf(faced.decorationPieces, 0);
+    });
+});
+
 describe("a node's image", () => {
     // a 20 x 10 picture: red on the left, blue on the right
     const svg =

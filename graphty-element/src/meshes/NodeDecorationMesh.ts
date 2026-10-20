@@ -20,6 +20,7 @@ import type { NodeStyleConfig } from "../config";
 import type { MeshCache } from "./MeshCache";
 import {
     boxOf,
+    chartPieces,
     clipToBox,
     type ColorPiece,
     databaseRim,
@@ -53,6 +54,7 @@ export interface NodeDecorationOptions {
     readonly border?: NodeStyleConfig["border"];
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
+    readonly chart?: NodeStyleConfig["chart"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
     readonly texture?: NodeStyleConfig["texture"];
@@ -74,6 +76,7 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
+        o.chart?.values !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
         (o.shape?.parts ?? "") !== "" ||
@@ -244,6 +247,7 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         ...parts.lines.map((p) => ({ ...p, line: true })),
         ...bands,
         ...pieSlices(o.pie, face.width, face.height, scale),
+        ...chartPieces(o.chart, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
         ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
     ];

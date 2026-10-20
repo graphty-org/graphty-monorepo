@@ -461,3 +461,130 @@ export function shapePartPieces(
         lines: stroke === null ? [] : parts.flatMap((outline) => linePieces([...outline, outline[0]], line, stroke)),
     };
 }
+
+/** A chart's piece: its paint and outline, the box a reader gives it, and whether it is only the outline of another. */
+export type ChartPiece = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean };
+
+/** How wide a chart draws its lines when its style gives no width: this share of the plot's shorter side. */
+const CHART_LINE_SHARE = 0.02;
+
+/**
+ * Numbers separated by spaces.
+ * @param text - The list.
+ * @returns The numbers, NaN for a word that is not one.
+ */
+function numbers(text: string | undefined): number[] {
+    return words(text).map(Number);
+}
+
+/**
+ * A chart drawn over a node `width` x `height` (`chart` of a node style): bars side by side ("bar"), bars piled into
+ * one ("stacked-bar"), a line through the values ("line"), a box and whiskers ("box": the values are the low
+ * whisker, the lower quartile, the median, the upper quartile and the high whisker) or a row of colored cells
+ * ("cells"). The plot is a box `size` times the node's, centered on it. Values run along one axis from `min` to `max`
+ * (bottom to top, or with `horizontal` left to right); the values' categories along the other (left to right, or top
+ * to bottom), each an equal share of it after `margin` at each end and `gap` between them. Item i is drawn in color
+ * i of `colors`, the last one again for the rest; a box draws its whiskers in the first color too and its median in
+ * the second. A bar and a box are outlined `borderWidth` wide in `borderColor`.
+ * @param chart - The node style's chart block.
+ * @param width - The node's width.
+ * @param height - Its height.
+ * @param scale - The node's lengths per unit of the style's, for its widths.
+ * @returns The pieces, in drawing order.
+ */
+export function chartPieces(chart: NodeStyleConfig["chart"], width: number, height: number, scale = 1): ChartPiece[] {
+    const values = numbers(chart?.values).filter((v) => Number.isFinite(v));
+    const colors = words(chart?.colors);
+    if (chart === undefined || values.length === 0 || colors.length === 0) {
+        return [];
+    }
+    const k = chart.size ?? 1;
+    const [w, h] = [k * width, k * height];
+    const horizontal = chart.horizontal === true;
+    const kind = chart.kind ?? "bar";
+    const lo = chart.min ?? Math.min(0, ...values);
+    const top = kind === "stacked-bar" ? values.reduce((a, b) => a + Math.max(0, b), 0) : Math.max(...values);
+    const hi = chart.max ?? (top > lo ? top : lo + 1);
+    const along = (v: number): number => Math.max(0, Math.min(1, (v - lo) / (hi - lo || 1)));
+    // a point at a share c along the categories and v along the values, in the node's plane (y up)
+    const at = (c: number, v: number): Point2 =>
+        horizontal ? [-w / 2 + v * w, h / 2 - c * h] : [-w / 2 + c * w, -h / 2 + v * h];
+    const rect = (c0: number, c1: number, v0: number, v1: number): Point2[] => {
+        const [a, b] = [at(c0, v0), at(c1, v1)];
+        const [x0, x1, y0, y1] = [
+            Math.min(a[0], b[0]),
+            Math.max(a[0], b[0]),
+            Math.min(a[1], b[1]),
+            Math.max(a[1], b[1]),
+        ];
+        return [
+            [x0, y0],
+            [x1, y0],
+            [x1, y1],
+            [x0, y1],
+        ];
+    };
+    const color = (i: number): Pick<ColorPiece, "rgb" | "opacity"> | null =>
+        paint(colors[Math.min(i, colors.length - 1)]);
+    const lineWidth = chart.lineWidth === undefined ? CHART_LINE_SHARE * Math.min(w, h) : chart.lineWidth * scale;
+    const border = paint(chart.borderColor);
+    const borderWidth = (chart.borderWidth ?? 0) * scale;
+    const filled = (outline: Point2[], c: Pick<ColorPiece, "rgb" | "opacity"> | null): ChartPiece[] => [
+        // a bar of no length has no face to fill
+        ...(c === null || boxOf(outline).x0 === boxOf(outline).x1 || boxOf(outline).y0 === boxOf(outline).y1
+            ? []
+            : [{ outline, ...c }]),
+        // its outline is the bar's own, which a reader counts with the bar
+        ...(border === null || !(borderWidth > 0)
+            ? []
+            : linePieces([...outline, outline[0]], borderWidth, border).map((p) => ({ ...p, line: true }))),
+    ];
+    // a stroke inside the node (a line, a whisker, a median) is line work of the node's face, as a reader of a
+    // program's drawing takes a stroke whose ends both land on one node: counted with the node, not as a piece
+    const stroke = (points: Point2[], c: Pick<ColorPiece, "rgb" | "opacity"> | null): ChartPiece[] =>
+        c === null ? [] : linePieces(points, lineWidth, c).map((p) => ({ ...p, line: true }));
+    const margin = chart.margin ?? 0;
+    const gap = Math.max(0, Math.min(1, chart.gap ?? 0));
+    const slots = kind === "bar" || kind === "line" || kind === "cells" ? values.length : 1;
+    const band = Math.max(0, 1 - 2 * margin - gap) / slots;
+    const step = band + (slots > 1 ? gap / (slots - 1) : 0);
+    const slot = (i: number): [number, number] => [margin + i * step, margin + i * step + band];
+    const base = along(Math.max(lo, Math.min(hi, 0)));
+    switch (kind) {
+        case "bar":
+            return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
+        case "stacked-bar": {
+            let sum = 0;
+            return values.flatMap((v, i) => {
+                const from = along(sum);
+                sum += Math.max(0, v);
+                return filled(rect(...slot(0), from, along(sum)), color(i));
+            });
+        }
+        case "cells":
+            return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
+        case "line": {
+            const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
+            return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
+        }
+        case "box": {
+            const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
+            const [c0, c1] = slot(0);
+            const mid = (c0 + c1) / 2;
+            const fill = color(0);
+            return [
+                ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
+                ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
+                ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
+                ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
+                ...filled(rect(c0, c1, along(q1), along(q3)), fill),
+                ...stroke(
+                    [at(c0, along(median)), at(c1, along(median))],
+                    colors.length > 1 ? color(1) : paint("#000000"),
+                ),
+            ];
+        }
+        default:
+            return [];
+    }
+}

@@ -138,6 +138,18 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.chartKind",
+    "node.chartValues",
+    "node.chartColors",
+    "node.chartMin",
+    "node.chartMax",
+    "node.chartHorizontal",
+    "node.chartSize",
+    "node.chartMargin",
+    "node.chartGap",
+    "node.chartLineWidth",
+    "node.chartBorderColor",
+    "node.chartBorderWidth",
     "node.cornerRadius",
     "node.exactCornerRadius",
     "node.shapePoints",
@@ -306,8 +318,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and thirty node channels and one hundred and twenty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 130);
+    it("splits into one hundred and forty-two node channels and one hundred and twenty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 142);
         assert.strictEqual(channelsFor("edge").length, 125);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -559,6 +571,12 @@ describe("what a style editor needs to draw a row", () => {
         "node.pieColors",
         "node.pieSizes",
         "node.pieOpacities",
+        "node.chartValues",
+        "node.chartColors",
+        "node.chartMin",
+        "node.chartMax",
+        "node.chartLineWidth",
+        "node.chartBorderColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
@@ -797,7 +815,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the twenty-seven that carry a colour, and the type says the same twenty-seven", () => {
+    it("are the twenty-eight that carry a colour, and the type says the same twenty-eight", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -811,6 +829,7 @@ describe("colour channels", () => {
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",
+            "node.chartBorderColor",
             "node.gradientColor",
             "edge.color",
             "edge.outlineColor",

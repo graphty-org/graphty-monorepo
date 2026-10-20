@@ -1480,10 +1480,10 @@ export const EdgeStyle: z.ZodObject<{
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
         bendCurve: z.ZodOptional<z.ZodEnum<{
-            arc: "arc";
             bezier: "bezier";
             corners: "corners";
             midpoints: "midpoints";
+            arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
@@ -4072,6 +4072,26 @@ export const NodeStyle: z.ZodObject<{
             down: "down";
         }>>;
         size: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    chart: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            line: "line";
+            bar: "bar";
+            "stacked-bar": "stacked-bar";
+            cells: "cells";
+        }>>;
+        values: z.ZodOptional<z.ZodString>;
+        colors: z.ZodOptional<z.ZodString>;
+        min: z.ZodOptional<z.ZodNumber>;
+        max: z.ZodOptional<z.ZodNumber>;
+        horizontal: z.ZodOptional<z.ZodBoolean>;
+        size: z.ZodOptional<z.ZodNumber>;
+        margin: z.ZodOptional<z.ZodNumber>;
+        gap: z.ZodOptional<z.ZodNumber>;
+        lineWidth: z.ZodOptional<z.ZodNumber>;
+        borderColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        borderWidth: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     glyph: z.ZodOptional<z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;

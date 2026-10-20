@@ -16,44 +16,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, Which nodes in one click; graphty `WhichPicker.tsx`, node and edge sides) A click
-   or Enter on the collapsed "All N nodes: add a condition to narrow" line now opens the picker
-   AND the attribute list, focus in "Find an attribute" (`listFirst` -> `Cards` -> `AddCondition`
-   `openFirst`, a run-once ref so a later Escape keeps the list closed). "Add a condition" only
-   opens, never toggles: pressed on an open list it puts focus back in the search. A layer with a
-   condition still opens closed, focus on its first card. Kept: `autoOpen` on arrival (a blank
-   row) still opens the picker with the list closed and focus on Add a condition -- opening a
-   portal list on arrival would take focus from the tabs; one click on the button is enough now.
-   Test: ConditionLists "one click on a layer with no card..." (red on the old picker, green now).
-   Walked on a fresh build: `design/ui/studio/tmp/r1-dry1-which-nodes-one-click/pointer/` 04-05
-   (one click, typing filters), 06-08 (Add a condition keeps it open, letters kept), 11 (Enter on
-   the line), 16 (with a condition: closed), 19-20 (Which edges). Pre-existing, not from this:
-   FocusAfterAdding "a new node Color line" fails the same with and without the change (no
-   "Color" menuitem under Add to node fill); the Edge tab's footer said "Nodes: nothing set"
-   while a node condition narrowed the layer (pointer/18).
+0. (2026-10-19, a node is called by its label everywhere, fa2316520) One helper,
+   `nodeName(session, id)` in `graphty/src/workspace/inspector/words.ts`, is the only way the app
+   names a node: `session.data.name(id) ?? String(id)`. The element's name reads
+   `knownFields.nodeLabelPath`, the same path Find's names use, so no element change was needed.
+   Every `String(node)` used as a name moved to it: inspector title and neighborhood header,
+   StylePanel `selectionName` (so the one-node layer, its key line, notice and undo words follow),
+   EdgeValues Summary ends, layer and group member rows, note chips, path and option pickers,
+   toolbar neighborhood, Groups. Walk on a fresh build
+   (`design/ui/studio/tmp/r1-dry1-node-label-everywhere/walk/`): College football's Nebraska titles
+   the inspector (04); layer row, key "Color: Nebraska", notice "Made layer Nebraska for 1 node"
+   (07); Undo tooltip "Undo adding the layer Nebraska", notice "Undid adding the layer Nebraska."
+   (08-09); an edge titled "Clemson -- Missouri" with Node A Clemson, Node B Missouri (09). Test
+   `inspector/__tests__/NodeName.test.tsx` (helper labeled and unlabeled, title, edge ends), red
+   with ids. Still open for the sessions: which column becomes the label when a file has a name
+   column and no label column. Staging when another agent has unstaged hunks in the same file:
+   blob from `git show HEAD:<path>` plus my replacements, `git hash-object -w`, `git update-index
+--cacheinfo` -- no stash, no interactive add. Failures in the same test run that assert other
+   things (files other agents were editing): tier-1 T8 `inspected` gained `tab: "style"`;
+   StylePanel attribute-list options; toolbar "Deleted Louvain" notice found twice; Groups' Mixed
+   color shows a button, no text box; NamesAndRules and NamesAndWords time out; LayerPanelWords'
+   hover tooltip fails in a full batch, passes alone (three nodes selected: never reaches nodeName).
+
+0a. (2026-10-19, Which nodes in one click; graphty `WhichPicker.tsx`, node and edge sides) A click
+or Enter on the collapsed "All N nodes: add a condition to narrow" line now opens the picker
+AND the attribute list, focus in "Find an attribute" (`listFirst` -> `Cards` -> `AddCondition`
+`openFirst`, a run-once ref so a later Escape keeps the list closed). "Add a condition" only
+opens, never toggles: pressed on an open list it puts focus back in the search. A layer with a
+condition still opens closed, focus on its first card. Kept: `autoOpen` on arrival (a blank
+row) still opens the picker with the list closed and focus on Add a condition -- opening a
+portal list on arrival would take focus from the tabs; one click on the button is enough now.
+Test: ConditionLists "one click on a layer with no card..." (red on the old picker, green now).
+Walked on a fresh build: `design/ui/studio/tmp/r1-dry1-which-nodes-one-click/pointer/` 04-05
+(one click, typing filters), 06-08 (Add a condition keeps it open, letters kept), 11 (Enter on
+the line), 16 (with a condition: closed), 19-20 (Which edges). Pre-existing, not from this:
+FocusAfterAdding "a new node Color line" fails the same with and without the change (no
+"Color" menuitem under Add to node fill); the Edge tab's footer said "Nodes: nothing set"
+while a node condition narrowed the layer (pointer/18).
 
 1. (2026-10-19, targeted re-walk of the tooltip, list and color picker fixes 423fb38cc,
-   a340d0c6f, 8f49cc133; nothing changed) graphty/dist built 18:32 from a clean tree holding all
-   three (stamp a340d0c6f8c3; picker sources edited before the build, committed after). Walks in
-   `design/ui/studio/tmp/r1-dry1-recheck-tooltips-own-control/`: tips, lists, picker, plus
-   frozen-compare on the frozen build. No regression found; each acceptance holds. About Degree:
-   one bubble, no name tooltip on hover or click (tips/04-05; frozen shows both, frozen-compare/04).
-   Undo/redo bringing the label text box under a resting pointer opens nothing, a move does
-   (tips/30-31). "+" menu and bind pop-out open: no tooltip over them (tips/18-19, 45). Shape grid
-   `cube` and filter Keep `x`: no-match line, Enter writes nothing (lists/04-05, 24). Filter
-   attribute list fits its field 1210-1417 (lists/13). Picker: refusal on Enter keeps text and
-   picker (picker/05), blur says "so this stays" (07), Tab walks every stop then leaves to the hex
-   box (08-23), Shift+Tab wraps from close to the last swatch (38-46), valid hex commits (47).
-   Pre-existing, same on the frozen build, not from these diffs: (a) Tab out of a select-only list
-   with letters typed and an option highlighted takes nothing (lists/08; frozen-compare/08) --
-   decided.md's "Tab takes that option" was written for the condition lists; whether it covers
-   select-only lists is open; (b) Escape on About Degree with the pointer resting on the circle
-   leaves the hover bubble open (tips/06; frozen-compare/05); (c) Escape in a style text box or the
-   picker's value box reverts without the "Edit discarded; this stays X" line decided.md asks for
-   (tips/32, picker/06); (d) the filter step's searchable attribute box shows nothing when typed
-   letters match nothing (lists/14) -- the new no-match line covers select-only lists only.
-   Seen once, not reproduced: the bind pop-out showed open on a hover after Escape had closed it
-   (tips/46-47); 54-61 repeated the sequence and it stayed shut.
+   a340d0c6f, 8f49cc133) No regression; four pre-existing gaps (select-only list Tab, Escape on a
+   resting hover bubble, no "Edit discarded" line, empty searchable attribute box on no match). In
+   full: `git show f7abdac93:design/ui/studio/notes/engineer.md`, Top of mind 1.
 
 2. (2026-10-19, the drawing stays put when the key appears) `useOverlayInset` in
    `graphty/src/workspace/canvas/viewInsets.ts` now only reports each overlay's margin to the

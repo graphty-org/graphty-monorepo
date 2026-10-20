@@ -314,7 +314,7 @@ function cornersOf(el: SVGElement): number {
     if (tag === "path") {
         const d = el.getAttribute("d") ?? "";
         if (/[CcSsQqTtAa]/.test(d)) {
-            return 0;
+            return roundedPolygonSides(d);
         }
         // vertices of the first subpath
         const first = d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "";
@@ -331,6 +331,45 @@ function cornersOf(el: SVGElement): number {
         return closedRepeat ? n - 1 : n;
     }
     return 0;
+}
+
+/**
+ * The sides of a polygon with rounded corners drawn as one path of cubic segments, straight sides alternating with
+ * corner curves (Graphviz's `style=rounded` on a hexagon or a triangle): the number of straight sides, so the outline
+ * classes as the polygon it rounds. A rounded four-sided outline stays 0, a rounded rectangle; any other path is 0.
+ * @param d - the path's data
+ * @returns the side count, or 0
+ */
+function roundedPolygonSides(d: string): number {
+    if (!/^\s*M[^M]*$/.test(d) || /[^MC\d\s,.eE+-]/.test(d)) {
+        return 0;
+    }
+    const nums = d
+        .replace(/[MC]/g, " ")
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    if (nums.length < 8 || (nums.length - 2) % 6 !== 0 || !nums.every(Number.isFinite)) {
+        return 0;
+    }
+    let straight = 0;
+    let curved = 0;
+    for (let i = 2; i + 6 <= nums.length; i += 6) {
+        const [x0, y0] = [nums[i - 2], nums[i - 1]];
+        const [x3, y3] = [nums[i + 4], nums[i + 5]];
+        const len = Math.hypot(x3 - x0, y3 - y0);
+        if (len < 1e-6) {
+            continue;
+        }
+        // a control point off the chord by more than a hundredth of it bends the segment
+        const off = (x: number, y: number): number => Math.abs((x - x0) * (y3 - y0) - (y - y0) * (x3 - x0)) / len;
+        if (Math.max(off(nums[i], nums[i + 1]), off(nums[i + 2], nums[i + 3])) <= 0.01 * len) {
+            straight++;
+        } else {
+            curved++;
+        }
+    }
+    return straight >= 3 && straight !== 4 && curved === straight ? straight : 0;
 }
 
 function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
@@ -409,6 +448,23 @@ function gephiNode(el: Element, id: string): boolean {
     );
 }
 
+/**
+ * The node a Gephi border ring belongs to. Gephi draws a node not opaque as two circles (NodeRenderer): its fill, of
+ * radius 0.84 size, which names the node (`id_<node>`), then its border, an unfilled ring out to its size, which names
+ * nothing (`gexf-specimen-node-sizes-opacity-p3`). The ring is the circle right after the fill, on the same center.
+ * @param el - the element
+ * @returns the node's id, or null when the element is no such ring
+ */
+function gephiRingOf(el: Element): string | null {
+    const fill = el.previousElementSibling;
+    if (el.localName !== "circle" || fill?.localName !== "circle" || el.parentElement?.id !== "nodes") {
+        return null;
+    }
+    const ids = [...fill.classList].filter((c) => c.startsWith("id_"));
+    const same = (a: string): boolean => Number(el.getAttribute(a)) === Number(fill.getAttribute(a));
+    return ids.length === 1 && same("cx") && same("cy") && el.getAttribute("fill") === "none" ? ids[0].slice(3) : null;
+}
+
 /** What the program's markup says an element belongs to. */
 function hintOf(el: Element): Prim["hint"] {
     // Graphviz: <g class="node|edge|cluster"><title>id</title>
@@ -429,6 +485,10 @@ function hintOf(el: Element): Prim["hint"] {
     }
     // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
     const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
+    const ring = ids.length === 0 ? gephiRingOf(el) : null;
+    if (ring !== null) {
+        return { role: "node", id: ring, key: ring };
+    }
     // an edge label (and its outline, which Gephi writes among the node labels) names its edge's own id, not a
     // node: left to be matched to its edge by where it is drawn
     if (ids.length === 1 && el.closest("g#edge-labels, g#node-labels") !== null && !gephiNode(el, ids[0])) {
@@ -919,9 +979,17 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
             }
             // a filled shape with no area and no stroke paints nothing (Gephi writes an arrowhead of arrow.size 0 as
-            // a polyline of three equal points)
+            // a polyline of three equal points), nor does a stroked one with butt caps (SVG 1.1 section 11.4: a
+            // zero-length subpath draws a cap only when it is round or square; Graphviz writes an arrowsize=0 head as a
+            // stroked polygon of four equal points), nor a polygon whose points do not parse (Graphviz writes
+            // `points="-nan,nan ..."` for a filled shape=plain with no label, which the browser reads as no points)
             const extent = boxOfPoints(points);
-            if (stroke === null && extent.x1 - extent.x0 === 0 && extent.y1 - extent.y0 === 0) {
+            const capless = stroke === null || cs.strokeLinecap === "butt";
+            if (
+                points.length === 0 ||
+                !points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)) ||
+                (capless && extent.x1 - extent.x0 === 0 && extent.y1 - extent.y0 === 0)
+            ) {
                 continue;
             }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)

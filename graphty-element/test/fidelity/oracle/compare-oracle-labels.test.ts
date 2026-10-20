@@ -777,6 +777,20 @@ describe("what the association reads as a label's own and a node's own", () => {
             guide,
         ).scene.nodes.find((n) => n.id === "a");
         assert.strictEqual(b?.fill?.color, "#cccccc");
+        // Graphviz's wedged red;0.3:green: the green wedge (0.7 of the circle) spans the whole box, the red one,
+        // drawn first, does not
+        index = 0;
+        const red = prim({ points: rect(98, 80, 120, 100), fill: fill("#e41a1c"), hint });
+        const green = prim({ points: rect(80, 80, 120, 120), fill: fill("#4daf4a"), hint });
+        const c = associate(
+            drawing((id) => (id === "a" ? [red, green] : [])).filter(
+                (p) => !(p.fill?.color === "#cccccc" && p.box.x0 < 90 && p.box.y0 < 90),
+            ),
+            600,
+            400,
+            guide,
+        ).scene.nodes.find((n) => n.id === "a");
+        assert.strictEqual(c?.fill?.color, "#e41a1c");
     });
 
     it("reads a ring drawn clear outside a node's border as its ring, not its outline or its size", () => {

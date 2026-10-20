@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate } from "../fidelity/oracle/associate";
+import { associate, shapeOf } from "../fidelity/oracle/associate";
 import type { PScene } from "../fidelity/oracle/primitives";
 import { readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
 
@@ -34,6 +34,43 @@ describe("the oracle SVG reader", () => {
         assert.deepEqual(
             readSvgPrimitives(svg).prims.map((p) => p.fill?.color),
             ["#f5f5f5"],
+        );
+    });
+
+    it("reads no shape for a polygon of unparsable points, or a stroked one of no extent with butt caps", () => {
+        // Graphviz writes a filled shape=plain with no label as points="-nan,nan ...", and an arrowsize=0 head as a
+        // stroked polygon of four equal points: neither paints anything
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <polygon fill="#c8c8c8" stroke="none" points="-nan,nan -nan,nan -nan,nan -nan,nan -nan,nan" />
+            <polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="50,50 50,50 50,50 50,50" />
+            <polygon fill="#00ff00" stroke="#00ff00" stroke-width="4" stroke-linecap="round" points="80,50 80,50 80,50" />
+            <rect x="60" y="10" width="40" height="30" fill="#f5f5f5" stroke="#000000" />
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => p.stroke?.color ?? p.fill?.color),
+            ["#00ff00", "#000000"],
+        );
+    });
+
+    it("classes a polygon with rounded corners as its polygon, a rounded rectangle as one", () => {
+        // Graphviz's hexagon and box with style=rounded: straight cubic sides between corner curves
+        const hexagon =
+            "M1064.98,-144.87C1064.98,-144.87 1061.35,-152.13 1061.35,-152.13 1060.01,-154.82 1055.67,-157.5 1052.67,-157.5 " +
+            "1052.67,-157.5 1046.67,-157.5 1046.67,-157.5 1043.67,-157.5 1039.32,-154.82 1037.98,-152.13 1037.98,-152.13 " +
+            "1034.35,-144.87 1034.35,-144.87 1033.01,-142.18 1033.01,-136.82 1034.35,-134.13 1034.35,-134.13 1037.98,-126.87 " +
+            "1037.98,-126.87 1039.32,-124.18 1043.67,-121.5 1046.67,-121.5 1046.67,-121.5 1052.67,-121.5 1052.67,-121.5 " +
+            "1055.67,-121.5 1060.01,-124.18 1061.35,-126.87 1061.35,-126.87 1064.98,-134.13 1064.98,-134.13 1066.32,-136.82 " +
+            "1066.32,-142.18 1064.98,-144.87";
+        const box =
+            "M30,-10C30,-10 70,-10 70,-10 75,-10 80,-15 80,-20 80,-20 80,-40 80,-40 80,-45 75,-50 70,-50 70,-50 30,-50 30,-50 " +
+            "25,-50 20,-45 20,-40 20,-40 20,-20 20,-20 20,-15 25,-10 30,-10";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="200">
+            <g transform="translate(0 200)"><path fill="#c8c8c8" stroke="#505050" d="${hexagon}" />
+            <path fill="#c8c8c8" stroke="#505050" d="${box}" /></g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => shapeOf(p)),
+            ["hexagon", "roundrect"],
         );
     });
 

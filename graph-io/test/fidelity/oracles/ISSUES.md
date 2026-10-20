@@ -762,6 +762,15 @@ alpha and hollow arrows"):
 - Stroke alpha: a node stroke's `#AARRGGBB` alpha is the `borderOpacity` (`stroke-alpha-40`, `stroke-alpha-80`).
 - An `Arrow` whose `fill` is `{x:Null}` is the open outline of its type (`triangle-open`, `diamond-open`,
   `circle-open`) in its `stroke`'s color (`arrow-fill-null`).
+- yFiles 3.0 renamed 2.6's `DEFAULT` arrow to `STEALTH` and `CIRCLE` to `ELLIPSE`
+  (https://docs.yfiles.com/yfiles-html/api/ArrowType/); both are now read as their 2.6 names are (triangle,
+  circle). Before, they were unknown shapes and graphty drew no arrow on `target-stealth`, `source-stealth`,
+  `target-ellipse` and `source-ellipse` (`arrows`: edge arrow 0.905 -> 0.952). The stand-in draws ELLIPSE as its
+  triangle or vee and STEALTH as a vee, so those four ends fail arrow shape against it (0.938 -> 0.75, allowed
+  drop in `oracle-floors.json`, expiring 2026-12-31). Open: whether 2.6 `DEFAULT` / 3.0 `STEALTH`, "an arrow
+  notched on the side opposite its tip", is graph-io's `vee` rather than `triangle`; judge it against the owner's
+  yEd Live export. `CHEVRON`-like 3.1 shapes `DELTOID` and `KITE`, and `CROSS`, have no neutral arrow and graphty
+  still draws none.
 
 Measured against draw.io's drawings (stand-ins): edge curve edges-lines 0.667 -> 1, -p2 0.9 -> 1, -p3 0.929 -> 1,
 edge-labels 0.927 -> 1; edge route edges-lines 0.593 -> 0.697, -p3 0.786 -> 0.857, edge-labels 0.927 -> 1;

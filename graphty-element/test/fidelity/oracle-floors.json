@@ -36293,6 +36293,18 @@
         }
     },
     "allowedDrops": {
+        "yed-live-graphml-specimen-arrows/edge.arrowShape": {
+            "reason": "graph-io now reads yFiles 3's ELLIPSE and STEALTH arrows as the CIRCLE and DEFAULT they were renamed from (circle, triangle); draw.io, standing in for yEd Live, draws ELLIPSE as its triangle or vee and STEALTH as a vee, so the four ellipse and stealth ends are judged and fail against the stand-in (0.938 to 0.75)",
+            "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",
+            "expires": "2026-12-31",
+            "atLeast": 0.75
+        },
+        "yed-live-graphml-specimen-arrows@matched/edge.arrowShape": {
+            "reason": "graph-io now reads yFiles 3's ELLIPSE and STEALTH arrows as the CIRCLE and DEFAULT they were renamed from (circle, triangle); draw.io, standing in for yEd Live, draws ELLIPSE as its triangle or vee and STEALTH as a vee, so the four ellipse and stealth ends are judged and fail against the stand-in (0.938 to 0.75)",
+            "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",
+            "expires": "2026-12-31",
+            "atLeast": 0.75
+        },
         "yed-live-graphml-specimen-arrows/edge.arrowFill": {
             "reason": "graphty draws yFiles' Arrow with fill {x:Null} as its open outline (yFiles fills an arrow with its fill, none here); draw.io, standing in for yEd Live, fills it (arrow-fill-null)",
             "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",

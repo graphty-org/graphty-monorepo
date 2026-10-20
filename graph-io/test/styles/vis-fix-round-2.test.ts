@@ -105,6 +105,16 @@ describe("vis-network node colors and labels", () => {
         expect(value(r, "node", "labelOutlineColor", 1)).toBe("#ff0000");
     });
 
+    it("draws a label's background box round its words alone", async () => {
+        const r = await load({
+            nodes: [{ id: "a", x: 0, y: 0, label: "Back", font: { background: "#ffd700" } }],
+            edges: [],
+            options: { physics: false },
+        });
+        expect(value(r, "node", "labelBackground", 0)).toBe("#ffd700");
+        expect([value(r, "node", "labelPadding", 0), value(r, "node", "labelLineHeight", 0)]).toEqual([0, 1]);
+    });
+
     it("hides a label under scaling.label.drawThreshold - 1 screen pixels", async () => {
         const r = await load({
             nodes: [{ id: "a", x: 0, y: 0, label: "A", scaling: { label: { drawThreshold: 12 } } }],

@@ -1157,6 +1157,11 @@ function visLabelLook(
     color("labelColor", null, layer.fontColor);
     // font.background "none" (vis-network's default) draws no box
     color("labelBackground", null, layer.fontBackground === "none" ? undefined : layer.fontBackground);
+    // the box is the words' own: as wide as the text and one font size tall a line (Label._drawBackground: getSize)
+    if (typeof layer.fontBackground === "string" && layer.fontBackground !== "none") {
+        put("labelPadding", 0);
+        put("labelLineHeight", 1);
+    }
     // a stroke with no color of its own is vis-network's default, white (font.strokeColor "#ffffff")
     const stroked = typeof layer.fontStrokeWidth === "number" && layer.fontStrokeWidth > 0;
     color("labelOutlineColor", null, layer.fontStrokeColor ?? (stroked ? "#ffffff" : undefined));

@@ -1,4 +1,4 @@
-The study runs on build 3ef9e6c1ec served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-3ef9e6c1ec
+The study runs on build 7d87760756 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-7d87760756
 
 Frozen on 2026-10-20 for the tier 3 rounds.
 
@@ -374,6 +374,15 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-20: round 1 frozen on 7d87760756 (`.study-builds/tier3-r1-7d87760756`), replacing
+  3ef9e6c1ec (`.study-builds/tier3-r1d1-3ef9e6c1ec`). The commit merges origin/golden into the
+  studio branch and holds merge f9d8b44b9, as preflight 1 requires. No bar changed.
+  `real.mjs --prove` fails on it (45 checks pass, 20 fail): with no project open the app now
+  shows a start page (a turning sample graph, Open a file, Open network data, Samples, New
+  project) and no workspace toolbar, so the steps that name "Open project or file", "Undo",
+  "Find" and "New from data..." find nothing, every setup stops at its first step, and the
+  turning graph reports "the drawing is still moving" after every step. The setups, the walks
+  and the tool's own proof steps must be rewritten for this entry before any session.
 - 2026-10-20 (before any session; nothing has started):
     - The round plan runs ONE round. Further rounds need the owner's go. Reason: the owner asked
       for one round to start.

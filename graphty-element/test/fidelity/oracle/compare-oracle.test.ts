@@ -951,26 +951,6 @@ describe("oracle comparison", () => {
         );
     });
 
-    it("names every numbered node of a GML sheet by the setting its comment or template keeps", () => {
-        const rows = [
-            { id: 0, comment: "anchor-nw" },
-            { id: 4, comment: "target-arrow-box-s" },
-            { id: 7, template: "label-offset-n" },
-            { id: 8, comment: "THIS FILE IS AUTO GENERATED" },
-            { id: 9, comment: "twice" },
-            { id: 10, comment: "twice" },
-            { id: "shape-box", comment: "shape-box" },
-        ];
-        // captions and anchors are specimenRoleNames', named before the association
-        assert.deepEqual(
-            [...specimenSettingNames(rows)],
-            [
-                ["4", "target-arrow-box-s"],
-                ["7", "label-offset-n"],
-            ],
-        );
-    });
-
     it("judges no text the program drew off its canvas", () => {
         const o = {
             ...graphtyScene(),

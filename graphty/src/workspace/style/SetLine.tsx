@@ -368,7 +368,7 @@ function ValueEditor({
  * @param props.write - writes the line
  * @returns The value and its popover
  */
-function ColorValue({
+export function ColorValue({
     name,
     value,
     documentColors,

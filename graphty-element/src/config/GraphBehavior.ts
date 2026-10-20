@@ -62,8 +62,82 @@ const CameraBehaviorOpts = z
          * is when the selection is cleared.
          */
         pivotOnSelection: z.boolean().default(false),
+        /*
+         * How fast the 3D camera turns on its own, in radians per second, about the graph's
+         * vertical axis.
+         *
+         * 0 BY DEFAULT, so the camera stays where the reader put it. Above 0 the 3D view turns at
+         * that speed every frame, and stops while the reader drags, pinches, holds an arrow key
+         * or drags a node, carrying on from wherever they left it. The 2D view and a VR or AR
+         * session never turn. A page that honours `prefers-reduced-motion` sets 0 for those
+         * readers. The turning does not hold back `graph-frame-stable`: the picture is finished
+         * when the layout and the styles are, however the camera moves.
+         */
+        autoRotate: z.number().min(0).default(0),
+        /*
+         * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
+         * a page that draws its own panels over the graph.
+         *
+         * ALL 0 BY DEFAULT, so the graph is framed in the whole canvas. Set, zoom-to-fit (on a
+         * load, a layout change, a 2D/3D switch and `zoomToFit()`) fits the graph inside what is
+         * left and centers it there, in 2D and 3D, and the 3D camera keeps that center while it
+         * turns and zooms. The canvas still draws everywhere: a node turned or panned into an
+         * inset is drawn and can be pointed at. Changing it frames the graph again.
+         */
+        fitInsets: z
+            .strictObject({
+                top: z.number().min(0).default(0),
+                right: z.number().min(0).default(0),
+                bottom: z.number().min(0).default(0),
+                left: z.number().min(0).default(0),
+            })
+            .prefault({}),
+        /*
+         * What zoom-to-fit fits into view in 3D.
+         *
+         * "box" BY DEFAULT: every corner of the box around the nodes and labels, as seen from
+         * the front. "turning" fits the nodes and labels themselves at every angle the view turns
+         * to about the graph's vertical axis -- as `autoRotate` and a sideways drag turn it -- so
+         * a turning graph stays in the frame and is not drawn smaller to make room for the empty
+         * corners of its box. 2D always fits the box.
+         */
+        fitBounds: z.enum(["box", "turning"]).default("box"),
     })
     .prefault({});
+
+const ExpandBehaviorOpts = z
+    .strictObject({
+        /*
+         * What expands a node from the network source that loaded it.
+         *
+         * "none" BY DEFAULT, so a click and a double-click do what they always did. Set, the
+         * element asks the node's source for its neighborhood and merges it as one undoable step;
+         * `fetchNodes` and `fetchEdges`, when a host sets them, still win. A node loaded from a
+         * file has nothing to ask, and the expansion fails with E_SOURCE_UNSUPPORTED. Experimental.
+         */
+        trigger: z.enum(["none", "click", "double-click"]).default("none"),
+        /* How many hops. */
+        depth: z.number().int().positive().default(1),
+        /* Which edges to follow. */
+        direction: z.enum(["out", "in", "both"]).default("both"),
+        /* At most this many new nodes per expansion; no limit when unset, the source's own default. */
+        limit: z.number().int().positive().optional(),
+        /* Only these relationship types; every type when unset. */
+        relationshipTypes: z.array(z.string()).optional(),
+        /* "continue" plays the layout so it places the new nodes; "none" leaves it as it is. */
+        layout: z.enum(["continue", "none"]).default("continue"),
+    })
+    .prefault({});
+/** What zoom-to-fit fits into view in 3D: the nodes' box, or the nodes at every turn of the view. */
+export type FitBounds = "box" | "turning";
+
+/** Room framing leaves clear at each edge of the canvas, in CSS pixels. */
+export interface FitInsets {
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+    readonly left: number;
+}
 
 /** The rendering settings: the fields `setRenderSettings` accepts. */
 export const RenderSettingsOpts = z.strictObject({
@@ -140,6 +214,7 @@ export const GraphBehaviorOpts = z.strictObject({
     labels: LabelBehaviorOpts,
     rendering: RenderingBehaviorOpts,
     camera: CameraBehaviorOpts,
+    expand: ExpandBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

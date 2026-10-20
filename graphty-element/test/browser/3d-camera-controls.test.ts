@@ -162,10 +162,14 @@ describe("3D Camera Controls", () => {
         const rotate = vi.spyOn(cameraController, "rotate");
 
         // Each count starts after the key changes: the render loop updates too while it is held.
+        // Held past the step one tap gives (8 frames), so what is left after the release is only
+        // what holding it would coast on.
         await holdKey("ArrowLeft");
         rotate.mockClear();
-        inputController.update();
-        assert.equal(rotate.mock.calls.length, 1, "a held arrow turns the camera");
+        for (let frame = 0; frame < 8; frame++) {
+            inputController.update();
+        }
+        assert.equal(rotate.mock.calls.length, 8, "a held arrow turns the camera every frame");
 
         await releaseKey("ArrowLeft");
         rotate.mockClear();

@@ -54,6 +54,10 @@
             "types": "./dist/ai.d.ts",
             "import": "./dist/ai.js"
         },
+        "./credentials": {
+            "types": "./dist/credentials.d.ts",
+            "import": "./dist/credentials.js"
+        },
         "./bundle": "./dist/graphty.bundle.js",
         "./custom-elements.json": "./dist/custom-elements.json",
         "./graphty-catalog.json": "./dist/graphty-catalog.json"
@@ -175,9 +179,9 @@
         "@ai-sdk/google": "^2.0.100",
         "@ai-sdk/openai": "^2.0.132",
         "@babylonjs/core": "^8.36.1",
-        "@graphty/graph-samples": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": "1.29.2",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
@@ -221,11 +225,13 @@
         "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
         "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
-        "lit": "^3.0.0"
+        "lit": "^3.0.0",
+        "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
         "@ai-sdk/anthropic": {
@@ -240,6 +246,9 @@
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
+        "@hpcc-js/wasm-graphviz": {
+            "optional": true
+        },
         "@mlc-ai/web-llm": {
             "optional": true
         },
@@ -251,12 +260,16 @@
         },
         "encrypt-storage": {
             "optional": true
+        },
+        "neo4j-driver": {
+            "optional": true
         }
     },
     "dependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
         "@graphty/graph-io": "workspace:^",
+        "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
         "colorjs.io": "^0.5.2",

@@ -345,7 +345,7 @@ The `tools/` directory contains build scripts:
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `ship`, `revert <branch>` and `status` do the rest. See "Landing changes (golden-local)" |
+| `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `cut`, `ship`, `revert <branch>` and `status` do the rest. See "Landing changes (golden-local)" |
 | `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
@@ -484,7 +484,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 **graph-io:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- Node.js project (`vitest.config.ts`); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- `browser` (`vitest.browser.config.ts`, shard `graph-io-browser`): the network sources in Chromium against a local server on another origin, with and without CORS headers
 
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
@@ -706,16 +707,16 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 29 test shards on a manual dispatch or the release train (a push
+The CI runs 30 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
-- `graph-io`
+- `graph-io`, `graph-io-browser`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
@@ -1002,11 +1003,18 @@ that starts the same server from the owner's own shell, which is how the owner s
   canvas (the owner's rule): the full 1200 x 900 viewport, or the story's full scroll size when it
   is larger, never cropped to the content.
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
-  page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
-  behalf.
-- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
-  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
-  only when its items take each file from master's contents to the pull request's. Agents never
+  page's API, and never write, move or delete anything under `visual-baselines/` or
+  `visual-review-approvals/` on the owner's behalf.
+- The owner's approval is of a tree, not of a pull request: Finish commits a statement naming its
+  accept commit and the git tree of `visual-baselines/` there, signed with the owner's passkey
+  (Face ID), as `visual-review-approvals/<tree>.json`. Once `visual-review/passkeys.json` on master
+  holds a key, the gate passes a pull request whose `visual-baselines/` tree differs from master's
+  only with such a signed statement of exactly that tree, made at a commit in its history, and
+  captures that match those baselines. The per-pull-request records under
+  `visual-baselines/reviews/` are part of the tree and mean nothing else to the gate. So an
+  approval made on golden holds on a cut of it, and anything that changes the baselines tree
+  afterwards (a merge of master's newer baselines, one changed byte) needs the owner again. A
+  Finish that rejects anything or leaves anything undecided signs nothing. Agents never
   edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
   `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
   register a passkey; never merge a pull request past a failing gate; and never call the page's
@@ -1014,20 +1022,20 @@ that starts the same server from the owner's own shell, which is how the owner s
 - CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
   request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
   exercised by the pull request after it; test it with the package's own tests.
-- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
-  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+- A story settings file (`visual-baselines/<project>/<story id>.json`) is part of the approved
+  tree like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
   `parameters.chromatic` (the Storybook convention visual-review reads its capture settings
   from) instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
   above it.
 - A gate line about a missing or invalid approval is fixed only by the owner reviewing again
-  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
-  record.
+  (a new preview of the head, then Finish with Face ID), never by writing or editing a record or
+  an approval file.
 - Never create a passkey or a virtual authenticator against a real review server; Chromium's
   virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
-  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines` and `projects` of
+  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines`, `approvals` and `projects` of
   `visual-review.config.json`, unless the owner asked for that change.
   A story excluded that way while it has a baseline shows up as `removed` anyway; a raised
   threshold does not, which is why it is forbidden.
@@ -1137,8 +1145,11 @@ its requirements are in `design/ci/golden-local.md`.
 How to land a change:
 
 1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):
-   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. A subagent commits and stops;
-   the session that started it lands the branch.
+   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. Before your final tests, bring the
+   branch up to date: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
+   --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
+   tool-version differences then show up early, from the session that knows the change, not at landing.
+   A subagent commits and stops; the session that started it lands the branch.
 2. Run `node tools/land.mjs land <branch>` with `run_in_background`, then end your turn or do other
    work; its exit notice wakes you. It takes one machine-wide lock (a second landing waits and is
    told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch
@@ -1185,12 +1196,17 @@ Rules:
   public API report change), put it in the commit message instead.
 - A breaking (`!`) commit is not landed without the owner's go: shipping golden puts it on master,
   and the next release train publishes the major.
-- The owner reviews the golden pull request's screenshots on the review page and presses Finish,
-  which commits the approvals to `golden` on GitHub. When the owner rejects a change's images, run
+- The owner reviews the cut pull request's screenshots on the review page and presses Finish,
+  which commits the approvals to `golden-cut` on GitHub; they reach golden when the cut merges. When the owner rejects a change's images, run
   `node tools/land.mjs revert <branch>`: it reverts that branch's land commit on golden and pushes
   through the push queue. Fix the change on its branch and land it again.
-- `node tools/land.mjs ship`, only after the owner says the golden review is finished: it marks the
-  golden pull request ready and turns on auto-merge. CI runs once on it; green merges it into
+- What ships is a cut, not golden's tip: `node tools/land.mjs cut [<commit>]` points `golden-cut` at the
+  commit you name, or else the newest golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
+  draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
+  are made on the cut pull request. A landing that breaks golden gets one pipeline round to be fixed, then
+  is reverted from golden and landed again once fixed.
+- `node tools/land.mjs ship`, only after the owner says the cut review is finished: it marks the
+  cut pull request ready and turns on auto-merge. CI runs once on it; green merges it into
   master. A CI failure there is a difference between this machine and a clean one: find the change
   that caused it from the failure, revert it from golden or fix it, and the pull request goes back
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.

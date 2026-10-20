@@ -37,6 +37,9 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
 | `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                             |
 | `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
+| `autoRotate`             | `auto-rotate`              | `number`                                                            | `0`         | Turn the 3D view on its own, in radians per second; a view preference, not saved in a project                                                                          |
+| `fitInsets`              | property only              | `{ top, right, bottom, left }`                                      | all `0`     | Room in CSS pixels that framing the graph keeps clear at each edge; a view preference, not saved in a project                                                          |
+| `pixelRatio`             | `pixel-ratio`              | `number \| "device"`                                                | `1`         | Pixels drawn per CSS pixel; `"device"` is sharp on a high-resolution screen and costs more per frame. Sizes stay in CSS pixels; a view preference                      |
 | `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                               |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
@@ -97,7 +100,8 @@ element.selectionStyle = {
 ```
 
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
-on a selection that is already on screen.
+on a selection that is already on screen. An `opacity` of `0` draws no halo at all, for a page that
+marks the selected node its own way, such as with a `node.outline` style layer.
 
 ### Expanding a node's neighborhood on demand
 
@@ -136,6 +140,51 @@ element.layoutBehavior = {
 
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
+
+### Turning the graph, and leaving room for your own panels
+
+`autoRotate` turns the 3D view on its own, in radians per second (0, the
+default, never turns). It waits while the reader drags, pinches, holds a camera key or drags a
+node, and the 2D view never turns. `fitInsets` keeps room clear, in CSS
+pixels, at each edge of the canvas when the element frames the graph -- for a page that draws its
+own panels over part of the canvas. The graph is fitted and centered in what is left, in 2D and
+3D, and the 3D view keeps that center while it turns:
+
+```javascript
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+element.autoRotate = still ? 0 : 0.15; // a slow drift
+element.fitInsets = { left: 480, top: 64 }; // a panel on the left, a toolbar on top
+```
+
+Both are preferences of the view, like `labelDeclutter`: setting them records no undo step and
+is not saved in a project file. They are the same settings as `layoutBehavior.camera.autoRotate`
+and `layoutBehavior.camera.fitInsets`.
+
+The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
+
+### A sharp picture on a high-resolution screen
+
+By default the canvas is drawn at one pixel per CSS pixel, which looks soft on a phone, a tablet
+or a laptop with a high-resolution screen. `pixel-ratio="device"` draws it at the screen's own
+`devicePixelRatio` and follows it as the browser zoom or the screen changes:
+
+```html
+<graphty-element pixel-ratio="device"></graphty-element>
+```
+
+Each frame then costs about the square of the ratio more to draw, which is why it is a choice.
+Every size the element measures on screen stays in CSS pixels whatever the ratio: `fitInsets`,
+screen-sized labels, line widths and `nodeScreenPosition`.
+
+A 3D graph is framed by default so the box around it fits, seen from the front. A turning graph
+never shows its box's empty corners, so it is drawn smaller than it needs to be. Set
+`layoutBehavior.camera.fitBounds` to `"turning"` to fit the nodes themselves at every angle the
+view turns to about the vertical axis: the graph is drawn as large as it can be and still stays in
+the frame however far it turns. 2D always fits the box.
+
+```javascript
+element.layoutBehavior = { camera: { fitBounds: "turning" } };
+```
 
 ### Groups of nodes
 

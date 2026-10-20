@@ -14,7 +14,9 @@
  */
 
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
+import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
 import type { StyleTool } from "@graphty/graph-io/styles";
+import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import type { z } from "zod";
 
 import type {
@@ -71,6 +73,17 @@ import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
+import type {
+    CollapseResult,
+    ExpandOptions,
+    PendingSourceLoad,
+    SourceExpanded,
+    SourceExpandFailed,
+    SourceExpandStart,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+} from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
@@ -396,7 +409,12 @@ export interface NeighborOptions {
  * `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance.
  */
 export interface NeighborSort {
-    readonly by: "weight" | "name";
+    /**
+     * What the neighbors are ordered by: the combined weight of the edges to them, their name, or
+     * their own degree (how many edges each neighbor has in the whole graph, in either direction),
+     * so `{ by: "degree", descending: true }` lists the best-connected neighbors first.
+     */
+    readonly by: "weight" | "name" | "degree";
     /** Largest first. Default false. */
     readonly descending?: boolean;
 }
@@ -976,7 +994,76 @@ export interface SessionDataApi {
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
+    import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    /**
+     * Check a network source's params and credential without loading anything. Experimental.
+     * @param source - The source id and its params.
+     * @param options - The credential and the endpoint.
+     * @returns What the service said; rejects with the source's code.
+     */
+    testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
+    /**
+     * Search what a network source holds (the networks of a repository, ...). Experimental.
+     * @param source - The source id and the params narrowing the search.
+     * @param query - The search text, cursor and page size.
+     * @param options - The credential and the endpoint.
+     * @returns One page of neutral rows.
+     */
+    listSource(
+        source: SourceInput,
+        query?: Omit<SourceListQuery<Record<string, unknown>>, "params">,
+        options?: SourceLoadOptions,
+    ): Promise<SourceListing>;
+    /**
+     * Fetch the neighborhood of nodes from the source that loaded them and merge it, as one
+     * undoable step. A node not loaded from a source rejects with `E_SOURCE_UNSUPPORTED`. Experimental.
+     * @param ids - The seed nodes.
+     * @param options - Depth, direction, limit and the credential.
+     * @returns Settles once the neighborhood is in the graph.
+     */
+    expand(ids: readonly NodeId[], options?: ExpandOptions): Promise<void>;
+    /**
+     * Remove what a node's expansions alone brought, as one undoable step. Experimental.
+     * @param id - The node.
+     * @returns What was removed and what was kept.
+     */
+    collapse(id: NodeId): Promise<CollapseResult>;
+    /**
+     * Load the next page after a capped load from a source. Experimental.
+     * @param options - The load options.
+     * @returns Settles once the page is in the graph.
+     */
+    more(options?: SourceLoadOptions): Promise<void>;
+    /**
+     * Load one of the public samples the registered sources list (`samples` on a descriptor of
+     * `sourceDescriptors()`, graph-samples' datasets among them), as one undoable step: the
+     * sample's params, its endpoint and the login its service publishes, so
+     * `loadSample("neo4j-movies")` is the whole call. Experimental.
+     * @param id - The sample's id, such as `"string-tp53"` or `"graph-samples-karate"`.
+     * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
+     * @returns Settles once the sample is in the graph; rejects with `E_SOURCE_UNKNOWN` (its
+     *     `known` lists every sample id) when no source lists the id.
+     */
+    loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    /**
+     * The loads from network sources this graph holds, in order: what a refresh needs, never a
+     * secret. Experimental.
+     * @returns The records.
+     */
+    loads(): readonly SourceLoadRecord[];
+    /**
+     * The source loads an opened project holds but has not run: nothing fetches by itself.
+     * Experimental.
+     * @returns One entry per waiting load.
+     */
+    pendingSourceLoads(): readonly PendingSourceLoad[];
+    /**
+     * Run one waiting source load of an opened project, read-only. Experimental.
+     * @param id - The load's key, from `pendingSourceLoads()`.
+     * @param options - The credential.
+     * @returns Settles once it is loaded.
+     */
+    runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     /**
      * Read a source once and hold its rows, so its tables, columns and the counts a load would
      * produce can be read, and the column roles changed, before anything is added to the graph.
@@ -989,6 +1076,38 @@ export interface SessionDataApi {
      * @returns The draft.
      */
     prepare(source: DataSourceInput, options?: { readonly signal?: AbortSignal }): Promise<LoadDraft>;
+    /**
+     * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
+     * with its parameters (each one left out takes its catalogue default). The same name and
+     * parameters give the same graph on every platform. A random generator's `seed` picks which
+     * graph.
+     * @param name - The generator's name, e.g. `"barabasi-albert"`.
+     * @param params - Its parameters by name, e.g. `{ n: 500, m: 3 }`.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_GENERATOR` for a name the
+     *     catalogue does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
+     *     and `E_OPTION_RANGE` for a value it refuses; nothing is recorded then.
+     */
+    generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    /**
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * @param name - The dataset's name, e.g. `"karate"`.
+     * @param options - Whether to replace the graph (the default) or add to it, where to download
+     *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
+     *     that abandons the download.
+     * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
+     *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
+     *     download fails; nothing is recorded then.
+     */
+    loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
+}
+
+/** What `data.loadDataset` takes besides the name. */
+export interface DatasetLoadOptions extends ImportOptions {
+    /** Where the dataset files are published; graphty.app's copy when absent. */
+    readonly baseUrl?: string;
+    /** Abandons the download. */
+    readonly signal?: AbortSignal;
 }
 
 /**
@@ -1236,6 +1355,11 @@ export interface LoadChoices extends ImportOptions {
 export interface DataSourceInput {
     /** The data source's name; detected from the file name, the URL or the content when absent. */
     readonly type?: string;
+    /**
+     * A network source's id (`listSources()` from `./extend` names them), in place of `type`:
+     * `config` then holds the source's params. Experimental.
+     */
+    readonly source?: string;
     /** Its options. */
     readonly config: Readonly<Record<string, unknown>>;
     /**
@@ -1471,6 +1595,15 @@ export interface SessionEventMap {
      * with no view publishes too. See {@link ProgressChange}.
      */
     "progress:changed": ProgressChange;
+    /** An expansion from a network source began. Mirrored as `graphty-source-expand-start`. Experimental. */
+    "source:expand-start": SourceExpandStart;
+    /**
+     * An expansion finished: code `I_SOURCE_EXPANDED`, params `{ seeds, added, partial }`.
+     * Mirrored as `graphty-source-expanded`. Experimental.
+     */
+    "source:expanded": SourceExpanded;
+    /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
+    "source:expand-failed": SourceExpandFailed;
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.
@@ -1523,7 +1656,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
+ * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
+ * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
+ * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
@@ -1574,7 +1710,10 @@ export type HistoryCode =
     | "data.replace-nodes"
     | "data.replace-edges"
     | "data.import"
+    | "data.import-source"
     | "data.expand"
+    | "data.source-expand"
+    | "data.collapse"
     | "data.declare"
     | "data.set-source"
     | "data.set-file-styles"
@@ -1760,8 +1899,14 @@ export interface CommandOutcomeMap {
     "data.apply": Promise<void>;
     /** Settles once the last chunk is recorded and the pass that draws it has run. */
     "data.import": Promise<void>;
+    /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
+    "data.import-source": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
+    /** Settles once the expansion is recorded and drawn. Experimental. */
+    "data.source-expand": Promise<void>;
+    /** Settles once the collapse is recorded and drawn. Experimental. */
+    "data.collapse": Promise<void>;
     /** Settles once the declaration is recorded. */
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */

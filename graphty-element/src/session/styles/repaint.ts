@@ -816,6 +816,8 @@ interface PreparedChannel {
     readonly binding: PreparedBinding;
     /** Whether it reads a note, whose text is drawn as plain text. */
     readonly plainText: boolean;
+    /** Whether it is a template, whose binding reads the element through a function. */
+    readonly template: boolean;
 }
 
 /** One layer, ready to paint. */
@@ -1222,10 +1224,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
                 path,
                 plainText: path !== null && isNotePath(path),
+                template: "template" in binding,
                 binding: prepareBinding({
                     channel,
                     binding,
                     scales,
+                    columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
                 }),
             });
@@ -1476,17 +1480,27 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const { elements } = store;
         const covered = appliedRecord(entry, store);
         let slice = deadline;
+        // A template reads several paths, so it is handed a reader for the element being painted.
+        // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
+        let current = 0;
+        const readCurrent = (path: Path): unknown => elements.value(current, path);
 
         /**
          * Paint one element: every channel of the layer. Built once per layer, not per element.
          * @param index - The element.
          */
         const paintOne = (index: number): void => {
+            current = index;
+
             // Indexed rather than `for ... of`, which would allocate an iterator per element
             // for a list whose length was settled when the layer was prepared.
             for (let which = 0; which < channels.length; which++) {
                 const channel = channels[which];
-                const read = channel.path === null ? undefined : elements.value(index, channel.path);
+                let read: unknown = channel.template ? readCurrent : undefined;
+                if (channel.path !== null) {
+                    read = elements.value(index, channel.path);
+                }
+
                 const painted = channel.binding.paint(read);
 
                 // Undefined means this layer has nothing to say about this element, so what

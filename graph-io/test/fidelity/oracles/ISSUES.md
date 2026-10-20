@@ -1648,6 +1648,15 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   height 25 against 37.5) and a turned man or woman (`phi-30-man`, `phi-90-man`: width and height swapped). The
   neutral vocabulary and graphty-element have no node rotation, and an outline of corners would draw an ellipse as a
   polygon: the fix is a node rotation in graphty-element and the vocabulary, not yet built.
+  Comparator, open (2026-10-20): `phi-30-triangle` now fails `node-shapes@matched` and `-p2@matched` node.position
+  (0.974 against its floor 1; it passed before the fix, and passes the unmatched view). Both readers take a node's
+  position as the middle of its drawn outline, which a turned triangle has off its center; the matched view moves
+  graphty's node CENTER to the oracle's outline middle (`matchPositions` in `run-oracle.ts`), so graphty's turned
+  triangle is read that offset off again (oracle (327.79, 338), graphty (335.37, 342.37); Pajek's center is
+  (320, 333.5)). Moving each node by the step from its own read position to the oracle's instead fixes it (and
+  `dot-specimen-node-shapes`, `gml-specimen-node-shapes-p7` @matched node.position), but in a full run it also
+  changed `json-graphology-synth@matched` edge.route 141 -> 131 of 180, `dot-real-depcruise@matched` frame.zoom
+  1 -> 0 and `json-vis-siblings@matched` node.width 50 -> 48 for reasons not yet found, so it is not applied.
 - A project file's partition and vector (`specimen-mappings-bypass`): Draw > Network + First Partition colors each
   vertex by its cluster with Figure 20's 40 partition colors (cluster 0 Cyan, 1 Yellow, 2 LimeGreen, 3 Red, ...),
   over the vertex's own `ic` (`part-3-over-ic`, as section 5.2 says); a cluster past 39 wraps (40 Cyan, 45 Pink,

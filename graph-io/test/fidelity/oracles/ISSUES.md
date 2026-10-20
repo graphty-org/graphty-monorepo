@@ -1244,7 +1244,8 @@ Still open, and why:
 - Patterned corpus edges (`cys-syn-mappings` 139 `edge.arrow`, all on slashed, arrow-patterned, dashed and double
   lines in a crowded sheet; `cys-syn-bypass` 18): the oracle reader finds no cap at the end of a line drawn in pieces.
 - `cys-import-and-save` 3 labels ("Decanoic Acid", 99.0 wide at a wrap width of 100) wrap in graphty and not in
-  Cytoscape: graphty's letters are about 4 percent larger against the node than Cytoscape's. Not yet explained.
+  Cytoscape. Resolved in fix round 3 (e37884b68): Cytoscape keeps whole a label narrower than its width; see the
+  session round 3 section below.
 - The edge-end change was checked on every `cys-` sample and the comparator unit tests; the whole report across the
   other formats had not finished when this round ended.
 
@@ -3238,3 +3239,51 @@ Still open:
 - Comparator: Graphviz draws `curve`, `icurve`, `lcurve` and `rcurve` arrows as a stem plus an open arc, which the
   oracle side reads as no arrow. It writes colored segments (`color="red;0.3:blue"`) as one path per segment, and
   the oracle side takes one segment as the edge. Both are in `associate.ts`, which other work is changing.
+
+## Specimen sheets: Cytoscape session settings (fix round 3, sessions, 2026-10-20)
+
+Measured with the oracle report on every `cys-` sample after rebuilding graph-io, before and after the fix
+(`tmp/style-specimens/cys-r3/a.tsv` and `b.tsv` in the worktree). The working tree also held other agents'
+uncommitted comparator and chart-label edits, so the "now" figures below include them.
+
+Fixed:
+
+- Label wrap width (`label-wrap-width`, graphty-element e37884b68). Cytoscape 3.10.5's `LabelInfo`
+  (ding-presentation-impl, read decompiled) measures the whole label first and keeps a one-line label whose width
+  is under `NODE_LABEL_WIDTH` on one line; only a label that does not fit is broken word by word, each word
+  measured with the space after it, a line ending when the next word reaches the width. Cytoscape.js does the same
+  per line (`labels.mjs`: a line no wider than `text-max-width` is kept). graphty-element counted the last word's
+  space even for a line that fits, so "Decanoic Acid" (98.95 wide in DejaVu Sans at a width of 100), "Butenoic Acid"
+  and "Etacrynic acid" broke onto two lines. `cys-import-and-save` label.lines 297/300 -> 300/300; `cys-syn-bypass`
+  label.offset and label.anchor 57/58 -> 58/58. Test: `graphty-element/test/browser/label-wrap-width.test.ts`.
+  Known difference: ding keeps only a one-line label whole (a label with newlines is always broken by its words);
+  graphty-element keeps any line that fits, as Cytoscape.js does. ding also caches a label's lines by text, font and
+  width but not by the font render context it measured with, so the first measurement wins: why two loads of this
+  session laid some labels out differently (its oracle's `loads` note).
+
+Still open, and why:
+
+- `cys-import-and-save` label.align (node 3769, "Magnesium salicylate": o=end, g=middle) and label.offset (node
+  3673, 1.2 px): Java centers each wrapped line with its trailing space, so the visible words of a wrapped label sit
+  half a space left of the node's middle. graphty-element drops the space at a line's end, and the comparator reads
+  graphty's alignment from its option, not from per-line boxes. Needs both (graphty-element-render and comparator).
+- Chart labels (`chart-labels`; `images-charts-p5`, `-p7`, `mappings-bypass-p18`): pie item labels are being added
+  in the shared `styles/cytoscape/charts.ts` by the XGMML round (uncommitted while this ran); with it, graphty's pie
+  item words on p5/p18 node 438863 are read as that node's label ("A B C", the oracle has no node label there).
+  `-p7` keeps 10 of 16 missing: the bar, line and heat map charts' domain, range and item labels are not read, and
+  Cytoscape also shrinks a bar chart's plot for its axes, so graphty's bars on `-p7` sit about 30 px off the
+  oracle's.
+- Annotations (`annotation-scoring`): on `images-charts-p5` and `mappings-bypass-p18` stray.extra now passes. The
+  graphty extras left on these sheets are not file annotations but bar-chart pieces, which the graphty scene records
+  as `annotation-shape` strays: 21 on `images-charts-p7` (the axis reason above) and 1 on `mappings-bypass-p14` (a
+  short blue bar whose base sits 4 px below the oracle's, IoU 0.41 against 0.5). That is chart geometry
+  (`node-custom-graphics`). Scoring an annotation's shape, fill, text and rotation is still not built; on the session
+  samples only `cys-annotation-example` (2 arrows) and `cys-syn-bypass` (4 shapes) show annotation extras.
+- CROSS_DELTA and CROSS_OPEN_DELTA (`comparator-arrow-class`; `arrows`, `mappings-bypass-p11`, 4 of 42 each): with
+  the XGMML round's uncommitted `cross-delta` class the oracle side now reads them, graphty's side still reads
+  `other`. Left to that round, which owns the change.
+- The size 24 arrowhead on short edge 8 (`comparator-edge-association`; `arrows-p2`, `mappings-bypass-p12`): the edge
+  now pairs; one 3 x 6 px `#505050` piece of the oracle's line at the source node stays an unmatched stray.
+- Patterned corpus edges: `cys-syn-mappings` edge.arrow 352/393 (139 rows failing in round 3, 41 now) with the
+  association change in progress; `cys-affinity-purification`, `-annotation-example`, `-galfiltered` and
+  `-luad-vest-v2` keep 4 to 8 edge.route rows each. Comparator, not changed here.

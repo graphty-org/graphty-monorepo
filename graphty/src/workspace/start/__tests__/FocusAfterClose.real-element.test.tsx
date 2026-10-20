@@ -44,7 +44,9 @@ async function loaded(nodes: number): Promise<{ host: HTMLElement; session: Grap
     let found: { host: HTMLElement; session: GraphSession } | undefined;
     await waitFor(
         () => {
-            const host = document.querySelector("graphty-element:not([data-start-page])");
+            const host = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            );
             const session = host?.session;
             assert.isDefined(session);
             assert.equal(session.data.statistics().nodeCount, nodes);

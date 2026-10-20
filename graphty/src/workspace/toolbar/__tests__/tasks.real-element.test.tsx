@@ -393,12 +393,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.selection.apply({ nodes: [node] });
         const name = session.data.name(node) ?? String(node);
         await userEvent.keyboard("f");
-        await waitFor(() => {
-            assert.include(
-                screen.getAllByRole("status").map((status) => status.textContent),
-                `Framed ${name}`,
-            );
-        });
+        // Said once the framing's camera animation (a second long) has finished.
+        await waitFor(
+            () => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Framed ${name}`,
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
     });
 
     it("switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it", async () => {

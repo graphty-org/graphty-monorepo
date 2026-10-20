@@ -40,7 +40,9 @@ async function elementSession(): Promise<GraphSession> {
     await waitFor(
         () => {
             // The project's element, not the start page's own drawing.
-            session = document.querySelector("graphty-element:not([data-start-page])")?.session;
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
         },
         { timeout: TIMEOUT_MS },

@@ -946,15 +946,12 @@ function fanPlaces(
 ): Map<number, number> {
     const place = new Map<number, number>();
     const first = new Map<string, { f: number; k: number }>();
-    const created = ends.created?.edge;
-    const walk = Array.from({ length: count }, (_, i) => i);
-    walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
-    for (const i of walk) {
+    for (const i of newestFirst(count, ends.created?.edge)) {
         const [s, t] = [ends.source[i], ends.target[i]];
         if (s === t || haystack(i)) {
             continue;
         }
-        const key = s < t ? `${s},${t}` : `${t},${s}`;
+        const key = `${Math.min(s, t)},${Math.max(s, t)}`;
         const f = first.get(key);
         if (f === undefined) {
             first.set(key, { f: i, k: 0 });
@@ -964,6 +961,18 @@ function fanPlaces(
         }
     }
     return place;
+}
+
+/**
+ * The edges newest first: by the order they were created in when it is known, else last index first.
+ * @param count - the edge count
+ * @param created - each edge's place in the creation order, when known
+ * @returns the edge indices in that order
+ */
+function newestFirst(count: number, created: ArrayLike<number> | undefined): number[] {
+    const walk = Array.from({ length: count }, (_, i) => i);
+    walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
+    return walk;
 }
 
 /**

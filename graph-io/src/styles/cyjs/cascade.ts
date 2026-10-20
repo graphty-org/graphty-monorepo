@@ -2055,18 +2055,37 @@ function combineDashes(
               ];
     for (const [style, width, fallback, pattern, own] of lines) {
         const col = values[style];
-        if (col === undefined) {
+        if (col !== undefined) {
+            dashColumn(col, n, values[width], { fallback, pattern }, own ? words : null);
+        }
+    }
+}
+
+/**
+ * One line style's dashed lines as the lines they look like.
+ * @param col - the line styles; changed in place
+ * @param n - the element count
+ * @param widths - the lines' widths, when set
+ * @param drawn - what Cytoscape.js draws when they are not set: the width and the dash pattern
+ * @param drawn.fallback - the width
+ * @param drawn.pattern - the dash pattern
+ * @param words - the parts by internal name, or null for an outline, which has no pattern or cap of its own
+ */
+function dashColumn(
+    col: (StyleValue | null)[],
+    n: number,
+    widths: readonly (StyleValue | null)[] | undefined,
+    drawn: { fallback: number; pattern: string },
+    words: ReadonlyMap<string, (string | null)[]> | null,
+): void {
+    for (let i = 0; i < n; i++) {
+        if (col[i] !== "dashed") {
             continue;
         }
-        for (let i = 0; i < n; i++) {
-            if (col[i] !== "dashed") {
-                continue;
-            }
-            const w = values[width]?.[i];
-            const look = dashedLook(own ? words : null, i, pattern, typeof w === "number" ? w : fallback);
-            if (look !== null) {
-                col[i] = look;
-            }
+        const w = widths?.[i];
+        const look = dashedLook(words, i, drawn.pattern, typeof w === "number" ? w : drawn.fallback);
+        if (look !== null) {
+            col[i] = look;
         }
     }
 }

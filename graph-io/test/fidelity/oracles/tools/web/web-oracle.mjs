@@ -245,7 +245,14 @@ class CanvasPathContext extends Context {
     }
     fill(...a) { return this.__paint("fill", a); }
     stroke(...a) { return this.__paint("stroke", a); }
-    clip(...a) { a = this.__replay(a); this.__pathHere(); return super.clip(...a); }
+    // svgcanvas drops clip()'s fill rule; Cytoscape.js clips an outside border to a box minus the node, evenodd
+    clip(...a) {
+        a = this.__replay(a);
+        this.__pathHere();
+        const r = super.clip(...a);
+        if (a[0] === "evenodd") this.__defs.lastChild.firstChild.setAttribute("clip-rule", "evenodd");
+        return r;
+    }
 }
 globalThis.SvgContext = CanvasPathContext;`;
 
@@ -257,6 +264,11 @@ const PATH2D_RECORDER = `(() => {
     for (const m of ["moveTo", "lineTo", "bezierCurveTo", "quadraticCurveTo", "arc", "arcTo", "ellipse", "rect", "roundRect", "closePath"]) {
         RecordingPath2D.prototype[m] = function (...a) { this.__ops.push([m, a]); return Real.prototype[m].apply(this, a); };
     }
+    // a path added to another (Cytoscape.js's outside-border clip region): its calls join this one's
+    RecordingPath2D.prototype.addPath = function (p, t) {
+        if (p && p.__ops) this.__ops.push(...p.__ops);
+        return Real.prototype.addPath.call(this, p, t);
+    };
     globalThis.Path2D = RecordingPath2D;
 })();`;
 
@@ -562,7 +574,7 @@ writeFileSync(svgPath, result.svg);
 
 const metaPath = join(outDir, `${id}.oracle.json`);
 const CONTEXT_NOTE =
-    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
+    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed (with the paths added to it), a clip keeps its evenodd rule, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
 const svgSha256 = sha(result.svg);
 const old = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : null;
 const meta = {

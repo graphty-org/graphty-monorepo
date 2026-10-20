@@ -966,17 +966,6 @@ describe("oracle comparison", () => {
         );
     });
 
-    it("judges no text the program drew off its canvas", () => {
-        const o = {
-            ...graphtyScene(),
-            side: "oracle" as const,
-            texts: [text("Short", 1665, 538), text("Seen", 100, 380)],
-        };
-        const r = compareOracle("t", o, graphtyScene());
-        assert.deepEqual(r.failures["stray.present"], ["text#0"]);
-        assert.strictEqual(r.properties["stray.present"].n, 1);
-    });
-
     it("names every numbered node of a GML sheet by the setting its comment or template keeps", () => {
         const rows = [
             { id: 0, comment: "anchor-nw" },
@@ -995,6 +984,17 @@ describe("oracle comparison", () => {
                 ["7", "label-offset-n"],
             ],
         );
+    });
+
+    it("judges no text the program drew off its canvas", () => {
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [text("Short", 1665, 538), text("Seen", 100, 380)],
+        };
+        const r = compareOracle("t", o, graphtyScene());
+        assert.deepEqual(r.failures["stray.present"], ["text#0"]);
+        assert.strictEqual(r.properties["stray.present"].n, 1);
     });
 
     it("fixes the frame on anchors named by their role, so a misplaced specimen does not pull it", () => {

@@ -84,6 +84,21 @@
             .box li {
                 margin: 4px 0;
             }
+            .answers {
+                margin-bottom: 24px;
+            }
+            .answers dl {
+                margin: 0;
+                display: grid;
+                grid-template-columns: 220px 1fr;
+                gap: 6px 16px;
+            }
+            .answers dt {
+                font-weight: 600;
+            }
+            .answers dd {
+                margin: 0;
+            }
             .questions li {
                 font-weight: 600;
             }
@@ -787,6 +802,650 @@
                         },
                     ],
                 },
+                {
+                    id: "2",
+                    label: "Round 2",
+                    date: "2026-10-20",
+                    decided: [
+                        "One structure: a data configuration panel owns every data setting (sources, column types, roles and names, warnings, joins, filters); the three options differ only in where that panel sits and in three open details.",
+                        "The table is view-only: it sorts, chooses columns and follows the selection and the filter. No conditions, joins, export, column fixes or warnings in it.",
+                        "No sentences as interface: compact Figma-style property rows, chips, counts, dropdowns and status icons; context menus for quick changes. The Figma product designer led this round.",
+                        "Edges, not links, on every screen ('link' only inside Link prediction).",
+                        "Flows re-derived from the persona workflows. Joining and filtering are first-class. Fixing a column and cleaning up are now warnings plus the normal column rows, not their own flows. Export is the app's common Export dialog with a Rows setting.",
+                        "Special cases kept because they are real: one event table making several kinds of node; querying a database, loading more and expanding a node; filter steps, saved sets and a time window.",
+                        "Not drawn yet: a gene list to a network (same form as the database), combining several graphs, reusable recipes.",
+                    ],
+                    questions: [
+                        "Which home for data configuration is right: the left panel beside the graph (A), the full Data page with the table beside it (B), or a list on the left with details in the inspector (C)?",
+                        "Should a clean file be drawn at once on drop with the panel to correct it afterwards (A), or stop on the Data page with Load focused (B, C)?",
+                        "How should a filter start: toolbar Filters opening the panel (A), a quick popover over the canvas (B), or Filter by this value from a context menu (C)?",
+                        "Should Replace keep everything and offer Undo afterwards (A), or ask first with keep checkboxes (B, C)?",
+                        "Should server sources (database query, gene list) stay a few clicks away for now, or come onto Open's first screen?",
+                    ],
+                    answers: [
+                        [
+                            "Find, filter and the data card",
+                            "Find goes to one node you know by name (the toolbar's find box, already there). Clicking a node or edge shows its data card in the inspector (already there). Filter shows only what matches a condition: the Filter flow, with steps, sets and time windows as a special case. The table header gets sort only.",
+                        ],
+                        [
+                            "Newer copy: automatic or manual?",
+                            "Manual, never automatic: a file from this computer has no live link to its original, and numbers that change unasked break a weekly comparison. The source row has Replace file... and, for a web or server source, Refresh from source. Keeping styles, filters and analysis is on by default; the options differ only in confirming before (B, C) or undoing after (A).",
+                        ],
+                        [
+                            "Second file",
+                            "Join is the default. It matches on node id and shows the match counts before you confirm; a table of values adds attributes to the matched nodes, a file of edges adds edges and any new nodes. Add as new, Open as a separate graph and Replace are in the Join button's menu.",
+                        ],
+                        [
+                            "Server: why three screens, and live Test",
+                            "They are now three different things in three places: connect and query is a form; Load more is on the source row; Expand is a right-click on a node on the canvas. Test runs the real query and shows the first rows and the match count, so you confirm it is the right data before Load.",
+                        ],
+                    ],
+                    flows: [
+                        {
+                            id: "open-file",
+                            title: "Open my file, get a right drawing",
+                            kind: "common",
+                        },
+                        {
+                            id: "see-fix",
+                            title: "See what loaded, fix what is wrong",
+                            kind: "common",
+                        },
+                        {
+                            id: "filter",
+                            title: "Filter: show only what matches",
+                            kind: "common",
+                        },
+                        {
+                            id: "join",
+                            title: "Join a second file onto this graph",
+                            kind: "common",
+                        },
+                        {
+                            id: "replace",
+                            title: "Replace with a newer copy, keep my work",
+                            kind: "common",
+                        },
+                        {
+                            id: "export",
+                            title: "Export the filtered numbers (common Export)",
+                            kind: "common",
+                        },
+                        {
+                            id: "event-table",
+                            title: "One event table, several kinds of node",
+                            kind: "special",
+                        },
+                        {
+                            id: "server",
+                            title: "Query a database, load more, expand a node",
+                            kind: "special",
+                        },
+                        {
+                            id: "filter-steps",
+                            title: "Filter steps, sets and a time window",
+                            kind: "special",
+                        },
+                    ],
+                    options: [
+                        {
+                            id: "A",
+                            name: "Everything in the left panel",
+                            idea: "The Data place, the 240px panel beside the graph, holds every data setting as compact property rows (sources, roles, attributes, warnings, joins, filters), with pop-overs for anything that needs room. A clean file is drawn at once on drop, as in Figma, and the panel is where you correct it; the Data page opens only when the app is unsure, for an event table, a database, or Edit source. A second file opens a Join section already filled in. Replace keeps everything and offers Undo afterwards. The table dock only shows data.",
+                            first: [
+                                "Clean file: the drawing, the counts chip, a drop notice with Undo, the roles as rows (Name, Source, Target, Weight)",
+                                "Unsure file: the Data page with only the unsure rows marked; the other columns folded",
+                                "After loading: one row per source with counts; Warnings only when there is something to fix",
+                            ],
+                            later: [
+                                "Attribute row menu: Rename, Change type (with how many values will not convert), Use as, Hide",
+                                "Toolbar Filters opens the panel's Filters section with a blank condition row",
+                                "Source row menu: Replace file..., Refresh from source, Edit source...",
+                                "Join button menu: Add as new nodes and edges, Open as a separate graph, Replace data",
+                                "Node menu on the canvas: Expand from source; Export in the common Export dialog",
+                            ],
+                            for: [
+                                "The graph never leaves the screen; every change shows on the drawing at once",
+                                "One place to look for anything about the data",
+                            ],
+                            against: [
+                                "A wrong guess is drawn before the reader checks it; Undo and the role rows are the only safety net",
+                                "240px is tight: long names cut off, wide files scroll",
+                                "The Data page still appears for unsure files, event tables and databases: two places",
+                            ],
+                            weak: [
+                                "The empty Filters section with + shows on a clean file's first screen",
+                                "Changing a role on a drawn file: nothing shows what happens to styles that used the old role",
+                                "Moving between the panel and the Data page is not shown",
+                                "White text on the app's blue measures about 3.5:1 (a compact-mantine fix)",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/A/open-file-1-drawn-on-drop.html",
+                                        thumb: "round-2/thumbs/A-open-file-1-drawn-on-drop.png",
+                                        caption:
+                                            "A clean file dropped on the canvas is drawn at once, the panel shows the roles the app read as property rows, and the drop notice offers Undo.",
+                                    },
+                                    {
+                                        file: "round-2/A/open-file-2-unsure-name-weight.html",
+                                        thumb: "round-2/thumbs/A-open-file-2-unsure-name-weight.png",
+                                        caption:
+                                            "A file the app is unsure about opens the Data page with only the Name and Weight rows marked, the Name dropdown already open on the likely pair, and the rest folded away.",
+                                    },
+                                    {
+                                        file: "round-2/A/open-file-3-drawn-named.html",
+                                        thumb: "round-2/thumbs/A-open-file-3-drawn-named.png",
+                                        caption:
+                                            "The drawing has its nodes named by gene, the canvas shows the counts chip, and the Data place shows each role as a property row.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/A/see-fix-1-warnings-section.html",
+                                        thumb: "round-2/thumbs/A-see-fix-1-warnings-section.png",
+                                        caption:
+                                            "After loading, the Data place shows one Warnings row per kind of problem with its count and its fix (a dropdown or Show), and the attribute rows carry the same counts.",
+                                    },
+                                    {
+                                        file: "round-2/A/see-fix-2-column-menu-change-type.html",
+                                        thumb: "round-2/thumbs/A-see-fix-2-column-menu-change-type.png",
+                                        caption:
+                                            "Right-clicking the opened attribute row offers Rename, Change type, Use as and Hide, and each type says how many values will not convert before it is applied.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/A/filter-1-toolbar-opens-filters.html",
+                                        thumb: "round-2/thumbs/A-filter-1-toolbar-opens-filters.png",
+                                        caption:
+                                            "Pressing Filters on the toolbar opens the Data place's Filters section with one blank condition row and its attribute list already open.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-2-condition-row.html",
+                                        thumb: "round-2/thumbs/A-filter-2-condition-row.png",
+                                        caption:
+                                            "One condition row reads padj, less than, 0.05; the live chip says 60 of 318 nodes and Highlight rings the matches before anything is hidden.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-3-filtered-drawing.html",
+                                        thumb: "round-2/thumbs/A-filter-3-filtered-drawing.png",
+                                        caption:
+                                            "Show only leaves the 60 matching nodes on the canvas, the header and the toolbar's Filters button show the filter is on, and the table dock lists the same 60 rows for viewing only.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/A/join-1-dropped-join-chosen.html",
+                                        thumb: "round-2/thumbs/A-join-1-dropped-join-chosen.png",
+                                        caption:
+                                            "A second file dropped on the graph opens a Join section in the panel, already matched gene_symbol to preferredName, with the match chips, the case-insensitive extra and the four columns it adds.",
+                                    },
+                                    {
+                                        file: "round-2/A/join-2-join-button-menu.html",
+                                        thumb: "round-2/thumbs/A-join-2-join-button-menu.png",
+                                        caption:
+                                            "The Join button's arrow holds the other things a second file can do: add its rows as new nodes and edges, open it as a separate graph, or replace the data.",
+                                    },
+                                    {
+                                        file: "round-2/A/join-3-joined-result.html",
+                                        thumb: "round-2/thumbs/A-join-3-joined-result.png",
+                                        caption:
+                                            "After the join the panel lists both sources, the four new node attributes carry the join icon, the Joins row keeps its counts and Show for the 6 nodes without a value, and the inspector names the origin.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/A/replace-1-source-row-menu.html",
+                                        thumb: "round-2/thumbs/A-replace-1-source-row-menu.png",
+                                        caption:
+                                            "The suppliers.csv source row's menu offers Replace file... and Refresh from source, beside Edit source..., Rename and Remove.",
+                                    },
+                                    {
+                                        file: "round-2/A/replace-2-replaced-then-undo.html",
+                                        thumb: "round-2/thumbs/A-replace-2-replaced-then-undo.png",
+                                        caption:
+                                            "Choosing the October file replaces the data at once, keeping styles, runs and filters; the source row shows +12, -3 and 40 changed, its pop-over lists what was kept, new nodes are ringed, and Undo is one click.",
+                                    },
+                                    {
+                                        file: "round-2/A/replace-3-missing-column-warning.html",
+                                        thumb: "round-2/thumbs/A-replace-3-missing-column-warning.png",
+                                        caption:
+                                            "The one thing replace could not carry over becomes a warning row: the Tier style's column tier is gone, and Map to offers the renamed tier_level.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/A/export-1-common-export-scope.html",
+                                        thumb: "round-2/thumbs/A-export-1-common-export-scope.png",
+                                        caption:
+                                            "Main menu Export... is the one export for the app; Node table (CSV) sits beside Image and Graph file, and a Scope row picks All, Filtered (60 of 318) or Selection.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/A/event-table-1-kinds-from-columns.html",
+                                        thumb: "round-2/thumbs/A-event-table-1-kinds-from-columns.png",
+                                        caption:
+                                            "One event table opens with a Nodes section listing each entity column and the kind of node it makes, edge rows between them typed by event_type, and repeated events counted.",
+                                    },
+                                    {
+                                        file: "round-2/A/event-table-2-drawn-with-kinds.html",
+                                        thumb: "round-2/thumbs/A-event-table-2-drawn-with-kinds.png",
+                                        caption:
+                                            "The drawing colors each kind of node, kind chips with counts sit on the canvas, and the Data place lists node kinds and edge kinds with their counts.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/A/server-1-connect-and-test.html",
+                                        thumb: "round-2/thumbs/A-server-1-connect-and-test.png",
+                                        caption:
+                                            "Open network data shows the connection as property rows, and Test runs the query live: 40,000 match and the first 20 real rows appear beside the form before Load.",
+                                    },
+                                    {
+                                        file: "round-2/A/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/A-server-2-load-more.png",
+                                        caption:
+                                            "The database source row says 5,000 of 40,000, and Load more with its batch size sits right under it.",
+                                    },
+                                    {
+                                        file: "round-2/A/server-3-expand-node.html",
+                                        thumb: "round-2/thumbs/A-server-3-expand-node.png",
+                                        caption:
+                                            "Right-clicking acct-4471 on the canvas offers Expand from source; its pop-over sets Depth 1 and Limit 50, says 50 of 212 neighbors came back, and the new nodes are ringed green.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/A/filter-steps-1-two-steps-and-sets.html",
+                                        thumb: "round-2/thumbs/A-filter-steps-1-two-steps-and-sets.png",
+                                        caption:
+                                            "Two filter steps run in order, each with its own toggle and count (60 of 318, then 38 of 60); the second uses In largest connected part from the attribute list, and Save as set adds to the Sets list.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/A-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A date attribute gives a window condition: a histogram with the 30-day window marked, step arrows that move it a week, and counts of 120 of 200 nodes and 340 of 612 edges.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "B",
+                            name: "The Data page is the workbench",
+                            idea: "Rail Data opens the full Data page: a configuration panel on the left (Sources, Nodes, Edges, Warnings, Joins, Filters, Sets as compact sections with +) and a view-only table preview on the right. Every file opens there with Load focused, a clean one included, and so do a second file (Join), Replace, a database query and filter steps. The left panel beside the graph is a compact list of sources, active filters and warnings, each row a deep link into the page. A quick filter is a small popover from toolbar Filters. Replace asks first, with Keep styles, analysis and filters all on.",
+                            first: [
+                                "Opening a file: guessed roles as property rows, counts on the source row, the preview beside, Load focused",
+                                "After loading: the drawing with a counts chip and the compact list beside it",
+                                "Warnings section only when something is wrong, one row per kind with one action",
+                            ],
+                            later: [
+                                "Toolbar Filters: a popover with one condition row and a live count",
+                                "Filter steps, largest connected part, sets, time windows: the page's Filters section",
+                                "Column right-click on the page: type, role, name",
+                                "Replace: a popover with change chips and Keep checkboxes, before it runs",
+                                "Database: Test shows live rows; Load more on the source row; Expand on a node's menu",
+                            ],
+                            for: [
+                                "Configuration has room: rows and the table side by side, so a guess is checked against real values",
+                                "One home for every data setting",
+                            ],
+                            against: [
+                                "Every configuration change is a trip away from the graph",
+                                "Filter has two entry points (popover and page)",
+                                "A clean file still costs one Enter on the Data page",
+                            ],
+                            weak: [
+                                "Fixing three columns is three trips; the drawing never updates while the page is open",
+                                "Never shown: a step made in the popover appearing as step 1 on the page",
+                                "Most warnings live only on the Data page; a reader on the graph may miss them",
+                                "Context menus need a keyboard route before they are built",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/B/open-file-1-clean-file.html",
+                                        thumb: "round-2/thumbs/B-open-file-1-clean-file.png",
+                                        caption:
+                                            "A clean file opens on the Data page with its guessed roles as property rows, a view-only preview, and Load focused.",
+                                    },
+                                    {
+                                        file: "round-2/B/open-file-2-unsure-file.html",
+                                        thumb: "round-2/thumbs/B-open-file-2-unsure-file.png",
+                                        caption:
+                                            "An unsure file marks only Name and Weight; the Name dropdown is open and the hovered choice lights its columns in the preview.",
+                                    },
+                                    {
+                                        file: "round-2/B/open-file-3-drawn.html",
+                                        thumb: "round-2/thumbs/B-open-file-3-drawn.png",
+                                        caption:
+                                            "The graph is drawn with gene names, a counts chip on the canvas and one source row in the list beside it.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/B/see-fix-1-warnings.html",
+                                        thumb: "round-2/thumbs/B-see-fix-1-warnings.png",
+                                        caption:
+                                            "The Data page panel opens with summary rows, kind chips and a Warnings section, one row per kind of problem with its count and action.",
+                                    },
+                                    {
+                                        file: "round-2/B/see-fix-2-column-menu.html",
+                                        thumb: "round-2/thumbs/B-see-fix-2-column-menu.png",
+                                        caption:
+                                            "Right-click a column row: Change type shows how many values convert and how many go blank before it applies.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/B/filter-1-entry-popover.html",
+                                        thumb: "round-2/thumbs/B-filter-1-entry-popover.png",
+                                        caption:
+                                            "Toolbar Filters opens a small popover over the canvas that starts with a column list; steps and sets stay on the Data page.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-2-one-condition.html",
+                                        thumb: "round-2/thumbs/B-filter-2-one-condition.png",
+                                        caption:
+                                            "One condition row, padj < 0.05, with a live chip of 60 of 318 nodes and Show only or Highlight; the canvas previews it.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-3-filtered.html",
+                                        thumb: "round-2/thumbs/B-filter-3-filtered.png",
+                                        caption:
+                                            "Only the 60 matching nodes are drawn, the toolbar's Filters shows 1, the list beside the graph shows the filter, and the table shows 60 rows.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/B/join-1-join-prechosen.html",
+                                        thumb: "round-2/thumbs/B-join-1-join-prechosen.png",
+                                        caption:
+                                            "A second file dropped on the graph opens the Data page with Join pre-chosen: the match row, match chips, a +4 ignoring case row and the columns it adds.",
+                                    },
+                                    {
+                                        file: "round-2/B/join-2-join-menu.html",
+                                        thumb: "round-2/thumbs/B-join-2-join-menu.png",
+                                        caption:
+                                            "The Join button's menu holds the rarer choices: Add as new nodes and edges, Open as a separate graph, Replace data.",
+                                    },
+                                    {
+                                        file: "round-2/B/join-3-joined.html",
+                                        thumb: "round-2/thumbs/B-join-3-joined.png",
+                                        caption:
+                                            "After the join: two sources, the join as a row, the new columns with a joined icon, and a warning for the 6 nodes without a value.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/B/replace-1-source-menu.html",
+                                        thumb: "round-2/thumbs/B-replace-1-source-menu.png",
+                                        caption:
+                                            "Right-click a source row: Replace file... and, for a source read from a web address, Refresh from source.",
+                                    },
+                                    {
+                                        file: "round-2/B/replace-2-confirm-popover.html",
+                                        thumb: "round-2/thumbs/B-replace-2-confirm-popover.png",
+                                        caption:
+                                            "Replace asks first in a popover from the source row: the new file, change chips, a column that no longer exists, and Keep checkboxes that start on.",
+                                    },
+                                    {
+                                        file: "round-2/B/replace-3-replaced.html",
+                                        thumb: "round-2/thumbs/B-replace-3-replaced.png",
+                                        caption:
+                                            "October's data with September's styles: change chips on the source rows, one warning row for the style that lost its column, and Undo.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/B/export-1-export-dialog.html",
+                                        thumb: "round-2/thumbs/B-export-1-export-dialog.png",
+                                        caption:
+                                            "The app's one Export dialog on Data: CSV, the node table, and a Rows dropdown with All, Filtered 60 of 318 and Selection.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/B/event-table-1-nodes-from-columns.html",
+                                        thumb: "round-2/thumbs/B-event-table-1-nodes-from-columns.png",
+                                        caption:
+                                            "One event table: the Nodes section lists each column used as a kind of node with its count, the Edges section pairs them, and repeats are combined by count.",
+                                    },
+                                    {
+                                        file: "round-2/B/event-table-2-drawn-kinds.html",
+                                        thumb: "round-2/thumbs/B-event-table-2-drawn-kinds.png",
+                                        caption:
+                                            "The drawn graph colors nodes by kind, with a chip per kind and its count.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/B/server-1-connect-test.html",
+                                        thumb: "round-2/thumbs/B-server-1-connect-test.png",
+                                        caption:
+                                            "Connect as property rows (kind, address, sign-in, query, limit); Test returns the first 20 live rows and the 40,000 match count before Load.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/B-server-2-load-more.png",
+                                        caption:
+                                            "A capped load reads 5,000 of 40,000 on its source row, with Load more beside it.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-3-expand-menu.html",
+                                        thumb: "round-2/thumbs/B-server-3-expand-menu.png",
+                                        caption:
+                                            "Right-click a node: Expand from source with Depth, Limit and edge kinds; the count is known before it runs.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-4-expanded.html",
+                                        thumb: "round-2/thumbs/B-server-4-expanded.png",
+                                        caption:
+                                            "After expanding acct-4471 two steps with a limit of 50: the new nodes are ringed, the notice reads 50 of 212, and the expand is listed as a source.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/B/filter-steps-1-steps-and-sets.html",
+                                        thumb: "round-2/thumbs/B-filter-steps-1-steps-and-sets.png",
+                                        caption:
+                                            "On the Data page, the Filters section stacks two ordered steps with toggles and counts, offers In largest connected part as a choice, and lists saved sets.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/B-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A filter on the time column becomes a range row with a histogram, a 30 days width and step arrows, and counts of 120 of 200 nodes and 340 of 612 edges.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "C",
+                            name: "List on the left, details in the inspector",
+                            idea: "The Data place is a compact tree (Sources, Warnings when there are any, Filters, Sets, Attributes), each row a glyph, a name and a count chip. Selecting a row opens its settings as property rows in the inspector on the right, the way readers already edit a node or a style layer: one pattern for sources, warnings, filter steps, joins and attributes. The Data page is only for opening a file or network data. Join and Replace happen in the inspector from the source row. Filtering starts from Filter by this value on a context menu, or + on Filters.",
+                            first: [
+                                "Opening a file: the Data page with a view-only preview and a short Reads as stack; only unsure rows marked; Load focused",
+                                "After loading: the drawing, counts in the header, the tree with one source row",
+                                "No Warnings section on a clean file",
+                            ],
+                            later: [
+                                "Attribute right-click: Rename, Change type, Use as, Hide; the same as rows in its inspector",
+                                "Filter by this value from a node, an attribute or a table cell; + on Filters for a blank step",
+                                "Join and Replace in the inspector, with match counts or change chips first",
+                                "Network data on the Data page; Test returns the first 20 rows and the total",
+                            ],
+                            for: [
+                                "One pattern everywhere: pick on the left, edit on the right",
+                                "Every data setting lives in the inspector",
+                            ],
+                            against: [
+                                "With the inspector open the canvas is 904px wide",
+                                "A context menu is less discoverable than a button as the first way into filtering",
+                            ],
+                            weak: [
+                                "File names cut off in the 240px Sources list",
+                                "Join and Replace squeeze six or more rows into the inspector; the promised resize is not drawn",
+                                "Two Sources headings mean different things (where to open from, what is loaded)",
+                                "Three panels open at once on several screens push the drawing aside",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/C/open-file-1-clean-file.html",
+                                        thumb: "round-2/thumbs/C-open-file-1-clean-file.png",
+                                        caption:
+                                            "A clean graph file opens on the Data page with a view-only preview and four read-as rows on the right, nothing marked, and focus on Load so Enter draws it.",
+                                    },
+                                    {
+                                        file: "round-2/C/open-file-2-unsure-file.html",
+                                        thumb: "round-2/thumbs/C-open-file-2-unsure-file.png",
+                                        caption:
+                                            "A STRING table where the app is unsure marks only the Name and Weight rows with a status icon, opens the Name dropdown with each candidate's unique count, and folds the other three columns into one row of type icons.",
+                                    },
+                                    {
+                                        file: "round-2/C/open-file-3-drawn.html",
+                                        thumb: "round-2/thumbs/C-open-file-3-drawn.png",
+                                        caption:
+                                            "The graph is drawn with gene names on the nodes, the header shows 318 nodes and 1,104 edges, and the source row selected on the left shows what was loaded and how it was read in the inspector.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/C/see-fix-1-warnings.html",
+                                        thumb: "round-2/thumbs/C-see-fix-1-warnings.png",
+                                        caption:
+                                            "A Warnings section with a count chip appears in the Data place only because this file has problems, one row per kind, and selecting it lists each kind in the inspector with its count and its one action.",
+                                    },
+                                    {
+                                        file: "round-2/C/see-fix-2-column-menu.html",
+                                        thumb: "round-2/thumbs/C-see-fix-2-column-menu.png",
+                                        caption:
+                                            "Right-clicking the opened attribute gives Rename, Change type, Use as and Hide, and hovering Date shows that 194 values convert and 6 will not, with Show, before anything changes.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/C/filter-1-entry.html",
+                                        thumb: "round-2/thumbs/C-filter-1-entry.png",
+                                        caption:
+                                            "Right-clicking the padj attribute offers Filter by this attribute at the top, the same item is on a node's and a table cell's menu, and + on the Filters header adds a blank step.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-2-condition.html",
+                                        thumb: "round-2/thumbs/C-filter-2-condition.png",
+                                        caption:
+                                            "The new step opens in the inspector filled in as padj < 0.05, the live chip reads 60 of 318 nodes, and Show only or Highlight decides what the canvas does with the rest.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-3-filtered.html",
+                                        thumb: "round-2/thumbs/C-filter-3-filtered.png",
+                                        caption:
+                                            "With the inspector closed the canvas shows only the 60 matching nodes, the toolbar's Filters button carries 1, and the table dock lists the same 60 rows to read and sort only.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/C/join-1-match.html",
+                                        thumb: "round-2/thumbs/C-join-1-match.png",
+                                        caption:
+                                            "Dropping expression.tsv on the graph adds a Joining source row and opens the join in the inspector: gene_symbol matched to preferredName, 312 matched, 28 unmatched, 6 nodes without a value, +4 more if case is ignored, and the 4 attributes it adds.",
+                                    },
+                                    {
+                                        file: "round-2/C/join-2-button-menu.html",
+                                        thumb: "round-2/thumbs/C-join-2-button-menu.png",
+                                        caption:
+                                            "The Join button's arrow holds the other things a second file can do: add as new nodes and edges, open as a separate graph, or replace the data.",
+                                    },
+                                    {
+                                        file: "round-2/C/join-3-result.html",
+                                        thumb: "round-2/thumbs/C-join-3-result.png",
+                                        caption:
+                                            "After the join there are two source rows, the four new attributes carry the join icon, and the join's inspector shows 316 matched with Show on the 2 nodes that got no value.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/C/replace-1-source-menu.html",
+                                        thumb: "round-2/thumbs/C-replace-1-source-menu.png",
+                                        caption:
+                                            "The suppliers.csv row's menu offers Replace file... for a file from this computer and Refresh from source, which is live only for a web address or a server.",
+                                    },
+                                    {
+                                        file: "round-2/C/replace-2-replacing.html",
+                                        thumb: "round-2/thumbs/C-replace-2-replacing.png",
+                                        caption:
+                                            "Choosing the October file puts the source in a replacing state: the inspector shows +12, -3 and 40 changed nodes, the carried read-as rows with tier not found, and Keep styles, filters and analysis already on.",
+                                    },
+                                    {
+                                        file: "round-2/C/replace-3-result.html",
+                                        thumb: "round-2/thumbs/C-replace-3-result.png",
+                                        caption:
+                                            "After Replace the graph has 129 nodes, a one-row Warnings section says the Tier style's column is gone with a Map to dropdown that suggests supplier_tier, and Undo sits above the toolbar.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/C/export-1-common-dialog.html",
+                                        thumb: "round-2/thumbs/C-export-1-common-dialog.png",
+                                        caption:
+                                            "The main menu's Export... on Data is the one place numbers leave the app, and its new Rows setting exports All 318, the Filtered 60 or the 4 selected nodes.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/C/event-table-1-kinds.html",
+                                        thumb: "round-2/thumbs/C-event-table-1-kinds.png",
+                                        caption:
+                                            "One row per event becomes four kinds of node: each entity column gets a kind in the Nodes section with +, the Edges section chains user to host to process to IP, and repeated events combine into a count.",
+                                    },
+                                    {
+                                        file: "round-2/C/event-table-2-drawn.html",
+                                        thumb: "round-2/thumbs/C-event-table-2-drawn.png",
+                                        caption:
+                                            "The drawing colors the four node kinds, and the Data place lists node kinds and edge kinds as rows with counts that each select or filter like any other row.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/C/server-1-connect-test.html",
+                                        thumb: "round-2/thumbs/C-server-1-connect-test.png",
+                                        caption:
+                                            "Neo4j is a list entry beside File on the Data page; its connection is a stack of property rows, and Test returns the real first 20 rows and the 40,000 total before Load.",
+                                    },
+                                    {
+                                        file: "round-2/C/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/C-server-2-load-more.png",
+                                        caption:
+                                            "The source row says 5,000 of 40,000 edges, and selecting it puts Load more and Load all with the next batch size in the inspector.",
+                                    },
+                                    {
+                                        file: "round-2/C/server-3-expand.html",
+                                        thumb: "round-2/thumbs/C-server-3-expand.png",
+                                        caption:
+                                            "Right-clicking acct-4471 on the canvas gives Expand from source with Depth 1 and Limit 50; it finds 212 in the database, adds the first 50 marked in green, and offers Next 50 or Undo.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/C/filter-steps-1-steps-sets.html",
+                                        thumb: "round-2/thumbs/C-filter-steps-1-steps-sets.png",
+                                        caption:
+                                            "Two ordered steps each have a toggle and their own count, 60 of 318 then 38 of 60, the attribute dropdown starts with graph conditions such as In largest connected part, and Save as set adds to a Sets list.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/C-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A date attribute's step is a range over a small histogram with a 30-day width and step arrows; this window keeps 120 of 200 nodes and 340 of 612 edges; each arrow moves it 7 days.",
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
             ];
             var cur = null,
                 seq = [],
@@ -828,6 +1487,15 @@
                         })
                         .join("") +
                     "</ol></section></div>";
+                if (cur.answers)
+                    h +=
+                        '<section class="box answers"><h2>Answers to your questions from the last round</h2><dl>' +
+                        cur.answers
+                            .map(function (a) {
+                                return "<dt>" + esc(a[0]) + "</dt><dd>" + esc(a[1]) + "</dd>";
+                            })
+                            .join("") +
+                        "</dl></section>";
                 h +=
                     '<table><thead><tr><th class="flow">Flow</th>' +
                     cur.options

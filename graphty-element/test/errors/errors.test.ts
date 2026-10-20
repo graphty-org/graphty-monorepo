@@ -34,6 +34,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_ZIP",
     "E_MODEL_NAME_TAKEN",
     "E_MODEL_UNKNOWN_ASSET",
+    "E_MODEL_DIGEST_MISMATCH",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -218,6 +219,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_ZIP":
         case "E_MODEL_NAME_TAKEN":
         case "E_MODEL_UNKNOWN_ASSET":
+        case "E_MODEL_DIGEST_MISMATCH":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":

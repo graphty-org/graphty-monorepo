@@ -3,7 +3,7 @@
 Status: design, revised after developer, architecture, security, performance and user reviews
 (section 11 records what was taken and what was not). A prototype is planned (section 10).
 Package: graphty-element, plus the graphty app's controls for it (section 9). One part, how a
-project file stores a model, is a published file format and is marked OWNER DECISION.
+project file stores a model, is a published file format; the owner decided it (7.3).
 
 Today every node in graphty-element is one of its built-in shapes: a sphere, a box, a cone, a
 polyhedron. This design lets a style layer draw the nodes it matches as a 3D model loaded from a
@@ -19,7 +19,7 @@ Contents:
 4. Errors and warnings
 5. What is detected automatically
 6. Limits the page sets
-7. Storing models in a project file (OWNER DECISION)
+7. Storing models in a project file (decided: embedded)
 8. Security and performance budgets
 9. The graphty app's interface
 10. Work packages and sample models
@@ -660,7 +660,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `W_MODEL_TEXTURE_FAILED`      | `name`                                                                                                                               | One texture could not be decoded; the rest of the model is drawn              | "One texture (bark.png) could not be read; the model shows without it."                                                                                               |
 | `W_MODEL_UP_GUESSED`          | `format`, `up`                                                                                                                       | STL or PLY: the up axis is a guess                                            | Show the "Turn upright" control near the model                                                                                                                        |
 | `W_MODEL_REMOVED`             | `id`, `layerIds`                                                                                                                     | An asset in use was removed                                                   | "Layers that used this model now show the plain shape."                                                                                                               |
-| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a URL that never loaded (7.3)                      | "This project names a model on the web; others may not be able to open it."                                                                                           |
+| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                                                                                                    | A project was saved naming a model it does not hold (7.3)                     | "This project names a model on the web; others may not be able to open it."                                                                                           |
 
 Later packages add `W_MODEL_ANIMATION_UNKNOWN`, `W_MODEL_ANIMATION_LIMITED` (3.6, 3.7) and
 `E_MODEL_CRASHED_LAST_TIME` (7.3).
@@ -730,10 +730,14 @@ assets fit it as they are.
 | Reference a URL                                | Small file                                                 | Breaks when the site moves; a fetch on open, which the trust rule forbids without consent; CORS         |
 | A separate asset library (the app's own store) | Shared between projects                                    | The file alone is incomplete; another reader cannot open it                                             |
 
-### 7.3 Proposed member: `graphty-assets` (OWNER DECISION: a published format)
+### 7.3 The member: `graphty-assets` (decided)
 
-The prototype keeps models in the running session only; nothing below is built until the owner
-chooses. The recommendation is to **embed the source file set as given**, de-duplicated by digest:
+**Owner decision (2026-10-20): models are embedded in project files.** A project file carries the
+source file set of every model its layers name, as given, de-duplicated by digest, in a new member
+kind `graphty-assets`; the zip container and session-only storage were not chosen. The member's
+specification is `design/documents/assets.md` (schema `assets.schema.json`, conformance rows
+"Assets"). It is built: `session.project.save()` and autosave write it, `session.project.open()`
+and the autosave restore read it.
 
 ```jsonc
 {
@@ -762,13 +766,15 @@ chooses. The recommendation is to **embed the source file set as given**, de-dup
 Rules:
 
 1. Files are stored exactly as added, so ids are stable across versions and nothing is lost to
-   conversion. Version 1 may restrict itself to GLB and keep other formats session-only with a
-   `W_` code, if the owner prefers one loader for readers.
+   conversion. Every format the intake accepts is embedded (GLB, glTF with its files, OBJ with its
+   MTL and images, STL, PLY, a zip of any of them).
 2. One entry per distinct digest; samples (`asset:sample/*`) are never embedded, since every
    reader ships them.
-3. Size: 64 MB of assets per document, settling the 64 MB in the README against the 256 MiB
-   default in `projectFile.ts`. Each asset's base64 length is checked before decoding, and assets
-   are decoded one at a time.
+3. Size: 64 MB of assets per document. A project file may be up to 256 MiB (`projectFile.ts`); the
+   64 MB in the documents README holds for every other document. The member's total base64 length
+   and each asset's declared length are checked before decoding, and assets are decoded one at a
+   time. Every embedded file set then goes through `session.assets.add`, the same checks and limits
+   as a dropped file, after its digest is verified (`E_MODEL_DIGEST_MISMATCH`).
 4. The assets member is applied first, whatever its position in `members`; a layer naming an id
    not yet held is `pending`, and `E_MODEL_UNKNOWN_ASSET` is reported only once loading settles.
 5. Saving embeds the bytes the session already holds; a layer that named a URL keeps it, and the
@@ -777,16 +783,17 @@ Rules:
    allows its host; private addresses stay blocked.
 6. Same id with a different digest on open is `E_MODEL_NAME_TAKEN` for the incoming asset; it is
    never a silent replacement.
-7. Autosave writes a "loading" marker before decoding a stored asset; if the marker is still there
-   at the next start, that asset is not drawn automatically and reports
+7. Not built yet: autosave writes a "loading" marker before decoding a stored asset; if the marker
+   is still there at the next start, that asset is not drawn automatically and reports
    `E_MODEL_CRASHED_LAST_TIME`, so a model that crashes the tab cannot lock the reader out.
-8. Must be checked before release: container.md says a reader keeps members it does not know when
-   it saves, but `projectFile.ts` appears only to warn (`W_UNKNOWN_KIND`). If so, an older element
-   opening and saving a file would drop its embedded models.
+8. `graphty-assets` is listed in `requires` whenever it is written, so an older element refuses the
+   file (`E_UNSUPPORTED`) instead of opening it and dropping the models when it saves it back.
+9. Autosave keeps each model's files in their own part, named by digest, so a style change rewrites
+   no model bytes.
 
-The alternatives: a zip project container (assets as raw files beside the JSON, no base64 and no
-giant string -- a larger change to the container, and kinder to iOS memory), or models that live
-only in the running session and autosave.
+The alternatives the owner did not choose: a zip project container (assets as raw files beside the
+JSON, no base64 and no giant string -- a larger change to the container, and kinder to iOS memory),
+or models that live only in the running session and autosave.
 
 ---
 
@@ -875,7 +882,7 @@ Packages 1 to 6 are the prototype; 1 to 5 are graphty-element.
 | 4   | Per-node models from data                | `styles.encode` with a value map to `node.model`, asset ids only                                                                                                                                                                                                                                                                                                     |
 | 5   | Samples, catalog, docs, stories          | The CC0 samples with PNG thumbnails, `session.catalog.models()`; the guide page "Drawing nodes as models" (first example 2.1, then 2.2); Storybook stories                                                                                                                                                                                                           |
 | 6   | App, minimal                             | "Model..." in the shape control with samples, file choice and drop; drop on canvas; "Turn upright" and "Use node color"; error text for every code                                                                                                                                                                                                                   |
-| 7   | Project storage                          | The `graphty-assets` member and its rules -- only after the OWNER DECISION in 7.3                                                                                                                                                                                                                                                                                    |
+| 7   | Project storage                          | The `graphty-assets` member and its rules (7.3; built)                                                                                                                                                                                                                                                                                                               |
 | 8   | Decoders                                 | Draco and meshopt as lazy chunks with output checks; KTX2 as an optional peer; `./bundle` behavior stated                                                                                                                                                                                                                                                            |
 | 9   | Level of detail                          | Opt-in LOD channel, budget-derived distance with hysteresis, `MSFT_lod`                                                                                                                                                                                                                                                                                              |
 | 10  | Extension point                          | `registerModelLoader` with `convert`, then `load`                                                                                                                                                                                                                                                                                                                    |
@@ -941,6 +948,6 @@ Not taken, or taken differently, with the reason:
 | Collapse identical materials on intake                           | Deferred: `W_MODEL_HEAVY` now reports material count, which shows whether it matters                                                      |
 | Full x, y, z rotation                                            | Changed: `node.modelTurn` about the up axis covers facing; an arbitrary tuple is not a channel value                                      |
 | `animationPaused`                                                | Dropped: `node.modelAnimation: false` already stops it                                                                                    |
-| Asking the owner now about 7.3 storage                           | Not now: the prototype is session-only, so the storage choice blocks nothing yet                                                          |
+| Asking the owner now about 7.3 storage                           | Asked once the prototype worked; the owner chose embedding (2026-10-20)                                                                   |
 
 See also: `design/documents/container.md` for the project file container this design extends.

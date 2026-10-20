@@ -52,8 +52,6 @@ a sample, "Choose file..." or a drop; or drop a model file on the canvas or the 
 - **Compressed models** (Draco, meshopt, KTX2 pictures) are refused with
   `E_MODEL_DECODER_UNAVAILABLE`; PLY is recognized but not drawn; FBX, USDZ, DAE, BLEND and 3MF are
   refused with a hint to export `.glb`.
-- **Saving:** models live only in the running session. A saved project keeps the layer but not the
-  model, so a dropped model is gone after reopening (see the decision below).
 - **No story drops a file:** dropping is checked by hand and by the graphty app's tests, not by a
   graphty-element story.
 - **WebKit** request-guard tests could not run on this machine (missing system libraries); CI's
@@ -62,16 +60,15 @@ a sample, "Choose file..." or a drop; or drop a model file on the canvas or the 
   correct, but noisy.
 - No level of detail, no 2D impostors, no `registerModelLoader` extension point yet.
 
-## Your decision: how a project file keeps a model
+## Decided: a project file embeds its models
 
-This is a published file format, so it is yours. The recommendation (design section 7.3): a new
-`graphty-assets` member in the project file that embeds each model's files as given (base64),
-de-duplicated by digest, up to 64 MB per document; samples are never embedded. The alternatives:
-a zip project container (raw files beside the JSON, smaller and easier on iPhone memory, but a
-larger change to the container), or models kept only in the session and autosave, as now.
+The owner chose (2026-10-20) to embed each model's files in the project file, in a new
+`graphty-assets` member (`design/documents/assets.md`): as given, base64, one copy per digest, at
+most 64 MB per document, checked against the digest and then by the same checks as a dropped file
+when the file opens. Saving, autosave and reopening with the network blocked all draw the models
+again.
 
 ## Next steps
 
-1. Your storage choice, then the project-file member and its tests.
-2. Owner review of the five new stories' screenshots when the branch lands.
-3. Draco and meshopt decoders as lazily loaded chunks; then animation on a capped number of nodes.
+1. Owner review of the five new stories' screenshots when the branch lands.
+2. Draco and meshopt decoders as lazily loaded chunks; then animation on a capped number of nodes.

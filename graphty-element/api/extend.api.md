@@ -1527,7 +1527,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_URL_BLOCKED"
 /**
-* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
 */
 | "E_MODEL_TOO_LARGE"
 /**
@@ -1573,7 +1573,12 @@ export type GraphtyErrorCode =
 /**
 * An asset id the session holds no accepted model for. `details.id`.
 */
-| "E_MODEL_UNKNOWN_ASSET" | "E_INTERNAL";
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {

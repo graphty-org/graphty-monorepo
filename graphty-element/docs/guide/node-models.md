@@ -266,6 +266,29 @@ element.session.assets.allowHosts(["models.example.com"]);
 
 Every model request is made with no cookies and no referrer, and has a time limit.
 
+## Saving a project with its models
+
+A saved project carries its models. `session.project.save()` (and the element's autosave) writes
+the files of every model a layer names into the project file, exactly as they were added, so the
+project opens anywhere -- offline, on another machine, with no request for the model -- and draws
+the same models:
+
+```ts
+const { text, report } = await element.session.project.save();
+// later, in any page
+await otherElement.session.project.open(text);
+```
+
+A model your page loaded from a web address is saved too, under that address: opening the file,
+the layer draws the saved copy and fetches nothing. The sample models are never copied into a
+file, because every page has them. A layer naming a model the session does not hold (an address
+that never loaded) is saved without it, and `report.leftOut` says so with `W_MODEL_NOT_EMBEDDED`.
+
+A project file holds at most 64 MB of model files. When it opens, each model is checked against
+the fingerprint the file recorded for it, then by every check a dropped file gets; a model that
+fails is left out (its nodes keep their ordinary shape), and the open's `problems` name it with its
+code, such as `E_MODEL_DIGEST_MISMATCH` for a file whose bytes were changed.
+
 ## Limits
 
 To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits: 32 MB per
@@ -297,6 +320,7 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `E_MODEL_ZIP`                 | `reason`                          | The `.zip` cannot be opened safely                                                                                                         |
 | `E_MODEL_NAME_TAKEN`          | `id`                              | The name given to `assets.add` already belongs to different files, or starts with `asset:sample/`                                          |
 | `E_MODEL_UNKNOWN_ASSET`       | `id`                              | A layer names a model id the session does not hold                                                                                         |
+| `E_MODEL_DIGEST_MISMATCH`     | `id`                              | A model saved in a project file does not match the fingerprint the file recorded: the file was changed or damaged                          |
 | `W_MODEL_COLOR_IGNORED`       | `layerIds`                        | A layer colors model nodes whose `node.modelTint` is off                                                                                   |
 | `W_MODEL_UP_GUESSED`          | `format`, `up`                    | The file does not say which way is up, so it was guessed                                                                                   |
 | `W_MODEL_HAS_ANIMATIONS`      | `clips`                           | The model has animations; it is drawn standing still                                                                                       |
@@ -304,3 +328,4 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `W_MODEL_BUDGET`              | `nodes`, `triangles`, `budget`    | Models across the graph draw more triangles than the budget                                                                                |
 | `W_MODEL_TRANSPARENT`         | `nodes`                           | Many nodes draw a see-through model, which may look wrong where they overlap                                                               |
 | `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                      | Pictures larger than the limit were drawn smaller                                                                                          |
+| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                 | A project was saved without a model its layers name, because the session does not hold it                                                  |

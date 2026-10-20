@@ -332,7 +332,12 @@ export class ModelCache {
      * @returns The refusal, or null.
      */
     private blocked(ref: string): CodedFact | null {
-        if (isAssetId(ref) || this.session.styles.modelUrlFromCode(ref)) {
+        // A URL the session already holds (an embedded copy from a project file) fetches nothing.
+        if (
+            isAssetId(ref) ||
+            this.session.styles.modelUrlFromCode(ref) ||
+            this.session.assets.urlRecord(ref) !== undefined
+        ) {
             return null;
         }
 

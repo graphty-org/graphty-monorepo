@@ -93,6 +93,19 @@ export function gltfPair(json: Record<string, unknown> = triangleGltf()): Map<st
 }
 
 /**
+ * A .gltf with its .bin and a PNG texture beside it, as a files map: a model of three files.
+ * @returns path to bytes.
+ */
+export function texturedGltfSet(): Map<string, Uint8Array> {
+    const json = triangleGltf({
+        materials: [{ name: "painted", pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
+        textures: [{ source: 0 }],
+        images: [{ uri: "tex.png" }],
+    });
+    return new Map([...gltfPair(json), ["tex.png", PNG_1X1]]);
+}
+
+/**
  * A GLB from JSON and a binary chunk.
  * @param json - The glTF JSON.
  * @param bin - The binary chunk.

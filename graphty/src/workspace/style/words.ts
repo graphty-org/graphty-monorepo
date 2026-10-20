@@ -414,6 +414,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_ZIP: () => "The .zip could not be opened.",
     E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
     E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
+    E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
     W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
     W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
@@ -421,6 +422,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
     W_MODEL_TRANSPARENT: () => "See-through parts may look wrong where models overlap.",
     W_MODEL_TEXTURES_REDUCED: () => "Some pictures on the model are drawn smaller.",
+    W_MODEL_NOT_EMBEDDED: () => "This project names a model it does not carry; others may not be able to open it.",
 };
 
 /**

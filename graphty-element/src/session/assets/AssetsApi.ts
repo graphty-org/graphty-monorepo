@@ -276,6 +276,19 @@ export interface AssetsApiInternal extends AssetsApi {
      * @param change - The change.
      */
     noteState(change: ModelChange): void;
+    /**
+     * The accepted record a URL a layer named resolved to, without fetching anything.
+     * @param ref - The URL as the layer named it.
+     * @returns The record, or undefined when the URL has not loaded.
+     */
+    urlRecord(ref: string): AssetRecord | undefined;
+    /**
+     * Resolve a URL to an asset the session holds, so naming the URL fetches nothing: a project
+     * file's embedded copy of a model a layer names by URL. It replaces what the URL resolved to.
+     * @param ref - The URL as the layer named it.
+     * @param id - The held asset.
+     */
+    bindUrl(ref: string, id: AssetId): void;
 }
 
 /**
@@ -722,6 +735,20 @@ export function createAssetsApi(): AssetsApiInternal {
 
         noteState(change) {
             states.set(change.ref, change);
+        },
+
+        urlRecord(ref) {
+            const url = parseUrl(ref);
+            const held = url === undefined ? undefined : urls.get(url.href);
+            return held?.record.state === "accepted" ? held.record : undefined;
+        },
+
+        bindUrl(ref, id) {
+            const url = parseUrl(ref);
+            const entry = entries.get(id);
+            if (url !== undefined && entry?.record.state === "accepted") {
+                urls.set(url.href, entry);
+            }
         },
     };
 

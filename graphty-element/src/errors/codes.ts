@@ -547,7 +547,7 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_URL_BLOCKED"
     /**
-     * A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+     * A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
      */
     | "E_MODEL_TOO_LARGE"
     /**
@@ -594,6 +594,11 @@ export type GraphtyErrorCode =
      * An asset id the session holds no accepted model for. `details.id`.
      */
     | "E_MODEL_UNKNOWN_ASSET"
+    /**
+     * A model a project file embeds does not match the digest the file records for it (or its id,
+     * for an unnamed asset), so it was not added. `params.id`.
+     */
+    | "E_MODEL_DIGEST_MISMATCH"
     | "E_INTERNAL";
 
 /**
@@ -670,7 +675,13 @@ export type GraphtyWarningCode =
     /** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
     | "W_MODEL_TRANSPARENT"
     /** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
-    | "W_MODEL_TEXTURES_REDUCED";
+    | "W_MODEL_TEXTURES_REDUCED"
+    /**
+     * A project was saved with a layer naming a model the session does not hold (a URL that never
+     * loaded, or an asset id it has no accepted model for), so the file does not carry it.
+     * `params.ref` is what the layers named and `params.layerIds` the layers.
+     */
+    | "W_MODEL_NOT_EMBEDDED";
 
 /**
  * Every code, as a lookup table.
@@ -778,6 +789,7 @@ const CODE_TABLE = {
     E_MODEL_ZIP: "E_MODEL_ZIP",
     E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
+    E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

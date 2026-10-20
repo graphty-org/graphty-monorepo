@@ -8,7 +8,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import tp53 from "../../../graphty/public/prototype-data/proteins/tp53-interactions.tsv?raw";
+import tp53 from "../data/fixtures/tp53-interactions.tsv?raw";
 
 const mounted: HTMLElement[] = [];
 

@@ -48,7 +48,7 @@ import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, sharedInExportCall } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -89,6 +89,7 @@ export { STYLE_BLOCK_NAME as DOT_STYLE_BLOCK_ATTRIBUTE } from "../../styles/io/b
  * @category Built-in formats
  */
 export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "graphviz",
     node: Object.freeze([
         "fill",
         "fillOpacity",
@@ -2774,6 +2775,20 @@ export function dotStyledExport(
     if (input === undefined) {
         return null;
     }
+    // the registry's check before writing and the write of one export call share the work
+    return sharedInExportCall(input, [snapshot, onMixedDirection], () =>
+        styledExport(snapshot, input, onMixedDirection),
+    );
+}
+
+/**
+ * Works out a DOT export with styles: dotStyledExport() without the sharing.
+ * @param snapshot - the graph handed to the exporter
+ * @param input - the styles
+ * @param onMixedDirection - the exporter's option
+ * @returns the styled export
+ */
+function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixedDirection: unknown): DotStyledExport {
     const approximated = new StyleApproximations();
     const replaced: LossNote[] = [];
     const out = snapshot.withColumns();
@@ -2794,7 +2809,8 @@ export function dotStyledExport(
     if (out.graph.has("bgcolor")) {
         out.graph.remove("bgcolor");
     }
-    if (typeof background === "string") {
+    // Graphviz paints a graph without bgcolor white, so the writer leaves that default out like the others
+    if (typeof background === "string" && background !== toolDefaults("graphviz")?.graph.background?.value) {
         out.graph.set("bgcolor", [background], { dtype: "string" });
     }
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));

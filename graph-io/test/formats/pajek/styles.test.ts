@@ -275,6 +275,9 @@ describe("Pajek styles: Pajek's rules", () => {
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(drawn(bare.styles, bare.snapshot, "node", "shape")).toEqual([null, null, null]);
+        for (const property of ["borderColor", "borderWidth", "labelColor", "labelPosition"]) {
+            expect(drawn(bare.styles, bare.snapshot, "node", property)).toEqual([null, null, null]);
+        }
     });
 });
 

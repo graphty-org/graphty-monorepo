@@ -1,14 +1,15 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle } from "./common";
 import { RichTextStyle } from "./RichTextStyle";
 
 /**
- * How a node's `shape.size` is read: as a scale on the common node extent, 1.5 units across the
- * view per unit of size for every shape ("scale", the default), or as the drawn shape's largest
- * width, height or depth, 1 unit per unit of size ("diameter").
+ * How a node's `shape.size` is read: as a multiplier of each shape's own geometry ("scale", the
+ * default), as the drawn shape's largest width, height or depth, the same for every shape, 1 unit
+ * per unit of size ("diameter"), or as the extent across the view, the same for every shape, 1.5
+ * units per unit of size like the default icosphere ("uniform").
  */
-export const NodeSizeModes = z.enum(["scale", "diameter"]);
+export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
 /**
  * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
@@ -201,12 +202,18 @@ export const NodeStyle = z.strictObject({
             // What the number measures depends on `sizeMode` below.
             size: z.number().nonnegative().optional(),
             // How `size` is read, in scene units. Leave it unset for "scale".
-            // - "scale" (the default): every shape at one size covers the same extent across the
-            //   view, the default icosphere's: 1.5 units per unit of size (NODE_EXTENT_PER_SIZE in
-            //   NodeMesh).
+            // - "scale" (the default): `size` multiplies the shape's own geometry, so each shape
+            //   is drawn at its own largest extent: 1x size for sphere, box and capsule, 1.25x
+            //   for torus-knot, 1.5x for icosphere, torus and goldberg, 1.6x for cylinder and cone,
+            //   1.7x for geodesic, and 1.5x to 2.8x for the polyhedra. A node that sets `width`,
+            //   `height`, `depth` or `planar`, and a flat shape, is drawn at the common node
+            //   extent instead: 1.5 units across per unit (NODE_EXTENT_PER_SIZE in NodeMesh).
             // - "diameter": `size` is the largest width, height or depth of the drawn shape, 1
             //   unit per unit of size, so a size-1 octahedron is 1 unit wide, like a size-1 sphere.
             //   `width`, `height`, `depth` and a border's width are read in the same units.
+            // - "uniform": every shape at one size covers the same extent across the view, the
+            //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
+            //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
             type: NodeShapes.optional(),
             // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps

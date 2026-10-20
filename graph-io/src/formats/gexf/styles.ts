@@ -48,6 +48,7 @@ export const GRAPHTY_XML_NAMESPACE = "https://graphty.app/ns/gexf";
  * @category Built-in formats
  */
 export const GEXF_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "gephi",
     node: Object.freeze(["label", "fill", "fillOpacity", "width", "height", "shape", "image"] as const),
     edge: Object.freeze(["color", "opacity", "width", "lineStyle"] as const),
     block: "native",
@@ -1255,6 +1256,22 @@ function edgeLabelRules(
 }
 
 /**
+ * Preview's "mixed" edge color: the mean of two colors, each channel rounded down (`EdgeColor.java` lines 89-93).
+ * @param a - one end's color, `#rrggbb`
+ * @param b - the other's
+ * @returns the mixed color
+ */
+function gephiMix(a: string, b: string): string {
+    const x = Number.parseInt(a.slice(1), 16);
+    const y = Number.parseInt(b.slice(1), 16);
+    let out = 0;
+    for (const shift of [16, 8, 0]) {
+        out |= Math.floor((((x >> shift) & 255) + ((y >> shift) & 255)) / 2) << shift;
+    }
+    return `#${out.toString(16).padStart(6, "0")}`;
+}
+
+/**
  * The edge whose source Gephi draws for each edge: an undirected edge in a directed graph is one edge in the file
  * and two halves here, and the second half takes the first half's.
  * @param snapshot - the graph
@@ -1522,8 +1539,13 @@ export function gexfStyledExport(
         },
         edge(e, indent) {
             const w = thickness[e];
+            // an edge in the mixed color of its nodes is left without one: Gephi, and graph-io, draw it so anyway
+            const c = color[e];
+            const end = (i: number): string => String(fill[i] ?? GEPHI_NODE_FILL);
+            const mixed =
+                typeof c === "string" && c === gephiMix(end(snapshot.edgeSource(e)), end(snapshot.edgeTarget(e)));
             return (
-                colorElement(color[e], opacity[e], indent) +
+                (mixed && (opacity[e] ?? 1) === 1 ? "" : colorElement(c, opacity[e], indent)) +
                 (typeof w === "number" ? `${indent}<viz:thickness value="${String(w)}"/>\n` : "") +
                 shapeElement(edgeShapes[e], null, indent)
             );

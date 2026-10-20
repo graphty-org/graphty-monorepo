@@ -8,7 +8,7 @@ import { GraphListing } from '@graphty/graph-io';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 // @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
@@ -657,6 +657,16 @@ export type GraphtyErrorCode =
 * again with `{ discard: true }` once the reader agreed to lose them.
 */
 | "E_UNSAVED_CHANGES"
+/**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an

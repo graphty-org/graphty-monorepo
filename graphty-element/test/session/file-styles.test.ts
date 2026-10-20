@@ -412,6 +412,62 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("paints a DOT file without bgcolor white, as Graphviz does", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "dot", config: { data: "digraph { a -> b }" } }, { styles: "file" });
+        assert.strictEqual(session.config.background.backgroundType, "color");
+        assert.strictEqual(String((session.config.background as { color?: string }).color).toLowerCase(), "#ffffff");
+        session.dispose();
+    });
+
+    it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
+        const doc = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { attributeDeclarations: [{ nodes: { w: { d: "double" } } }] },
+            { nodes: [0, 1, 2, 3, 17].map((w) => ({ id: w, v: { w } })) },
+            {
+                visualProperties: [
+                    {
+                        default: { node: { NODE_LABEL_FONT_SIZE: 12 } },
+                        nodeMapping: {
+                            NODE_LABEL_FONT_SIZE: {
+                                type: "CONTINUOUS",
+                                definition: {
+                                    attribute: "w",
+                                    map: [
+                                        { max: 0, maxVPValue: 10, includeMax: false },
+                                        {
+                                            min: 0,
+                                            max: 17,
+                                            minVPValue: 10,
+                                            maxVPValue: 40,
+                                            includeMin: true,
+                                            includeMax: true,
+                                        },
+                                        { min: 17, minVPValue: 40, includeMin: false },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+            { status: [{ success: true }] },
+        ]);
+        const session = createGraphSession();
+        // lengths: "file" keeps the file's numbers, so the rounding is seen unscaled
+        await session.data.import(
+            { type: "cx2", config: { data: doc } },
+            { styles: "file", styleOptions: { lengths: "file" } },
+        );
+        const sizes = ["0", "1", "2", "3", "17"].map((id) => {
+            const label = (session.styles.explain({ node: id }).merged as Record<string, unknown>)["node.labelStyle"];
+            return (label as { sizePx?: unknown } | undefined)?.sizePx;
+        });
+        assert.deepStrictEqual(sizes, [10, 12, 14, 15, 40]);
+        session.dispose();
+    });
+
     it("keeps each merged file's layers on its own nodes, under gexf and gexf-2", async () => {
         const session = createGraphSession();
         await session.data.import(

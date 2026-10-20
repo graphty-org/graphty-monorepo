@@ -1051,6 +1051,11 @@ export type Mapping =
           readonly by: ColumnRef;
           /** The points, in increasing `at`. */
           readonly points: readonly ContinuousPoint[];
+          /**
+           * When set, a number the mapping gives is rounded to the nearest multiple of `step`, as the writing tool
+           * draws a property that holds whole numbers (Cytoscape's font size: 1; its 0..255 transparency: 1/255).
+           */
+          readonly step?: number;
       };
 
 /**
@@ -1078,6 +1083,12 @@ export type StyleRuleReason =
     | "LAYER_CAP"
     /** Edges with no color of their own take their source node's color, as the writing tool draws them. */
     | "SOURCE_NODE_COLOR"
+    /** Edges with no color of their own take the mean of their two nodes' colors, as the writing tool draws them. */
+    | "END_NODES_COLOR"
+    /** Nodes with no border of their own get a border darker than their fill and scaled with their size, as the writing tool draws them. */
+    | "FILL_BORDER"
+    /** Nodes with no label size of their own get a label size scaled with their size, as the writing tool draws them. */
+    | "NODE_SIZE_LABEL"
     /** Edges with no width of their own are as thick as their weight, as the writing tool draws them. */
     | "EDGE_WEIGHT"
     /** Edges with no color of their own take the mix of their two end nodes' colors, as the writing tool draws them. */
@@ -1430,6 +1441,11 @@ export interface StyleWriteCapabilities {
     readonly edge: readonly EdgeStyleProperty[];
     /** Graph properties written natively. */
     readonly graph?: readonly GraphStyleProperty[];
+    /**
+     * The program that draws the files this writer writes, when there is one. A graph property the format has no
+     * place for is not reported lost when its value is what that program draws anyway (its tool default).
+     */
+    readonly tool?: StyleTool;
     /** Where the block and the tagged values go. */
     readonly block: "native" | "attributes" | "none";
 }

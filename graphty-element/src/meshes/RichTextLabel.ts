@@ -1277,6 +1277,13 @@ export class RichTextLabel {
             }
 
             material.specularColor = new Color3(0, 0, 0);
+            // A LABEL LEAVES THE STENCIL ALONE. A node's outline is a highlight layer, which paints
+            // its blurred silhouette everywhere the stencil does not hold the outlined node's mark. A
+            // label drawn over its node wrote the ordinary mark in its place, so the outline was
+            // painted over the words in the outline's color: a centered label on an outlined node was
+            // a black disc (issue #2323). With writes masked off, the node's mark stays under the label.
+            material.stencil.enabled = true;
+            material.stencil.mask = 0x00;
             // Only set emissiveColor if we're not using glow animation
             if (this.options.animation !== "glow") {
                 // Lit by its emissive color alone, so a depth fade can scale the premultiplied

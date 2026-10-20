@@ -54,7 +54,6 @@ import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -74,9 +73,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export type AccelerationPrecision = "f32" | "f64";
@@ -273,6 +270,53 @@ export interface AlgorithmStatics {
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public
+export interface AutosaveCommitOptions {
+    readonly durability?: "relaxed" | "strict";
+    readonly onProgress?: () => void;
+    readonly signal?: AbortSignal;
+}
+
+// @public
+export class AutosaveConflict extends Error {
+    constructor(id: string, expectedGen: number, storedGen: number);
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly storedGen: number;
+}
+
+// @public
+export interface AutosaveEntryMeta {
+    readonly [field: string]: unknown;
+    readonly gen: number;
+    readonly id: string;
+    readonly key: string;
+    readonly seq: number;
+}
+
+// @public
+export type AutosaveParts = Readonly<Record<string, string | Uint8Array>>;
+
+// @public
+export interface AutosaveStore {
+    close?(): Promise<void>;
+    commit(writes: readonly AutosaveWrite[], options?: AutosaveCommitOptions): Promise<void>;
+    list(key: string): Promise<readonly AutosaveEntryMeta[]>;
+    read(id: string): Promise<{
+        meta: AutosaveEntryMeta;
+        parts: AutosaveParts;
+    } | undefined>;
+    remove(id: string): Promise<void>;
+}
+
+// @public
+export interface AutosaveWrite {
+    readonly expectedGen: number;
+    readonly id: string;
+    readonly meta: AutosaveEntryMeta;
+    readonly parts: Readonly<Record<string, string | Uint8Array | null>>;
+}
+
+// @public
 export interface BaseDataSourceConfig {
     // (undocumented)
     chunkSize?: number;
@@ -461,7 +505,7 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // (undocumented)
@@ -469,7 +513,7 @@ export abstract class DataSource {
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -497,7 +541,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)
@@ -1022,6 +1066,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNSAVED_CHANGES"
 /**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
@@ -1376,6 +1430,9 @@ export { ImportInput }
 export { ImportIssue }
 
 // @public
+export function isAutosaveConflict(error: unknown): error is AutosaveConflict;
+
+// @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
 
 // @public
@@ -1572,6 +1629,9 @@ export interface LogSinkRegistration {
 export { LossNote }
 
 export { maskTest }
+
+// @public
+export function memoryAutosaveStore(): AutosaveStore;
 
 // @public
 export function metricField(spec: Omit<FieldDescriptor, "path">): FieldDescriptor;

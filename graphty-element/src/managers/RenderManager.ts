@@ -5,6 +5,7 @@ import {
     EngineStore,
     HemisphericLight,
     Logger,
+    NullEngine,
     PhotoDome,
     Quaternion,
     Scene,
@@ -20,6 +21,8 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { GraphtyLogger } from "../logging";
+import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -72,6 +75,13 @@ export interface RendererStatus {
      * the one asked for, and under `"webgl"`.
      */
     readonly reason: string | null;
+    /**
+     * Whether anything is drawn. False when the browser gave the page no working WebGL context:
+     * the graph's data, its session and autosave still work, and the canvas stays empty. The log
+     * records it as `E_NO_WEBGL`.
+     * @since 3.29.0
+     */
+    readonly drawing: boolean;
 }
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */
@@ -195,6 +205,39 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
 }
 
 /**
+ * A WebGL engine and its scene, or -- when the browser gives the page no working WebGL context (none
+ * at all, or one whose GPU process keeps crashing, as Safari on iOS ends up) -- Babylon's
+ * NullEngine, which draws nothing. Without it the element could not be built at all, so the graph's
+ * data, its session and the work autosave kept would not load either; with it only the picture is
+ * missing, which the log reports as E_NO_WEBGL.
+ * @param canvas - The element's canvas.
+ * @returns The engine and the scene.
+ */
+function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+    let engine: Engine | undefined;
+    try {
+        engine = new Engine(canvas, true, {
+            preserveDrawingBuffer: true, // Required for screenshots
+        });
+        return { engine, scene: new Scene(engine) };
+    } catch (error) {
+        try {
+            engine?.dispose();
+        } catch {
+            // An engine whose context failed cannot always release what it never built.
+        }
+
+        GraphtyLogger.getLogger(["graphty", "render"]).error(
+            "E_NO_WEBGL: no WebGL context could be used, so nothing is drawn; the data and the session still work",
+            error instanceof Error ? error : undefined,
+            { code: "E_NO_WEBGL", reason: error instanceof Error ? error.message : String(error) },
+        );
+        const fallback = new NullEngine();
+        return { engine: fallback, scene: new Scene(fallback) };
+    }
+}
+
+/**
  * The name of the graph-root TransformNode used for XR gestures
  * Gestures (zoom, rotate, pan) manipulate this node to transform the entire graph
  */
@@ -298,6 +341,13 @@ export class RenderManager implements Manager {
     private readonly drawsOnDemand: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
+    /**
+     * While it answers true, a tick runs its update but draws nothing: set by the graph while an
+     * element built from the defaults waits for its style to be drawn, so no frame shows it in
+     * them. The update still runs, so the frame that applies the style is the one drawn.
+     * @internal
+     */
+    drawHeld: (() => boolean) | null = null;
     /** What the last frame drawn left behind; see {@link RenderManager.sameAsDrawn}. */
     private readonly drawnFrom = {
         view: new Float32Array(16),
@@ -360,15 +410,14 @@ export class RenderManager implements Manager {
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
 
-        // Create engine
-        this.engine =
-            this.config.engine ??
-            new Engine(this.canvas, true, {
-                preserveDrawingBuffer: true, // Required for screenshots
-            });
+        if (this.config.engine === undefined) {
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+        } else {
+            this.engine = this.config.engine;
+            this.scene = new Scene(this.engine);
+        }
 
-        // Create scene
-        this.scene = new Scene(this.engine);
+        useBundledStandardShaders(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
@@ -503,6 +552,10 @@ export class RenderManager implements Manager {
                 // this.camera.update() is already called in UpdateManager.update()
                 // Commenting out to avoid double updates
                 // this.camera.update();
+
+                if (this.drawHeld?.() === true) {
+                    return;
+                }
 
                 if (this.mayRest()) {
                     this.ticks.rested++;

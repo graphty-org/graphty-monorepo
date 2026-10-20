@@ -1,6 +1,6 @@
 /**
  * The reader's "import styles from files" preference on the REAL graphty-element: the Data page's
- * checkbox, Settings, the start screen's drop (the path Open takes) and the shell's drop each load
+ * checkbox, Settings and the start screen's drop (the path Open takes) each load
  * a styled GEXF with or without the file's own style layers, as the preference says. Every color
  * and layer asserted is read through the element's public API.
  */
@@ -18,8 +18,6 @@ import { openDataPage } from "../../workspace/data-page/request";
 import { IMPORT_FILE_STYLES } from "../../workspace/settings/preferences";
 import { createWorkspaceStore } from "../../workspace/state/store";
 import { Workspace } from "../../workspace/Workspace";
-import { LoadDataModal } from "../LoadDataModal";
-import { AppShell } from "../shell/AppShell";
 
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -37,7 +35,7 @@ ${Array.from({ length: 12 }, (_unused, i) => {
 
 const CSV = "source,target\na,b\nb,c\n";
 
-/** The Data page's checkbox and the Load Data dialog's. */
+/** The Data page's checkbox. */
 const CHECKBOX = "Import styles from the file";
 
 /**
@@ -188,22 +186,6 @@ describe("import styles from files, on the real element", () => {
         assert.isNull(screen.queryByRole("checkbox", { name: CHECKBOX }));
     });
 
-    it("the Load Data dialog offers the choice for GEXF and not for CSV, and keeps it", async () => {
-        render(<LoadDataModal opened onClose={() => undefined} onLoad={() => Promise.resolve()} />);
-        const input = document.querySelector<HTMLInputElement>("#file-input");
-        assert.isNotNull(input);
-        await userEvent.upload(input, styledGexf());
-        const box = await screen.findByRole("checkbox", { name: new RegExp(`^${CHECKBOX}`) });
-        assert.isTrue((box as HTMLInputElement).checked);
-        await userEvent.click(box);
-        assert.equal(localStorage.getItem(IMPORT_FILE_STYLES.key), "off");
-
-        await userEvent.upload(input, new File([CSV], "ties.csv", { type: "text/csv" }));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("checkbox", { name: new RegExp(`^${CHECKBOX}`) }));
-        });
-    });
-
     it("keeps the Settings choice across a reload", async () => {
         const first = render(<Workspace store={createWorkspaceStore()} />);
         await userEvent.click(screen.getByRole("button", { name: /settings/i }));
@@ -241,29 +223,6 @@ describe("import styles from files, on the real element", () => {
             } else {
                 assert.deepEqual(fileLayers(session), []);
                 assert.isNull(screen.queryByText(/The file's styles are drawn/));
-            }
-        });
-    }
-
-    for (const preference of ["on", "off"] as const) {
-        it(`a file dropped on the shell honors the preference ${preference}`, async () => {
-            localStorage.setItem(IMPORT_FILE_STYLES.key, preference);
-            render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
-            const zone = await screen.findByTestId("data-drop-zone");
-            const session = await elementSession();
-            dropOn(zone, styledGexf());
-            await loadedTwelve(session);
-            await waitFor(
-                () => {
-                    assert.isTrue(session.history.steps.some((step) => step.label === "groups.gexf"));
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            if (preference === "on") {
-                assert.isNotEmpty(fileLayers(session));
-                assert.equal(colorOf(session, "n1"), "#ff0000");
-            } else {
-                assert.deepEqual(fileLayers(session), []);
             }
         });
     }

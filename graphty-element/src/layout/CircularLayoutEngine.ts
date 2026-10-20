@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { circular } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -18,6 +18,7 @@ const circularLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {

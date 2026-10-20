@@ -2,6 +2,7 @@
     "defaultBranch": "master",
     "workflow": "ci.yml",
     "baselines": "visual-baselines",
+    "approvals": "visual-review-approvals",
     "workDir": "tmp/visual-review",
     "commitPrefix": "test(workspace)",
     "fontconfig": "visual-fonts/fonts.conf",

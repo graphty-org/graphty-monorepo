@@ -19,13 +19,21 @@ import {
 import { Button, Checkbox, Group, Select, Text } from "@mantine/core";
 import type React from "react";
 
-import { modularityBandName } from "../../components/shell/readings/readingFormat";
 import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, rankedName, runDate, runFailureWords } from "./words";
+import {
+    count,
+    formatNumber,
+    groupName,
+    modularityBandName,
+    queuedWords,
+    rankedName,
+    runDate,
+    runFailureWords,
+} from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;

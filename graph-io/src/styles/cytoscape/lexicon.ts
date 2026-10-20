@@ -56,6 +56,12 @@ const rotation: CytoscapeValueParser = (raw, site) => {
     }
     return num6(((v % 360) + 360) % 360);
 };
+
+// Cytoscape desktop holds a font size as a whole number, so every value read for one is drawn rounded.
+const fontSize: CytoscapeValueParser = (raw, site) => {
+    const v = canonNumber(raw, site);
+    return v === null ? null : Math.round(v);
+};
 const text: CytoscapeValueParser = (raw, site) => canonText(raw, site);
 const bool: CytoscapeValueParser = (raw, site) => canonBoolean(raw, site);
 
@@ -704,7 +710,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["height", [["NODE_HEIGHT", length]]],
         ["label", [["NODE_LABEL", text]]],
         ["labelColor", [["NODE_LABEL_COLOR", color]]],
-        ["labelSize", [["NODE_LABEL_FONT_SIZE", length]]],
+        ["labelSize", [["NODE_LABEL_FONT_SIZE", fontSize]]],
         [
             "labelWrapWidth",
             [
@@ -785,7 +791,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["curved", [["EDGE_CURVED", bool]]],
         ["label", [["EDGE_LABEL", text]]],
         ["labelColor", [["EDGE_LABEL_COLOR", color]]],
-        ["labelSize", [["EDGE_LABEL_FONT_SIZE", length]]],
+        ["labelSize", [["EDGE_LABEL_FONT_SIZE", fontSize]]],
         ["labelFont", [["EDGE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["EDGE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["EDGE_LABEL_FONT_FACE", fontItalic]]],
@@ -906,6 +912,7 @@ const IDENTIFIERS: Readonly<Record<StyleTarget, ReadonlyMap<string, string>>> = 
         ["edgetooltip", "EDGE_TOOLTIP"],
         ["curved", "EDGE_CURVED_LEGACY"],
         ["edgecurved", "EDGE_CURVED"],
+        ["edgebend", "EDGE_BEND"],
     ]),
 };
 
@@ -962,7 +969,8 @@ function normalizeObject(
         if (k === "lockedVisualProperties" || v === null || v === undefined) {
             continue;
         }
-        if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k)) {
+        // a 2.x edgeBend of one handle is a record: kept whole, as its handles
+        if (typeof v === "object" && !Array.isArray(v) && !/^[A-Z_0-9]+$/.test(k) && k.toLowerCase() !== "edgebend") {
             if (depth + 1 > MAX_VP_DEPTH) {
                 deep++;
             } else {
@@ -1005,4 +1013,25 @@ export function normalizeVisualProperties(target: StyleTarget, raw: unknown, not
         notes?.add(STYLE_ISSUE.NESTING, target, "graphics", { sample: `deeper than ${MAX_VP_DEPTH}`, count: deep });
     }
     return out;
+}
+
+/**
+ * The step a continuous mapping's value is rounded to for the integer visual properties Cytoscape desktop rounds an
+ * interpolated value of (cytoscape-api BasicVisualLexicon: the font sizes and the 0..255 transparencies; the latter
+ * read as opacities, so 1/255).
+ */
+const INTEGER_VP_STEPS: ReadonlyMap<string, number> = new Map([
+    ["NODE_LABEL_FONT_SIZE", 1],
+    ["EDGE_LABEL_FONT_SIZE", 1],
+    ["NODE_TRANSPARENCY", 1 / 255],
+    ["EDGE_TRANSPARENCY", 1 / 255],
+]);
+
+/**
+ * The step Cytoscape rounds an interpolated value of a visual property to.
+ * @param vp - the visual property
+ * @returns the step, or undefined for a property that holds fractions
+ */
+export function vpStep(vp: string): number | undefined {
+    return INTEGER_VP_STEPS.get(vp);
 }

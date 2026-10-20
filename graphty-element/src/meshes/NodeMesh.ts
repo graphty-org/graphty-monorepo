@@ -18,6 +18,7 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
+import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
 import {
     bodilessSlab,
@@ -52,9 +53,10 @@ interface NodeMeshCreateOptions {
 }
 
 /**
- * How far across the view a node of size 1 is drawn, whatever its shape: the default icosphere's
- * diameter, so a graph drawn in the default shape looks exactly as it always has. Width, height,
- * depth and a border's width are in the same units, so a node 4 wide is as wide as a node of size 4.
+ * How far across the view a fitted node of size 1 is drawn (`NodeMesh.isFitted`: any node under
+ * `sizeMode: "uniform"`, and under the default "scale" a flat shape, or one with a width, height,
+ * depth or `planar`): the default icosphere's diameter. Width, height, depth and a border's width are in the same units, so a node
+ * 4 wide is as wide as a node of size 4.
  */
 export const NODE_EXTENT_PER_SIZE = 1.5;
 
@@ -378,6 +380,10 @@ export class NodeMesh {
         const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
         const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene);
+        if (!this.isFitted(createOptions.shape)) {
+            return mesh;
+        }
+
         fitNodeMesh(mesh, extents);
         if (createOptions.shape.sizeMode === "diameter" && !this.hasExplicitExtent(createOptions.shape)) {
             NodeMesh.scaleToExtent(mesh, extents.across);
@@ -492,13 +498,36 @@ export class NodeMesh {
 
     /**
      * How many world units one unit of size, width, height, depth or border width is drawn at:
-     * the common node extent under the default `sizeMode`, one unit under "diameter".
+     * the common node extent under "scale" and "uniform", one unit under "diameter".
      * @param shape - The node's shape block, or none.
      * @returns World units per unit of size.
      * @internal
      */
     static extentPerSize(shape: NodeStyleConfig["shape"]): number {
         return shape?.sizeMode === "diameter" ? 1 : NODE_EXTENT_PER_SIZE;
+    }
+
+    /**
+     * Whether a solid node's mesh is fitted to its extents. Under the default `sizeMode: "scale"`,
+     * a node that names no width, height or depth and is not `planar` keeps its shape's own
+     * proportions at `size` (a sphere and a box of size 1 are 1 across, the default icosphere 1.5),
+     * as it always has; `sizeMode: "diameter"` and `"uniform"` draw every shape at one extent instead.
+     * @param shape - The node's shape block, or none.
+     * @returns True when the mesh is scaled to the node's extents.
+     * @internal
+     */
+    static isFitted(shape: NodeStyleConfig["shape"]): boolean {
+        if (shape === undefined) {
+            return false;
+        }
+
+        return (
+            shape.sizeMode === "diameter" ||
+            shape.sizeMode === "uniform" ||
+            shape.planar === true ||
+            isFlatShape(shape.type ?? "") ||
+            this.hasExplicitExtent(shape)
+        );
     }
 
     /**
@@ -870,7 +899,7 @@ export class NodeMesh {
      * the emissive channel is visible there -- the same reason the solid path assigns
      * `emissiveColor` rather than `diffuseColor` when `is2D`).
      *
-     * THE TEXTURE IS ASSIGNED BEFORE `mat.freeze()`. A frozen material ignores later mutation, so
+     * THE TEXTURE IS ASSIGNED BEFORE THE FREEZE (`checkReadyOnlyOnce`). A frozen material ignores later mutation, so
      * assigning a texture after the freeze is a silent no-op. Do not move the freeze up.
      *
      * KNOWN VISUAL DIFFERENCE, deliberately not papered over: the solid 3D path adds
@@ -893,7 +922,27 @@ export class NodeMesh {
         scene?: Scene,
     ): StandardMaterial {
         const mat = new StandardMaterial("defaultMaterial", scene);
+        // A material no mesh draws yet: its setters and its freeze mark nothing dirty, so they do
+        // not walk every mesh in the scene looking for its users (issue #2894).
+        setUpQuietly(mat, () => {
+            NodeMesh.setUpMaterial(mat, createOptions, is2D, scene);
+        });
+        return mat;
+    }
 
+    /**
+     * Write a new node material's properties; see {@link NodeMesh.createMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param createOptions - Creation options carrying the texture colour and effects
+     * @param is2D - Whether the scene is rendering in 2D mode
+     * @param scene - Babylon.js scene, required to allocate a gradient texture
+     */
+    private static setUpMaterial(
+        mat: StandardMaterial,
+        createOptions: NodeMeshCreateOptions,
+        is2D: boolean,
+        scene?: Scene,
+    ): void {
         const styleColor = createOptions.texture?.color;
         let color3 = this.extractColor(styleColor);
         const gradient = color3 ? undefined : this.extractGradient(styleColor);
@@ -945,8 +994,9 @@ export class NodeMesh {
 
         mat.wireframe = createOptions.effect?.wireframe ?? false;
 
-        mat.freeze();
-        return mat;
+        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
+        // submeshes drawn with this material -- of which a new material has none.
+        mat.checkReadyOnlyOnce = true;
     }
 
     private static extractColor(color: unknown): Color3 | undefined {

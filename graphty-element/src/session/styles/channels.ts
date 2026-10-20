@@ -250,7 +250,7 @@ export type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
-/** How a node's size is read: as the common node extent, or as the shape's largest extent. */
+/** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
 /** Every node size mode, in schema order. */

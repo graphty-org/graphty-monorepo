@@ -12,6 +12,10 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     describe("Triangle Arrows", () => {
         test("createTriangle creates normal arrow with 3 vertices in XZ plane", () => {
             const mesh = FilledArrowRenderer.createTriangle(false, scene);
@@ -244,6 +248,10 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     test("applyShader returns mesh with ShaderMaterial", () => {
         const mesh = FilledArrowRenderer.createTriangle(false, scene);
         const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
@@ -311,6 +319,10 @@ describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () =
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     // This test suite verifies the CRITICAL requirement from design/edge-styles-implementation-plan.md:
@@ -382,6 +394,10 @@ describe("FilledArrowRenderer - 2D Arrows", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("create2DArrow generates mesh with StandardMaterial", () => {
@@ -511,6 +527,7 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        scene.getEngine().dispose();
     });
 
     test("configuring a new arrow material does not walk every mesh already in the scene", () => {
@@ -681,7 +698,7 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         const p = mesh.getVerticesData("position") ?? [];
         // the widest point is the base at the tip (x = 0), the point at x = -1
         const at = (x: number): number[] =>
-            p.flatMap((v, i) => (i % 3 === 0 && Math.abs(v - x) < 1e-9 ? [p[i + 2]] : []));
+            Array.from(p).flatMap((v, i) => (i % 3 === 0 && Math.abs(v - x) < 1e-9 ? [p[i + 2]] : []));
         assert.closeTo(Math.max(...at(0).map(Math.abs)), EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
         assert.deepEqual([...new Set(at(-1).map((z) => Math.round(z * 1e9) / 1e9))], [0]);
         // no triangle covers the middle of the triangle (-1/3, 0)

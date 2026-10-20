@@ -202,7 +202,7 @@ export function isShortPredicate(where: Predicate): boolean {
             return false;
         }
         let terms = 0;
-        for (const p of where.and as readonly Predicate[]) {
+        for (const p of where.and as Predicate[]) {
             const t = atomTerms(p);
             if (t === 0) {
                 return false;
@@ -494,9 +494,21 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
  * Evaluates a continuous mapping at x.
  * @param points - the points, in increasing `at`
  * @param x - the input
+ * @param step - when given, a number is rounded to the nearest multiple of it (a whole-number property)
  * @returns the value, or null for a missing or non-finite input
  */
-export function evalContinuous(points: readonly ContinuousPoint[], x: number | null): StyleValue | null {
+export function evalContinuous(points: readonly ContinuousPoint[], x: number | null, step?: number): StyleValue | null {
+    const v = evalPoints(points, x);
+    return typeof v === "number" && step !== undefined && step > 0 ? num6(Math.round(v / step) * step) : v;
+}
+
+/**
+ * A continuous mapping's value at x, unrounded.
+ * @param points - the points, in increasing `at`
+ * @param x - the input
+ * @returns the value, or null for a missing or non-finite input
+ */
+function evalPoints(points: readonly ContinuousPoint[], x: number | null): StyleValue | null {
     if (x === null || !Number.isFinite(x) || points.length === 0) {
         return null;
     }
@@ -552,7 +564,7 @@ function evalMapping(
             return j < 0 ? null : m.table[j][1];
         }
         case "continuous":
-            return Array.isArray(v) ? null : evalContinuous(m.points, numberOf(v));
+            return Array.isArray(v) ? null : evalContinuous(m.points, numberOf(v), m.step);
         default:
             return null;
     }

@@ -1773,6 +1773,8 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "mid-source-arrow-shape",
     "mid-target-arrow-color",
     "mid-source-arrow-color",
+    "target-arrow-fill",
+    "source-arrow-fill",
     "curve-style",
     "arrow-scale",
     "source-label",
@@ -1957,7 +1959,7 @@ function combineParts(
         combineFace(n, words, values);
         combineBackgroundGradient(n, words, values, notes);
     } else {
-        combineArrowFills(n, words, values);
+        combineArrowFills(n, words, values, notes);
         combineLineOpacity(n, words.get("_lineOpacity"), values);
     }
     combineDashes(kind, n, words, values);
@@ -2848,15 +2850,18 @@ function hollowArrowsOfRule(set: Record<string, StyleValue>, all: readonly Entry
 }
 
 /**
- * Turns each arrow whose `*-arrow-fill` is `hollow` into its outline shape.
+ * Turns each arrow whose `*-arrow-fill` is `hollow` into its outline shape. A hollow arrow the vocabulary has no
+ * outline shape for keeps its filled shape and is noted.
  * @param n - the element count
  * @param words - the parts by internal name
  * @param values - the values; changed in place
+ * @param notes - where a hollow arrow drawn filled is noted
  */
 function combineArrowFills(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
+    notes: StyleNotes,
 ): void {
     for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
         const fill = words.get(`_${p}Fill`);
@@ -2866,9 +2871,15 @@ function combineArrowFills(
         }
         for (let i = 0; i < n; i++) {
             const shape = shapes[i];
-            const open = fill[i] === "hollow" && shape !== null ? HOLLOW_ARROWS.get(shape) : undefined;
+            if (fill[i] !== "hollow" || shape === null || shape === "none") {
+                continue;
+            }
+            const open = HOLLOW_ARROWS.get(shape);
             if (open !== undefined) {
                 shapes[i] = open;
+            } else if (!String(shape).includes("open")) {
+                const property = p.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`).replace("-arrow", "-arrow-fill");
+                notes.add(STYLE_ISSUE.NOT_CARRIED, "edge", property, { sample: `hollow ${String(shape)}`, element: i });
             }
         }
     }

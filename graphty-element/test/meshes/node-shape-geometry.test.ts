@@ -4,7 +4,7 @@
  * #2495).
  */
 import { type Mesh, NullEngine, Scene, VertexBuffer } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -385,6 +385,10 @@ describe("node extents", () => {
         scene = new Scene(new NullEngine());
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     /**
      * Build one node's mesh.
      * @param shape - The shape block.
@@ -409,8 +413,8 @@ describe("node extents", () => {
 
     // a rounded polygon keeps inside the box of its sharp twin, as Cytoscape.js draws it
     for (const shape of NodeShapes.options.filter((name) => !ROUNDED.has(name))) {
-        test(`${shape} at one size covers the same extent across the view as every other shape`, () => {
-            const { x, y, centre } = extentOf(build({ type: shape, size: 2 }));
+        test(`${shape} at one size covers the same extent across the view as every other shape, under uniform`, () => {
+            const { x, y, centre } = extentOf(build({ type: shape, size: 2, sizeMode: "uniform" }));
 
             assert.approximately(Math.max(x, y), 2 * NODE_EXTENT_PER_SIZE, 1e-6);
             centre.forEach((value) => {
@@ -418,6 +422,12 @@ describe("node extents", () => {
             });
         });
     }
+
+    test("the default sizeMode keeps each solid's own proportions, as before", () => {
+        assert.approximately(extentOf(build({ type: "sphere", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "box", size: 2 })).x, 2, 1e-6);
+        assert.approximately(extentOf(build({ type: "cylinder", size: 1 })).y, 1.618, 1e-3);
+    });
 
     test("the default shape is drawn exactly as before", () => {
         const { x, y, z } = extentOf(build({ type: "icosphere", size: 1 }));
@@ -505,6 +515,10 @@ describe("node borders", () => {
         assert.isNull(NodeMesh.createBorder(cache, options, { shape, border: { width: 0.2 } }, fill, scene));
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     test("no width draws no border", () => {
         const fill = NodeMesh.create(
             cache,
@@ -573,7 +587,9 @@ describe("node borders", () => {
             assert.isNotNull(border);
             const { extendSize } = border.sourceMesh.getBoundingInfo().boundingBox;
 
-            assert.approximately(extendSize.x * 2, (1 + 0.4) * NODE_EXTENT_PER_SIZE, 0.02);
+            const across = fill.getBoundingInfo().boundingBox.extendSize.x * 2;
+
+            assert.approximately(extendSize.x * 2, across + 0.4 * NODE_EXTENT_PER_SIZE, 0.02);
             assert.isFalse(border.isPickable);
         });
     }

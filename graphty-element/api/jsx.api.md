@@ -39,7 +39,6 @@ import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -59,13 +58,13 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     "auto-frame"?: boolean;
+    "autosave-restore"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
@@ -118,6 +117,14 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
+    // (undocumented)
+    "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
+    // (undocumented)
+    "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
+    // (undocumented)
+    "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
+    // (undocumented)
+    "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     // (undocumented)
@@ -210,6 +217,9 @@ export interface GraphtyElementJSXProps {
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     autoFrame?: Graphty["autoFrame"];
+    autosave?: Graphty["autosave"];
+    autosaveOptions?: Graphty["autosaveOptions"];
+    autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];

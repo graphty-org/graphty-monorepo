@@ -214,6 +214,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelMinScreenSize`        | yes   | yes   |       | a number                                                                                                                                                                                                                                             |
 | `labelAvoidOverlap`         | yes   |       |       | true or false                                                                                                                                                                                                                                        |
 | `labelMinNodeScreenSize`    | yes   |       |       | a number                                                                                                                                                                                                                                             |
+| `labelGridCellSize`         | yes   |       |       | a number                                                                                                                                                                                                                                             |
 | `labelOnTop`                | yes   | yes   |       | true or false                                                                                                                                                                                                                                        |
 | `labelRotation`             | yes   | yes   |       | a number                                                                                                                                                                                                                                             |
 | `labelBackground`           | yes   | yes   |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
@@ -279,6 +280,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `outlineWidth`              |       | yes   |       | a number                                                                                                                                                                                                                                             |
 | `outlineColor`              |       | yes   |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
 | `outlineOpacity`            |       | yes   |       | a number from 0 (transparent) to 1                                                                                                                                                                                                                   |
+| `outlineStyle`              |       | yes   |       | `solid`, `dashed`, `dotted`, `dash-dot`, `long-dash`, `double`, `zigzag`, `sinewave`                                                                                                                                                                 |
 | `gradientColors`            |       | yes   |       | text                                                                                                                                                                                                                                                 |
 | `gradientStops`             |       | yes   |       | text                                                                                                                                                                                                                                                 |
 | `gradientKind`              |       | yes   |       | text                                                                                                                                                                                                                                                 |
@@ -452,7 +454,7 @@ none.
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Read from | gephi 0.11.4-SNAPSHOT                                                                                                                                                                                                                                                             |
 | Lengths   | the program's relative size factor                                                                                                                                                                                                                                                |
-| Nodes     | `fill` `#000000`, `width` `20`, `height` `20`, `shape` `ellipse`, `borderPosition` `inside`, `labelPosition` `center`                                                                                                                                                             |
+| Nodes     | `fill` `#000000`, `width` `20`, `height` `20`, `shape` `ellipse`, `borderPosition` `inside`, `labelPosition` `center`, `labelOnTop` `true`                                                                                                                                        |
 | Edges     | `sourceArrow` `none`, `targetArrow` `none`, `curved` `true`, `fanned` `false`, `arcRadius` `0.8333333333333334`                                                                                                                                                                   |
 | Graph     | `background` `#ffffff`                                                                                                                                                                                                                                                            |
 | Rules     | an edge with no color of its own takes the mix of its two nodes' fills and alphas; an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible); directed edges get a `triangle` arrow at their target |
@@ -470,14 +472,14 @@ none.
 
 ### `sigma`
 
-|           |                                                                                                                                                                                                                                                                  |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read from | sigma 4.0.1                                                                                                                                                                                                                                                      |
-| Lengths   | the program's relative size factor                                                                                                                                                                                                                               |
-| Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `right`, `labelAvoidOverlap` `true`, `labelOnTop` `true`, `labelMinNodeScreenSize` `12` |
-| Edges     | `color` `#cccccc`, `width` `0.5`, `labelColor` `#666666`, `labelSize` `12`, `labelPosition` `center`, `sourceArrow` `none`, `targetArrow` `none`, `minScreenWidth` `0.85`                                                                                        |
-| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                           |
-| Rules     | nodes are labeled with their `label` attribute                                                                                                                                                                                                                   |
+|           |                                                                                                                                                                                                                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read from | sigma 4.0.1                                                                                                                                                                                                                                                     |
+| Lengths   | the program's relative size factor                                                                                                                                                                                                                              |
+| Nodes     | `fill` `#666666`, `shape` `ellipse`, `width` `20`, `height` `20`, `labelColor` `#000000`, `labelFont` `Arial`, `labelSize` `12`, `labelWeight` `normal`, `labelPosition` `right`, `labelGridCellSize` `100`, `labelOnTop` `true`, `labelMinNodeScreenSize` `12` |
+| Edges     | `color` `#cccccc`, `width` `0.5`, `labelColor` `#666666`, `labelSize` `12`, `labelPosition` `center`, `sourceArrow` `none`, `targetArrow` `none`, `minScreenWidth` `0.85`                                                                                       |
+| Graph     | `background` `#ffffff`                                                                                                                                                                                                                                          |
+| Rules     | nodes are labeled with their `label` attribute                                                                                                                                                                                                                  |
 
 ### `pajek`
 
@@ -615,8 +617,8 @@ if (styles) {
 
 ```text
 csv { W_STYLE_NOT_WRITTEN: 28, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 19 }
-graphml { W_STYLE_NOT_WRITTEN: 7 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 18 }
+graphml { W_STYLE_NOT_WRITTEN: 6 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

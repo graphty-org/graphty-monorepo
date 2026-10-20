@@ -869,7 +869,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e1" source="n10" target="n5">
@@ -878,7 +877,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e2" source="n39" target="n38">
@@ -887,7 +885,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e3" source="n11" target="n46">
@@ -896,7 +893,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#b579f7"/>
         </attvalues>
-        <viz:color r="181" g="121" b="247"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e4" source="n16" target="n52">
@@ -905,7 +901,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e5" source="n53" target="n35">
@@ -914,7 +909,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e6" source="n34" target="n5">
@@ -923,7 +917,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e7" source="n19" target="n52">
@@ -932,7 +925,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#b579f7"/>
         </attvalues>
-        <viz:color r="181" g="121" b="247"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e8" source="n11" target="n17">
@@ -941,7 +933,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e9" source="n11" target="n36">
@@ -950,7 +941,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#bb7fb0"/>
         </attvalues>
-        <viz:color r="187" g="127" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e10" source="n36" target="n1">
@@ -959,7 +949,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e11" source="n32" target="n38">
@@ -968,7 +957,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="2"/>
           <attvalue for="graphty.style.edge.end-colors" value="#44276c"/>
         </attvalues>
-        <viz:color r="68" g="39" b="108"/>
         <viz:thickness value="2"/>
       </edge>
       <edge id="e12" source="n38" target="n6">
@@ -977,7 +965,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#0d0175"/>
         </attvalues>
-        <viz:color r="13" g="1" b="117"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e13" source="n54" target="n36">
@@ -986,7 +973,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e14" source="n34" target="n45">
@@ -995,7 +981,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="2"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="2"/>
       </edge>
       <edge id="e15" source="n21" target="n13">
@@ -1004,7 +989,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e16" source="n5" target="n2">
@@ -1013,7 +997,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8e6786"/>
         </attvalues>
-        <viz:color r="142" g="103" b="134"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e17" source="n17" target="n13">
@@ -1022,7 +1005,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e18" source="n12" target="n49">
@@ -1031,7 +1013,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#bb7fb0"/>
         </attvalues>
-        <viz:color r="187" g="127" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e19" source="n21" target="n54">
@@ -1040,7 +1021,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e20" source="n30" target="n49">
@@ -1049,7 +1029,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#bb7fb0"/>
         </attvalues>
-        <viz:color r="187" g="127" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e21" source="n14" target="n1">
@@ -1058,7 +1037,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="2"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="2"/>
       </edge>
       <edge id="e22" source="n59" target="n54">
@@ -1067,7 +1045,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e23" source="n44" target="n18">
@@ -1076,7 +1053,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e24" source="n21" target="n28">
@@ -1085,7 +1061,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4782ac"/>
         </attvalues>
-        <viz:color r="71" g="130" b="172"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e25" source="n40" target="n44">
@@ -1094,7 +1069,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#105cb5"/>
         </attvalues>
-        <viz:color r="16" g="92" b="181"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e26" source="n29" target="n20">
@@ -1103,7 +1077,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#1307b0"/>
         </attvalues>
-        <viz:color r="19" g="7" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e27" source="n54" target="n38">
@@ -1112,7 +1085,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e28" source="n34" target="n45">
@@ -1122,7 +1094,6 @@
           <attvalue for="graphty.style.edge.gephi-hidden" value="true"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e29" source="n42" target="n25">
@@ -1131,7 +1102,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8e6786"/>
         </attvalues>
-        <viz:color r="142" g="103" b="134"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e30" source="n54" target="n5">
@@ -1140,7 +1110,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e31" source="n33" target="n38">
@@ -1149,7 +1118,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e32" source="n38" target="n22">
@@ -1158,7 +1126,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e33" source="n38" target="n15">
@@ -1167,7 +1134,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#105cb5"/>
         </attvalues>
-        <viz:color r="16" g="92" b="181"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e34" source="n26" target="n49">
@@ -1176,7 +1142,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e35" source="n26" target="n42">
@@ -1185,7 +1150,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8e6786"/>
         </attvalues>
-        <viz:color r="142" g="103" b="134"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e36" source="n40" target="n34">
@@ -1194,7 +1158,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e37" source="n17" target="n56">
@@ -1203,7 +1166,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e38" source="n55" target="n27">
@@ -1212,7 +1174,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e39" source="n44" target="n52">
@@ -1221,7 +1182,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e40" source="n32" target="n20">
@@ -1230,7 +1190,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e41" source="n41" target="n29">
@@ -1239,7 +1198,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e42" source="n45" target="n13">
@@ -1248,7 +1206,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e43" source="n16" target="n41">
@@ -1257,7 +1214,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#44276c"/>
         </attvalues>
-        <viz:color r="68" g="39" b="108"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e44" source="n26" target="n2">
@@ -1266,7 +1222,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8e6786"/>
         </attvalues>
-        <viz:color r="142" g="103" b="134"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e45" source="n12" target="n36">
@@ -1275,7 +1230,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#bb7fb0"/>
         </attvalues>
-        <viz:color r="187" g="127" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e46" source="n51" target="n29">
@@ -1284,7 +1238,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e47" source="n53" target="n25">
@@ -1293,7 +1246,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e48" source="n9" target="n11">
@@ -1302,7 +1254,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#87b4f9"/>
         </attvalues>
-        <viz:color r="135" g="180" b="249"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e49" source="n38" target="n47">
@@ -1311,7 +1262,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e50" source="n3" target="n59">
@@ -1320,7 +1270,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#0d0175"/>
         </attvalues>
-        <viz:color r="13" g="1" b="117"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e51" source="n19" target="n34">
@@ -1329,7 +1278,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#875cd6"/>
         </attvalues>
-        <viz:color r="135" g="92" b="214"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e52" source="n16" target="n27">
@@ -1338,7 +1286,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e53" source="n24" target="n53">
@@ -1347,7 +1294,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e54" source="n49" target="n54">
@@ -1356,7 +1302,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e55" source="n59" target="n39">
@@ -1365,7 +1310,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e56" source="n18" target="n18">
@@ -1374,7 +1318,6 @@
           <attvalue for="graphty.style.edge.self-loop" value="0.1491,0.1491 0.1263,0.1734 0.1052,0.1992 0.0858,0.2263 0.0682,0.2546 0.0525,0.2839 0.0388,0.3143 0.027,0.3455 0.0173,0.3774 0.0098,0.4098 0.0044,0.4427 0.0011,0.4758 0,0.5091 0.0011,0.5424 0.0044,0.5756 0.0098,0.6085 0.0173,0.6409 0.027,0.6728 0.0388,0.704 0.0525,0.7343 0.0682,0.7637 0.0858,0.792 0.1052,0.8191 0.1263,0.8448 0.1491,0.8691 0.1734,0.8919 0.1992,0.913 0.2263,0.9325 0.2546,0.95 0.2839,0.9658 0.3143,0.9795 0.3455,0.9912 0.3774,1.0009 0.4098,1.0085 0.4427,1.0139 0.4758,1.0172 0.5091,1.0183 0.5424,1.0172 0.5756,1.0139 0.6085,1.0085 0.6409,1.0009 0.6728,0.9912 0.704,0.9795 0.7343,0.9658 0.7637,0.95 0.792,0.9325 0.8191,0.913 0.8448,0.8919 0.8691,0.8691 0.8919,0.8448 0.913,0.8191 0.9325,0.792 0.95,0.7637 0.9658,0.7343 0.9795,0.704 0.9912,0.6728 1.0009,0.6409 1.0085,0.6085 1.0139,0.5756 1.0172,0.5424 1.0183,0.5091 1.0172,0.4758 1.0139,0.4427 1.0085,0.4098 1.0009,0.3774 0.9912,0.3455 0.9795,0.3143 0.9658,0.2839 0.95,0.2546 0.9325,0.2263 0.913,0.1992 0.8919,0.1734 0.8691,0.1491 0.8448,0.1263 0.8191,0.1052 0.792,0.0858 0.7637,0.0682 0.7343,0.0525 0.704,0.0388 0.6728,0.027 0.6409,0.0173 0.6085,0.0098 0.5756,0.0044 0.5424,0.0011 0.5091,0 0.4758,0.0011 0.4427,0.0044 0.4098,0.0098 0.3774,0.0173 0.3455,0.027 0.3143,0.0388 0.2839,0.0525 0.2546,0.0682 0.2263,0.0858 0.1992,0.1052 0.1734,0.1263 0.1491,0.1491"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1.3"/>
       </edge>
       <edge id="e57" source="n58" target="n49">
@@ -1383,7 +1326,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e58" source="n26" target="n48">
@@ -1392,7 +1334,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e59" source="n28" target="n2">
@@ -1401,7 +1342,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#60a288"/>
         </attvalues>
-        <viz:color r="96" g="162" b="136"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e60" source="n27" target="n22">
@@ -1410,7 +1350,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e61" source="n52" target="n38">
@@ -1419,7 +1358,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e62" source="n14" target="n1">
@@ -1429,7 +1367,6 @@
           <attvalue for="graphty.style.edge.gephi-hidden" value="true"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e63" source="n31" target="n37">
@@ -1438,7 +1375,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e64" source="n28" target="n41">
@@ -1447,7 +1383,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#105cb5"/>
         </attvalues>
-        <viz:color r="16" g="92" b="181"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e65" source="n1" target="n55">
@@ -1456,7 +1391,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#417cf3"/>
         </attvalues>
-        <viz:color r="65" g="124" b="243"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e66" source="n9" target="n20">
@@ -1465,7 +1399,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e67" source="n32" target="n38">
@@ -1475,7 +1408,6 @@
           <attvalue for="graphty.style.edge.gephi-hidden" value="true"/>
           <attvalue for="graphty.style.edge.end-colors" value="#44276c"/>
         </attvalues>
-        <viz:color r="68" g="39" b="108"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e68" source="n2" target="n51">
@@ -1484,7 +1416,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#946d3f"/>
         </attvalues>
-        <viz:color r="148" g="109" b="63"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e69" source="n11" target="n30">
@@ -1493,7 +1424,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#fbb1fd"/>
         </attvalues>
-        <viz:color r="251" g="177" b="253"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e70" source="n1" target="n40">
@@ -1502,7 +1432,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#417cf3"/>
         </attvalues>
-        <viz:color r="65" g="124" b="243"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e71" source="n43" target="n54">
@@ -1511,7 +1440,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#1307b0"/>
         </attvalues>
-        <viz:color r="19" g="7" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e72" source="n15" target="n29">
@@ -1520,7 +1448,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e73" source="n31" target="n0">
@@ -1529,7 +1456,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e74" source="n53" target="n54">
@@ -1538,7 +1464,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e75" source="n34" target="n36">
@@ -1547,7 +1472,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e76" source="n22" target="n5">
@@ -1556,7 +1480,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e77" source="n13" target="n46">
@@ -1565,7 +1488,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e78" source="n3" target="n53">
@@ -1574,7 +1496,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#0d0175"/>
         </attvalues>
-        <viz:color r="13" g="1" b="117"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e79" source="n35" target="n53">
@@ -1583,7 +1504,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e80" source="n14" target="n48">
@@ -1592,7 +1512,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e81" source="n3" target="n16">
@@ -1601,7 +1520,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#44276c"/>
         </attvalues>
-        <viz:color r="68" g="39" b="108"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e82" source="n24" target="n3">
@@ -1610,7 +1528,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e83" source="n52" target="n52">
@@ -1619,7 +1536,6 @@
           <attvalue for="graphty.style.edge.self-loop" value="0.1492,0.1492 0.1264,0.1735 0.1053,0.1993 0.0858,0.2264 0.0682,0.2547 0.0525,0.2841 0.0388,0.3144 0.027,0.3456 0.0174,0.3775 0.0098,0.41 0.0044,0.4428 0.0011,0.476 0,0.5093 0.0011,0.5426 0.0044,0.5758 0.0098,0.6087 0.0174,0.6411 0.027,0.673 0.0388,0.7042 0.0525,0.7346 0.0682,0.764 0.0858,0.7923 0.1053,0.8194 0.1264,0.8451 0.1492,0.8695 0.1735,0.8923 0.1993,0.9134 0.2264,0.9328 0.2547,0.9504 0.2841,0.9661 0.3144,0.9799 0.3456,0.9916 0.3775,1.0013 0.41,1.0089 0.4428,1.0143 0.476,1.0176 0.5093,1.0187 0.5426,1.0176 0.5758,1.0143 0.6087,1.0089 0.6411,1.0013 0.673,0.9916 0.7042,0.9799 0.7346,0.9661 0.764,0.9504 0.7923,0.9328 0.8194,0.9134 0.8451,0.8923 0.8695,0.8695 0.8923,0.8451 0.9134,0.8194 0.9328,0.7923 0.9504,0.764 0.9661,0.7346 0.9799,0.7042 0.9916,0.673 1.0013,0.6411 1.0089,0.6087 1.0143,0.5758 1.0176,0.5426 1.0187,0.5093 1.0176,0.476 1.0143,0.4428 1.0089,0.41 1.0013,0.3775 0.9916,0.3456 0.9799,0.3144 0.9661,0.2841 0.9504,0.2547 0.9328,0.2264 0.9134,0.1993 0.8923,0.1735 0.8695,0.1492 0.8451,0.1264 0.8194,0.1053 0.7923,0.0858 0.764,0.0682 0.7346,0.0525 0.7042,0.0388 0.673,0.027 0.6411,0.0174 0.6087,0.0098 0.5758,0.0044 0.5426,0.0011 0.5093,0 0.476,0.0011 0.4428,0.0044 0.41,0.0098 0.3775,0.0174 0.3456,0.027 0.3144,0.0388 0.2841,0.0525 0.2547,0.0682 0.2264,0.0858 0.1993,0.1053 0.1735,0.1264 0.1492,0.1492"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1.3"/>
       </edge>
       <edge id="e84" source="n11" target="n23">
@@ -1628,7 +1544,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e85" source="n52" target="n1">
@@ -1637,7 +1552,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e86" source="n9" target="n56">
@@ -1646,7 +1560,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e87" source="n44" target="n8">
@@ -1655,7 +1568,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#105cb5"/>
         </attvalues>
-        <viz:color r="16" g="92" b="181"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e88" source="n24" target="n38">
@@ -1664,7 +1576,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8459b9"/>
         </attvalues>
-        <viz:color r="132" g="89" b="185"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e89" source="n35" target="n18">
@@ -1673,7 +1584,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e90" source="n32" target="n19">
@@ -1682,7 +1592,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#bb7fb0"/>
         </attvalues>
-        <viz:color r="187" g="127" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e91" source="n8" target="n31">
@@ -1691,7 +1600,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e92" source="n43" target="n36">
@@ -1700,7 +1608,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e93" source="n44" target="n46">
@@ -1709,7 +1616,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e94" source="n44" target="n27">
@@ -1718,7 +1624,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e95" source="n23" target="n31">
@@ -1727,7 +1632,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#100492"/>
         </attvalues>
-        <viz:color r="16" g="4" b="146"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e96" source="n2" target="n36">
@@ -1736,7 +1640,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#946d3f"/>
         </attvalues>
-        <viz:color r="148" g="109" b="63"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e97" source="n55" target="n16">
@@ -1745,7 +1648,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4782ac"/>
         </attvalues>
-        <viz:color r="71" g="130" b="172"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e98" source="n36" target="n22">
@@ -1754,7 +1656,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e99" source="n48" target="n56">
@@ -1763,7 +1664,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e100" source="n46" target="n34">
@@ -1772,7 +1672,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e101" source="n0" target="n4">
@@ -1781,7 +1680,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#14b7f5"/>
         </attvalues>
-        <viz:color r="20" g="183" b="245"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e102" source="n43" target="n20">
@@ -1790,7 +1688,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#1307b0"/>
         </attvalues>
-        <viz:color r="19" g="7" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e103" source="n36" target="n26">
@@ -1799,7 +1696,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#7547aa"/>
         </attvalues>
-        <viz:color r="117" g="71" b="170"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e104" source="n56" target="n5">
@@ -1808,7 +1704,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e105" source="n49" target="n8">
@@ -1817,7 +1712,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4782ac"/>
         </attvalues>
-        <viz:color r="71" g="130" b="172"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e106" source="n20" target="n11">
@@ -1826,7 +1720,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#875cd6"/>
         </attvalues>
-        <viz:color r="135" g="92" b="214"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e107" source="n54" target="n10">
@@ -1835,7 +1728,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e108" source="n19" target="n48">
@@ -1844,7 +1736,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#b579f7"/>
         </attvalues>
-        <viz:color r="181" g="121" b="247"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e109" source="n14" target="n56">
@@ -1853,7 +1744,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#472a89"/>
         </attvalues>
-        <viz:color r="71" g="42" b="137"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e110" source="n0" target="n41">
@@ -1862,7 +1752,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#105cb5"/>
         </attvalues>
-        <viz:color r="16" g="92" b="181"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e111" source="n8" target="n54">
@@ -1871,7 +1760,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#135fd2"/>
         </attvalues>
-        <viz:color r="19" g="95" b="210"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e112" source="n48" target="n33">
@@ -1880,7 +1768,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#6f41f1"/>
         </attvalues>
-        <viz:color r="111" g="65" b="241"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e113" source="n1" target="n6">
@@ -1889,7 +1776,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#3e21b3"/>
         </attvalues>
-        <viz:color r="62" g="33" b="179"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e114" source="n41" target="n59">
@@ -1898,7 +1784,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#0d0175"/>
         </attvalues>
-        <viz:color r="13" g="1" b="117"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e115" source="n12" target="n4">
@@ -1907,7 +1792,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#87b4f9"/>
         </attvalues>
-        <viz:color r="135" g="180" b="249"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e116" source="n34" target="n58">
@@ -1916,7 +1800,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#1307b0"/>
         </attvalues>
-        <viz:color r="19" g="7" b="176"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e117" source="n34" target="n33">
@@ -1925,7 +1808,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#4124d0"/>
         </attvalues>
-        <viz:color r="65" g="36" b="208"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e118" source="n24" target="n33">
@@ -1934,7 +1816,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#b579f7"/>
         </attvalues>
-        <viz:color r="181" g="121" b="247"/>
         <viz:thickness value="1"/>
       </edge>
       <edge id="e119" source="n25" target="n57">
@@ -1943,7 +1824,6 @@
           <attvalue for="graphty.style.edge.weight-width" value="1"/>
           <attvalue for="graphty.style.edge.end-colors" value="#8e6786"/>
         </attvalues>
-        <viz:color r="142" g="103" b="134"/>
         <viz:thickness value="1"/>
       </edge>
     </edges>

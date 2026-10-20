@@ -9,9 +9,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { extractStyles, type StyleRule } from "../../src/styles/internal.js";
+import { type ExtractedStyles, extractStyles, type StyleRule } from "../../src/styles/internal.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
+    checkHostileBlocks,
     checkInput,
     checkStyles,
     fileInput,
@@ -42,6 +43,38 @@ const results: StyleResult[] = [];
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
     ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
+    [
+        "json/fidelity/vis-siblings.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/fidelity/vis-synth.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/fidelity/vis-transparency.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/fidelity/vis-unix.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/fidelity/vis-world.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/vis-dot-to-graph-softmaint.json writes",
+        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
+    ],
+    [
+        "json/generated/cytoscape-graphty-written.json plans",
+        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
+    ],
+    [
+        "json/generated/cytoscape-tamper-native-edited.json plans",
+        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
+    ],
 ]);
 
 /**
@@ -57,6 +90,32 @@ function split<T extends { readonly name: string }>(
     const rows = inputs.map((input) => [input.name, input] as const);
     const isKnown = ([name]: readonly [string, T]): boolean => KNOWN_FAILURES.has(`${name} ${check}`);
     return { pass: rows.filter((r) => !isKnown(r)), fail: rows.filter(isKnown) };
+}
+
+/**
+ * The largest member of a generated series, by the smaller member whose rules are the same kinds: its round trip
+ * writes, reads back and compares every element, and leaves the checks that do not grow with the graph (the fixed
+ * point, the outside edit, the hostile blocks) to the smaller one, which saves nine whole exports and imports.
+ * DOT's random-10000 is not here: it has a self-loop and a parallel pair, which Graphviz draws bent, and random-1000
+ * has neither.
+ */
+const SCALE_POINTS: ReadonlyMap<string, string> = new Map([
+    ["graphml/generated/scale-5000.graphml.gz", "graphml/generated/scale-500.graphml.gz"],
+    ["gexf/generated/random-all-6000.gexf.gz", "gexf/generated/random-all-600.gexf"],
+]);
+
+/**
+ * What kinds of rules styles have: each rule's target, role, the properties it sets and the kind of each mapping.
+ * @param ex - the styles
+ * @returns one line per rule
+ */
+function ruleKinds(ex: ExtractedStyles | null): string[] {
+    return (ex?.styles.rules ?? []).map(
+        (r) =>
+            `${r.target} ${r.role} set ${Object.keys(r.set ?? {}).join(",")} map ${Object.entries(r.map ?? {})
+                .map(([p, m]) => `${p}=${m?.kind ?? ""}`)
+                .join(",")}`,
+    );
 }
 
 describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) => {
@@ -89,10 +148,19 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
         const write = async (input: (typeof inputs)[number]): Promise<void> => {
             const loaded = await input.load();
             const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
-            expect(ex === null ? [] : await roundTrip(writer, loaded, ex)).toEqual([]);
+            const full = !SCALE_POINTS.has(input.name);
+            expect(ex === null ? [] : await roundTrip(writer, loaded, ex, full)).toEqual([]);
         };
         it.each(writes.pass)("%s writes styles that read back as the same rules and values", (_name, input) =>
             write(input),
+        );
+        it.each(inputs.map((input) => [input.name, input] as const))(
+            "%s ignores a hostile graphty.styles block in the written file",
+            async (_input, input) => {
+                const loaded = await input.load();
+                const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+                expect(ex === null ? [] : await checkHostileBlocks(writer, loaded, ex)).toEqual([]);
+            },
         );
         if (writes.fail.length > 0) {
             it.fails.each(writes.fail)(
@@ -101,6 +169,23 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
             );
         }
     }
+});
+
+describe.each([...SCALE_POINTS].map(([large, small]) => [large, small] as const))("%s", (large, small) => {
+    it(`has the kinds of rules ${small} has, which runs the whole round trip`, async () => {
+        const load = async (name: string): Promise<ExtractedStyles | null> => {
+            const format = FORMATS.find((f) => f.name === name.split("/")[0]);
+            const input = format === undefined ? undefined : formatInputs(format).find((i) => i.name === name);
+            if (input === undefined) {
+                throw new Error(`${name} is not a harness input`);
+            }
+            const loaded = await input.load();
+            return extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+        };
+        const kinds = ruleKinds(await load(large));
+        expect(kinds.length).toBeGreaterThan(2);
+        expect(kinds).toEqual(ruleKinds(await load(small)));
+    });
 });
 
 describe("the checks", () => {

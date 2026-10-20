@@ -4,6 +4,8 @@
  * something unknown.
  */
 
+import { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT } from "@graphty/graphty-element/session";
+
 /** Number format (Settings > General). */
 export const NUMBER_FORMAT = {
     key: "graphty.numberFormat.v1",
@@ -19,7 +21,17 @@ export const SINGLE_KEY_SHORTCUTS = {
 } as const;
 
 /**
- * Import styles from files (Settings > General, the Load Data dialog and the Data page): whether a
+ * GPU acceleration (Settings > Performance): the policy written on the element's `acceleration`
+ * attribute. The element applies it but never remembers it, so the app keeps the reader's word.
+ */
+export const ACCELERATION = {
+    key: "graphty.acceleration.v1",
+    values: ACCELERATION_POLICIES,
+    fallback: ACCELERATION_POLICY_DEFAULT,
+} as const;
+
+/**
+ * Import styles from files (Settings > General and the Data page): whether a
  * load draws a file's own colors, sizes and shapes as style layers.
  */
 export const IMPORT_FILE_STYLES = {

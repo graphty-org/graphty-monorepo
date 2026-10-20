@@ -370,6 +370,9 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// Autosaved work read and deleted without an element (a start screen that offers it first).
+export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
+export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session

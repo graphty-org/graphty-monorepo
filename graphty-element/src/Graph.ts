@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    NullEngine,
     Observable,
     PointerEventTypes,
     Quaternion,
@@ -130,13 +131,13 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { pickNodeId, pointerEventTime } from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import type { DataMutation } from "./session/commands/data";
+import { addsRows, type DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -144,6 +145,7 @@ import {
     addSetsUsers,
     dispatcherOf,
     handGraphPaintToRenderer,
+    paintAddedRows,
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
@@ -201,6 +203,29 @@ const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.p
  */
 function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
+}
+
+/** The camera state fields that set where the camera stands or how much of the graph it shows. */
+const FRAMING_FIELDS = [
+    "position",
+    "target",
+    "cameraDistance",
+    "radius",
+    "zoom",
+    "pan",
+    "orthoLeft",
+    "orthoRight",
+    "orthoTop",
+    "orthoBottom",
+] as const;
+
+/**
+ * Whether a camera placement sets anything a framing sets, rather than only turning the camera.
+ * @param state - The placement, presets and orbit angles resolved.
+ * @returns True when it gives a position, a target, a distance, a zoom, a pan or a frustum.
+ */
+function placesFraming(state: import("./screenshot/types.js").CameraState): boolean {
+    return FRAMING_FIELDS.some((field) => state[field] !== undefined);
 }
 
 /**
@@ -698,9 +723,9 @@ export class Graph implements GraphContext {
                     // A run of queued adds starts the list once, from the last of them: each
                     // earlier start would run over a graph still arriving and freeze a snapshot
                     // for nothing.
-                    // ponytail: a queued removal behind the adds also defers the start, and no
-                    // removal starts the list, so adds followed at once by a removal run nothing.
-                    if (dispatcherOf(this.session).graphWritesWaiting) {
+                    // Only a queued command that adds rows defers it, since only such a command
+                    // starts the list again; any other write queued behind does not.
+                    if (dispatcherOf(this.session).commandWaiting(addsRows)) {
                         return;
                     }
 
@@ -723,6 +748,8 @@ export class Graph implements GraphContext {
         // brought up to date either way, since a layer can select on any value that moved.
         const { lane } = dispatcherOf(this.session);
         handGraphPaintToRenderer(this.session);
+        // No frame is drawn while an element built from the defaults waits for its style.
+        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -760,14 +787,36 @@ export class Graph implements GraphContext {
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
+            // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
+            // their own rows only (and the waiting edges their nodes completed). While an import
+            // reads there is no whole-graph pass until its end, so a paged or streamed load was
+            // drawn in the element's defaults while the layout ran, often until after it had
+            // settled. No frame is drawn while an element built from the defaults waits for this.
+            const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
+            if (!paintsWhole) {
+                if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
+                    await paintAddedRows(this.session, target.styles, dirty, this.dataManager.takeLateEdgeRows());
+                }
+
+                this.dataManager.notePainted(dirty);
+            }
+
+            // A change to graph values alone (the source's name, the import report) moves nothing
+            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+                return;
+            }
+
             // While an import reads, the pass after each chunk builds what arrived but does not
             // paint; the pass its end schedules paints the whole graph once. Likewise a graph
             // write with another still waiting behind it leaves the paint to the last of them,
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            if (cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting)) {
+            if (paintsWhole) {
                 dispatcher.paintOwed = false;
                 await this.repaintFromSession();
+                // The whole graph is painted, whatever an import stopped part way left waiting.
+                this.dataManager.notePainted(null);
             } else if (this.#importsReading === 0) {
                 dispatcher.paintOwed = true;
             }
@@ -1431,7 +1480,12 @@ export class Graph implements GraphContext {
         const requested = this.#rendererRequest;
         this.#rendererChosen = true;
         if (requested === "webgl") {
-            this.#rendererStatus = { requested, active: "webgl", reason: null };
+            this.#rendererStatus = {
+                requested,
+                active: "webgl",
+                reason: null,
+                drawing: !(this.engine instanceof NullEngine),
+            };
             return;
         }
 
@@ -1474,7 +1528,12 @@ export class Graph implements GraphContext {
         }
 
         if (typeof opened === "string") {
-            this.#rendererStatus = { requested, active: "webgl", reason: opened };
+            this.#rendererStatus = {
+                requested,
+                active: "webgl",
+                reason: opened,
+                drawing: !(this.engine instanceof NullEngine),
+            };
             return;
         }
 
@@ -1510,7 +1569,7 @@ export class Graph implements GraphContext {
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
         this.managers.set("input", this.inputManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null };
+        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
     }
 
     /**
@@ -1591,6 +1650,9 @@ export class Graph implements GraphContext {
             // Under the queued build's signal, so a layout the consumer has already asked for still
             // replaces the default before it is built. See `openingSignalFor`.
             await this.buildOpeningLayout(this.#openingSignal);
+            if (this.#teardown.signal.aborted) {
+                return;
+            }
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -3691,6 +3753,12 @@ export class Graph implements GraphContext {
                 }
             }
         });
+
+        // The nodes' shared observer goes in right after this one, where the first node's own
+        // observers used to be, so a node's handlers still hear an event after the background does.
+        // Their shared action manager is made here too, so it belongs to the scene from the start.
+        nodePointerRosterOf(this.scene);
+        nodeActionManagerOf(this.scene);
     }
 
     /**
@@ -5099,15 +5167,20 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
-        // An explicit placement answers any framing the element still owes on its own initiative
-        // (a data load, a new layout, the first settlement). Left outstanding, that request is
-        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
-        // one -- and moves the camera off the state just placed. A later load or layout asks again.
-        this.updateManager.disableZoomToFit();
-        this.#cameraPlaced = true;
-        // The framing the first settlement asked for is withdrawn, so it will not land: a reset
-        // returns to where the camera stands when it is first asked for.
-        this.#initialCameraStateOwed = false;
+        // An explicit placement of where the camera stands or how far it is answers any framing
+        // the element still owes on its own initiative (a data load, a new layout, the first
+        // settlement). Left outstanding, that request is honoured on a later frame -- once a style
+        // pass finishes, or once a slow machine renders one -- and moves the camera off the state
+        // just placed. A later load or layout asks again. A placement that only turns the camera
+        // answers nothing a framing sets, so the framing still lands (issue #3153): a turn right
+        // after a switch to 3D otherwise kept the compact starting layout's framing.
+        if (placesFraming(resolvedState)) {
+            this.updateManager.disableZoomToFit();
+            this.#cameraPlaced = true;
+            // The framing the first settlement asked for is withdrawn, so it will not land: a
+            // reset returns to where the camera stands when it is first asked for.
+            this.#initialCameraStateOwed = false;
+        }
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {

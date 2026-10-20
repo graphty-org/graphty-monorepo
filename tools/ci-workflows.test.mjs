@@ -75,11 +75,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 17 jobs", () => {
+    it("runs every shard exactly once on a full run, in 18 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 17);
+        assert.equal(include.length, 18);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -265,7 +265,10 @@ describe("the pre-push gate matches CI", () => {
         });
 
         it("runs every shard but a never one when there is nothing to compare with (PREPUSH_ALL=1)", () => {
-            assert.deepEqual(gateShards(element, null, null), element);
+            assert.deepEqual(
+                gateShards(element, null, null),
+                element.filter((s) => s.local !== "never"),
+            );
             const never = { ...element[0], local: "never" };
             assert.deepEqual(gateShards([never, element[1]], null, null), [element[1]]);
         });
@@ -369,7 +372,8 @@ describe("the pre-push gate matches CI", () => {
     });
 
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
-        const shards = localShards(["graphty-element", "layout"]);
+        // What the gate schedules: the shards it runs, never the ones it leaves to CI.
+        const shards = gateShards(localShards(["graphty-element", "layout"]), null, null);
         const pick = (n) => shards.find((s) => s.shard === n);
         const canStart = startRule(shards);
         const startable = (running, warmed) =>
@@ -830,7 +834,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 17, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
@@ -1462,7 +1466,7 @@ describe("pr-issue-link.yml", () => {
         assert.doesNotMatch(wf, /^concurrency:/m);
         assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
     });
-    it("fails with the message that says what to add, and a failing one blocks Mergify", () => {
+    it("fails with the message that says what to add", () => {
         const run = (env) =>
             spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
                 encoding: "utf8",
@@ -1473,9 +1477,6 @@ describe("pr-issue-link.yml", () => {
         assert.match(bad.stderr, /Add 'Fixes #123' \(or Closes\/Resolves\), 'Refs #123'.*a line 'No issue'/);
         assert.equal(run({ PR_BODY: "Fixes #1611" }).status, 0);
         assert.equal(run({ PR_BODY: "", PR_AUTHOR: "dependabot[bot]" }).status, 0);
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.match(mergify, /- -check-failure=Link PR Issue\n/);
-        assert.doesNotMatch(mergify, /check-success=Link PR Issue/);
     });
 });
 
@@ -1656,34 +1657,9 @@ echo "${aptSays}"`,
     });
 });
 
-describe(".mergify.yml", () => {
-    it("merges every pull request with its own merge commit", () => {
-        // Never merge-batch: marking the batch's draft ready starts a second CI run on the same commit, and the
-        // ruleset waits on its unfinished "All Checks Pass" until Mergify dequeues the batch.
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const queues = mergify.slice(mergify.indexOf("queue_rules:"));
-        const batch = queues.slice(queues.indexOf("- name: default"));
-        assert.match(batch, /^\s+merge_method: merge$/m);
-        assert.doesNotMatch(mergify, /^\s+merge_method: merge-batch/m);
-    });
-
-    it("has no release rule, and keeps the queue when the release train pushes to master", () => {
-        // releases are tested and published by release.yml itself, never queued (owner decision, 2026-10-11)
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.doesNotMatch(mergify, /release\/train-|- name: release/);
-        assert.match(mergify, /\nmerge_queue:\n(?: {4}.*\n|\s*\n)*? {4}reset_on_external_merge: never\n/);
-    });
-
-    it("does not make the queue wait on the visual gate before the gate accepts a batch", () => {
-        // In a queue run the gate's --pr is the queue draft's own number, which no review record names,
-        // so a batch that changes a baseline fails "Queue Checks Pass" every time. merge_conditions may
-        // name it only once the trusted gate takes a batch's pull request numbers (its usage says so).
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        const gate = readFileSync(new URL("../visual-review/trusted/gate.mjs", import.meta.url), "utf8");
-        const usage = gate.slice(gate.indexOf("export const GATE_USAGE"));
-        if (/^\s*merge_conditions:/m.test(mergify) || /^\s*batch_size: *([2-9]|\d{2,})/m.test(mergify)) {
-            assert.match(usage.slice(0, usage.indexOf("`;")), /batch/i, "the gate accepts a batch first");
-        }
+describe("Mergify is retired", () => {
+    it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
+        assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
     });
 });
 
@@ -1840,13 +1816,6 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             assert.equal(lost(["11", "12"], { 11: LOST, 12: "Process completed with exit code 1." }), 1);
             assert.equal(lost([], {}), 1);
         });
-    });
-});
-
-describe(".mergify.yml and the T4", () => {
-    it("makes no pull request wait on a T4 result", () => {
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.doesNotMatch(mergify, /T4|GPU|gpu/);
     });
 });
 
@@ -2157,6 +2126,7 @@ describe("release.yml", () => {
     const t4 = job(release, "t4");
     const audit = job(release, "audit");
     const hosts = job(release, "hosts");
+    const autosaveMacos = job(release, "autosave_macos");
     const llm = job(release, "llm");
     const coverage = job(release, "coverage");
     const held = job(release, "held");
@@ -2247,13 +2217,18 @@ describe("release.yml", () => {
             /uses: \.\/\.github\/workflows\/hosts\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}/,
         );
         assert.match(workflow("hosts.yml"), /workflow_call:\n\s+inputs:\n\s+ref:/);
+        assert.match(
+            autosaveMacos,
+            /uses: \.\/\.github\/workflows\/work-protection-macos\.yml\n\s+with:\n\s+candidate: \$\{\{ needs.pick.outputs.sha \}\}/,
+        );
+        assert.match(workflow("work-protection-macos.yml"), /workflow_call:\n\s+inputs:\n\s+candidate:/);
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(version, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
+        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm\]/);
         assert.match(
             version,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -2308,13 +2283,13 @@ describe("release.yml", () => {
             "the marker the job reads is the one the harness prints",
         );
         // paid calls: never on a pull request, the merge queue or a master push
-        for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "coverage.yml"]) {
+        for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "work-protection-macos.yml", "coverage.yml"]) {
             assert.doesNotMatch(workflow(file), /llm-regression|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY/, file);
         }
     });
 
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, version, land\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, land\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -2331,6 +2306,7 @@ describe("release.yml", () => {
             ["CI", "CI"],
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
+            ["AUTOSAVE_MACOS", "work protection (macOS)"],
             ["AUDIT", "security audit"],
             ["VERSION", "versioning"],
             ["LAND", "landing on master"],
@@ -2376,7 +2352,7 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"].map((j) => [
+                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "land"].map((j) => [
                         j,
                         {
                             result: results[j] ?? "success",
@@ -2389,7 +2365,17 @@ describe("release.yml", () => {
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
         it("needs every lane, the version job and the land job", () => {
-            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit", "llm", "version", "land"]);
+            assert.deepEqual(trainNeeds, [
+                "pick",
+                "ci",
+                "t4",
+                "hosts",
+                "autosave_macos",
+                "audit",
+                "llm",
+                "version",
+                "land",
+            ]);
             assert.match(held, new RegExp(`needs: \\[${trainNeeds.join(", ")}\\]`));
         });
 
@@ -2526,6 +2512,7 @@ describe("release.yml", () => {
                         CI_RESULT: "success",
                         T4_RESULT: "success",
                         HOSTS_RESULT: "success",
+                        AUTOSAVE_MACOS_RESULT: "success",
                         AUDIT_RESULT: "success",
                         LLM_RESULT: "success",
                         LLM_OWNER_ITEM: "",
@@ -2581,6 +2568,7 @@ describe("release.yml", () => {
                     CI_RESULT: "skipped",
                     T4_RESULT: "skipped",
                     HOSTS_RESULT: "skipped",
+                    AUTOSAVE_MACOS_RESULT: "skipped",
                     AUDIT_RESULT: "skipped",
                     LLM_RESULT: "skipped",
                 },

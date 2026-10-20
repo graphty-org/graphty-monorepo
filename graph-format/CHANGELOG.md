@@ -1,3 +1,15 @@
+## 1.4.6 (2026-10-20)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.5 (2026-10-18)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.4 (2026-10-17)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
 ## 1.4.3 (2026-10-17)
 
 ### 🩹 Fixes

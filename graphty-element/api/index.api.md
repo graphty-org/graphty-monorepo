@@ -49,7 +49,6 @@ import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
-import { Observer } from '@babylonjs/core';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -70,9 +69,7 @@ import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
 import { XGMML_LOSS } from '@graphty/graph-io';
-import { z } from 'zod/v4';
-import * as z4 from 'zod/v4/core';
-import { z as z_2 } from 'zod';
+import { z } from 'zod';
 
 // @public
 export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[];
@@ -257,6 +254,96 @@ export interface AnimationResult {
         framesDropped: number;
         dropRate: number;
     };
+}
+
+// @public
+export interface AutosaveApi {
+    discard(): Promise<void>;
+    flush(): Promise<void>;
+    list(): Promise<readonly AutosaveEntry[]>;
+    readonly ready: Promise<AutosaveRestored | null>;
+    remove(id: string): Promise<void>;
+    removeAll(): Promise<void>;
+    requestPersistence(): Promise<boolean>;
+    restore(id: string, options?: {
+        readonly discard?: boolean;
+    }): Promise<ProjectOpenReport>;
+    readonly restored: AutosaveRestored | null;
+    stash(name: string, value: unknown): void;
+    stashed(name: string): unknown;
+    readonly status: AutosaveStatus;
+}
+
+// @public
+export type AutosaveAtRisk = CodedFact<"W_AUTOSAVE_ORIGIN_EPHEMERAL">;
+
+// @public
+export interface AutosaveAvailable {
+    readonly entry: AutosaveEntry;
+    readonly problem: CodedFact | null;
+    readonly reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual";
+}
+
+// @public
+export type AutosaveCode = "E_AUTOSAVE_UNAVAILABLE" | "E_AUTOSAVE_KEY_AMBIGUOUS" | "E_AUTOSAVE_QUOTA" | "E_AUTOSAVE_STALLED" | "E_AUTOSAVE_CONNECTION_LOST" | "E_AUTOSAVE_TOO_LARGE" | "E_AUTOSAVE_FAILED" | "E_AUTOSAVE_ENTRY_TAKEN" | "E_AUTOSAVE_UNKNOWN_ENTRY" | "E_AUTOSAVE_FORMAT_NEWER" | "E_AUTOSAVE_RESTORE_CRASHED" | "W_AUTOSAVE_ORIGIN_EPHEMERAL";
+
+// @public
+export interface AutosaveEntry {
+    readonly createdAt: string;
+    readonly dirty: boolean;
+    readonly edges: number;
+    readonly ended?: "replaced";
+    readonly id: string;
+    readonly key: string;
+    readonly live: boolean;
+    readonly name: string;
+    readonly nodes: number;
+    readonly revision: number;
+    readonly savedAt: string;
+}
+
+// @public
+export interface AutosaveOptions {
+    readonly dataMaxWaitMs: number;
+    readonly delayMs: number;
+    readonly keep: number;
+    readonly key: string;
+    readonly maxWaitMs: number;
+    readonly persist: boolean;
+    readonly restore: "auto" | "manual";
+    readonly store: AutosaveStore;
+    readonly unloadGuard: "pending" | "unexported" | "off";
+}
+
+// @public
+export interface AutosaveRestored {
+    readonly copiedFrom: string | null;
+    readonly entry: AutosaveEntry;
+    readonly navigationType: string | null;
+    readonly others: number;
+    readonly pageOverrides: readonly string[];
+    readonly report: ProjectOpenReport;
+    readonly revision: number;
+    readonly savedAt: string;
+    readonly wasDiscarded: boolean | null;
+}
+
+// @public
+export interface AutosaveStatus {
+    readonly entry: string | null;
+    readonly ephemeral: "likely" | "unknown";
+    readonly persisted: boolean | null;
+    readonly problem: CodedFact<AutosaveCode> | null;
+    readonly revision: number;
+    readonly savedAt: string | null;
+    readonly state: "off" | "saved" | "pending" | "failing";
+    readonly storage: {
+        readonly usage: number;
+        readonly quota: number;
+        readonly entries: number;
+        readonly bytes: number;
+    } | null;
+    readonly unexported: boolean;
 }
 
 // @public
@@ -587,6 +674,8 @@ export class DataManager implements Manager {
     clear(): void;
     get directionSettledBy(): DirectionProvenance;
     dispose(): void;
+    // @internal
+    get drawHeld(): boolean;
     drawnBundle(edge: Edge): EdgeBundle;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
@@ -620,6 +709,10 @@ export class DataManager implements Manager {
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     nodeVersion: number;
+    // @internal
+    notePaintDrawn(): void;
+    // @internal
+    notePainted(dirty: ReadonlySet<string> | null): void;
     get positions(): ReadonlyElementPositions;
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
@@ -636,6 +729,8 @@ export class DataManager implements Manager {
     get snapshotStale(): boolean;
     startLabelAnimations(): void;
     supersedeLoads(): void;
+    // @internal
+    takeLateEdgeRows(): number[];
     throwIfSuperseded(generation: number, type: string): void;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
     updateStyles(styles: Styles): void;
@@ -647,7 +742,7 @@ export abstract class DataSource {
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
-    dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean>;
+    dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
     // (undocumented)
@@ -655,7 +750,7 @@ export abstract class DataSource {
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
     // (undocumented)
-    edgeSchema: z4.$ZodObject | null;
+    edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
     protected get errorMessages(): {
@@ -683,7 +778,7 @@ export abstract class DataSource {
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
     // (undocumented)
-    nodeSchema: z4.$ZodObject | null;
+    nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(passed: object): Record<string, unknown>;
     // (undocumented)
@@ -984,7 +1079,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1219,7 +1314,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
-            }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1565,7 +1660,7 @@ export const EdgeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -2152,7 +2247,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
-}, z.core.$strict>]>;
+}, z.core.$strict>], "backgroundType">;
 
 // @public
 export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
@@ -2309,6 +2404,13 @@ export class Graphty extends LitElement {
     asyncFirstUpdated(): Promise<void>;
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
+    get autosave(): string | null;
+    set autosave(value: string | boolean | null | undefined);
+    get autosaveOptions(): Partial<AutosaveOptions>;
+    set autosaveOptions(value: Partial<AutosaveOptions> | null | undefined);
+    get autosaver(): AutosaveApi;
+    get autosaveRestore(): "auto" | "manual";
+    set autosaveRestore(value: "auto" | "manual" | null | undefined);
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
@@ -2747,6 +2849,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNSAVED_CHANGES"
 /**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
@@ -3134,7 +3246,14 @@ export type GraphtyWarningCode =
 * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
 * `params.options` lists the names it ignored and `params.available` the names it takes.
 */
-| "W_UNKNOWN_OPTION";
+| "W_UNKNOWN_OPTION"
+/**
+* A layout was given a dimension option (such as `dim: 3`) while the graph is in 2D mode, and
+* was computed in 2D instead: a 2D view always draws a 2D layout. Emitted as a `layout-warning`
+* event. `params.requested` holds the options as given and `params.used` the values used, by
+* name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
+*/
+| "W_DIMENSION_OVERRIDDEN";
 
 // @public
 export const GREEN_SUCCESS: {
@@ -3754,6 +3873,7 @@ export const NodeStyle: z.ZodObject<{
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
             diameter: "diameter";
+            uniform: "uniform";
         }>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -3846,7 +3966,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{
@@ -4175,7 +4295,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -4368,7 +4488,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -4729,7 +4849,7 @@ export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b
 export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
-export type PartialXRConfig = z_2.input<typeof xrConfigSchema>;
+export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 
 // @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
@@ -4922,6 +5042,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 // @public
 export interface RendererStatus {
     readonly active: ActiveRenderer;
+    readonly drawing: boolean;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }
@@ -4933,6 +5054,8 @@ export class RenderManager implements Manager {
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
+    // @internal
+    drawHeld: (() => boolean) | null;
     // (undocumented)
     engine: Engine | WebGPUEngine;
     getRenderStats(): {
@@ -5031,7 +5154,7 @@ export const RichTextStyle: z.ZodObject<{
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         opacity: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+    }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
     backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;

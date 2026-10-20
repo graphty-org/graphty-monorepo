@@ -1,5 +1,5 @@
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
@@ -90,7 +90,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(weight.type, "string");
             assert.isNull(weight.default);
-            assert.isTrue(weight.advanced);
+            assert.isUndefined(weight.advanced);
         });
 
         it("emits no Zod object anywhere in the result", () => {

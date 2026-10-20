@@ -18,6 +18,8 @@ graphty-element/jsx.ts
 # The oracle scorecard's known failures: written by graphty-element/test/fidelity/oracle/run-oracle.ts one line per
 # sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
 graphty-element/test/fidelity/oracle-known-failures.json
+# Vitest file snapshots: written by the tests that compare them byte for byte
+**/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
 # nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
 # __proto__ -> **proto**), and a release commit must never fail CI on its own changelogs.
@@ -41,6 +43,8 @@ docs/.vitepress/dist/
 
 # Visual-review baselines: PNGs and the JSON records written with them, byte-exact
 visual-baselines/
+# Signed screenshot approvals: their bytes are what the passkey signed, so a formatter must never touch them.
+visual-review-approvals/
 
 # Other
 gh-pages/

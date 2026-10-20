@@ -16,6 +16,7 @@ import {
     type DynamicTexture,
     type ImageProcessingConfiguration,
     type InternalTexture,
+    type Material,
     type Observer,
     type Scene,
     type StandardMaterial,
@@ -66,13 +67,33 @@ export function buildMaterial<T>(scene: Scene, build: () => T): T {
  * @param material - A material no mesh has drawn yet.
  * @param setup - Writes its properties.
  */
-export function setUpQuietly(material: StandardMaterial, setup: () => void): void {
+export function setUpQuietly(material: Material, setup: () => void): void {
     material.blockDirtyMechanism = true;
     try {
         setup();
     } finally {
         // Read through a plain shape: the field is private, and its setter is what walks.
         (material as unknown as { _blockDirtyMechanism: boolean })._blockDirtyMechanism = false;
+    }
+}
+
+/**
+ * Unfreeze the material of a mesh that is the only one drawing with it, marking only that mesh's
+ * submeshes dirty. `Material.unfreeze` marks dirty by walking every submesh of every mesh in the
+ * scene for the ones drawn with the material, whatever `blockDirtyMechanism` says, so unfreezing
+ * one node's source material cost the size of the graph (issue #2894).
+ * @param mesh - The one mesh drawn with `material`: a node's source mesh, whose instances draw
+ * through it.
+ * @param material - Its material.
+ */
+export function unfreezeFor(mesh: AbstractMesh, material: Material): void {
+    const scene = mesh.getScene();
+    const { meshes } = scene;
+    scene.meshes = [mesh];
+    try {
+        material.unfreeze();
+    } finally {
+        scene.meshes = meshes;
     }
 }
 

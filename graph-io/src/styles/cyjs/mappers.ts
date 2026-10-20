@@ -39,7 +39,10 @@ export type CyjsValueType =
 
 /** One property graph-io carries: the neutral property it sets (or a part it combines) and how it is parsed. */
 export interface CyjsPropertySpec {
-    /** The neutral property, or `_valign`, `_halign`, `_visibility`, `_display` for the parts combined afterward. */
+    /**
+     * The neutral property, or `_valign`, `_halign`, `_visibility`, `_display`, `_sourceArrowFill`, `_targetArrowFill`
+     * for the parts combined afterward.
+     */
     readonly property: string;
     /** The value type. */
     readonly type: CyjsValueType;

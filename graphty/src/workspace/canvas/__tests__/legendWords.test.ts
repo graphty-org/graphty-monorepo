@@ -172,7 +172,7 @@ describe("the legend card's words", () => {
         const blocks = [
             block({ layerId: "selected", kind: "literal", painted: 0 }),
             block({ layerId: "label", channel: "node.labelSize", kind: "literal", swatches: [swatch({ value: 72 })] }),
-            block({ layerId: "halo", channel: "node.haloSize", kind: "literal" }),
+            block({ layerId: "halo", channel: "node.haloScale", kind: "literal" }),
             block({ layerId: "halo", channel: "node.haloOpacity", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandWidth", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),

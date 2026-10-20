@@ -11,6 +11,11 @@ export type Home = { readonly place: string } | { readonly notOffered: string };
 const at = (place: string): Home => ({ place });
 const no = (notOffered: string): Home => ({ notOffered });
 
+/** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
+const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
+/** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
+const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
+
 /** Every channel, by where the Style tab sets it. */
 export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
@@ -33,10 +38,30 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.glow": at("Nodes, Effects, Glow"),
     "node.glowStrength": at("Nodes, Effects, Glow strength"),
     "node.haloColor": at("Nodes, Effects, Halo"),
-    "node.haloSize": at("Nodes, Effects, Halo size"),
+    "node.haloScale": at("Nodes, Effects, Halo size"),
     "node.haloOpacity": at("Nodes, Effects, Halo opacity"),
     "node.flat": no('nothing draws it; Graph settings, Lighting "flat" gives the look'),
     "node.marker": no("graphty-element refuses it"),
+    "node.sizeMode": NOT_PLACED,
+    "node.labelFont": TEXT_FIELD,
+    "node.labelWeight": TEXT_FIELD,
+    "node.labelItalic": TEXT_FIELD,
+    "node.halo": NOT_PLACED,
+    "node.unlit": NOT_PLACED,
+    "node.width": NOT_PLACED,
+    "node.height": NOT_PLACED,
+    "node.depth": NOT_PLACED,
+    "node.planar": NOT_PLACED,
+    "node.zIndex": NOT_PLACED,
+    "node.drawOrder": NOT_PLACED,
+    "node.borderColor": NOT_PLACED,
+    "node.borderWidth": NOT_PLACED,
+    "node.borderStyle": NOT_PLACED,
+    "node.cornerRadius": NOT_PLACED,
+    "edge.bends": NOT_PLACED,
+    "edge.labelFont": TEXT_FIELD,
+    "edge.labelWeight": TEXT_FIELD,
+    "edge.labelItalic": TEXT_FIELD,
     "edge.color": at("Edges, Line, Color"),
     "edge.width": at("Edges, Line, Width"),
     "edge.opacity": at("Edges, Visibility, Opacity"),
@@ -85,7 +110,16 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     look: at("Label entry, look"),
     enabled: at("Label entry, eye (off draws no label here)"),
     sizePx: at("Label entry, size (through the label size channel)"),
-    sizeUnit: at("Label settings, Type, Size in"),
+    sizeMode: at("Label settings, Type, Size in"),
+    size: no("the panel sets the size as sizePx, Label settings, Type, Size"),
+    italic: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    keepInView: PLACEMENT,
+    panelShadow: BOX,
+    panelShadowColor: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowBlur: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowOffsetX: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    panelShadowOffsetY: no("added to graphty-element after the Style panel's design; no row for it yet"),
+    closeButton: BOX,
     location: at("Label entry, position"),
     color: at("Label settings, Text color"),
     background: at("Label settings, Background"),

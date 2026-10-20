@@ -61,7 +61,7 @@ describe("the Style tab's words and arrangement", () => {
             "node.shape",
             "node.opacity",
             "node.glow",
-            "node.haloSize",
+            "node.haloScale",
             "node.tooltip",
             "edge.width",
             "edge.style",

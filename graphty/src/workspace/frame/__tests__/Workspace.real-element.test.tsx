@@ -169,7 +169,7 @@ describe("the workspace frame on the real element", () => {
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         // A real click on empty canvas focuses the drawing, as a reader's does.
-        await realInput.click(element, { position: { x: 10, y: 10 } });
+        await userEvent.click(element, { position: { x: 10, y: 10 } });
 
         // Registered after the workspace's own key listener, so it sees the press as the browser will.
         let browserSelectsAll: boolean | null = null;
@@ -179,7 +179,7 @@ describe("the workspace frame on the real element", () => {
             }
         };
         globalThis.addEventListener("keydown", onKey);
-        await realInput.keyboard("{Control>}a{/Control}");
+        await userEvent.keyboard("{Control>}a{/Control}");
         globalThis.removeEventListener("keydown", onKey);
 
         assert.strictEqual(
@@ -203,29 +203,29 @@ describe("the workspace frame on the real element", () => {
 
         // In the find box, Control+A selects the typed text and no node.
         const find = screen.getByRole("combobox", { name: "Find" });
-        await realInput.click(find);
-        await realInput.keyboard("ab");
-        await realInput.keyboard("{Control>}a{/Control}");
+        await userEvent.click(find);
+        await userEvent.keyboard("ab");
+        await userEvent.keyboard("{Control>}a{/Control}");
         assert.instanceOf(find, HTMLInputElement);
         assert.strictEqual(find.selectionStart, 0);
         assert.strictEqual(find.selectionEnd, 2, "the box's text is selected");
         assert.strictEqual(session.selection.size, 0, "no node is selected");
-        await realInput.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
 
         // On the canvas, Control+A selects every node.
-        await realInput.click(element, { position: { x: 10, y: 10 } });
+        await userEvent.click(element, { position: { x: 10, y: 10 } });
         await waitFor(() => {
             assert.strictEqual(session.selection.size, 0);
         });
-        await realInput.keyboard("{Control>}a{/Control}");
+        await userEvent.keyboard("{Control>}a{/Control}");
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes], ["a", "b", "c"]);
         });
 
         // The empty canvas's menu lists Select all, and it selects every node again.
         session.selection.clear();
-        await realInput.click(element, { position: { x: 10, y: 10 }, button: "right" });
-        await realInput.click(await screen.findByRole("menuitem", { name: /^Select all/ }));
+        await userEvent.click(element, { position: { x: 10, y: 10 }, button: "right" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select all/ }));
         await waitFor(() => {
             assert.sameMembers([...session.selection.nodes], ["a", "b", "c"]);
         });

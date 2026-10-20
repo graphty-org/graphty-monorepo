@@ -131,7 +131,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label",
-    "node.haloSize": "Halo",
     "edge.bandColor": "Band",
     "edge.bandWidth": "Band",
     "edge.bandOpacity": "Band",

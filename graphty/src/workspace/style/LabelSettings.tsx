@@ -109,7 +109,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
             // The size beside the unit it is measured in: a unit with no number beside it names nothing.
             [
                 number("sizePx", "Size"),
-                choice("sizeUnit", "Size in", [
+                choice("sizeMode", "Size in", [
                     ["screen", "Screen pixels"],
                     ["world", "Scene units"],
                 ]),
@@ -286,7 +286,7 @@ export function LabelSettings({
             return <React.Fragment key={field.key}>{varied.field}</React.Fragment>;
         }
         // A size on screen is in pixels and says so; a size in the scene has no unit to write.
-        const unit = style.sizeUnit ?? underneath("sizeUnit", look, beneath);
+        const unit = style.sizeMode ?? underneath("sizeMode", look, beneath);
         const control = (
             <FieldControl
                 key={field.key}

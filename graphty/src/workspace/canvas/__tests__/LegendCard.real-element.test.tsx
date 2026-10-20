@@ -59,7 +59,7 @@ async function scene(
         name: "Key people",
         target: "node",
         selector: { match: "ids", nodes: ids.slice(0, 4) },
-        set: { "node.color": "#e69f00", "node.labelSize": 72, "node.haloColor": "#009e73", "node.haloSize": 1.5 },
+        set: { "node.color": "#e69f00", "node.labelSize": 72, "node.haloColor": "#009e73", "node.haloScale": 1.5 },
     });
     const run = await session.runs.start("louvain");
     await session.styles.settled();

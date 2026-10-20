@@ -115,6 +115,10 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.expand": (p) => `expanding ${text(p, "node", "a node")}`,
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
     "data.set-source": () => "renaming the source",
+    "data.import-source": (p) => `importing ${text(p, "name", "data from a network source")}`,
+    "data.source-expand": (p) => `expanding ${counted(p, "node", "nodes")} from a network source`,
+    "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
+    "data.set-file-styles": () => "choosing which file styles to use",
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);

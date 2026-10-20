@@ -4,8 +4,29 @@
 import type { GraphStatistics } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { EMPTY_GRAPH_STATISTICS } from "../../../components/shell/analysis/graphShape";
 import { directionNote, directionWords } from "../words";
+
+/** An empty graph's statistics, the base each case overrides. */
+const EMPTY_GRAPH_STATISTICS: GraphStatistics = {
+    nodeCount: 0,
+    edgeCount: 0,
+    density: 0,
+    directedness: "unknown",
+    directednessSource: { by: "unsettled", statedBy: null },
+    weighted: false,
+    selfLoopCount: 0,
+    repeatedEdgeCount: 0,
+    degreeRange: [0, 0],
+    meanDegree: 0,
+    components: {
+        count: 0,
+        sizes: [],
+        largestSize: 0,
+        isolatedCount: 0,
+        truncatedSizes: false,
+        componentOf: () => undefined,
+    },
+};
 
 /**
  * Statistics carrying only the direction facts the row reads.

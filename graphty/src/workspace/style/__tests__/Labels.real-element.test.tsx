@@ -525,7 +525,7 @@ describe("a label entry's size, keys, lists and widths", () => {
         await userEvent.keyboard("14{Enter}");
         await waitFor(() => {
             assert.equal(labelStyle(session).sizePx, 14);
-            assert.equal(labelStyle(session).sizeUnit, "screen");
+            assert.equal(labelStyle(session).sizeMode, "screen");
         });
     });
 

@@ -161,7 +161,7 @@ function idOf(value: unknown): string | number | undefined {
  * @param key - the row's key.
  * @returns what to draw, or undefined when the key is not a group row's.
  */
-function groupRowOf(key: string | undefined): Resolved | undefined {
+function groupRowFromKey(key: string | undefined): Resolved | undefined {
     const parsed = parse(key);
     const run: unknown = Array.isArray(parsed) ? parsed[0] : undefined;
     const group = Array.isArray(parsed) ? idOf(parsed[1]) : undefined;
@@ -209,7 +209,7 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
             }
             break;
         case "group-row": {
-            const row = groupRowOf(inspected.id);
+            const row = groupRowFromKey(inspected.id);
             if (row !== undefined) {
                 return row;
             }

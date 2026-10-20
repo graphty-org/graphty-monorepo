@@ -66,7 +66,7 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
  * row is drawn, not read.
  */
 const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
-    "node.haloSize",
+    "node.haloScale",
     "node.haloOpacity",
     "edge.bandWidth",
     "edge.bandOpacity",

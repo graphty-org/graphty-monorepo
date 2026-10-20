@@ -190,6 +190,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelOutline", plan(color, "labelOutlineColor")],
+        ["node.labelOutlineWidth", plan(number, "labelOutlineWidth")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
@@ -212,6 +214,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelOutline", plan(color, "labelOutlineColor")],
+        ["edge.labelOutlineWidth", plan(number, "labelOutlineWidth")],
     ]),
 };
 

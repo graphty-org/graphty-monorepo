@@ -501,6 +501,8 @@ function channelPlans(
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
+            ["labelOutlineColor", [label("labelOutline")]],
+            ["labelOutlineWidth", [length("node.labelOutlineWidth", factors.label)]],
         ]);
     }
 
@@ -524,6 +526,8 @@ function channelPlans(
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
+        ["labelOutlineColor", [label("labelOutline")]],
+        ["labelOutlineWidth", [length("edge.labelOutlineWidth", factors.label)]],
     ]);
 }
 

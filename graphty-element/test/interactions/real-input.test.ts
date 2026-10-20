@@ -942,6 +942,24 @@ describe("the selection as the camera's pivot", () => {
         assert.closeTo(after.y, before.y, 1, "the node stayed put down");
     });
 
+    it("a stable frame after a re-frame waits for the glide back to the selection", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+        await click(element, at(element, "c"));
+        await applied(element);
+
+        // The framing puts the pivot on the graph's middle; the selection then takes it back.
+        element.zoomToFit();
+        await element.waitForStableFrame();
+
+        const { target } = element.getCameraState();
+        const c = meanOf(element, ["c"]);
+        assert.isDefined(target);
+        assert.closeTo(target.x, c.x, 0.01, "the pivot is back on the node");
+        assert.closeTo(target.y, c.y, 0.01, "the pivot is back on the node");
+        assert.closeTo(target.z, c.z, 0.01, "the pivot is back on the node");
+    });
+
     it("shift-clicking several nodes makes their mean position the 3D pivot", async () => {
         const element = await mounted("3d");
         element.layoutBehavior = { camera: { pivotOnSelection: true } };

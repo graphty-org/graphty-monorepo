@@ -1192,12 +1192,20 @@ export class UpdateManager implements Manager {
      */
     private followSelection(): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        if (this.willZoomToFit()) {
+            // The glide starts on the pass after the framing ends, so the frame the framing ends
+            // on is not the final one: without this, a stable frame was reported in between, with
+            // the pivot on the graph's middle rather than on the selection.
+            this.followingSelection = !this.framingHasNothingToFrame;
             return;
         }
 

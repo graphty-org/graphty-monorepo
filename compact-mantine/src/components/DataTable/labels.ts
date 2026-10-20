@@ -34,7 +34,6 @@ export type DataTableLabels = Pick<
     | "search"
     | "searchPlaceholder"
     | "sortedBy"
-    | "sortNext"
     | "yes"
 >;
 

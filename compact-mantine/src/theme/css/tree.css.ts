@@ -686,10 +686,6 @@ const css = `
 .cm-dt.cm-dt-compact .cm-dt-cell:first-child,
 .cm-dt.cm-dt-compact .cm-dt-cell.cm-dt-header { padding: 0 4px; }
 .cm-dt .cm-dt-header { ${cmFont("body")} font-weight: 600; letter-spacing: normal; color: var(--cm-text); }
-/* A marked column (markedColumn): tinted down its length, its header boxed; a selected row's
-   own fill still wins on that row. */
-.cm-dt .cm-dt-cell[data-marked] { background: var(--cm-bg-selected-secondary); }
-.cm-dt .cm-dt-header[data-marked]::before { border-color: var(--cm-border-selected); }
 .cm-dt .cm-dt-row[aria-selected="true"] > .cm-dt-cell { background: var(--cm-bg-selected); }
 /* The active (keyboard) cell: a 1px box drawn inside the cell; the grid line stays. */
 .cm-dt .cm-dt-cell::before,

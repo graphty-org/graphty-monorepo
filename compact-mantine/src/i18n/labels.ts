@@ -363,16 +363,6 @@ export interface CompactMantineLabels {
      */
     sortedBy?: (descending: boolean) => string;
     /**
-     * A sortable data table header's hint: what the next activation of the header does, shown as
-     * its tooltip and read as its description. The hint names the column, so a header too narrow
-     * for its name still shows it whole. Optional; left out, the English default is used.
-     * @param next - What the next activation does: sort ascending, descending, or stop sorting
-     * @param header - The column's header text
-     * @param columnId - The column's id, for wording that depends on what the column holds
-     * @returns The words, such as "Sort by Degree, descending"
-     */
-    sortNext?: (next: "ascending" | "descending" | "none", header: string, columnId: string) => string;
-    /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
      */
@@ -545,8 +535,6 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     columnMenu: (header: string): string => `Options for ${header}`,
     emptyCell: "No value",
     sortedBy: (descending: boolean): string => (descending ? "sorted descending" : "sorted ascending"),
-    sortNext: (next: "ascending" | "descending" | "none", header: string): string =>
-        next === "none" ? `Stop sorting by ${header}` : `Sort by ${header}, ${next}`,
     yes: "Yes",
     no: "No",
 

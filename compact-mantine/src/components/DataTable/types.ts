@@ -344,12 +344,6 @@ export interface DataTableProps<TRow extends object> {
      * that distinction by the time it calls you.
      */
     onSortingChange?: ChangeHandler<DataTableSort[]>;
-    /**
-     * A column to mark, by its `id`: its header and cells are tinted, so a reader sent to the
-     * column from elsewhere (a "show this column" command) sees which one it is. Left out, no
-     * column is marked.
-     */
-    markedColumn?: string;
     /** The identifiers of the hidden columns. Supply this to drive column visibility from your own state. */
     hiddenColumns?: readonly string[];
     /** The identifiers of the columns hidden before anyone has changed them, when the table keeps its own. */

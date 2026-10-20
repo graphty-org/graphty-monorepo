@@ -161,22 +161,6 @@ export function elementSort(column: TableColumnChoice, descending: boolean): Rec
 }
 
 /**
- * How a column's order reads: "highest first", "A to Z", "largest group first".
- * @param column - the sorted column.
- * @param descending - largest first.
- * @returns the words.
- */
-function orderWords(column: TableColumnChoice, descending: boolean): string {
-    if (column.grouping === true) {
-        return descending ? "largest group first" : "smallest group first";
-    }
-    if (column.numeric) {
-        return descending ? "highest first" : "lowest first";
-    }
-    return descending ? "Z to A" : "A to Z";
-}
-
-/**
  * The line under the tab strip that says how the rows are ordered (round 8: the caption follows
  * the sort).
  * @param column - the sorted column, or undefined when the rows are in the graph's order.
@@ -184,21 +168,16 @@ function orderWords(column: TableColumnChoice, descending: boolean): string {
  * @returns the caption.
  */
 export function sortCaption(column: TableColumnChoice | undefined, descending: boolean): string {
-    return column === undefined
-        ? "In the order loaded"
-        : `Sorted by ${column.header}, ${orderWords(column, descending)}`;
-}
-
-/**
- * A header's hint: what the next click on it does, in the caption's words.
- * @param column - the column.
- * @param next - what the next click does.
- * @returns the hint.
- */
-export function sortHint(column: TableColumnChoice, next: "ascending" | "descending" | "none"): string {
-    return next === "none"
-        ? `Stop sorting by ${column.header}`
-        : `Sort by ${column.header}, ${orderWords(column, next === "descending")}`;
+    if (column === undefined) {
+        return "In the order loaded";
+    }
+    if (column.grouping === true) {
+        return `Sorted by ${column.header}, ${descending ? "largest group first" : "smallest group first"}`;
+    }
+    if (column.numeric) {
+        return `Sorted by ${column.header}, ${descending ? "highest first" : "lowest first"}`;
+    }
+    return `Sorted by ${column.header}, ${descending ? "Z to A" : "A to Z"}`;
 }
 
 /**

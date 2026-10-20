@@ -104,7 +104,7 @@
     </g>
     <g id="node-labels">
         <rect x="130.76685" y="-200.40047" fill="none" width="42.46631"
-              opacity="0.4" height="19.460938" stroke="#c8c8c8"
+              opacity="1.0" height="19.460938" stroke="#c8c8c8"
               stroke-width="2.0" stroke-opacity="0.4"/>
         <text font-size="15" x="152.0" y="-185.47713" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -112,7 +112,7 @@
             Label
         </text>
         <rect x="360.71634" y="-744.3341" fill="none" width="30.567335"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="376.0" y="-733.5922" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -120,7 +120,7 @@
             Label
         </text>
         <rect x="795.55237" y="-744.3341" fill="none" width="56.89529"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="824.0" y="-733.5922" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -128,7 +128,7 @@
             two words
         </text>
         <rect x="1019.1728" y="-744.3341" fill="none" width="57.65443"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="1048.0" y="-733.5922" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -136,7 +136,7 @@
             a &amp; b &lt;c&gt;
         </text>
         <rect x="134.10672" y="-471.00412" fill="none" width="35.78654"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="152.0" y="-460.2622" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -144,7 +144,7 @@
             12345
         </text>
         <rect x="332.48257" y="-471.00412" fill="none" width="87.034836"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="376.0" y="-460.2622" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -152,7 +152,7 @@
             line oneline two
         </text>
         <rect x="514.89246" y="-471.00412" fill="none" width="170.21513"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="600.0" y="-460.2622" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -160,7 +160,7 @@
             a label of thirty-three chars ok!
         </text>
         <rect x="360.71634" y="-197.67412" fill="none" width="30.567335"
-              opacity="0.4" height="14.008237" stroke="#ff0000"
+              opacity="1.0" height="14.008237" stroke="#ff0000"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="376.0" y="-186.93222" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -168,7 +168,7 @@
             Label
         </text>
         <rect x="553.32477" y="-197.67412" fill="none" width="93.35057"
-              opacity="0.4" height="14.008237" stroke="#c8c8c8"
+              opacity="1.0" height="14.008237" stroke="#c8c8c8"
               stroke-width="1.4399999" stroke-opacity="0.4"/>
         <text font-size="11" x="600.0" y="-186.93222" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -176,7 +176,7 @@
             larger node label
         </text>
         <rect x="126.04892" y="-702.7736" fill="none" width="51.902164"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="152.0" y="-694.42523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -184,7 +184,7 @@
             label=unset
         </text>
         <rect x="350.46066" y="-702.7736" fill="none" width="51.07868"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="376.0" y="-694.42523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -192,7 +192,7 @@
             label=Label
         </text>
         <rect x="572.32" y="-702.7736" fill="none" width="55.36002"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="600.0" y="-694.42523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -200,7 +200,7 @@
             label=empty
         </text>
         <rect x="788.23047" y="-702.7736" fill="none" width="71.539055"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="824.0" y="-694.42523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -208,7 +208,7 @@
             label=two words
         </text>
         <rect x="1018.15063" y="-702.7736" fill="none" width="59.69875"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="1048.0" y="-694.42523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -216,7 +216,7 @@
             label=entities
         </text>
         <rect x="124.43265" y="-429.4436" fill="none" width="55.13471"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="152.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -224,7 +224,7 @@
             label=12345
         </text>
         <rect x="345.53607" y="-429.4436" fill="none" width="60.92783"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="376.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -232,7 +232,7 @@
             label=newline
         </text>
         <rect x="567.65967" y="-429.4436" fill="none" width="64.68069"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="600.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -240,7 +240,7 @@
             label=33 chars
         </text>
         <rect x="809.12103" y="-429.4436" fill="none" width="29.757956"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="824.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -248,7 +248,7 @@
             size=5
         </text>
         <rect x="1030.4518" y="-429.4436" fill="none" width="35.096333"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="1048.0" y="-421.09525" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -256,7 +256,7 @@
             size=10
         </text>
         <rect x="134.45184" y="-153.1136" fill="none" width="35.096333"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="152.0" y="-144.76523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -264,7 +264,7 @@
             size=25
         </text>
         <rect x="359.98206" y="-156.1136" fill="none" width="32.035877"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="376.0" y="-147.76523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -272,7 +272,7 @@
             fill=red
         </text>
         <rect x="558.8614" y="-156.1136" fill="none" width="82.27726"
-              opacity="0.4" height="10.887212" stroke="#ffffff"
+              opacity="1.0" height="10.887212" stroke="#ffffff"
               stroke-width="1.12" stroke-opacity="0.4"/>
         <text font-size="8" x="600.0" y="-147.76523" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -280,7 +280,7 @@
             overlap=two labels
         </text>
         <rect x="1039.5067" y="-467.89218" fill="none" width="16.986523"
-              opacity="0.4" height="7.784375" stroke="#c8c8c8"
+              opacity="1.0" height="7.784375" stroke="#c8c8c8"
               stroke-width="0.79999995" stroke-opacity="0.4"/>
         <text font-size="6" x="1048.0" y="-461.92285" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -288,7 +288,7 @@
             Label
         </text>
         <rect x="585.519" y="-187.78194" fill="none" width="44.96199"
-              opacity="0.4" height="6.223862" stroke="#c8c8c8"
+              opacity="1.0" height="6.223862" stroke="#c8c8c8"
               stroke-width="0.64" stroke-opacity="0.4"/>
         <text font-size="5" x="608.0" y="-183.00937" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
@@ -296,7 +296,7 @@
             smaller node label
         </text>
         <rect x="819.75336" y="-465.9461" fill="none" width="8.493261"
-              opacity="0.4" height="3.8921876" stroke="#c8c8c8"
+              opacity="1.0" height="3.8921876" stroke="#c8c8c8"
               stroke-width="0.39999998" stroke-opacity="0.4"/>
         <text font-size="3" x="824.0" y="-462.96143" fill-opacity="1.0"
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"

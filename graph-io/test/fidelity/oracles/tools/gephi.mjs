@@ -121,6 +121,29 @@ function restoreLabelText(svg, items) {
     return { svg: out, restored };
 }
 
+/**
+ * A label box at its opacity once. Gephi's SVG writer gives an unfilled label box `opacity` and `stroke-opacity` both set
+ * to node.label.box.opacity, so an SVG viewer strokes it at the square of it; Gephi's Preview and PNG export stroke it
+ * at the opacity itself (labels-p13, box opacity 40: a black box on white is drawn 162 of 255 in the PNG, 0.36, not
+ * 0.16; probe: tmp/style-specimens/fix-gexf-r2/ent). Each such box keeps its stroke-opacity and is given opacity 1.
+ * @param {string} svg - Gephi's SVG
+ * @returns {{ svg: string, boxes: number }} the SVG and how many boxes were changed
+ */
+function singleBoxOpacity(svg) {
+    let boxes = 0;
+    const out = svg.replace(/(<g id="node-labels"[^>]*>)([\s\S]*?)(<\/g>)/, (_, open, body, close) => {
+        const fixed = body.replace(/<rect\b[^>]*\/>/g, (rect) => {
+            const op = /\sopacity="([^"]*)"/.exec(rect)?.[1];
+            const stroke = /stroke-opacity="([^"]*)"/.exec(rect)?.[1];
+            if (!/fill="none"/.test(rect) || op === undefined || op !== stroke || Number(op) >= 1) return rect;
+            boxes++;
+            return rect.replace(/(\s)opacity="[^"]*"/, '$1opacity="1.0"');
+        });
+        return `${open}${fixed}${close}`;
+    });
+    return { svg: out, boxes };
+}
+
 const wanted = new Set(process.argv.slice(2));
 const failed = [];
 const work = mkdtempSync(join(tmpdir(), "gephi-oracle-"));
@@ -160,7 +183,9 @@ try {
         const [, nodes, edges] = /nodes=(\d+) edges=(\d+)/.exec(out) ?? [];
         if (!nodes) throw new Error(`${id}: GephiExport printed no counts: ${out}`);
         const items = JSON.parse(readFileSync(`${prefix}.items.json`, "utf8"));
-        const { svg, restored } = restoreLabelText(readFileSync(`${prefix}.svg`, "utf8"), items);
+        const read = restoreLabelText(readFileSync(`${prefix}.svg`, "utf8"), items);
+        const { svg, boxes } = singleBoxOpacity(read.svg);
+        const { restored } = read;
         writeFileSync(join(oracles, `${id}.svg`), svg);
         const [, w, h] = /width="([\d.]+)"[\s\S]*?height="([\d.]+)"/.exec(svg) ?? [];
         const viewBox = /viewBox="([^"]+)"/.exec(svg)?.[1];
@@ -197,9 +222,19 @@ try {
             },
             fonts: "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
             svgPostprocessing:
-                restored === 0
+                restored === 0 && boxes === 0
                     ? "none: the SVG is Gephi's output byte for byte"
-                    : `${restored} label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference ("a & b <c>" is written "a&amp; b&lt;c&gt;") where its Preview, its PNG export and its preview items keep it; nothing else changed`,
+                    : [
+                          restored === 0
+                              ? null
+                              : `${restored} label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference ("a & b <c>" is written "a&amp; b&lt;c&gt;") and a line break, where its Preview, its PNG export and its preview items keep the space and draw the break as nothing`,
+                          boxes === 0
+                              ? null
+                              : `${boxes} label box(es) drawn at their opacity once (singleBoxOpacity): Gephi's SVG writer puts node.label.box.opacity on a box both as opacity and as stroke-opacity, which an SVG viewer multiplies (0.4 x 0.4), where its Preview and PNG export stroke the box at 0.4`,
+                          "nothing else changed",
+                      ]
+                          .filter((x) => x !== null)
+                          .join("; "),
             date: new Date().toISOString().slice(0, 10),
             standIn: false,
             regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${id}.svg`))}`,

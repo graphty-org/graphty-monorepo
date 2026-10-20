@@ -31,7 +31,7 @@
         "viewBox": "17.000000 -883.000000 1166.000000 866.000000"
     },
     "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
-    "svgPostprocessing": "2 label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference (\"a & b <c>\" is written \"a&amp; b&lt;c&gt;\") where its Preview, its PNG export and its preview items keep it; nothing else changed",
+    "svgPostprocessing": "2 label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference (\"a & b <c>\" is written \"a&amp; b&lt;c&gt;\") and a line break, where its Preview, its PNG export and its preview items keep the space and draw the break as nothing; nothing else changed",
     "date": "2026-10-20",
     "standIn": false,
     "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-specimen-labels-p7 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-specimen-labels-p7.svg"

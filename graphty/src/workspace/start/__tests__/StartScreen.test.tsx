@@ -150,7 +150,9 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
 
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
-        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
+        assert.isNotNull(
+            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
     });
 

@@ -7,13 +7,13 @@
  *   its name and size, once it is read (never the drawing's outline, never a pinned layer row); the
  *   style tree's Tab stop is then Everything;
  * - Tab past the start screen's last control, or Shift+Tab before its first: the other end;
- * - the usage data card answered: Open project or file..., the first way in;
- * - a file refused: Open project or file..., beside the reason that stays;
+ * - the usage data card answered: Open a file, the first way in;
+ * - a file refused: Open a file, beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
- * - a Recent projects row removed: the row now in its place, or Open project or file...;
- * - New from data... (the start screen goes): the Data page's first ask, "Choose a file...";
- *   the file read: Load, never the rail, with what it will make as its description; Load (the Data
- *   page goes): the graph's heading; Escape: New from data... again;
+ * - a Recent projects row removed: the row now in its place, or Open a file;
+ * - Open a file with a data file (the start screen goes): the Data page's Load, never the rail,
+ *   with what it will make as its description; Load (the Data page goes): the graph's heading;
+ *   Cancel: Open a file again;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
 
@@ -44,7 +44,7 @@ async function loaded(nodes: number): Promise<{ host: HTMLElement; session: Grap
     let found: { host: HTMLElement; session: GraphSession } | undefined;
     await waitFor(
         () => {
-            const host = document.querySelector("graphty-element");
+            const host = document.querySelector("graphty-element:not([data-start-page])");
             const session = host?.session;
             assert.isDefined(session);
             assert.equal(session.data.statistics().nodeCount, nodes);
@@ -101,10 +101,20 @@ function describedBy(element: Element): string {
 
 /**
  * The start screen's first way in.
- * @returns Open project or file...
+ * @returns Open a file
  */
 function openButton(): HTMLElement {
-    return screen.getByRole("button", { name: /^Open project or file\.\.\./ });
+    return screen.getByRole("button", { name: /^Open a file/ });
+}
+
+/** The browser's file picker, once, choosing a three-node CSV. */
+function chooseCsv(): void {
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));
+        this.files = transfer.files;
+        this.dispatchEvent(new Event("change", { bubbles: true }));
+    });
 }
 
 beforeEach(async () => {
@@ -123,8 +133,8 @@ describe("focus after the control holding it goes away, on the real element", ()
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
-            // The card's size and sentence are the button's description.
-            assert.include(describedBy(sample), "15 families");
+            // The tile's size line is the button's description.
+            assert.include(describedBy(sample), "15 nodes");
             sample.focus();
             await userEvent.keyboard("{Enter}");
             const { session } = await loaded(15);
@@ -149,7 +159,7 @@ describe("focus after the control holding it goes away, on the real element", ()
         unmount();
     });
 
-    it("No thanks on the usage data card hands focus to Open project or file...", async () => {
+    it("No thanks on the usage data card hands focus to Open a file", async () => {
         forgetUsageAnswer();
         const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
         screen.getByRole("button", { name: "No thanks" }).focus();
@@ -161,7 +171,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "a refused file hands focus to Open project or file..., beside the reason",
+        "a refused file hands focus to Open a file, beside the reason",
         async () => {
             vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
                 const transfer = new DataTransfer();
@@ -242,7 +252,7 @@ describe("focus after the control holding it goes away, on the real element", ()
         // Twice the waits inside it, so a failure reports its assertion rather than the test timeout.
         TIMEOUT_MS * 2,
     );
-    it("removing Recent projects rows hands focus to the row now in its place, then to Open project or file...", async () => {
+    it("removing Recent projects rows hands focus to the row now in its place, then to Open a file", async () => {
         for (const [i, name] of ["Older file", "Newer file"].entries()) {
             await rememberRecent({ id: name, name, nodes: 10, at: 1000 + i });
         }
@@ -295,15 +305,9 @@ describe("focus after the control holding it goes away, on the real element", ()
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "New from data... hands focus to the Data page's first ask, the read file to Load, and Load to the graph's heading",
+        "Open a file with a data file hands focus to Load on the Data page, and Load to the graph's heading",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
-            await userEvent.keyboard("{Enter}");
-            const ask = await screen.findByRole("button", { name: "Choose a file..." }, { timeout: TIMEOUT_MS });
-            await waitFor(() => {
-                assert.strictEqual(document.activeElement, ask);
-            });
             // Every control focus reaches from here on: never the rail, while the file is read.
             const reached: Element[] = [];
             const onFocusIn = (event: FocusEvent): void => {
@@ -315,14 +319,10 @@ describe("focus after the control holding it goes away, on the real element", ()
 
             // The file is read with focus on Load, which says what it will make; Load takes the
             // Data page away: focus goes to the graph's heading.
-            vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
-                const transfer = new DataTransfer();
-                transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));
-                this.files = transfer.files;
-                this.dispatchEvent(new Event("change", { bubbles: true }));
-            });
+            chooseCsv();
+            openButton().focus();
             await userEvent.keyboard("{Enter}");
-            const load = await screen.findByRole("button", { name: "Load" });
+            const load = await screen.findByRole("button", { name: "Load" }, { timeout: TIMEOUT_MS });
             await waitFor(
                 () => {
                     assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
@@ -349,18 +349,17 @@ describe("focus after the control holding it goes away, on the real element", ()
         TIMEOUT_MS,
     );
 
-    it("Escape from the Data page opened by New from data... hands focus back to New from data...", async () => {
+    it("Cancel on the Data page opened by Open a file hands focus back to Open a file", async () => {
         const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
+        chooseCsv();
+        openButton().focus();
         await userEvent.keyboard("{Enter}");
-        await screen.findByRole("button", { name: "Choose a file..." }, { timeout: TIMEOUT_MS });
-        await userEvent.keyboard("{Escape}");
+        // A chosen file keeps the page open on Esc (DataPage.tsx), so Cancel is the way out.
+        (await screen.findByRole("button", { name: "Cancel" }, { timeout: TIMEOUT_MS })).focus();
+        await userEvent.keyboard("{Enter}");
         await waitFor(
             () => {
-                assert.strictEqual(
-                    document.activeElement,
-                    screen.getByRole("button", { name: /^New from data\.\.\./ }),
-                );
+                assert.strictEqual(document.activeElement, openButton());
             },
             { timeout: TIMEOUT_MS },
         );

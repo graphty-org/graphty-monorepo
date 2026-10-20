@@ -39,7 +39,8 @@ async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
     await waitFor(
         () => {
-            session = document.querySelector("graphty-element")?.session;
+            // The project's element, not the start page's own drawing.
+            session = document.querySelector("graphty-element:not([data-start-page])")?.session;
             assert.isDefined(session);
         },
         { timeout: TIMEOUT_MS },
@@ -83,7 +84,9 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         // T1: the card is at the foot of the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
-        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
+        assert.isNotNull(
+            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.
@@ -154,9 +157,10 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${String(i)}" target="
 
             // Back where the reader was: no project, no empty canvas named after the file.
             assert.isNull(store.get().project);
-            assert.isNull(document.querySelector("graphty-element"));
-            assert.isNotNull(screen.getByRole("region", { name: "Start" }));
-            assert.isNull(within(screen.getByRole("region", { name: "Recent projects" })).queryByText(/cut-55/));
+            // The start page's own drawing is its only element: no project's frame came up.
+            assert.lengthOf(document.querySelectorAll("graphty-element"), 1);
+            assert.isNotNull(screen.getByRole("region", { name: /^Start a project/ }));
+            assert.notInclude(screen.queryByRole("region", { name: "Your projects" })?.textContent ?? "", "cut-55");
             // The reason is the app's sentence from the element's code and line, and it stays.
             const { notice } = store.get();
             assert.isTrue(notice?.error);
@@ -205,7 +209,7 @@ async function lesMiserablesProjectFile(): Promise<File> {
     return new File([text], "Les Miserables.graphty.json");
 }
 
-describe("Open project or file... and a dropped file, on the real element", () => {
+describe("Open a file and a dropped file, on the real element", () => {
     afterEach(() => {
         vi.restoreAllMocks();
     });
@@ -221,7 +225,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
                 const { unmount } = render(<Workspace store={store} />);
                 if (how === "chosen") {
                     chooseNextFile(file);
-                    await userEvent.click(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
+                    await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
                 } else {
                     const transfer = new DataTransfer();
                     transfer.items.add(file);
@@ -249,7 +253,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
             chooseNextFile(new File(["from,to,km\na,b,3\nb,c,6\n"], "trail.csv", { type: "text/csv" }));
-            await userEvent.click(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
+            await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
             // The roles and the weight's meaning are asked before anything loads.
             await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
             await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
@@ -260,7 +264,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
             await userEvent.keyboard("{Control>}o{/Control}");
             await screen.findByText("Nodes: junctions.csv", {}, { timeout: TIMEOUT_MS });
             assert.isNotNull(screen.getByText("Edges: trail.csv"));
-            // Cancel goes back to the start screen, as from New from data....
+            // Cancel goes back to the start screen.
             await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
             await waitFor(() => {
                 assert.isNull(store.get().project);

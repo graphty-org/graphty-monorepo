@@ -8,12 +8,13 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
+import { focusIsLost } from "../frame/focus";
 import { MainMenu } from "../frame/menus";
 import { NoticeSlot } from "../frame/NoticeSlot";
 import { GLYPHS } from "../glyphs";
@@ -458,11 +459,14 @@ function LibraryTile({
     onClick,
 }: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
     const generated = tile.field === GENERATED;
+    // The name is the label; the size line is the description, so a screen reader hears it too.
+    const described = useId();
     return (
         <UnstyledButton
             className="ws-land-sample"
             data-start-door={`sample:${tile.id}`}
             aria-label={label}
+            aria-describedby={described}
             title={tile.sentence}
             onClick={onClick}
         >
@@ -472,7 +476,9 @@ function LibraryTile({
                 {tile.field}
             </span>
             <span className="ws-land-sample-t">{tile.hook}</span>
-            <span className="ws-land-sample-m">{generated ? tile.sentence : `${tile.name} -- ${tile.size}`}</span>
+            <span className="ws-land-sample-m" id={described}>
+                {generated ? tile.sentence : `${tile.name} -- ${tile.size}`}
+            </span>
             {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
         </UnstyledButton>
     );
@@ -754,6 +760,15 @@ export function StartScreen({
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // The last Recent projects row removed takes Your projects, and the launcher's Open a file,
+    // with it: focus goes to the first-visit launcher's Open a file, not the page.
+    const wasReturning = useRef(returning);
+    useEffect(() => {
+        if (wasReturning.current && !returning && focusIsLost()) {
+            firstDoor.current?.focus();
+        }
+        wasReturning.current = returning;
+    }, [returning, firstDoor]);
     const showSamples = (): void => {
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };

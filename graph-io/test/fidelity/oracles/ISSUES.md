@@ -2101,3 +2101,49 @@ Still open, and why:
   curve through the control points bows deeper (`spline` 0.347 against 0.199). Not worked in this batch.
 - Graphviz edge routing and the layout of DOT files without positions: needs Graphviz's own layouts, which are not
   merged into this branch (`feat/graphviz-layouts`).
+
+## Specimen sheets: Cytoscape desktop's wave and arrow line types, transparent inside borders, Pajek gradients (fix round 2, rendering batch 4, 2026-10-19)
+
+Fixed:
+
+- Sine-wave and zigzag edges and borders (`{xgmml,cx,cx2,cys}-specimen-edges-lines`, `-node-fills-borders`,
+  `-mappings-bypass-p3`, `-p10`): graphty-element drew its own wave, a thin line swinging within the line's width
+  every 0.75 scene units. Cytoscape desktop's strokes (`ding-presentation-impl` 3.10.5, read from the jar's classes)
+  swing 10 px and repeat every 20 px whatever the width: `SineWaveStroke` lays one rigid period (two quadratic arcs
+  through control points `10 + width` off the path, a band `width` apart where it meets the path) centered every 20 px
+  along the path, so round a small node its periods loop out past it; `ZigzagStroke` turns 10 px to either side every
+  10 px from 5 px on and strokes that line `width` thick with Java2D's miters and square caps, ending at its last
+  turn. graphty-element now draws both from new style options `line.waveAmplitude`, `line.wavePeriod`,
+  `border.waveAmplitude` and `border.wavePeriod` (channels `edge.waveAmplitude`, `edge.wavePeriod`,
+  `node.borderWaveAmplitude`, `node.borderWavePeriod`; unset, the wave is drawn within the width as before), a waved
+  edge starting at its node's outline as Cytoscape's does. graph-io gives every Cytoscape desktop format the 10 and
+  20 px as tool defaults (`waveAmplitude`, `wavePeriod`, `borderWaveAmplitude`, `borderWavePeriod`) and the Cytoscape
+  writers treat them as fixed, as `borderPosition`.
+- Contiguous-arrow borders (same sheets, `CONTIGUOUS_ARROW`): graphty-element drew a solid ring. It now draws
+  Cytoscape's `ContiguousArrowStroke`: a bar three border widths long with a chevron two widths to either side, one
+  every three widths round the ring (`border.style` `contiguous-arrow`).
+- A transparent border inside the node (`-node-sizes-opacity`, `-mappings-bypass-p4`, `NODE_BORDER_TRANSPARENCY` 0
+  width 6): graphty-element filled the whole size under a border it did not draw. Cytoscape fills out to the middle
+  of the stroke it would draw (the fill path is the size less the border's width); graphty-element now does, for a
+  border of opacity 0 inside the size (`NodeMesh.borderFit`).
+- The comparator misread three of Cytoscape's border outlines, each shown by `oracle/cytoscape-painted-borders.test.ts`
+  on the path data of the export itself: a sine-wave border drawn a whole period a piece was read as arrows (a
+  period lies off its own mirror image by more than its thickness, not twice it); a chain of contiguous arrows,
+  whose chevrons leave a hole a third as wide as their reach, was read as no ring at all (a stray); and a zigzag
+  ring stroked by Java2D, whose inner corners pass through the corner itself and whose sharp turns overlap, was read
+  3.3 wide for a stroke of 4 (its width is now the distance its two outlines most often keep). graphty's own wave
+  border is judged by the thickness of its line (`PStroke.line`), its ring kept for the node's size.
+- Pajek's Lines as Gradient between two vertices of one color (`pajek-specimen-edges-lines-p5`, `52->53#1`): the
+  comparator judged the direction of a gradient that does not change color; a ramp of one color is no longer judged
+  by its direction.
+
+Still open, and why:
+
+- `{xgmml,cx,cx2,cys}-specimen-edges-lines` and `-mappings-bypass-p10` keep four failing edges each: the haystack and
+  curved-false parallel edges (`haystack-edges`, `parallel-edge-spread`, graph-io's), and on `cx` one unbundled
+  bezier (`edge-curve-styles`).
+- The `syn-mappings` samples now find the arrowheads of two waved edges they missed (`378->390`, `447->465`), whose
+  shapes and sizes then fail as every other Cytoscape arrowhead of those samples does (`arrow-shape-mapping`).
+- The `stray.present` floors of the Cytoscape specimen sheets are no longer judged in this worktree with or without
+  this batch's changes (no unassociated oracle shape is left); the floors are kept for whoever finds which change took
+  the strays away.

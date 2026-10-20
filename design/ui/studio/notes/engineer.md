@@ -16,7 +16,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-000. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
+0. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
+   line, Control+A on the canvas and in the canvas menu, and Tab in Filter analyses (Shift+A and
+   toolbar) all hold their acceptance; nothing they touch got worse. Screenshots:
+   `design/ui/studio/tmp/r1-dry1-recheck-quick-actions-label-line/` (`label/`, `selall/`,
+   `analyze/`). STILL OPEN, not from these fixes (same on the frozen build e3c5bca8e6,
+   `frozen-picker/04.png`): the Style tab's value picker (Text "+" > Label, and Add label line,
+   which opens it) does NOT take the highlighted option on Tab with letters typed ("nam", "name"
+   highlighted, Tab -> "Label not added: no value was picked"), against decided.md "Tab in a list
+   with letters typed takes that option". Fix belongs in `style/ValuePicker.tsx` (the shared
+   picker), like the Analyze filter fix: Tab with filter text and an active option picks it, and
+   stopPropagation if the picker sits in a focus trap. Also seen, minor: Escape from an analysis
+   card back to the list re-highlights the first match, not the one that was opened.
+
+1. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
    another letter case is that column: `elementRule` takes the element's `checkRule` suggestion
    when every unknown name equals its first candidate's shown name or rule path ignoring case
    (`caseOnly`), so `=degree > 30` runs with no "Did you mean Degree?". A real correction still
@@ -38,7 +51,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Pre-existing red, not mine: inspector tasks T8 and "an edge, an attribute...", graph-place
    tasks "a click on a drawn name", FocusAfterAdding "a new node Color line" (other agents'
    uncommitted Style work). This file is past 25 KB; another agent was summarizing it.
-00. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
+2. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
    graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
    opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older
    "a heading takes no focus mark" call; decided.md now asks for the ring (WCAG 2.4.7). Fix in the
@@ -56,7 +69,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    list", FindBoxPlain two timeouts. `nx run graphty:build` fails while an untracked
    `compact-mantine-headproof/` copy sits in the worktree (duplicate project name); `npm run build`
    in the package works.
-0. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
+3. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
    with letters typed and an option highlighted opens that analysis's card, focus on Run (the
    decided rule for every list); with nothing typed, or Shift+Tab, it still leaves and closes.
    TRAP: the popover has `trapFocus`, and Mantine's focus trap listens for Tab on the DOCUMENT, so
@@ -66,7 +79,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    analyses with letters typed takes the highlighted analysis" (red without the change, and red
    without the stopPropagation alone). Walk: `design/ui/studio/tmp/r1-dry1-analysis-filter-tab/walk2/`
    05 (cluster, Clustering coefficient highlighted), 06 (its card, Run focused), 07 (Enter ran it).
-1. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
+4. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
    is now spoken by name: `selectionNameWords` / `selectedNameWords` / `framedWords` in
    `inspector/words.ts` (one node -> `nodeName`, one edge -> `edgeName`, else `sizeWords`). The
    shared announcer is the `selection:changed` handler in `canvas/CanvasOverlays.tsx` -- every
@@ -84,7 +97,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `GraphPlace.test` rule tests red only with another agent's uncommitted FindBox case-folding
    work. The other agent was editing `FindBox.tsx` and `FindBoxWords` at the same time: commit
    built from HEAD blobs with only my lines.
-2. (2026-10-19, inspector after Undo; compact-mantine `utils/chosen.ts`) A folder's or several
+5. (2026-10-19, inspector after Undo; compact-mantine `utils/chosen.ts`) A folder's or several
    layers' Shape passes `value={undefined}` until the write lands, so Mantine's `useUncontrolled`
    kept the pick Box in its own copy; after Undo the stale copy showed Box and a second Box was
    no change. The panels already re-read on `history:changed`. Fix in the shared controls:
@@ -96,7 +109,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Icosphere, Box again writes), 20-22 (color, two Undos). Trap left: any control on
    `useUncontrolled` whose caller holds `undefined` while a write is in flight.
 
-3. (2026-10-19, Select all; graphty app only) Command `selection.all` in `frame/commands.ts`
+6. (2026-10-19, Select all; graphty app only) Command `selection.all` in `frame/commands.ts`
    ("Select all", group Selection, keys `Mod+A`, disabled by `nothingDrawn`) runs
    `session.selection.apply({ scope: "visible" })`; the empty-canvas menu (`EMPTY_CANVAS` in
    `canvas/CanvasMenu.tsx`) lists it before Clear selection. No notice of its own: the
@@ -130,46 +143,46 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    0a. (2026-10-19, F6 regions; start-screen slowness was the study tool) in full in
    `git show ab5c74c0b:design/ui/studio/notes/engineer.md`, Top of mind 0; "New layer from
    selection" makes the layer at once: `git show 18f1cae06:...`, Top of mind 0.
-4. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+7. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-5. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+8. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-6. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+9. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
-   reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
-   default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
-   the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
-   `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
-   `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
-   (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+10. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
+    default label size; Kelly's palette for 10 to 19 groups.
+11. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
+    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
+    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
+    (`workspace` for studio notes, not `design`).
+12. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+13. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+14. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+15. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+16. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+17. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use

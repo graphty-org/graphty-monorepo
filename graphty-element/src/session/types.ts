@@ -1338,11 +1338,17 @@ export interface SessionDataApi {
      * @param options.signal - Abandons the read.
      * @param options.onto - `"graph"` reads the source as a table to join onto the graph:
      *     `draft.suggestJoin()`, `draft.joinReport()` and `draft.load({ join })` then work.
+     * @param options.guess - How the draft guesses each table's roles. `"names"` (the default)
+     *     reads only the header: `source`/`target`, `from`/`to`, `id`. `"values"` also reads the
+     *     values when no header names them: two text columns that name the same things are an
+     *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
+     *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
+     *     load is read again.
      * @returns The draft.
      */
     prepare(
         source: DataSourceInput,
-        options?: { readonly signal?: AbortSignal; readonly onto?: "graph" },
+        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
     ): Promise<LoadDraft>;
     /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made

@@ -3961,6 +3961,7 @@ export interface SessionDataApi {
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
         readonly onto?: "graph";
+        readonly guess?: "names" | "values";
     }): Promise<LoadDraft>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;

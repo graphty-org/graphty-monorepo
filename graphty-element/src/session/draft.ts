@@ -332,12 +332,118 @@ export async function draftStyles(read: ReadSource, signal?: AbortSignal): Promi
     });
 }
 
+/** How a draft guesses roles: from the header's names only, or from the values too. */
+type DraftGuess = "names" | "values";
+
+/**
+ * How much of the smaller of two text columns' values the other must also hold for the two to
+ * read as an edge's ends when no header names them (`bait` and `prey` name the same proteins).
+ */
+const SHARED_ENDS = 0.5;
+
+/** How nearly every value of a text column must be its own for it to read as a node table's key. */
+const NEARLY_UNIQUE = 0.95;
+
+/** A value that starts with a calendar date, which reads as a time, never as an id. */
+const DATE_LIKE = /^\d{4}-\d{2}-\d{2}/;
+
+/**
+ * The distinct values of each text column of a table, for the guesses that read values.
+ * @param held - The table.
+ * @returns By column name, its distinct non-blank text values.
+ */
+function textValues(held: HeldTable): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    for (const column of held.table.columns) {
+        if (column.type === "string") {
+            out.set(column.name, new Set());
+        }
+    }
+
+    for (const row of held.rows) {
+        for (const [name, values] of out) {
+            const value = row[name];
+            if (typeof value === "string" && value !== "") {
+                values.add(value);
+            }
+        }
+    }
+
+    for (const [name, values] of out) {
+        if (values.size > 0 && [...values].every((value) => DATE_LIKE.test(value))) {
+            out.delete(name);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * How much of the smaller of two sets of values the other also holds.
+ * @param a - One column's values.
+ * @param b - The other's.
+ * @returns The share, from 0 to 1; 0 when either is empty or absent.
+ */
+function shareOf(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): number {
+    if (a === undefined || b === undefined || a.size === 0 || b.size === 0) {
+        return 0;
+    }
+
+    const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+    let common = 0;
+    for (const value of small) {
+        if (big.has(value)) {
+            common++;
+        }
+    }
+
+    return common / small.size;
+}
+
+/**
+ * The two text columns whose values most name the same things, read as an edge table's ends when
+ * no header names them: the earlier column is the source.
+ * @param values - Each text column's distinct values.
+ * @returns The pair, or undefined when no two columns share enough.
+ */
+function sharedEnds(values: ReadonlyMap<string, ReadonlySet<string>>): readonly [string, string] | undefined {
+    const names = [...values.keys()];
+    let best: readonly [string, string] | undefined;
+    let bestShare = 0;
+    for (let first = 0; first < names.length; first++) {
+        for (let second = first + 1; second < names.length; second++) {
+            const share = shareOf(values.get(names[first]), values.get(names[second]));
+            if (share >= SHARED_ENDS && share > bestShare) {
+                best = [names[first], names[second]];
+                bestShare = share;
+            }
+        }
+    }
+
+    return best;
+}
+
+/**
+ * The first complete text column whose values are nearly all distinct, read as a node table's key
+ * when no header names one (`account`, `symbol`).
+ * @param held - The table.
+ * @param values - Each text column's distinct values.
+ * @returns The column, or undefined.
+ */
+function nearlyUniqueKey(held: HeldTable, values: ReadonlyMap<string, ReadonlySet<string>>): string | undefined {
+    return held.table.columns.find(
+        (column) =>
+            column.completeness === 1 && (values.get(column.name)?.size ?? 0) >= NEARLY_UNIQUE * held.rows.length,
+    )?.name;
+}
+
 /**
  * The element's own reading of one table.
  * @param held - The table.
  * @param rowsAre - What its rows are, when already decided.
  * @param source - The source's options, for the deprecated CSV column aliases.
  * @param config - The data configuration.
+ * @param guess - `"values"` also reads the values when no header names the roles.
  * @returns The table's roles.
  */
 function guessTable(
@@ -345,6 +451,7 @@ function guessTable(
     rowsAre: "nodes" | "edges" | undefined,
     source: Readonly<Record<string, unknown>>,
     config: SessionDataConfig,
+    guess: DraftGuess = "names",
 ): TableMappingRead {
     const { knownFields } = config;
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
@@ -357,13 +464,23 @@ function guessTable(
     // The deprecated CSV options name columns; they translate into the mapping.
     const aliasSource = typeof source.edgeSource === "string" ? source.edgeSource : undefined;
     const aliasTarget = typeof source.edgeTarget === "string" ? source.edgeTarget : undefined;
-    const pair: readonly [string, string] | undefined =
+    const named: readonly [string, string] | undefined =
         aliasSource !== undefined && aliasTarget !== undefined
             ? [aliasSource, aliasTarget]
             : [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
                   ([from, to]) => has(from) && has(to),
               );
-    const idColumn = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
+    const namedId = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
+    // No header says what the rows are: read the values. Two columns naming the same things are an
+    // edge's ends; else a single file's nearly unique text column is its nodes' key.
+    const values =
+        guess === "values" && named === undefined && namedId === undefined && held.table.id !== "nodes"
+            ? textValues(held)
+            : null;
+    const pair = named ?? (values === null ? undefined : sharedEnds(values));
+    const idColumn =
+        namedId ??
+        (values !== null && pair === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined);
     const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
     const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
     // One file of a pair says what it holds by its columns, whichever half it was handed over as;
@@ -454,8 +571,9 @@ export class Draft implements LoadDraft {
      * @param read - The source's rows.
      * @param host - The session.
      * @param styles - Whether the file carries styles; see {@link draftStyles}.
+     * @param guess - How the roles are guessed; see `data.prepare`'s `guess` option.
      */
-    constructor(read: ReadSource, host: DraftHost, styles: LoadDraft["styles"] = null) {
+    constructor(read: ReadSource, host: DraftHost, styles: LoadDraft["styles"] = null, guess: DraftGuess = "names") {
         this.read = read;
         this.host = host;
         this.styles = styles;
@@ -463,10 +581,12 @@ export class Draft implements LoadDraft {
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};
-        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config));
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess));
         if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
             // Both files of a pair read as the same kind: the order they were handed over in decides.
-            guesses = read.tables.map((held) => guessTable(held, held.table.id as "nodes" | "edges", options, config));
+            guesses = read.tables.map((held) =>
+                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess),
+            );
         }
 
         const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));

@@ -174,6 +174,9 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "rotation"
     | "textOpacity"
     | "backgroundOpacity"
+    | "textOutlineOpacity"
+    | "borderOpacity"
+    | "boxPadding"
     | "offsetX"
     | "offsetY"
     | "shiftX"
@@ -522,6 +525,19 @@ export class RichTextLabel {
         }
 
         BadgeStyleManager.applyBadgeBehaviors(finalOptions, userOptions);
+
+        // A box padding is the whole room between the words' line box and the panel's border.
+        if (finalOptions.boxPadding !== undefined) {
+            finalOptions.marginTop = finalOptions.boxPadding;
+            finalOptions.marginBottom = finalOptions.boxPadding;
+            finalOptions.marginLeft = finalOptions.boxPadding;
+            finalOptions.marginRight = finalOptions.boxPadding;
+            finalOptions.backgroundPadding = 0;
+        }
+
+        // An opacity of the border or of the outline is drawn as their colour's alpha.
+        finalOptions.borderColor = withOpacity(finalOptions.borderColor, finalOptions.borderOpacity);
+        finalOptions.textOutlineColor = withOpacity(finalOptions.textOutlineColor, finalOptions.textOutlineOpacity);
 
         if (finalOptions.borderWidth > 0 && finalOptions.borders.length === 0) {
             finalOptions.borders = [

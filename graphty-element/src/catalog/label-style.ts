@@ -182,12 +182,23 @@ export interface LabelStyle {
     backgroundOpacity?: number;
     /** How much room there is between the words and the edge of that panel. */
     padding?: number;
+    /**
+     * How far the panel (its background and border) reaches past the words' line box on every
+     * side, in pixels of the label drawn at its own size; 0 puts the border against the words.
+     * Set, it replaces the margins and `padding`. Unset, they decide.
+     */
+    boxPadding?: number;
     /** How far the panel's corners are rounded. */
     cornerRadius?: number;
     /** How thick a border is drawn around the panel; zero draws none. */
     borderWidth?: number;
     /** The colour of that border. */
     borderColor?: string;
+    /**
+     * How opaque that border is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    borderOpacity?: number;
     /** Whether the panel is filled with a gradient rather than a single colour. */
     gradient?: boolean;
     /** Whether that gradient runs in a line or out from the centre. */
@@ -241,6 +252,11 @@ export interface LabelStyle {
     outline?: string;
     /** How thick that outline is drawn. */
     outlineWidth?: number;
+    /**
+     * How opaque that outline is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    outlineOpacity?: number;
     /** Whether the letters cast a shadow. */
     shadow?: boolean;
     /** The colour of that shadow. */
@@ -317,9 +333,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     background: 0,
     backgroundOpacity: 0,
     padding: 0,
+    boxPadding: 0,
     cornerRadius: 0,
     borderWidth: 0,
     borderColor: 0,
+    borderOpacity: 0,
     gradient: 0,
     gradientType: 0,
     gradientColors: 0,
@@ -342,6 +360,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     pointerCurve: 0,
     outline: 0,
     outlineWidth: 0,
+    outlineOpacity: 0,
     shadow: 0,
     shadowColor: 0,
     shadowBlur: 0,

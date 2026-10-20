@@ -102,6 +102,8 @@ export const RichTextStyle = z.strictObject({
     // Single border (legacy)
     borderWidth: z.number().default(0).optional(),
     borderColor: ColorStyle.default("#000000").optional(),
+    // How opaque the border is, over its color's own alpha; unset, 1.
+    borderOpacity: z.number().min(0).max(1).optional(),
 
     // Multiple borders
     borders: z.array(BorderConfig).optional(),
@@ -139,6 +141,8 @@ export const RichTextStyle = z.strictObject({
     textOutline: z.boolean().default(false).optional(),
     textOutlineWidth: z.number().default(2).optional(),
     textOutlineColor: ColorStyle.default("#000000").optional(),
+    // How opaque the outline is, over its color's own alpha; unset, 1.
+    textOutlineOpacity: z.number().min(0).max(1).optional(),
     textOutlineJoin: CanvasLineJoin.default("round").optional(),
     textShadow: z.boolean().default(false).optional(),
     textShadowColor: ColorStyle.default("#000000").optional(),
@@ -148,6 +152,9 @@ export const RichTextStyle = z.strictObject({
 
     // Background effects
     backgroundPadding: z.number().default(0).optional(),
+    // How far the panel reaches past the words' line box on every side; set, it replaces the
+    // margins and backgroundPadding.
+    boxPadding: z.number().min(0).optional(),
     backgroundGradient: z.boolean().default(false).optional(),
     backgroundGradientType: GradientType.default("linear").optional(),
     backgroundGradientColors: z.array(ColorStyle).optional(),

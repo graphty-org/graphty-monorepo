@@ -33,6 +33,43 @@ describe("RichTextLabel opacity and offsets", () => {
         assert.strictEqual(options.backgroundColor.toLowerCase(), "#ffff6680");
     });
 
+    test("the outline's and the border's opacities are drawn as their colors' alpha", () => {
+        const label = RichTextLabel.createLabel(scene, {
+            text: "hi",
+            textOutline: true,
+            textOutlineColor: "#ff8000",
+            textOutlineOpacity: 0.4,
+            borderWidth: 2,
+            borderColor: "#336699",
+            borderOpacity: 0.5,
+        });
+        const { options } = label as unknown as {
+            options: { textOutlineColor: string; borders: { color: string }[] };
+        };
+
+        assert.strictEqual(options.textOutlineColor.toLowerCase(), "#ff800066");
+        assert.strictEqual(options.borders[0].color.toLowerCase(), "#33669980");
+    });
+
+    test("a box padding is the whole room between the words and the border", () => {
+        const sized = (extra: object): { width: number; height: number; textW: number; textH: number } => {
+            const label = RichTextLabel.createLabel(scene, { text: "hi", borderWidth: 2, ...extra });
+            const inner = label as unknown as {
+                actualDimensions: { width: number; height: number };
+                textSize: { width: number; height: number };
+            };
+            return { ...inner.actualDimensions, textW: inner.textSize.width, textH: inner.textSize.height };
+        };
+        const tight = sized({ boxPadding: 0, backgroundPadding: 6, marginTop: 9 });
+        assert.closeTo(tight.width, tight.textW + 4, 1e-6);
+        assert.closeTo(tight.height, tight.textH + 4, 1e-6);
+        const padded = sized({ boxPadding: 3 });
+        assert.closeTo(padded.height, padded.textH + 4 + 6, 1e-6);
+        // unset, the margins (5 a side by default) decide
+        const plain = sized({});
+        assert.closeTo(plain.height, plain.textH + 4 + 10, 1e-6);
+    });
+
     test("an offset moves the label right and down, a shift by fractions of its own size", () => {
         const at = (extra: object): Vector3 => {
             const label = RichTextLabel.createLabel(scene, {

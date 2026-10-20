@@ -977,6 +977,7 @@ export const EdgeStyle: z.ZodObject<{
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            borderOpacity: z.ZodOptional<z.ZodNumber>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 width: z.ZodNumber;
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1030,6 +1031,7 @@ export const EdgeStyle: z.ZodObject<{
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
             textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 round: "round";
                 bevel: "bevel";
@@ -1041,6 +1043,7 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            boxPadding: z.ZodOptional<z.ZodNumber>;
             backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 linear: "linear";
@@ -1198,6 +1201,7 @@ export const EdgeStyle: z.ZodObject<{
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            borderOpacity: z.ZodOptional<z.ZodNumber>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 width: z.ZodNumber;
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1251,6 +1255,7 @@ export const EdgeStyle: z.ZodObject<{
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
             textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 round: "round";
                 bevel: "bevel";
@@ -1262,6 +1267,7 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            boxPadding: z.ZodOptional<z.ZodNumber>;
             backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 linear: "linear";
@@ -1523,6 +1529,7 @@ export const EdgeStyle: z.ZodObject<{
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1576,6 +1583,7 @@ export const EdgeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -1587,6 +1595,7 @@ export const EdgeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -4088,6 +4097,7 @@ export const NodeStyle: z.ZodObject<{
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4141,6 +4151,7 @@ export const NodeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -4152,6 +4163,7 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -4268,6 +4280,7 @@ export const NodeStyle: z.ZodObject<{
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4321,6 +4334,7 @@ export const NodeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -4332,6 +4346,7 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             linear: "linear";
@@ -4918,6 +4933,7 @@ export const RichTextStyle: z.ZodObject<{
     backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    borderOpacity: z.ZodOptional<z.ZodNumber>;
     borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
         width: z.ZodNumber;
         color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4971,6 +4987,7 @@ export const RichTextStyle: z.ZodObject<{
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
     textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         round: "round";
         bevel: "bevel";
@@ -4982,6 +4999,7 @@ export const RichTextStyle: z.ZodObject<{
     textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    boxPadding: z.ZodOptional<z.ZodNumber>;
     backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         linear: "linear";

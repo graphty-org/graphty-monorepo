@@ -410,6 +410,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     gradientKind: v("none", `${CYJS} 18640 (line-fill solid)`),
                     midSourceArrowColor: v("#999999", `${CYJS} 18639`),
                     midTargetArrowColor: v("#999999", `${CYJS} 18639`),
+                    // an edge's label is centered on the line's middle (recalculateEdgeLabelProjections)
+                    labelPosition: v("center", `${CYJS} 24942`),
                     // a source or target label is centered on the line where it leaves its node, unless offset
                     sourceLabelOffset: v(0, `${CYJS} 18511, 18515`),
                     targetLabelOffset: v(0, `${CYJS} 18511, 18515`),
@@ -651,6 +653,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     fill: v("#97c2fc", `${VIS} lines 32986-33110`),
                     borderColor: v("#2b7ce9", `${VIS} lines 32986-33110`),
                     borderWidth: v(1, `${VIS} lines 32986-33110`),
+                    // a canvas stroke along the node's own outline, half in and half out (NodeBase.performStroke)
+                    borderPosition: v("center", `${VIS9} NodeBase.performStroke: ctx.stroke() on the shape's own path`),
                     shape: v("ellipse", `${VIS} lines 32986-33110`),
                     labelColor: v("#343434", `${VIS} lines 32986-33110`),
                     labelSize: v(14, `${VIS} lines 32986-33110`),
@@ -758,6 +762,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // parameters for (the manual names these settings but not their values)
                     borderColor: v("#660000", `${PAJEK_SVG}football, kdorola: every vertex without bc)`),
                     borderWidth: v(0.5, `${PAJEK_SVG}football, kdorola: every vertex without bw)`),
+                    // an SVG stroke along the vertex's own outline, half in and half out
+                    borderPosition: v(
+                        "center",
+                        `${PAJEK_SVG}specimen-node-fills-borders-p3: bw 8 draws a vertex of size 36 44 across)`,
+                    ),
                     width: v(20, `${PAJEK_SVG}football, iliad: a vertex without s_size, x_fact or y_fact)`),
                     height: v(20, `${PAJEK_SVG}football, iliad: a vertex without s_size, x_fact or y_fact)`),
                     fill: v("#ffd9bc", `${PAJEK_SVG}football, kdorola: every vertex without ic)`),

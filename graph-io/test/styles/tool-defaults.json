@@ -136,6 +136,7 @@
             "gradientKind": "none",
             "midSourceArrowColor": "#999999",
             "midTargetArrowColor": "#999999",
+            "labelPosition": "center",
             "sourceLabelOffset": 0,
             "targetLabelOffset": 0,
             "width": 3,
@@ -295,6 +296,7 @@
             "fill": "#97c2fc",
             "borderColor": "#2b7ce9",
             "borderWidth": 1,
+            "borderPosition": "center",
             "shape": "ellipse",
             "labelColor": "#343434",
             "labelSize": 14,
@@ -370,6 +372,7 @@
         "node": {
             "borderColor": "#660000",
             "borderWidth": 0.5,
+            "borderPosition": "center",
             "fill": "#ffd9bc",
             "height": 20,
             "labelColor": "#ad0000",

@@ -1,5 +1,5 @@
 import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test } from "vitest";
 
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
@@ -9,13 +9,19 @@ import { RichTextLabel } from "../../src/meshes/RichTextLabel";
  * node's own frame, the label sat in the node's middle plane, and the node's mesh hid it.
  */
 describe("a label moved over its own node", () => {
+    let scene: Scene | null = null;
+    afterEach(() => {
+        scene?.getEngine().dispose();
+        scene = null;
+    });
+
     /**
      * A label below a sphere of radius 1, moved up by `offsetY` (negative is up).
      * @param offsetY - how far down the label is moved
      * @returns the label's world position and the sphere
      */
     function below(offsetY: number): { at: Vector3; front: number; label: RichTextLabel } {
-        const scene = new Scene(new NullEngine());
+        scene = new Scene(new NullEngine());
         const node = MeshBuilder.CreateSphere("node", { diameter: 2 }, scene);
         const label = new RichTextLabel(scene, {
             text: "Up",

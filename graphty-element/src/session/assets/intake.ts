@@ -6,7 +6,13 @@
  * and nothing reaches Babylon.js or the DOM (design/rendering/node-models.md section 3).
  */
 
-import { BUILT_IN_MODEL_FORMATS, detectModelFormat, isZip, type ModelFormat } from "../../catalog/detectModel";
+import {
+    BUILT_IN_MODEL_FORMATS,
+    detectModelFormat,
+    imageFormatOf,
+    isZip,
+    type ModelFormat,
+} from "../../catalog/detectModel";
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks";
@@ -488,27 +494,6 @@ export async function fetchModelSet(
             }
         }
     }
-}
-
-/** The picture formats an image asset may be. */
-export type ImageFormat = "png" | "jpeg" | "webp";
-
-/**
- * The picture format of a file, from its first bytes.
- * @param bytes - The file.
- * @returns The format, or undefined for anything else.
- */
-export function imageFormatOf(bytes: Uint8Array): ImageFormat | undefined {
-    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
-        return "png";
-    }
-
-    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-        return "jpeg";
-    }
-
-    const text = String.fromCharCode(...bytes.subarray(0, 12));
-    return text.startsWith("RIFF") && text.slice(8) === "WEBP" ? "webp" : undefined;
 }
 
 /**

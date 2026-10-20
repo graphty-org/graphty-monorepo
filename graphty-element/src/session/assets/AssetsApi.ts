@@ -101,6 +101,14 @@ export type PartAnswer =
     /** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
     | { readonly main: string };
 
+/** What `assets.offer` did with the files it was given. */
+export interface AssetOffer {
+    /** Each file a waiting model took: the model's id when offered, the part's name, the file's name. */
+    readonly supplied: readonly { readonly ref: AssetId; readonly name: string; readonly fileName: string }[];
+    /** The files no waiting model took, or that more than one could take, in the order given. */
+    readonly rest: readonly NamedBlob[];
+}
+
 /** Where an asset stands. */
 export type AssetState = "pending" | "accepted" | "rejected";
 
@@ -303,6 +311,29 @@ export interface AssetsApi {
      * ```
      */
     supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
+    /**
+     * Hand files to the session first, before treating them as new assets: every file that exactly
+     * one waiting model is missing (by its folder path, then by its base name, in any case) is
+     * supplied to that model. A file two models could take is never guessed; it stays in `rest`.
+     * @param files - The files: an array of Files, or a FileList.
+     * @param options - A signal that stops waiting.
+     * @param options.signal - Stops waiting.
+     * @returns What was supplied, once each supply has settled, and the files left over.
+     * @example
+     * ```ts
+     * const { rest } = await graph.session.assets.offer(event.dataTransfer.files);
+     * for (const file of rest) await graph.session.assets.add(file);
+     * ```
+     */
+    offer(
+        files: Iterable<NamedBlob> | ArrayLike<NamedBlob>,
+        options?: { readonly signal?: AbortSignal },
+    ): Promise<AssetOffer>;
+    /**
+     * The models held for `supply`: rejected only for missing parts, waiting for them.
+     * @returns Their records, in the order added.
+     */
+    waiting(): readonly AssetRecord[];
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -523,6 +554,18 @@ function partNamed(parts: readonly CodedFact[], name: string): CodedFact | undef
 }
 
 /**
+ * How a file with no name is matched to a part name (lower-cased), in order: by its folder path,
+ * then by its base name, in any case.
+ * @param file - The file.
+ * @returns The tests, best first.
+ */
+function fileSteps(file: NamedBlob): ((name: string) => boolean)[] {
+    const path = (normalizePath(file.webkitRelativePath ?? "") ?? "").toLowerCase();
+    const base = (path === "" ? file.name : baseName(path)).toLowerCase();
+    return [(name) => path !== "" && (path === name || path.endsWith(`/${name}`)), (name) => baseName(name) === base];
+}
+
+/**
  * The missing part a file with no name means: by its folder path, then by its base name, in any
  * case; only when exactly one part matches.
  * @param parts - The missing parts.
@@ -530,13 +573,7 @@ function partNamed(parts: readonly CodedFact[], name: string): CodedFact | undef
  * @returns The fact, or undefined.
  */
 function partForFile(parts: readonly CodedFact[], file: NamedBlob): CodedFact | undefined {
-    const path = (normalizePath(file.webkitRelativePath ?? "") ?? "").toLowerCase();
-    const base = (path === "" ? file.name : baseName(path)).toLowerCase();
-    const steps: ((name: string) => boolean)[] = [
-        (name) => path !== "" && (path === name || path.endsWith(`/${name}`)),
-        (name) => baseName(name) === base,
-    ];
-    for (const step of steps) {
+    for (const step of fileSteps(file)) {
         const found = parts.filter((fact) => step(String(fact.params.name).toLowerCase()));
         if (found.length > 0) {
             return found.length === 1 ? found[0] : undefined;
@@ -989,6 +1026,42 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     const supplyWatchers = new Set<(names: readonly string[]) => void>();
 
     /**
+     * The models held for `supply`, each once.
+     * @returns The entries.
+     */
+    const waitingEntries = (): Entry[] =>
+        [...allEntries()].filter((entry) => entry.held !== undefined && entry.record.state === "rejected");
+
+    /**
+     * The one waiting model and missing part a file is for: the best step that matches anything
+     * decides, and it must match exactly one part not already taken.
+     * @param waiting - The waiting models.
+     * @param file - The file.
+     * @param taken - Parts already given a file in this offer, as `id` + NUL + name.
+     * @returns The model and the part's name, or undefined.
+     */
+    const offerTarget = (
+        waiting: readonly Entry[],
+        file: NamedBlob,
+        taken: ReadonlySet<string>,
+    ): { readonly entry: Entry; readonly name: string } | undefined => {
+        for (const step of fileSteps(file)) {
+            const hits = waiting.flatMap((entry) =>
+                entry.record.problems
+                    .filter((fact) => fact.code === "E_MODEL_MISSING_FILE")
+                    .map((fact) => String(fact.params.name))
+                    .filter((name) => !taken.has(`${entry.record.id}\0${name}`) && step(name.toLowerCase()))
+                    .map((name) => ({ entry, name })),
+            );
+            if (hits.length > 0) {
+                return hits.length === 1 ? hits[0] : undefined;
+            }
+        }
+
+        return undefined;
+    };
+
+    /**
      * The entry a ref names: an id (or an id it had while rejected), a URL, or a URL's provisional id.
      * @param ref - The ref.
      * @returns The entry, or undefined.
@@ -1349,6 +1422,33 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             const result = (entry.chain ?? Promise.resolve()).then(run, run);
             entry.chain = result.catch(() => undefined);
             return abortable(result, options.signal);
+        },
+
+        async offer(files, options = {}) {
+            const waiting = waitingEntries();
+            const taken = new Set<string>();
+            const supplied: { ref: AssetId; name: string; fileName: string }[] = [];
+            const rest: NamedBlob[] = [];
+            const runs: Promise<AssetRecord>[] = [];
+            for (const file of Array.from(files)) {
+                const target = offerTarget(waiting, file, taken);
+                if (target === undefined) {
+                    rest.push(file);
+                    continue;
+                }
+
+                const ref = target.entry.record.id;
+                taken.add(`${ref}\0${target.name}`);
+                supplied.push({ ref, name: target.name, fileName: file.name });
+                runs.push(api.supply(ref, { name: target.name, file }, options));
+            }
+
+            await Promise.all(runs);
+            return Object.freeze({ supplied: Object.freeze(supplied), rest: Object.freeze(rest) });
+        },
+
+        waiting() {
+            return Object.freeze(waitingEntries().map((entry) => entry.record));
         },
 
         assembled(id) {

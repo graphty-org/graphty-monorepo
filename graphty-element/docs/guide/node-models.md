@@ -241,6 +241,33 @@ it in `record.skipped`, and a saved project remembers the skip, so reopening it 
 An address on this machine or the local network is never fetched as a missing file unless it is
 the model's own site, and an address's query is used for the request and never shown or saved.
 
+### Dropped files go to the model that waits for them
+
+A page usually has one place to drop files, and a reader who was told a model needs
+`colormap.png` drops it there. Hand every dropped file to `assets.offer` first: each file exactly
+one waiting model is missing (by its folder path, then by its file name, in any case) is supplied
+to that model, and what is left comes back in `rest` for the page to treat as new files.
+`assets.waiting()` lists the models held for a missing file, so a drop target can show whether
+any model waits.
+
+```ts
+import { detectAssetKind } from "@graphty/graphty-element/catalog";
+
+const { supplied, rest } = await element.session.assets.offer([...files]);
+for (const file of rest) {
+    const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+    const kind = detectAssetKind({ filename: file.name, head }); // "model", "image" or undefined
+    if (kind !== undefined) {
+        const asset = await element.session.assets.add(file);
+        // a model: name asset.id in node.model; a picture: in node.texture
+    }
+}
+```
+
+A file two waiting models both miss is never guessed: it stays in `rest`, and the page asks the
+reader which model it is for and calls `supply` itself. `detectAssetKind` reads the bytes, so a
+PNG named `car.glb` is a picture; it falls back to the name only when no bytes are given.
+
 ## Color
 
 A model keeps its own colors. To color it from your data, turn on `node.modelTint`: the model's
@@ -409,7 +436,7 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`, `part`                           | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`. `part` names the missing file, for an address given to `assets.supply`                     |
 | `E_MODEL_TOO_LARGE`           | `what`, `found`, `limit`                            | Over a limit; `what` says which one                                                                                                                                                                                       |
 | `E_MODEL_STRUCTURE`           | `rule`                                              | The file is damaged or unsafe to read                                                                                                                                                                                     |
-| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                | A 3D format graphty-element recognizes but does not load (FBX, USDZ, DAE, .blend, 3MF, PLY)                                                                                                                               |
+| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`, `assetKind`                   | A 3D format graphty-element recognizes but does not load (FBX, USDZ, DAE, .blend, 3MF, PLY). `assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model                   |
 | `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                          | Not a 3D model file graphty-element knows                                                                                                                                                                                 |
 | `E_MODEL_AMBIGUOUS`           | `candidates`                                        | Several files could be the model; pass `{ main: "<name>" }` to `assets.add`                                                                                                                                               |
 | `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`, `role`, `optional`, `tried` | A file the model needs (a `.bin`, a picture, an `.mtl`) was not found. One per missing file, all at once; `optional` is true for a picture or an `.mtl`, and `tried` lists the addresses tried for a model fetched by URL |

@@ -149,6 +149,9 @@ export interface AlgorithmDescriptor {
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
+export type AssetKind = "model" | "image";
+
+// @public
 export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean", "time", "category", "mixed"];
 
 // @public
@@ -432,6 +435,9 @@ export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
 export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+
+// @public
+export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefined;
 
 // @public
 export function detectFormat(input: DetectionInput): FormatId | null;
@@ -1163,6 +1169,7 @@ export type GraphtyErrorCode =
 | "E_MODEL_STRUCTURE"
 /**
 * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
 /**

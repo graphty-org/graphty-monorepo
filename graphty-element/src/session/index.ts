@@ -13,6 +13,7 @@
 export type {
     AddAssetOptions,
     AssetId,
+    AssetOffer,
     AssetRecord,
     AssetsApi,
     AssetSource,

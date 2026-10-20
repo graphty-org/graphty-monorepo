@@ -122,6 +122,31 @@ describe("node.texture", () => {
             selector: { match: "everything" },
             set: { "node.texture": ball.id },
         });
-        assert.equal((await refused).problems[0]?.code, "E_MODEL_FORMAT_UNSUPPORTED");
+        const [problem] = (await refused).problems;
+        assert.equal(problem?.code, "E_MODEL_FORMAT_UNSUPPORTED");
+        assert.equal(problem?.params.assetKind, "model");
+    });
+
+    it("refuses a picture named as a model, saying it is a picture", async () => {
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        const picture = await element.session.assets.add({ files: new Map([["colormap.png", PNG_1X1]]) });
+        assert.equal(picture.kind, "image");
+        const refused = nextModelEvent(
+            element,
+            (change) => change.ref === picture.id && (change.state === "rejected" || change.state === "failed"),
+        );
+        await element.session.styles.add({
+            name: "picture as model",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": picture.id },
+        });
+        const settled = await refused;
+        assert.equal(settled.state, "rejected");
+        const [problem] = settled.problems;
+        assert.equal(problem?.code, "E_MODEL_FORMAT_UNSUPPORTED");
+        assert.equal(problem?.params.assetKind, "image");
+        assert.isFalse(drawnAsModel(element.graph, "a"));
     });
 });

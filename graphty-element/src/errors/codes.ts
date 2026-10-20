@@ -568,6 +568,7 @@ export type GraphtyErrorCode =
     | "E_MODEL_STRUCTURE"
     /**
      * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+     * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
      */
     | "E_MODEL_FORMAT_UNSUPPORTED"
     /**

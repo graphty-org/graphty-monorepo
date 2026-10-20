@@ -214,7 +214,10 @@ export class TextureCache {
 
         if (record.kind !== "image") {
             this.publish(ref, "rejected", [
-                { code: "E_MODEL_FORMAT_UNSUPPORTED", params: { format: record.format, fileName: record.path ?? "" } },
+                {
+                    code: "E_MODEL_FORMAT_UNSUPPORTED",
+                    params: { format: record.format, fileName: record.path ?? "", assetKind: "model" },
+                },
             ]);
             return null;
         }

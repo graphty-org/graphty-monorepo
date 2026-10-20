@@ -371,6 +371,17 @@ export class ModelCache {
                 return;
             }
 
+            if (record.kind === "image") {
+                // A picture named as a model: say so, so the reader can use it as node.texture.
+                this.settle(ref, "rejected", [
+                    {
+                        code: "E_MODEL_FORMAT_UNSUPPORTED",
+                        params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
+                    },
+                ]);
+                return;
+            }
+
             this.settle(ref, "accepted", [...record.problems]);
             try {
                 const files = this.session.assets.files(record.id);

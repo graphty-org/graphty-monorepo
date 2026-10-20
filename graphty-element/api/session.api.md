@@ -142,6 +142,16 @@ export interface AlgorithmRunCommand {
 export type AssetId = `asset:${string}`;
 
 // @public
+export interface AssetOffer {
+    readonly rest: readonly NamedBlob[];
+    readonly supplied: readonly {
+        readonly ref: AssetId;
+        readonly name: string;
+        readonly fileName: string;
+    }[];
+}
+
+// @public
 export interface AssetRecord {
     readonly byteLength: number;
     readonly digest: string;
@@ -163,6 +173,9 @@ export interface AssetsApi {
     get(id: AssetId): AssetRecord | undefined;
     inspect(id: AssetId): ModelSummary;
     list(): readonly AssetRecord[];
+    offer(files: Iterable<NamedBlob> | ArrayLike<NamedBlob>, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetOffer>;
     ready(ref: string, options?: {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
@@ -172,6 +185,7 @@ export interface AssetsApi {
     supply(ref: string, answer: PartAnswer, options?: {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
+    waiting(): readonly AssetRecord[];
 }
 
 // @public
@@ -1912,6 +1926,7 @@ export type GraphtyErrorCode =
 | "E_MODEL_STRUCTURE"
 /**
 * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
 /**

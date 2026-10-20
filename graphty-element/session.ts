@@ -179,6 +179,7 @@ export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeD
 export type {
     AddAssetOptions,
     AssetId,
+    AssetOffer,
     AssetRecord,
     AssetsApi,
     AssetSource,

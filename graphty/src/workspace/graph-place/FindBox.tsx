@@ -13,7 +13,7 @@ import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } f
 import { focusInspectorTitle } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
-import { edgeJoiner, edgeName, selectionWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
+import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
 import { attributeName, readableName } from "../style/words";
@@ -829,10 +829,7 @@ export function FindBox(): React.JSX.Element {
     const example = session === null ? null : exampleRule(session);
     if (ran && session !== null) {
         const { nodes, edges } = session.selection;
-        lineWords =
-            nodes.length + edges.length === 0
-                ? "Nothing matches this rule"
-                : selectionWords(nodes.length, edges.length);
+        lineWords = nodes.length + edges.length === 0 ? "Nothing matches this rule" : selectedNameWords(session);
         emptyLine = lineWords;
     } else if (isRule) {
         // The press-Enter hint is only for a rule the element accepts.

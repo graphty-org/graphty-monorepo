@@ -3,7 +3,14 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { NEW, openStepEditor } from "../data-place/filterSteps";
 import { neighborhoodKey } from "../inspector/inspected";
-import { neighborhoodWords, nodeName, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import {
+    framedWords,
+    neighborhoodWords,
+    nodeName,
+    selectionWords,
+    xrEntryFailureWords,
+    xrReasonWords,
+} from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -153,13 +160,17 @@ export const registration = defineRegistration({
             group: "View",
             keys: ["F"],
             disabled: ({ session }) => nothingSelected(session),
-            run: async ({ element }) => {
+            run: async ({ element, session, workspace }) => {
                 // Keep the angle the reader looks from: framing moves the target and the distance only.
                 await element?.applyCameraView("fitToGraph", {
                     scope: "selection",
                     params: { keepAngle: true },
                     animate: true,
                 });
+                // The camera moving is seen, never heard, so what it framed is said.
+                if (session !== null) {
+                    workspace.set({ announcement: framedWords(session) });
+                }
             },
         },
         ...STANDARD_VIEWS.map(({ id, label, camera, ...rest }) => ({

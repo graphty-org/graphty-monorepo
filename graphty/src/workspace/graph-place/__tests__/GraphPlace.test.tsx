@@ -349,7 +349,8 @@ describe("the Graph place", () => {
         });
         // The box keeps the reader's words as typed.
         assert.equal((box as HTMLInputElement).value, "minutes >= 10");
-        assert.isNotNull(await screen.findByText("1 edge selected"));
+        // One edge is said by its ends' names, never as "1 edge".
+        assert.isNotNull(await screen.findByText(/^\S+ (->|--) \S+ selected$/));
 
         const count = vi.spyOn(session.selection, "count");
         await userEvent.clear(box);
@@ -483,7 +484,8 @@ describe("the Graph place", () => {
         const input = box as HTMLInputElement;
         assert.equal(input.value, "=weight > 3");
         assert.equal(input.selectionStart, input.selectionEnd);
-        assert.isNotNull(await screen.findByText("1 edge selected"));
+        // One edge is said by its ends' names, never as "1 edge".
+        assert.isNotNull(await screen.findByText(/^\S+ (->|--) \S+ selected$/));
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.isNull(screen.queryByRole("alert"));
         assert.notEqual(box.getAttribute("aria-invalid"), "true");

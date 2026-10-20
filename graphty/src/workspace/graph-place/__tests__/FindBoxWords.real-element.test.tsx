@@ -123,7 +123,8 @@ describe("the find box says columns as the screen does", () => {
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["a"]);
-                assert.include(document.querySelector(".ws-find")?.textContent, "1 node selected");
+                // One node is said by the name the app gives it, never as "1 node".
+                assert.include(document.querySelector(".ws-find")?.textContent, `${session.data.name("a") ?? "a"} selected`);
             });
             const find = screen.getByRole<HTMLInputElement>("combobox", { name: "Find" });
             assert.strictEqual(find.value, "=degree > 2");

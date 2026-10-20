@@ -77,7 +77,13 @@ function standIn(facts: StandInFacts = {}): {
                       },
             painting: () => facts.painting,
         },
-        data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
+        data: {
+            statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }),
+            name: (id: string) => ({ a: "Ava", b: "Ben" })[id],
+            edge: (id: string) => (id === "e1" ? { id, source: "a", target: "b" } : undefined),
+            source: () => undefined,
+        },
+        status: { directed: true },
         selection: { nodes: [], edges: [] },
     } as unknown as GraphSession;
     const emit = (event: string, payload: unknown): void => {
@@ -290,15 +296,21 @@ describe("the status line", () => {
         assert.equal(store.get().announcement, "PageRank failed");
     });
 
-    it("announces what a selection holds, and nothing when it empties", () => {
+    it("announces what a selection holds, one node or edge by its name, and nothing when it empties", () => {
         const { session, emit } = standIn();
         const store = renderOver(session);
         const { selection } = session as unknown as { selection: { nodes: string[]; edges: string[] } };
+        selection.nodes = ["a"];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "Ava selected");
+        selection.nodes = [];
         selection.edges = ["e1"];
         act(() => {
             emit("selection:changed", {});
         });
-        assert.equal(store.get().announcement, "1 edge selected");
+        assert.equal(store.get().announcement, "Ava -> Ben selected");
         selection.nodes = ["a", "b"];
         act(() => {
             emit("selection:changed", {});

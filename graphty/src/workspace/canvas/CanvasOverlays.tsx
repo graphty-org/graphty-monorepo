@@ -7,7 +7,7 @@ import React, { useEffect, useState } from "react";
 import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
-import { count } from "../inspector/words";
+import { selectedNameWords } from "../inspector/words";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { KeyRoom, LegendCard } from "./LegendCard";
@@ -69,14 +69,10 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             ...REDRAW_EVENTS.map((event) => session.on(event, read)),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
-                const parts = [
-                    ...(nodes.length > 0 ? [count(nodes.length, "node")] : []),
-                    ...(edges.length > 0 ? [count(edges.length, "edge")] : []),
-                ];
-                if (parts.length > 0) {
+                if (nodes.length + edges.length > 0) {
                     // "Selection cleared" would contradict the new selection beside it.
                     const ended = store.get().notice?.endsWithSelection === true;
-                    store.set({ announcement: `${parts.join(", ")} selected`, ...(ended ? { notice: null } : {}) });
+                    store.set({ announcement: selectedNameWords(session), ...(ended ? { notice: null } : {}) });
                 }
             }),
             session.on("progress:changed", (change) => {

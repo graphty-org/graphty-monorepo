@@ -279,6 +279,44 @@ export function selectionWords(nodes: number, edges: number): string {
 }
 
 /**
+ * What the selection holds, as the status line says it: one node or one edge by its name ("Ava",
+ * "Ava -> Ben"), more by their count ("2 nodes, 1 edge").
+ * @param session - the session.
+ * @returns the words.
+ */
+export function selectionNameWords(session: GraphSession): string {
+    const { nodes, edges } = session.selection;
+    if (nodes.length + edges.length === 1) {
+        if (nodes.length === 1) {
+            return nodeName(session, nodes[0]);
+        }
+        const edge = session.data.edge(edges[0]);
+        if (edge !== undefined) {
+            return edgeName(session, edge);
+        }
+    }
+    return sizeWords(nodes.length, edges.length);
+}
+
+/**
+ * What a selection change says: "Ava selected", "3 nodes, 1 edge selected".
+ * @param session - the session.
+ * @returns the words.
+ */
+export function selectedNameWords(session: GraphSession): string {
+    return `${selectionNameWords(session)} selected`;
+}
+
+/**
+ * What Frame selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
+ * @param session - the session.
+ * @returns the words.
+ */
+export function framedWords(session: GraphSession): string {
+    return `Framed ${selectionNameWords(session)}`;
+}
+
+/**
  * The status line after Clear selection: "Selection cleared: 13 edges".
  * @param nodes - how many nodes were selected.
  * @param edges - how many edges were selected.

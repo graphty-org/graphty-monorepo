@@ -381,6 +381,20 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         );
     });
 
+    it("says what f framed, by the node's name", async () => {
+        const session = await openKarate();
+        const node = session.data.nodes()[0].id;
+        await session.selection.apply({ nodes: [node] });
+        const name = session.data.name(node) ?? String(node);
+        await realInput.keyboard("f");
+        await waitFor(() => {
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Framed ${name}`,
+            );
+        });
+    });
+
     it("switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it", async () => {
         const session = await openKarate();
 

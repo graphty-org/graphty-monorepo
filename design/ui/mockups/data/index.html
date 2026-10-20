@@ -1,0 +1,1657 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Data management mocks</title>
+        <link rel="icon" href="data:," />
+        <style>
+            :root {
+                --bg: #1e1e1e;
+                --panel: #2c2c2c;
+                --line: #444;
+                --text: #e3e3e3;
+                --dim: #b0b0b0;
+                --accent: #82aafb;
+                --special: #e0b45a;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--text);
+                font:
+                    14px/1.45 system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            header {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 14px 24px;
+                border-bottom: 1px solid var(--line);
+                background: var(--panel);
+                position: sticky;
+                top: 0;
+                z-index: 5;
+            }
+            h1 {
+                font-size: 18px;
+                margin: 0;
+            }
+            .rounds button {
+                background: none;
+                color: var(--dim);
+                border: 1px solid var(--line);
+                border-radius: 6px;
+                padding: 4px 10px;
+                cursor: pointer;
+                font: inherit;
+            }
+            .rounds button[aria-pressed="true"] {
+                color: #fff;
+                border-color: var(--accent);
+                background: #2b3a55;
+            }
+            main {
+                padding: 20px 24px 60px;
+            }
+            .top {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                margin-bottom: 24px;
+            }
+            .box {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                padding: 14px 18px;
+            }
+            .box h2 {
+                font-size: 15px;
+                margin: 0 0 8px;
+            }
+            .box ul,
+            .box ol {
+                margin: 0;
+                padding-left: 20px;
+            }
+            .box li {
+                margin: 4px 0;
+            }
+            .answers {
+                margin-bottom: 24px;
+            }
+            .answers dl {
+                margin: 0;
+                display: grid;
+                grid-template-columns: 220px 1fr;
+                gap: 6px 16px;
+            }
+            .answers dt {
+                font-weight: 600;
+            }
+            .answers dd {
+                margin: 0;
+            }
+            .questions li {
+                font-weight: 600;
+            }
+            table {
+                border-collapse: separate;
+                border-spacing: 0;
+                width: 100%;
+                table-layout: fixed;
+            }
+            th,
+            td {
+                vertical-align: top;
+                border-bottom: 1px solid var(--line);
+                padding: 12px;
+                text-align: left;
+            }
+            thead th {
+                background: var(--panel);
+                font-weight: normal;
+            }
+            th.flow {
+                width: 200px;
+            }
+            .optname {
+                font-size: 16px;
+                font-weight: 700;
+                margin: 0 0 6px;
+            }
+            .optname span {
+                color: var(--accent);
+            }
+            .idea {
+                margin: 0 0 8px;
+            }
+            .opt h3 {
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--dim);
+                margin: 10px 0 2px;
+            }
+            .opt ul {
+                margin: 0;
+                padding-left: 18px;
+                color: var(--dim);
+                font-size: 13px;
+            }
+            .flowtitle {
+                font-weight: 600;
+            }
+            .tag {
+                display: inline-block;
+                font-size: 11px;
+                padding: 1px 6px;
+                border-radius: 4px;
+                margin-top: 4px;
+                border: 1px solid var(--line);
+                color: var(--dim);
+            }
+            .tag.special {
+                color: var(--special);
+                border-color: var(--special);
+            }
+            .strip {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+            .strip a {
+                display: block;
+                width: calc(33.3% - 4px);
+                min-width: 120px;
+                color: var(--dim);
+                text-decoration: none;
+                font-size: 11px;
+            }
+            .strip img {
+                width: 100%;
+                display: block;
+                border: 1px solid var(--line);
+                border-radius: 4px;
+            }
+            .strip a:hover img,
+            .strip a:focus img {
+                border-color: var(--accent);
+            }
+            .strip a:focus {
+                outline: none;
+            }
+            .strip a:focus-visible img {
+                outline: 2px solid var(--accent);
+            }
+            #viewer {
+                position: fixed;
+                inset: 0;
+                background: #111;
+                display: none;
+                flex-direction: column;
+                z-index: 10;
+            }
+            #viewer.open {
+                display: flex;
+            }
+            .vbar {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 16px;
+                color: var(--text);
+            }
+            .vbar button,
+            .vbar a {
+                background: var(--panel);
+                color: var(--text);
+                border: 1px solid var(--line);
+                border-radius: 6px;
+                padding: 4px 10px;
+                cursor: pointer;
+                font: inherit;
+                text-decoration: none;
+            }
+            .vbar .grow {
+                flex: 1;
+            }
+            #vstage {
+                flex: 1;
+                position: relative;
+                overflow: hidden;
+            }
+            #vframe {
+                position: absolute;
+                width: 1440px;
+                height: 900px;
+                border: 0;
+                transform-origin: 0 0;
+                background: #111;
+            }
+            #vcap {
+                padding: 10px 16px 16px;
+                max-width: 1100px;
+                margin: 0 auto;
+                font-size: 15px;
+                text-align: center;
+            }
+            .hint {
+                color: var(--dim);
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Data management mocks</h1>
+            <div class="rounds" id="rounds" role="group" aria-label="Round"></div>
+            <span class="hint">Click any screen to step through its flow; arrow keys move, Esc closes.</span>
+        </header>
+        <main id="main"></main>
+        <div id="viewer" role="dialog" aria-modal="true" aria-label="Screen viewer">
+            <div class="vbar">
+                <button id="vprev" aria-label="Previous screen">&larr;</button>
+                <button id="vnext" aria-label="Next screen">&rarr;</button>
+                <strong id="vtitle" class="grow"></strong>
+                <a id="vopen" target="_blank" rel="noopener">Open full size</a>
+                <button id="vclose">Close (Esc)</button>
+            </div>
+            <div id="vstage"><iframe id="vframe" title="Mock screen"></iframe></div>
+            <div id="vcap"></div>
+        </div>
+        <script>
+            var ROUNDS = [
+                {
+                    id: "1",
+                    label: "Round 1",
+                    date: "2026-10-19",
+                    decided: [
+                        "Three different homes for data, drawn across the same nine flows (17 screens each) so they compare side by side.",
+                        "Six common flows are reached at once: open a file and get a right drawing, check it loaded right, find and show only what matters, bring in a newer copy, add a second file, take the numbers out.",
+                        "Three special cases sit a few clicks away: fix a column, load from a server (with Load more and Expand), clean up what the load report found.",
+                        "Server data moved down to one step in (a single Open network data item beside Open), and Expand moved to the expert tier, after the priority review found no study task that used them.",
+                        "The first screen shows no expert control, no setting at its default, no line that counts zero, and no internal word. Every door to a file says the file stays in this browser.",
+                        "Not drawn yet, until a structure is picked: saved filter steps, saved sets, id lists and reusable recipes.",
+                        "Every number on a screen must come from graphty-element; several do not exist there yet and each option's notes list them.",
+                    ],
+                    questions: [
+                        "Which option's home for data feels right, or which parts of which should be combined?",
+                        "Is it right for a clean file to be drawn at once with a receipt and Undo, with no preview first (option C)?",
+                        "Is Open network data as one item beside Open, with nothing else on the first screen, enough of a door for server data until a study tries it?",
+                        "Should the mapping sentence always say what names the nodes, even when the id is the name?",
+                        "Should filtering start from its own toolbar button, from find, or from a column's header?",
+                    ],
+                    flows: [
+                        {
+                            id: "open-file",
+                            title: "Open my own file and get a right drawing",
+                            kind: "common",
+                        },
+                        {
+                            id: "check-load",
+                            title: "Check that it loaded right",
+                            kind: "common",
+                        },
+                        {
+                            id: "find-filter",
+                            title: "Find, then show only what matters",
+                            kind: "common",
+                        },
+                        {
+                            id: "replace",
+                            title: "Bring in a newer copy, keep my work",
+                            kind: "common",
+                        },
+                        {
+                            id: "second-file",
+                            title: "Add a second file to this graph",
+                            kind: "common",
+                        },
+                        {
+                            id: "export",
+                            title: "Take the numbers out",
+                            kind: "common",
+                        },
+                        {
+                            id: "fix-column",
+                            title: "Fix a column: its type, its role, its name",
+                            kind: "special",
+                        },
+                        {
+                            id: "server",
+                            title: "Load from a server, expand, load more",
+                            kind: "special",
+                        },
+                        {
+                            id: "cleanup",
+                            title: "Clean up what the load report found",
+                            kind: "special",
+                        },
+                    ],
+                    options: [
+                        {
+                            id: "A",
+                            name: "Load page, then the Data panel",
+                            idea: "The closest to today. Every file goes through the full-width Data page, now cut to one mapping sentence with Change and a load report that appears only when something is wrong. After loading, the Data panel on the left is the home for what loaded: one summary sentence, the sources, and every column with its type in words, how full it is and where it came from. A column's details and fixes open in the inspector. Filtering is one condition card from a Filter button on the toolbar. A second file or a newer copy reopens the Data page, where Load becomes a split button: Add, Add columns, Replace.",
+                            first: [
+                                "The Data page: one mapping sentence with Change, sample rows, Load focused",
+                                "Only report lines that found something; only the column guesses the app is unsure of",
+                                "After loading: the summary sentence and column list in the Data panel",
+                                "Always: Filter and Find on the toolbar, Export on the table, Undo on every receipt",
+                            ],
+                            later: [
+                                "Fix a column: right-click it in the Data panel",
+                                "Cleanup: a warning on a source opens what the load found, each line with its fix",
+                                "Server data: Open network data beside Open; Load more and Expand after a capped load",
+                            ],
+                            for: [
+                                "What readers already find; each job has one home",
+                                "A monthly refresh is one drop plus one Enter: Replace is pre-chosen when Add would repeat every link",
+                            ],
+                            against: [
+                                "Still a page between the reader and the drawing for every file, even a clean one",
+                                "Filter and Find both lead to the same condition card: two doors to one card",
+                            ],
+                            weak: [
+                                "A renamed column is caught twice, so 'one drop plus one Enter' only holds if the reader takes the first offer",
+                                "The check mark beside the mapping sentence stays on an unclear file",
+                                "The column list will grow long on a wide file; nothing shows how it collapses or is searched",
+                                "The Neo4j form needs a database query; no simpler path for readers who do not know one",
+                                "These are pictures: no keyboard order or screen reader names",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-1/A/open-file-1-clean-mapping.html",
+                                        thumb: "round-1/thumbs/A-open-file-1-clean-mapping.png",
+                                        caption:
+                                            "A clean file shows one sentence saying how it will be drawn, with Change beside it, the first rows under it, and focus already on Load.",
+                                    },
+                                    {
+                                        file: "round-1/A/open-file-2-unclear-file.html",
+                                        thumb: "round-1/thumbs/A-open-file-2-unclear-file.png",
+                                        caption:
+                                            "A file the app is unsure about opens only the two uncertain choices, the name column and the weight column, each with its type and how many values do not fit, and Load works with the guesses as they stand.",
+                                    },
+                                    {
+                                        file: "round-1/A/open-file-3-drawn-named.html",
+                                        thumb: "round-1/thumbs/A-open-file-3-drawn-named.png",
+                                        caption:
+                                            "Load drops straight into the drawing with each protein labeled by its gene name, and the Data panel says what loaded in one sentence.",
+                                    },
+                                ],
+                                "check-load": [
+                                    {
+                                        file: "round-1/A/check-load-1-load-report.html",
+                                        thumb: "round-1/thumbs/A-check-load-1-load-report.png",
+                                        caption:
+                                            "The load report lists only what was actually found, each line with its count, one real row and its fix already set, and the matching cells are tinted in the rows below.",
+                                    },
+                                    {
+                                        file: "round-1/A/check-load-2-after-load.html",
+                                        thumb: "round-1/thumbs/A-check-load-2-after-load.png",
+                                        caption:
+                                            "After loading, the Data panel opens with one summary sentence and every column with its type in words, how full it is, and whether it came from the file or a run; a click opens a column's details in the inspector.",
+                                    },
+                                ],
+                                "find-filter": [
+                                    {
+                                        file: "round-1/A/find-filter-1-find-offers-condition.html",
+                                        thumb: "round-1/thumbs/A-find-filter-1-find-offers-condition.png",
+                                        caption:
+                                            "Typing padj < 0.05 into Find recognizes a condition and offers it with its count, 60 of 318 nodes, above any name matches.",
+                                    },
+                                    {
+                                        file: "round-1/A/find-filter-2-condition-card.html",
+                                        thumb: "round-1/thumbs/A-find-filter-2-condition-card.png",
+                                        caption:
+                                            "The condition opens as one card from the toolbar's Filter button, counts 60 of 318 nodes while the drawing previews them, and ends in Select or Hide the rest.",
+                                    },
+                                    {
+                                        file: "round-1/A/find-filter-3-filtered-drawing.html",
+                                        thumb: "round-1/thumbs/A-find-filter-3-filtered-drawing.png",
+                                        caption:
+                                            "With the rest hidden, the header chip reads 60 of 318 nodes, the Filter button stays lit, the step sits in the Data panel, and Find has gone to TP53.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-1/A/replace-1-drop-october.html",
+                                        thumb: "round-1/thumbs/A-replace-1-drop-october.png",
+                                        caption:
+                                            "Dropping October's file on the project reopens the Data page with last month's mapping carried, the renamed column caught, and the Load split button already set to Replace because Add would repeat every link.",
+                                    },
+                                    {
+                                        file: "round-1/A/replace-2-receipt.html",
+                                        thumb: "round-1/thumbs/A-replace-2-receipt.png",
+                                        caption:
+                                            "After Replace the drawing keeps its layout and a receipt reads +12, -3 and 40 changed, names the one style that no longer binds with a one-click fix, and offers Undo.",
+                                    },
+                                ],
+                                "second-file": [
+                                    {
+                                        file: "round-1/A/second-file-1-three-choices.html",
+                                        thumb: "round-1/thumbs/A-second-file-1-three-choices.png",
+                                        caption:
+                                            "A second file inside the project offers three choices with Add columns to nodes already picked for a table with no links, and its match line counts 312 matched, 28 not in the graph, 6 without a value, and 2 more that match ignoring case with Use.",
+                                    },
+                                    {
+                                        file: "round-1/A/second-file-2-columns-added.html",
+                                        thumb: "round-1/thumbs/A-second-file-2-columns-added.png",
+                                        caption:
+                                            "The new columns appear under Nodes with their source, expression.tsv is listed as a source, and the inspector names the 6 nodes that got no value, including the 2 case-only matches left unused.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-1/A/export-1-from-table.html",
+                                        thumb: "round-1/thumbs/A-export-1-from-table.png",
+                                        caption:
+                                            "Export on the table dock opens with the node table as CSV, scoped to what is shown (60 of 318) and the shown columns, and one line naming what CSV leaves out.",
+                                    },
+                                ],
+                                "fix-column": [
+                                    {
+                                        file: "round-1/A/fix-column-1-column-menu.html",
+                                        thumb: "round-1/thumbs/A-fix-column-1-column-menu.png",
+                                        caption:
+                                            "Right-clicking a column in the Data panel opens its type, role, rename and hide, with 1 blank among 500 in plain view and, before a type change, the count that will not convert.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-1/A/server-1-neo4j-form.html",
+                                        thumb: "round-1/thumbs/A-server-1-neo4j-form.png",
+                                        caption:
+                                            "Open network data, beside Open, lists the sources; Neo4j's form takes an address and a query, and Test reports the 40,000 matches against the 5,000 limit before Load.",
+                                    },
+                                    {
+                                        file: "round-1/A/server-2-capped-expand.html",
+                                        thumb: "round-1/thumbs/A-server-2-capped-expand.png",
+                                        caption:
+                                            "A capped load says 5,000 of 40,000 with Load more on the canvas and on the source, and right-clicking acct-4471 offers Expand for its 28 links not yet loaded.",
+                                    },
+                                ],
+                                cleanup: [
+                                    {
+                                        file: "round-1/A/cleanup-1-offers.html",
+                                        thumb: "round-1/thumbs/A-cleanup-1-offers.png",
+                                        caption:
+                                            "The source's warning opens what the load found in the inspector, and each line carries its own cleanup: combine the 5 repeated pairs, keep or drop the 2 self-loops, fill the 14 missing amounts, each one undo step.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "B",
+                            name: "The table is where data lives",
+                            idea: "Spreadsheet first. Almost every data job happens on a column. The Data page's preview (before loading) and the table under the canvas (after loading) share one column header: type, role, where it came from, and a bar for how full it is with the count that does not fit, so a column's menu works the same before and after loading. After a load the table opens by itself with one summary sentence above the rows. Conditions are set from a column's menu or typed into Find and gather in one card above the rows. A second file shows up as new columns in the table, with the match line, before anything changes. Export is the table's own button. The Data panel shrinks to the list of sources.",
+                            first: [
+                                "Opening a file: one mapping sentence with Change, sample rows under the shared column header",
+                                "An unclear file asks only about the unclear columns, in pop-outs under their headers",
+                                "After loading: the drawing, the table with the summary sentence, a header chip when a filter is on",
+                                "A file dropped on an open graph: Replace, Add, or Add columns, with the match line first",
+                            ],
+                            later: [
+                                "A column's menu: type (with the count that will not convert), role, rename, show only rows where, sort, hide",
+                                "Open network data, a tab beside Open a file",
+                                "Expand on a node's menu; Load more on a capped source; cleanup on the 'things to check' lines",
+                            ],
+                            for: [
+                                "Readers already look in the table: 18 of 21 looked for export there; 6 of 7 went to the column to say what a number means",
+                                "One column header teaches type, role and fullness once and is reused everywhere",
+                            ],
+                            against: [
+                                "The open table takes 240 to 410 pixels of canvas height on every screen",
+                                "Close the table and the summary, condition card, things to check and Export all go with it",
+                                "Wide files scroll sideways, so a count on a far-right column is easy to miss",
+                            ],
+                            weak: [
+                                "A dropped file reaches two different surfaces (a full page for Replace, a strip for a second file) though the option claims one",
+                                "Some 'pick one' rows show a choice already lit, so a reader cannot tell who chose it",
+                                "Expand sits first in a node's menu, more prominent than its advanced priority",
+                                "Nothing shows the table closed or the way back",
+                                "Contrast below 4.5:1 inherited from the app's theme; the fix belongs in compact-mantine",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-1/B/open-file-1-clean-mapping.html",
+                                        thumb: "round-1/thumbs/B-open-file-1-clean-mapping.png",
+                                        caption:
+                                            "A clean file states its mapping in one sentence with Change, shows its rows under the same column header the table uses, and puts focus on Load.",
+                                    },
+                                    {
+                                        file: "round-1/B/open-file-2-unclear-columns.html",
+                                        thumb: "round-1/thumbs/B-open-file-2-unclear-columns.png",
+                                        caption:
+                                            "An unclear file opens a question under only the name column and the weight column, each giving its type and how many values fit, and Load still works.",
+                                    },
+                                    {
+                                        file: "round-1/B/open-file-3-drawn-with-names.html",
+                                        thumb: "round-1/thumbs/B-open-file-3-drawn-with-names.png",
+                                        caption:
+                                            "The drawing appears with nodes carrying their gene names, and the table opens below it with one sentence saying what loaded.",
+                                    },
+                                ],
+                                "check-load": [
+                                    {
+                                        file: "round-1/B/check-load-1-report.html",
+                                        thumb: "round-1/thumbs/B-check-load-1-report.png",
+                                        caption:
+                                            "Before loading, the report lists only the four kinds of problem this file has, each with a count, the row where it starts and a one-click fix.",
+                                    },
+                                    {
+                                        file: "round-1/B/check-load-2-after-loading.html",
+                                        thumb: "round-1/thumbs/B-check-load-2-after-loading.png",
+                                        caption:
+                                            "After loading, the table opens with one summary sentence and every column header gives its type in words, its role, how full it is and whether it came from the file or was counted.",
+                                    },
+                                ],
+                                "find-filter": [
+                                    {
+                                        file: "round-1/B/find-filter-1-find-offers-condition.html",
+                                        thumb: "round-1/thumbs/B-find-filter-1-find-offers-condition.png",
+                                        caption:
+                                            "Typing padj < 0.05 into find offers the matching condition with its count, 60 of 318, before anything changes.",
+                                    },
+                                    {
+                                        file: "round-1/B/find-filter-2-condition-card.html",
+                                        thumb: "round-1/thumbs/B-find-filter-2-condition-card.png",
+                                        caption:
+                                            "The condition card sits above the table, counts 60 of 318 live, marks the matching nodes on the drawing and ends in Select or Hide the rest.",
+                                    },
+                                    {
+                                        file: "round-1/B/find-filter-3-drawing-filtered.html",
+                                        thumb: "round-1/thumbs/B-find-filter-3-drawing-filtered.png",
+                                        caption:
+                                            "After Hide the rest, the drawing and the table show 60 of 318 nodes, the header carries a filter chip, and the card stays above the table to edit or clear.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-1/B/replace-1-drop-newer-copy.html",
+                                        thumb: "round-1/thumbs/B-replace-1-drop-newer-copy.png",
+                                        caption:
+                                            "Dropping the October file preselects Replace because its headers match, carries September's mapping by name, and warns that Add would repeat every link.",
+                                    },
+                                    {
+                                        file: "round-1/B/replace-2-receipt.html",
+                                        thumb: "round-1/thumbs/B-replace-2-receipt.png",
+                                        caption:
+                                            "The receipt counts +12, -3 and 40 changed, says what was kept, names the one style that no longer applies with a one-click repair, and offers Undo.",
+                                    },
+                                ],
+                                "second-file": [
+                                    {
+                                        file: "round-1/B/second-file-1-match-preview.html",
+                                        thumb: "round-1/thumbs/B-second-file-1-match-preview.png",
+                                        caption:
+                                            "A second file appears as new columns in the table with Add columns to nodes chosen, the match line above them, and 4 more matches ignoring case one click away.",
+                                    },
+                                    {
+                                        file: "round-1/B/second-file-2-columns-added.html",
+                                        thumb: "round-1/thumbs/B-second-file-2-columns-added.png",
+                                        caption:
+                                            "The new columns sit on the nodes, the six nodes with no value are named with a way to select them, and expression.tsv is listed as a source.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-1/B/export-1-from-the-table.html",
+                                        thumb: "round-1/thumbs/B-export-1-from-the-table.png",
+                                        caption:
+                                            "Export is the table's own button: it starts on the node table as CSV, scoped to what the table shows (60 of 318), and names in one line what CSV loses.",
+                                    },
+                                ],
+                                "fix-column": [
+                                    {
+                                        file: "round-1/B/fix-column-1-column-menu.html",
+                                        thumb: "round-1/thumbs/B-fix-column-1-column-menu.png",
+                                        caption:
+                                            "A column's own menu shows its type with 1 blank among 500, how many values each other type would fail to convert, its role, rename and hide, the same before and after loading.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-1/B/server-1-neo4j-form.html",
+                                        thumb: "round-1/thumbs/B-server-1-neo4j-form.png",
+                                        caption:
+                                            "Open network data sits beside Open a file; the Neo4j form is drawn from the source's own fields and Test answers before Load.",
+                                    },
+                                    {
+                                        file: "round-1/B/server-2-capped-and-expand.html",
+                                        thumb: "round-1/thumbs/B-server-2-capped-and-expand.png",
+                                        caption:
+                                            "A capped load reads 5,000 of 40,000 with Load more in the sources list and the table, and acct-4471's menu offers Expand with a depth and a limit of 50.",
+                                    },
+                                ],
+                                cleanup: [
+                                    {
+                                        file: "round-1/B/cleanup-1-offers-on-report.html",
+                                        thumb: "round-1/thumbs/B-cleanup-1-offers-on-report.png",
+                                        caption:
+                                            "Cleanup offers sit on the report lines that found each problem, above the table: repeated links already combined with Undo, self-loops kept or dropped, missing amounts filled, each one undo step.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "C",
+                            name: "Drop it, then confirm on the canvas",
+                            idea: "Canvas first, the way Figma handles a pasted image. A clean file is drawn at once, and a receipt card on the canvas says what happened in one sentence, with Change and Undo; nothing asks you to confirm. Only an unclear file, or Change, opens the Data page. A file dropped on an open graph gets a small card on the canvas with the three choices and the match line. Find takes words or a condition and grows into the condition card in place. The Data panel becomes a running list of what happened to the data -- each load, join, replace and cleanup, with its own Undo -- above the columns.",
+                            first: [
+                                "The drawing right away, with a receipt: the mapping in one sentence, Change, Undo, Done (focused)",
+                                "A warning line on the receipt only when the load found something",
+                                "The Data panel: summary sentence, What happened (the steps), Columns",
+                                "Find on the toolbar, which accepts a name or a condition",
+                            ],
+                            later: [
+                                "Change reopens the Data page with the full mapping",
+                                "The load report from the receipt's warning, a fix on each line",
+                                "A column's menu from the Data panel or the table header",
+                                "Open network data beside Open; Load more and Expand after a capped load",
+                            ],
+                            for: [
+                                "A clean file costs no clicks, and most files are clean",
+                                "Every change to the data is listed and can be undone, which also answers 'where did this column come from'",
+                                "A newer copy or second file never silently doubles the graph: the drop card names the danger first",
+                            ],
+                            against: [
+                                "A wrong guess is drawn before anyone checks it",
+                                "The list of steps is a new idea; nothing in today's app works that way",
+                                "Cards on the canvas cover part of the drawing while open",
+                            ],
+                            weak: [
+                                "The core risk is unproven: no screen shows a file read wrongly and silently; that is the next screen to draw",
+                                "The join receipt hides one of the six ringed nodes, so a reader counts five",
+                                "Nothing shows what Undo of an early step does to the steps after it",
+                                "No screen shows where Open network data sits in the menu or on the start page",
+                                "These are pictures: no keyboard path for Find's condition card or the column menu",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-1/C/open-file-1-clean-receipt.html",
+                                        thumb: "round-1/thumbs/C-open-file-1-clean-receipt.png",
+                                        caption:
+                                            "A clean file is drawn at once, with a receipt on the canvas stating the mapping in one sentence, a peek at the rows, and Change and Undo.",
+                                    },
+                                    {
+                                        file: "round-1/C/open-file-2-unclear-file.html",
+                                        thumb: "round-1/thumbs/C-open-file-2-unclear-file.png",
+                                        caption:
+                                            "An unclear file opens the Data page with only the name column and the weight column open for a choice, each with its type and how many values fit.",
+                                    },
+                                    {
+                                        file: "round-1/C/open-file-3-drawn-with-names.html",
+                                        thumb: "round-1/thumbs/C-open-file-3-drawn-with-names.png",
+                                        caption:
+                                            "After Load the graph is drawn with gene names on the nodes, the receipt repeats the choices made, and the Data panel lists the load as its first step.",
+                                    },
+                                ],
+                                "check-load": [
+                                    {
+                                        file: "round-1/C/check-load-1-load-report.html",
+                                        thumb: "round-1/thumbs/C-check-load-1-load-report.png",
+                                        caption:
+                                            "The fraud file is drawn with one warning on its receipt; the report beside it lists only the four problems found, each with a count, a row and a fix.",
+                                    },
+                                    {
+                                        file: "round-1/C/check-load-2-what-loaded.html",
+                                        thumb: "round-1/thumbs/C-check-load-2-what-loaded.png",
+                                        caption:
+                                            "The Data panel opens with one summary sentence, the load as a step with its warning, and every column with its type in words, how full it is and where it came from.",
+                                    },
+                                ],
+                                "find-filter": [
+                                    {
+                                        file: "round-1/C/find-filter-1-typing-condition.html",
+                                        thumb: "round-1/thumbs/C-find-filter-1-typing-condition.png",
+                                        caption:
+                                            "Typing padj < 0.05 in the toolbar's find box offers the matching condition, counted 60 of 318, ahead of any name match.",
+                                    },
+                                    {
+                                        file: "round-1/C/find-filter-2-condition-card.html",
+                                        thumb: "round-1/thumbs/C-find-filter-2-condition-card.png",
+                                        caption:
+                                            "Enter grows the find box into the condition card in place, counting 60 of 318 with Select and Hide the rest.",
+                                    },
+                                    {
+                                        file: "round-1/C/find-filter-3-showing-60.html",
+                                        thumb: "round-1/thumbs/C-find-filter-3-showing-60.png",
+                                        caption:
+                                            "The drawing shows the 60 nodes with padj under 0.05, and the header chip says a filter is on and how much it shows.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-1/C/replace-1-drop-newer-copy.html",
+                                        thumb: "round-1/thumbs/C-replace-1-drop-newer-copy.png",
+                                        caption:
+                                            "Dropping suppliers-oct.csv on the graph shows a small canvas card with Replace already chosen, last month's mapping carried, and Add warning that every supplier would repeat.",
+                                    },
+                                    {
+                                        file: "round-1/C/replace-2-receipt.html",
+                                        thumb: "round-1/thumbs/C-replace-2-receipt.png",
+                                        caption:
+                                            "The replace receipt reads +12 / -3 / 40 changed, tints what changed on the canvas, names the one style that no longer binds with its fix, and offers Undo.",
+                                    },
+                                ],
+                                "second-file": [
+                                    {
+                                        file: "round-1/C/second-file-1-three-choices.html",
+                                        thumb: "round-1/thumbs/C-second-file-1-three-choices.png",
+                                        caption:
+                                            "Dropping expression.tsv on the graph shows a canvas card with the three choices, Add columns to nodes chosen, and the match line with 19 more matching ignoring case and Use.",
+                                    },
+                                    {
+                                        file: "round-1/C/second-file-2-columns-added.html",
+                                        thumb: "round-1/thumbs/C-second-file-2-columns-added.png",
+                                        caption:
+                                            "The receipt names the 4 new columns and the 6 unmeasured nodes (gray and ringed on the canvas), and the Data panel lists the join as a step and expression.tsv as each new column's source.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-1/C/export-1-from-table.html",
+                                        thumb: "round-1/thumbs/C-export-1-from-table.png",
+                                        caption:
+                                            "Export on the table dock opens on the node table as CSV, scoped to what is shown (60 of 318), with one line naming what a CSV leaves out.",
+                                    },
+                                ],
+                                "fix-column": [
+                                    {
+                                        file: "round-1/C/fix-column-1-column-menu.html",
+                                        thumb: "round-1/thumbs/C-fix-column-1-column-menu.png",
+                                        caption:
+                                            "Clicking amount in the Data panel opens its menu: its type with 1 value that is not a number among 500, role, rename and hide, and each other type says how many values will not convert.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-1/C/server-1-neo4j-form.html",
+                                        thumb: "round-1/thumbs/C-server-1-neo4j-form.png",
+                                        caption:
+                                            "Open network data, beside Open, shows the Neo4j form; Test has run and says the query matches 40,000 links before anything loads.",
+                                    },
+                                    {
+                                        file: "round-1/C/server-2-capped-and-expand.html",
+                                        thumb: "round-1/thumbs/C-server-2-capped-and-expand.png",
+                                        caption:
+                                            "A capped load says 5,000 of 40,000 on its receipt with Load more, and the selected account acct-4471 offers Expand for its 37 links on the server, up to 50.",
+                                    },
+                                ],
+                                cleanup: [
+                                    {
+                                        file: "round-1/C/cleanup-1-offers-on-report.html",
+                                        thumb: "round-1/thumbs/C-cleanup-1-offers-on-report.png",
+                                        caption:
+                                            "Cleanup offers sit on the report lines that found them: the repeated pairs are combined (612 links become 607) and listed as a step with Undo, self-loops wait on Keep or Drop, and missing amounts on Fill.",
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: "2",
+                    label: "Round 2",
+                    date: "2026-10-20",
+                    decided: [
+                        "One structure: a data configuration panel owns every data setting (sources, column types, roles and names, warnings, joins, filters); the three options differ only in where that panel sits and in three open details.",
+                        "The table is view-only: it sorts, chooses columns and follows the selection and the filter. No conditions, joins, export, column fixes or warnings in it.",
+                        "No sentences as interface: compact Figma-style property rows, chips, counts, dropdowns and status icons; context menus for quick changes. The Figma product designer led this round.",
+                        "Edges, not links, on every screen ('link' only inside Link prediction).",
+                        "Flows re-derived from the persona workflows. Joining and filtering are first-class. Fixing a column and cleaning up are now warnings plus the normal column rows, not their own flows. Export is the app's common Export dialog with a Rows setting.",
+                        "Special cases kept because they are real: one event table making several kinds of node; querying a database, loading more and expanding a node; filter steps, saved sets and a time window.",
+                        "Not drawn yet: a gene list to a network (same form as the database), combining several graphs, reusable recipes.",
+                    ],
+                    questions: [
+                        "Which home for data configuration is right: the left panel beside the graph (A), the full Data page with the table beside it (B), or a list on the left with details in the inspector (C)?",
+                        "Should a clean file be drawn at once on drop with the panel to correct it afterwards (A), or stop on the Data page with Load focused (B, C)?",
+                        "How should a filter start: toolbar Filters opening the panel (A), a quick popover over the canvas (B), or Filter by this value from a context menu (C)?",
+                        "Should Replace keep everything and offer Undo afterwards (A), or ask first with keep checkboxes (B, C)?",
+                        "Should server sources (database query, gene list) stay a few clicks away for now, or come onto Open's first screen?",
+                    ],
+                    answers: [
+                        [
+                            "Find, filter and the data card",
+                            "Find goes to one node you know by name (the toolbar's find box, already there). Clicking a node or edge shows its data card in the inspector (already there). Filter shows only what matches a condition: the Filter flow, with steps, sets and time windows as a special case. The table header gets sort only.",
+                        ],
+                        [
+                            "Newer copy: automatic or manual?",
+                            "Manual, never automatic: a file from this computer has no live link to its original, and numbers that change unasked break a weekly comparison. The source row has Replace file... and, for a web or server source, Refresh from source. Keeping styles, filters and analysis is on by default; the options differ only in confirming before (B, C) or undoing after (A).",
+                        ],
+                        [
+                            "Second file",
+                            "Join is the default. It matches on node id and shows the match counts before you confirm; a table of values adds attributes to the matched nodes, a file of edges adds edges and any new nodes. Add as new, Open as a separate graph and Replace are in the Join button's menu.",
+                        ],
+                        [
+                            "Server: why three screens, and live Test",
+                            "They are now three different things in three places: connect and query is a form; Load more is on the source row; Expand is a right-click on a node on the canvas. Test runs the real query and shows the first rows and the match count, so you confirm it is the right data before Load.",
+                        ],
+                    ],
+                    flows: [
+                        {
+                            id: "open-file",
+                            title: "Open my file, get a right drawing",
+                            kind: "common",
+                        },
+                        {
+                            id: "see-fix",
+                            title: "See what loaded, fix what is wrong",
+                            kind: "common",
+                        },
+                        {
+                            id: "filter",
+                            title: "Filter: show only what matches",
+                            kind: "common",
+                        },
+                        {
+                            id: "join",
+                            title: "Join a second file onto this graph",
+                            kind: "common",
+                        },
+                        {
+                            id: "replace",
+                            title: "Replace with a newer copy, keep my work",
+                            kind: "common",
+                        },
+                        {
+                            id: "export",
+                            title: "Export the filtered numbers (common Export)",
+                            kind: "common",
+                        },
+                        {
+                            id: "event-table",
+                            title: "One event table, several kinds of node",
+                            kind: "special",
+                        },
+                        {
+                            id: "server",
+                            title: "Query a database, load more, expand a node",
+                            kind: "special",
+                        },
+                        {
+                            id: "filter-steps",
+                            title: "Filter steps, sets and a time window",
+                            kind: "special",
+                        },
+                    ],
+                    options: [
+                        {
+                            id: "A",
+                            name: "Everything in the left panel",
+                            idea: "The Data place, the 240px panel beside the graph, holds every data setting as compact property rows (sources, roles, attributes, warnings, joins, filters), with pop-overs for anything that needs room. A clean file is drawn at once on drop, as in Figma, and the panel is where you correct it; the Data page opens only when the app is unsure, for an event table, a database, or Edit source. A second file opens a Join section already filled in. Replace keeps everything and offers Undo afterwards. The table dock only shows data.",
+                            first: [
+                                "Clean file: the drawing, the counts chip, a drop notice with Undo, the roles as rows (Name, Source, Target, Weight)",
+                                "Unsure file: the Data page with only the unsure rows marked; the other columns folded",
+                                "After loading: one row per source with counts; Warnings only when there is something to fix",
+                            ],
+                            later: [
+                                "Attribute row menu: Rename, Change type (with how many values will not convert), Use as, Hide",
+                                "Toolbar Filters opens the panel's Filters section with a blank condition row",
+                                "Source row menu: Replace file..., Refresh from source, Edit source...",
+                                "Join button menu: Add as new nodes and edges, Open as a separate graph, Replace data",
+                                "Node menu on the canvas: Expand from source; Export in the common Export dialog",
+                            ],
+                            for: [
+                                "The graph never leaves the screen; every change shows on the drawing at once",
+                                "One place to look for anything about the data",
+                            ],
+                            against: [
+                                "A wrong guess is drawn before the reader checks it; Undo and the role rows are the only safety net",
+                                "240px is tight: long names cut off, wide files scroll",
+                                "The Data page still appears for unsure files, event tables and databases: two places",
+                            ],
+                            weak: [
+                                "The empty Filters section with + shows on a clean file's first screen",
+                                "Changing a role on a drawn file: nothing shows what happens to styles that used the old role",
+                                "Moving between the panel and the Data page is not shown",
+                                "White text on the app's blue measures about 3.5:1 (a compact-mantine fix)",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/A/open-file-1-drawn-on-drop.html",
+                                        thumb: "round-2/thumbs/A-open-file-1-drawn-on-drop.png",
+                                        caption:
+                                            "A clean file dropped on the canvas is drawn at once, the panel shows the roles the app read as property rows, and the drop notice offers Undo.",
+                                    },
+                                    {
+                                        file: "round-2/A/open-file-2-unsure-name-weight.html",
+                                        thumb: "round-2/thumbs/A-open-file-2-unsure-name-weight.png",
+                                        caption:
+                                            "A file the app is unsure about opens the Data page with only the Name and Weight rows marked, the Name dropdown already open on the likely pair, and the rest folded away.",
+                                    },
+                                    {
+                                        file: "round-2/A/open-file-3-drawn-named.html",
+                                        thumb: "round-2/thumbs/A-open-file-3-drawn-named.png",
+                                        caption:
+                                            "The drawing has its nodes named by gene, the canvas shows the counts chip, and the Data place shows each role as a property row.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/A/see-fix-1-warnings-section.html",
+                                        thumb: "round-2/thumbs/A-see-fix-1-warnings-section.png",
+                                        caption:
+                                            "After loading, the Data place shows one Warnings row per kind of problem with its count and its fix (a dropdown or Show), and the attribute rows carry the same counts.",
+                                    },
+                                    {
+                                        file: "round-2/A/see-fix-2-column-menu-change-type.html",
+                                        thumb: "round-2/thumbs/A-see-fix-2-column-menu-change-type.png",
+                                        caption:
+                                            "Right-clicking the opened attribute row offers Rename, Change type, Use as and Hide, and each type says how many values will not convert before it is applied.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/A/filter-1-toolbar-opens-filters.html",
+                                        thumb: "round-2/thumbs/A-filter-1-toolbar-opens-filters.png",
+                                        caption:
+                                            "Pressing Filters on the toolbar opens the Data place's Filters section with one blank condition row and its attribute list already open.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-2-condition-row.html",
+                                        thumb: "round-2/thumbs/A-filter-2-condition-row.png",
+                                        caption:
+                                            "One condition row reads padj, less than, 0.05; the live chip says 60 of 318 nodes and Highlight rings the matches before anything is hidden.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-3-filtered-drawing.html",
+                                        thumb: "round-2/thumbs/A-filter-3-filtered-drawing.png",
+                                        caption:
+                                            "Show only leaves the 60 matching nodes on the canvas, the header and the toolbar's Filters button show the filter is on, and the table dock lists the same 60 rows for viewing only.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/A/join-1-dropped-join-chosen.html",
+                                        thumb: "round-2/thumbs/A-join-1-dropped-join-chosen.png",
+                                        caption:
+                                            "A second file dropped on the graph opens a Join section in the panel, already matched gene_symbol to preferredName, with the match chips, the case-insensitive extra and the four columns it adds.",
+                                    },
+                                    {
+                                        file: "round-2/A/join-2-join-button-menu.html",
+                                        thumb: "round-2/thumbs/A-join-2-join-button-menu.png",
+                                        caption:
+                                            "The Join button's arrow holds the other things a second file can do: add its rows as new nodes and edges, open it as a separate graph, or replace the data.",
+                                    },
+                                    {
+                                        file: "round-2/A/join-3-joined-result.html",
+                                        thumb: "round-2/thumbs/A-join-3-joined-result.png",
+                                        caption:
+                                            "After the join the panel lists both sources, the four new node attributes carry the join icon, the Joins row keeps its counts and Show for the 6 nodes without a value, and the inspector names the origin.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/A/replace-1-source-row-menu.html",
+                                        thumb: "round-2/thumbs/A-replace-1-source-row-menu.png",
+                                        caption:
+                                            "The suppliers.csv source row's menu offers Replace file... and Refresh from source, beside Edit source..., Rename and Remove.",
+                                    },
+                                    {
+                                        file: "round-2/A/replace-2-replaced-then-undo.html",
+                                        thumb: "round-2/thumbs/A-replace-2-replaced-then-undo.png",
+                                        caption:
+                                            "Choosing the October file replaces the data at once, keeping styles, runs and filters; the source row shows +12, -3 and 40 changed, its pop-over lists what was kept, new nodes are ringed, and Undo is one click.",
+                                    },
+                                    {
+                                        file: "round-2/A/replace-3-missing-column-warning.html",
+                                        thumb: "round-2/thumbs/A-replace-3-missing-column-warning.png",
+                                        caption:
+                                            "The one thing replace could not carry over becomes a warning row: the Tier style's column tier is gone, and Map to offers the renamed tier_level.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/A/export-1-common-export-scope.html",
+                                        thumb: "round-2/thumbs/A-export-1-common-export-scope.png",
+                                        caption:
+                                            "Main menu Export... is the one export for the app; Node table (CSV) sits beside Image and Graph file, and a Scope row picks All, Filtered (60 of 318) or Selection.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/A/event-table-1-kinds-from-columns.html",
+                                        thumb: "round-2/thumbs/A-event-table-1-kinds-from-columns.png",
+                                        caption:
+                                            "One event table opens with a Nodes section listing each entity column and the kind of node it makes, edge rows between them typed by event_type, and repeated events counted.",
+                                    },
+                                    {
+                                        file: "round-2/A/event-table-2-drawn-with-kinds.html",
+                                        thumb: "round-2/thumbs/A-event-table-2-drawn-with-kinds.png",
+                                        caption:
+                                            "The drawing colors each kind of node, kind chips with counts sit on the canvas, and the Data place lists node kinds and edge kinds with their counts.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/A/server-1-connect-and-test.html",
+                                        thumb: "round-2/thumbs/A-server-1-connect-and-test.png",
+                                        caption:
+                                            "Open network data shows the connection as property rows, and Test runs the query live: 40,000 match and the first 20 real rows appear beside the form before Load.",
+                                    },
+                                    {
+                                        file: "round-2/A/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/A-server-2-load-more.png",
+                                        caption:
+                                            "The database source row says 5,000 of 40,000, and Load more with its batch size sits right under it.",
+                                    },
+                                    {
+                                        file: "round-2/A/server-3-expand-node.html",
+                                        thumb: "round-2/thumbs/A-server-3-expand-node.png",
+                                        caption:
+                                            "Right-clicking acct-4471 on the canvas offers Expand from source; its pop-over sets Depth 1 and Limit 50, says 50 of 212 neighbors came back, and the new nodes are ringed green.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/A/filter-steps-1-two-steps-and-sets.html",
+                                        thumb: "round-2/thumbs/A-filter-steps-1-two-steps-and-sets.png",
+                                        caption:
+                                            "Two filter steps run in order, each with its own toggle and count (60 of 318, then 38 of 60); the second uses In largest connected part from the attribute list, and Save as set adds to the Sets list.",
+                                    },
+                                    {
+                                        file: "round-2/A/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/A-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A date attribute gives a window condition: a histogram with the 30-day window marked, step arrows that move it a week, and counts of 120 of 200 nodes and 340 of 612 edges.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "B",
+                            name: "The Data page is the workbench",
+                            idea: "Rail Data opens the full Data page: a configuration panel on the left (Sources, Nodes, Edges, Warnings, Joins, Filters, Sets as compact sections with +) and a view-only table preview on the right. Every file opens there with Load focused, a clean one included, and so do a second file (Join), Replace, a database query and filter steps. The left panel beside the graph is a compact list of sources, active filters and warnings, each row a deep link into the page. A quick filter is a small popover from toolbar Filters. Replace asks first, with Keep styles, analysis and filters all on.",
+                            first: [
+                                "Opening a file: guessed roles as property rows, counts on the source row, the preview beside, Load focused",
+                                "After loading: the drawing with a counts chip and the compact list beside it",
+                                "Warnings section only when something is wrong, one row per kind with one action",
+                            ],
+                            later: [
+                                "Toolbar Filters: a popover with one condition row and a live count",
+                                "Filter steps, largest connected part, sets, time windows: the page's Filters section",
+                                "Column right-click on the page: type, role, name",
+                                "Replace: a popover with change chips and Keep checkboxes, before it runs",
+                                "Database: Test shows live rows; Load more on the source row; Expand on a node's menu",
+                            ],
+                            for: [
+                                "Configuration has room: rows and the table side by side, so a guess is checked against real values",
+                                "One home for every data setting",
+                            ],
+                            against: [
+                                "Every configuration change is a trip away from the graph",
+                                "Filter has two entry points (popover and page)",
+                                "A clean file still costs one Enter on the Data page",
+                            ],
+                            weak: [
+                                "Fixing three columns is three trips; the drawing never updates while the page is open",
+                                "Never shown: a step made in the popover appearing as step 1 on the page",
+                                "Most warnings live only on the Data page; a reader on the graph may miss them",
+                                "Context menus need a keyboard route before they are built",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/B/open-file-1-clean-file.html",
+                                        thumb: "round-2/thumbs/B-open-file-1-clean-file.png",
+                                        caption:
+                                            "A clean file opens on the Data page with its guessed roles as property rows, a view-only preview, and Load focused.",
+                                    },
+                                    {
+                                        file: "round-2/B/open-file-2-unsure-file.html",
+                                        thumb: "round-2/thumbs/B-open-file-2-unsure-file.png",
+                                        caption:
+                                            "An unsure file marks only Name and Weight; the Name dropdown is open and the hovered choice lights its columns in the preview.",
+                                    },
+                                    {
+                                        file: "round-2/B/open-file-3-drawn.html",
+                                        thumb: "round-2/thumbs/B-open-file-3-drawn.png",
+                                        caption:
+                                            "The graph is drawn with gene names, a counts chip on the canvas and one source row in the list beside it.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/B/see-fix-1-warnings.html",
+                                        thumb: "round-2/thumbs/B-see-fix-1-warnings.png",
+                                        caption:
+                                            "The Data page panel opens with summary rows, kind chips and a Warnings section, one row per kind of problem with its count and action.",
+                                    },
+                                    {
+                                        file: "round-2/B/see-fix-2-column-menu.html",
+                                        thumb: "round-2/thumbs/B-see-fix-2-column-menu.png",
+                                        caption:
+                                            "Right-click a column row: Change type shows how many values convert and how many go blank before it applies.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/B/filter-1-entry-popover.html",
+                                        thumb: "round-2/thumbs/B-filter-1-entry-popover.png",
+                                        caption:
+                                            "Toolbar Filters opens a small popover over the canvas that starts with a column list; steps and sets stay on the Data page.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-2-one-condition.html",
+                                        thumb: "round-2/thumbs/B-filter-2-one-condition.png",
+                                        caption:
+                                            "One condition row, padj < 0.05, with a live chip of 60 of 318 nodes and Show only or Highlight; the canvas previews it.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-3-filtered.html",
+                                        thumb: "round-2/thumbs/B-filter-3-filtered.png",
+                                        caption:
+                                            "Only the 60 matching nodes are drawn, the toolbar's Filters shows 1, the list beside the graph shows the filter, and the table shows 60 rows.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/B/join-1-join-prechosen.html",
+                                        thumb: "round-2/thumbs/B-join-1-join-prechosen.png",
+                                        caption:
+                                            "A second file dropped on the graph opens the Data page with Join pre-chosen: the match row, match chips, a +4 ignoring case row and the columns it adds.",
+                                    },
+                                    {
+                                        file: "round-2/B/join-2-join-menu.html",
+                                        thumb: "round-2/thumbs/B-join-2-join-menu.png",
+                                        caption:
+                                            "The Join button's menu holds the rarer choices: Add as new nodes and edges, Open as a separate graph, Replace data.",
+                                    },
+                                    {
+                                        file: "round-2/B/join-3-joined.html",
+                                        thumb: "round-2/thumbs/B-join-3-joined.png",
+                                        caption:
+                                            "After the join: two sources, the join as a row, the new columns with a joined icon, and a warning for the 6 nodes without a value.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/B/replace-1-source-menu.html",
+                                        thumb: "round-2/thumbs/B-replace-1-source-menu.png",
+                                        caption:
+                                            "Right-click a source row: Replace file... and, for a source read from a web address, Refresh from source.",
+                                    },
+                                    {
+                                        file: "round-2/B/replace-2-confirm-popover.html",
+                                        thumb: "round-2/thumbs/B-replace-2-confirm-popover.png",
+                                        caption:
+                                            "Replace asks first in a popover from the source row: the new file, change chips, a column that no longer exists, and Keep checkboxes that start on.",
+                                    },
+                                    {
+                                        file: "round-2/B/replace-3-replaced.html",
+                                        thumb: "round-2/thumbs/B-replace-3-replaced.png",
+                                        caption:
+                                            "October's data with September's styles: change chips on the source rows, one warning row for the style that lost its column, and Undo.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/B/export-1-export-dialog.html",
+                                        thumb: "round-2/thumbs/B-export-1-export-dialog.png",
+                                        caption:
+                                            "The app's one Export dialog on Data: CSV, the node table, and a Rows dropdown with All, Filtered 60 of 318 and Selection.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/B/event-table-1-nodes-from-columns.html",
+                                        thumb: "round-2/thumbs/B-event-table-1-nodes-from-columns.png",
+                                        caption:
+                                            "One event table: the Nodes section lists each column used as a kind of node with its count, the Edges section pairs them, and repeats are combined by count.",
+                                    },
+                                    {
+                                        file: "round-2/B/event-table-2-drawn-kinds.html",
+                                        thumb: "round-2/thumbs/B-event-table-2-drawn-kinds.png",
+                                        caption:
+                                            "The drawn graph colors nodes by kind, with a chip per kind and its count.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/B/server-1-connect-test.html",
+                                        thumb: "round-2/thumbs/B-server-1-connect-test.png",
+                                        caption:
+                                            "Connect as property rows (kind, address, sign-in, query, limit); Test returns the first 20 live rows and the 40,000 match count before Load.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/B-server-2-load-more.png",
+                                        caption:
+                                            "A capped load reads 5,000 of 40,000 on its source row, with Load more beside it.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-3-expand-menu.html",
+                                        thumb: "round-2/thumbs/B-server-3-expand-menu.png",
+                                        caption:
+                                            "Right-click a node: Expand from source with Depth, Limit and edge kinds; the count is known before it runs.",
+                                    },
+                                    {
+                                        file: "round-2/B/server-4-expanded.html",
+                                        thumb: "round-2/thumbs/B-server-4-expanded.png",
+                                        caption:
+                                            "After expanding acct-4471 two steps with a limit of 50: the new nodes are ringed, the notice reads 50 of 212, and the expand is listed as a source.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/B/filter-steps-1-steps-and-sets.html",
+                                        thumb: "round-2/thumbs/B-filter-steps-1-steps-and-sets.png",
+                                        caption:
+                                            "On the Data page, the Filters section stacks two ordered steps with toggles and counts, offers In largest connected part as a choice, and lists saved sets.",
+                                    },
+                                    {
+                                        file: "round-2/B/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/B-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A filter on the time column becomes a range row with a histogram, a 30 days width and step arrows, and counts of 120 of 200 nodes and 340 of 612 edges.",
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            id: "C",
+                            name: "List on the left, details in the inspector",
+                            idea: "The Data place is a compact tree (Sources, Warnings when there are any, Filters, Sets, Attributes), each row a glyph, a name and a count chip. Selecting a row opens its settings as property rows in the inspector on the right, the way readers already edit a node or a style layer: one pattern for sources, warnings, filter steps, joins and attributes. The Data page is only for opening a file or network data. Join and Replace happen in the inspector from the source row. Filtering starts from Filter by this value on a context menu, or + on Filters.",
+                            first: [
+                                "Opening a file: the Data page with a view-only preview and a short Reads as stack; only unsure rows marked; Load focused",
+                                "After loading: the drawing, counts in the header, the tree with one source row",
+                                "No Warnings section on a clean file",
+                            ],
+                            later: [
+                                "Attribute right-click: Rename, Change type, Use as, Hide; the same as rows in its inspector",
+                                "Filter by this value from a node, an attribute or a table cell; + on Filters for a blank step",
+                                "Join and Replace in the inspector, with match counts or change chips first",
+                                "Network data on the Data page; Test returns the first 20 rows and the total",
+                            ],
+                            for: [
+                                "One pattern everywhere: pick on the left, edit on the right",
+                                "Every data setting lives in the inspector",
+                            ],
+                            against: [
+                                "With the inspector open the canvas is 904px wide",
+                                "A context menu is less discoverable than a button as the first way into filtering",
+                            ],
+                            weak: [
+                                "File names cut off in the 240px Sources list",
+                                "Join and Replace squeeze six or more rows into the inspector; the promised resize is not drawn",
+                                "Two Sources headings mean different things (where to open from, what is loaded)",
+                                "Three panels open at once on several screens push the drawing aside",
+                            ],
+                            flows: {
+                                "open-file": [
+                                    {
+                                        file: "round-2/C/open-file-1-clean-file.html",
+                                        thumb: "round-2/thumbs/C-open-file-1-clean-file.png",
+                                        caption:
+                                            "A clean graph file opens on the Data page with a view-only preview and four read-as rows on the right, nothing marked, and focus on Load so Enter draws it.",
+                                    },
+                                    {
+                                        file: "round-2/C/open-file-2-unsure-file.html",
+                                        thumb: "round-2/thumbs/C-open-file-2-unsure-file.png",
+                                        caption:
+                                            "A STRING table where the app is unsure marks only the Name and Weight rows with a status icon, opens the Name dropdown with each candidate's unique count, and folds the other three columns into one row of type icons.",
+                                    },
+                                    {
+                                        file: "round-2/C/open-file-3-drawn.html",
+                                        thumb: "round-2/thumbs/C-open-file-3-drawn.png",
+                                        caption:
+                                            "The graph is drawn with gene names on the nodes, the header shows 318 nodes and 1,104 edges, and the source row selected on the left shows what was loaded and how it was read in the inspector.",
+                                    },
+                                ],
+                                "see-fix": [
+                                    {
+                                        file: "round-2/C/see-fix-1-warnings.html",
+                                        thumb: "round-2/thumbs/C-see-fix-1-warnings.png",
+                                        caption:
+                                            "A Warnings section with a count chip appears in the Data place only because this file has problems, one row per kind, and selecting it lists each kind in the inspector with its count and its one action.",
+                                    },
+                                    {
+                                        file: "round-2/C/see-fix-2-column-menu.html",
+                                        thumb: "round-2/thumbs/C-see-fix-2-column-menu.png",
+                                        caption:
+                                            "Right-clicking the opened attribute gives Rename, Change type, Use as and Hide, and hovering Date shows that 194 values convert and 6 will not, with Show, before anything changes.",
+                                    },
+                                ],
+                                filter: [
+                                    {
+                                        file: "round-2/C/filter-1-entry.html",
+                                        thumb: "round-2/thumbs/C-filter-1-entry.png",
+                                        caption:
+                                            "Right-clicking the padj attribute offers Filter by this attribute at the top, the same item is on a node's and a table cell's menu, and + on the Filters header adds a blank step.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-2-condition.html",
+                                        thumb: "round-2/thumbs/C-filter-2-condition.png",
+                                        caption:
+                                            "The new step opens in the inspector filled in as padj < 0.05, the live chip reads 60 of 318 nodes, and Show only or Highlight decides what the canvas does with the rest.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-3-filtered.html",
+                                        thumb: "round-2/thumbs/C-filter-3-filtered.png",
+                                        caption:
+                                            "With the inspector closed the canvas shows only the 60 matching nodes, the toolbar's Filters button carries 1, and the table dock lists the same 60 rows to read and sort only.",
+                                    },
+                                ],
+                                join: [
+                                    {
+                                        file: "round-2/C/join-1-match.html",
+                                        thumb: "round-2/thumbs/C-join-1-match.png",
+                                        caption:
+                                            "Dropping expression.tsv on the graph adds a Joining source row and opens the join in the inspector: gene_symbol matched to preferredName, 312 matched, 28 unmatched, 6 nodes without a value, +4 more if case is ignored, and the 4 attributes it adds.",
+                                    },
+                                    {
+                                        file: "round-2/C/join-2-button-menu.html",
+                                        thumb: "round-2/thumbs/C-join-2-button-menu.png",
+                                        caption:
+                                            "The Join button's arrow holds the other things a second file can do: add as new nodes and edges, open as a separate graph, or replace the data.",
+                                    },
+                                    {
+                                        file: "round-2/C/join-3-result.html",
+                                        thumb: "round-2/thumbs/C-join-3-result.png",
+                                        caption:
+                                            "After the join there are two source rows, the four new attributes carry the join icon, and the join's inspector shows 316 matched with Show on the 2 nodes that got no value.",
+                                    },
+                                ],
+                                replace: [
+                                    {
+                                        file: "round-2/C/replace-1-source-menu.html",
+                                        thumb: "round-2/thumbs/C-replace-1-source-menu.png",
+                                        caption:
+                                            "The suppliers.csv row's menu offers Replace file... for a file from this computer and Refresh from source, which is live only for a web address or a server.",
+                                    },
+                                    {
+                                        file: "round-2/C/replace-2-replacing.html",
+                                        thumb: "round-2/thumbs/C-replace-2-replacing.png",
+                                        caption:
+                                            "Choosing the October file puts the source in a replacing state: the inspector shows +12, -3 and 40 changed nodes, the carried read-as rows with tier not found, and Keep styles, filters and analysis already on.",
+                                    },
+                                    {
+                                        file: "round-2/C/replace-3-result.html",
+                                        thumb: "round-2/thumbs/C-replace-3-result.png",
+                                        caption:
+                                            "After Replace the graph has 129 nodes, a one-row Warnings section says the Tier style's column is gone with a Map to dropdown that suggests supplier_tier, and Undo sits above the toolbar.",
+                                    },
+                                ],
+                                export: [
+                                    {
+                                        file: "round-2/C/export-1-common-dialog.html",
+                                        thumb: "round-2/thumbs/C-export-1-common-dialog.png",
+                                        caption:
+                                            "The main menu's Export... on Data is the one place numbers leave the app, and its new Rows setting exports All 318, the Filtered 60 or the 4 selected nodes.",
+                                    },
+                                ],
+                                "event-table": [
+                                    {
+                                        file: "round-2/C/event-table-1-kinds.html",
+                                        thumb: "round-2/thumbs/C-event-table-1-kinds.png",
+                                        caption:
+                                            "One row per event becomes four kinds of node: each entity column gets a kind in the Nodes section with +, the Edges section chains user to host to process to IP, and repeated events combine into a count.",
+                                    },
+                                    {
+                                        file: "round-2/C/event-table-2-drawn.html",
+                                        thumb: "round-2/thumbs/C-event-table-2-drawn.png",
+                                        caption:
+                                            "The drawing colors the four node kinds, and the Data place lists node kinds and edge kinds as rows with counts that each select or filter like any other row.",
+                                    },
+                                ],
+                                server: [
+                                    {
+                                        file: "round-2/C/server-1-connect-test.html",
+                                        thumb: "round-2/thumbs/C-server-1-connect-test.png",
+                                        caption:
+                                            "Neo4j is a list entry beside File on the Data page; its connection is a stack of property rows, and Test returns the real first 20 rows and the 40,000 total before Load.",
+                                    },
+                                    {
+                                        file: "round-2/C/server-2-load-more.html",
+                                        thumb: "round-2/thumbs/C-server-2-load-more.png",
+                                        caption:
+                                            "The source row says 5,000 of 40,000 edges, and selecting it puts Load more and Load all with the next batch size in the inspector.",
+                                    },
+                                    {
+                                        file: "round-2/C/server-3-expand.html",
+                                        thumb: "round-2/thumbs/C-server-3-expand.png",
+                                        caption:
+                                            "Right-clicking acct-4471 on the canvas gives Expand from source with Depth 1 and Limit 50; it finds 212 in the database, adds the first 50 marked in green, and offers Next 50 or Undo.",
+                                    },
+                                ],
+                                "filter-steps": [
+                                    {
+                                        file: "round-2/C/filter-steps-1-steps-sets.html",
+                                        thumb: "round-2/thumbs/C-filter-steps-1-steps-sets.png",
+                                        caption:
+                                            "Two ordered steps each have a toggle and their own count, 60 of 318 then 38 of 60, the attribute dropdown starts with graph conditions such as In largest connected part, and Save as set adds to a Sets list.",
+                                    },
+                                    {
+                                        file: "round-2/C/filter-steps-2-time-window.html",
+                                        thumb: "round-2/thumbs/C-filter-steps-2-time-window.png",
+                                        caption:
+                                            "A date attribute's step is a range over a small histogram with a 30-day width and step arrows; this window keeps 120 of 200 nodes and 340 of 612 edges; each arrow moves it 7 days.",
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ];
+            var cur = null,
+                seq = [],
+                idx = 0,
+                lastFocus = null;
+            function esc(s) {
+                return String(s).replace(/[&<>"]/g, function (c) {
+                    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+                });
+            }
+            function list(items) {
+                return (
+                    "<ul>" +
+                    items
+                        .map(function (i) {
+                            return "<li>" + esc(i) + "</li>";
+                        })
+                        .join("") +
+                    "</ul>"
+                );
+            }
+            function render(id) {
+                cur =
+                    ROUNDS.filter(function (r) {
+                        return r.id === id;
+                    })[0] || ROUNDS[ROUNDS.length - 1];
+                document.getElementById("rounds").innerHTML = ROUNDS.map(function (r) {
+                    return (
+                        '<button data-r="' + r.id + '" aria-pressed="' + (r === cur) + '">' + esc(r.label) + "</button>"
+                    );
+                }).join("");
+                var h =
+                    '<div class="top"><section class="box"><h2>What this round decided</h2>' +
+                    list(cur.decided) +
+                    '</section><section class="box questions"><h2>Questions for you</h2><ol>' +
+                    cur.questions
+                        .map(function (q) {
+                            return "<li>" + esc(q) + "</li>";
+                        })
+                        .join("") +
+                    "</ol></section></div>";
+                if (cur.answers)
+                    h +=
+                        '<section class="box answers"><h2>Answers to your questions from the last round</h2><dl>' +
+                        cur.answers
+                            .map(function (a) {
+                                return "<dt>" + esc(a[0]) + "</dt><dd>" + esc(a[1]) + "</dd>";
+                            })
+                            .join("") +
+                        "</dl></section>";
+                h +=
+                    '<table><thead><tr><th class="flow">Flow</th>' +
+                    cur.options
+                        .map(function (o) {
+                            return (
+                                '<th class="opt"><p class="optname"><span>Option ' +
+                                o.id +
+                                ":</span> " +
+                                esc(o.name) +
+                                '</p><p class="idea">' +
+                                esc(o.idea) +
+                                "</p>" +
+                                "<h3>On the first screen</h3>" +
+                                list(o.first) +
+                                "<h3>A few clicks away</h3>" +
+                                list(o.later) +
+                                "<h3>For</h3>" +
+                                list(o["for"]) +
+                                "<h3>Against</h3>" +
+                                list(o.against) +
+                                "<h3>Still weak after critique</h3>" +
+                                list(o.weak) +
+                                "</th>"
+                            );
+                        })
+                        .join("") +
+                    "</tr></thead><tbody>";
+                cur.flows.forEach(function (f) {
+                    h +=
+                        '<tr><th class="flow"><div class="flowtitle">' +
+                        esc(f.title) +
+                        '</div><span class="tag ' +
+                        f.kind +
+                        '">' +
+                        (f.kind === "special" ? "special case: a few clicks away" : "common: reached at once") +
+                        "</span></th>";
+                    cur.options.forEach(function (o) {
+                        h +=
+                            '<td><div class="strip">' +
+                            (o.flows[f.id] || [])
+                                .map(function (s, i) {
+                                    return (
+                                        '<a href="' +
+                                        s.file +
+                                        '" data-o="' +
+                                        o.id +
+                                        '" data-f="' +
+                                        f.id +
+                                        '" data-i="' +
+                                        i +
+                                        '" title="' +
+                                        esc(s.caption) +
+                                        '">' +
+                                        '<img loading="lazy" src="' +
+                                        s.thumb +
+                                        '" alt="Option ' +
+                                        o.id +
+                                        ", " +
+                                        esc(f.title) +
+                                        ", screen " +
+                                        (i + 1) +
+                                        '">' +
+                                        (i + 1) +
+                                        "</a>"
+                                    );
+                                })
+                                .join("") +
+                            "</div></td>";
+                    });
+                    h += "</tr>";
+                });
+                document.getElementById("main").innerHTML = h + "</tbody></table>";
+            }
+            function fit() {
+                var st = document.getElementById("vstage"),
+                    fr = document.getElementById("vframe");
+                var s = Math.min(st.clientWidth / 1440, st.clientHeight / 900);
+                fr.style.transform = "scale(" + s + ")";
+                fr.style.left = (st.clientWidth - 1440 * s) / 2 + "px";
+                fr.style.top = (st.clientHeight - 900 * s) / 2 + "px";
+            }
+            function show() {
+                var s = seq[idx];
+                document.getElementById("vframe").src = s.file;
+                document.getElementById("vopen").href = s.file;
+                document.getElementById("vtitle").textContent =
+                    s.title + " -- screen " + (idx + 1) + " of " + seq.length;
+                document.getElementById("vcap").textContent = s.caption;
+                document.getElementById("vprev").disabled = idx === 0;
+                document.getElementById("vnext").disabled = idx === seq.length - 1;
+            }
+            function openViewer(oid, fid, i) {
+                var o = cur.options.filter(function (x) {
+                    return x.id === oid;
+                })[0];
+                var f = cur.flows.filter(function (x) {
+                    return x.id === fid;
+                })[0];
+                seq = o.flows[fid].map(function (s) {
+                    return {
+                        file: s.file,
+                        caption: s.caption,
+                        title: "Option " + o.id + ": " + o.name + " / " + f.title,
+                    };
+                });
+                idx = i;
+                lastFocus = document.activeElement;
+                document.getElementById("viewer").classList.add("open");
+                fit();
+                show();
+                document.getElementById("vclose").focus();
+            }
+            function closeViewer() {
+                document.getElementById("viewer").classList.remove("open");
+                document.getElementById("vframe").src = "about:blank";
+                if (lastFocus) lastFocus.focus();
+            }
+            function step(d) {
+                var n = idx + d;
+                if (n >= 0 && n < seq.length) {
+                    idx = n;
+                    show();
+                }
+            }
+            document.addEventListener("click", function (e) {
+                var b = e.target.closest("[data-r]");
+                if (b) {
+                    location.hash = "round-" + b.getAttribute("data-r");
+                    return;
+                }
+                var a = e.target.closest("a[data-o]");
+                if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                    e.preventDefault();
+                    openViewer(a.getAttribute("data-o"), a.getAttribute("data-f"), +a.getAttribute("data-i"));
+                }
+            });
+            document.getElementById("vprev").onclick = function () {
+                step(-1);
+            };
+            document.getElementById("vnext").onclick = function () {
+                step(1);
+            };
+            document.getElementById("vclose").onclick = closeViewer;
+            document.addEventListener("keydown", function (e) {
+                if (!document.getElementById("viewer").classList.contains("open")) return;
+                if (e.key === "ArrowRight") step(1);
+                else if (e.key === "ArrowLeft") step(-1);
+                else if (e.key === "Escape") closeViewer();
+                else return;
+                e.preventDefault();
+            });
+            window.addEventListener("resize", fit);
+            window.addEventListener("hashchange", function () {
+                render(location.hash.replace("#round-", ""));
+            });
+            render(location.hash.replace("#round-", ""));
+        </script>
+    </body>
+</html>

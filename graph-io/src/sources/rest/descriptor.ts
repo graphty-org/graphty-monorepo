@@ -72,6 +72,7 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
             plainName: "Watts-Strogatz paper's citations",
             params: { work: "W2112090702" },
             whole: false,
+            firstPage: 200,
         },
     ],
 });

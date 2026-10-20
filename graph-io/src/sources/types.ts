@@ -357,6 +357,11 @@ export interface SourceSample {
         | undefined;
     /** false: too big to load whole; start from a neighborhood. */
     readonly whole?: boolean | undefined;
+    /**
+     * A node cap for loading the sample when the caller gives none, for a sample too big to load
+     * whole that pages: the load stops at the first page past it, and its cursor reads on.
+     */
+    readonly firstPage?: number | undefined;
 }
 
 /**

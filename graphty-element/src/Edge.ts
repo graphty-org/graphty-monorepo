@@ -2565,6 +2565,12 @@ export class Edge {
             const worldSpan = this.ray.direction.length();
 
             const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+            // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
+            // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
+            // across its own arm; coming in from the destination, the first wall is where the line
+            // finally leaves the outline, as it is for the destination.
+            this.ray.origin.copyFrom(dstWorld);
+            srcWorld.subtractToRef(dstWorld, this.ray.direction);
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
             // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
             const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {

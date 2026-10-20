@@ -616,7 +616,21 @@ function strokedArc(p: Prim): boolean {
     const bulge = Math.max(
         ...p.points.map((q) => Math.abs((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])) / chord),
     );
-    return bulge >= 0.2 * chord && bulge <= chord;
+    if (bulge < 0.2 * chord || bulge > chord) {
+        return false;
+    }
+    // round, not bent at a corner (an open arrow's two strokes): every point as far from the circle through its two
+    // ends and its middle point as the ends are, within a tenth
+    const m = p.points[Math.floor(p.points.length / 2)];
+    const d = 2 * (a[0] * (m[1] - b[1]) + m[0] * (b[1] - a[1]) + b[0] * (a[1] - m[1]));
+    if (Math.abs(d) < 1e-9) {
+        return false;
+    }
+    const sq = (q: Pt): number => q[0] * q[0] + q[1] * q[1];
+    const ux = (sq(a) * (m[1] - b[1]) + sq(m) * (b[1] - a[1]) + sq(b) * (a[1] - m[1])) / d;
+    const uy = (sq(a) * (b[0] - m[0]) + sq(m) * (a[0] - b[0]) + sq(b) * (m[0] - a[0])) / d;
+    const r = Math.hypot(a[0] - ux, a[1] - uy);
+    return p.points.every((q) => Math.abs(Math.hypot(q[0] - ux, q[1] - uy) - r) <= 0.1 * r);
 }
 
 /**

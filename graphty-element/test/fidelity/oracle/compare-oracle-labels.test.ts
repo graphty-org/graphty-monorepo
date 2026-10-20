@@ -595,6 +595,77 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.strictEqual(turn(e.points), turn(loop));
     });
 
+    it("reads a round open stroke across an edge's end as a hollow half circle, a bent one as no half circle", () => {
+        const line = (): Prim =>
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [120, 100],
+                    [280, 100],
+                ],
+                stroke: stroke("#555555", 1),
+            });
+        const edge: PScene = {
+            ...guide,
+            edges: [
+                {
+                    id: "e1",
+                    source: "a",
+                    target: "b",
+                    points: [
+                        [120, 100],
+                        [280, 100],
+                    ],
+                    stroke: stroke("#555555", 1),
+                    arrows: [],
+                    label: null,
+                },
+            ],
+        };
+        // vis-network's curve: half a circle of radius 6 bulging toward b, across the line 6 before its end
+        const arc = Array.from({ length: 13 }, (_, i): Pt => {
+            const t = -Math.PI / 2 + (i * Math.PI) / 12;
+            return [274 + 6 * Math.cos(t), 100 + 6 * Math.sin(t)];
+        });
+        const curve = associate(
+            [
+                ...drawing(() => []),
+                line(),
+                prim({ kind: "path", closed: false, points: arc, stroke: stroke("#555555", 1) }),
+            ],
+            600,
+            400,
+            edge,
+        ).scene.edges[0];
+        assert.deepEqual(
+            curve.arrows.map((x) => [x.shape, x.filled]),
+            [["half-circle", false]],
+        );
+        // an open arrow's two strokes, bent at its tip
+        const vee: Pt[] = [
+            [268, 94],
+            [271, 97],
+            [274, 100],
+            [271, 103],
+            [268, 106],
+        ];
+        const bent = associate(
+            [
+                ...drawing(() => []),
+                line(),
+                prim({ kind: "path", closed: false, points: vee, stroke: stroke("#555555", 1) }),
+            ],
+            600,
+            400,
+            edge,
+        ).scene.edges[0];
+        assert.notInclude(
+            bent.arrows.map((x) => x.shape),
+            "half-circle",
+        );
+    });
+
     it("reads a box behind an edge label near the edge's end as the label's background, not an arrowhead", () => {
         const prims = drawing(() => []);
         prims.push(

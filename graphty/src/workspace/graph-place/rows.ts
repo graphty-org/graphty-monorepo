@@ -224,27 +224,25 @@ export function paintingParts(session: GraphSession, id: string): { node?: Layer
 }
 
 /**
- * The halves of a layer row the reader is building: those that write a property; with none, those
- * narrowed by a condition (a new layer whose edge card is being filled is an edge layer before it
- * sets anything); with neither, every half it is on, so a new layer still says what it will paint.
+ * The halves of a layer row the reader is building: those that write a property, and those
+ * narrowed by a condition (a layer whose edge card is filled is an edge layer before it sets
+ * anything, and stays one when a node look is added); with neither, every half it is on, so a new
+ * layer still says what it will paint.
  * @param session - the element's session.
  * @param id - the row's id.
  * @returns the halves' layer ids, empty for a row the stack does not hold.
  */
 export function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
     const painting = paintingParts(session, id);
-    if (painting.node !== undefined || painting.edge !== undefined) {
-        return painting;
-    }
     const parts = session.styles.parts(id);
-    const narrowed = (layer: LayerId | undefined): layer is LayerId =>
-        layer !== undefined && session.styles.get(layer)?.selector.match !== "everything";
-    const conditioned = {
-        ...(narrowed(parts?.node) ? { node: parts.node } : {}),
-        ...(narrowed(parts?.edge) ? { edge: parts.edge } : {}),
+    const built = (layer: LayerId | undefined, writes: LayerId | undefined): layer is LayerId =>
+        layer !== undefined && (writes !== undefined || session.styles.get(layer)?.selector.match !== "everything");
+    const chosen = {
+        ...(built(parts?.node, painting.node) ? { node: parts.node } : {}),
+        ...(built(parts?.edge, painting.edge) ? { edge: parts.edge } : {}),
     };
-    if (conditioned.node !== undefined || conditioned.edge !== undefined) {
-        return conditioned;
+    if (chosen.node !== undefined || chosen.edge !== undefined) {
+        return chosen;
     }
     return {
         ...(parts?.node === undefined ? {} : { node: parts.node }),

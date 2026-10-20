@@ -451,9 +451,9 @@ export function RowStyle({
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
-    // Whether the row paints the kind, as its header says it ("Edge layer"): a part that writes
-    // nothing while the other part writes reads as not styled, as a layer with no part of the kind
-    // does, however the layer was made. A row that writes nothing yet reads as the kinds it is on.
+    // Whether the row paints the kind, as its header says it ("Edge layer"): a part with no look and
+    // no condition while the other part has one reads as not styled, as a layer with no part of the
+    // kind does, however the layer was made. A row with neither yet reads as the kinds it is on.
     const painted = below === undefined ? undefined : paintedTarget(session, below);
     const paints = (side: Target): boolean =>
         styled(side) && (painted === undefined || painted === "both" || painted === side);

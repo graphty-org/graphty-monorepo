@@ -79,6 +79,10 @@ describe("the canvas toolbar", () => {
             store.set({ keyHasEntries: true });
         });
         assert.equal(legend.getAttribute("aria-pressed"), "true", "pressed once a key is drawn");
+        act(() => {
+            store.set({ keyHasEntries: false, legendAsked: true });
+        });
+        assert.equal(legend.getAttribute("aria-pressed"), "true", "pressed over nothing once the reader asked");
 
         const menu = await screen.findByRole("menu", { name: /^View/ });
         assert.notInclude(menu.textContent, "Legend");

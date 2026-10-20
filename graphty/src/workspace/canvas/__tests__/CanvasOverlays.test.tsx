@@ -479,16 +479,19 @@ describe("the legend card", () => {
         assert.isNotNull(screen.getByText("3 of 24 nodes"), "the title already names the layer");
     });
 
-    it("marks a value a layer above paints over, and reads each chip's color", () => {
+    it("lists no value a layer above paints over, and reads each chip's color", () => {
         const kinds = block({
             layerId: "kind",
             swatches: [
                 { label: "agency", value: "agency", color: "#009e73", count: 4, paintedOverBy: "agencies" },
                 { label: "donor", value: "donor", color: "#e69f00", count: 9 },
+                { label: "staff", value: "staff", color: "#56b4e9", count: 3 },
             ],
         });
         renderOver(standIn({ blocks: [kinds], layers: { kind: "Kind", agencies: "Agencies" } }).session);
-        assert.isNotNull(screen.getByText("covered by Agencies"));
+        const legend = screen.getByRole("region", { name: "Legend" });
+        assert.notInclude(legend.textContent, "agency", "no element shows the agency color");
+        assert.notInclude(legend.textContent, "covered by");
         assert.isNotNull(screen.getByText("9"));
         const chips = screen.getAllByRole("img").map((chip) => chip.getAttribute("aria-label") ?? "");
         assert.lengthOf(chips, 2);
@@ -497,6 +500,17 @@ describe("the legend card", () => {
             chips.join(", "),
         );
         assert.notEqual(chips[0], chips[1]);
+    });
+
+    it("says nothing is styled yet when the reader asked for the key over nothing", () => {
+        renderOver(standIn({ blocks: [] }).session, { legendAsked: true });
+        const legend = screen.getByRole("region", { name: "Legend" });
+        assert.equal(legend.textContent, "Nothing is styled yet");
+    });
+
+    it("draws no key over nothing while the switch is only on by default", () => {
+        renderOver(standIn({ blocks: [] }).session);
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
     });
 
     it("is hidden when the reader switched the legend off", () => {

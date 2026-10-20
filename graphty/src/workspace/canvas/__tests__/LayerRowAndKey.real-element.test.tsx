@@ -1,7 +1,8 @@
 /**
  * A layer row's count and the canvas key agree with what the layer draws, on the REAL
  * graphty-element: a new layer whose node card matches nothing counts 0, not its edges; an edge-only
- * condition counts its edges and names the layer an edge layer; a one-node layer colored by a
+ * condition counts its edges and names the layer an edge layer, and still names edges once a node
+ * look is added; a size key lists no group a layer above covers; a one-node layer colored by a
  * column keys only its node's value; a size under a layer that fixes some nodes at another size
  * says how many; one group given its own color keeps its place in the key; and a size that is the
  * same for every group is no key.
@@ -117,6 +118,50 @@ describe("layer rows and the key agree with what a layer draws", () => {
             const { row, count } = await rowCount("Layer 1");
             assert.equal(count, String(edges));
             assert.equal(row.getAttribute("aria-label"), `Layer 1, edge layer, ${String(edges)} edges`);
+        });
+    });
+
+    it("keeps an edge-only condition's layer an edge layer when a node look is added", async () => {
+        const session = await open("lesmis");
+        const added = await session.styles.addRow({
+            name: "Layer 1",
+            target: "both",
+            selector: { match: "everything" },
+        });
+        if (added.edge === undefined || added.node === undefined) {
+            throw new Error("the row has no edge or no node half");
+        }
+        await session.styles.update(added.edge, {
+            selector: { match: "rule", where: { kind: "range", attribute: "data.shared_chapters", min: 5, max: 31 } },
+        });
+        await session.styles.update(added.node, { set: { "node.color": "#ff0000" } });
+        await session.styles.settled();
+        await waitFor(async () => {
+            const { row } = await rowCount("Layer 1");
+            assert.match(row.getAttribute("aria-label") ?? "", /^Layer 1, node and edge layer, /);
+        });
+    });
+
+    it("lists no group in a size key that a layer above covers on every node", async () => {
+        const session = await open("volunteers");
+        await session.styles.addRow({
+            name: "Roles",
+            target: "node",
+            selector: { match: "everything" },
+            encode: {
+                "node.size": { by: "data.role", scale: "ordinal", map: { volunteer: 1, staff: 2, board: 3 } },
+            },
+        });
+        await session.styles.addRow({
+            name: "Board",
+            target: "node",
+            selector: { match: "rule", where: { kind: "categories", attribute: "data.role", values: ["board"] } },
+            set: { "node.size": 4 },
+        });
+        await session.styles.settled();
+        await waitFor(async () => {
+            const rows = await keyRows("Size: role");
+            assert.sameMembers(rows, ["volunteer", "staff"]);
         });
     });
 

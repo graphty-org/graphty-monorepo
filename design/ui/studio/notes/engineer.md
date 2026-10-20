@@ -16,62 +16,30 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, a node is called by its label everywhere, fa2316520) One helper,
-   `nodeName(session, id)` in `graphty/src/workspace/inspector/words.ts`, is the only way the app
-   names a node: `session.data.name(id) ?? String(id)`. The element's name reads
-   `knownFields.nodeLabelPath`, the same path Find's names use, so no element change was needed.
-   Every `String(node)` used as a name moved to it: inspector title and neighborhood header,
-   StylePanel `selectionName` (so the one-node layer, its key line, notice and undo words follow),
-   EdgeValues Summary ends, layer and group member rows, note chips, path and option pickers,
-   toolbar neighborhood, Groups. Walk on a fresh build
-   (`design/ui/studio/tmp/r1-dry1-node-label-everywhere/walk/`): College football's Nebraska titles
-   the inspector (04); layer row, key "Color: Nebraska", notice "Made layer Nebraska for 1 node"
-   (07); Undo tooltip "Undo adding the layer Nebraska", notice "Undid adding the layer Nebraska."
-   (08-09); an edge titled "Clemson -- Missouri" with Node A Clemson, Node B Missouri (09). Test
-   `inspector/__tests__/NodeName.test.tsx` (helper labeled and unlabeled, title, edge ends), red
-   with ids. Still open for the sessions: which column becomes the label when a file has a name
-   column and no label column. Staging when another agent has unstaged hunks in the same file:
-   blob from `git show HEAD:<path>` plus my replacements, `git hash-object -w`, `git update-index
---cacheinfo` -- no stash, no interactive add. Failures in the same test run that assert other
-   things (files other agents were editing): tier-1 T8 `inspected` gained `tab: "style"`;
-   StylePanel attribute-list options; toolbar "Deleted Louvain" notice found twice; Groups' Mixed
-   color shows a button, no text box; NamesAndRules and NamesAndWords time out; LayerPanelWords'
-   hover tooltip fails in a full batch, passes alone (three nodes selected: never reaches nodeName).
-
-0a. (2026-10-19, Which nodes in one click; graphty `WhichPicker.tsx`, node and edge sides) A click
-or Enter on the collapsed "All N nodes: add a condition to narrow" line now opens the picker
-AND the attribute list, focus in "Find an attribute" (`listFirst` -> `Cards` -> `AddCondition`
-`openFirst`, a run-once ref so a later Escape keeps the list closed). "Add a condition" only
-opens, never toggles: pressed on an open list it puts focus back in the search. A layer with a
-condition still opens closed, focus on its first card. Kept: `autoOpen` on arrival (a blank
-row) still opens the picker with the list closed and focus on Add a condition -- opening a
-portal list on arrival would take focus from the tabs; one click on the button is enough now.
-Test: ConditionLists "one click on a layer with no card..." (red on the old picker, green now).
-Walked on a fresh build: `design/ui/studio/tmp/r1-dry1-which-nodes-one-click/pointer/` 04-05
-(one click, typing filters), 06-08 (Add a condition keeps it open, letters kept), 11 (Enter on
-the line), 16 (with a condition: closed), 19-20 (Which edges). Pre-existing, not from this:
-FocusAfterAdding "a new node Color line" fails the same with and without the change (no
-"Color" menuitem under Add to node fill); the Edge tab's footer said "Nodes: nothing set"
-while a node condition narrowed the layer (pointer/18).
-
-1. (2026-10-19, targeted re-walk of the tooltip, list and color picker fixes 423fb38cc,
-   a340d0c6f, 8f49cc133) No regression; four pre-existing gaps (select-only list Tab, Escape on a
-   resting hover bubble, no "Edit discarded" line, empty searchable attribute box on no match). In
-   full: `git show f7abdac93:design/ui/studio/notes/engineer.md`, Top of mind 1.
-
-2. (2026-10-19, the drawing stays put when the key appears) `useOverlayInset` in
-   `graphty/src/workspace/canvas/viewInsets.ts` now only reports each overlay's margin to the
-   element; it never calls `zoomToFit`. Removed both frames it did: the key arriving over a drawn
-   node (made the drawing jump right and shrink at the first color) and the canvas changing size
-   (decided.md lists the table opening among things that never re-frame). The key's room is used
-   by Fit/Frame and by the element's own framing at open; a sample still opens centered (no key,
-   no room). Test red on the old hook: LegendCard.real-element "never moves the drawing when the
-   key comes up, grows, or Undo takes it away" (first color moved a node 251 -> 451 px). Walk:
-   `design/ui/studio/tmp/r1-dry1-drawing-stays-put/walk/` 05-06 Degree run, key appears, drawing
-   unchanged; 07 Undo unchanged; 10 Fit (0) keeps clear of the key. Not walked: filter step on and
-   off. Pre-existing failure, not mine: CanvasOverlays "lists every sample under Open a sample"
-   (stand-in session has no `data.source`). Earlier compact-mantine fix notes:
-   `git show 532890ecc:design/ui/studio/notes/engineer.md`, Top of mind 0, 1 and 0b.
+0. (2026-10-19, the key and the layer rows say what is drawn; graphty app, no API change)
+   (a) Legend pressed with nothing keyed: store flag `legendAsked`, set only by the reader's press
+   (the default `legendShown: true` is not a request), makes the toggle read pressed and the card
+   show one line "Nothing is styled yet" (`NOTHING_KEYED`, `legendWords.ts`); the next press clears
+   both. Without the flag the default-on switch would put that line on every fresh graph.
+   (b) A category row a layer above paints over on every element (`paintedOverBy`) is no row, like
+   a `hidden` one (`paintedRows`); "covered by X" as a row's value is gone from the card and the
+   image key (a ramp's "N nodes covered by X" line stays); a width block left at one width is no
+   block. Reverses the 2026-10-18 covered row (e07dec723). (c) `builtParts` (`rows.ts`) is the
+   union of the halves that write and the halves with a condition; before, a writing half hid a
+   conditioned one, so an edge-only condition plus a node look read "Node layer", "Edge not styled".
+   Tests red before: `LayerRowAndKey.real-element.test.tsx` (node look; size key), CanvasOverlays
+   and WorkspaceToolbar tests. Walks on a fresh dist under
+   `design/ui/studio/tmp/r1-dry1-key-and-rows-say-what-is-drawn/`: `legend/05-07`; `width/22-23`
+   (family row gone, width key gone once uniform); `width/36-41` (Node and edge layer, no "not
+   styled"). In this shared worktree today 15 real-element tests (VaryByLayer 7, StylePanel 3,
+   RowKinds 2, ConditionCards 1, LayerPanelBehavior 1, CanvasOverlays T8) fail identically with and
+   without these edits: not from this change.
+1. (2026-10-19, earlier today) A node called by its label everywhere (`nodeName`, fa2316520);
+   Which nodes in one click (`WhichPicker.tsx`); the drawing stays put when the key appears
+   (`useOverlayInset` never frames); re-walk of tooltips, lists and picker (four pre-existing
+   gaps). Each in full in `git show f94864ef6:design/ui/studio/notes/engineer.md`, Top of mind 0,
+   0a, 1 and 2. Staging beside another agent's unstaged hunks: blob from `git show HEAD:<path>`
+   plus my replacements, `git hash-object -w`, `git update-index --cacheinfo`.
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
@@ -129,6 +97,13 @@ color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/n
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-19) **A pressed switch over nothing says so; a default-on switch over nothing stays
+  quiet.** Only the reader's press is a request, so only it shows the empty key's line.
+- (2026-10-19) **A key row no element shows is no row, whatever hides it.** "covered by X" kept a
+  value the reader cannot find on the canvas; the Style panel already names the covering layer.
+- (2026-10-19) **A layer's kind is the union of its looks and its conditions.** A condition is
+  the reader building that half as surely as a look is.
 
 - (2026-10-18) **A finding against an older build is checked against HEAD before any code.** The
   Analyze findings (Enter, tooltip, run message) came from pilot screenshots of build 58556989e;

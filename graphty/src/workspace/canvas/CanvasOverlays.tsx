@@ -187,6 +187,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
+    const legendAsked = useWorkspaceState((state) => state.legendAsked);
     const addData = useCommand("data.add");
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
 
@@ -242,7 +243,10 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {legendShown && blocks.length > 0 ? <KeyRoom /> : null}
-            {legendShown && blocks.length > 0 ? <LegendCard blocks={blocks} session={session} /> : null}
+            {/* Asked for over nothing, the card says nothing is styled yet. */}
+            {legendShown && (blocks.length > 0 || legendAsked) ? (
+                <LegendCard blocks={blocks} session={session} />
+            ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>
     );

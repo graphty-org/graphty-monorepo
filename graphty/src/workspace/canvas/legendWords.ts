@@ -144,15 +144,15 @@ function heldRows(session: GraphSession, block: LegendBlock): LegendBlock {
 }
 
 /**
- * The block without the rows of values it does not paint (`hidden`): elements carrying one are
- * drawn as the layers beneath paint them, so a chip for it would be a false claim.
+ * The block without the rows no element shows: a value it does not paint (`hidden`), drawn as the
+ * layers beneath paint it, and a value a layer above paints over on every element carrying it
+ * (`paintedOverBy`). A row for either would be a false claim; the key lists only what is drawn.
  * @param block - the block.
- * @returns the block, its painted rows only.
+ * @returns the block, its drawn rows only.
  */
 function paintedRows(block: LegendBlock): LegendBlock {
-    return block.swatches.some((swatch) => swatch.hidden === true)
-        ? { ...block, swatches: block.swatches.filter((swatch) => swatch.hidden !== true) }
-        : block;
+    const drawn = (swatch: LegendSwatch): boolean => swatch.hidden !== true && swatch.paintedOverBy === undefined;
+    return block.swatches.every(drawn) ? block : { ...block, swatches: block.swatches.filter(drawn) };
 }
 
 /**
@@ -370,8 +370,11 @@ export function belowLine(below: number): string {
     return `${String(below)} more below`;
 }
 
+/** The key's one line when the reader asked for it and no layer paints anything it lists. */
+export const NOTHING_KEYED = "Nothing is styled yet";
+
 /**
- * The value column of a row no element shows (`paintedOverBy`): "covered by Agencies".
+ * How a layer above covers a section's elements: "covered by Agencies".
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
  */
@@ -381,8 +384,8 @@ export function coveredWords(layer: string): string {
 
 /**
  * The line under a section whose layer's elements a layer above paints in the same property, so
- * the section's paint does not show on them: "3 nodes covered by Big donors". A category's rows say
- * it row by row (`coveredWords`), so a category block gets no line.
+ * the section's paint does not show on them: "3 nodes covered by Big donors". A category lists only
+ * the rows it draws (`paintedRows`), so a category block gets no line.
  * @param block - The block.
  * @param covers - The layers above that paint the property on the block's elements, and on how many.
  * @returns The line, or null when nothing covers it.
@@ -602,10 +605,7 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
             };
         }
         const rows = block.swatches.map((swatch) => {
-            const shown =
-                swatch.paintedOverBy === undefined
-                    ? swatchValue(block, swatch, entry)
-                    : coveredWords(names.layer?.(swatch.paintedOverBy) ?? swatch.paintedOverBy);
+            const shown = swatchValue(block, swatch, entry);
             const value = typeof shown === "number" ? legendNumber(shown) : shown;
             return {
                 label: swatchName(block, swatch, entry),

@@ -81,9 +81,15 @@ export interface WorkspaceState {
     readonly legendShown: boolean;
     /**
      * Whether the graph has anything a key lists: the canvas reads it from the element's legend.
-     * The Legend toggle reads pressed only while the switch is on and there is a key to draw.
+     * The Legend toggle reads pressed while the switch is on and there is a key to draw, or the
+     * reader asked for it (`legendAsked`).
      */
     readonly keyHasEntries: boolean;
+    /**
+     * Whether the reader pressed Legend to turn it on: then the key shows, and the toggle reads
+     * pressed, even with nothing keyed, and says nothing is styled yet.
+     */
+    readonly legendAsked: boolean;
     /**
      * Show all labels (section 2.7): off, a label that would overlap another is hidden. The
      * reader's preference, not the project's; the element's tag carries it.
@@ -169,6 +175,7 @@ const INITIAL: WorkspaceState = {
     dockColumn: null,
     legendShown: true,
     keyHasEntries: false,
+    legendAsked: false,
     allLabelsShown: false,
     labelsAvoid: true,
     sameSizeAtAnyDepth: null,

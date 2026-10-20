@@ -9,10 +9,10 @@ import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
 import {
     belowLine,
-    coveredWords,
     isSizeBlock,
     keyNames,
     keySections,
+    NOTHING_KEYED,
     overflowLine,
     swatchName,
     swatchText,
@@ -107,26 +107,16 @@ function ShapePicture({
  * @param props - Component props
  * @param props.block - the block
  * @param props.entry - the entry of a fixed-value row ("On the path")
- * @param props.layerName - a layer's name by id, for a row a layer above paints over
  * @returns the rows
  */
-function List({
-    block,
-    entry,
-    layerName,
-}: Readonly<{ block: LegendBlock; entry: string; layerName: (id: string) => string }>): React.JSX.Element {
+function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
                 <DataRow
                     key={`${String(index)}-${swatchText(block, swatch, entry)}`}
                     name={swatchName(block, swatch, entry)}
-                    // A value every element of which a layer above paints over says so, not its count.
-                    value={
-                        swatch.paintedOverBy === undefined
-                            ? swatchValue(block, swatch, entry)
-                            : coveredWords(layerName(swatch.paintedOverBy))
-                    }
+                    value={swatchValue(block, swatch, entry)}
                     icon={
                         swatch.color === undefined ? (
                             // A node shape as the canvas draws it; a line pattern or arrow as the
@@ -319,7 +309,6 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
     const sections = keySections(blocks, names);
-    const layerName = (id: string): string => names.layer?.(id) ?? id;
     return (
         <Paper
             ref={ref}
@@ -334,6 +323,11 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             p="xs"
         >
             <Stack gap="xs">
+                {sections.length === 0 ? (
+                    <Text size="xs" c="dimmed">
+                        {NOTHING_KEYED}
+                    </Text>
+                ) : null}
                 {sections.map(({ title, block, entry, merged, scope, covered }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
@@ -354,7 +348,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             {continuous ? (
                                 <Ramp block={block} title={title} />
                             ) : (
-                                <List block={block} entry={merged ? title : entry} layerName={layerName} />
+                                <List block={block} entry={merged ? title : entry} />
                             )}
                             {scope === null ? null : (
                                 <Text size="xs" c="dimmed">

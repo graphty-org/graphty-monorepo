@@ -16,7 +16,21 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, a grid is one Tab stop; compact-mantine `DataTable/DataTable.tsx`) A control a
+0. (2026-10-19, layer list into view; graphty `frame/Frame.tsx`) Selecting or making a layer from
+   another place left the left panel on that place, so the new folder or the selected group layer
+   was out of sight (a Louvain run from the Data place; a Memberships "Louvain Group 1" button).
+   Fix in the place switch, the one spot every route passes: Frame switches `place` to "graph"
+   when `inspected` CHANGES to a layer-row, folder-row or rows (an effect on the inspected object,
+   so clicking Data afterwards stays on Data), and on `run:changed` phase "start" with cause
+   "command" (any run the reader starts, from Analyze or an inspector re-run; undo, redo and
+   restore do not move the panel). A group-row (a group with no layer) does not switch: not a
+   layer. Test: frame LayerListIntoView.real-element (2, both red without the change). Walk:
+   `design/ui/studio/tmp/r1-dry1-layer-list-into-view/run/` 07 (run from Data, Louvain folder in
+   the list), 10 (Memberships group, Group 1 selected in the opened folder), 11 (Data rail still
+   leaves). Pre-existing red, same with the change reverted: FilterFocus (2), Filters (1),
+   FocusAndTabOrder "Tab out of the Vary by list", KeysLeaveNothingOpen "Tab from a card's value",
+   LayerPanelBehavior "takes an attribute of the other kind".
+1. (2026-10-19, a grid is one Tab stop; compact-mantine `DataTable/DataTable.tsx`) A control a
    column draws in a cell (a button, a field) is now in the Tab order only while its cell is the
    grid's roving cell: a layout effect after every drawing parks the rest at tabindex -1 (remembering
    the old value in `data-cm-dt-parked`) and restores the roving cell's. So Tab leaves the grid in
@@ -33,7 +47,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    the Color box). Pre-existing reds seen: `Groups.real-element` "Shift+arrow picks two" times out
    with or without the DataTable change; `DataPage.real-element` "draws every sample row" finds two
    "All 12 rows" texts. Tab from the last control (No value) leaves the popout and closes it.
-1. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
+2. (2026-10-19, re-walk of three fixes on build 55d108854, no changes) Quick actions > Add label
    line, Control+A on the canvas and in the canvas menu, and Tab in Filter analyses (Shift+A and
    toolbar) all hold their acceptance; nothing they touch got worse. Screenshots:
    `design/ui/studio/tmp/r1-dry1-recheck-quick-actions-label-line/` (`label/`, `selall/`,
@@ -46,7 +60,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    stopPropagation if the picker sits in a focus trap. Also seen, minor: Escape from an analysis
    card back to the list re-highlights the first match, not the one that was opened.
 
-2. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
+3. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
    another letter case is that column: `elementRule` takes the element's `checkRule` suggestion
    when every unknown name equals its first candidate's shown name or rule path ignoring case
    (`caseOnly`), so `=degree > 30` runs with no "Did you mean Degree?". A real correction still
@@ -68,7 +82,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Pre-existing red, not mine: inspector tasks T8 and "an edge, an attribute...", graph-place
    tasks "a click on a drawn name", FocusAfterAdding "a new node Color line" (other agents'
    uncommitted Style work). This file is past 25 KB; another agent was summarizing it.
-3. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
+4. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
    graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
    opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older
    "a heading takes no focus mark" call; decided.md now asks for the ring (WCAG 2.4.7). Fix in the
@@ -86,7 +100,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    list", FindBoxPlain two timeouts. `nx run graphty:build` fails while an untracked
    `compact-mantine-headproof/` copy sits in the worktree (duplicate project name); `npm run build`
    in the package works.
-4. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
+5. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
    with letters typed and an option highlighted opens that analysis's card, focus on Run (the
    decided rule for every list); with nothing typed, or Shift+Tab, it still leaves and closes.
    TRAP: the popover has `trapFocus`, and Mantine's focus trap listens for Tab on the DOCUMENT, so
@@ -96,7 +110,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    analyses with letters typed takes the highlighted analysis" (red without the change, and red
    without the stopPropagation alone). Walk: `design/ui/studio/tmp/r1-dry1-analysis-filter-tab/walk2/`
    05 (cluster, Clustering coefficient highlighted), 06 (its card, Run focused), 07 (Enter ran it).
-5. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
+6. (2026-10-19, selection announcements name what changed; graphty app) One node or one edge
    is now spoken by name: `selectionNameWords` / `selectedNameWords` / `framedWords` in
    `inspector/words.ts` (one node -> `nodeName`, one edge -> `edgeName`, else `sizeWords`). The
    shared announcer is the `selection:changed` handler in `canvas/CanvasOverlays.tsx` -- every
@@ -114,49 +128,49 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `GraphPlace.test` rule tests red only with another agent's uncommitted FindBox case-folding
    work. The other agent was editing `FindBox.tsx` and `FindBoxWords` at the same time: commit
    built from HEAD blobs with only my lines.
-6. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
+7. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
    table Show in table and sorting, F6 regions) in full in
    `git show 1c6a68ee4:design/ui/studio/notes/engineer.md`, Top of mind 5 and 6.
-7. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+8. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-8. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+9. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-9. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
-   summaries and the Data place, focus after a style line, shape list typing and the color picker,
-   labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
-   of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-10. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+10. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+    summaries and the Data place, focus after a style line, shape list typing and the color picker,
+    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
+    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
+11. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
     reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
     default label size; Kelly's palette for 10 to 19 groups.
-11. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+12. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
     the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
     `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
     `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
     (`workspace` for studio notes, not `design`).
-12. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+13. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
     it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-13. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+14. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-14. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+15. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-15. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+16. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-16. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+17. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-17. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+18. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use

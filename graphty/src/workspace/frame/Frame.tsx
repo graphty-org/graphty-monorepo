@@ -28,6 +28,9 @@ import { Rail } from "./Rail";
 /** What each rail place draws in the left panel. */
 const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
 
+/** The kinds that select rows of the Graph place's layer list: selecting one shows that list. */
+const LAYER_LIST_KINDS: readonly string[] = ["layer-row", "folder-row", "rows"];
+
 /** Props for Frame. */
 interface FrameProps {
     /** Called with the element and its session once it has come up, and with nulls when it goes. */
@@ -44,13 +47,14 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store, element } = useWorkspace();
+    const { store, element, session } = useWorkspace();
     // The toolbar covers the canvas's bottom edge: no fit puts a node under it.
     const dock = useRef<HTMLDivElement>(null);
     useOverlayInset(dock, TOOLBAR_SIDES, toolbarInsets);
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
+    const inspected = useWorkspaceState((state) => state.inspected);
     const leftWidth = useWorkspaceState((state) => state.leftWidth);
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
@@ -82,6 +86,23 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             store.set({ inspected: null });
         }
     }, [place, store]);
+    // Selecting or making a layer, from any place, shows the layer list, so the selected row is in
+    // sight. Only a new selection switches: the reader can still leave for another place after it.
+    useEffect(() => {
+        if (inspected !== null && LAYER_LIST_KINDS.includes(inspected.kind)) {
+            store.set({ place: "graph" });
+        }
+    }, [inspected, store]);
+    // A run the reader starts adds its layers to that list: show it too.
+    useEffect(
+        () =>
+            session?.on("run:changed", (change) => {
+                if (change.phase === "start" && change.cause === "command") {
+                    store.set({ place: "graph" });
+                }
+            }),
+        [session, store],
+    );
     // A note being written is about this project's graph: another project drops it.
     useEffect(() => {
         store.set({ noteDraft: null });

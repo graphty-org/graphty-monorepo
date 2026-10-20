@@ -319,8 +319,10 @@ function fontFace(raw: unknown, site: CanonSite): FontFace | null {
     }
     const parts = s.split(",");
     if (parts.length >= 2) {
-        const st = parts[1].trim().toLowerCase();
-        return withSuffix(parts[0], st.includes("bold"), st.includes("italic"));
+        // desktop takes the face from the name alone (`FontVisualProperty.parseSerializableString`): its style word is
+        // what it writes, not what it reads, so a passthrough of `Serif,bold,12` is drawn plain (Cytoscape 3.10.5's
+        // SVG of specimen-mappings-bypass-p19, passthrough-font-face) and `SansSerif.bold,bold,10` bold by its suffix
+        return withSuffix(parts[0], false, false);
     }
     return legacyFontFace(s) ?? withSuffix(s, false, false);
 }

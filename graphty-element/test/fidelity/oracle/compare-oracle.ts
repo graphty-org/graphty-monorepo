@@ -1041,6 +1041,32 @@ export function specimenRoleNames(rows: readonly Record<string, unknown>[]): Map
 }
 
 /**
+ * Every node of a GML specimen sheet by its setting id: GML ids its nodes by number, and the same number is another
+ * setting on every page, so a report's rows name the setting the sheet keeps in each node's `comment` (or OGDF's
+ * `template`). A name two nodes share is left out, so no two nodes take one id; captions and corner anchors are
+ * `specimenRoleNames`' (named before the association, which must know them as such).
+ * @param rows - the nodes' data rows, each with its `id`
+ * @returns each named node's id and its setting id
+ */
+export function specimenSettingNames(rows: readonly Record<string, unknown>[]): Map<string, string> {
+    const named = rows.flatMap((r) => {
+        const name = [r.comment, r.template].find(
+            (v): v is string =>
+                typeof v === "string" &&
+                /^[a-z0-9][a-z0-9-]*$/.test(v) &&
+                !v.startsWith("cap-") &&
+                !v.startsWith("anchor-"),
+        );
+        return name === undefined || name === String(r.id) ? [] : [[String(r.id), name] as const];
+    });
+    const count = new Map<string, number>();
+    for (const [, name] of named) {
+        count.set(name, (count.get(name) ?? 0) + 1);
+    }
+    return new Map(named.filter(([, name]) => count.get(name) === 1));
+}
+
+/**
  * A scene whose caption nodes are named as captions: a specimen sheet whose format ids its nodes otherwise (Cytoscape
  * desktop by SUID, GML and Pajek by number) keeps `cap-*` in another attribute, so its caption nodes, their edges and
  * the texts they own take that name, and `withoutCaptions` leaves them out on whichever side drew them as nodes.

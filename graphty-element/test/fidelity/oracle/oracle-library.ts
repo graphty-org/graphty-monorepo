@@ -17,6 +17,7 @@ import {
     ORACLE_PROPERTIES,
     type OracleReport,
     specimenRoleNames,
+    specimenSettingNames,
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 import type { PScene } from "./primitives";
@@ -243,7 +244,10 @@ export async function compareWithOracle(
     // named by that on both sides, so the comparison leaves the captions out and fixes the frame on the anchors
     const captionOf = specimenRoleNames(element.session.data.nodes());
     // a sheet whose vertices are numbers names each by its setting, on both sides, once the oracle is associated
-    const names = specimenNames(id);
+    // (Pajek's from its pages.json; GML's from each node's comment, the setting id the sheet keeps there)
+    const names = id.startsWith("gml-specimen-")
+        ? specimenSettingNames(element.session.data.nodes())
+        : specimenNames(id);
     const numbers = new Map([...names].map(([k, v]) => [v, k]));
     const named = namedCaptions(namedCaptions(unmutated, captionOf), names);
     const graphty = mutate === undefined ? named : mutate(structuredClone(named));

@@ -158,6 +158,7 @@ export { createGraphSession } from "./src/session";
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates

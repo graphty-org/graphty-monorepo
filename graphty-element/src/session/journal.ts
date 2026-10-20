@@ -86,6 +86,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     batch: "data",
     "config.set": "config",
     "data.apply": "data",
+    "data.issues": "data",
     "data.declare": "data",
     "data.expand": "data",
     "data.source-expand": "data",

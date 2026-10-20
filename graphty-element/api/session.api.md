@@ -372,6 +372,7 @@ export interface CommandOutcomeMap {
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "data.import-source": Promise<void>;
+    "data.issues": Promise<void>;
     "data.label": Promise<void>;
     "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
@@ -488,6 +489,18 @@ export { Credential_2 as Credential }
 export { CredentialKind }
 
 export { credentials }
+
+// @public
+export interface DataIssue {
+    readonly code: IssueCode;
+    readonly column?: ColumnRef;
+    readonly count: number;
+    readonly fixes: readonly FixCode[];
+    readonly id: IssueId;
+    readonly ignored: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
+    readonly source?: SourceKey;
+}
 
 // @public
 export interface DataSourceDescriptor {
@@ -1033,6 +1046,15 @@ export interface FindValueRow {
     readonly path: Path;
     readonly target: SelectionTarget;
     readonly value: string | number | boolean;
+}
+
+// @public
+export type FixCode = "make-blank" | "read-decimal-comma" | "add-nodes" | "leave-out" | "merge" | "keep" | "keep-first" | "merge-rows" | "trim" | "merge-case";
+
+// @public
+export interface FixResult {
+    readonly edges: number;
+    readonly nodes: number;
 }
 
 // @public
@@ -1791,7 +1813,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1876,6 +1898,12 @@ export function isRunId(value: unknown): value is RunId;
 
 // @public
 export function isRunStatus(value: unknown): value is RunStatus;
+
+// @public
+export type IssueCode = "not-a-number" | "decimal-comma" | "unknown-end" | "repeated-edge" | "repeated-id" | "padded-space" | "case-variant" | "blank-id" | "refused-row" | "mixed-type";
+
+// @public
+export type IssueId = string;
 
 // @public
 export function isTerminalRunStatus(status: RunStatus): boolean;
@@ -3691,7 +3719,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -3721,9 +3749,14 @@ export interface SessionDataApi {
     edges(): readonly EdgeRecord[];
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
     fingerprint(): string;
+    fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    issues(options?: {
+        readonly includeIgnored?: boolean;
+    }): readonly DataIssue[];
     lastImport(): LoadReport | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;

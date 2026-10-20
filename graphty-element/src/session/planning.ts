@@ -49,6 +49,7 @@ import {
     type MachineCalibration,
     type ScopeCandidate,
 } from "./cost";
+import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics } from "./types";
@@ -100,6 +101,7 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | DataCommand
+    | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
     | VisibilityCommand

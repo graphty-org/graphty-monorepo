@@ -45,6 +45,7 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "../commands/data";
+import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
@@ -354,6 +355,8 @@ export class Ingest<K extends KnownEdge> {
 
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
+    /** The tally of the load that finished last, which `importSource` reads its issue facts from. */
+    private sealedTally: ImportTally | null = null;
 
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
@@ -516,6 +519,7 @@ export class Ingest<K extends KnownEdge> {
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         const supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
         this.supplied = supplied;
+        this.sealedTally = null;
         try {
             const outcome = await this.addDataFromSource(
                 type,
@@ -542,16 +546,28 @@ export class Ingest<K extends KnownEdge> {
                 // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
                 counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
             });
+            // What the load saw that the graph does not keep, for `data.issues()`.
+            const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
             writer.setGraphValues({
                 [SOURCES_VALUE]: Object.freeze([...earlier, loaded]),
                 [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, {
                     nodes: [...supplied.nodes],
                     edges: [...supplied.edges],
                 }),
+                ...(facts === null
+                    ? {}
+                    : {
+                          [ISSUES_VALUE]: withLoadFacts(
+                              writer.graphValue(ISSUES_VALUE) as IssueState | undefined,
+                              key,
+                              facts,
+                          ),
+                      }),
             });
             return outcome;
         } finally {
             this.supplied = null;
+            this.sealedTally = null;
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";
             this.updateExisting = false;
@@ -686,6 +702,7 @@ export class Ingest<K extends KnownEdge> {
         if (!isStorableId(id)) {
             tally.rejected++;
             tally.errors.push({ code: "refused-row", params: { rowsAre: "nodes" } });
+            tally.refusedRows.push({ rowsAre: "nodes", record: frozenRecord(record) });
             return true;
         }
 
@@ -696,6 +713,9 @@ export class Ingest<K extends KnownEdge> {
 
         tally.duplicateRows++;
         tally.duplicateIds.add(id);
+        if (this.duplicateIds === "first") {
+            tally.droppedRows.push({ id, record: frozenRecord(record) });
+        }
         if (this.duplicateIds === "refuse" && this.measure === null) {
             throw new GraphtyError({
                 code: "E_DUPLICATE_ID",
@@ -823,6 +843,7 @@ export class Ingest<K extends KnownEdge> {
                 // has a store row" an invariant everything downstream can rely on.
                 tally.rejected++;
                 tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
+                tally.refusedRows.push({ rowsAre: "edges", record });
                 tally.edgeIds.push(null);
                 continue;
             }
@@ -1404,6 +1425,7 @@ export class Ingest<K extends KnownEdge> {
                 // handed over, so it reported 254 for a file that produced zero edges. The old
                 // meaning survives, under its true name, as `report.counts.edgeRecords`.
                 const report = this.sealLoad(type, tally, writer);
+                this.sealedTally = tally;
                 await this.recordGroups(held === undefined ? source : (HELD_READERS.get(held) ?? null), writer);
 
                 this.logger.info("Data source loading complete", {

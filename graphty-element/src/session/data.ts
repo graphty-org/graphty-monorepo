@@ -56,6 +56,17 @@ import {
     SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
+import {
+    type DataIssue,
+    findIssues,
+    type FixCode,
+    type FixResult,
+    type FoundIssue,
+    type IssueId,
+    ISSUES_VALUE,
+    type IssueState,
+    NO_ISSUE_STATE,
+} from "./issues";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -446,6 +457,13 @@ export class SessionData implements SessionDataApi {
         readonly described: readonly AttributeDescriptor[];
         readonly key: string;
         readonly result: readonly AttributeDescriptor[];
+    } | null = null;
+    /** The issues found, and what they were read from. */
+    private issuesMemo: {
+        readonly state: IssueState;
+        readonly snapshot: GraphSnapshot;
+        readonly columns: readonly AttributeDescriptor[];
+        readonly found: readonly FoundIssue[];
     } | null = null;
     /** `sources()` with its counts, and what they were counted from. */
     private sourcesMemo: {
@@ -1701,6 +1719,162 @@ export class SessionData implements SessionDataApi {
         }
 
         return snapshot.ids.has(id) ? (index.nodes.get(id) ?? []) : [];
+    }
+
+    /**
+     * Every issue found in the data now, with the plans that fix it, read once per graph and state.
+     * @returns the issues, ignored ones included
+     */
+    private foundIssues(): readonly FoundIssue[] {
+        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const snapshot = this.current();
+        const columns = this.attributes();
+        const memo = this.issuesMemo;
+        if (memo?.state === state && memo.snapshot === snapshot && memo.columns === columns) {
+            return memo.found;
+        }
+
+        const found = findIssues({
+            columns,
+            nodes: this.nodes(),
+            edges: this.edges(),
+            directed: snapshot.directed,
+            state,
+        });
+        this.issuesMemo = { state, snapshot, columns, found };
+        return found;
+    }
+
+    /**
+     * What is wrong with the data now: neutral facts, each with the fixes it takes.
+     * @param options - which issues
+     * @param options.includeIgnored - list the ignored issues too (default false)
+     * @returns the issues, load issues first; never one with a zero count
+     */
+    issues(options: { readonly includeIgnored?: boolean } = {}): readonly DataIssue[] {
+        this.requireLive("issues");
+        const found = this.foundIssues();
+        const ignored = new Set(
+            ((this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE).ignored,
+        );
+        return Object.freeze(
+            found
+                .map(({ issue }) => Object.freeze({ ...issue, ignored: ignored.has(issue.id) }))
+                .filter((issue) => options.includeIgnored === true || !issue.ignored),
+        );
+    }
+
+    /**
+     * One issue by id, or a refusal naming the ones there are.
+     * @param issue - the issue or its id
+     * @returns the issue as found
+     */
+    private issueNamed(issue: IssueId | Pick<DataIssue, "id">): FoundIssue {
+        const id = typeof issue === "string" ? issue : issue.id;
+        const found = this.foundIssues();
+        const match = found.find((each) => each.issue.id === id);
+        if (match === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The data has no issue ${JSON.stringify(id)}.`,
+                source: "data",
+                details: { reason: "unknown-issue", issue: id, known: found.map((each) => each.issue.id) },
+            });
+        }
+
+        return match;
+    }
+
+    /**
+     * Apply one of an issue's fixes, as one undoable step.
+     * @param issue - the issue or its id
+     * @param fix - one of the issue's `fixes`
+     * @returns how many nodes and edges it changed, kept or removed
+     */
+    async fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
+        this.requireLive("fix");
+        const { issue: found, plan } = this.issueNamed(issue);
+        if (!found.fixes.includes(fix)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The issue ${JSON.stringify(found.id)} takes ${found.fixes.length === 0 ? "no fix" : found.fixes.join(", ")}.`,
+                source: "data",
+                details: { reason: "unknown-fix", issue: found.id, fix, fixes: [...found.fixes] },
+            });
+        }
+
+        const before = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const { steps, state, result } = plan(fix);
+        await this.sendIssues(
+            {
+                op: "batch",
+                label: `Fixed ${found.code}`,
+                fact: {
+                    code: "data.fix-issue",
+                    params: { issue: found.id, code: found.code, fix, count: found.count },
+                },
+                steps: [...steps, ...(state === before ? [] : [{ op: "data.issues" as const, state }])],
+            },
+            "fix an issue",
+        );
+        return Object.freeze(result);
+    }
+
+    /**
+     * Ignore an issue, or stop ignoring it, as one undoable step saved with the project.
+     * @param issue - the issue or its id
+     * @param ignored - true (the default) to ignore, false to list it again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     */
+    async ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored = true): Promise<void> {
+        this.requireLive("ignoreIssue");
+        const id = typeof issue === "string" ? issue : issue.id;
+        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        if (state.ignored.includes(id) === ignored) {
+            return;
+        }
+
+        if (ignored) {
+            // Only an issue the data has now can be ignored; any ignored id can be listed again.
+            this.issueNamed(id);
+        }
+
+        await this.sendIssues(
+            {
+                op: "batch",
+                label: ignored ? `Ignored ${id}` : `Stopped ignoring ${id}`,
+                fact: { code: "data.ignore-issue", params: { issue: id, ignored } },
+                steps: [
+                    {
+                        op: "data.issues",
+                        state: {
+                            ...state,
+                            ignored: ignored ? [...state.ignored, id] : state.ignored.filter((each) => each !== id),
+                        },
+                    },
+                ],
+            },
+            "ignore an issue",
+        );
+    }
+
+    /**
+     * Dispatch an issue verb's step. ponytail: the same as the column commands' private `send`;
+     * keep one once both have landed.
+     * @param command - the step
+     * @param verb - the verb asking, for the error
+     * @returns settles once it is recorded
+     */
+    private async sendIssues(command: SessionCommand, verb: string): Promise<void> {
+        if (this.writes.send === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `This session cannot dispatch commands, so it cannot ${verb}.`,
+                source: "data",
+            });
+        }
+
+        await this.writes.send(command);
     }
 
     /**

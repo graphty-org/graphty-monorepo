@@ -204,6 +204,10 @@ export interface ImportTally {
     errorLimit: number;
     /** The id each edge record became, in record order; null for a record that made no edge of its own. */
     readonly edgeIds: (EdgeId | null)[];
+    /** The node rows a repeated id kept out, with the id, for `session.data.issues()`. */
+    readonly droppedRows: { readonly id: string | number; readonly record: Readonly<Record<string, unknown>> }[];
+    /** The rows refused for an id or an end the store would not take, for `session.data.issues()`. */
+    readonly refusedRows: { readonly rowsAre: "nodes" | "edges"; readonly record: Readonly<Record<string, unknown>> }[];
 }
 
 /** The error limit a data source has when none is configured, and so of a load with no source. */
@@ -235,6 +239,8 @@ export function newImportTally(): ImportTally {
         errors: [],
         errorLimit: DEFAULT_ERROR_LIMIT,
         edgeIds: [],
+        droppedRows: [],
+        refusedRows: [],
     };
 }
 

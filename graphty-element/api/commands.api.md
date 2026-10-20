@@ -36,6 +36,9 @@ export const COMMANDS: Readonly<{
     readonly "data.apply": {
         readonly undo: "undoable";
     };
+    readonly "data.issues": {
+        readonly undo: "undoable";
+    };
     readonly "data.import": {
         readonly undo: "undoable";
     };
@@ -156,7 +159,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

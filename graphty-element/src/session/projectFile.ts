@@ -16,6 +16,7 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { ISSUES_VALUE, type IssueState } from "./issues";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -567,6 +568,7 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         }),
     );
     const { layout, visibility } = session;
+    const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
     const columns = [...dispatcher.state.attributes].map(([key, declaration]) => {
         const split = key.indexOf(":");
         return { kind: key.slice(0, split), name: key.slice(split + 1), ...declaration };
@@ -597,6 +599,8 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                       label,
                   })),
               }),
+        // The data issues: what the loads saw, the ignored issues and the kept repeats, when any.
+        ...(issueState === undefined ? {} : { issues: { version: ISSUES_VERSION, ...issueState } }),
     };
 }
 
@@ -1482,10 +1486,40 @@ async function readProject(
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
     }
 
+    await readIssues(opening, state.issues);
+
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/** The version of the session member's `issues` field. */
+const ISSUES_VERSION = 1;
+
+/**
+ * Restore the data issues the session member saved: what the loads saw, the ignored issues and
+ * the kept repeats. A newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param issues - The session member's `issues` field.
+ */
+async function readIssues(opening: Opening, issues: unknown): Promise<void> {
+    if (!isObject(issues)) {
+        return;
+    }
+
+    if (issues.version !== ISSUES_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "graph", found: issues.version as number },
+        });
+        return;
+    }
+
+    const { facts, ignored, kept } = issues;
+    await attempt(opening, "graph", () =>
+        opening.tx.execute({ op: "data.issues", state: { facts, ignored, kept } as IssueState }),
+    );
 }
 
 /**

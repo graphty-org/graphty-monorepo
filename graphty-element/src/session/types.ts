@@ -52,6 +52,7 @@ import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionSt
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
@@ -891,6 +892,55 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     sources(): readonly LoadedSource[];
+    /**
+     * What is wrong with the data now: a number column holding "N/A", decimal commas, padded
+     * values, two spellings of one value, edges naming a node no node row gave, repeated edges,
+     * node rows repeating an id, rows refused for a blank id, rows the reader could not read.
+     * Each issue is a neutral fact -- a code, a count, params -- with the fixes
+     * {@link SessionDataApi.fix} takes for it. An issue with a zero count is never listed, and an
+     * ignored one only with `includeIgnored`.
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: transfers } });
+     * for (const issue of session.data.issues()) {
+     *     console.log(issue.code, issue.column?.name, issue.count, issue.fixes);
+     * }
+     * // "decimal-comma" "amount" 3 ["read-decimal-comma"]
+     * ```
+     * @param options - which issues
+     * @param options.includeIgnored - list the ignored issues too, each with `ignored: true` (default false)
+     * @returns the issues, those a load saw first
+     * @since 3.30.0
+     */
+    issues(options?: { readonly includeIgnored?: boolean }): readonly DataIssue[];
+    /**
+     * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
+     *
+     * ```ts
+     * const commas = session.data.issues().find((issue) => issue.code === "decimal-comma");
+     * if (commas) await session.data.fix(commas, "read-decimal-comma"); // "12,5" becomes 12.5
+     * ```
+     * @param issue - the issue, or its id
+     * @param fix - one of the issue's `fixes`
+     * @returns how many nodes and edges the fix changed, kept or removed
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"unknown-issue"` for an
+     *     issue the data does not have now (`details.known`), `"unknown-fix"` for a fix the issue
+     *     does not take (`details.fixes`).
+     * @since 3.30.0
+     */
+    fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
+    /**
+     * Ignore an issue, or list it again with `false`, as one undoable step saved with the
+     * project. An ignored issue keeps its id, so it stays ignored through fixes, undo and a
+     * reload; {@link SessionDataApi.issues} lists it only with `includeIgnored`.
+     * @param issue - the issue, or its id
+     * @param ignored - true (the default) to ignore, false to list it again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason: "unknown-issue"`) when
+     *     ignoring an issue the data does not have now.
+     * @since 3.30.0
+     */
+    ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
@@ -1803,6 +1853,9 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
  * | `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges` | `count` |
  * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
+ * | `data.fix-issue` | `issue`: the issue's id; `code`: its code; `fix`: the fix; `count`: the issue's count before |
+ * | `data.ignore-issue` | `issue`: the issue's id; `ignored`: true when ignored, false when listed again |
+ * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
@@ -1858,6 +1911,9 @@ export type HistoryCode =
     | "data.remove-nodes"
     | "data.remove-edges"
     | "data.edit"
+    | "data.fix-issue"
+    | "data.ignore-issue"
+    | "data.issues"
     | "data.clear"
     | "data.set"
     | "data.replace-nodes"
@@ -2058,6 +2114,8 @@ export interface CommandOutcomeMap {
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
     "data.apply": Promise<void>;
+    /** Settles once the issue state is recorded. */
+    "data.issues": Promise<void>;
     /** Settles once the last chunk is recorded and the pass that draws it has run. */
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */

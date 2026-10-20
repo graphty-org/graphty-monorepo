@@ -12,6 +12,7 @@
 
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./issues";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";

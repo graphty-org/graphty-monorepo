@@ -385,6 +385,18 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/** What `data.fix("padded-space:node:doorName", "trim")` dispatches inside its batch. */
+const TRIM_STEP: SessionCommand = {
+    op: "data.apply",
+    mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-pad", values: { doorName: "Acme" } }] },
+};
+
+/** What `data.ignoreIssue("padded-space:node:doorName")` dispatches inside its batch. */
+const IGNORE_STEP: SessionCommand = {
+    op: "data.issues",
+    state: { facts: {}, ignored: ["padded-space:node:doorName"], kept: [] },
+};
+
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
 /**
@@ -1687,6 +1699,64 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             sources: READ,
             sourcesOf: READ,
+            issues: READ,
+            // The fix's rows and the issue state it settles, as one batch.
+            fix: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["padded-space:node:doorName", "trim"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Fixed padded-space",
+                        fact: {
+                            code: "data.fix-issue",
+                            params: {
+                                issue: "padded-space:node:doorName",
+                                code: "padded-space",
+                                fix: "trim",
+                                count: 1,
+                            },
+                        },
+                        steps: [TRIM_STEP],
+                    },
+                    TRIM_STEP,
+                ],
+            },
+            // The ignored id joins the issue state, as one batch.
+            ignoreIssue: {
+                kind: "dispatches",
+                op: "data.issues",
+                call: {
+                    kind: "call",
+                    args: ["padded-space:node:doorName"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Ignored padded-space:node:doorName",
+                        fact: {
+                            code: "data.ignore-issue",
+                            params: { issue: "padded-space:node:doorName", ignored: true },
+                        },
+                        steps: [IGNORE_STEP],
+                    },
+                    IGNORE_STEP,
+                ],
+            },
             // The rows only that load supplied go, and the load leaves the list, as one batch.
             removeSource: {
                 kind: "dispatches",

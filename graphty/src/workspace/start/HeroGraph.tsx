@@ -20,8 +20,14 @@ export interface HeroSample {
     readonly path: readonly [string, string];
 }
 
-/** Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks. */
-const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" } } as const;
+/**
+ * Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks.
+ * Drawn on demand, as the workspace's element is (issue #1943): paused, hovered or still, the
+ * graph is not drawn again on every animation frame, which on a software GPU held the page's main
+ * thread for tens of milliseconds a frame and made every button on the page slow to answer. The
+ * turning still draws every frame, because a moving camera asks for one.
+ */
+const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" }, rendering: { onDemand: true } } as const;
 
 /**
  * The selection's own halo is hidden: the clicked node is marked by the page's highlight layer

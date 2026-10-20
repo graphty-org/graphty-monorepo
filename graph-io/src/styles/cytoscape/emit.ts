@@ -133,6 +133,23 @@ function enumOut(
 /** Where a node's border sits: Cytoscape's own place for it is inside the node's size, which it always draws. */
 const BORDER_POSITION = "borderPosition";
 
+/**
+ * What Cytoscape always draws and no file can change, per target: where a border sits, and how far its zigzag and
+ * sine-wave strokes swing and how often they repeat (`ding-presentation-impl` `ZigzagStroke`, `SineWaveStroke`).
+ * Nothing is written for them, and any other value is drawn as Cytoscape's.
+ */
+const FIXED: Readonly<Record<"node" | "edge", ReadonlyMap<string, string | number>>> = {
+    node: new Map<string, string | number>([
+        [BORDER_POSITION, "inside"],
+        ["borderWaveAmplitude", 10],
+        ["borderWavePeriod", 20],
+    ]),
+    edge: new Map<string, string | number>([
+        ["waveAmplitude", 10],
+        ["wavePeriod", 20],
+    ]),
+};
+
 const DESKTOP_SHAPES = {
     ellipse: "ELLIPSE",
     rectangle: "RECTANGLE",
@@ -647,9 +664,11 @@ function emitTarget(
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
     for (const [p, values] of truth) {
-        if (p === BORDER_POSITION && target === "node") {
-            // Cytoscape draws every border inside its node's size: nothing to write, and any other position is lost
-            const other = values.filter((v) => v !== null && v !== "inside").length;
+        const fixed = FIXED[target].get(p);
+        if (fixed !== undefined) {
+            // Cytoscape draws every border inside its node's size and every wave alike: nothing to write, and any
+            // other value is lost
+            const other = values.filter((v) => v !== null && v !== fixed).length;
             if (other > 0) {
                 notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: other });
             }
@@ -1318,7 +1337,8 @@ export function cytoscapeWritableProperties(target: StyleTarget, dialect: Cytosc
     return [
         ...WRITERS[dialect][target].keys(),
         ...FONT_PROPS,
-        ...(target === "node" ? [BORDER_POSITION, "labelWrapTrailingSpace"] : ["bendCurve"]),
+        ...FIXED[target].keys(),
+        ...(target === "node" ? ["labelWrapTrailingSpace"] : ["bendCurve"]),
     ];
 }
 

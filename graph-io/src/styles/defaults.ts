@@ -143,6 +143,9 @@ function v<V>(value: V, source: string): ToolDefaultValue<V> {
 
 const CY = "cytoscape-impl vizmap-gui-impl default_vizmap.xml, style default, line";
 const CYL = "cytoscape-api BasicVisualLexicon.java line";
+/** Cytoscape desktop's zigzag and sine-wave strokes: both swing 10 px and repeat every 20 px. */
+const CY_WAVE =
+    "cytoscape-impl ding-presentation-impl 3.10.5 org.cytoscape.ding.impl.strokes: ZigzagStroke (amplitude 10, a turn every 10) and SineWaveStroke (amplitude 10, wavelength 20)";
 const CYJS = "cytoscape.js 3.34.3 dist/cytoscape.cjs.js line";
 const GV = "graphviz.org/docs/attrs";
 const YED_QA = "yEd Q&A, How can I change the default nodes and/or default edges";
@@ -247,6 +250,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderWidth: v(0, `${CY} 350`),
                     borderStyle: v("solid", `${CY} 366`),
                     borderPosition: CYTOSCAPE_BORDER_INSIDE,
+                    borderWaveAmplitude: v(10, CY_WAVE),
+                    borderWavePeriod: v(20, CY_WAVE),
                     labelColor: v("#000000", `${CY} 395`),
                     labelFont: v("DejaVu Sans, sans-serif", `${CY} 370 (SansSerif, drawn in Java's face for it)`),
                     labelWeight: v("normal", `${CY} 370`),
@@ -263,6 +268,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     color: v("#848484", `${CY} 431`),
                     width: v(2, `${CY} 417`),
                     lineStyle: v("solid", `${CY} 438`),
+                    waveAmplitude: v(10, CY_WAVE),
+                    wavePeriod: v(20, CY_WAVE),
                     opacity: v(1, `${CY} 423`),
                     sourceArrow: v("none", `${CY} 437`),
                     targetArrow: v("none", `${CY} 428`),
@@ -295,6 +302,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderColor: v("#000000", `${CYL} 230`),
                     borderWidth: v(2, `${CYL} 54`),
                     borderPosition: CYTOSCAPE_BORDER_INSIDE,
+                    borderWaveAmplitude: v(10, CY_WAVE),
+                    borderWavePeriod: v(20, CY_WAVE),
                     labelColor: v("#000000", `${CYL} 91`),
                     labelFont: v("DejaVu Sans, sans-serif", `${CYL} 255 (SansSerif, drawn in Java's face for it)`),
                     labelWeight: v("normal", `${CYL} 255`),
@@ -311,6 +320,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     color: v("#404040", `${CYL} 469`),
                     width: v(1, `${CYL} 368`),
                     lineStyle: v("solid", `${CYL} 392`),
+                    waveAmplitude: v(10, CY_WAVE),
+                    wavePeriod: v(20, CY_WAVE),
                     sourceArrow: v("none", `${CYL} 487`),
                     targetArrow: v("none", `${CYL} 493`),
                     labelColor: v("#000000", `${CYL} 327`),

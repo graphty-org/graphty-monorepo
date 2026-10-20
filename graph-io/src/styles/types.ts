@@ -212,6 +212,13 @@ export interface NodeStyleValues {
     readonly borderStyle: StyleBorderStyle;
     /** Where the border sits against the node's width and height. */
     readonly borderPosition: StyleBorderPosition;
+    /**
+     * How far a zigzag or sine-wave border swings to either side of the ring's middle (a length; Cytoscape desktop's
+     * strokes swing 10 px). With it, `borderWidth` is the thickness of the waving line.
+     */
+    readonly borderWaveAmplitude: number;
+    /** How far round the node a zigzag or sine-wave border runs before it repeats (a length; Cytoscape's: 20 px). */
+    readonly borderWavePeriod: number;
     /** A second ring's color, drawn outside the border (Cytoscape.js `outline-color`). */
     readonly outerBorderColor: StyleColor;
     /** That ring's width (a length; Cytoscape.js `outline-width`); 0 or absent draws none. */
@@ -480,6 +487,13 @@ export interface EdgeStyleValues {
     readonly arrowPosition: number;
     /** The line style. */
     readonly lineStyle: StyleLineStyle;
+    /**
+     * How far a zigzag or sine-wave line swings to either side of its path (a length; Cytoscape desktop's strokes
+     * swing 10 px). With it, `width` is the thickness of the waving line.
+     */
+    readonly waveAmplitude: number;
+    /** How far along its path a zigzag or sine-wave line runs before it repeats (a length; Cytoscape's: 20 px). */
+    readonly wavePeriod: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */

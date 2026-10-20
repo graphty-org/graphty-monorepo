@@ -18,12 +18,16 @@
             "labelWrapWidth": 200,
             "labelWrapTrailingSpace": true,
             "labelPosition": "center",
-            "borderPosition": "inside"
+            "borderPosition": "inside",
+            "borderWaveAmplitude": 10,
+            "borderWavePeriod": 20
         },
         "edge": {
             "color": "#848484",
             "width": 2,
             "lineStyle": "solid",
+            "waveAmplitude": 10,
+            "wavePeriod": 20,
             "opacity": 1,
             "sourceArrow": "none",
             "targetArrow": "none",
@@ -65,12 +69,16 @@
             "labelWrapWidth": 200,
             "labelWrapTrailingSpace": true,
             "labelPosition": "center",
-            "borderPosition": "inside"
+            "borderPosition": "inside",
+            "borderWaveAmplitude": 10,
+            "borderWavePeriod": 20
         },
         "edge": {
             "color": "#404040",
             "width": 1,
             "lineStyle": "solid",
+            "waveAmplitude": 10,
+            "wavePeriod": 20,
             "sourceArrow": "none",
             "targetArrow": "none",
             "labelColor": "#000000",

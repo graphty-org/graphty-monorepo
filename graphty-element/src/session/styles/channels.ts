@@ -321,6 +321,7 @@ export interface ChannelValues {
     "node.labelOutlineOpacity": number;
     "node.labelBorderOpacity": number;
     "node.labelPadding": number;
+    "node.labelCornerRadius": number;
     "node.labelLineHeight": number;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
@@ -511,6 +512,7 @@ export interface ChannelValues {
     "edge.labelOutlineOpacity": number;
     "edge.labelBorderOpacity": number;
     "edge.labelPadding": number;
+    "edge.labelCornerRadius": number;
     "edge.labelLineHeight": number;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
@@ -1015,7 +1017,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1040,6 +1042,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     OutlineOpacity: "outlineOpacity",
     BorderOpacity: "borderOpacity",
     Padding: "boxPadding",
+    CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
@@ -1251,6 +1254,13 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "line box on every side, in pixels of the label drawn at its own size (`labelSize`); 0 puts the " +
                 "border against the words. Unset, the label style's margins and padding decide.",
         }),
+        row("CornerRadius", "Corner Radius", {
+            accepts: "number",
+            min: 0,
+            caveat:
+                "How far the corners of the panel behind the label's words are rounded, in pixels of the label " +
+                "drawn at its own size (`labelSize`). Unset, square corners.",
+        }),
         row("LineHeight", "Line Height", {
             accepts: "number",
             min: 0,
@@ -1307,6 +1317,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     OutlineOpacity: "textOutlineOpacity",
     BorderOpacity: "borderOpacity",
     Padding: "boxPadding",
+    CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
@@ -1362,7 +1373,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
             channel,
         );
 

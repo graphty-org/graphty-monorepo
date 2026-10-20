@@ -190,6 +190,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelOutlineOpacity",
                         "node.labelBorderOpacity",
                         "node.labelPadding",
+                        "node.labelCornerRadius",
                         "node.labelLineHeight",
                         "node.labelOffsetX",
                         "node.labelOffsetY",

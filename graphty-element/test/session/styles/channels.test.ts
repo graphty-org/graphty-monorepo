@@ -52,6 +52,7 @@ const DECLARED = [
     "node.labelOutlineOpacity",
     "node.labelBorderOpacity",
     "node.labelPadding",
+    "node.labelCornerRadius",
     "node.labelLineHeight",
     "node.labelOffsetX",
     "node.labelOffsetY",
@@ -246,6 +247,7 @@ const DECLARED = [
     "edge.labelOutlineOpacity",
     "edge.labelBorderOpacity",
     "edge.labelPadding",
+    "edge.labelCornerRadius",
     "edge.labelLineHeight",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
@@ -277,9 +279,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventeen node channels and one hundred and nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 117);
-        assert.strictEqual(channelsFor("edge").length, 109);
+    it("splits into one hundred and eighteen node channels and one hundred and ten edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 118);
+        assert.strictEqual(channelsFor("edge").length, 110);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -609,6 +611,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOutlineOpacity",
         "node.labelBorderOpacity",
         "node.labelPadding",
+        "node.labelCornerRadius",
         "node.labelLineHeight",
         "node.labelOffsetX",
         "node.labelOffsetY",
@@ -619,6 +622,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOutlineOpacity",
         "node.labelBorderOpacity",
         "node.labelPadding",
+        "node.labelCornerRadius",
         "node.labelLineHeight",
         "node.labelOffsetX",
         "node.labelOffsetY",
@@ -647,6 +651,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOutlineOpacity",
         "edge.labelBorderOpacity",
         "edge.labelPadding",
+        "edge.labelCornerRadius",
         "edge.labelLineHeight",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
@@ -657,6 +662,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOutlineOpacity",
         "edge.labelBorderOpacity",
         "edge.labelPadding",
+        "edge.labelCornerRadius",
         "edge.labelLineHeight",
         "edge.labelOffsetX",
         "edge.labelOffsetY",

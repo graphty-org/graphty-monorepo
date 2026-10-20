@@ -284,6 +284,7 @@ export interface AnimationOptions {
     format?: "webm" | "mp4" | "auto";
     fps?: number;
     height?: number;
+    tour?: readonly string[];
     transparentBackground?: boolean;
     videoBitrate?: number;
     width?: number;

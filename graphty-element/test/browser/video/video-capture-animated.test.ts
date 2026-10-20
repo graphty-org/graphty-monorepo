@@ -276,4 +276,46 @@ describe("Video Capture - Animated vs Stationary Comparison", () => {
 
         graph.dispose();
     });
+
+    test("a tour flies through named views", async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 800;
+        canvas.height = 600;
+        const graph = new Graph(canvas);
+        await graph.init();
+
+        const result = await graph.captureAnimation({
+            duration: 1000,
+            fps: 30,
+            cameraMode: "animated",
+            tour: ["topView", "frontView", "isometric"],
+        });
+
+        assert.ok(result.blob instanceof Blob);
+        assert.equal(result.metadata.fps, 30);
+
+        graph.dispose();
+    });
+
+    test("a tour refuses a view nothing answers to", async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 800;
+        canvas.height = 600;
+        const graph = new Graph(canvas);
+        await graph.init();
+
+        let code: unknown;
+        try {
+            await graph.captureAnimation({
+                duration: 1000,
+                cameraMode: "animated",
+                tour: ["topView", "no-such-view"],
+            });
+        } catch (error) {
+            ({ code } = error as { code?: unknown });
+        }
+        assert.equal(code, "E_UNKNOWN_CAMERA");
+
+        graph.dispose();
+    });
 });

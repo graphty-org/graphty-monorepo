@@ -4962,8 +4962,9 @@ export class Graph implements GraphContext {
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
+        const cameraPath = options.tour ? this.tourPath(options.tour, options.duration) : options.cameraPath;
         // Validate cameraPath is provided
-        if (!options.cameraPath || options.cameraPath.length < 2) {
+        if (!cameraPath || cameraPath.length < 2) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
         }
 
@@ -4982,7 +4983,7 @@ export class Graph implements GraphContext {
         });
 
         // Create animations from waypoints
-        animator.createCameraAnimations(options.cameraPath);
+        animator.createCameraAnimations(cameraPath);
 
         // Start recording and animation simultaneously
         const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
@@ -4999,6 +5000,30 @@ export class Graph implements GraphContext {
         this.handleVideoDownload(result, options);
 
         return result;
+    }
+
+    /**
+     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
+     * duration split evenly between the legs.
+     * @param names - Camera view ids or saved view names, in order.
+     * @param duration - The whole tour, in milliseconds.
+     * @returns The waypoints.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
+     */
+    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
+        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
+        return names.map((name, index) => {
+            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
+            if (!position || !target) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `the view "${name}" has no camera position and target to fly to`,
+                    source: "view",
+                    details: { view: name },
+                });
+            }
+            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
+        });
     }
 
     /**

@@ -96,6 +96,8 @@ export interface CxStyleSource {
     readonly otherViews?: number;
     /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
     readonly weightFrom?: string | null;
+    /** Whether the file is a collection (it has `cySubNetworks`), whose elements desktop creates in list order. */
+    readonly collection?: boolean;
 }
 
 /** What a CX2 import keeps for its styles. */
@@ -190,6 +192,55 @@ function keptWeights(snapshot: GraphSnapshot, weightFrom: string | null): Explic
 }
 
 /**
+ * Where a Java `HashMap<Long, ...>` holding these keys (inserted in this order) iterates each, first at 0: its
+ * buckets in order (the key's `Long.hashCode` spread by `HashMap.hash`, masked by a capacity grown from 16 until the
+ * keys fill at most three quarters of it), each bucket in insertion order. Null when a key is not a non-negative
+ * integer (or its digits).
+ * @param ids - the keys, in insertion order
+ * @returns each key's rank, by insertion index, or null
+ */
+function javaHashOrder(ids: readonly unknown[]): number[] | null {
+    // an id read as text under the `ids` option is still the file's integer
+    const keys = ids.map((k) => (typeof k === "string" && /^\d{1,15}$/.test(k) ? Number(k) : k));
+    if (!keys.every((k) => typeof k === "number" && Number.isSafeInteger(k) && k >= 0)) {
+        return null;
+    }
+    let capacity = 16;
+    while (keys.length > 0.75 * capacity) {
+        capacity *= 2;
+    }
+    const bucket = (k: number): number => {
+        // (int) (v ^ (v >>> 32)), then h ^ (h >>> 16)
+        const h = ((k % 2 ** 32) ^ Math.floor(k / 2 ** 32)) >>> 0;
+        return (h ^ (h >>> 16)) & (capacity - 1);
+    };
+    const order = keys.map((_, i) => i).sort((a, b) => bucket(keys[a] as number) - bucket(keys[b] as number) || a - b);
+    const rank = new Array<number>(keys.length);
+    order.forEach((i, r) => {
+        rank[i] = r;
+    });
+    return rank;
+}
+
+/**
+ * The order Cytoscape desktop creates a CX graph's nodes and edges in when it creates them in hash order: its CX
+ * reader files them in `HashMap`s keyed by their ids and creates them as those iterate (`NiceCyRootNetwork.handleNodes`,
+ * `addElements`, cx-support 2.8.4), which decides the side it fans parallel edges to. Null when an id is not an
+ * integer or an edge has no id.
+ * @param snapshot - the graph
+ * @returns each node's and edge's rank, or null
+ */
+function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<CytoscapeElements["ends"]>["created"] | null {
+    const ids = snapshot.edges.byRole("id");
+    if (ids === null) {
+        return null;
+    }
+    const node = javaHashOrder(Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.ids.idOf(i)));
+    const edge = javaHashOrder(Array.from({ length: snapshot.edgeCount }, (_, i) => ids.value(i)));
+    return node === null || edge === null ? null : { node, edge };
+}
+
+/**
  * The styles of a graph from its Cytoscape style and its bypass columns.
  * @param snapshot - the graph
  * @param context - the budget and cancel signal
@@ -197,7 +248,10 @@ function keptWeights(snapshot: GraphSnapshot, weightFrom: string | null): Explic
  * @param namespace - the importer's bypass namespace
  * @param notes - where problems are noted
  * @param dialect - the Cytoscape dialect the file is written in
- * @param weightFrom - the edge attribute the import read as the weight, or null
+ * @param read - what the import read: the edge attribute it read as the weight (`weightFrom`, or null), and whether
+ * Cytoscape desktop creates the file's elements in hash order (`hashOrder`: a CX version 1 file without subnetworks)
+ * @param read.weightFrom - the weight attribute, or null
+ * @param read.hashOrder - whether desktop creates the elements in hash order
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -207,8 +261,10 @@ export function readDeclaredStyles(
     namespace: string,
     notes: StyleNotes,
     dialect: CytoscapeDialect = "desktop",
-    weightFrom: string | null = null,
+    read: { readonly weightFrom?: string | null; readonly hashOrder?: boolean } = {},
 ): ImporterStyles {
+    const weightFrom = read.weightFrom ?? null;
+    const created = read.hashOrder === true ? (hashCreationOrder(snapshot) ?? undefined) : undefined;
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
     for (const target of ["node", "edge"] as const) {
@@ -228,11 +284,13 @@ export function readDeclaredStyles(
                 return table.has(column) ? plainCell(table.value(column, i)) : null;
             },
             bypasses: maps,
-            ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
+            ...(target === "edge"
+                ? { ends: { ...edgeEnds(snapshot, out.node.values), ...(created === undefined ? {} : { created }) } }
+                : {}),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
         // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
-        exactFromBlock(snapshot, target, values, dialect);
+        exactFromBlock(snapshot, target, values, dialect, created);
         const { rules, columns } = cytoscapeRules(target, style, elements, { notes, budget: context.budget });
         out[target] = { values: nonEmpty(values), rules, columns };
     }
@@ -268,7 +326,10 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
             count: otherViews,
         });
     }
-    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes, "desktop", kept?.weightFrom ?? null);
+    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes, "desktop", {
+        weightFrom: kept?.weightFrom ?? null,
+        hashOrder: kept?.collection !== true,
+    });
 }
 
 /**

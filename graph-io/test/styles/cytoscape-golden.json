@@ -460,12 +460,9 @@
             "edge": {
                 "color": [["#848484", 4]],
                 "curved": [
-                    [true, 3],
-                    [false, 1]
-                ],
-                "fanSpacing": [
-                    [37.5, 3],
-                    [null, 1]
+                    [true, 1],
+                    [false, 1],
+                    [true, 2]
                 ],
                 "labelColor": [["#000000", 4]],
                 "labelFont": [["DejaVu Sans, sans-serif", 4]],
@@ -482,7 +479,18 @@
                 "width": [[2, 4]],
                 "arrowSize": [[1, 4]],
                 "labelWrapWidth": [[200, 4]],
-                "labelOpacity": [[1, 4]]
+                "labelOpacity": [[1, 4]],
+                "bends": [
+                    ["0.5,0.431006", 1],
+                    [null, 1],
+                    ["0.5,0.431006", 1],
+                    ["0.5,0.862012", 1]
+                ],
+                "bendCurve": [
+                    ["bezier", 1],
+                    [null, 1],
+                    ["bezier", 2]
+                ]
             },
             "background": "#ffffff"
         },
@@ -1017,11 +1025,6 @@
                     [true, 1],
                     [false, 198]
                 ],
-                "fanSpacing": [
-                    [null, 14],
-                    [30, 1],
-                    [null, 198]
-                ],
                 "labelColor": [["#000000", 213]],
                 "labelFont": [["DejaVu Sans, sans-serif", 213]],
                 "labelItalic": [[false, 213]],
@@ -1063,7 +1066,17 @@
                 "width": [[1, 213]],
                 "arrowSize": [[1, 213]],
                 "labelWrapWidth": [[200, 213]],
-                "labelOpacity": [[1, 213]]
+                "labelOpacity": [[1, 213]],
+                "bends": [
+                    [null, 14],
+                    ["0.5,-0.589738", 1],
+                    [null, 198]
+                ],
+                "bendCurve": [
+                    [null, 14],
+                    ["bezier", 1],
+                    [null, 198]
+                ]
             },
             "background": "#ffffff"
         },
@@ -1288,9 +1301,12 @@
                 "bends": [
                     [null, 2],
                     ["0.3263,-0.0022 0.3263,-0.0022 0.3236,-0.4002 0.3236,-0.4002 0.8962,-0.4041 0.8962,-0.4041", 1],
-                    [null, 18],
+                    [null, 17],
+                    ["0.5,-0.152836", 1],
                     ["0.0708,-0.0695 0.466,0.0502 0.886,0.1179", 1],
-                    [null, 19],
+                    [null, 15],
+                    ["0.5,0.521414", 1],
+                    [null, 3],
                     ["0.9105,0.2854 0.9105,0.2854", 1],
                     [null, 6]
                 ],
@@ -1298,22 +1314,13 @@
                 "curved": [
                     [false, 2],
                     [true, 1],
-                    [false, 16],
+                    [false, 17],
+                    [true, 2],
+                    [false, 15],
                     [true, 1],
-                    [false, 1],
-                    [true, 1],
-                    [false, 9],
-                    [true, 1],
-                    [false, 9],
+                    [false, 3],
                     [true, 1],
                     [false, 6]
-                ],
-                "fanSpacing": [
-                    [null, 19],
-                    [28.5, 1],
-                    [null, 11],
-                    [26.73485, 1],
-                    [null, 16]
                 ],
                 "labelColor": [["#000000", 48]],
                 "labelFont": [["DejaVu Sans, sans-serif", 48]],
@@ -1359,7 +1366,14 @@
                 "width": [[1, 48]],
                 "arrowSize": [[1, 48]],
                 "labelWrapWidth": [[200, 48]],
-                "labelOpacity": [[1, 48]]
+                "labelOpacity": [[1, 48]],
+                "bendCurve": [
+                    [null, 20],
+                    ["bezier", 1],
+                    [null, 16],
+                    ["bezier", 1],
+                    [null, 10]
+                ]
             },
             "background": "#ffffff"
         },
@@ -2916,32 +2930,19 @@
                     ["#0099ff", 1]
                 ],
                 "curved": [
-                    [false, 7],
+                    [false, 14],
                     [true, 1],
-                    [false, 5],
-                    [true, 1],
-                    [false, 2],
+                    [false, 1],
                     [true, 2],
-                    [false, 4],
+                    [false, 1],
                     [true, 1],
-                    [false, 2],
+                    [false, 3],
+                    [true, 1],
+                    [false, 3],
                     [true, 2],
-                    [false, 4],
+                    [false, 2],
                     [true, 3],
                     [false, 1]
-                ],
-                "fanSpacing": [
-                    [null, 7],
-                    [30, 1],
-                    [null, 5],
-                    [30, 1],
-                    [null, 3],
-                    [30, 1],
-                    [null, 4],
-                    [30, 1],
-                    [null, 2],
-                    [30, 2],
-                    [null, 8]
                 ],
                 "labelColor": [["#000000", 35]],
                 "labelFont": [["DejaVu Sans, sans-serif", 35]],
@@ -3018,9 +3019,19 @@
                 "width": [[1, 35]],
                 "arrowSize": [[1, 35]],
                 "bends": [
-                    [null, 16],
-                    ["-3.025,0 0,5.1857", 1],
                     [null, 14],
+                    ["0.5,0.088549", 1],
+                    [null, 1],
+                    ["-3.025,0 0,5.1857", 1],
+                    ["0.5,-0.178871", 1],
+                    [null, 1],
+                    ["0.5,0.128926", 1],
+                    [null, 3],
+                    ["0.5,0.206336", 1],
+                    [null, 3],
+                    ["0.5,0.115056", 1],
+                    ["0.5,-0.178871", 1],
+                    [null, 2],
                     ["-5.0417,0 0,8.6429", 1],
                     ["-4.0333,0 0,6.9143", 1],
                     ["-3.025,0 0,5.1857", 1],
@@ -3040,6 +3051,19 @@
                     [null, 10],
                     [0.25, 2],
                     [null, 12]
+                ],
+                "bendCurve": [
+                    [null, 14],
+                    ["bezier", 1],
+                    [null, 2],
+                    ["bezier", 1],
+                    [null, 1],
+                    ["bezier", 1],
+                    [null, 3],
+                    ["bezier", 1],
+                    [null, 3],
+                    ["bezier", 2],
+                    [null, 6]
                 ]
             },
             "background": "#ffffff"
@@ -3105,7 +3129,7 @@
                 "fillOpacity": [[1, 47]],
                 "height": [[40, 47]],
                 "label": [
-                    ["(\u2212)-nicotine", 1],
+                    ["(−)-nicotine", 1],
                     ["Liver Injury", 1],
                     ["Binding of inhibitor, NADH-ubiquinone oxidoreductase (complex I)", 1],
                     ["Decreased, all-trans retinoic acid (atRA) concentration", 1],

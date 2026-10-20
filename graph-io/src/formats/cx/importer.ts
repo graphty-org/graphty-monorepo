@@ -2937,8 +2937,11 @@ class CxReader {
                 return true;
             });
         const { weightFrom } = this.options;
+        const collection = aspect(this.doc, "cySubNetworks").length > 0;
         const source: CxStyleSource =
-            others.size > 0 ? { entries: kept, otherViews: others.size, weightFrom } : { entries: kept, weightFrom };
+            others.size > 0
+                ? { entries: kept, otherViews: others.size, weightFrom, collection }
+                : { entries: kept, weightFrom, collection };
         this.report.keepForStyles(source);
     }
 

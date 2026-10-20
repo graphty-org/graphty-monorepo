@@ -19,6 +19,7 @@ import { type CytoscapeStyle, emptyCytoscapeStyle } from "../../styles/cytoscape
 import {
     cytoscapeBackground,
     type CytoscapeBypass,
+    type CytoscapeElements,
     edgeEnds,
     resolveCytoscapeBypasses,
 } from "../../styles/cytoscape/resolve.js";
@@ -255,12 +256,14 @@ export function readXgmmlFileStyles(snapshot: GraphSnapshot, context: StyleReadC
  * @param target - nodes or edges
  * @param values - the values per property, changed in place
  * @param dialect - the Cytoscape dialect the file's values are written in
+ * @param created - the order desktop creates the elements in, when the file is read with it (CX version 1)
  */
 export function exactFromBlock(
     snapshot: GraphSnapshot,
     target: StyleTarget,
     values: Partial<Record<string, StyleColumn>>,
     dialect: CytoscapeDialect = "desktop",
+    created?: NonNullable<CytoscapeElements["ends"]>["created"],
 ): void {
     const text = snapshot.graph.has(STYLE_BLOCK_NAME) ? plainCell(snapshot.graph.value(STYLE_BLOCK_NAME, 0)) : null;
     if (typeof text !== "string") {
@@ -284,11 +287,14 @@ export function exactFromBlock(
         const ends =
             target === "edge"
                 ? {
-                      ends: edgeEnds(snapshot, {
-                          width: block("node", "width"),
-                          height: block("node", "height"),
-                          borderWidth: block("node", "borderWidth"),
-                      }),
+                      ends: {
+                          ...edgeEnds(snapshot, {
+                              width: block("node", "width"),
+                              height: block("node", "height"),
+                              borderWidth: block("node", "borderWidth"),
+                          }),
+                          ...(created === undefined ? {} : { created }),
+                      },
                   }
                 : {};
         const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes(), ...ends });
@@ -309,6 +315,7 @@ const BLOCK_DEFAULTED: ReadonlySet<string> = new Set([
     "fanSpacing",
     "curved",
     "bends",
+    "bendCurve",
     "labelOffsetX",
     "labelOffsetY",
     "labelShiftX",

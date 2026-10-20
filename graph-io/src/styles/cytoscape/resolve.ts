@@ -86,6 +86,12 @@ export interface CytoscapeElements {
         readonly nodeBox?: ArrayLike<readonly [width: number, height: number, border: number] | null>;
         /** Each node's center on screen, x right and y down, by node index: what an edge's label is placed by. */
         readonly nodeAt?: ArrayLike<readonly [x: number, y: number] | null>;
+        /**
+         * The order Cytoscape desktop creates the file's nodes and edges in, when it is not the file's (its CX reader
+         * creates them in hash order): each element's rank, lower first, by index. With it, `nodeAt` and `nodeSize`,
+         * each fanned edge is given desktop's own anchor as its bend, so it bows to the side desktop draws it on.
+         */
+        readonly created?: { readonly node: ArrayLike<number>; readonly edge: ArrayLike<number> };
     };
 }
 
@@ -872,10 +878,15 @@ function straightenBendless(
     const haystack = (i: number): boolean =>
         String(one(EDGE_STACKING_VP, rawText, "fanned", i) ?? "").toUpperCase() === "HAYSTACK";
     const fanned = new Set<number>();
+    // each fanned edge's place in its pair's walk (1 for the first fanned)
+    const place = new Map<number, number>();
     if (ends !== undefined) {
         // desktop walks a node pair's edges newest first (its adjacency lists take each new edge at the head)
-        const first = new Map<string, number>();
-        for (let i = curved.length - 1; i >= 0; i--) {
+        const first = new Map<string, { f: number; k: number }>();
+        const created = ends.created?.edge;
+        const walk = Array.from({ length: curved.length }, (_, i) => i);
+        walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
+        for (const i of walk) {
             const [s, t] = [ends.source[i], ends.target[i]];
             if (s === t || haystack(i)) {
                 continue;
@@ -883,9 +894,11 @@ function straightenBendless(
             const key = s < t ? `${s},${t}` : `${t},${s}`;
             const f = first.get(key);
             if (f === undefined) {
-                first.set(key, i);
-            } else if (!bent(f)) {
+                first.set(key, { f: i, k: 0 });
+            } else if (!bent(f.f)) {
+                f.k++;
                 fanned.add(i);
+                place.set(i, f.k);
             }
         }
     }
@@ -912,6 +925,60 @@ function straightenBendless(
         const density = Math.min(1, typeof read === "number" ? read : EDGE_STACKING_DENSITY_DEFAULT);
         return size * density;
     });
+    fanAnchors(out, ends, place);
+}
+
+/**
+ * Gives each fanned edge its place in desktop's fan as a bend, when the order desktop created the nodes in is known:
+ * the fan's side is then desktop's, not graphty's. Desktop measures each pair's fan from the node whose view it made
+ * first, and it makes views newest node first (`DEdgeDetails.getAnchors`: the pair's lower view SUID is its source;
+ * `SimpleNetwork.getNodeList` lists the newest node first); the `k`-th fanned edge bows `ceil(k / 2)` fan spacings
+ * off the middle of the line, to the right of the fan's direction (y down) for odd `k`, to the left for even. The
+ * bend is the control point of a quadratic Bezier whose middle lies there, twice as far off.
+ * @param out - the values per property, with `fanSpacing` set; changed in place
+ * @param ends - the edges' ends, their nodes' centers and creation order
+ * @param place - each fanned edge's place in its pair's walk, from 1
+ */
+function fanAnchors(
+    out: Partial<Record<string, StyleColumn>>,
+    ends: NonNullable<CytoscapeElements["ends"]>,
+    place: ReadonlyMap<number, number>,
+): void {
+    const { created, nodeAt, source, target } = ends;
+    const spacing = out.fanSpacing?.slice();
+    if (created === undefined || nodeAt === undefined || spacing === undefined) {
+        return;
+    }
+    const bends = out.bends?.slice() ?? new Array<StyleValue | null>(source.length).fill(null);
+    const bendCurve = out.bendCurve?.slice() ?? new Array<StyleValue | null>(source.length).fill(null);
+    let changed = false;
+    for (const [i, k] of place) {
+        const [s, t] = [source[i], target[i]];
+        const [ps, pt, f] = [nodeAt[s], nodeAt[t], spacing[i]];
+        if (ps === null || ps === undefined || pt === null || pt === undefined || typeof f !== "number") {
+            continue;
+        }
+        const len = Math.hypot(pt[0] - ps[0], pt[1] - ps[1]);
+        if (len === 0) {
+            continue;
+        }
+        // the fan's direction: from the node desktop made a view of first, the one created last
+        const sign = created.node[s] > created.node[t] ? 1 : -1;
+        const [nx, ny] = [(sign * (pt[0] - ps[0])) / len, (sign * (pt[1] - ps[1])) / len];
+        const offset = Math.ceil(k / 2) * (k % 2 === 0 ? 1 : -1) * 2 * f;
+        const [vx, vy] = [offset * ny, -offset * nx];
+        // to the left of source -> target, y up, as a fraction of the length
+        const across = (vx * (pt[1] - ps[1]) - vy * (pt[0] - ps[0])) / (len * len);
+        bends[i] = `0.5,${String(Math.round(across * 1e6) / 1e6 || 0)}`;
+        bendCurve[i] = "bezier";
+        spacing[i] = null;
+        changed = true;
+    }
+    if (changed) {
+        out.bends = bends;
+        out.bendCurve = bendCurve;
+        out.fanSpacing = spacing;
+    }
 }
 
 /**

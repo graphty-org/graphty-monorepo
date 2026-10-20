@@ -28,6 +28,11 @@ describe("the oracle SVG reader on FreeHEP text", () => {
         assert.isBelow(width("", 'font-family="Helvetica"'), width("", 'font-family="DejaVu Sans"') - 5);
     });
 
+    it("measures CX2's generic Sans-serif, which Java has no font of, in Dialog's DejaVu Sans", () => {
+        // cx2-u2os-hierarchy: Cytoscape writes CX2's `sans-serif` as `Sans-serif` and laid it out in DejaVu Sans
+        assert.closeTo(width(FREEHEP, 'font-family="Sans-serif"'), width("", 'font-family="DejaVu Sans"'), 0.5);
+    });
+
     it("measures a Times text of Cytoscape desktop in DejaVu Serif", () => {
         assert.closeTo(width(FREEHEP, 'font-family="Times"'), width("", 'font-family="DejaVu Serif"'), 0.5);
     });

@@ -636,6 +636,9 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     dialog: "DejaVu Sans",
     sansserif: "DejaVu Sans",
     default: "DejaVu Sans",
+    // CX2's generic `sans-serif`, which Java has no font of and draws in Dialog: "Mitochondria " starts 73.0 px left
+    // of its node's middle at 21.38 px in cx2-u2os-hierarchy, half its DejaVu Sans width (146.0 px)
+    "sans-serif": "DejaVu Sans",
     times: "DejaVu Serif",
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",

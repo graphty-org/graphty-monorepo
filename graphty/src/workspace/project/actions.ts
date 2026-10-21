@@ -42,7 +42,7 @@ interface ProjectFileState {
 }
 
 /** Where a file being opened came from. */
-export interface FileSource {
+interface FileSource {
     /** Its handle, where the browser keeps them. */
     handle?: FileSystemFileHandle;
     /** Its Recent projects entry, when opened from there. */

@@ -799,6 +799,7 @@ export function edgeMetricFields(value: MetricValueName): readonly FieldDescript
 
 // @public (undocumented)
 export interface EdgePosition {
+    bends?: readonly number[];
     // (undocumented)
     dst: Position;
     // (undocumented)

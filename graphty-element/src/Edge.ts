@@ -18,6 +18,7 @@ import {
     arcThroughBend,
     bezierThroughControls,
     centerArc,
+    clearOfCaps,
     crossingOf,
     curveThroughMidpoints,
     cutFromEnd,
@@ -826,7 +827,7 @@ export class Edge {
 
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
-        const bent = this.placeLine(src, dst);
+        const bent = this.placeLine(src, dst, lnk.bends);
 
         // Update label position if exists
         if (this.label) {
@@ -845,18 +846,27 @@ export class Edge {
     }
 
     /**
-     * Lay the edge's line between its ends: along its bends, along its bundle's route (a fanned
-     * arc or a self-loop), or straight with its arrow caps.
+     * Lay the edge's line between its ends: along its bends, along the route its layout laid it (Graphviz's
+     * splines), along its bundle's route (a fanned arc or a self-loop), or straight with its arrow caps.
      * @param src - The source end.
      * @param dst - The target end.
+     * @param laid - The bends of the route the layout laid, if it laid one.
      * @returns Whether the line was laid along its bends.
      */
-    private placeLine(src: Vector3, dst: Vector3): boolean {
-        const drawsLine = this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
-        const bent =
-            drawsLine && this.lineBatch !== null && this.lineRoute !== null && this.placeBent(this.lineBatch, src, dst);
-        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
-        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
+    private placeLine(src: Vector3, dst: Vector3, laid?: readonly number[]): boolean {
+        const batch = drawsNoLine(this.drawnStyle) ? null : this.lineBatch;
+        const stored = this.lineRoute;
+        const bent = batch !== null && stored !== null && this.placeBent(batch, src, dst, stored);
+        // ponytail: a patterned line (no batch) keeps its straight line under a laid route
+        const followsLayout =
+            !bent &&
+            batch !== null &&
+            stored === null &&
+            laid !== undefined &&
+            this.srcNode !== this.dstNode &&
+            this.placeBent(batch, src, dst, { bends: [...laid], srcPort: null, dstPort: null, loop: false });
+        const route = !bent && !followsLayout && batch !== null ? this.bundleRoute(src, dst) : null;
+        this.bundled = followsLayout || (route !== null && batch !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
@@ -1941,15 +1951,16 @@ export class Edge {
      * @param batch - The batch the run is in.
      * @param src - The source node's center.
      * @param dst - The target node's center.
+     * @param stored - The route: the style's, or the one the layout laid.
      * @returns False, drawing nothing, when no stored point is outside the nodes (a self-loop whose
      *     points all lie inside its node), so the edge is drawn as it would be without a route.
      */
-    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3): boolean {
-        const stored = this.lineRoute;
-        if (stored === null) {
-            return false;
-        }
-
+    private placeBent(
+        batch: EdgeLineBatch,
+        src: Vector3,
+        dst: Vector3,
+        stored: NonNullable<Edge["lineRoute"]>,
+    ): boolean {
         const line = this.drawnStyle?.line;
         const through = fileRoute(src, dst, stored, this.srcNode.outlineHalfExtents, this.dstNode.outlineHalfExtents);
         const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
@@ -1985,7 +1996,12 @@ export class Edge {
         ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
         const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
         const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
-        const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
+        const mid = clearOfCaps(
+            route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
+            start,
+            end,
+            { start: this.capReach("tail"), end: this.capReach("head") },
+        );
         const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
         const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
 
@@ -2002,6 +2018,24 @@ export class Edge {
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
         return true;
+    }
+
+    /**
+     * How near one end of a bent line its route may not pass: half the length of the arrow cap drawn
+     * there, so the cap points along the route it covers ({@link clearOfCaps}); 0 without a cap at the end.
+     * @param end - Which end.
+     * @returns The distance, in scene units.
+     */
+    private capReach(end: "head" | "tail"): number {
+        const [cap, arrow] =
+            end === "head"
+                ? [this.arrowCap, this.currentStyle.arrowHead]
+                : [this.arrowTailCap, this.currentStyle.arrowTail];
+        if (!cap || arrow?.type === undefined || arrow.type === "none" || (arrow.position ?? 0) > 0) {
+            return 0;
+        }
+
+        return (EdgeMesh.calculateArrowLength() * (arrow.size ?? 1)) / 2;
     }
 
     /**

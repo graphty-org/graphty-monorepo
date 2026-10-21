@@ -5,12 +5,13 @@
  */
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { graphvizPosBends } from "@graphty/graph-io/dot";
 import { assert, describe, it, vi } from "vitest";
 
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { fromJson } from "../../src/layout/graphviz/fromJson";
+import { edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { toDot } from "../../src/layout/graphviz/toDot";
@@ -82,8 +83,8 @@ describe("the DOT the element hands Graphviz", () => {
         assert.include(dot, "n0 [width=2];", "the element's node size, in inches");
         assert.include(dot, "n1 [width=1];", "an unknown size takes the default");
         assert.include(dot, "n2 [width=1];", "a zero size takes the default");
-        assert.strictEqual(dot.match(/n0 -> n1;/g)?.length, 2, "the parallel edge is kept");
-        assert.include(dot, "n2 -> n0;");
+        assert.strictEqual(dot.match(/n0 -> n1 \[id="e\d+"\];/g)?.length, 2, "the parallel edge is kept");
+        assert.match(dot, /n2 -> n0 \[id="e\d+"\];/, "each edge named by its row");
     });
 
     it("writes a node with two different sides as a box that size, and leaves a group's row out as a node", () => {
@@ -92,7 +93,7 @@ describe("the DOT the element hands Graphviz", () => {
         assert.include(dot, "n0 [shape=box, width=3, height=1.5];", "a wide node is a box its own size");
         assert.include(dot, "n1 [width=1];", "a node as tall as it is wide stays a circle");
         assert.notMatch(dot, /\bn2\b/, "a group's row and its edges are not handed over as a node");
-        assert.strictEqual(dot.match(/n0 -> n1;/g)?.length, 2);
+        assert.strictEqual(dot.match(/n0 -> n1 \[id="e\d+"\];/g)?.length, 2);
     });
 
     it("writes each group as a cluster of its members, a group inside a group nested in it", () => {
@@ -142,7 +143,7 @@ describe("the DOT the element hands Graphviz", () => {
         const dot = toDot(graph(false, [["a", "b"]]), { label: 'say "hi"\nthere' });
 
         assert.match(dot, /^graph G \{/);
-        assert.include(dot, "n0 -- n1;");
+        assert.match(dot, /n0 -- n1 \[id="e\d+"\];/);
         assert.include(dot, 'label="say \\"hi\\"\\nthere"');
     });
 });
@@ -178,6 +179,75 @@ describe("Graphviz's json read back", () => {
             assert.isTrue(a.every((v) => Number.isFinite(v)));
             assert.deepEqual(Array.from(a), Array.from(fromJson(second.json, snapshot.nodeCount)));
         }
+    });
+});
+
+describe("the routes Graphviz lays read back", () => {
+    /**
+     * Each edge row's ends.
+     * @param snapshot - the graph
+     * @returns the rows' ends
+     */
+    function rows(snapshot: GraphSnapshot): { src: number; dst: number }[] {
+        const { src, dst } = snapshot.edgeList();
+        return Array.from(src, (s, e) => ({ src: s, dst: dst[e] }));
+    }
+
+    // a -> c has to go round b, which dot puts on the rank between them
+    const ROUND_B: readonly (readonly [string, string])[] = [
+        ["a", "b"],
+        ["b", "c"],
+        ["a", "c"],
+    ];
+
+    it("reads each edge's spline as bends between its nodes, and none for an edge dot draws straight", async () => {
+        const snapshot = graph(true, ROUND_B);
+        const edges = rows(snapshot);
+        const reply = await layout(toDot(snapshot, {}), "dot");
+
+        assert.isTrue(reply.ok);
+        const bends = reply.ok ? edgeBends(reply.json, edges, graphvizPosBends) : new Map<number, string>();
+        const roundB = edges.findIndex(({ src, dst }) => src === 0 && dst === 2);
+        assert.deepEqual([...bends.keys()], [roundB], "only the edge round b is routed");
+        const pairs = (bends.get(roundB) ?? "").split(" ").map((pair) => pair.split(",").map(Number));
+        assert.isAbove(Math.max(...pairs.map(([, across]) => Math.abs(across))), 0.05, "it bows off the line");
+    });
+
+    it("reads no route when the graph asks for straight lines (splines=false)", async () => {
+        const snapshot = graph(true, ROUND_B);
+        const reply = await layout(toDot(snapshot, { splines: "false" }), "dot");
+
+        assert.isTrue(reply.ok);
+        assert.deepEqual([...(reply.ok ? edgeBends(reply.json, rows(snapshot), graphvizPosBends) : [])], []);
+    });
+
+    it("maps a route back by the edge's name, never by Graphviz's own order", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            edges: [
+                { id: "e1", pos: "e,100,0 0,0 30,40 70,40 100,0" },
+                { id: "e7", pos: "0,0 30,40 70,40 100,0" },
+                { pos: "0,0 30,40 70,40 100,0" },
+            ],
+        });
+        const seen: string[] = [];
+        const bends = edgeBends(
+            json,
+            [
+                { src: 1, dst: 0 },
+                { src: 0, dst: 1 },
+            ],
+            (source, target, pos) => {
+                seen.push(`${String(source)}|${String(target)}|${pos}`);
+                return "0.5,0.3";
+            },
+        );
+
+        assert.deepEqual([...bends], [[1, "0.5,0.3"]]);
+        assert.deepEqual(seen, ["0,0|100,0|e,100,0 0,0 30,40 70,40 100,0"]);
     });
 });
 

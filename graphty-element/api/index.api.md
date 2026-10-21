@@ -1047,6 +1047,7 @@ export interface EdgeGenericEvent {
 
 // @public (undocumented)
 export interface EdgePosition {
+    bends?: readonly number[];
     // (undocumented)
     dst: Position;
     // (undocumented)

@@ -48,6 +48,11 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+    /**
+     * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
+     * pairs, flat, as `line.bends` holds them. A route the edge's style stores wins over it.
+     */
+    bends?: readonly number[];
 }
 
 /**

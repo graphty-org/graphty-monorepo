@@ -11,6 +11,7 @@ describe("the dot subpath entry", () => {
             "DOT_STYLE_CAPABILITIES",
             "dotExporter",
             "dotImporter",
+            "graphvizPosBends",
         ]);
         expect(dot.dotImporter.format).toBe("dot");
         expect(dot.dotExporter.format).toBe("dot");

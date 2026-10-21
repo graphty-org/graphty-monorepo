@@ -132,6 +132,32 @@ describe("Graphviz layouts in the element", () => {
         assert.isBelow(b.x, c.x);
     });
 
+    it("draws each edge along the route dot laid it, and an edge dot drew straight as one segment", async () => {
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        // a -> c goes round b, which dot puts on the rank between them
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "a", dst: "c" },
+        ]);
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edges = [...graph.getDataManager().edges.values()];
+        const curve = (src: string, dst: string): { x: number; y: number }[] | null =>
+            edges.find((e) => e.srcId === src && e.dstId === dst)?.drawnCurve ?? null;
+        assert.isNull(curve("a", "b"), "a straight edge stays one segment");
+        const routed = curve("a", "c");
+        assert.isNotNull(routed, "the routed edge is drawn through its route");
+        const [a, c] = [at("a"), at("c")];
+        const length = Math.hypot(c.x - a.x, c.y - a.y);
+        const off = Math.max(
+            ...(routed ?? []).map((p) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length),
+        );
+        assert.isAbove(off / length, 0.05, "it bows off the line between its nodes, round b");
+    });
+
     it("draws a DOT file loaded with layout recommended with the engine the file names", async () => {
         const session = graph.getSession();
         await session.data.import(

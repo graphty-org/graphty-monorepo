@@ -3961,3 +3961,57 @@ Still open:
 - vis-network's `repulsion` and `hierarchicalRepulsion` solvers are not modeled: their dynamic edges are drawn straight.
 - A hierarchical layout turns dynamic curves into its direction's static curve (`horizontal` or `vertical`); graph-io
   draws them straight.
+
+## Graphviz's own routes drawn for a DOT file without positions (round 4, 2026-10-21)
+
+A DOT file that stores no positions is laid out by graphty-element with Graphviz's own engine (dot, unless the file
+names another). graphty read back only where Graphviz put the nodes and drew every edge as a straight line between
+them, so each spline Graphviz routes round the nodes in its way, and each orthogonal route of `splines=ortho`, was
+drawn straight: `dot-profile` placed its nodes where Graphviz did (fitted error 0.002 of the diagonal) and still failed
+edge.curve on 18 of 85 edges.
+
+graphty-element now names each edge it hands Graphviz (`id="e<k>"`), reads the route Graphviz lays it from the `-Tjson`
+answer (the edge's `pos`, read into bends by graph-io's new `graphvizPosBends`, the reading a DOT file's stored `pos`
+gets), and draws the edge along it. A layout hands a route to its edges through `EdgePosition.bends` (new, optional,
+`along,across` pairs as `line.bends` holds them), so any layout engine can route its edges; a route the edge's style
+stores wins over it. Two defects this exposed are fixed with it:
+
+- Graphviz draws a straight line (`splines=false`) up to half a point off the line between the two nodes' centers
+  (`dot-real-linux-kernel`'s VFS -> mmap, 0.61 points off a 345-point line). graph-io read that as a bent route; a
+  route within one point of the line is now straight, for a stored `pos` and a laid one alike.
+- graphty hands Graphviz the node shapes it draws only as circles and boxes, so a route can end a hair outside a
+  drawn triangle or pentagon, and the stub from there to the outline turned the arrowhead across the line
+  (`dot-real-depcruise`, four heads measured 1.55 times Graphviz's width). A bent line now drops the route's points
+  that lie under its arrowheads (within half a head's length of the end), so a head points along the route it covers.
+
+Against the programs' drawings (plain and @matched, before -> after):
+
+| sample                   | property        | plain          | @matched       |
+| ------------------------ | --------------- | -------------- | -------------- |
+| dot-profile              | edge.curve      | 67/85 -> 85/85 | 67/85 -> 85/85 |
+| dot-profile              | edge.route      | 39/85 -> 56/85 | 68/85 -> 85/85 |
+| dot-real-depcruise       | edge.curve      | 206/652 -> 650 | 206/652 -> 650 |
+| dot-real-depcruise       | edge.route      | 158/652 -> 522 | 212/652 -> 642 |
+| dot-real-siblings        | edge.curve      | 241/284 -> 283 | 241/284 -> 282 |
+| dot-real-siblings        | edge.route      | 8/284 -> 14    | 245/284 -> 275 |
+| dot-real-crazy           | edge.curve      | 43/49 -> 47    | 43/49 -> 47    |
+| dot-synth-nodes          | edge.curve      | 95/108 -> 106  | 95/108 -> 106  |
+| dot-synth-edges-clusters | edge.curve      | 57/100 -> 81   | 56/100 -> 80   |
+| dot-synth-edges-clusters | label.alongLine | 13/54 -> 27    | 12/54 -> 26    |
+
+No positioned DOT or GML sample moved. Still open, recorded in `oracle-known-failures.json` and, where a floor fell,
+in `lowered` with the reason:
+
+- graphty's Graphviz run lays the nodes out as the shapes graphty draws (no label text, circles and boxes), so where
+  Graphviz's own drawing routes round larger, label-sized or distorted nodes the routes differ: `dot-real-crazy`
+  @matched edge.route 9 -> 8 of 49 (3 edges newly bow where Graphviz drew them nearly straight), and a few edges of
+  `dot-synth-edges-clusters` and of the plain views of `dot-real-depcruise` and `dot-real-siblings`.
+- An edge label hangs from the middle of the route, not where Graphviz placed it (`lp`, which a layout graphty runs
+  does not read): `dot-synth-edges-clusters@matched` label.offLine 21 -> 20 of 54.
+- `dot-synth-nodes` n_hsv2 -> n_pen5: the orthogonal route's last stretch into pen5 is shorter than the arrowhead,
+  and the comparator measures the head across it (edge.arrowWidth 1 of 108).
+- A patterned (dashed or dotted) line keeps its straight line under a laid route.
+- edge.width on `dot-real-crazy` (graphty 0.84 of Graphviz's width, against the fitted positions) is not a route or
+  unit defect: graphty's Graphviz run spaces the nodes about 1.25 times wider than Graphviz's own drawing, in units of
+  the line width, because the nodes graphty hands it are not the nodes Graphviz sized to their labels (node.width
+  20/41). `dot-real-depcruise`'s edge.width passes (652/652).

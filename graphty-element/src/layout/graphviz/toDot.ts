@@ -99,7 +99,8 @@ export function toDot(
         if (skip(src[e]) || skip(dst[e])) {
             continue;
         }
-        lines.push(`n${src[e]} ${arrow} n${dst[e]};`);
+        // each edge is named by its row, so the route Graphviz lays it maps back to it
+        lines.push(`n${src[e]} ${arrow} n${dst[e]} [id="e${e}"];`);
     }
 
     lines.push("}");

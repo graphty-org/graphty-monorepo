@@ -1769,6 +1769,19 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
     if (source === null || target === null) {
         return null;
     }
+    return graphvizPosBends(source, target, pos);
+}
+
+/**
+ * The bends of an edge Graphviz laid, from its `pos` text (`[e,x,y] [s,x,y]` arrow tips, then each spline's
+ * `3n + 1` control points, y up, splines separated by `;`), between the two nodes' centers in the same coordinates.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param pos - the edge's `pos` text
+ * @returns the `bends` value, or null for a straight route or a `pos` that is not a spline
+ * @category Styles
+ */
+export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: string): string | null {
     // the arrow tips of the first spline's start and the last spline's end
     const tip = (spline: string | undefined, flag: "s" | "e"): BendPoint | null => {
         const token = (spline ?? "")
@@ -1793,6 +1806,9 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
     );
     return graphvizRouteBends(source, target, splines, tips);
 }
+
+/** How far off the line between its nodes' centers, in points, a Graphviz route may pass and still be straight. */
+const GRAPHVIZ_STRAIGHT_POINTS = 1;
 
 /** How far apart Graphviz's neato lays the loops on one node, across (x) and along (y) its side, in points. */
 const GRAPHVIZ_LOOP_STEP = { x: 18, y: 9 } as const;
@@ -1891,9 +1907,13 @@ export function graphvizRouteBends(
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
     const length = Math.hypot(dx, dy);
-    const off = Math.max(...points.map(([x, y]) => Math.abs((x - source[0]) * dy - (y - source[1]) * dx)));
-    // a route on the line between the centers is the straight edge it looks like
-    return length > 0 && off / (length * length) > 1e-3 ? canonBends(source, target, points, false) : null;
+    const off =
+        length > 0
+            ? Math.max(...points.map(([x, y]) => Math.abs((x - source[0]) * dy - (y - source[1]) * dx))) / length
+            : 0;
+    // a route on the line between the centers is the straight edge it looks like: Graphviz draws its straight lines
+    // (`splines=false`) up to half a point off that line
+    return off > Math.max(1e-3 * length, GRAPHVIZ_STRAIGHT_POINTS) ? canonBends(source, target, points, false) : null;
 }
 
 /**

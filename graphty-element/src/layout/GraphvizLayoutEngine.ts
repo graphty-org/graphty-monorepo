@@ -2,8 +2,10 @@ import type { F32 } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema, parseOptions } from "../config";
+import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyErrorCode } from "../errors/codes";
+import { parseBends } from "../meshes/edgeRoute";
 import {
     GRAPHVIZ_NODE_BUDGETS,
     GRAPHVIZ_PACKAGE,
@@ -11,9 +13,10 @@ import {
     type GraphvizEngine,
     graphvizLayoutId,
 } from "./graphviz/engines";
-import { fromJson } from "./graphviz/fromJson";
+import { edgeBends, fromJson } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { toDot } from "./graphviz/toDot";
+import type { EdgePosition } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -180,17 +183,18 @@ export function graphvizAttributes(
  * @param options - the parsed options
  * @param groups - the groups the element draws round their members, each with its member rows:
  *     handed over as clusters, not as nodes
- * @returns the coordinates, two per row (NaN for a skipped row)
+ * @returns the coordinates, two per row (NaN for a skipped row), and the bends of each edge Graphviz
+ *     routed off the straight line, by its row in the stored graph
  */
 async function computeWith(
     engine: GraphvizEngine,
     input: SnapshotLayoutInput,
     options: Readonly<Record<string, unknown>>,
     groups: ReadonlyMap<number, readonly number[]>,
-): Promise<F32> {
+): Promise<{ positions: F32; bends: ReadonlyMap<number, string> }> {
     const n = input.graph.nodeCount;
     if (n === 0) {
-        return new Float32Array(0);
+        return { positions: new Float32Array(0), bends: new Map() };
     }
 
     const limit = options.maxNodes as number;
@@ -226,7 +230,37 @@ async function computeWith(
         throw graphvizError(reply.code, reply.params);
     }
 
-    return fromJson(reply.json, n).map((value) => value * scale);
+    // graph-io reads a spline into bends as it does for a file that stores its routes
+    const { graphvizPosBends } = await import("@graphty/graph-io/dot");
+    const { src, dst } = input.stored.edgeList();
+    return {
+        positions: fromJson(reply.json, n).map((value) => value * scale),
+        bends: edgeBends(
+            reply.json,
+            Array.from(src, (s, e) => ({ src: s, dst: dst[e] })),
+            graphvizPosBends,
+        ),
+    };
+}
+
+/**
+ * Which edge each row of the stored graph is: the edges with those ends, taken in the order they
+ * arrived (the stored graph keeps every parallel edge).
+ * @param input - the run's input
+ * @param edges - the edges
+ * @returns the edge of each row, or undefined for a row no edge matches
+ */
+function edgesByRow(input: SnapshotLayoutInput, edges: readonly Edge[]): (Edge | undefined)[] {
+    const { ids } = input.stored;
+    const byEnds = new Map<string, Edge[]>();
+    for (const edge of edges) {
+        const key = `${ids.indexOf(edge.srcId)},${ids.indexOf(edge.dstId)}`;
+        byEnds.set(key, [...(byEnds.get(key) ?? []), edge]);
+    }
+
+    const { src, dst } = input.stored.edgeList();
+    // an undirected graph may store an edge either way round
+    return Array.from(src, (s, e) => byEnds.get(`${s},${dst[e]}`)?.shift() ?? byEnds.get(`${dst[e]},${s}`)?.shift());
 }
 
 /** One engine's layout class: a single-pass snapshot layout, two-dimensional. */
@@ -252,6 +286,8 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         static readonly zodOptionsSchema: OptionsSchema = schema;
         protected readonly dimensions = 2 as const;
         protected readonly options: Readonly<Record<string, unknown>>;
+        /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
+        private routes = new Map<Edge, readonly number[]>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -271,10 +307,33 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             return dimension > 2 ? null : {};
         }
 
-        protected compute(input: SnapshotLayoutInput): Promise<F32> {
+        protected async compute(input: SnapshotLayoutInput): Promise<F32> {
             // A group drawn round its members is placed by the element, not by Graphviz: it is
             // handed over as a cluster of its members, not as a node with room of its own.
-            return computeWith(engine, input, this.options, this.followerGroups);
+            const { positions, bends } = await computeWith(engine, input, this.options, this.followerGroups);
+            // an answer called off for a newer one leaves the newer one's routes
+            if (!input.signal.aborted) {
+                const byRow = edgesByRow(input, this._edges);
+                this.routes = new Map();
+                for (const [row, text] of bends) {
+                    const [edge, pairs] = [byRow[row], parseBends(text)];
+                    if (edge !== undefined && pairs !== null) {
+                        this.routes.set(edge, pairs);
+                    }
+                }
+            }
+            return positions;
+        }
+
+        /**
+         * Where an edge's ends are, and the route Graphviz laid it along when it did not draw it straight.
+         * @param e - the edge
+         * @returns its ends, and its bends when it has a route
+         */
+        override getEdgePosition(e: Edge): EdgePosition {
+            const ends = super.getEdgePosition(e);
+            const bends = this.routes.get(e);
+            return bends === undefined ? ends : { ...ends, bends };
         }
     };
 }

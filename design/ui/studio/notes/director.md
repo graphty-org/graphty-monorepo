@@ -5,46 +5,48 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-21 (tier 3 report, written with round 1 not yet run).
+Last updated: 2026-10-21 (tier 3 round 1 closed; studio stopped at the round cap).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-21) ROUND 1 HAS NOT RUN. 0 sessions, 0 void, 0 Sonnet. Tool dry run 2
-  (`tier3/rounds/round-1/tool-dry-run-2.md`) failed check 6: `bars.mjs` `walkTier2` does
-  `if (!first) continue;`, so axe, names, focus and typing run only at 1440 x 900 while the walked
-  list claims 900 x 700 too. Fix it (with a planted 900 x 700 case) before the gate.
-- (2026-10-21) The tier 3 report text was returned to the orchestrator: the Write tool refuses a
-  subagent writing `tier3/report.md`, as with tier 2. Re-issue it with round 1's tables once the
-  round runs.
-- (2026-10-21) Also before round 1, tool only: give the session browser a normal storage quota
-  (headless reads as a private window; the notice adds 18 words to the first screen); `bars.mjs`
-  holds an idle slot when wrapped; slot waits not first-come; persona files leak stray markup and
-  a study-team note into briefings.
-- (2026-10-21) Gate queue on 758b8e8081: 13 halves lack accepted walks (detours: T38 A/B, T41 B,
-  T43 B, T46 B, T47 A, T49 A, T51 A; T43 A success and detours; keyboard `--keys`: T39 A, T40 A,
-  T47 B, T48 A). Wording: 44 words, 14 phrases shared; keep dataset names on purpose.
-- (2026-10-21) Bars 6 and 8 measured in preflight would fail: light-theme contrast on every
-  screen after the start; scrollable-region-focusable, target-size; Samples/Docs/GitHub names;
-  four screens over word limits. Decided: no fix before round 1 (it cannot pass anyway; a fix
-  restarts the walks). They lead the fix list after it.
-- (2026-10-21) Backlog first item: the drawing moves ~140 px when a key arrives while a selection
-  is held (23 walks). Cause in graphty-element `followSelection` vs `setViewInsets`; target in
-  `decided.md` 2026-10-21.
-- (2026-10-21) Must fix before T42 runs in round 2: a find-box `>` rule makes a raw, uneditable
-  threshold card; `>=` is fine.
-- (2026-10-20) The session-ready bar is narrow on purpose: crash, block, spoiled grading. Read
-  `answers.md` before calling a screen a grading spoil; a refusal then a silent drop is a spoil.
-- (2026-10-20) ONE round only (owner). Round 1 cannot pass (T37, T42, T44 unjudged); its report
-  is held / failed / not scored per bar, never "passed".
+- (2026-10-21) TIER 3 ROUND 1 CLOSED; THE STUDIO STOPPED at the 1-round cap without meeting the
+  bars. Read `tier3/rounds/round-1/insights.md` first. 55 of 56 sessions succeeded; the round is
+  at its ceiling: signal is in cost, routes and problems, not success.
+- (2026-10-21) Bar 5 fails only on the two severity 3 backlog items carried in (the node Fill "+"
+  one-node layer; the folder chain icon painting every cluster one color, reached by 0 sessions).
+  No new severity 3 survived the two skeptics. Bar 1's only F is the grading rule's: `#FFD700` is
+  drawn yellow but `colorWord` names it "gold".
+- (2026-10-21) Fix first, in compact-mantine: `colorWord` returns CSS keywords before hue, so the
+  spoken name and the grade disagree with what is drawn. One shared fix serves grading and
+  screen readers.
+- (2026-10-21) Top design problems (all severity 2): with nothing picked, the Graph inspector's
+  Style tab gives no route to node color (9 sessions); a new style line starts at the value
+  everything already has (Fill `6366F1`, Width 8 with no unit), so it looks broken; nothing marks
+  which rows or nodes a layer paints; color entry is hex first and never says words work.
+- (2026-10-21) Keyboard: inspector F6 stop has no focus ring (WCAG 2.4.7); both "Samples"
+  controls leave focus behind; 30+ Tabs to a sample card. One persona only; cost, not failure.
+- (2026-10-21) Six build defects with repros (see insights): "+" click lost while find list open;
+  one hue-bar click closes the picker; ~130 px move on first color with a selection held (same
+  family as the backlog `followSelection` vs `setViewInsets` jump); "community" filter misses;
+  swatch focus drawn as hex box focus. The wheel-zoom claim is a tool artifact until a 30-notch
+  repro.
+- (2026-10-21) Owed before any next round: `score.mjs` bar 4 start from first steps line after
+  open; criteria decision on CSS keywords inside the asked hue's band; a measure separating
+  avoiding the `<<Layer>>` token from understanding it; read tasks for leading (the answer key
+  names most problems graders cite).
+- (2026-10-21) Still open from before the round: bars 6 and 8 (light-theme contrast,
+  target-size, Samples/Docs/GitHub names, four screens over word limits) lead the fix list; raw
+  `>` threshold card must be fixed before T42 runs.
+- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Do not let a
+  ceiling round read as "the product is easy".
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
 - (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
   unit with the owner's leave. No bypass trailer.
-- Owner items open (nine, all breaking or defaults): unified styles' five pieces, default label
-  size, label font fallback, bare name reads a run, Kelly for 10-19 groups, labels over edges,
-  declutter as undo step, beyond-domain drawing, camera in project file; plus the compact-mantine fold region to confirm (`owner-decisions.md`).
+- Owner items open (nine, all breaking or defaults; `owner-decisions.md`), plus the
+  compact-mantine fold region to confirm.
 
 ## Priorities and values
 
@@ -85,6 +87,12 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-21, round 1 closed, studio stops.** Accepted the skeptic-settled insights as the
+  round's record: no new severity 3; bar 5 held open only by carried-in backlog items; bar 1's F
+  stands under the frozen rule though the reader was right. Reason: changing a frozen rule after
+  seeing results would make the grade mean nothing; the rule question goes to criteria between
+  rounds instead. The next fix list leads with `colorWord` (shared, fixes grade and speech), then
+  bars 6 and 8, then the four severity 2 design problems.
 - **2026-10-21, tier 3 report with round 1 not run.** Reported the state as it is: no bar scored,
   bars 6 and 8 given as "would fail" from preflight measurements, not as a round's result. Did not
   fix the bar 6 and 8 items before round 1: the round cannot pass by plan, a fix changes the build
@@ -165,6 +173,11 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-10-21 (round 1) -- Worked: two independent skeptic checks with a drop/weaken rule; they cut
+  every new severity 3 to 2 and caught a tool artifact (wheel zoom from one synthetic event) and
+  an automation artifact (storage notice). Did not work: tasks whose wording leads (the answer key
+  describes the problems graders cite; "Cube", "clusters" in B prompts) and a success bar on tasks
+  the model always finishes -- 55 of 56 told us little.
 - 2026-10-21 (tier 3 report) -- Worked: checking the round folder and the briefing folders before
   writing (56 briefings, no `01.png` anywhere) so the report did not invent a round. Worked:
   reading `owner-decisions.md` entries for an owner answer before listing them (the number box
@@ -224,6 +237,10 @@ history.
 
 ## Thinking
 
+- **2026-10-21, round 1:** success is saturated with same-model participants, so the next tier's
+  bars should score cost (steps over key, wrong turns, routes) and named problems, not completion.
+  The cheapest high-value fixes are shared ones where the product's words disagree with its
+  drawing (`colorWord`) and where an action gives no visible result (default-valued new lines).
 - **2026-10-21, tier 3 report:** a whole tier of work reached the owner with no round run, and
   the thing holding it back is the instrument again, as at tier 2's end. The tool has now had two
   readiness checks, and each found a bar it claimed to read and did not. Before the next tier,
@@ -253,33 +270,9 @@ history.
   review's findings were rules already written (three walks, keyboard walk, five walk screens)
   that the gate or the walk never checked. When I write a preflight rule, name the script line
   that refuses it and the planted case that proves it, or list it as owed.
-- **2026-10-18, criteria review:** an exit rule that cannot be met is not a rule; everyone just
-  keeps going. "Repeat until nothing new" read as rigor and produced four passes with no stop.
-  An exit test must name what is tolerated (polish, off-path confusion) as well as what is not,
-  and the tolerated part must have a destination (the backlog, the sessions).
-- **2026-10-18, r1-4:** the count fell again (324 to 283) but the severity 3s moved to new places,
-  each next to an earlier fix: "+" waiting at the default (r1-3) made an unset line that cannot
-  take the default; the card opening its list (focus where the next keystroke belongs) made a
-  read-only visit a rewrite. When a fix changes what an untouched control does, pilot the act of
-  only looking at it.
-- **2026-10-18, r1-3:** three passes in, the (a) count falls slowly (490, 366, 324) because each
-  fix group's neighbors grow new defects (Escape in find, "+" starting values, the key insets). The
-  (b) list has not changed since r1-1: the same six questions. The dry run has done its job when
-  the (a) lines are mostly old-build carry-overs; count only lines confirmed on the new build.
-- **2026-10-17, r1-2:** a focus fix moves the defect one keystroke later. Keeping focus in the box
-  after Escape was right, and it made the next click the new failure on twelve tasks. When a fix
-  changes where focus rests, the pilot must walk the next pointer act and the next key from there.
-- **2026-10-17, dry run:** pilots that walk every task by keyboard find the same few defects
-  thirty times. The cost of a defect to the study is its spread, not its severity: one focus rule
-  broke every styling task's success path. Rank fix groups by how many tasks they touch, and pilot
-  the keyboard path before the detours next time.
-- **2026-10-17, criteria review:** each reviewer found a place where a bar could hold while the
-  thing under study was never used (route bar, bar 4 on keys, an unwalked popover). The pattern
-  from tier 2 repeats one level up: a bar measures a proxy, and the proxy drifts from the act. For
-  every bar, ask "what is the cheapest way to pass this without doing the thing?" before freezing.
-- **2026-10-17, unwalked screens:** the experts, the wording check and bar 6 all read only the walk
-  list, so the walk list decides what the study can find. Any task success path that crosses a
-  screen not on it is a blind spot; check each task's key against the walk at every freeze.
+- **2026-10-17..18 (summarized 2026-10-21; full text in git history):** criteria reviews and
+  readiness passes r1-2 to r1-4 kept finding instrument gaps before product gaps; build planted
+  cases from the criteria table, and walk unwalked screens before trusting a bar.
 - **2026-10-11, tier 2 end:** the instrument, not the product, limited what we learned. Simulated
   readers succeed where tasks send them; fixes sat where tasks did not go.
 - **2026-10-12, owner review 1:** the owner judges by interaction consistency, not model fidelity.

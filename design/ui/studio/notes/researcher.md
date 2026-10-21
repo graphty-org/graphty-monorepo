@@ -10,42 +10,38 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-21) Round 1 settled (`tier3/rounds/round-1/insights.md`): no new severity 3 survived
-  the skeptics; bar 5 fails only on the two backlog 3s (by rule). Bar 1's only F (T49 B) is the
-  color table's, not the reader's. Top insights: Graph inspector first (9 sessions, 5 halves); new
-  lines start at the current value; results checked by eye; keyboard focus lost twice; one color
-  table decides grades and spoken names.
-- (2026-10-21) Graders over-rate on one half: every "3" from a single half or a single persona
-  came down to 2 under skeptic check. Ask graders for the behavioral cost (blocked, misread) behind
-  any 3, and count a 3 only with it.
-- (2026-10-21) A synthetic input event is not a real one: one `--wheel 3000` is one clamped notch.
-  Before a gesture defect counts, repro it with real-sized events.
-- (2026-10-21) `score.mjs` bar 4 is wrong on tier 3: it takes the start page's demo as the start,
-  so the sample opening counts as "styled" (printed 3; true median 6; Sam 20 -> 35). Start must be
-  the first steps line after the graph opens. Owed to the tool.
-- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`
-  (r1-s06b): tally grades by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
-- (2026-10-21) The asked-color rule fails a yellow drawing: `colorWord` returns the CSS keyword
-  "gold" for FFD700 before the hue band, while a salmon F16363 is "red". T49 B's only F. A
-  between-rounds criteria question, never a mid-round regrade.
-- (2026-10-21) 11 of the first 56 starts were VOID by one mechanism: `--start` run inside the
-  participant's turn, queued for a browser slot, killed when the turn ended. Starts must run
-  before the participant's turn (the criteria already say so).
-- (2026-10-21) Round 1 is at its ceiling: signal is in cost (steps over key on T40, T43, T46, T50,
-  T51), routes and problems. Read tasks for leading before spending another round on the ceiling.
-- (2026-10-21) Avoidance is not comprehension: 0 of 10 T46/T47 sessions sprang the token trap,
-  yet 6 called `<<Layer>>` jargon. Question 3 needs a measure that separates the two.
-- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only the three items
-  criteria preflight 4 names. Flag again if a later round counts bar 5.
-- (2026-10-20) Pilot "mismatches" are often the key being right and decided.md being wrong-way:
-  the key counts the screen and names the contradiction; never rewrite the key toward decided.md.
-- (2026-10-20) The start page's demo is the first graph the tool records (styles-start.json,
-  first steps lines). Grade from styles.json itself; T49's start is the first line after the
-  sample opens.
-- (2026-10-17) Tier 3 is FIRST USE + STYLING: 56 sessions, 9 first-time personas, every start
-  `empty` (Sam `empty --keys`); core T39, T40, T47, T48.
-- Expert counts are not user evidence; severities are walkthrough judgments. An expert-only
-  severity 3 needs a repro under `repro/` before it counts.
+- (2026-10-21) Tier 3 closed after round 1 at the 1-round safety cap without meeting the bars.
+  Bar 5 fails only on the two backlog 3s (node Fill "+" one-node layer; folder chain icon, 0
+  sessions reached it); bar 1 fails only on T49 B's "gold" F. Neither is new evidence about the
+  reader: before another round, fix the measures, not the sessions.
+- (2026-10-21) A round at its ceiling (55 of 56 succeeded) cannot meet "no severity 3" bars on
+  backlog items it never reaches. Next tier: tasks that route through every open severity 3, or
+  bars that count only what the round can observe.
+- (2026-10-21) Top design insights, all severity 2: Graph inspector looked at first for node color
+  (9 sessions, 5 halves); new style lines start at the current value so adding one looks broken;
+  layer membership checked by eye; keyboard focus lost twice; one color table decides grades and
+  spoken names.
+- (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
+  2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
+- (2026-10-21) Asked-color rule: `colorWord` returns CSS keyword "gold" for FFD700 before the hue
+  band. Decide between tiers whether a keyword inside the asked hue's band passes; never regrade.
+- (2026-10-21) `score.mjs` bar 4 takes the start page's demo as the start (printed 3, true median
+  6). Start = first steps line after the graph opens. Owed to the tool.
+- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
+  by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
+- (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
+  turn: 11 of 56 starts VOID. Starts run before the participant's turn.
+- (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
+  Repro gesture defects with real-sized events before they count.
+- (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
+  it jargon. Question 3 needs a measure that separates the two.
+- (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
+  participant is one model. Read tasks and key for leading before spending sessions.
+- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only those criteria
+  preflight 4 names.
+- (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
+  the screen and names the contradiction; never rewrite the key toward decided.md.
+- Expert counts are not user evidence; an expert-only severity 3 needs a repro under `repro/`.
 - (tier 2 lessons) Step counts must match the key's counting; histories, setups, prompt words and
   the tool's own text all steer behavior -- grep all four before "unprompted".
 
@@ -123,7 +119,15 @@ logged). Their reasons, in short:
 - **2026-10-02 to 10-09 (tier 1, folded):** Real app only; criteria frozen before a round; every
   task walked first; task words never echo the screen; personas validate, never generate features.
 
+- (2026-10-21) Decision: stop tier 3 at round 1 rather than spend sessions on a ceiling. Reason:
+  the remaining bar failures come from the grading rule (gold) and from backlog items no task
+  reaches; more sessions cannot move either.
+
 ## Tried: worked / did not work
+
+- (2026-10-21) Worked: two independent skeptics per insight -- every single-half 3 came down to 2,
+  two build defects were restated or weakened to tool artifacts. Did not work: bars that require
+  "no open severity 3" while no task reaches the backlog 3s; a frozen color rule using CSS keywords.
 
 - 2026-10-21 (round 1 insights) -- Worked: grepping the three grades behind a disputed evidence
   claim instead of picking a skeptic; grepping source for the mechanism a skeptic named; one

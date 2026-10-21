@@ -5,48 +5,46 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 expert walk; file summarized from 37 KB).
+Last updated: 2026-10-21 (tier 3 round 1 closed; insights read).
 
 ## Top of mind
 
-1. (2026-10-21) Tier 3 round 1 walk on the frozen build 758b8e8081:
-   `tier3/rounds/round-1/expert/figma.md`, 27 findings (1 sev 3, 17 sev 2, 9 sev 1). Sev 3: the
-   layer tree's Shift-click range starts from the last layer CLICKED, not the current selection,
-   so after Duplicate it pulled the base layer Everything into a bulk edit (`a-start/41.png`).
-2. (2026-10-21) Biggest consistency debt: one list drawn four ways. Choosing a column is an
-   inline 11 px drop-down (condition), a 14 px side popover half empty (bind), a 14 px side
-   popover that scrolls (label); a value list is a bordered grid with headers in the bind
-   popover. Bring: one picker component, one value-row grammar (swatch, name, count, eye, more).
-3. (2026-10-21) Mixed fields must show every value they mix: the purple "Layer" token's strip
-   showed only the winning color of two. Figma's Selection colors lists all.
-4. (2026-10-21) Canvas feedback is missing where Figma has it: hovering a layer row outlines
-   nothing. The outline belongs to graphty-element (a transient highlight through its layer
-   system); the app only calls it.
-5. (2026-10-21) Doors a Figma user tries first and that lead nowhere: Control+G (no-op), "Move to
-   folder" > "No folders yet". "+" > Folder already wraps the selection: wire the two doors to it.
-6. (2026-10-21) Two row grammars remain in one panel (property: label, field, bind, minus; entry:
-   icon, name, short field, gear, eye, minus) and a third in the label settings popover
-   (label above field, ~30 fields, scrolls). Remove is an X on cards, a minus on rows.
-7. (2026-10-21) Panel sentences are back (base layer, "add a condition to narrow", folder note,
-   arrowhead paragraph, bulk "1 layer sets shape; not set: X"). Owner 2026-10-20: no UI sentences.
-8. (2026-10-21) Element defect found: canvas labels draw serif when the font says Verdana (no
-   generic fallback in the font stack). graphty-element's to fix.
-9. (2026-10-21) Verified Figma-consistent on 758b8e8081: rename on create, Control+D, Shift+Ctrl
-   +H/L, Delete + Undo notice, drag reorder, "+" > Folder wraps selection, color popover beside
-   the panel, arrows step property number fields (not the condition card's: a finding).
-10. (2026-10-16) Bulk iteration 7: a bulk field whose layers differ draws BoundValue with
-    <<Layer>> in component purple, "N layers", the same chit line as data binding. Keep this.
-11. (2026-10-13) Decided at the owner review (iteration 3): one settings button per section title
-    (Figma's Type settings), painted-over values dimmed with a tooltip, opacity inline in the color
-    row (still NOT built on 758b8e8081), own entries only, multi-select shows shared properties.
-12. (2026-10-12) Unset is the minus (or empty + Enter); covering is an ordinary entry set to
-    nothing. Two row kinds only: layer and folder. Departures kept: vary glyph at rest, the
-    painted-over mark (Figma does not stack paints).
-13. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element.
-    Additive element exports are the team's call; record, do not ask.
+1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; studio stopped.
+   55 of 56 sessions succeeded: the round is at its ceiling, so signal lives in cost, routes and
+   problems, not success. Bar 5 fails only on two pre-round severity 3 backlog items (the node's
+   own Fill "+" making a one-node layer; the folder chain icon painting every cluster one color).
+2. (2026-10-21) Biggest newcomer cost: with nothing picked, the Graph inspector's Style tab shows
+   only canvas settings; 9 sessions looked there first for node color and recovered only by
+   matching the "Everything" count. Figma answer: an empty selection's panel still points at
+   what styles the content (Figma's page panel lists Selection colors / local styles).
+3. (2026-10-21) A new style line starts at the value everything already has (Fill "+" = 6366F1,
+   edge Width = 8, no unit), so accepting it looks broken. Figma adds a new fill VISIBLY
+   different (its default paint differs). A new line must change the canvas or say why not.
+4. (2026-10-21) Checking a layer's members is done by eye: no hover outline, Values tab lists ids
+   not names, table does not mark painted rows. Element owns the transient highlight; app calls it.
+5. (2026-10-21) Color words: the color box accepts "orange" and nothing says so; swatches hold no
+   common hues. compact-mantine `colorWord` returns CSS keywords before hue ("gold" not
+   "yellow"), and the app speaks those names. Fix the shared table, not the grade or the app.
+6. (2026-10-21) Keyboard: inspector F6 stop draws no focus ring (WCAG 2.4.7); both "Samples"
+   controls leave focus behind; 30+ Tabs to a sample card. Fix in shared components.
+7. (2026-10-21) Layer tree Shift-click anchors on the last layer CLICKED, not the current
+   selection (pulled Everything into a bulk edit after Duplicate). Still a watch item.
+8. (2026-10-21) One list drawn four ways (inline 11 px drop-down, two 14 px side popovers, a
+   bordered grid). One picker component, one value-row grammar (swatch, name, count, eye, more).
+9. (2026-10-21) Avoiding the purple <<Layer>> token is not reading it: 6 sessions went around it.
+   Next round needs a measure that separates avoidance from understanding before I defend it.
+10. (2026-10-21) Build defects with repros: "+" click lost when the find list re-lays out the
+    panel; one hue-bar click closes the picker; first color with a find selection moves the
+    drawing ~130 px; swatch focus drawn on the whole box. All chrome, all fixable.
+11. (2026-10-21) Doors a Figma user tries first lead nowhere: Control+G, "Move to folder" > "No
+    folders yet". Wire both to "+" > Folder, which already wraps the selection.
+12. (2026-10-21) Panel sentences are back; owner 2026-10-20: no UI sentences.
+13. (2026-10-13) Owner-review decisions stand: one settings button per section title, dimmed
+    painted-over values with tooltip, opacity inline in the color row (still not built).
 14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
-    graphty's ontology. Every control must visibly change canvas, key or popover.
-15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+    graphty's ontology. Never a task-word synonym (no "Cube" for Box).
+15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak; the answer key
+    may lead graders -- read tasks for leading before spending sessions.
 
 ## Priorities and values
 
@@ -112,6 +110,15 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-21 From round 1 insights: rank the empty-selection Style tab pointer and the "new line
+  equals current value" default as my top two design asks for the next tier. Reason: both cost
+  9 sessions each on 5 halves, both kept unweakened by both skeptics; each is a chrome fix.
+- 2026-10-21 Do not add task-word synonyms ("Cube") or domain words; the skeptics weakened those
+  items as built around one task's wording. Matches the generality rule.
+- 2026-10-21 A new style line must default to a value that visibly differs from what it covers
+  (or show the covered value as placeholder, not as a set value). Reason: Figma's added fill is a
+  visible new paint; ours is invisible and reads as broken.
+
 - 2026-10-21 (me, round 1 walk) Rated the Shift-click anchor severity 3, not 2: the wrong layer
   is the base layer, and a bulk edit then writes to all nodes; the reader sees "2 layers" but not
   which. Rated the four attribute/value drawings 2 each, one fix. Rated "+" adding a field that
@@ -151,6 +158,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-21 Round 1 outcome versus my walk. Worked: my walk's sev 3 (Shift-click anchor) and
+  the four-ways list held as real; my Figma comparisons mapped onto 4 of the top 6 insights.
+  Did not: my severity 3 did not survive into bar 5 (no session reached it) -- a walk finding
+  without a session reaching it is a watch item, not a blocker. My "jargon" verdict on the
+  <<Layer>> token was weakened as opinion; bring behavior evidence, not reading verdicts.
+
 - 2026-10-21 Round 1 walk, three `real.mjs` sessions (82 shots). Worked: one long session per
   dataset walking every screen; `--hover-at` on each icon for tooltip and role; PIL crops at 4x of
   the tree and inspector made 9 px text and glyph meaning checkable; a PIL difference box proved a
@@ -181,6 +194,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   build before the round.
 
 ## Thinking
+
+- 2026-10-21 Success saturates; the useful measures are steps over the key, first door tried,
+  and spoken-versus-seen disagreement. Figma's strength is that an empty selection is never a
+  dead panel -- graphty's is. That one change may cut the most cost per line of code.
 
 - (2026-10-09) The step editor. Figma's closest model is a layer's properties: edits live, the eye
   separate, the new layer selected after "+". Applied here: "+" adds a step bound to the first

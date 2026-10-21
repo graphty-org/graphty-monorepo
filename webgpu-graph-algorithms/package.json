@@ -127,7 +127,7 @@
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.71.1",
-        "vite": "^7.0.5",
+        "vite": "^7.3.7",
         "vitest": "catalog:",
         "webgpu": "0.6.1"
     }

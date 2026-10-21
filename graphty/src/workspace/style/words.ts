@@ -21,7 +21,6 @@ import {
     type GraphSession,
     GraphtyError,
     type GraphtyErrorCode,
-    type GraphtyWarningCode,
     type ReadableValue,
 } from "@graphty/graphty-element/session";
 
@@ -47,7 +46,22 @@ export interface SectionSpec {
     readonly title: string;
     /** Its properties, in menu order. */
     readonly channels: readonly Channel[];
+    /**
+     * Properties set from inside one of its lines (the Shape field's Model... and Model settings),
+     * never a "+" item of their own.
+     */
+    readonly inner?: readonly Channel[];
 }
+
+/** A model's channels: what the Shape field names and what Model settings sets. */
+export const MODEL_CHANNELS: readonly Channel[] = [
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+];
 
 /**
  * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
@@ -112,10 +126,10 @@ function textChannels(kind: Kind): Channel[] {
  */
 export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     node: [
-        { id: "shape", title: "Shape", channels: ["node.shape", "node.size"] },
+        { id: "shape", title: "Shape", channels: ["node.shape", "node.size"], inner: MODEL_CHANNELS },
         { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
         { id: "text", title: "Text", channels: textChannels("node") },
-        { id: "fill", title: "Fill", channels: ["node.color"] },
+        { id: "fill", title: "Fill", channels: ["node.color", "node.texture"] },
         {
             id: "effects",
             title: "Effects",
@@ -252,7 +266,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelTint": "Use node color",
     "node.modelFit": "Model fit",
     "node.modelCenter": "Model center",
-    "node.texture": "Texture",
+    "node.texture": "Picture",
     "node.label": "Label",
     "node.labelStyle": "Label style",
     "node.labelColor": "Label color",
@@ -879,79 +893,63 @@ export function firstStyleWords(nodes: number, edges: number): string {
     return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
 
-/** Every code graphty-element reports about a model. */
-type ModelCode = Extract<GraphtyErrorCode | GraphtyWarningCode, `E_MODEL_${string}` | `W_MODEL_${string}`>;
+/** The Shape grid's last tile, which opens the Models pop-over. */
+export const MODEL_TILE = "Model...";
 
 /**
- * A param as text, cut short.
- * @param value - the param.
- * @returns the text.
+ * Model settings' rows (node-models design 13.3): each row's word and, for a choice, each value's
+ * word in list order. Turn is a number in degrees.
  */
-function said(value: CodedFact["params"][string] | undefined): string {
-    if (Array.isArray(value)) {
-        return value.map(String).join(", ");
-    }
-    return value === undefined || value === null ? "" : String(value);
-}
+export const MODEL_SETTING_ROWS: readonly {
+    readonly channel: Channel;
+    readonly word: string;
+    readonly choices?: readonly (readonly [string, string])[];
+}[] = [
+    {
+        channel: "node.modelSourceUp",
+        word: "Up",
+        choices: [
+            ["detected", "Detected"],
+            ["y", "Y"],
+            ["z", "Z"],
+            ["-y", "-Y"],
+            ["-z", "-Z"],
+            ["x", "X"],
+            ["-x", "-X"],
+        ],
+    },
+    { channel: "node.modelTurn", word: "Turn" },
+    {
+        channel: "node.modelTint",
+        word: "Color",
+        choices: [
+            ["false", "Model's own"],
+            ["true", "Node color on top"],
+            ["replace", "Node color only"],
+        ],
+    },
+    {
+        channel: "node.modelFit",
+        word: "Fit",
+        choices: [
+            ["contain", "Keep proportions"],
+            ["stretch", "Stretch"],
+        ],
+    },
+    {
+        channel: "node.modelCenter",
+        word: "Center",
+        choices: [
+            ["bounds", "Middle"],
+            ["origin", "File's origin"],
+        ],
+    },
+];
 
-/**
- * A number of things as a reader reads it: "4,200,000".
- * @param value - the param.
- * @returns the text.
- */
-function amount(value: CodedFact["params"][string] | undefined): string {
-    return typeof value === "number" ? value.toLocaleString() : said(value);
-}
-
-/** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */
-const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string>> = {
-    E_MODEL_FETCH: (p) =>
-        typeof p.status === "number"
-            ? `Could not download ${said(p.url)} (${String(p.status)}).`
-            : "The server did not answer or does not share its files with other sites. Download the model and drop it here.",
-    E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
-    E_MODEL_TOO_LARGE: (p) =>
-        `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
-    E_MODEL_STRUCTURE: () => "The model file is damaged.",
-    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
-    E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
-    E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
-    E_MODEL_MISSING_FILE: (p) =>
-        `${said(p.referencedBy) || "The model"} needs ${said(p.name)}. Drop the whole folder or a .zip, or export as .glb.`,
-    E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
-    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
-    E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
-    E_MODEL_ZIP: () => "The .zip could not be opened.",
-    E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
-    E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
-    E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
-    W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
-    W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
-    W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
-    W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
-    W_MODEL_TRANSPARENT: () => "See-through parts may look wrong where models overlap.",
-    W_MODEL_TEXTURES_REDUCED: () => "Some pictures on the model are drawn smaller.",
-    W_MODEL_NOT_EMBEDDED: () => "This project names a model it does not carry; others may not be able to open it.",
-    W_MODEL_CHANGED: (p) => `The file at ${said(p.url)} changed since this project was saved.`,
-    E_MODEL_PART_AMBIGUOUS: (p) => `More than one file could be ${said(p.name)}: ${said(p.candidates)}.`,
-    E_MODEL_WEB_PAGE: (p) => `${said(p.url)} is a web page, not a model file.`,
-    E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
-    W_MODEL_PART_SUBSTITUTED: (p) => `Used ${said(p.used)} for ${said(p.name)}.`,
-    W_MODEL_PART_SKIPPED: (p) => `Drawn without ${said(p.name)}.`,
-    W_MODEL_PART_UNUSED: (p) => `${said(p.fileName)} is not a part this model is missing.`,
-    W_MODEL_NOT_KEPT_BY_URL: (p) => `Saved the files of ${said(p.url)}: its parts came from more than one place.`,
+/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
+export const MODEL_SETTING_CHIPS: Readonly<
+    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
+> = {
+    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
+    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
 };
-
-/**
- * What the app says about a model, from the element's coded problem.
- * @param fact - the problem.
- * @returns one or two short sentences.
- */
-export function modelWords(fact: CodedFact): string {
-    const words = (MODEL_WORDS as Readonly<Record<string, ((p: CodedFact["params"]) => string) | undefined>>)[
-        fact.code
-    ];
-    return words === undefined ? "The model could not be drawn." : words(fact.params);
-}

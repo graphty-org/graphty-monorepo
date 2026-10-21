@@ -164,9 +164,8 @@ describe("the layer panel", () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-        // Fill holds one property: its "+" adds it, with no menu of one item.
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        assert.isNull(screen.queryByRole("menu"), "no menu");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
         });

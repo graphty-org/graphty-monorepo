@@ -1,8 +1,9 @@
-import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, type ListboxFooterAction, PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
+import { GLYPHS } from "../glyphs";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
@@ -61,6 +62,27 @@ interface ValueFieldProps {
     readonly swatches?: readonly string[];
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
+    /** A last entry of a choice's open list that runs an action: the Shape grid's Model... tile. */
+    readonly footerAction?: ListboxFooterAction;
+    /**
+     * The model the Shape field holds in place of a built-in shape: the field shows its picture
+     * (else the cube) and its name, and its list checks no shape.
+     */
+    readonly model?: { readonly name: string; readonly thumbnail?: string };
+}
+
+/**
+ * A model's picture in a 16 px field slot: its thumbnail, else the cube.
+ * @param props - Component props
+ * @param props.thumbnail - the picture's URL
+ * @returns The picture
+ */
+export function ModelGlyph({ thumbnail }: Readonly<{ thumbnail?: string }>): React.JSX.Element {
+    return thumbnail === undefined ? (
+        <GLYPHS.model size={14} aria-hidden />
+    ) : (
+        <img src={thumbnail} alt="" width={16} height={16} aria-hidden />
+    );
 }
 
 /**
@@ -76,6 +98,8 @@ interface ValueFieldProps {
  * @param props.compact - a chit or a narrow field, for a list row
  * @param props.swatches - the swatches a color's picker offers
  * @param props.onChange - writes a value
+ * @param props.footerAction - a choice list's last entry that runs an action
+ * @param props.model - the model a Shape field holds
  * @returns The field, or a dash for a property no field draws
  */
 export function ValueField({
@@ -87,6 +111,8 @@ export function ValueField({
     compact = false,
     swatches,
     onChange,
+    footerAction,
+    model,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
     if (kind === "color") {
@@ -161,6 +187,27 @@ export function ValueField({
                   );
         const pictured = glyphs === undefined || mixed ? undefined : (text(value) ?? text(shown));
         let name = label;
+        if (model !== undefined) {
+            return (
+                <PanelField
+                    label={`${label}, ${model.name}`}
+                    kind="select"
+                    width="fill"
+                    className="ws-model-field"
+                    data={options.map((o) => ({ value: o.value, label: o.label }))}
+                    // A model is no built-in shape: the list checks none, and the field shows the
+                    // model's name where a shape's would be.
+                    value={null}
+                    placeholder={model.name}
+                    optionGlyphs={glyphs}
+                    footerAction={footerAction}
+                    glyph={<ModelGlyph thumbnail={model.thumbnail} />}
+                    onChange={(next) => {
+                        onChange(String(next));
+                    }}
+                />
+            );
+        }
         if (mixed) {
             name = `${label}, mixed`;
         } else if (unset) {
@@ -180,6 +227,7 @@ export function ValueField({
                 placeholder={unset ? inForce : undefined}
                 mixed={mixed}
                 optionGlyphs={glyphs}
+                footerAction={footerAction}
                 glyph={
                     pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />
                 }

@@ -6,6 +6,7 @@ import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@m
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
+import { modelName, modelThumbnail, pictureName } from "../canvas/models";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { LayerLink } from "../inspector/WhyThisLook";
@@ -13,6 +14,10 @@ import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
+import { ModelSettings } from "./ModelSettings";
+import { ModelsPopover } from "./ModelsPopover";
+import { ModelProblems } from "./PartsPopover";
+import { PictureField, PicturePopover } from "./PicturePopover";
 import {
     type DataBinding,
     type DataChoice,
@@ -30,6 +35,7 @@ import {
     sourceName,
     startingValue,
     type Target,
+    without,
     writeIn,
 } from "./row";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
@@ -49,6 +55,8 @@ import {
     isPercent,
     LAYER_TOKEN,
     listWords,
+    MODEL_CHANNELS,
+    MODEL_TILE,
     paletteWord,
     SCALE_WORDS,
     takesBinding,
@@ -474,10 +482,21 @@ export function Field({
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
     const own = line !== undefined && !line.layer.locked ? line : undefined;
+    // The Shape field holds a model in place of a built-in shape (node-models design 13.2).
+    const [modelsOpen, setModelsOpen] = useState(false);
+    const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+    // Fill's Picture row (node-models design 13.7): added with "+", its pop-over opens at once.
+    const isPicture = channel === "node.texture";
+    const [pictureOpen, setPictureOpen] = useState(() => isPicture && pending);
+    const modelLine = channel === "node.shape" ? lineIn(ctx, "node.model") : undefined;
+    const model =
+        modelLine !== undefined && !modelLine.layer.locked && typeof modelLine.value === "string"
+            ? modelLine.value
+            : undefined;
     const partly = own === undefined ? partlySet(ctx, channel) : undefined;
     // Several layers holding different plain values: each one's value, and a click edits them.
     const spread = own === undefined && !pending ? ctx.many?.plain?.(channel) : undefined;
-    if (own === undefined && partly === undefined && !pending) {
+    if (own === undefined && partly === undefined && !pending && model === undefined) {
         return null;
     }
     const name = fieldName(channel);
@@ -542,6 +561,103 @@ export function Field({
             listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
         );
     };
+    // The shape grid's last tile opens the Models pop-over in the grid's place.
+    const modelTile =
+        channel === "node.shape"
+            ? {
+                  label: MODEL_TILE,
+                  glyph: <GLYPHS.model size={14} aria-hidden />,
+                  onSelect: () => {
+                      setModelsOpen(true);
+                  },
+              }
+            : undefined;
+    // Focus back on the Shape field, once the pop-over that took its place has gone.
+    const focusShape = (): void => {
+        requestAnimationFrame(() => {
+            box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
+        });
+    };
+    const pickModel = (ref: string, into: Channel = "node.model"): void => {
+        setModelsOpen(false);
+        focusShape();
+        writeIn(ctx, into, { value: ref })
+            .then(() => {
+                store.set({
+                    announcement:
+                        into === "node.model" ? `${name} now ${modelName(session, ref)}` : "Node picture added",
+                });
+            })
+            .catch(fail);
+    };
+    // The picture chosen in the Picture pop-over, or a model that arrived there taken as the layer's model.
+    const pickPicture = (ref: string, into: Channel = "node.texture"): void => {
+        setPictureOpen(false);
+        requestAnimationFrame(() => {
+            box.current?.querySelector<HTMLElement>(".ws-field-control button")?.focus();
+        });
+        writeIn(ctx, into, { value: ref })
+            .then(() => {
+                store.set({
+                    announcement:
+                        into === "node.texture"
+                            ? `${name} now ${pictureName(session, ref)}`
+                            : `Node shape now ${modelName(session, ref)}`,
+                });
+            })
+            .catch(fail);
+    };
+    // A picture named as the model (an old project, code): moved to node.texture, one undo step.
+    const modelToPicture = (): void => {
+        if (modelLine === undefined || model === undefined) {
+            return;
+        }
+        const holder = modelLine.layer;
+        session
+            .transaction(`using ${pictureName(session, model)} as picture`, async (tx) => {
+                const layer = tx.styles.get(holder.id);
+                if (layer !== undefined) {
+                    await tx.styles.update(layer.id, { set: { ...layer.set, "node.texture": model } });
+                    await removeLine(tx, tx.styles.get(layer.id) ?? layer, "node.model");
+                }
+            })
+            .then(() => {
+                store.set({ announcement: `Node picture now ${pictureName(session, model)}` });
+            })
+            .catch(fail);
+    };
+    // A built-in shape picked while the field holds a model: the model and its settings go, in one undo step.
+    const shapeOverModel = (value: ChannelValue): void => {
+        if (modelLine === undefined) {
+            return;
+        }
+        const { many } = ctx;
+        if (many !== undefined) {
+            // ponytail: several rows take it as two steps (the shape, then the model off).
+            many.write(channel, { value })
+                .then(() => Promise.all(MODEL_CHANNELS.map((c) => many.clear(c))))
+                .catch(fail);
+            return;
+        }
+        session
+            .transaction(`changing ${name.toLowerCase()}`, async (tx) => {
+                const target = tx.styles.get((own ?? modelLine).layer.id);
+                if (target !== undefined) {
+                    await tx.styles.update(target.id, {
+                        set: { ...target.set, [channel]: value },
+                        encode: without(target.encode, channel),
+                    });
+                }
+                const holder = tx.styles.get(modelLine.layer.id);
+                if (holder !== undefined) {
+                    await removeLine(tx, holder, ...MODEL_CHANNELS);
+                }
+            })
+            .then(() => {
+                store.set({ announcement: `${name} now ${valueWords(descriptor, value)}` });
+            })
+            .catch(fail);
+    };
     const remove = (): void => {
         store.set({ announcement: `${name} removed` });
         // Focus goes to the section's "+", never onto the line that slides up into this one's place.
@@ -557,6 +673,21 @@ export function Field({
         const { many } = ctx;
         if (many !== undefined) {
             many.clear(channel).catch(fail);
+            return;
+        }
+        if (own === undefined && modelLine !== undefined && model !== undefined) {
+            const holder = modelLine.layer;
+            session
+                .transaction(
+                    `removing the model from ${layerWord(session, holder.id) ?? "the default"}`,
+                    async (tx) => {
+                        const layer = tx.styles.get(holder.id);
+                        if (layer !== undefined) {
+                            await removeLine(tx, layer, ...MODEL_CHANNELS);
+                        }
+                    },
+                )
+                .catch(fail);
             return;
         }
         if (own === undefined) {
@@ -630,7 +761,29 @@ export function Field({
     let control: React.ReactNode;
     // Every layer a write reaches, those holding no value among them.
     const reached = ctx.many?.inOrder?.(channel).length ?? 0;
-    if (spread !== undefined) {
+    if (isPicture) {
+        control = (
+            <PictureField
+                pictureRef={typeof own?.value === "string" ? own.value : undefined}
+                expanded={pictureOpen}
+                onOpen={() => {
+                    setPictureOpen(true);
+                }}
+            />
+        );
+    } else if (model !== undefined) {
+        control = (
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={undefined}
+                shown={undefined}
+                model={{ name: modelName(session, model), thumbnail: modelThumbnail(session, model) }}
+                footerAction={modelTile}
+                onChange={shapeOverModel}
+            />
+        );
+    } else if (spread !== undefined) {
         // Drawn as a field bound to data is, with Layer as its source.
         control = (
             <BoundValue
@@ -662,6 +815,7 @@ export function Field({
                 }
                 mixed={!pending || partly !== undefined}
                 swatches={ctx.documentColors}
+                footerAction={modelTile}
                 onChange={writeValue}
             />
         );
@@ -700,6 +854,7 @@ export function Field({
                 label={name}
                 value={own.value}
                 shown={own.value}
+                footerAction={modelTile}
                 onChange={writeValue}
             />
         );
@@ -757,7 +912,9 @@ export function Field({
     }
 
     let varySlot: React.ReactNode = null;
-    if (own?.binding !== undefined) {
+    if (model !== undefined || isPicture) {
+        // A model or a picture does not vary by a value yet; the column stays, so the field keeps its width.
+    } else if (own?.binding !== undefined) {
         // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
         // field). It is the one way back to a single value, so its words say what it does.
         const one = descriptor.accepts === "color" ? "one color" : "one value";
@@ -841,6 +998,35 @@ export function Field({
                 so the field keeps its width (Figma's property row). */}
             <div className="ws-field ws-varies" data-named="">
                 <span className="ws-field-label">
+                    {model === undefined ? null : (
+                        <Popout
+                            opened={modelSettingsOpen}
+                            onOpenChange={(next) => {
+                                setModelSettingsOpen(next);
+                            }}
+                        >
+                            <Popout.Trigger>
+                                <Tooltip label="Model settings">
+                                    <PopoutButton
+                                        icon={<GLYPHS.settings size={14} aria-hidden />}
+                                        aria-label="Model settings"
+                                        aria-haspopup="dialog"
+                                        aria-expanded={modelSettingsOpen}
+                                    />
+                                </Tooltip>
+                            </Popout.Trigger>
+                            <Popout.Panel
+                                width={POPOUT_WIDTH}
+                                placement="left"
+                                alignment="start"
+                                header={{ variant: "title", title: "Model settings" }}
+                            >
+                                <Popout.Content>
+                                    <ModelSettings ctx={ctx} model={model} />
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    )}
                     <span className="ws-field-name" title={word ?? channelWord(channel)} aria-hidden>
                         {word ?? channelWord(channel)}
                     </span>
@@ -855,6 +1041,50 @@ export function Field({
                     </Tooltip>
                 </span>
             </div>
+            {model === undefined ? null : (
+                <ModelProblems modelRef={model} anchor={box} onDone={focusShape} onUseAsPicture={modelToPicture} />
+            )}
+            {isPicture ? (
+                <PicturePopover
+                    opened={pictureOpen}
+                    anchor={box}
+                    onPick={(ref) => {
+                        pickPicture(ref);
+                    }}
+                    onModel={(ref) => {
+                        pickPicture(ref, "node.model");
+                    }}
+                    onClose={() => {
+                        setPictureOpen(false);
+                        requestAnimationFrame(() => {
+                            box.current?.querySelector<HTMLElement>(".ws-field-control button")?.focus();
+                        });
+                    }}
+                />
+            ) : null}
+            {modelTile === undefined ? null : (
+                <ModelsPopover
+                    opened={modelsOpen}
+                    anchor={box}
+                    onPick={(ref) => {
+                        pickModel(ref);
+                    }}
+                    onPicture={(ref) => {
+                        pickModel(ref, "node.texture");
+                    }}
+                    onBack={() => {
+                        setModelsOpen(false);
+                        // The grid again, in the pop-over's place, as the field opens it.
+                        requestAnimationFrame(() => {
+                            box.current?.querySelector<HTMLElement>(".ws-field-control input")?.click();
+                        });
+                    }}
+                    onClose={() => {
+                        setModelsOpen(false);
+                        focusShape();
+                    }}
+                />
+            )}
             {over === undefined ? null : <CoveredLine session={session} over={over} />}
             {/* Just added on a selection with no layer yet: the value drawn is not set, and the
                 first one picked makes the layer. */}

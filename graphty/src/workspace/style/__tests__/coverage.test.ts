@@ -51,8 +51,14 @@ const SOURCES: Readonly<Record<string, string>> = Object.fromEntries(
 /** A branch on a color: `accepts === "color"`, `accepts !== "color"` or `isColor`. */
 const COLOR_BRANCH = /accepts [!=]== "color"|\bisColor\b/g;
 
-/** Every channel a section of the Style tab draws. */
+/** Every channel a section of the Style tab draws as a line. */
 const DRAWN = new Set<string>([...SECTIONS.node, ...SECTIONS.edge].flatMap((section) => section.channels));
+
+/** Every channel the Style tab sets: its lines, and what a line sets from inside (Model settings). */
+const PLACED = new Set<string>([
+    ...DRAWN,
+    ...[...SECTIONS.node, ...SECTIONS.edge].flatMap((section) => section.inner ?? []),
+]);
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {
@@ -75,8 +81,17 @@ describe("every style has a home", () => {
 
     it("places exactly the channels the Style tab draws, and gives the rest a reason", () => {
         for (const channel of CHANNELS) {
-            assert.strictEqual("place" in CHANNEL_HOMES[channel], DRAWN.has(channel), channel);
+            assert.strictEqual("place" in CHANNEL_HOMES[channel], PLACED.has(channel), channel);
         }
+    });
+
+    it("places every model channel: none is left without a row", () => {
+        const models = CHANNELS.filter((channel) => channel.startsWith("node.model"));
+        assert.isAbove(models.length, 0);
+        assert.deepEqual(
+            models.filter((channel) => !("place" in CHANNEL_HOMES[channel])),
+            [],
+        );
     });
 
     it("offers every style the design places in the panel: none of them is 'not offered'", () => {

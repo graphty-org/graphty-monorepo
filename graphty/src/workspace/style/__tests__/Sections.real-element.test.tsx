@@ -443,6 +443,7 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });

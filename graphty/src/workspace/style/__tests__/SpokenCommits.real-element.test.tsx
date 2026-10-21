@@ -68,6 +68,7 @@ describe("a committed change is said", () => {
     it("says a color committed with Enter, with how many nodes it paints", async () => {
         await openPaint();
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         const box = await waitFor(
             () => {
                 const found = document.querySelector<HTMLInputElement>(

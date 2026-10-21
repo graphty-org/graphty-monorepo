@@ -2,7 +2,7 @@ import type React from "react";
 
 import { openProjectFile } from "../project/actions";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { holdsModel, putModelOnNodes, readDrop } from "./models";
+import { holdsAsset, putAssetOnNodes, readDrop } from "./models";
 
 /**
  * The canvas as a drop target: a model goes on the selected nodes, or on every node, as one
@@ -27,8 +27,8 @@ export function useCanvasDrop(): {
             }
             event.preventDefault();
             void readDrop(event.dataTransfer).then(async (dropped) => {
-                if (await holdsModel(dropped.files)) {
-                    await putModelOnNodes(session, store, dropped.source);
+                if (await holdsAsset(dropped.files)) {
+                    await putAssetOnNodes(session, store, dropped.source);
                 } else if (dropped.files[0] !== undefined) {
                     await openProjectFile(workspace, dropped.files[0]);
                 }

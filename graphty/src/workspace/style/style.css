@@ -285,3 +285,47 @@
     grid-column: 1 / -1;
     padding-bottom: 4px;
 }
+
+/* The Shape field holding a model (node-models design 13.2): the model's name is its value, drawn
+   in the value's color, not the placeholder's that an unset default uses. */
+.ws-model-field input::placeholder {
+    color: var(--cm-text-primary);
+    font-style: normal;
+    opacity: 1;
+}
+
+/* A sample model in the Models pop-over: its picture over its name. */
+.ws-model-tile {
+    border-radius: 4px;
+    padding: 2px;
+}
+.ws-model-tile:hover,
+.ws-model-tile:focus-visible {
+    background: var(--cm-bg-hover, var(--mantine-color-default-hover));
+}
+
+/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width. */
+.ws-model-settings .ws-field {
+    grid-template-columns: 48px minmax(0, 1fr) 24px;
+}
+
+/* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
+.ws-model-chips {
+    padding-inline-start: var(--ws-label, 80px);
+    padding-bottom: 2px;
+}
+
+.ws-chip-button {
+    cursor: pointer;
+}
+
+/* A part the model waits for: its name line, then its controls. */
+.ws-part-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ws-part-name {
+    white-space: nowrap;
+}

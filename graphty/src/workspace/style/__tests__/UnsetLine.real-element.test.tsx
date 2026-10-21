@@ -168,7 +168,7 @@ describe("an unset line takes the value it shows", () => {
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const line = await addLine("fill", "node.color");
+        const line = await addLine("fill", "node.color", "Color");
         const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
         assert.equal(box.value, "FF0000", "the line shows the red the node draws");
         assert.equal(box.dataset.isDefault, "true", "in italics: not set here");

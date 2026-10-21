@@ -63,10 +63,10 @@ describe("the layer panel's words", () => {
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
         await screen.findByText("The first style you set makes a layer for the 3 selected nodes.");
-        // A "+" with one thing to add: its tooltip is its name.
+        // A "+" opening a menu: its tooltip is its name. A hang guard: the tooltip waits its open delay.
         const fill = await screen.findByRole("button", { name: "Add to node fill" });
         await userEvent.hover(fill);
-        const tip = await screen.findByRole("tooltip");
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
         assert.strictEqual(tip.textContent, "Add to node fill", "the tooltip is the button's name");
         await userEvent.unhover(fill);
         await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));

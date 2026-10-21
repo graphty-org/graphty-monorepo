@@ -21,7 +21,13 @@ import { channelWord, failureWords, fieldName, type SectionSpec } from "./words"
  */
 function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
     const line = lineIn(ctx, descriptor.channel);
-    return (line !== undefined && !line.layer.locked) || partlySet(ctx, descriptor.channel) !== undefined;
+    // A model is the Shape field's value too (node-models design 13.2).
+    const model = descriptor.channel === "node.shape" ? lineIn(ctx, "node.model") : undefined;
+    return (
+        (line !== undefined && !line.layer.locked) ||
+        (model !== undefined && !model.layer.locked) ||
+        partlySet(ctx, descriptor.channel) !== undefined
+    );
 }
 
 /**

@@ -13,7 +13,7 @@ import React, { type RefObject, useCallback, useEffect, useId, useRef, useState 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
-import { holdsModel, readDrop } from "../canvas/models";
+import { holdsAsset, readDrop } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { focusIsLost } from "../frame/focus";
 import { MainMenu } from "../frame/menus";
@@ -750,7 +750,7 @@ export function StartScreen({
             // graphty-element says whether it is a model before it is read as graph data.
             void readDrop(event.dataTransfer).then(async (dropped) => {
                 const [file] = dropped.files;
-                if (await holdsModel(dropped.files)) {
+                if (await holdsAsset(dropped.files)) {
                     openModel(workspace.store, file?.name ?? "Model", dropped.source);
                 } else if (file !== undefined) {
                     await openProjectFile(workspace, file);

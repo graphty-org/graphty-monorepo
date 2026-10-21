@@ -9,6 +9,8 @@ import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
+import policeUrl from "./__fixtures__/car-kit/police.glb?url";
+import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
@@ -483,6 +485,92 @@ export const LabelSettings: Story = sceneStory(async () => {
     await page().findByRole("dialog", { name: "Label settings" }, storyWaitOptions(1000));
 });
 
+/**
+ * Draws Key people as the Server sample by real input: Shape's "+", the Shape grid's Model... tile,
+ * and Server in the Models pop-over. The Shape field then shows the model's picture and name.
+ * @param session - the element's session.
+ * @returns the Style tab.
+ */
+async function drawKeyPeopleAsServer(session: GraphSession): Promise<HTMLElement> {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
+    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: "Model..." }, storyWaitOptions(1000)));
+    const models = await page().findByRole("dialog", { name: "Models" }, storyWaitOptions(1000));
+    await userEvent.click(within(models).getByRole("button", { name: "Server" }));
+    await within(tab).findByRole("combobox", { name: "Node shape, Server" }, storyWaitOptions(1000));
+    await waitFor(() => {
+        expect(session.assets.states().find((c) => c.ref === "asset:sample/server")?.state).toBe("drawn");
+    }, storyWaitOptions(10_000));
+    return tab;
+}
+
+/** Key people drawn as the Server sample model, picked from the Shape grid's Model... tile. */
+export const ModelOnALayer: Story = {
+    ...sceneStory(async ({ session }) => {
+        await drawKeyPeopleAsServer(session);
+    }),
+    name: "Model on a layer",
+};
+
+/** Model settings open on Key people's Server model: Up, Turn, Color, Fit and Center. */
+export const ModelSettingsOpen: Story = {
+    ...sceneStory(async ({ session }) => {
+        const tab = await drawKeyPeopleAsServer(session);
+        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        await page().findByRole("dialog", { name: "Model settings" }, storyWaitOptions(1000));
+    }),
+    name: "Model settings",
+};
+
+/**
+ * The Parts pop-over: Key people drawn as the car kit's police.glb chosen alone, so the Shape
+ * field carries "1 missing" for Textures/colormap.png; the chip opens the pop-over on that part.
+ */
+export const Parts: Story = sceneStory(async () => {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
+    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: "Model..." }, storyWaitOptions(1000)));
+    const models = await page().findByRole("dialog", { name: "Models" }, storyWaitOptions(1000));
+    const chooser: HTMLInputElement | null = models.querySelector("input[type=file]:not([webkitdirectory])");
+    if (chooser === null) {
+        throw new Error("no file input");
+    }
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    await userEvent.upload(chooser, new File([police], "police.glb", { type: "model/gltf-binary" }));
+    const chip = await within(tab).findByRole("button", { name: "police: 1 file missing" }, storyWaitOptions(10_000));
+    await userEvent.click(chip);
+    await page().findByRole("dialog", { name: "police.glb" }, storyWaitOptions(1000));
+});
+
+/**
+ * A picture on Key people (node-models design 13.7) by real input: Fill's "+" adds Picture and opens the
+ * Picture pop-over, and the car kit's colormap.png chosen there draws on the layer's nodes. The
+ * pop-over is opened again on the row, listing the picture under "In this project".
+ */
+export const Picture: Story = sceneStory(async ({ session }) => {
+    const tab = await openStyle("Key people");
+    // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+    let picture = await page().findByRole("dialog", { name: "Picture" }, storyWaitOptions(1000));
+    const chooser: HTMLInputElement | null = picture.querySelector("input[type=file]");
+    if (chooser === null) {
+        throw new Error("no file input");
+    }
+    const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
+    await userEvent.upload(chooser, new File([colormap], "colormap.png", { type: "image/png" }));
+    const field = await within(tab).findByRole("button", { name: "Node picture, colormap" }, storyWaitOptions(10_000));
+    await waitFor(() => {
+        expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);
+    }, storyWaitOptions(10_000));
+    await userEvent.click(field);
+    picture = await page().findByRole("dialog", { name: "Picture" }, storyWaitOptions(1000));
+    await within(picture).findByRole("button", { name: "colormap" }, storyWaitOptions(1000));
+});
+
 /** Key people's Effects "+": the effects the layer does not draw yet. */
 export const EffectsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
@@ -564,6 +652,7 @@ export const FootballConference: Story = {
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Color" }, storyWaitOptions(1000)));
         const box: HTMLElement = await waitFor(() => {
             const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
                 '.ws-row[data-line="node.color"]',

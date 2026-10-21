@@ -13,7 +13,7 @@ import {
 import type { AssetSource, GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
-import { putModelOnNodes } from "../canvas/models";
+import { putAssetOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
@@ -151,6 +151,6 @@ export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
  */
 export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
     openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
-        await putModelOnNodes(session, workspace, source);
+        await putAssetOnNodes(session, workspace, source);
     });
 }

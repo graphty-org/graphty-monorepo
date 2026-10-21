@@ -398,19 +398,28 @@ interface ModelProblemsProps {
     readonly anchor: React.RefObject<HTMLElement | null>;
     /** Called once the Parts pop-over closed, to put focus back on the Shape field. */
     readonly onDone: () => void;
+    /** Moves a picture the layer names as its model to `node.texture` (design 13.5). */
+    readonly onUseAsPicture?: () => void;
 }
 
 /**
  * What the Shape field says about the model it names (design 13.4, 13.6), read from
  * graphty-element's model states: "N missing" while the model waits for parts, opening the Parts
- * pop-over; "Without N" for parts it is drawn without; a chip for any other refusal.
+ * pop-over; "Without N" for parts it is drawn without; a chip for any other refusal, with Use as
+ * picture when the model named is a picture.
  * @param props - Component props
  * @param props.modelRef - what the layer names
  * @param props.anchor - the row the pop-over opens beside
  * @param props.onDone - focus back on the Shape field
+ * @param props.onUseAsPicture - moves a picture named as the model to `node.texture`
  * @returns The chips, or nothing
  */
-export function ModelProblems({ modelRef, anchor, onDone }: Readonly<ModelProblemsProps>): React.JSX.Element | null {
+export function ModelProblems({
+    modelRef,
+    anchor,
+    onDone,
+    onUseAsPicture,
+}: Readonly<ModelProblemsProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const states = useModelStates(session);
     const [open, setOpen] = useState(false);
@@ -453,6 +462,18 @@ export function ModelProblems({ modelRef, anchor, onDone }: Readonly<ModelProble
             )}
             {skipped === undefined ? null : <ModelChip chip={skipped} tone="warning" />}
             {refusal === undefined ? null : <FactChip fact={refusal} />}
+            {refusal?.params.assetKind === "image" && onUseAsPicture !== undefined ? (
+                <Tooltip label={`Use ${name} as picture`}>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        aria-label={`Use ${name} as picture`}
+                        onClick={onUseAsPicture}
+                    >
+                        Use as picture
+                    </Button>
+                </Tooltip>
+            ) : null}
             {notes.map((fact) => (
                 <FactChip key={`${fact.code}:${JSON.stringify(fact.params)}`} fact={fact} />
             ))}

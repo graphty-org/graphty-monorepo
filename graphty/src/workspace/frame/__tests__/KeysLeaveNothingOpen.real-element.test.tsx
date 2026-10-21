@@ -16,6 +16,7 @@ import { page, userEvent } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { dotPng } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
@@ -228,7 +229,14 @@ describe("keys that close what they leave and land focus in the right place", ()
     });
 
     it("Tab from Add to node text passes over the full Fill +", async () => {
-        await openGraph();
+        const { session } = await openGraph();
+        // Everything sets Fill's color; a picture too leaves Fill nothing to add.
+        const everything = session.styles
+            .list()
+            .find((layer) => layer.name === "Everything" && layer.target === "node");
+        assert.isDefined(everything);
+        const picture = await session.assets.add(dotPng());
+        await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": picture.id } });
         await openRow("Everything");
         const text = await screen.findByRole("button", { name: "Add to node text" }, { timeout: TIMEOUT_MS });
         const fill = screen.getByRole("button", { name: "Add to node fill" });

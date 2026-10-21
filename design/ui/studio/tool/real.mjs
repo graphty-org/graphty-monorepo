@@ -29,6 +29,11 @@
 //       refuses a round with no pilot of a planned task half or no bars run on the frozen build; on
 //       exit 0 it writes the plan's "Gate evidence" section, without which --start refuses (exit 1)
 //       every session of the round
+//   node real.mjs --replay <walk folder | route.jsonl> <session dir> [--end-on-diverge] [--keep]
+//       runs a saved route again (every session saves its own as route.jsonl) and stops, the session
+//       left open, at the first step whose check points differ from the route's (exit 5)
+//   node real.mjs --rewalk <old walks folder> <new walks folder> [--only <walk>,...]
+//       replays every route under the old folder into the new one; rewalk.json says which diverged
 //   node real.mjs --prove
 //       a self-test against the real app; exit 1 on any miss
 //
@@ -69,8 +74,20 @@ process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
-import { appendFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+    appendFileSync,
+    closeSync,
+    existsSync,
+    mkdirSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    readSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
+import { appendFile, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
 import { homedir } from "node:os";
@@ -118,6 +135,49 @@ const VIEWPORT = { width: vw, height: vh };
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
 // REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
 const IDLE_MS = (Number(process.env.REAL_IDLE_SECONDS) || 15 * 60) * 1000;
+
+// GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
+// graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
+// waited on the CPU. Through ANGLE on Vulkan the RTX 4070 draws the same page for 27-51% (2026-10-21).
+// This machine has no system libEGL.so.1, and without one these flags HANG the first page instead of
+// failing, so the launch reads the extracted copy (REAL_EGL_DIR, else the main checkout's tmp/egl;
+// rebuild it with: apt-get download libegl1 libglvnd0; dpkg -x each .deb into tmp/egl/root).
+// REAL_GPU=0 runs SwiftShader on purpose (a machine with no GPU); otherwise a session whose renderer
+// is not the GPU fails its start loudly, never quietly falls back to software.
+const GPU = process.env.REAL_GPU !== "0";
+const MAIN = dirname(
+    spawnSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+        encoding: "utf8",
+    }).stdout.trim(),
+);
+const EGL = process.env.REAL_EGL_DIR || join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
+const GPU_ARGS = [
+    "--enable-unsafe-webgpu",
+    "--enable-features=Vulkan",
+    "--use-angle=vulkan",
+    "--disable-vulkan-surface",
+];
+function gpuLaunch() {
+    if (!GPU) return {};
+    if (!existsSync(join(EGL, "libEGL.so.1")))
+        throw new Error(
+            `GPU rendering needs libEGL.so.1 in ${EGL} (without it the GPU flags hang the first page): mkdir -p tmp/egl && cd tmp/egl && apt-get download libegl1 libglvnd0 && dpkg -x libegl1_*.deb root && dpkg -x libglvnd0_*.deb root, in the main checkout; or REAL_GPU=0 for SwiftShader`,
+        );
+    return {
+        args: GPU_ARGS,
+        env: { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") },
+    };
+}
+// The WebGL renderer the page draws with, as the GPU reports it
+const rendererOf = (page) =>
+    page
+        .evaluate(() => {
+            const g = document.createElement("canvas").getContext("webgl2");
+            const e = g?.getExtension("WEBGL_debug_renderer_info");
+            return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : "no WebGL";
+        })
+        .catch((e) => `unknown (${e.message.split("\n")[0]})`);
+const onGpu = (r) => !/SwiftShader|llvmpipe|softpipe|Software|no WebGL|unknown/i.test(r);
 
 // a fixed folder, not TMPDIR, so every agent finds the same session from the same session dir
 const sockOf = (dir) =>
@@ -779,9 +839,10 @@ function parseSetup(text) {
 }
 
 // ---------- the client side: --start, --step, --end ----------
-function ask(dir, req) {
+const ask = (dir, req) => askAt(sockOf(dir), req);
+function askAt(sock, req) {
     return new Promise((ok, fail) => {
-        const s = connect(sockOf(dir));
+        const s = connect(sock);
         let buf = "";
         s.on("data", (d) => (buf += d));
         s.on("end", () => {
@@ -841,6 +902,7 @@ async function start(dir, how, sr, task, keys) {
             return 2;
         }
         setup = p.steps;
+        how = `setup:${file}`;
     }
     await mkdir(dir, { recursive: true });
     if (readdirSync(dir).some((f) => /^\d+\.png$/.test(f))) {
@@ -857,34 +919,52 @@ async function start(dir, how, sr, task, keys) {
     // any task with a Follow-up block holds a follow-up prompt, given at --end (see "op end" in serve)
     const t = sessionTask(dir, task);
     const followUp = t ? taskWords(t)?.followUp : null;
-    // the session process holds a browser slot for its whole life, so it runs inside the gate
+    // the session process holds a browser slot for its whole life, so it runs inside the gate; a warm
+    // one already holds its slot and has the app open
     const log = openSync(join(dir, "session.log"), "a");
-    const child = spawn(
-        gate,
-        [process.execPath, fileURLToPath(import.meta.url), "--serve", dir, ...(sr ? ["--sr"] : [])],
-        {
-            detached: true,
-            stdio: ["ignore", log, log],
-            env: {
-                ...process.env,
-                BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4",
-                ...(keys ? { REAL_KEYS_ONLY: "1" } : {}),
+    let child = null,
+        exited = null;
+    if (!(await claimWarm(dir, sr, keys))) {
+        child = spawn(
+            gate,
+            [process.execPath, fileURLToPath(import.meta.url), "--serve", dir, ...(sr ? ["--sr"] : [])],
+            {
+                detached: true,
+                stdio: ["ignore", log, log],
+                env: {
+                    ...process.env,
+                    ...(GPU ? { BROWSER_GPU: "1" } : {}),
+                    ...(keys ? { REAL_KEYS_ONLY: "1" } : {}),
+                },
             },
-        },
-    );
-    let exited = null;
-    child.on("exit", (c) => (exited = c));
+        );
+        child.on("exit", (c) => (exited = c));
+    }
+    const ticket = () => child && existsSync(QUEUE) && readdirSync(QUEUE).some((f) => f.endsWith(`-${child.pid}`));
     let waited = 0;
     // REAL_SLOT_WAIT_SECONDS bounds the wait for a browser slot, so a caller whose shell call has a
     // time limit gets "nothing started" (exit 4) and runs the same start again, instead of a start
     // left waiting in the background that nobody resumes (round 4: r4-s05, r4-s20, r4-s28, void)
     const waitFor = Number(process.env.REAL_SLOT_WAIT_SECONDS) || 0;
     while (!existsSync(sockOf(dir))) {
-        if (exited !== null) {
-            console.error(`the session process stopped (exit ${exited}); see ${join(dir, "session.log")}`);
+        // still in the queue for a slot, and a warm browser came ready: take it, leave the queue
+        if (waited % 2 === 1 && ticket() && (await claimWarm(dir, sr, keys))) {
+            try {
+                process.kill(-child.pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+            child = null;
+        }
+        if (child && exited !== null) {
+            // its reason, so a start that could not reach the GPU says so on the command's own output
+            const why = readFileSync(join(dir, "session.log"), "utf8").match(/^Error: .*$/m)?.[0];
+            console.error(
+                `the session process stopped (exit ${exited}); see ${join(dir, "session.log")}${why ? `\n${why}` : ""}`,
+            );
             return 1;
         }
-        if (waitFor && waited * 500 >= waitFor * 1000) {
+        if (waitFor && child && waited * 500 >= waitFor * 1000) {
             try {
                 process.kill(-child.pid, "SIGTERM");
             } catch {
@@ -897,8 +977,17 @@ async function start(dir, how, sr, task, keys) {
         await new Promise((r) => setTimeout(r, 500));
         waited++;
     }
-    child.unref();
-    const r = await ask(dir, { op: "start", setup, task: t && t.task + t.half, followUp });
+    child?.unref();
+    topUp();
+    const route = {
+        start: how || "empty",
+        keys: !!keys,
+        sr: !!sr,
+        viewport: VIEWPORT,
+        scheme: process.env.REAL_SCHEME || null,
+        dist,
+    };
+    const r = await ask(dir, { op: "start", setup, task: t && t.task + t.half, followUp, route });
     return say(r);
 }
 
@@ -950,21 +1039,35 @@ async function serve(dir, sr) {
     // memory, which the app reads as a private window, so every session showed a false "This looks
     // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
     // profile is never copied to the round's folder.
-    const profile = join(homedir(), ".cache/graphty-real-profiles", basename(sockOf(dir), ".sock"));
+    // a warm browser (dir null) has no session folder yet: its profile is named by its process
+    const profile = join(
+        homedir(),
+        ".cache/graphty-real-profiles",
+        dir ? basename(sockOf(dir), ".sock") : `warm-${process.pid}`,
+    );
     await rm(profile, { recursive: true, force: true });
     const context = await chromium.launchPersistentContext(profile, {
         ...LAUNCH,
+        ...gpuLaunch(),
         viewport: VIEWPORT,
         deviceScaleFactor: 1,
         acceptDownloads: true,
     });
     // a persistent context opens with a blank tab of its own, closed once the session's tab is open
     const blank = context.pages();
+    const renderer = await rendererOf(blank[0] ?? (await context.newPage()));
+    if (GPU && !onGpu(renderer)) {
+        await context.close().catch(() => {});
+        throw new Error(
+            `GPU rendering was asked for (REAL_GPU is not 0), but the browser draws with "${renderer}". A software renderer burns 550-690% CPU per idle graphty page; check ${EGL} holds libEGL.so.1 and nvidia-smi sees the card, or set REAL_GPU=0 to run on SwiftShader on purpose`,
+        );
+    }
     const browser = { close: () => context.close().finally(() => rm(profile, { recursive: true, force: true })) };
     const s = {
         dir,
         sr,
         keysOnly: process.env.REAL_KEYS_ONLY === "1",
+        renderer,
         context,
         origin,
         errors: [],
@@ -988,6 +1091,21 @@ async function serve(dir, sr) {
         );
     await newTab(s);
     await Promise.all(blank.map((p) => p.close()));
+    if (!dir) {
+        // a warm browser: the app opened and settled now, the session's folder given by its claim
+        const claim = await warmUp(s, browser, http);
+        dir = s.dir = claim.dir;
+        s.sr = claim.sr;
+        s.keysOnly = claim.keys;
+        s.missFails = claim.missFails;
+        s.idleMs = claim.idleMs;
+        s.warm = true;
+        const log = openSync(join(dir, "session.log"), "a");
+        console.log = (...a) => appendFileSync(log, a.join(" ") + "\n");
+        console.log(
+            `took over warm browser ${process.pid} (warm for ${Math.round((Date.now() - s.warmSince) / 1000)} s)`,
+        );
+    }
 
     const sock = sockOf(dir);
     let queue = Promise.resolve();
@@ -1002,10 +1120,11 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
+        const ms = s.idleMs || IDLE_MS;
         idle = setTimeout(() => {
-            console.log(`no step for ${IDLE_MS / 1000} seconds; closing the session`);
+            console.log(`no step for ${ms / 1000} seconds; closing the session`);
             close();
-        }, IDLE_MS);
+        }, ms);
     };
     const server = netServer({ allowHalfOpen: true }, (c) => {
         // a client that went away before its answer (its agent was stopped) must not kill the session
@@ -1024,7 +1143,7 @@ async function serve(dir, sr) {
                     if (req.op === "ping") r = { out: [], code: 0 };
                     else if (req.op === "start") {
                         [s.task, s.followUp] = [req.task, req.followUp];
-                        r = await opStart(s, req.setup);
+                        r = await opStart(s, req.setup, req.route);
                     } else if (req.op === "step") r = await opStep(s, req.steps);
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "plant-live") r = await plantLive(s);
@@ -1050,6 +1169,134 @@ async function serve(dir, sr) {
     await new Promise((ok) => server.listen(sock, ok));
     touch();
     for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, close);
+}
+
+// ---------- the warm pool: browsers launched with the app loaded, waiting for a --start ----------
+// A cold --start spent 7 to 11 s launching a browser, loading the app and letting it settle, after
+// the wait for a slot. A warm browser has done all of that before anyone asks: a --start of the same
+// build, window size and color scheme takes one over in about a second. The pool keeps itself:
+// every --start and --end tops it up to REAL_WARM_POOL (default 2; 0 turns it off) through the gate's
+// try mode, which only fills spare slots above the four the pre-push gate shares and never while a
+// start waits in the queue. A warm browser that waits REAL_WARM_SECONDS (default 600) unclaimed, or
+// sees starts queue for a slot, closes and frees its slot. Its page was opened on a clean profile and
+// never touched, so the session it becomes is the one a cold start makes.
+const WARM_DIR = "/tmp/graphty-real-warm";
+const WARM_POOL = Number(process.env.REAL_WARM_POOL ?? 2);
+const WARM_MS = (Number(process.env.REAL_WARM_SECONDS) || 600) * 1000;
+const warmKey = () =>
+    createHash("sha1")
+        // the tool's own version too: a warm browser runs the code it was started with
+        .update(
+            JSON.stringify([
+                dist,
+                VIEWPORT,
+                process.env.REAL_SCHEME || "",
+                GPU,
+                statSync(fileURLToPath(import.meta.url)).mtimeMs,
+            ]),
+        )
+        .digest("hex")
+        .slice(0, 10);
+const alive = (pid) => existsSync(`/proc/${pid}`);
+const QUEUE = join(process.env.BROWSER_SLOT_DIR || join(MAIN, "tmp/browser-slots"), "queue");
+// the warm browsers of this key: ready (a socket) and still warming (a marker named by its gate's pid)
+function warmOnes() {
+    if (!existsSync(WARM_DIR)) return { ready: [], warming: 0 };
+    const mine = readdirSync(WARM_DIR).filter((f) => f.startsWith(warmKey() + "-"));
+    const pidOf = (f) => f.slice(warmKey().length + 1).split(".")[0];
+    return {
+        ready: mine.filter((f) => f.endsWith(".sock") && alive(pidOf(f))).map((f) => join(WARM_DIR, f)),
+        warming: mine.filter((f) => f.endsWith(".warming") && alive(pidOf(f))).length,
+    };
+}
+// Starts warm browsers in the background until the pool holds REAL_WARM_POOL for this build
+function topUp() {
+    if (!(WARM_POOL > 0)) return;
+    mkdirSync(WARM_DIR, { recursive: true });
+    // markers of warmers the gate turned away (no spare slot) are left by processes that are gone
+    for (const f of readdirSync(WARM_DIR))
+        if (f.endsWith(".warming") && !alive(f.split("-").pop().split(".")[0]))
+            rmSync(join(WARM_DIR, f), { force: true });
+    const { ready, warming } = warmOnes();
+    for (let i = ready.length + warming; i < WARM_POOL; i++) {
+        const log = openSync(join(WARM_DIR, `${warmKey()}.log`), "a");
+        const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--warm"], {
+            detached: true,
+            stdio: ["ignore", log, log],
+            env: { ...process.env, BROWSER_SLOT_TRY: "1", ...(GPU ? { BROWSER_GPU: "1" } : {}) },
+        });
+        writeFileSync(join(WARM_DIR, `${warmKey()}-${child.pid}.warming`), "");
+        child.unref();
+    }
+}
+// Takes over a ready warm browser for <dir>: true when one answered the claim
+async function claimWarm(dir, sr, keys) {
+    if (!(WARM_POOL > 0)) return false;
+    for (const sock of warmOnes().ready) {
+        const r = await askAt(sock, {
+            op: "claim",
+            dir,
+            sr: !!sr,
+            keys: !!keys,
+            missFails: process.env.REAL_MISS_FAILS,
+            idleMs: (Number(process.env.REAL_IDLE_SECONDS) || 0) * 1000,
+        }).catch(() => null);
+        if (r?.ok) return true;
+    }
+    return false;
+}
+// In the warm browser: open the app, settle, then wait on the pool's socket for one claim
+async function warmUp(s, browser, http) {
+    s.warmSince = Date.now();
+    const marker = join(WARM_DIR, `${warmKey()}-${process.ppid}.warming`);
+    const sock = join(WARM_DIR, `${warmKey()}-${process.pid}.sock`);
+    let quitting = false;
+    const quit = async (why) => {
+        if (quitting) return;
+        quitting = true;
+        console.log(`warm browser ${process.pid}: ${why}; closing`);
+        await rm(sock, { force: true });
+        await rm(marker, { force: true });
+        await browser.close().catch(() => {});
+        http.close();
+        process.exit(0);
+    };
+    const signals = ["SIGTERM", "SIGINT", "SIGHUP"];
+    for (const sig of signals) process.on(sig, () => quit(sig));
+    const said = [];
+    await opening(s, said);
+    await settle(s, said);
+    if (said.some((l) => /did not finish loading|never drew/.test(l))) await quit(said.join("; "));
+    s.errors.length = 0;
+    return new Promise((done) => {
+        let queued = 0;
+        const watch = setInterval(() => {
+            if (Date.now() - s.warmSince > WARM_MS) quit(`unclaimed for ${WARM_MS / 1000} s`);
+            // starts waiting for a slot (another build's, or one that missed the claim) come first
+            queued = existsSync(QUEUE) && readdirSync(QUEUE).length ? queued + 1 : 0;
+            if (queued >= 3) quit("starts are queued for a slot");
+        }, 2000);
+        let taken = false;
+        const server = netServer({ allowHalfOpen: true }, (c) => {
+            c.on("error", () => {});
+            let buf = "";
+            c.on("data", (d) => {
+                buf += d;
+                if (!buf.includes("\n")) return;
+                const req = JSON.parse(buf.slice(0, buf.indexOf("\n")));
+                // one claim only: the first takes it, any other is told to try the next
+                if (req.op !== "claim" || taken) return c.end(JSON.stringify({ ok: false }) + "\n");
+                taken = true;
+                clearInterval(watch);
+                for (const sig of signals) process.removeAllListeners(sig);
+                server.close();
+                rmSync(sock, { force: true });
+                c.end(JSON.stringify({ ok: true }) + "\n");
+                done({ ...req, dir: resolve(req.dir) });
+            });
+        });
+        server.listen(sock, () => rmSync(marker, { force: true }));
+    });
 }
 
 // A tab of the session's browser: its errors, file choosers and downloads reported to the session
@@ -1425,9 +1672,12 @@ async function opening(s, out) {
         )
         .catch(() => out.push("the app never drew its window"));
 }
-async function opStart(s, setup) {
+async function opStart(s, setup, route) {
     const out = [];
-    await opening(s, out);
+    // the route's first line: how this walk started, so --replay can start the same way
+    await writeFile(join(s.dir, "route.jsonl"), JSON.stringify({ ...route, task: s.task ?? null }) + "\n");
+    // a warm browser opened the app before its claim, and nothing has touched it since
+    if (!s.warm) await opening(s, out);
     await settle(s, out);
     const commit = commitOf();
     await writeFile(
@@ -1442,6 +1692,7 @@ async function opStart(s, setup) {
                 screenReaderMode: !!s.sr,
                 keyboardOnlyMode: !!s.keysOnly,
                 viewport: VIEWPORT,
+                renderer: s.renderer,
                 started: new Date().toISOString(),
                 setup: setup.map((x) => x.join(" ")),
                 task: s.task ?? null,
@@ -1740,22 +1991,103 @@ async function opStep(s, steps) {
             code: 2,
         };
     const out = [];
+    const t0 = performance.now();
+    s.ms = {};
     const r = await run(s, steps, out);
-    out.push(await shot(s));
+    const t1 = performance.now();
+    const said = await shot(s);
+    out.push(said);
+    s.ms.shot = performance.now() - t1;
     // A participant's miss is part of the session, so it exits 0. A scripted walk (a dry run, a
     // re-walk) starts its session with REAL_MISS_FAILS=1, so a step that found nothing to act on
     // fails the walk: a walk that only "passes" because its click missed checks nothing.
-    return { out, code: r.code || (r.missed && process.env.REAL_MISS_FAILS === "1" ? 2 : 0) };
+    const code = r.code || (r.missed && (s.missFails ?? process.env.REAL_MISS_FAILS) === "1" ? 2 : 0);
+    s.ms.total = performance.now() - t0;
+    const check = await recordRoute(s, { steps, out, code, missed: r.missed });
+    return { out, code, check };
 }
 
-// The screenshot is always saved for graders; a screen-reader participant is not told where
+// The screenshot is always saved for graders; a screen-reader participant is not told where. It is
+// taken through the DevTools protocol with optimizeForSpeed (a lighter PNG compression): the same
+// pixels, 30 to 45% sooner than Playwright's own screenshot (tmp/browser-speed/probe2.log).
 async function shot(s) {
     const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
     const file = join(s.dir, `${String(n).padStart(2, "0")}.png`);
-    await s.page.screenshot({ path: file });
+    s.cdp ??= await s.context.newCDPSession(s.page);
+    const { data } = await s.cdp.send("Page.captureScreenshot", { format: "png", optimizeForSpeed: true });
+    await writeFile(file, Buffer.from(data, "base64"));
+    s.lastShot = basename(file);
     await recordStyles(s, file);
     return s.sr ? "(a screenshot was kept for the graders)" : file;
 }
+// ---------- routes: every walk is saved as a script that --replay can run again ----------
+// route.jsonl in the session folder: a first line saying how the session started, then one line per
+// --step with its actions, what it printed and the screen it ended on (the check points a replay
+// compares). A file is kept by its full path, so the route replays from any folder.
+const routeSteps = (steps) =>
+    steps.flatMap(([a, ...v]) =>
+        a === "--upload" || a === "--drop" ? [a, existsSync(resolve(v[0])) ? resolve(v[0]) : v[0]] : [a, ...v],
+    );
+// What a step printed, without what differs from run to run on the same screen: the screenshot's
+// path, the session folder, a slow click that landed, a drawing still settling, a notice that went
+// before the screenshot, the indented call log of a failed click
+const NOISE = /still moving|^slow \w+ \(landed\)|^a notice showed and went|^ {4}|screenshot was kept/;
+const checkLines = (out, dir) =>
+    out
+        .filter((l) => !NOISE.test(l) && !/^\/.*\.png$/.test(l))
+        .map((l) => l.replaceAll(dir, "<session>").replace(/\d+(\.\d+)? (KB|MB|bytes)/g, "<size>"));
+// The screen's check point: every control and heading in view, by kind and name, sorted
+function screenOf() {
+    const sel =
+        "button,a[href],input,select,textarea,h1,h2,h3,h4,[role=button],[role=link],[role=tab],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=treeitem],[role=checkbox],[role=radio],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[role=slider],[role=dialog],[role=alertdialog],[role=heading],[role=row]";
+    const out = [];
+    for (const e of document.querySelectorAll(sel)) {
+        if (!e.checkVisibility() || e.closest("[aria-hidden=true]")) continue;
+        const name = (e.getAttribute("aria-label") || e.innerText || e.value || e.placeholder || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 60);
+        out.push(`${e.getAttribute("role") || e.tagName.toLowerCase()} ${name}`);
+    }
+    return out.sort();
+}
+async function recordRoute(s, { steps, out, code, missed }) {
+    const ms = Object.fromEntries(Object.entries(s.ms).map(([k, v]) => [k, Math.round(v)]));
+    const line = {
+        steps: routeSteps(steps),
+        code,
+        missed,
+        shot: s.lastShot,
+        out: checkLines(out, s.dir),
+        screen: await s.page.evaluate(screenOf).catch(() => []),
+        ms,
+    };
+    await appendFile(join(s.dir, "route.jsonl"), JSON.stringify(line) + "\n");
+    return line;
+}
+// How far a replayed step's check points are from the recorded ones: null when they match, else
+// why. Lines must match exactly; the screen may differ in a few controls (a "saved 2 minutes ago"
+// row), at most REAL_REPLAY_TOLERANCE of them (default 2, or 5% of the screen's controls).
+function divergence(rec, now) {
+    if (now.missed && !rec.missed) return `a control the route used is missing: ${now.out.join(" | ")}`;
+    if (now.code !== rec.code) return `the step exited ${now.code}, the route's ${rec.code}: ${now.out.join(" | ")}`;
+    const a = rec.out.join("\n"),
+        b = now.out.join("\n");
+    if (a !== b)
+        return `the step printed other things: recorded ${JSON.stringify(rec.out)}, now ${JSON.stringify(now.out)}`;
+    const left = [...rec.screen];
+    const added = [];
+    for (const x of now.screen) {
+        const i = left.indexOf(x);
+        if (i >= 0) left.splice(i, 1);
+        else added.push(x);
+    }
+    const allowed = Number(process.env.REAL_REPLAY_TOLERANCE) || Math.max(2, Math.round(0.05 * rec.screen.length));
+    if (left.length + added.length > allowed)
+        return `the screen differs: gone ${JSON.stringify(left.slice(0, 12))}, new ${JSON.stringify(added.slice(0, 12))}`;
+    return null;
+}
+
 // One line per screenshot in styles-steps.jsonl: whether a graph is open and a hash of what its layers
 // look like, so the time to the first styled graph is read from the screenshots' own clocks
 // (score.mjs). Never shown to the participant.
@@ -1775,6 +2107,7 @@ async function recordStyles(s, file) {
 // The DOM stops changing, then the drawing settles: graphty-element's waitForStableFrame
 async function settle(s, out, ms = 15000) {
     const { page } = s;
+    const t0 = performance.now();
     let last = -1;
     for (let i = 0; i < 30; i++) {
         const n = await page.evaluate(() => document.body.innerHTML.length).catch(() => -1);
@@ -1796,17 +2129,21 @@ async function settle(s, out, ms = 15000) {
         .catch(() => null);
     if (moving) out.push(`the drawing is still moving (${moving.split("\n")[0].slice(0, 160)})`);
     await page.evaluate(() => document.fonts.ready).catch(() => {});
+    const t1 = performance.now();
     // waitForStableFrame watches the layout, not the camera: captures of the canvas's area half a
     // second apart catch a turning or drifting drawing it lets through
-    if (!moving && (await canvasMoves(page)))
+    if (!moving && (await canvasMoves(s)))
         out.push("the drawing is still moving (the canvas kept changing for a second with no input)");
+    s.ms = { ...s.ms, settleDom: t1 - t0, settleCanvas: performance.now() - t1 };
 }
 // Only a plain capture of the window: hiding the rest with a style would blur the canvas, which
 // lets go of a held camera key and so stops the very spin this looks for. So the captures include
 // whatever lies over the canvas (an open popover, its suggestion list, a caret, a notice), and only
 // the canvas's own pixels are compared: a cell of the canvas's area that something else covers,
 // in any of the captures, is left out.
-async function canvasMoves(page) {
+async function canvasMoves(s) {
+    const { page } = s;
+    s.cdp ??= await s.context.newCDPSession(page);
     const clip = await page
         .locator("graphty-element")
         .first()
@@ -1816,18 +2153,25 @@ async function canvasMoves(page) {
     const covered = new Set();
     const grab = async () => {
         for (const i of await coveredCells(page, clip)) covered.add(i);
-        const png = await page.screenshot({ clip, animations: "disabled", timeout: 5000 }).catch(() => null);
+        // a quarter-size capture through the DevTools protocol: a turning or drifting drawing changes
+        // it as surely as a full one (each pixel blends 16 of the drawing's), at a fraction of the cost
+        const png = await s.cdp
+            .send("Page.captureScreenshot", { format: "png", optimizeForSpeed: true, clip: { ...clip, scale: 0.25 } })
+            .then((r) => Buffer.from(r.data, "base64"))
+            .catch(() => null);
         return png && PNG.sync.read(png);
     };
     // three captures, and moving only when each differs from the one before: a one-off change (a
-    // notice arriving over the canvas, a late repaint) is not motion, a spin or a drift changes every time
-    const shots = [];
-    for (let i = 0; i < 3; i++) {
-        if (i) await page.waitForTimeout(500);
-        shots.push(await grab());
-    }
-    const [a, b, c] = shots;
-    return !!a && !!b && !!c && canvasDiffers(a, b, clip, covered) && canvasDiffers(b, c, clip, covered);
+    // notice arriving over the canvas, a late repaint) is not motion, a spin or a drift changes every time.
+    // The third is taken only when the first two differ: two that match already say "still" (the
+    // common case), which saves half a second and a capture on every step.
+    const a = await grab();
+    await page.waitForTimeout(500);
+    const b = await grab();
+    if (!a || !b || !canvasDiffers(a, b, clip, covered)) return false;
+    await page.waitForTimeout(500);
+    const c = await grab();
+    return !!c && canvasDiffers(a, b, clip, covered) && canvasDiffers(b, c, clip, covered);
 }
 
 // Cells (CELL x CELL CSS pixels, row by row over the clip) where something other than the graph's
@@ -2140,7 +2484,19 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
     let { page } = s;
     let code = 0,
         missed = 0;
-    for (const [a, v, v2] of steps) {
+    const t0 = performance.now();
+    for (const [i, [a, v, v2]] of steps.entries()) {
+        // A batch stops at its first miss or failed check: the rest was written for a screen the
+        // walker expected, and run on another one it would act on the wrong controls
+        if ((missed || code) && i > 0) {
+            out.push(
+                `stopped after "${steps[i - 1].join(" ")}": the rest of this step (${steps
+                    .slice(i)
+                    .map((x) => x[0])
+                    .join(" ")}) did not run`,
+            );
+            break;
+        }
         if (a === "--expect" || a === "--expect-not") {
             let seen;
             const sel = v.match(/^selected=(\d+)$/);
@@ -2382,7 +2738,9 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             out.push("a file chooser is open (answer it with --upload <file>)");
         if (s.sr) await srReport(s, out);
     }
+    const t1 = performance.now();
     await settle(s, out);
+    const t2 = performance.now();
     // what was announced while the drawing settled
     if (s.sr) await srLive(s, out);
     else await goneNotices(s, out);
@@ -2395,7 +2753,158 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
         out.push(e);
         if (requestsFail || !e.startsWith("failed request: ")) code = 1;
     }
+    s.ms = { ...s.ms, act: t1 - t0, settle: t2 - t1, after: performance.now() - t2 };
     return { code, missed };
+}
+
+// ---------- --replay and --rewalk: a saved route run again with no one at the keyboard ----------
+const routeFile = (r) => (existsSync(join(r, "route.jsonl")) ? join(r, "route.jsonl") : r);
+const readRoute = (r) =>
+    readFileSync(routeFile(r), "utf8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+// Ends a live session as --end does, waiting for its process to let go of its socket
+async function endSession(dir) {
+    const r = await ask(dir, { op: "end" }).catch(() => ({ out: [], end: true }));
+    for (let i = 0; existsSync(sockOf(dir)) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+    await rm(sockOf(dir), { force: true });
+    return r;
+}
+// --replay <walk folder | route.jsonl> <new session dir> [--end-on-diverge] [--keep]
+// Starts the new session the way the route's did and sends its steps one --step at a time, comparing
+// each step's check points (what it printed, the controls on screen, a miss) with the route's. All
+// match: the session is ended (--keep leaves it open to carry on). One differs: it stops there, says
+// how, and leaves the session open on that screen for whoever replayed it to carry on by hand (exit
+// 5); --end-on-diverge ends it instead. Writes replay.json in the new folder.
+async function replay(from, dir, { endOnDiverge, keep }) {
+    dir = resolve(dir);
+    const [head, ...recs] = readRoute(from);
+    // the route's window and color scheme; the build is whatever REAL_DIST names now (the point of a
+    // re-walk is the same route on a new build)
+    const vp = head.viewport ?? VIEWPORT;
+    const want = { REAL_VIEWPORT: `${vp.width}x${vp.height}`, REAL_SCHEME: head.scheme || "" };
+    if (
+        want.REAL_VIEWPORT !== `${VIEWPORT.width}x${VIEWPORT.height}` ||
+        want.REAL_SCHEME !== (process.env.REAL_SCHEME || "")
+    )
+        return spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
+            stdio: "inherit",
+            env: { ...process.env, ...want },
+        }).status;
+    const t0 = Date.now();
+    const summary = { route: routeFile(resolve(from)), steps: recs.length, matched: 0, diverged: null };
+    const save = () =>
+        writeFile(
+            join(dir, "replay.json"),
+            JSON.stringify({ ...summary, seconds: Math.round((Date.now() - t0) / 1000) }, null, 1) + "\n",
+        );
+    const code = await start(dir, head.start, head.sr, undefined, head.keys);
+    if (code) {
+        summary.diverged = { step: 0, why: `the start exited ${code}` };
+        await save();
+        return code;
+    }
+    for (const [i, rec] of recs.entries()) {
+        const p = parseSteps(rec.steps);
+        const r = p.refused
+            ? { out: [p.refused], code: 2 }
+            : await ask(dir, { op: "step", steps: p.steps }).catch((e) => ({ out: [e.message], code: 1 }));
+        const why = r.check ? divergence(rec, r.check) : `the step did not run: ${r.out.join(" | ")}`;
+        if (why) {
+            summary.diverged = {
+                step: i + 1,
+                steps: rec.steps,
+                why,
+                shot: r.check?.shot ?? null,
+                recordedShot: rec.shot,
+            };
+            await save();
+            console.log(`step ${i + 1} of ${recs.length} (${rec.steps.join(" ")}) DIVERGED: ${why}`);
+            for (const l of r.out) console.log(`  ${l}`);
+            if (endOnDiverge) {
+                await endSession(dir);
+                console.log(`the session is ended; ${summary.matched} steps matched the route before this one`);
+            } else
+                console.log(
+                    `the session is still open on that screen (${join(dir, r.check?.shot ?? "")}): carry on by hand with --step, then --end`,
+                );
+            return 5;
+        }
+        summary.matched++;
+        console.log(`step ${i + 1} of ${recs.length}: ${rec.steps.join(" ")} -- matches (${r.check.shot})`);
+    }
+    await save();
+    if (keep) console.log(`replayed all ${recs.length} steps; every check point matched; the session is still open`);
+    else {
+        await endSession(dir);
+        console.log(`replayed all ${recs.length} steps; every check point matched; session ended`);
+    }
+    return 0;
+}
+// --rewalk <old walks folder> <new walks folder> [--only <walk>,<walk>]
+// Replays every route under the old folder (a task's pilot folder, or a pilot folder of tasks) into
+// the same place under the new one, REAL_REWALK_PARALLEL (default 4) at a time, each through the
+// browser gate. A walk that diverges is ended and its folder kept as <walk>-diverged, so <walk> is
+// free for a walker to --replay it again and carry on by hand from where it went another way. Writes
+// <new>/rewalk.json and exits 0 when every route matched, 5 when any diverged.
+async function rewalk(oldDir, newDir, only) {
+    oldDir = resolve(oldDir);
+    newDir = resolve(newDir);
+    const found = [];
+    const look = (d, depth) => {
+        if (existsSync(join(d, "route.jsonl"))) return found.push(d);
+        if (depth < 2)
+            for (const f of readdirSync(d, { withFileTypes: true }))
+                if (f.isDirectory() && !f.name.endsWith("-diverged")) look(join(d, f.name), depth + 1);
+    };
+    look(oldDir, 0);
+    const walks = found
+        .map((d) => d.slice(oldDir.length + 1))
+        .filter((w) => !only || only.some((o) => w === o || w.startsWith(o + "/") || w.endsWith("/" + o)));
+    if (!walks.length) {
+        console.log(`FAIL: no route.jsonl under ${oldDir}${only ? ` for ${only.join(", ")}` : ""}; nothing to replay`);
+        return 1;
+    }
+    const results = [];
+    let next = 0;
+    const self = fileURLToPath(import.meta.url);
+    const worker = async () => {
+        while (next < walks.length) {
+            const w = walks[next++];
+            const to = join(newDir, w);
+            await rm(to, { recursive: true, force: true });
+            await rm(to + "-diverged", { recursive: true, force: true });
+            const out = await new Promise((ok) => {
+                const c = spawn(process.execPath, [self, "--replay", join(oldDir, w), to, "--end-on-diverge"], {
+                    env: process.env,
+                });
+                let text = "";
+                c.stdout.on("data", (d) => (text += d));
+                c.stderr.on("data", (d) => (text += d));
+                c.on("exit", (code) => ok({ code, text }));
+            });
+            const rep = JSON.parse(await readFile(join(to, "replay.json"), "utf8").catch(() => "null")) ?? {
+                diverged: { step: 0, why: out.text.trim().split("\n").pop() },
+            };
+            if (rep.diverged) await rename(to, to + "-diverged");
+            results.push({ walk: w, ...rep, folder: rep.diverged ? to + "-diverged" : to });
+            console.log(
+                rep.diverged
+                    ? `${w}: DIVERGED at step ${rep.diverged.step} of ${rep.steps ?? "?"}: ${rep.diverged.why.slice(0, 300)}`
+                    : `${w}: all ${rep.steps} steps matched (${rep.seconds} s)`,
+            );
+        }
+    };
+    await Promise.all(Array.from({ length: Math.max(1, Number(process.env.REAL_REWALK_PARALLEL) || 4) }, worker));
+    results.sort((a, b) => a.walk.localeCompare(b.walk));
+    await mkdir(newDir, { recursive: true });
+    await writeFile(join(newDir, "rewalk.json"), JSON.stringify({ from: oldDir, walks: results }, null, 1) + "\n");
+    const bad = results.filter((r) => r.diverged);
+    console.log(
+        `${results.length - bad.length} of ${results.length} routes matched every check point${bad.length ? `; diverged: ${bad.map((r) => r.walk).join(", ")}` : ""} (${join(newDir, "rewalk.json")})`,
+    );
+    return bad.length ? 5 : 0;
 }
 
 // ---------- --prove: the tool against the real app ----------
@@ -2404,6 +2913,8 @@ async function prove() {
     // REAL_PROVE_DIR keeps two self-tests run at once from clearing each other's sessions
     const base = resolve(process.env.REAL_PROVE_DIR || join(repo, "design/ui/studio/tmp/prove"));
     await rm(base, { recursive: true, force: true });
+    // the warm pool is off for every check but its own, so each start below is the cold one it tests
+    process.env.REAL_WARM_POOL = "0";
     let bad = 0;
     const node = (args, cwd) =>
         spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env, ...(cwd && { cwd }) });
@@ -2463,11 +2974,11 @@ async function prove() {
             g.status === 0 && g.stdout.startsWith(pool),
             `exit ${g.status} ${g.stdout}${g.stderr}`,
         );
-        const five = spawnSync(gate, ["true"], { encoding: "utf8", env: { ...process.env, BROWSER_SLOTS: "5" } });
+        const many = spawnSync(gate, ["true"], { encoding: "utf8", env: { ...process.env, BROWSER_SLOTS: "17" } });
         check(
-            "the gate refuses BROWSER_SLOTS above 4",
-            five.status === 2 && /BROWSER_SLOTS must be 1 to 4/.test(five.stderr),
-            `exit ${five.status} ${five.stderr}`,
+            "the gate refuses BROWSER_SLOTS above 16",
+            many.status === 2 && /BROWSER_SLOTS must be 1 to 16/.test(many.stderr),
+            `exit ${many.status} ${many.stderr}`,
         );
     }
 
@@ -2755,6 +3266,12 @@ async function prove() {
         )
     )
         return finish(bad, [A]);
+    if (GPU)
+        check(
+            "the session draws on the GPU, not SwiftShader (session.json names the renderer)",
+            onGpu(json.renderer || ""),
+            `renderer ${json.renderer}`,
+        );
     {
         const c = commitOf();
         check(
@@ -3166,6 +3683,8 @@ async function prove() {
         check("with REAL_MISS_FAILS=1 a planted miss exits 2", x.code === 2, `exit ${x.code} ${x.out}`);
     }
     node(["--end", M]);
+    await proveRoutes(base, check, node, step);
+    await proveWarm(base, check);
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
@@ -3191,6 +3710,119 @@ async function prove() {
     }
     return finish(bad, [A, B, C, D, E, H, I]);
 }
+// --prove's checks of routes: a walk saves its route, --replay runs it again and stops at a planted
+// difference, --rewalk sorts walks that match from walks that diverge, a batch stops at its first miss
+async function proveRoutes(base, check, node, step) {
+    const self = fileURLToPath(import.meta.url);
+    const R = join(base, "route-walk");
+    let r = node(["--start", R, "empty"]);
+    if (!check("a walk to replay starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
+    step(R, "--click", "Open a file", "--upload", "florentine.gml", "--click", "Load");
+    step(R, "--hover", "Undo");
+    let x = step(R, "--click", "Nothing is called this", "--key", "Tab");
+    check(
+        "a batch stops at its first miss: the steps after it do not run",
+        /^stopped after "--click Nothing is called this": the rest of this step \(--key\) did not run/m.test(x.out),
+        x.out,
+    );
+    node(["--end", R]);
+    const route = existsSync(join(R, "route.jsonl")) ? readRoute(R) : [];
+    check(
+        "a walk saves its route: how it started, then each step with its check points",
+        route.length === 4 &&
+            route[0].start === "empty" &&
+            route[1].steps[0] === "--click" &&
+            route[2].screen.length > 0,
+        JSON.stringify(route).slice(0, 400),
+    );
+    const R2 = join(base, "route-replay");
+    r = node(["--replay", R, R2]);
+    check(
+        "a replay of an unchanged route matches every check point and ends the session",
+        r.status === 0 && /replayed all 3 steps; every check point matched/.test(r.stdout) && !existsSync(sockOf(R2)),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    // a route whose second step saw another tooltip: the screen it replays on differs there
+    const old = join(base, "route-old");
+    const plantRoute = async (walk, edit) => {
+        await mkdir(join(old, walk), { recursive: true });
+        const lines = readRoute(R);
+        edit(lines);
+        await writeFile(join(old, walk, "route.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    };
+    await plantRoute("good", () => {});
+    await plantRoute("changed", (l) => (l[2].out = ['tooltip: "Something the build no longer says"']));
+    await plantRoute("missing", (l) => (l[1].steps = ["--click", "Open a file that is not there"]));
+    const R3 = join(base, "route-diverged");
+    r = node(["--replay", join(old, "changed"), R3]);
+    check(
+        "a replay stops at the first step whose check points differ, and leaves the session open there",
+        r.status === 5 &&
+            /^step 2 of 3 \(--hover Undo\) DIVERGED: the step printed other things/m.test(r.stdout) &&
+            existsSync(sockOf(R3)),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    node(["--end", R3]);
+    const W = join(base, "route-new");
+    r = spawnSync(process.execPath, [self, "--rewalk", old, W], {
+        encoding: "utf8",
+        env: { ...process.env, REAL_REWALK_PARALLEL: "1" },
+    });
+    const rw = existsSync(join(W, "rewalk.json"))
+        ? JSON.parse(readFileSync(join(W, "rewalk.json"), "utf8"))
+        : { walks: [] };
+    const by = Object.fromEntries(rw.walks.map((w) => [w.walk, w]));
+    check(
+        "a rewalk replays every route: the unchanged one matches, a missing control and a changed screen diverge and keep their folder aside",
+        r.status === 5 &&
+            by.good &&
+            !by.good.diverged &&
+            /a control the route used is missing/.test(by.missing?.diverged?.why || "") &&
+            by.changed?.diverged?.step === 2 &&
+            existsSync(join(W, "changed-diverged", "02.png")) &&
+            !existsSync(join(W, "changed")),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+}
+// --prove's check of the warm pool, in a pool of its own: a start tops it up, and the next start of
+// the same build takes the warm browser over instead of launching one
+async function proveWarm(base, check) {
+    const self = fileURLToPath(import.meta.url);
+    const pool = join(base, "warm-slots");
+    await mkdir(pool, { recursive: true });
+    const env = {
+        ...process.env,
+        BROWSER_SLOT_DIR: pool,
+        BROWSER_SLOTS: "6",
+        REAL_WARM_POOL: "1",
+        REAL_WARM_SECONDS: "180",
+    };
+    const run = (a) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env });
+    const [W1, W2] = [join(base, "warm-1"), join(base, "warm-2")];
+    let r = run(["--start", W1, "empty"]);
+    check("a cold start tops up the warm pool", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`);
+    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
+    const t = Date.now();
+    r = run(["--start", W2, "empty"]);
+    const took = Date.now() - t;
+    const log = existsSync(join(W2, "session.log")) ? readFileSync(join(W2, "session.log"), "utf8") : "";
+    check(
+        "the next start of the same build takes over the warm browser, with the app already open",
+        r.status === 0 && /took over warm browser/.test(log) && existsSync(join(W2, "01.png")),
+        `exit ${r.status} in ${took} ms; ${r.stdout}${r.stderr}; session.log: ${log.slice(0, 300)}`,
+    );
+    for (const d of [W1, W2]) spawnSync(process.execPath, [self, "--end", d], { env: { ...env, REAL_WARM_POOL: "0" } });
+    // the browsers it warmed after: stopped, so the planted pool leaves nothing running
+    for (const f of existsSync(WARM_DIR) ? readdirSync(WARM_DIR) : []) {
+        const pid = Number(f.match(/-(\d+)\.(sock|warming)$/)?.[1]);
+        if (!pid || !f.startsWith(warmKey())) continue;
+        try {
+            process.kill(f.endsWith(".warming") ? -pid : pid, "SIGTERM");
+        } catch {
+            // already gone
+        }
+    }
+}
 function finish(bad, dirs) {
     for (const d of dirs)
         if (existsSync(sockOf(d))) spawnSync(process.execPath, [fileURLToPath(import.meta.url), "--end", d]);
@@ -3208,6 +3840,8 @@ const rest = (bare, valued) =>
 let code = 0;
 if (mode === "--serve") {
     await serve(resolve(args[1]), args[2] === "--sr");
+} else if (mode === "--warm") {
+    await serve(null, false);
 } else if (mode === "--start") {
     const task = flag("--task");
     const [dir, how] = rest(["--sr", "--keys"], ["--task"]);
@@ -3252,6 +3886,8 @@ if (mode === "--serve") {
     }
     const home = args[1] && studioOf(resolve(args[1]));
     if (ended && home) await copyBack(resolve(args[1]), home);
+    // a slot just came free: warm the next browser of the build this command names
+    if (ended && process.env.REAL_DIST) topUp();
 } else if (mode === "--leaks") {
     const [dir, ...given] = args.slice(1);
     if (!dir) {
@@ -3287,12 +3923,33 @@ if (mode === "--serve") {
         }
         code = g.problems.length ? 1 : 0;
     }
+} else if (mode === "--replay") {
+    const [from, dir] = rest(["--end-on-diverge", "--keep"], []);
+    if (!from || !dir) {
+        console.error(
+            "usage: real.mjs --replay <walk folder | route.jsonl> <new session dir> [--end-on-diverge] [--keep]",
+        );
+        code = 2;
+    } else if (!existsSync(routeFile(resolve(from)))) {
+        console.error(`no route.jsonl in ${resolve(from)}`);
+        code = 2;
+    } else
+        code = await replay(from, dir, {
+            endOnDiverge: args.includes("--end-on-diverge"),
+            keep: args.includes("--keep"),
+        });
+} else if (mode === "--rewalk") {
+    const [from, to] = rest([], ["--only"]);
+    if (!from || !to) {
+        console.error("usage: real.mjs --rewalk <old walks folder> <new walks folder> [--only <walk>,<walk>]");
+        code = 2;
+    } else code = await rewalk(from, to, flag("--only")?.split(","));
 } else if (mode === "--prove") {
     code = await prove();
 } else {
     console.error(
-        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --leaks <dir> [transcript.jsonl ...] | --leaks <round dir> | --gate <round dir> | --prove",
+        "usage: real.mjs --brief <dir> | --start <dir> [empty|setup:<file>] [--sr] [--task T17A] | --step <dir> <steps...> | --end <dir> | --leaks <dir> [transcript.jsonl ...] | --leaks <round dir> | --gate <round dir> | --replay <walk> <dir> [--end-on-diverge] [--keep] | --rewalk <old walks> <new walks> [--only <walk>,...] | --prove",
     );
     code = 2;
 }
-if (mode !== "--serve") process.exit(code);
+if (mode !== "--serve" && mode !== "--warm") process.exit(code);

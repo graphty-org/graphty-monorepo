@@ -4,7 +4,7 @@
 // died leaves no ticket in the way, and bars.mjs is passed through without holding a slot.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -81,4 +81,58 @@ test("bars.mjs runs at once with every slot full, holding none (its sessions tak
         }
         rmSync(pool, { recursive: true, force: true });
     }
+});
+
+test("a GPU command may take slots 5 to 8; any other waits behind the four", async () => {
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const holders = [1, 2, 3, 4].map((i) =>
+        spawn("flock", [join(pool, `slot${i}`), "sleep", "600"], { stdio: "ignore", detached: true }),
+    );
+    try {
+        await until(() =>
+            [1, 2, 3, 4].every((i) => spawnSync("flock", ["-n", join(pool, `slot${i}`), "true"]).status !== 0),
+        );
+        const gpu = spawnSync(gate, ["sh", "-c", 'echo "$BROWSER_SLOT"'], {
+            env: { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_GPU: "1" },
+            encoding: "utf8",
+        });
+        assert.equal(gpu.status, 0, gpu.stderr);
+        assert.equal(gpu.stdout.trim(), "5");
+        // the same command drawn in software queues for one of the four
+        const sw = spawn(gate, ["true"], { env: { ...process.env, BROWSER_SLOT_DIR: pool }, stdio: "ignore" });
+        await until(() => existsSync(join(pool, "queue")) && readdirSync(join(pool, "queue")).length === 1);
+        sw.kill("SIGTERM");
+        await new Promise((ok) => sw.on("exit", ok));
+    } finally {
+        for (const h of holders) process.kill(-h.pid);
+        rmSync(pool, { recursive: true, force: true });
+    }
+});
+
+test("the try mode takes only a spare slot above 4, at once, and never while a start waits", () => {
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const env = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_GPU: "1", BROWSER_SLOT_TRY: "1" };
+    try {
+        // every slot free: it takes the highest, leaving 1 to 4 to the shared users
+        let r = spawnSync(gate, ["sh", "-c", 'echo "$BROWSER_SLOT"'], { env, encoding: "utf8" });
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.stdout.trim(), "8");
+        // a start waiting in the queue: the try mode gives up at once
+        mkdirSync(join(pool, "queue"), { recursive: true });
+        writeFileSync(join(pool, "queue", `1-${process.pid}`), "");
+        r = spawnSync(gate, ["true"], { env, encoding: "utf8" });
+        assert.equal(r.status, 75);
+        rmSync(join(pool, "queue", `1-${process.pid}`));
+        // only slots 1 to 4 to take: it gives up rather than take a shared one
+        r = spawnSync(gate, ["true"], { env: { ...env, BROWSER_SLOTS: "4" }, encoding: "utf8" });
+        assert.equal(r.status, 75);
+    } finally {
+        rmSync(pool, { recursive: true, force: true });
+    }
+});
+
+test("BROWSER_SLOTS above 16 is refused", () => {
+    const r = spawnSync(gate, ["true"], { env: { ...process.env, BROWSER_SLOTS: "17" }, encoding: "utf8" });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /1 to 16/);
 });

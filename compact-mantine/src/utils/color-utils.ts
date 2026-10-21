@@ -211,6 +211,43 @@ const HUES: readonly (readonly [number, string])[] = [
 ];
 
 /**
+ * The word for a color with next to no hue, by its lightness.
+ * @param light - the lightness, 0 to 1
+ * @returns black, white, or a gray
+ */
+function grayWord(light: number): string {
+    if (light < 0.1) {
+        return "black";
+    }
+    if (light > 0.94) {
+        return "white";
+    }
+    if (light < 0.4) {
+        return "dark gray";
+    }
+    return light > 0.75 ? "light gray" : "gray";
+}
+
+/**
+ * A color's hue in sixths of the color wheel, 0 to 6.
+ * @param r - red, 0 to 1
+ * @param g - green, 0 to 1
+ * @param b - blue, 0 to 1
+ * @param max - the largest of the three
+ * @param chroma - the largest less the smallest, above 0
+ * @returns the hue
+ */
+function hueSextant(r: number, g: number, b: number, max: number, chroma: number): number {
+    if (max === r) {
+        return ((g - b) / chroma + 6) % 6;
+    }
+    if (max === g) {
+        return (b - r) / chroma + 2;
+    }
+    return (r - g) / chroma + 4;
+}
+
+/**
  * A color as a reader says it, in English: the CSS keyword, in words, when the color is exactly
  * one ("purple" for 800080, "dark green" for 006400), else its hue band with "dark" or "light"
  * ("orange", "dark indigo", "light gray"). For spoken names and tooltips beside a hex code, never
@@ -233,25 +270,9 @@ export function colorWord(color: string): string {
     const light = (max + min) / 2;
     const chroma = max - min;
     if (chroma < 0.1) {
-        if (light < 0.1) {
-            return "black";
-        }
-        if (light > 0.94) {
-            return "white";
-        }
-        if (light < 0.4) {
-            return "dark gray";
-        }
-        return light > 0.75 ? "light gray" : "gray";
+        return grayWord(light);
     }
-    let hue: number;
-    if (max === r) {
-        hue = ((g - b) / chroma + 6) % 6;
-    } else if (max === g) {
-        hue = (b - r) / chroma + 2;
-    } else {
-        hue = (r - g) / chroma + 4;
-    }
+    const hue = hueSextant(r, g, b, max, chroma);
     const name = HUES.find(([end]) => hue * 60 < end)?.[1] ?? "red";
     if ((name === "orange" || name === "yellow") && light < 0.35) {
         return "brown";

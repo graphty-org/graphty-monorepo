@@ -32,15 +32,22 @@ function breakAtPunctuation(value: React.ReactNode): React.ReactNode {
         return value;
     }
     const parts = value.split(BREAK_AFTER);
-    return parts.length < 2
-        ? value
-        : parts.map((part, index) => (
-              // The parts of one string never reorder, so the index is a stable key.
-              <React.Fragment key={index}>
-                  {index > 0 && <wbr />}
-                  {part}
-              </React.Fragment>
-          ));
+    if (parts.length < 2) {
+        return value;
+    }
+    // Each part is keyed by where it starts in the string: the parts are never empty, so the
+    // offsets are distinct, and only the first part starts at 0.
+    let start = 0;
+    return parts.map((part) => {
+        const offset = start;
+        start += part.length;
+        return (
+            <React.Fragment key={offset}>
+                {offset > 0 && <wbr />}
+                {part}
+            </React.Fragment>
+        );
+    });
 }
 
 /**
@@ -250,6 +257,9 @@ export function DataRow({
         </>
     );
 
+    // ARIA 1.3's description, which the a11y lint's role table predates.
+    const descriptionProps = description === undefined ? {} : { "aria-description": description };
+
     // The fills (hover, selected) and the focus ring are the row's pseudo elements, a 24px pill
     // inset 4 8 4 12 in the 32px row (design/figma-spec.md 10.5), drawn by tree.css.ts.
     //
@@ -275,8 +285,7 @@ export function DataRow({
                     data-testid="data-row-button"
                     ref={button}
                     aria-current={ariaCurrent}
-                    // ARIA 1.3's description, which the a11y lint's role table predates.
-                    {...(description === undefined ? {} : { "aria-description": description })}
+                    {...descriptionProps}
                     onClick={handleClick}
                     onFocus={onFocus}
                     onBlur={onBlur}

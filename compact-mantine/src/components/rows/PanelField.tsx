@@ -4,7 +4,7 @@ import React, { forwardRef } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { usePanelLabels } from "../../context/PanelLabelsContext";
-import { useLabels, useNumberParser } from "../../i18n";
+import { type CompactMantineLabels, useLabels, useNumberParser } from "../../i18n";
 import { FieldGlyph, type FieldGlyphName, type FieldLetter, isFieldGlyphName, isFieldLetter } from "../../icons";
 import type {
     ActivationHandler,
@@ -15,7 +15,7 @@ import type {
 } from "../../types/events";
 import { useControlAnnotation } from "../../utils/control-annotation";
 import { isRtl, useDirection } from "../../utils/rtl";
-import { DiscardNote } from "../inputs/DiscardNote";
+import { discardNoteContainer } from "../inputs/discard-note-container";
 import { FieldCaret, ListboxCheck } from "../inputs/listbox";
 import { useNumberField } from "../inputs/useNumberField";
 import { useScrub } from "../inputs/useScrub";
@@ -325,6 +325,424 @@ export interface PanelFieldProps extends Omit<
 }
 
 /**
+ * The words a field shows while its value is hidden or unset.
+ * @param labels - the words
+ * @param mixed - whether the selection disagrees
+ * @param placeholder - the `placeholder` prop
+ * @param valueText - the value, which the boolean `placeholder` moves into the placeholder
+ * @returns the placeholder, if any
+ */
+function placeholderTextOf(
+    labels: CompactMantineLabels,
+    mixed: boolean,
+    placeholder: boolean | string | undefined,
+    valueText: string,
+): string | undefined {
+    if (mixed) {
+        return labels.mixed;
+    }
+    if (placeholder === true) {
+        return valueText;
+    }
+    return typeof placeholder === "string" ? placeholder : undefined;
+}
+
+/**
+ * The states drawn only as a color or a mark, as words for the field's accessible description.
+ * @param labels - the words
+ * @param states - the field's states
+ * @param states.mixed - whether the selection disagrees
+ * @param states.bound - whether the value comes from a data attribute
+ * @param states.pending - whether the value has not taken effect yet
+ * @param states.boundDescription - the caller's words for a bound value
+ * @param states.pendingDescription - the caller's words for a pending value
+ * @returns the descriptions
+ */
+function stateDescriptions(
+    labels: CompactMantineLabels,
+    states: {
+        mixed: boolean;
+        bound: boolean;
+        pending: boolean;
+        boundDescription: string | undefined;
+        pendingDescription: string | undefined;
+    },
+): string[] {
+    const descriptions: string[] = [];
+    if (states.mixed) {
+        descriptions.push(labels.mixed);
+    }
+
+    // The per-field props are overrides of the shared strings rather than the
+    // only way to set them, so a field that says nothing about its own states
+    // still announces them in whatever language LabelsProvider was given.
+    const boundText = states.boundDescription ?? labels.fieldBound;
+    const pendingText = states.pendingDescription ?? labels.fieldPending;
+
+    if (states.bound && boundText !== "") {
+        descriptions.push(boundText);
+    }
+
+    if (states.pending && pendingText !== "") {
+        descriptions.push(pendingText);
+    }
+    return descriptions;
+}
+
+/**
+ * What the glyph slot draws: a field glyph, a letter, or the caller's own node.
+ * @param glyph - the `glyph` prop
+ * @param bound - whether the value comes from a data attribute, which fills the glyph in
+ * @returns the slot's content, or null
+ */
+function slotContentOf(glyph: PanelFieldProps["glyph"], bound: boolean): React.ReactNode {
+    if (isFieldGlyphName(glyph)) {
+        return <FieldGlyph name={glyph} filled={bound} />;
+    }
+    if (isFieldLetter(glyph)) {
+        return (
+            <Box
+                component="span"
+                data-letter={glyph}
+                style={{
+                    fontSize: "var(--mantine-font-size-sm)",
+                    lineHeight: 1,
+                }}
+            >
+                {glyph}
+            </Box>
+        );
+    }
+    return glyph ?? null;
+}
+
+/**
+ * The width of the trailing section, which is also the value's inline-end padding, so it allows
+ * for everything drawn there plus the gap before it. The unit is measured once it is drawn. Until
+ * then (and on the server) it is estimated in `ch`, the width of a digit at the field's own font
+ * size -- an estimate only: "%" is wider than a digit, so a long value such as a translated
+ * "Mixed" ran into the unit with no gap at all.
+ * @param unit - the unit drawn after the value, if any
+ * @param unitWidth - the unit's drawn width, 0 until it is measured
+ * @param showsChevron - whether the section holds a drop-down's caret
+ * @returns the width, or undefined when the section is empty
+ */
+function trailingWidthOf(
+    unit: string | undefined,
+    unitWidth: number,
+    showsChevron: boolean,
+): string | number | undefined {
+    let trailingFixed = unit === undefined ? 0 : INLINE_GAP;
+    trailingFixed += showsChevron ? PANEL_GRID.GLYPH_SLOT : VALUE_END_PAD;
+
+    if (unit !== undefined && unitWidth > 0) {
+        return Math.ceil(unitWidth) + trailingFixed;
+    }
+    if (unit !== undefined) {
+        return `calc(${String(unit.length)}ch + ${String(trailingFixed)}px)`;
+    }
+    return showsChevron ? trailingFixed : undefined;
+}
+
+/**
+ * The trailing section: the unit, and a drop-down's caret in its 24px trailing slot. The trailing
+ * slot at the end of the row belongs to the row's own control.
+ * @param props - Component props
+ * @param props.unit - the unit drawn after the value, if any
+ * @param props.showsChevron - whether to draw a drop-down's caret
+ * @param props.unitRef - the ref that measures the unit
+ * @returns the section
+ */
+function TrailingSection({
+    unit,
+    showsChevron,
+    unitRef,
+}: Readonly<{
+    unit: string | undefined;
+    showsChevron: boolean;
+    unitRef: React.Ref<HTMLSpanElement>;
+}>): React.JSX.Element {
+    return (
+        <>
+            {unit !== undefined && (
+                <Box
+                    component="span"
+                    data-testid="panel-field-unit"
+                    style={{
+                        flex: "0 0 auto",
+                        lineHeight: 1,
+                        paddingInlineEnd: showsChevron ? 0 : VALUE_END_PAD,
+                    }}
+                >
+                    <span ref={unitRef} style={{ display: "inline-block" }}>
+                        {unit}
+                    </span>
+                </Box>
+            )}
+            {showsChevron && (
+                <Box
+                    component="span"
+                    data-testid="panel-field-chevron"
+                    style={{
+                        flex: "0 0 auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: PANEL_GRID.GLYPH_SLOT,
+                    }}
+                >
+                    <FieldCaret />
+                </Box>
+            )}
+        </>
+    );
+}
+
+/**
+ * The 24px slot: the field's label, its drag handle, and the thing that puts the value at
+ * PANEL_GRID.VALUE_INSET from the leading edge.
+ * @param props - Component props
+ * @param props.slotContent - what the slot draws
+ * @param props.canScrub - whether the slot is a drag handle
+ * @param props.scrubHandlers - the drag's pointer handlers
+ * @param props.pending - whether to draw the pending mark
+ * @param props.showLabels - whether to draw the field's name beside the slot
+ * @param props.label - the field's name
+ * @returns the section
+ */
+function LeadingSection({
+    slotContent,
+    canScrub,
+    scrubHandlers,
+    pending,
+    showLabels,
+    label,
+}: Readonly<{
+    slotContent: React.ReactNode;
+    canScrub: boolean;
+    scrubHandlers: ReturnType<typeof useScrub>;
+    pending: boolean;
+    showLabels: boolean;
+    label: React.ReactNode;
+}>): React.JSX.Element {
+    return (
+        <>
+            <Box
+                data-testid="panel-field-slot"
+                className="cm-scrub-slot"
+                data-scrub={canScrub ? "true" : undefined}
+                {...scrubHandlers}
+                style={{
+                    position: "relative",
+                    flex: "0 0 auto",
+                    width: PANEL_GRID.GLYPH_SLOT,
+                    height: PANEL_GRID.GLYPH_SLOT,
+                }}
+            >
+                {slotContent}
+                {pending && (
+                    <Box
+                        data-testid="panel-field-pending"
+                        style={{
+                            position: "absolute",
+                            // Logical, so the mark stays in the leading corner
+                            // under dir="rtl" instead of crossing to the other
+                            // side of the glyph.
+                            insetInlineStart: 0,
+                            bottom: 0,
+                            width: PENDING_MARK,
+                            height: PENDING_MARK,
+                            background: PANEL_INK.ACCENT_GRAPHIC,
+                        }}
+                    />
+                )}
+            </Box>
+            {showLabels && (
+                <Box
+                    component="span"
+                    data-testid="panel-field-label"
+                    // The real label element already carries this word as the
+                    // field's accessible name, so the drawn copy is hidden from
+                    // assistive technology rather than announced twice.
+                    aria-hidden="true"
+                    style={{
+                        flex: "1 1 auto",
+                        minWidth: 0,
+                        marginInlineStart: INLINE_GAP,
+                        fontSize: "var(--mantine-font-size-sm)",
+                        lineHeight: 1,
+                        color: PANEL_INK.CHROME,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {label}
+                </Box>
+            )}
+        </>
+    );
+}
+
+/**
+ * The props for the field's outer element. The tooltip sits there rather than on the input, so
+ * that hovering the glyph shows it too -- and so that it does not become the input's accessible
+ * description, which would make a screen reader read every field's name twice.
+ * @param title - the tooltip
+ * @param kind - what the field holds
+ * @param states - the field's states
+ * @param states.bound - whether the value comes from a data attribute
+ * @param states.mixed - whether the selection disagrees
+ * @param states.pending - whether the value has not taken effect yet
+ * @param states.disabled - whether the field cannot be used
+ * @returns the props
+ */
+function fieldWrapperProps(
+    title: string | undefined,
+    kind: PanelFieldKind,
+    states: { bound: boolean; mixed: boolean; pending: boolean; disabled: boolean },
+): Record<string, string | undefined> {
+    return {
+        title,
+        "data-testid": "panel-field",
+        "data-kind": kind,
+        "data-bound": states.bound ? "true" : undefined,
+        "data-mixed": states.mixed ? "true" : undefined,
+        "data-pending": states.pending ? "true" : undefined,
+        "data-disabled": states.disabled ? "true" : undefined,
+    };
+}
+
+/**
+ * The field's outer style: its width, then the caller's own style.
+ * @param width - the field's width
+ * @param style - the caller's style
+ * @returns the style
+ */
+function fieldStyle(width: PanelFieldProps["width"], style: PanelFieldProps["style"]): React.CSSProperties {
+    return {
+        flex: width === "fill" ? "1 1 auto" : "0 0 auto",
+        width: width === "fill" ? "100%" : width,
+        minWidth: 0,
+        ...style,
+    };
+}
+
+/**
+ * Which drags the glyph slot answers.
+ * @param options - what the field is and who took the drag over
+ * @param options.isNumber - whether the field is a number field
+ * @param options.wantsScrub - whether the caller asked to hear about drags
+ * @param options.takenOver - whether the caller took the drag over with onScrub
+ * @param options.isReadOnly - whether the field cannot be changed
+ * @param options.disabled - whether the field cannot be used
+ * @param options.coarsePointer - whether the pointer is coarse
+ * @returns whether the field scrubs its own value, and whether the slot is a drag handle at all
+ */
+function scrubModes(options: {
+    isNumber: boolean;
+    wantsScrub: boolean;
+    takenOver: boolean;
+    isReadOnly: boolean;
+    disabled: boolean;
+    coarsePointer: boolean;
+}): { scrubsValue: boolean; canScrub: boolean } {
+    // A number field scrubs its own value unless the caller took the drag
+    // over with onScrub.
+    const scrubsValue = options.isNumber && !options.takenOver && !options.isReadOnly;
+    // A coarse pointer never scrubs: there the glyph is a target, not a handle.
+    const canScrub = (options.wantsScrub || scrubsValue) && !options.disabled && !options.coarsePointer;
+    return { scrubsValue, canScrub };
+}
+
+/**
+ * A number field's text and value.
+ * @param valueText - the value as text
+ * @param hidesValue - whether the value is hidden behind the placeholder
+ * @param mixed - whether the selection disagrees
+ * @param parse - reads a number in the reader's locale
+ * @returns the text the box shows, and the number, or null when there is none
+ */
+function numberReadingOf(
+    valueText: string,
+    hidesValue: boolean,
+    mixed: boolean,
+    parse: (text: string) => number,
+): { numberText: string; numberValue: number | null } {
+    const numberText = hidesValue ? "" : valueText;
+    const parsed = valueText === "" || mixed ? Number.NaN : parse(valueText);
+    return { numberText, numberValue: Number.isNaN(parsed) ? null : parsed };
+}
+
+/**
+ * What Escape says it kept in a number field, or "" when Escape discarded nothing.
+ * @param labels - the words
+ * @param discarded - whether Escape just discarded an edit
+ * @param numberText - the text the box shows
+ * @param placeholderText - the placeholder, said in place of an empty value
+ * @param unit - the unit drawn after the value, if any
+ * @returns the note's words
+ */
+function discardedTextOf(
+    labels: CompactMantineLabels,
+    discarded: boolean,
+    numberText: string,
+    placeholderText: string | undefined,
+    unit: string | undefined,
+): string {
+    if (!discarded) {
+        return "";
+    }
+    return labels.colorEditDiscarded(numberText === "" ? (placeholderText ?? "") : `${numberText}${unit ?? ""}`);
+}
+
+/**
+ * A drop-down's option renderer that draws each option's glyph, or undefined for Mantine's own.
+ * @param optionGlyphs - the glyph of each option, by value
+ * @returns the renderer
+ */
+function optionRenderer(
+    optionGlyphs: PanelFieldProps["optionGlyphs"],
+): ((item: { option: { value: string; label: string } }) => React.JSX.Element) | undefined {
+    if (optionGlyphs === undefined) {
+        return undefined;
+    }
+    return function GlyphOption({ option }: { option: { value: string; label: string } }): React.JSX.Element {
+        return (
+            <span className="cm-listbox-option-content" title={option.label}>
+                <ListboxCheck />
+                {optionGlyphs[option.value] !== undefined && (
+                    <span className="cm-listbox-glyph" aria-hidden="true">
+                        {optionGlyphs[option.value]}
+                    </span>
+                )}
+                <span className="cm-listbox-label">{option.label}</span>
+            </span>
+        );
+    };
+}
+
+/**
+ * What a field holds: the `kind` given, else a drop-down when it has choices, else text.
+ * @param kind - the `kind` prop
+ * @param data - the choices, if any
+ * @returns the kind
+ */
+function kindOf(kind: PanelFieldKind | undefined, data: ComboboxData | undefined): PanelFieldKind {
+    return kind ?? (data !== undefined ? "select" : "text");
+}
+
+/**
+ * A drop-down's value: none while the value is hidden or empty.
+ * @param hidesValue - whether the value is hidden behind the placeholder
+ * @param valueText - the value as text
+ * @returns the value, or null
+ */
+function selectValueOf(hidesValue: boolean, valueText: string): string | null {
+    return hidesValue || valueText === "" ? null : valueText;
+}
+
+/**
  * A compact field for one changeable value, with a glyph in place of a caption.
  *
  * This is the control a dense property panel is mostly made of. Instead of
@@ -422,7 +840,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             onChange,
         });
 
-        const kind: PanelFieldKind = kindProp ?? (data !== undefined ? "select" : "text");
+        const kind = kindOf(kindProp, data);
         const showsChevron = kind === "select";
         const offersChoices = kind === "select" && data !== undefined;
 
@@ -440,37 +858,13 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
         const valueIsPlaceholder = placeholder === true;
         const hidesValue = mixed || valueIsPlaceholder;
 
-        let placeholderText: string | undefined;
-        if (mixed) {
-            placeholderText = labels.mixed;
-        } else if (valueIsPlaceholder) {
-            placeholderText = valueText;
-        } else if (typeof placeholder === "string") {
-            placeholderText = placeholder;
-        }
+        const placeholderText = placeholderTextOf(labels, mixed, placeholder, valueText);
 
         // Accessibility: states that are drawn only as a color or a mark are
         // unavailable to a screen reader, so each one also joins the field's
         // accessible description. This is Mantine's `description` element, hidden
         // from sight but wired to the input with aria-describedby by Input.Wrapper.
-        const descriptions: string[] = [];
-        if (mixed) {
-            descriptions.push(labels.mixed);
-        }
-
-        // The per-field props are overrides of the shared strings rather than the
-        // only way to set them, so a field that says nothing about its own states
-        // still announces them in whatever language LabelsProvider was given.
-        const boundText = boundDescription ?? labels.fieldBound;
-        const pendingText = pendingDescription ?? labels.fieldPending;
-
-        if (bound && boundText !== "") {
-            descriptions.push(boundText);
-        }
-
-        if (pending && pendingText !== "") {
-            descriptions.push(pendingText);
-        }
+        const descriptions = stateDescriptions(labels, { mixed, bound, pending, boundDescription, pendingDescription });
 
         const annotation = useControlAnnotation({
             name: label,
@@ -483,16 +877,18 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
 
         const isNumber = kind === "number";
         const wantsScrub = onScrubStart !== undefined || onScrub !== undefined || onScrubEnd !== undefined;
-        // A number field scrubs its own value unless the caller took the drag
-        // over with onScrub.
-        const scrubsValue = isNumber && onScrub === undefined && !isReadOnly;
-        // A coarse pointer never scrubs: there the glyph is a target, not a handle.
-        const canScrub = (wantsScrub || scrubsValue) && !disabled && !coarsePointer;
+        const { scrubsValue, canScrub } = scrubModes({
+            isNumber,
+            wantsScrub,
+            takenOver: onScrub !== undefined,
+            isReadOnly,
+            disabled,
+            coarsePointer,
+        });
 
-        const numberText = hidesValue ? "" : valueText;
-        const numberValue = valueText === "" || mixed ? Number.NaN : parseNumber(valueText);
+        const { numberText, numberValue } = numberReadingOf(valueText, hidesValue, mixed, parseNumber);
         const numberField = useNumberField({
-            value: Number.isNaN(numberValue) ? null : numberValue,
+            value: numberValue,
             display: numberText,
             onCommit: (next, event) => {
                 setValue(next, event);
@@ -570,143 +966,28 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             setValue(next, event);
         };
 
-        let slotContent: React.ReactNode = null;
-        if (isFieldGlyphName(glyph)) {
-            slotContent = <FieldGlyph name={glyph} filled={bound} />;
-        } else if (isFieldLetter(glyph)) {
-            slotContent = (
-                <Box
-                    component="span"
-                    data-letter={glyph}
-                    style={{
-                        fontSize: "var(--mantine-font-size-sm)",
-                        lineHeight: 1,
-                    }}
-                >
-                    {glyph}
-                </Box>
-            );
-        } else if (glyph !== undefined && glyph !== null) {
-            slotContent = glyph;
-        }
+        const slotContent = slotContentOf(glyph, bound);
 
-        // The 24px slot: the field's label, its drag handle, and the thing that puts
-        // the value at PANEL_GRID.VALUE_INSET from the leading edge.
+        // The 24px slot: the field's label, its drag handle, and the thing that puts the value at
+        // PANEL_GRID.VALUE_INSET from the leading edge.
         const leftSection = (
-            <>
-                <Box
-                    data-testid="panel-field-slot"
-                    className="cm-scrub-slot"
-                    data-scrub={canScrub ? "true" : undefined}
-                    {...scrubHandlers}
-                    style={{
-                        position: "relative",
-                        flex: "0 0 auto",
-                        width: PANEL_GRID.GLYPH_SLOT,
-                        height: PANEL_GRID.GLYPH_SLOT,
-                    }}
-                >
-                    {slotContent}
-                    {pending && (
-                        <Box
-                            data-testid="panel-field-pending"
-                            style={{
-                                position: "absolute",
-                                // Logical, so the mark stays in the leading corner
-                                // under dir="rtl" instead of crossing to the other
-                                // side of the glyph.
-                                insetInlineStart: 0,
-                                bottom: 0,
-                                width: PENDING_MARK,
-                                height: PENDING_MARK,
-                                background: PANEL_INK.ACCENT_GRAPHIC,
-                            }}
-                        />
-                    )}
-                </Box>
-                {showLabels && (
-                    <Box
-                        component="span"
-                        data-testid="panel-field-label"
-                        // The real label element already carries this word as the
-                        // field's accessible name, so the drawn copy is hidden from
-                        // assistive technology rather than announced twice.
-                        aria-hidden="true"
-                        style={{
-                            flex: "1 1 auto",
-                            minWidth: 0,
-                            marginInlineStart: INLINE_GAP,
-                            fontSize: "var(--mantine-font-size-sm)",
-                            lineHeight: 1,
-                            color: PANEL_INK.CHROME,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                        }}
-                    >
-                        {label}
-                    </Box>
-                )}
-            </>
+            <LeadingSection
+                slotContent={slotContent}
+                canScrub={canScrub}
+                scrubHandlers={scrubHandlers}
+                pending={pending}
+                showLabels={showLabels}
+                label={label}
+            />
         );
 
         const bareTrigger = showsChevron && slotContent === null && !pending && !showLabels;
-        const hasUnit = unit !== undefined;
         // The caret of a drop-down lives inside the box, in its 24px trailing slot.
-        // The trailing slot at the end of the row belongs to the row's own control.
         const rightSection =
-            hasUnit || showsChevron ? (
-                <>
-                    {hasUnit && (
-                        <Box
-                            component="span"
-                            data-testid="panel-field-unit"
-                            style={{
-                                flex: "0 0 auto",
-                                lineHeight: 1,
-                                paddingInlineEnd: showsChevron ? 0 : VALUE_END_PAD,
-                            }}
-                        >
-                            <span ref={unitRef} style={{ display: "inline-block" }}>
-                                {unit}
-                            </span>
-                        </Box>
-                    )}
-                    {showsChevron && (
-                        <Box
-                            component="span"
-                            data-testid="panel-field-chevron"
-                            style={{
-                                flex: "0 0 auto",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: PANEL_GRID.GLYPH_SLOT,
-                            }}
-                        >
-                            <FieldCaret />
-                        </Box>
-                    )}
-                </>
+            unit !== undefined || showsChevron ? (
+                <TrailingSection unit={unit} showsChevron={showsChevron} unitRef={unitRef} />
             ) : undefined;
-
-        // The width of the trailing section is also the value's inline-end padding,
-        // so it has to allow for everything drawn there plus the gap before it. The
-        // unit is measured once it is drawn. Until then (and on the server) it is
-        // estimated in `ch`, the width of a digit at the field's own font size --
-        // an estimate only: "%" is wider than a digit, so a long value such as a
-        // translated "Mixed" ran into the unit with no gap at all.
-        let trailingFixed = hasUnit ? INLINE_GAP : 0;
-        trailingFixed += showsChevron ? PANEL_GRID.GLYPH_SLOT : VALUE_END_PAD;
-
-        let rightSectionWidth: string | number | undefined;
-        if (hasUnit && unitWidth > 0) {
-            rightSectionWidth = Math.ceil(unitWidth) + trailingFixed;
-        } else if (hasUnit) {
-            rightSectionWidth = `calc(${String(unit.length)}ch + ${String(trailingFixed)}px)`;
-        } else if (showsChevron) {
-            rightSectionWidth = trailingFixed;
-        }
+        const rightSectionWidth = trailingWidthOf(unit, unitWidth, showsChevron);
 
         const leftSectionPointerEvents: React.CSSProperties["pointerEvents"] = canScrub ? "auto" : "none";
         const rightSectionPointerEvents: React.CSSProperties["pointerEvents"] = "none";
@@ -774,25 +1055,8 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                 label: VISUALLY_HIDDEN,
                 description: VISUALLY_HIDDEN,
             },
-            wrapperProps: {
-                // The tooltip sits on the field's outer element rather than on the
-                // input, so that hovering the glyph shows it too -- and so that it
-                // does not become the input's accessible description, which would
-                // make a screen reader read every field's name twice.
-                title: annotation.title,
-                "data-testid": "panel-field",
-                "data-kind": kind,
-                "data-bound": bound ? "true" : undefined,
-                "data-mixed": mixed ? "true" : undefined,
-                "data-pending": pending ? "true" : undefined,
-                "data-disabled": disabled ? "true" : undefined,
-            },
-            style: {
-                flex: width === "fill" ? "1 1 auto" : "0 0 auto",
-                width: width === "fill" ? "100%" : width,
-                minWidth: 0,
-                ...style,
-            },
+            wrapperProps: fieldWrapperProps(annotation.title, kind, { bound, mixed, pending, disabled }),
+            style: fieldStyle(width, style),
         };
 
         // Accessibility: a field is a native form control rather than a composite
@@ -808,6 +1072,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
         // Up/Down/Enter/Space/Escape.
         if (isNumber) {
             const hint = stepHint === "" ? {} : { "aria-description": stepHint };
+            const discardedText = discardedTextOf(labels, numberField.discarded, numberText, placeholderText, unit);
             return (
                 <TextInput
                     {...common}
@@ -816,22 +1081,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                     onKeyDown={numberField.inputProps.onKeyDown}
                     classNames={{ wrapper: "cm-number-field" }}
                     // Escape takes the typing back and says so, as every number field does.
-                    inputContainer={(input) => (
-                        <>
-                            {input}
-                            <DiscardNote
-                                text={
-                                    numberField.discarded
-                                        ? labels.colorEditDiscarded(
-                                              numberText === ""
-                                                  ? (placeholderText ?? "")
-                                                  : `${numberText}${unit ?? ""}`,
-                                          )
-                                        : ""
-                                }
-                            />
-                        </>
-                    )}
+                    inputContainer={discardNoteContainer(discardedText)}
                 />
             );
         }
@@ -841,22 +1091,8 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                 <Select
                     {...common}
                     data={data}
-                    renderOption={
-                        optionGlyphs === undefined
-                            ? undefined
-                            : ({ option }) => (
-                                  <span className="cm-listbox-option-content" title={option.label}>
-                                      <ListboxCheck />
-                                      {optionGlyphs[option.value] !== undefined && (
-                                          <span className="cm-listbox-glyph" aria-hidden="true">
-                                              {optionGlyphs[option.value]}
-                                          </span>
-                                      )}
-                                      <span className="cm-listbox-label">{option.label}</span>
-                                  </span>
-                              )
-                    }
-                    value={hidesValue || valueText === "" ? null : valueText}
+                    renderOption={optionRenderer(optionGlyphs)}
+                    value={selectValueOf(hidesValue, valueText)}
                     onChange={(next) => {
                         handleChange(next ?? "");
                     }}

@@ -268,8 +268,9 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelTextAlign",
+    "edge.labelLocation",
     "node.visible",
-    "node.labelBackground",
     "node.tooltipSize",
     "node.tooltipColor",
     "node.tooltipBackground",
@@ -277,26 +278,12 @@ const DECLARED = [
     "edge.labelSize",
     "edge.labelColor",
     "edge.labelBackground",
-    "edge.arrowHeadTextSize",
-    "edge.arrowHeadTextColor",
     "edge.arrowHeadTextBackground",
-    "edge.arrowTailTextSize",
-    "edge.arrowTailTextColor",
     "edge.arrowTailTextBackground",
+    "edge.labelLetterSize",
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
-    "node.shader",
-    "node.shaderParams",
-    "node.effects",
-    "edge.shader",
-    "edge.shaderParams",
-    "edge.effects",
-    "edge.taper",
-    "edge.lift",
-    "edge.labelTextAlign",
-    "edge.labelLocation",
-    "edge.labelLetterSize",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
     "edge.labelWrapEllipsis",
@@ -321,6 +308,14 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "node.shader",
+    "node.shaderParams",
+    "node.effects",
+    "edge.shader",
+    "edge.shaderParams",
+    "edge.effects",
+    "edge.taper",
+    "edge.lift",
 ];
 
 describe("the channel set", () => {
@@ -347,9 +342,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-seven node channels and one hundred and twenty-four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 147);
-        assert.strictEqual(channelsFor("edge").length, 124);
+    it("splits into one hundred and fifty-four node channels and one hundred and thirty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 154);
+        assert.strictEqual(channelsFor("edge").length, 135);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -658,10 +653,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.gradientStops",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
-        "edge.arrowHeadTextSize",
         "edge.arrowHeadTextLetterSize",
         "edge.arrowHeadTextFont",
-        "edge.arrowHeadTextColor",
         "edge.arrowHeadTextWeight",
         "edge.arrowHeadTextOpacity",
         "edge.arrowHeadTextDistance",
@@ -670,10 +663,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextOffsetY",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
-        "edge.arrowTailTextSize",
         "edge.arrowTailTextLetterSize",
         "edge.arrowTailTextFont",
-        "edge.arrowTailTextColor",
         "edge.arrowTailTextWeight",
         "edge.arrowTailTextOpacity",
         "edge.arrowTailTextDistance",
@@ -701,8 +692,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.effects",
         "edge.shaderParams",
         "edge.effects",
-        "node.labelColor",
-        "node.labelSize",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -731,8 +720,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
-        "edge.labelColor",
-        "edge.labelSize",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -846,7 +833,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the twenty-nine that carry a colour, and the type says the same twenty-nine", () => {
+    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -871,17 +858,15 @@ describe("colour channels", () => {
             "edge.arrowHeadColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
-            "node.labelBackground",
+            "edge.arrowTailTextColor",
+            "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleTailColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",
             "edge.labelBackground",
-            "edge.arrowHeadTextColor",
             "edge.arrowHeadTextBackground",
-            "edge.arrowTailTextColor",
             "edge.arrowTailTextBackground",
-            "edge.arrowMiddleHeadColor",
-            "edge.arrowMiddleTailColor",
             "edge.labelOutline",
             "edge.labelBorder",
         ];

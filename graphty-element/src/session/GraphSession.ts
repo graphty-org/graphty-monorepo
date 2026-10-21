@@ -2723,19 +2723,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
     // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
-    // every layer kept across the change is repainted. Layers added or removed with the run are
-    // the `styles` hook's, which runs after this one.
+    // every kept layer that reads a changed run is repainted. Layers added or removed with the
+    // run are the `styles` hook's, which runs after this one.
+    //
+    // ONLY THE READERS. Repainting every kept layer repainted the element's own "Edge defaults"
+    // layer, which matches every edge, after every finished run: a community run over 36,906
+    // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
+    // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        if (![...dirty].some((id) => rendered.runs.get(id) !== target.runs.get(id))) {
+        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        if (changed.size === 0) {
             return;
         }
 
         painter.invalidate();
         const kept = new Set(rendered.styles);
-        // ponytail: repaints every kept layer, not only those reading the changed runs -- the
-        // cost the element paid before on every finished run; name the readers if it shows.
+        const readsChanged = (path: Path): boolean => {
+            const dependency = dependencyOf(path);
+            return "run" in dependency && changed.has(dependency.run);
+        };
+        // A layer over a set may read a run through the set's own rule, which its `reads` do not
+        // list, so it is repainted whatever run changed, as every layer was before.
         const edits = target.styles
-            .filter((entry) => kept.has(entry))
+            .filter((entry) => kept.has(entry) && (entry.selector.match === "member" || entry.reads.some(readsChanged)))
             .map((entry) => ({ previous: entry, next: entry }));
 
         if (edits.length > 0) {

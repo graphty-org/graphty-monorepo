@@ -3905,3 +3905,59 @@ where it meets the node by the round cap's angle, asin(stroke / 2r) on each side
 covers more than a full turn, and the SVG arc command (`A 3.9305,3.9305 0 1,1`) between its two near-coincident ends
 then takes the other circle through those ends, centered down and to the left of the node, under it. Gephi's own
 preview (`Arc2D`) draws the loop up and to the right, where graphty draws it.
+
+## vis-network's dynamic curves drawn through support points (round 4, 2026-10-21)
+
+vis-network's default edge, `smooth: { type: "dynamic" }`, is a quadratic curve through a hidden support node that its
+physics moves with the nodes: two springs of half the edge's length (`physics.<solver>.springLength`, or the edge's own
+`length`) tie it to the edge's ends, every node and every other support node pushes it away, and central gravity pulls
+it in (vis-network 9.1.9 SpringSolver, BarnesHutSolver, ForceAtlas2BasedRepulsionSolver and their central gravity
+solvers). graph-io read such an edge as straight, so the five corpus files that keep vis-network's defaults and store
+no positions (`json-vis-transparency`, `-lesmiserables`, `-world`, `-unix`, `-siblings`) drew every edge as a 2-point
+line where vis-network bows them. The bow needs no position in the file: stepping vis-network's own forces with the
+nodes held where vis-network drew them puts the curve where vis-network did on 99 of 100 transparency edges.
+
+graph-io now reads a dynamic edge, wherever physics runs for it, as curved through a support point with its forces
+(neutral `supportModel` "barnesHut" or "forceAtlas2", `supportSpringLength`, `supportSpringConstant`,
+`supportRepulsion`, `supportCentralGravity`; none under `physics: false`, an edge's own `physics: false`, or a
+hierarchical layout, which turns every dynamic curve static). graphty-element draws them through the new edge style
+options `line.supportModel`, `line.supportSpringLength`, `line.supportSpringConstant`, `line.supportRepulsion`,
+`line.supportCentralGravity` and `line.supportUnit` (channels of the same names): it settles each support point under
+those forces over a Barnes-Hut tree built as vis-network builds its own, with the nodes where its own layout (or the
+reader) put them, carries each point along its edge as the nodes move, and holds `waitForStableFrame()` until the
+points rest. Edges between the same two nodes bow apart by the support points' own push.
+
+| sample (edge.curve; route where judged) | before             | after              |
+| --------------------------------------- | ------------------ | ------------------ |
+| json-vis-transparency @matched          | 0.48; route 0.58   | 1; route 0.98      |
+| json-vis-world @matched                 | 0.638; route 0.725 | 1; route 0.986     |
+| json-vis-unix @matched                  | 0.776; route 0.776 | 1; route 0.98      |
+| json-vis-siblings @matched              | 0.796; route 0.757 | 0.986; route 0.968 |
+| json-vis-lesmiserables @matched         | 0.617; route 0.664 | 0.949; route 0.885 |
+| json-vis-transparency (own layouts)     | 0.48               | 0.64               |
+| json-vis-world (own layouts)            | 0.638              | 0.754              |
+| json-vis-unix (own layouts)             | 0.776              | 0.837              |
+| json-vis-siblings (own layouts)         | 0.764              | 0.975              |
+| json-vis-lesmiserables (own layouts)    | 0.617              | 0.843              |
+
+No other property of these samples, or of the 16 vis-network specimen sheets, moved (the sheets set `physics: false`).
+
+`gexf-hsk-chars`, named with these in the round's evidence as "edges drawn as collinear 5-point lines", already passes
+every edge (edge.curve 1332/1332, plain and @matched): Gephi's curve is drawn as an arc of the circle through both node
+centers (`line.arcRadius`, 1 / 1.2 of their distance) wherever graphty's layout puts the nodes, so it needs no
+position from the file. Its floor is raised from 0.14 to 1.
+
+Still open:
+
+- On a file with no positions each program lays it out itself, so a dynamic edge bows by graphty's neighbors, not
+  vis-network's: the plain (own layouts) rows judge one layout's crowding against another's, as node.position was
+  before it stopped being judged there. The @matched rows are the measure of the setting.
+- Elements newly failing (recorded in `oracle-known-failures.json`): `json-vis-transparency` 11->50 (own layouts);
+  `json-vis-lesmiserables` 22->21 and 68->25 (own layouts), 22->21 and 56->49 curve, 22->21, 51->49 and 56->49 route
+  (@matched); `json-vis-siblings` @matched route Ilana Melcher->Casondra Brimmage. Stepping vis-network's forces in
+  Python with every node fixed where vis-network drew it misses the same lesmiserables edges (56->49: 0.084 against
+  0.006): vis-network stopped its simulation with those nodes still moving, so their support points sit where no
+  rest puts them. 22->21 is the pair 21-22, whose two support points vis-network separates by a seeded random nudge.
+- vis-network's `repulsion` and `hierarchicalRepulsion` solvers are not modeled: their dynamic edges are drawn straight.
+- A hierarchical layout turns dynamic curves into its direction's static curve (`horizontal` or `vertical`); graph-io
+  draws them straight.

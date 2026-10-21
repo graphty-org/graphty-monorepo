@@ -486,6 +486,347 @@ describe("session.assets: fetching a URL", () => {
     });
 });
 
+/** A served file: its status (200 by default), its bytes and the type header it is sent with. */
+interface Served {
+    readonly status?: number;
+    readonly body?: Uint8Array;
+    readonly type?: string;
+}
+
+/**
+ * Stub fetch with a site: each URL (with its query) answers what it maps to, every other URL the
+ * fallback (a 404 by default). Every URL requested is logged in order.
+ * @param site - URL to what it answers.
+ * @param fallback - What any other URL answers.
+ * @returns The log of requested URLs.
+ */
+function stubSite(site: Record<string, Served>, fallback: Served = { status: 404 }): string[] {
+    const log: string[] = [];
+    vi.stubGlobal("fetch", (url: string) => {
+        log.push(url);
+        const { status = 200, body = new Uint8Array(0), type = null } = Object.hasOwn(site, url) ? site[url] : fallback;
+        return Promise.resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            headers: {
+                get: (name: string) => ({ "content-length": String(body.length), "content-type": type })[name] ?? null,
+            },
+            body: null,
+            arrayBuffer: () => Promise.resolve(body.slice().buffer),
+        });
+    });
+    return log;
+}
+
+/**
+ * A record's problem or warning with a code.
+ * @param record - The record.
+ * @param code - The code.
+ * @returns Its params, or undefined.
+ */
+function factOf(record: AssetRecord, code: string): Record<string, unknown> | undefined {
+    return record.problems.find((p) => p.code === code)?.params;
+}
+
+describe("session.assets: tolerant matching (design 12.5)", () => {
+    const quad = "mtllib quad.mtl\nv 0 0 0\nv 1 0 0\nv 1 1 0\nusemtl m\nf 1 2 3\n";
+
+    /**
+     * An OBJ whose MTL names one picture, with the given files beside it.
+     * @param name - The picture as the MTL writes it.
+     * @param pictures - path to bytes of the pictures in the set.
+     * @returns The set.
+     */
+    function objNaming(name: string, pictures: Record<string, Uint8Array>): Map<string, Uint8Array> {
+        return new Map([
+            ["quad.obj", utf8(quad)],
+            ["quad.mtl", utf8(`newmtl m\nmap_Kd ${name}\n`)],
+            ...Object.entries(pictures),
+        ]);
+    }
+
+    it("takes the one file a reference names in another case, with a warning naming it", async () => {
+        const record = await add({ files: objNaming("Wood.JPG", { "wood.jpg": PNG_1X1 }) });
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        assert.deepStrictEqual(factOf(record, "W_MODEL_PART_SUBSTITUTED"), {
+            name: "Wood.JPG",
+            used: "wood.jpg",
+            referencedBy: "quad.mtl",
+        });
+    });
+
+    it("reads backslashes as folders, with no warning", async () => {
+        const record = await add({ files: objNaming("textures\\wood.png", { "textures/wood.png": PNG_1X1 }) });
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        assert.isUndefined(factOf(record, "W_MODEL_PART_SUBSTITUTED"));
+    });
+
+    it("matches a path from the author's disk by its base name only, and never requests it", async () => {
+        for (const local of ["C:\\Users\\me\\wood.png", "/home/me/wood.png", "file:///C:/wood.png"]) {
+            const record = await add({ files: objNaming(local, { "maps/wood.png": PNG_1X1 }) });
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            assert.strictEqual(factOf(record, "W_MODEL_PART_SUBSTITUTED")?.used, "maps/wood.png");
+        }
+
+        // By URL, the base name is what is tried, beside the main file; the disk path never is.
+        const base = "https://models.example.com/m/";
+        const log = stubSite({
+            [`${base}quad.obj`]: { body: utf8(quad) },
+            [`${base}quad.mtl`]: { body: utf8("newmtl m\nmap_Kd C:\\Users\\me\\wood.png\n") },
+            [`${base}wood.png`]: { body: PNG_1X1 },
+        });
+        try {
+            const record = await createAssetsApi().ready(`${base}quad.obj`);
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            assert.isFalse(
+                log.some((url) => /Users|C:/i.test(decodeURIComponent(url))),
+                log.join(" "),
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("reports two files that match, and guesses neither", async () => {
+        const record = await add({
+            files: objNaming("Wood.png", { "a/wood.png": PNG_1X1, "b/wood.png": PNG_1X1 }),
+        });
+        assertRejected(record, "E_MODEL_PART_AMBIGUOUS", {
+            name: "Wood.png",
+            referencedBy: "quad.mtl",
+            candidates: ["a/wood.png", "b/wood.png"],
+        });
+    });
+
+    it("still refuses a web address, even when a file of its base name is in the set", async () => {
+        const record = await add({ files: objNaming("http://host/x.png", { "x.png": PNG_1X1 }) });
+        assertRejected(record, "E_MODEL_EXTERNAL_URL", { url: "http://host/x.png" });
+    });
+});
+
+describe("session.assets: every missing part at once (design 12.4)", () => {
+    it("lists each missing part in the order the model names them, with its role", async () => {
+        const json = triangleGltf({
+            materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } }, normalTexture: { index: 1 } }],
+            textures: [{ source: 0 }, { source: 1 }],
+            images: [{ uri: "color.png" }, { uri: "normal.png" }],
+        });
+        const record = await add({ files: new Map([["tri.gltf", utf8(JSON.stringify(json))]]) });
+        assert.strictEqual(record.state, "rejected");
+        assert.deepStrictEqual(
+            record.problems.map((p) => [p.code, p.params.name, p.params.role, p.params.optional]),
+            [
+                ["E_MODEL_MISSING_FILE", "tri.bin", "geometry", false],
+                ["E_MODEL_MISSING_FILE", "color.png", "texture", true],
+                ["E_MODEL_MISSING_FILE", "normal.png", "texture", true],
+            ],
+        );
+    });
+
+    it("lists a missing .mtl as optional materials", async () => {
+        const record = await add({ files: new Map([["quad.obj", utf8("mtllib quad.mtl\nv 0 0 0\nf 1 1 1\n")]]) });
+        assertRejected(record, "E_MODEL_MISSING_FILE", { name: "quad.mtl", role: "materials", optional: true });
+    });
+});
+
+describe("session.assets: the automatic tries for a model fetched by URL (design 12.2)", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const base = "https://bucket.example.com/m/";
+
+    it("retries a part refused without the main URL's query once with it", async () => {
+        const query = "?X-Amz-Signature=abc&X-Amz-Expires=60";
+        const log = stubSite({
+            [`${base}tri.gltf${query}`]: { body: gltfPair().get("tri.gltf") },
+            [`${base}tri.bin`]: { status: 403 },
+            [`${base}tri.bin${query}`]: { body: TRIANGLE_BIN },
+        });
+        const record = await createAssetsApi().ready(`${base}tri.gltf${query}`);
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        assert.deepStrictEqual(log, [`${base}tri.gltf${query}`, `${base}tri.bin`, `${base}tri.bin${query}`]);
+    });
+
+    it("never retries a 404 with the query, and names what it tried without the query", async () => {
+        const query = "?X-Amz-Signature=abc";
+        const log = stubSite({ [`${base}tri.gltf${query}`]: { body: gltfPair().get("tri.gltf") } });
+        const record = await createAssetsApi().ready(`${base}tri.gltf${query}`);
+        assertRejected(record, "E_MODEL_MISSING_FILE", {
+            name: "tri.bin",
+            role: "geometry",
+            optional: false,
+            tried: [`${base}tri.bin`],
+        });
+        assert.deepStrictEqual(log, [`${base}tri.gltf${query}`, `${base}tri.bin`]);
+        assert.notInclude(JSON.stringify(record.problems), "?");
+    });
+
+    it("finds a picture in textures/ below the main file, and never leaves its folder or origin", async () => {
+        const json = triangleGltf({
+            materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
+            textures: [{ source: 0 }],
+            images: [{ uri: "wood.png" }],
+        });
+        const log = stubSite({
+            [`${base}tri.gltf`]: { body: utf8(JSON.stringify(json)), type: "text/plain" },
+            [`${base}tri.bin`]: { body: TRIANGLE_BIN },
+            [`${base}textures/wood.png`]: { body: PNG_1X1 },
+        });
+        const record = await createAssetsApi().ready(`${base}tri.gltf`);
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        assert.include(log, `${base}textures/wood.png`);
+        assert.isTrue(
+            log.every((url) => url.startsWith(base)),
+            log.join(" "),
+        );
+    });
+
+    it("takes a web page answering for a missing file as a miss, within 16 extra requests a part", async () => {
+        const json = triangleGltf({
+            materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
+            textures: [{ source: 0 }],
+            images: [{ uri: "maps/wood.png" }],
+        });
+        const query = "?sig=1";
+        const page = { body: utf8("<!doctype html><html><body>app</body></html>") };
+        const log = stubSite(
+            {
+                [`${base}tri.gltf${query}`]: { body: utf8(JSON.stringify(json)) },
+                [`${base}tri.bin`]: { body: TRIANGLE_BIN },
+            },
+            page,
+        );
+        const record = await createAssetsApi().ready(`${base}tri.gltf${query}`);
+        assertRejected(record, "E_MODEL_MISSING_FILE", { name: "maps/wood.png", role: "texture", optional: true });
+        const tried = factOf(record, "E_MODEL_MISSING_FILE")?.tried as string[];
+        assert.deepStrictEqual(tried, [
+            `${base}maps/wood.png`,
+            `${base}wood.png`,
+            `${base}textures/wood.png`,
+            `${base}Textures/wood.png`,
+        ]);
+        const forPicture = log.filter((url) => url.includes("wood.png"));
+        assert.isAtMost(forPicture.length, 17);
+        assert.isTrue(log.every((url) => url.startsWith(base)));
+    });
+});
+
+describe("session.assets: a URL that is a web page (design 12.6)", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("reports a page as a web page, after a byte order mark and whitespace too", async () => {
+        for (const text of ["<!DOCTYPE html><html></html>", "\uFEFF  \n\t<html lang=en>", "\r\n<HEAD></HEAD>"]) {
+            stubSite({ "https://poly.example.com/m/42?ref=x": { body: utf8(text), type: "text/html" } });
+            assertRejected(await createAssetsApi().ready("https://poly.example.com/m/42?ref=x"), "E_MODEL_WEB_PAGE", {
+                url: "https://poly.example.com/m/42",
+                host: "poly.example.com",
+            });
+        }
+    });
+
+    it("suggests the raw file behind a GitHub or GitLab blob page, without fetching it", async () => {
+        const blob = "https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/Box/Box.gltf";
+        const log = stubSite({ [blob]: { body: utf8("<!doctype html>") } });
+        assertRejected(await createAssetsApi().ready(blob), "E_MODEL_WEB_PAGE", {
+            suggested: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Box/Box.gltf",
+        });
+        // Known by its address: nothing is requested, so a page sent with no CORS header (which a
+        // browser fetch fails on) still says "web page", not "not reached".
+        assert.deepStrictEqual(log, []);
+        const lab = "https://gitlab.example.com/g/p/-/blob/main/a.glb";
+        stubSite({ [lab]: { body: utf8("<!doctype html>") } });
+        assertRejected(await createAssetsApi().ready(lab), "E_MODEL_WEB_PAGE", {
+            suggested: "https://gitlab.example.com/g/p/-/raw/main/a.glb",
+        });
+    });
+
+    it("says a Sketchfab or Poly Pizza model page is a web page without requesting it", async () => {
+        const pages = ["https://sketchfab.com/3d-models/police-car-123abc", "https://poly.pizza/m/7f3k2"];
+        const log = stubSite({});
+        for (const page of pages) {
+            assertRejected(await createAssetsApi().ready(page), "E_MODEL_WEB_PAGE", { host: new URL(page).host });
+        }
+        assert.deepStrictEqual(log, []);
+    });
+
+    it("decides by bytes: a .gltf sent as text/plain and a GLB sent as gltf-binary load", async () => {
+        const base = "https://raw.example.com/m/";
+        stubSite({
+            [`${base}tri.gltf`]: { body: gltfPair().get("tri.gltf"), type: "text/plain" },
+            [`${base}tri.bin`]: { body: TRIANGLE_BIN, type: "text/plain" },
+            [`${base}a.glb`]: { body: texturedGlb(), type: "gltf-binary" },
+        });
+        const assets = createAssetsApi();
+        assert.strictEqual((await assets.ready(`${base}tri.gltf`)).state, "accepted");
+        assert.strictEqual((await assets.ready(`${base}a.glb`)).state, "accepted");
+    });
+});
+
+describe("session.assets: a .zip URL (design 12.3)", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const url = "https://cdn.example.com/kits/kit.zip?sig=secret";
+
+    it("unpacks a zip as a drop, picks its main file and tries nothing outside it", async () => {
+        const log = stubSite({
+            [url]: {
+                body: zip({
+                    "scene/tri.gltf": gltfPair().get("tri.gltf") as Uint8Array,
+                    "scene/tri.bin": TRIANGLE_BIN,
+                }),
+            },
+        });
+        const record = await createAssetsApi().ready(url);
+        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+        assert.strictEqual(record.path, "tri.gltf");
+        assert.deepStrictEqual(log, [url]);
+
+        stubSite({ [url]: { body: zip({ "tri.gltf": gltfPair().get("tri.gltf") as Uint8Array }) } });
+        const missing = await createAssetsApi().ready(url);
+        assertRejected(missing, "E_MODEL_MISSING_FILE", { name: "tri.bin" });
+        assert.isUndefined(missing.problems[0].params.tried);
+    });
+
+    it("refuses the hostile zips with the reasons a dropped zip gets", async () => {
+        const entries: Record<string, Uint8Array> = {};
+        for (let i = 0; i < 1025; i++) {
+            entries[`e${String(i)}.txt`] = new Uint8Array(1);
+        }
+
+        const cases: [Uint8Array, string][] = [
+            [zip({ "tri.obj": new Uint8Array(4 * 1024 * 1024) }), "ratio"],
+            [zip({ "inner.zip": zip({ "a.glb": texturedGlb() }) }), "nested"],
+            [zip({ "a.glb": texturedGlb(), "A.glb": texturedGlb() }), "duplicate"],
+            [zip(entries, 0), "entries"],
+        ];
+        for (const [archive, reason] of cases) {
+            stubSite({ [url]: { body: archive } });
+            assertRejected(await createAssetsApi().ready(url), "E_MODEL_ZIP", { reason });
+            assertRejected(await add(file(archive, "kit.zip")), "E_MODEL_ZIP", { reason });
+        }
+    });
+
+    it("lists at most 64 candidates of a zip holding 100 models, and counts the rest", async () => {
+        const entries: Record<string, Uint8Array> = {};
+        for (let i = 0; i < 100; i++) {
+            entries[`m${String(i).padStart(3, "0")}.stl`] = binaryStl(1);
+        }
+
+        stubSite({ [url]: { body: zip(entries) } });
+        const record = await createAssetsApi().ready(url);
+        assertRejected(record, "E_MODEL_AMBIGUOUS", { more: 36 });
+        const candidates = record.problems[0].params.candidates as string[];
+        assert.strictEqual(candidates.length, 64);
+        assert.deepStrictEqual(candidates, [...candidates].sort());
+        assert.strictEqual(candidates[0], "m000.stl");
+    });
+});
+
 describe("detectModelFormat", () => {
     it("answers from the bytes first, the extension second", () => {
         assert.deepStrictEqual(detectModelFormat({ head: texturedGlb() }), { format: "glb", supported: true });

@@ -62,6 +62,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, recommendLayout } from "./layout";
+import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -156,6 +157,7 @@ import type {
     FindResult,
     GraphSession,
     HistoryOutcome,
+    ModelChange,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
@@ -423,6 +425,7 @@ class Session implements ElementSession {
     readonly sets: SetsApi;
     readonly notes: NotesApi;
     readonly assets: AssetsApiInternal;
+    readonly network: NetworkApiInternal;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -431,6 +434,15 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+
+    /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void {
+        this.assets.noteState(change);
+        publish(this.watchers, "model:changed", change);
+    }
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
@@ -477,7 +489,19 @@ class Session implements ElementSession {
         this.sets = parts.sets;
         this.notes = parts.notes;
         // Model files live beside the project, not in it: no command, no step, no recipe.
-        this.assets = createAssetsApi();
+        // One gate for every fetch the page's code did not ask for, the source loads of a reopened
+        // project among them.
+        this.network = createNetworkApi(
+            (request) => {
+                publish(this.watchers, "network:pending", request);
+            },
+            {
+                pendingSourceLoads: () => this.data.pendingSourceLoads(),
+                runPendingSourceLoad: (id) => this.data.runPendingSourceLoad(id),
+            },
+            () => this.project.id,
+        );
+        this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
@@ -586,6 +610,9 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            projectChanged: () => {
+                this.network.projectChanged();
+            },
             sources: {
                 member: () => this.sessionData.sourceMember(),
                 restore: (member) => {

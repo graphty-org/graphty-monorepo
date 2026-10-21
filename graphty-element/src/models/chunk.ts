@@ -33,7 +33,7 @@
 // The loader plugins, each from its own module. Importing a plugin's module registers it.
 import "@babylonjs/loaders/glTF/2.0/glTFLoader";
 import "@babylonjs/loaders/OBJ/objFileLoader";
-import "@babylonjs/loaders/STL/stlFileLoader";
+// The STL loader registers itself through the named import below, which also sets its axes.
 // The glTF extensions a model may use for its look or its storage. Importing one registers it.
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization";
@@ -73,6 +73,7 @@ import { Tools } from "@babylonjs/core/Misc/tools";
 import type { Scene } from "@babylonjs/core/scene";
 import { GLTFLoaderAnimationStartMode } from "@babylonjs/loaders/glTF/glTFFileLoader";
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation";
+import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 
 import { NEUTRAL_ENVIRONMENT_URL } from "./environment";
 
@@ -81,6 +82,8 @@ export type ModelExtension = ".glb" | ".gltf" | ".obj" | ".stl";
 
 // The default loading screen draws Babylon's logo from cdn.babylonjs.com.
 SceneLoaderFlags.ShowLoadingScreen = false;
+// An STL's own axes, unswapped: `node.modelSourceUp` says which one is up (STL is taken as Z up).
+STLFileLoader.DO_NOT_ALTER_FILE_COORDINATES = true;
 // The glTF validator is a script on cdn.babylonjs.com. Loads never ask for validation; should
 // anything ask, the script it gets is a local one that fails.
 GLTFValidation.Configuration = {
@@ -155,7 +158,7 @@ function useBundledPbrShaders(scene: Scene): void {
 const environments = new WeakMap<Scene, BaseTexture>();
 
 /**
- * The small neutral environment bundled with this chunk: a uniform mid-gray in every direction,
+ * The small neutral environment bundled with this chunk: a uniform dark gray in every direction,
  * prefiltered, for PBR materials to reflect when the scene has no `environmentTexture` of its
  * own. It is read from bytes inside the chunk, so it makes no request.
  * @param scene - The scene the texture belongs to.
@@ -218,11 +221,49 @@ export async function loadModelContainer(
     bytes: Uint8Array,
     extension: ModelExtension,
 ): Promise<AssetContainer> {
-    useBundledPbrShaders(scene);
     const file = new File([bytes as Uint8Array<ArrayBuffer>], `model${extension}`);
+    return await loadContainer(scene, file, "", extension);
+}
+
+/**
+ * Load a model's main file, named under a root URL the caller's request guard resolves
+ * (src/models/requestGuard.ts), without adding anything to the scene. Its references resolve
+ * against the same root, so every file it reads is one the guard maps to the caller's own
+ * `blob:` URLs. Otherwise as {@link loadModelContainer}.
+ * @param scene - The scene the container belongs to.
+ * @param rootUrl - The folder the main file and its references are named under.
+ * @param fileName - The main file's name inside that folder.
+ * @param extension - Which loader reads it.
+ * @returns The loaded container.
+ */
+export async function loadModelFiles(
+    scene: Scene,
+    rootUrl: string,
+    fileName: string,
+    extension: ModelExtension,
+): Promise<AssetContainer> {
+    return await loadContainer(scene, fileName, rootUrl, extension);
+}
+
+/**
+ * The load both entries share.
+ * @param scene - The scene.
+ * @param source - A File, or a file name under `rootUrl`.
+ * @param rootUrl - The root, or "" for a File.
+ * @param extension - Which loader reads it.
+ * @returns The container.
+ */
+async function loadContainer(
+    scene: Scene,
+    source: File | string,
+    rootUrl: string,
+    extension: ModelExtension,
+): Promise<AssetContainer> {
+    useBundledPbrShaders(scene);
     activeLoads++;
     try {
-        const container = await LoadAssetContainerAsync(file, scene, {
+        const container = await LoadAssetContainerAsync(source, scene, {
+            rootUrl,
             pluginExtension: extension,
             pluginOptions: {
                 gltf: {
@@ -243,3 +284,5 @@ export async function loadModelContainer(
         activeLoads--;
     }
 }
+
+export { prepareTemplate } from "./prepareTemplate";

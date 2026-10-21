@@ -73,7 +73,7 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -146,6 +146,7 @@ export class Graphty extends LitElement {
     /** Unsubscribes the three network-source expansion mirrors. */
     #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchModels: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
@@ -630,6 +631,16 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        // A model a layer names moved on: requested, checked, drawn, refused or failed.
+        this.#unwatchModels ??= session.on("model:changed", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-model-change", {
+                    detail: change satisfies GraphtyModelChangeDetail,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchProgress ??= session.on("progress:changed", (change) => {
             this.#mirrorProgressChange(change);
         });
@@ -861,6 +872,8 @@ export class Graphty extends LitElement {
         this.#unwatchSource = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchModels?.();
+        this.#unwatchModels = null;
         this.#unwatchProgress?.();
         this.#unwatchProgress = null;
 
@@ -5004,6 +5017,13 @@ export interface GraphtyHistoryChangeDetail {
 /** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
 
+/**
+ * The detail of `graphty-model-change`: what happened to one model a style layer names, by what the
+ * layer named (`ref`, the URL or asset id as written), with the layers that name it, its state and
+ * its coded problems. Fires once per model and state, never once per node.
+ */
+export type GraphtyModelChangeDetail = ModelChange;
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration capabilities after the change. */
@@ -5039,6 +5059,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
@@ -5063,6 +5084,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;

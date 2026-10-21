@@ -248,3 +248,56 @@ export function detectModelFormat(input: ModelDetectionInput): ModelDetection | 
 
     return undefined;
 }
+
+/** The picture formats an image asset may be. */
+export type ImageFormat = "png" | "jpeg" | "webp";
+
+/**
+ * The picture format of a file, from its first bytes.
+ * @param bytes - The file.
+ * @returns The format, or undefined for anything else.
+ */
+export function imageFormatOf(bytes: Uint8Array): ImageFormat | undefined {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return "png";
+    }
+
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+        return "jpeg";
+    }
+
+    return startsWithAscii(bytes, "RIFF") && startsWithAscii(bytes, "WEBP", 8) ? "webp" : undefined;
+}
+
+/** What a file is to a style layer: a 3D model (`node.model`) or a picture (`node.texture`). */
+export type AssetKind = "model" | "image";
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+
+/**
+ * Whether a file is a 3D model or a picture, so a drop target routes it without reading formats
+ * itself. Bytes decide: a PNG named `car.glb` is a picture. The extension decides only when no
+ * bytes are given, or for a model format whose bytes say nothing (see {@link detectModelFormat}).
+ * @param input - The file name, the first bytes, or both.
+ * @returns `"model"`, `"image"`, or undefined for anything else (graph data, say).
+ * @example
+ * ```ts
+ * const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+ * if (detectAssetKind({ filename: file.name, head }) === "image") {
+ *     // a picture: node.texture
+ * }
+ * ```
+ */
+export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefined {
+    const { head } = input;
+    const hasHead = head !== undefined && head.length > 0;
+    if (hasHead && imageFormatOf(head) !== undefined) {
+        return "image";
+    }
+
+    if (detectModelFormat(input) !== undefined) {
+        return "model";
+    }
+
+    return !hasHead && IMAGE_EXTENSIONS.has(extensionOf(input.filename)) ? "image" : undefined;
+}

@@ -30,9 +30,14 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_MISSING_FILE",
     "E_MODEL_EXTERNAL_URL",
     "E_MODEL_DECODER_UNAVAILABLE",
+    "E_MODEL_PARSE",
+    "E_MODEL_PART_AMBIGUOUS",
+    "E_MODEL_PART_REQUIRED",
+    "E_MODEL_WEB_PAGE",
     "E_MODEL_ZIP",
     "E_MODEL_NAME_TAKEN",
     "E_MODEL_UNKNOWN_ASSET",
+    "E_MODEL_DIGEST_MISMATCH",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -211,11 +216,16 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_FORMAT_UNKNOWN":
         case "E_MODEL_AMBIGUOUS":
         case "E_MODEL_MISSING_FILE":
+        case "E_MODEL_PART_AMBIGUOUS":
+        case "E_MODEL_WEB_PAGE":
+        case "E_MODEL_PART_REQUIRED":
         case "E_MODEL_EXTERNAL_URL":
         case "E_MODEL_DECODER_UNAVAILABLE":
+        case "E_MODEL_PARSE":
         case "E_MODEL_ZIP":
         case "E_MODEL_NAME_TAKEN":
         case "E_MODEL_UNKNOWN_ASSET":
+        case "E_MODEL_DIGEST_MISMATCH":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":

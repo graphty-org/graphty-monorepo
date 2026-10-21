@@ -21,8 +21,12 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
-/** Linear radiance of the environment, the same in every direction and color channel. */
-const RADIANCE = 0.5;
+/**
+ * Linear radiance of the environment, the same in every direction and color channel. The scene's
+ * hemispheric light already lights a model; this only adds a little fill and reflection. At 0.5 the
+ * two together washed a light gray model out to flat white.
+ */
+const RADIANCE = 0.125;
 /** Width of the largest mip level of each face. */
 const WIDTH = 16;
 

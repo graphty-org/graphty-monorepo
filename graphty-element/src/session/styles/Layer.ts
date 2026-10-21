@@ -66,7 +66,14 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    channelsFor,
+    labelFieldOf,
+    modelBindingProblem,
+    toColorValue,
+} from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -705,7 +712,9 @@ function checkNumber(descriptor: ChannelDescriptor, value: ChannelValue, path: s
 function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
     const values = descriptor.values ?? [];
 
-    if (typeof value === "string" && values.includes(value)) {
+    // A boolean is read by its name, for a channel such as `node.modelTint` that takes true,
+    // false or a word.
+    if ((typeof value === "string" || typeof value === "boolean") && values.includes(String(value))) {
         return null;
     }
 
@@ -1162,6 +1171,13 @@ function checkChannels(
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
+            const blocked =
+                descriptor.channel === "node.model" || descriptor.channel === "node.texture"
+                    ? modelBindingProblem(binding, path)
+                    : null;
+            if (blocked !== null) {
+                report(log, blocked);
+            }
         }
     }
 }

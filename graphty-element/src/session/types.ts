@@ -37,6 +37,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    LayerId,
     LayoutId,
     MeasurementDeclaration,
     Path,
@@ -50,9 +51,10 @@ import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
-import type { AssetsApi } from "./assets/AssetsApi";
+import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { JournalApi, JournalEntry } from "./journal";
+import type { NetworkApi, NetworkRequest } from "./network";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -1610,7 +1612,42 @@ export interface SessionEventMap {
      * changed. Mirrored on the element as `graphty-project-status`.
      */
     "project:status": ProjectStatus;
+    /**
+     * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
+     * event per model and state, never one per node. Mirrored on the element as
+     * `graphty-model-change`.
+     */
+    "model:changed": ModelChange;
+    /**
+     * A fetch the page's code did not ask for waits for an answer (`session.network.allow` or
+     * `deny`). Once per URL.
+     */
+    "network:pending": NetworkRequest;
 }
+
+/**
+ * What happened to one model a style layer names (`node.model`), for `model:changed` and the
+ * element's `graphty-model-change`.
+ */
+export interface ModelChange {
+    /** What the layer named: the URL or the asset id, exactly as written. */
+    readonly ref: string;
+    /** The asset's id, once the session holds it. */
+    readonly id?: AssetId;
+    /** The layers that name it. */
+    readonly layerIds: readonly LayerId[];
+    /**
+     * `pending` while it is fetched or loaded; `accepted` once its files passed the checks;
+     * `drawn` once the scene shows it; `rejected` when its files were refused (or its URL was not
+     * fetched); `failed` when it could not be drawn. Nodes keep `node.shape` until `drawn`.
+     */
+    readonly state: ModelState;
+    /** Why it was refused or failed (`E_MODEL_*`), and what is worth knowing (`W_MODEL_*`). */
+    readonly problems: readonly CodedFact[];
+}
+
+/** Where a model a layer names stands; see {@link ModelChange.state}. */
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 /**
  * The parts of a project. Everything a project file saves lives in one of these, and a change
@@ -2186,6 +2223,13 @@ export interface GraphSession {
      */
     readonly assets: AssetsApi;
     /**
+     * The fetches the page's code did not ask for, waiting for the reader: a model URL a project
+     * file, an AI command or the data names, and a reopened project's network-source loads. Each
+     * is a `W_URL_NEEDS_APPROVAL` fact, published as `network:pending`; nothing is fetched until
+     * `allow`. Private, loopback and link-local addresses are refused whatever the answer.
+     */
+    readonly network: NetworkApi;
+    /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command
      * wrote. Undo does not read it; `history` is the undo record.
@@ -2422,6 +2466,11 @@ export interface ElementSession extends GraphSession {
      * the verbs differ -- the stack is still the one that decides -- only the shape of the answer.
      */
     readonly paint: ElementPaint;
+    /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void;
 }
 
 /**

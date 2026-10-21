@@ -289,20 +289,26 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers the Data source condition only once two sources are loaded", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
-        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
-        await userEvent.keyboard("{Escape}");
+        // Tier 3's filter step editor: Add filter step, then the Attribute list.
+        await userEvent.click(await place().findByRole("button", { name: "Add filter step" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
+        await userEvent.keyboard("{Escape}{Escape}");
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
-        await userEvent.click(place().getByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Data source" }));
-        const card = await screen.findByRole("group", { name: "Data source" });
-        await userEvent.click(within(card).getByRole("textbox", { name: "Sources" }));
+        await userEvent.click(place().getByRole("button", { name: "Add filter step" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
+        const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
         await userEvent.click(
-            await screen.findByRole("option", { name: `auth-log.csv (${String(first.counts.nodes)})` }),
+            within(card).getByRole("checkbox", {
+                name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
+            }),
         );
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
         await waitFor(() => {
             assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "source", sources: [first.key] });
         });

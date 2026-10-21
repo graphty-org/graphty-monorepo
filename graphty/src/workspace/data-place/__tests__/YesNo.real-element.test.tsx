@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -66,21 +67,12 @@ describe("A yes-or-no column", () => {
         await page.viewport(1366, 768);
     });
 
-    it("is marked as a yes-or-no in Data > Attributes, and a filter step on it keeps the Yes nodes", async () => {
+    it("is a yes-or-no column, and a filter step on it from the table header keeps the Yes nodes", async () => {
         const { session } = await openWithGraph("data");
         assert.equal(session.data.attributes().find((a) => a.path === "data.trained")?.type, "boolean");
 
-        const row = await screen.findByRole("treeitem", { name: "trained, node attribute" });
-        // The row's type reaches a screen reader through its description, which names the icon's kind
-        // and how many have a value.
-        assert.equal(
-            document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent,
-            "Yes or no, all have a value",
-        );
-
-        row.focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+        // Filter to... from the column's header in the table (the Data place lists no attributes).
+        await columnVerb("node", "trained", "Filter to...");
         // The step is the yes-or-no condition card: Yes or No, starting at Yes, then whether it has one.
         const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
         assert.equal(is.value, "Yes");

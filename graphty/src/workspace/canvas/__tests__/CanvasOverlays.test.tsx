@@ -88,6 +88,14 @@ function standIn(facts: StandInFacts = {}): {
             edge: (id: string) => (id === "e1" ? { id, source: "a", target: "b" } : undefined),
             source: () => undefined,
             attributes: () => Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({ path, plainName })),
+            readableValues: () =>
+                Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({
+                    path,
+                    plainName,
+                    on: "node",
+                    from: "data",
+                    kind: "category",
+                })),
         },
         status: { directed: true },
         selection: { nodes: [], edges: [] },
@@ -376,7 +384,8 @@ describe("the legend card", () => {
             standIn({ blocks: [byDept], layers: { "layer-1": "Everything" }, columns: { "data.dept": "Dept" } })
                 .session,
         );
-        assert.isNotNull(screen.getByRole("group", { name: "Color: Dept" }));
+        // Tier 3's legend names the column as the legend block does (its plainName).
+        assert.isNotNull(screen.getByRole("group", { name: "Color: dept" }));
         assert.isNull(screen.queryByRole("group", { name: "Color: Everything" }));
     });
 

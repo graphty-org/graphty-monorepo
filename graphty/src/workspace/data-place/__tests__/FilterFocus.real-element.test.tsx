@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -64,10 +65,7 @@ describe("Filters focus and keys on the real element", () => {
         const { session, store } = await openWithGraph();
 
         // Add: Enter in the value field adds the step, and focus goes to its row.
-        const attribute = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-        attribute.focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+        await columnVerb("edge", "value", "Filter to...");
         const from = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
@@ -198,7 +196,7 @@ describe("Filters focus and keys on the real element", () => {
             assert.lengthOf(session.visibility.steps, 0);
         });
         // Something else selected closes the editor: the deleted step is not written back.
-        await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+        await columnVerb("edge", "value", "Details");
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
         });

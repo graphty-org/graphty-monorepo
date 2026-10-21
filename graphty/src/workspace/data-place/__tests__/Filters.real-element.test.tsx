@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -60,13 +61,9 @@ describe("Filters on the real element", () => {
             const filters = (): HTMLElement =>
                 within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
 
-            const row = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-            row.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+            // Filter to... from the column's header in the table (the Data place lists no attributes).
+            await columnVerb("edge", "value", "Filter to...");
             assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
-            // The attribute it was opened from stays marked.
-            assert.equal(row.getAttribute("aria-selected"), "true");
 
             // The editor says what an edge-attribute step keeps.
             await screen.findByText("Keeps edges that pass and the nodes at their ends.");
@@ -259,9 +256,9 @@ describe("Filters on the real element", () => {
             await userEvent.click(attribute());
             await userEvent.click(await screen.findByRole("option", { name: "label" }));
 
-            // Selecting the attribute's row moves the inspector off the editor: the half-made
+            // Opening an attribute's Details moves the inspector off the editor: the half-made
             // step adds nothing, the notice says so, and "+" starts again.
-            await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
+            await columnVerb("edge", "value", "Details");
             await waitFor(() => {
                 assert.equal(store.get().inspected?.kind, "attribute");
             });
@@ -288,7 +285,7 @@ describe("Filters on the real element", () => {
             await userEvent.click(await screen.findByRole("option", { name: "label" }));
             await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
             await screen.findByText("8 to 1 nodes");
-            await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+            await columnVerb("edge", "value", "Details");
             await waitFor(() => {
                 assert.equal(
                     store.get().notice?.message,

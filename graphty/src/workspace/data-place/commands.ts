@@ -1,9 +1,14 @@
-import { sourceDescriptors } from "@graphty/graphty-element/catalog";
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
+import type { ColumnRef, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
-import { type CommandContext, defineRegistration, type SourceRowCommand } from "../commands/registry";
+import {
+    type ColumnHeaderCommand,
+    type CommandContext,
+    defineRegistration,
+    type SourceRowCommand,
+} from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
-import { selectRule } from "./filterSteps";
+import { NEW, openStepEditor, selectRule } from "./filterSteps";
 import { remap } from "./words";
 
 /** One network load, as `data.loads()` records it. */
@@ -166,8 +171,59 @@ export const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
  * The Data place package's registration: its Sources row commands. Its Fields rows act on the row
  * they are drawn for, so they are not commands.
  */
+/**
+ * A column's attribute, as `data.attributes()` describes it.
+ * @param ctx - the workspace.
+ * @param column - the column.
+ * @returns the attribute, or undefined.
+ */
+function attributeOf(ctx: CommandContext, column: ColumnRef): AttributeDescriptor | undefined {
+    return ctx.session?.data.attributes().find((a) => a.kind === column.kind && a.name === column.name);
+}
+
+/**
+ * The table header's verbs on a column's attribute, now that the Data place lists no attributes:
+ * Details opens the attribute's inspector (its values, Add label line, Show in table), and
+ * Filter to... opens a new filter step on a number or category column.
+ */
+const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
+    {
+        id: "column.filter",
+        label: "Filter to...",
+        shown: (ctx, column) => {
+            const attribute = attributeOf(ctx, column);
+            return (
+                attribute !== undefined &&
+                (attribute.type === "number" || attribute.type === "integer" || attribute.measurement === "categorical")
+            );
+        },
+        run: (ctx, column) => {
+            const attribute = attributeOf(ctx, column);
+            if (attribute !== undefined) {
+                openStepEditor(ctx.workspace, `${NEW}:${attribute.kind}:${attribute.path}`);
+            }
+        },
+    },
+    {
+        id: "column.details",
+        label: "Details",
+        shown: (ctx, column) => attributeOf(ctx, column) !== undefined,
+        run: (ctx, column) => {
+            const attribute = attributeOf(ctx, column);
+            if (attribute !== undefined) {
+                ctx.workspace.set({
+                    page: "panels",
+                    place: "data",
+                    inspected: { kind: "attribute", id: attribute.path },
+                });
+            }
+        },
+    },
+];
+
 export const registration = defineRegistration({
     owner: "data-place",
     commands: [],
     sourceRow: SOURCE_ROW_COMMANDS,
+    columnHeader: COLUMN_HEADER_COMMANDS,
 });

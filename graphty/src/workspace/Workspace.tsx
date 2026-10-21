@@ -147,11 +147,11 @@ export function Workspace({
                 store.set({ announcement: "" });
             }
         };
-        window.addEventListener("keydown", empty, true);
-        window.addEventListener("pointerdown", empty, true);
+        globalThis.addEventListener("keydown", empty, true);
+        globalThis.addEventListener("pointerdown", empty, true);
         return () => {
-            window.removeEventListener("keydown", empty, true);
-            window.removeEventListener("pointerdown", empty, true);
+            globalThis.removeEventListener("keydown", empty, true);
+            globalThis.removeEventListener("pointerdown", empty, true);
         };
     }, [store]);
     // Focus after the control that held it goes away. The project the workspace started with (a

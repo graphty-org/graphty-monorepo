@@ -189,7 +189,7 @@ interface Held {
 function saysOf(element: HTMLElement): string {
     const label = (element as HTMLInputElement).labels?.[0]?.textContent;
     const name = element.getAttribute("aria-label") ?? label ?? element.textContent ?? "";
-    const trimmed = name.replace(/\s+/g, " ").trim().slice(0, 80);
+    const trimmed = name.replaceAll(/\s+/g, " ").trim().slice(0, 80);
     return trimmed === "" ? "" : `${element.tagName}|${element.getAttribute("role") ?? ""}|${trimmed}`;
 }
 

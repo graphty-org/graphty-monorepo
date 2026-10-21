@@ -176,7 +176,7 @@ function NumberValues({
                     paint: bin.paint,
                 }))}
                 minLabel={formatNumber(bins[0].from)}
-                maxLabel={formatNumber(bins[bins.length - 1].to)}
+                maxLabel={formatNumber(bins.at(-1)?.to ?? 0)}
             />
             <DistributionRows figures={{ count: measured, min, median, max }} />
             {stepped.map(({ channel, preview }) => (
@@ -187,7 +187,7 @@ function NumberValues({
                         const to = i === preview.steps.length ? preview.domain?.[1] : preview.steps[i];
                         return (
                             <DataRow
-                                key={i}
+                                key={i} // NOSONAR(S6479): a step's place is its identity; the steps never reorder
                                 stat
                                 name={`${formatNumber(from ?? 0)} to ${formatNumber(to ?? 0)}`}
                                 value={n}
@@ -286,13 +286,17 @@ function CategoryValues({
                     );
                 })}
             />
-            {unmatched.map((u) => (
-                <Text key={`${u.code}:${String(u.params.value)}`} size="sm" c="dimmed">
-                    {u.code === "group.new"
-                        ? `${valueName(session, read.path, u.params.value)} is new since the last run`
-                        : `${valueName(session, read.path, u.params.value)} is gone since the last run${u.params.dropped === true ? ": what this layer set for it was dropped" : ""}`}
-                </Text>
-            ))}
+            {unmatched.map((u) => {
+                const value = valueName(session, read.path, u.params.value);
+                const dropped = u.params.dropped === true ? ": what this layer set for it was dropped" : "";
+                return (
+                    <Text key={`${u.code}:${String(u.params.value)}`} size="sm" c="dimmed">
+                        {u.code === "group.new"
+                            ? `${value} is new since the last run`
+                            : `${value} is gone since the last run${dropped}`}
+                    </Text>
+                );
+            })}
         </ControlSection>
     );
 }

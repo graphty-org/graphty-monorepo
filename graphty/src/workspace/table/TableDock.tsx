@@ -419,7 +419,11 @@ export function TableDock(): React.JSX.Element {
     return (
         // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
         // always does its job, where nothing in the grid has an Escape of its own.
-        <div className="ws-table" ref={root} onKeyDown={leaveGrid}>
+        <div // NOSONAR(S6848): catches Escape bubbling from the grid's own controls to leave it
+            className="ws-table"
+            ref={root}
+            onKeyDown={leaveGrid}
+        >
             <div className="ws-table-strip">
                 <Tabs
                     className="ws-table-tabs"

@@ -539,6 +539,72 @@ function SourcePicker({
     );
 }
 
+/**
+ * The channel a label setting varies through: the text color, background and size vary by a value
+ * through their own channels.
+ * @param kind - the kind of text.
+ * @param key - the setting.
+ * @returns its channel, or undefined when it does not vary.
+ */
+function varyChannelOf(kind: TextKindSpec, key: keyof LabelStyle): Channel | undefined {
+    if (key === "color") {
+        return kind.color;
+    }
+    if (key === "background") {
+        return kind.background;
+    }
+    return key === "sizePx" ? kind.size : undefined;
+}
+
+/**
+ * A label setting's field when it varies through its own channel: the row's field when the row
+ * holds that channel and is not locked, else the slot that starts varying it.
+ * @param ctx - the row.
+ * @param kind - the kind of text.
+ * @param key - the setting.
+ * @param descriptorOf - the row's descriptor of a channel.
+ * @returns the field, or undefined when the setting does not vary.
+ */
+function varyFieldOf(
+    ctx: RowContext,
+    kind: TextKindSpec,
+    key: keyof LabelStyle,
+    descriptorOf: (channel: Channel) => ChannelDescriptor | undefined,
+): VaryField | undefined {
+    const channel = varyChannelOf(kind, key);
+    const descriptor = channel === undefined ? undefined : descriptorOf(channel);
+    if (channel === undefined || descriptor === undefined) {
+        return undefined;
+    }
+    const line = lineIn(ctx, channel);
+    return line !== undefined && !line.layer.locked
+        ? { field: <Field ctx={ctx} descriptor={descriptor} /> }
+        : { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> };
+}
+
+/**
+ * Where an entry's words come from, in words: none, a card, typed words, or a value they read.
+ * @param ctx - the row.
+ * @param kind - the kind of text.
+ * @param words - the entry's words line.
+ * @returns the source, in words.
+ */
+function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<typeof lineIn>): string {
+    const { session, side: target } = ctx;
+    if (words === undefined) {
+        return "No words";
+    }
+    if (words.template !== undefined) {
+        return cardSummary(session, words.template);
+    }
+    if (words.binding === undefined) {
+        return typeof words.value === "string" ? words.value : "";
+    }
+    return readsNothing(session, target, kind.words, words.binding)
+        ? "reads nothing"
+        : (sourceName(session, words.binding) ?? words.binding.by);
+}
+
 /** Props for TextEntry. */
 interface TextEntryProps {
     ctx: RowContext;
@@ -587,41 +653,12 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 : writeIn(ctx, kind.style, { value: next });
         done.catch(onFail);
     };
-    // The text color, background and size vary by a value through their own channels.
-    const vary = (key: keyof LabelStyle): VaryField | undefined => {
-        let channel: Channel | undefined;
-        if (key === "color") {
-            channel = kind.color;
-        } else if (key === "background") {
-            channel = kind.background;
-        } else if (key === "sizePx") {
-            channel = kind.size;
-        }
-        const descriptor = channel === undefined ? undefined : descriptorOf(channel);
-        if (channel === undefined || descriptor === undefined) {
-            return undefined;
-        }
-        const line = lineIn(ctx, channel);
-        return line !== undefined && !line.layer.locked
-            ? { field: <Field ctx={ctx} descriptor={descriptor} /> }
-            : { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> };
-    };
+    const vary = (key: keyof LabelStyle): VaryField | undefined => varyFieldOf(ctx, kind, key, descriptorOf);
 
     const typed = words !== undefined && words.binding === undefined && typeof words.value === "string";
     // A card's contents are edited in its settings; a card on several rows at once is not.
     const card = kind.id === "label" && words !== undefined && isCard(style) && ctx.many === undefined;
-    let source: string;
-    if (words === undefined) {
-        source = "No words";
-    } else if (words.template !== undefined) {
-        source = cardSummary(session, words.template);
-    } else if (words.binding === undefined) {
-        source = typeof words.value === "string" ? words.value : "";
-    } else {
-        source = readsNothing(session, target, kind.words, words.binding)
-            ? "reads nothing"
-            : (sourceName(session, words.binding) ?? words.binding.by);
-    }
+    const source = sourceWordsOf(ctx, kind, words);
     const lookId = style.look ?? "default";
     const edited = labelLookChanges(style).length > 0;
     const looks = LABEL_LOOKS.map((look) => ({

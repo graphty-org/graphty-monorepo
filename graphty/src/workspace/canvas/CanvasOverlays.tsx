@@ -169,6 +169,30 @@ export function LoadingCard({
 }
 
 /**
+ * The empty card's Add data... button, held back (with its reason as a tooltip) while the command
+ * cannot run.
+ * @param props - The component props
+ * @param props.addData - The data.add command
+ * @returns The button
+ */
+function AddDataButton({
+    addData,
+}: Readonly<{ addData: NonNullable<ReturnType<typeof useCommand>> }>): React.JSX.Element {
+    return (
+        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
+            <Button
+                size="xs"
+                aria-disabled={addData.disabledReason !== null}
+                data-disabled={addData.disabledReason === null ? undefined : true}
+                onClick={addData.disabledReason === null ? addData.run : undefined}
+            >
+                {addData.command.label}
+            </Button>
+        </Tooltip>
+    );
+}
+
+/**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
  * while it holds no node, with Add data... and Open a sample. The canvas has no other buttons.
@@ -208,18 +232,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
                 title="No nodes to draw"
                 actions={
                     <>
-                        {addData === null ? null : (
-                            <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                                <Button
-                                    size="xs"
-                                    aria-disabled={addData.disabledReason !== null}
-                                    data-disabled={addData.disabledReason === null ? undefined : true}
-                                    onClick={addData.disabledReason === null ? addData.run : undefined}
-                                >
-                                    {addData.command.label}
-                                </Button>
-                            </Tooltip>
-                        )}
+                        {addData === null ? null : <AddDataButton addData={addData} />}
                         <Menu position="bottom" withinPortal>
                             <Menu.Target>
                                 <Button size="xs" variant="default">

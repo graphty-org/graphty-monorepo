@@ -452,77 +452,72 @@ function hitName(session: GraphSession, hit: FindHit): string {
         : hit.name;
 }
 
-/**
- * The find box and its one live list (tier1-design.md section 2.5 and task T12): results appear
- * as the reader types and focus stays in the box; Down enters the list, Enter picks, Esc clears
- * and then leaves the box. A node pick moves focus to that node's values in the inspector. The selection changes only on a pick. Every match comes from
- * graphty-element's `session.find`; the box only words and arranges it.
- * @returns The find box
- */
-export function FindBox(): React.JSX.Element {
-    const { session, element, store } = useWorkspace();
-    const [text, setText] = useState("");
-    const [active, setActive] = useState(-1);
-    const [refused, setRefusal] = useState<Refusal | null>(null);
-    // The list closes as a list does -- a click or focus anywhere outside the find box -- and
-    // opens again on typing, a click in the box or the Down arrow.
-    const [listOpen, setListOpen] = useState(true);
-    const boxRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const onPointerDown = (event: PointerEvent): void => {
-            if (!(event.target instanceof Node && boxRef.current?.contains(event.target) === true)) {
-                setListOpen(false);
-            }
-        };
-        document.addEventListener("pointerdown", onPointerDown, true);
-        return () => {
-            document.removeEventListener("pointerdown", onPointerDown, true);
-        };
-    }, []);
-    // The element's answers below are kept with the text they were asked for: a session change
-    // asks again, and the line under the box keeps the last answer until the new one arrives
-    // rather than blinking out (and being announced again by its status region) on every change.
-    // What the element said of the typed rule: "ok", "empty", or null while unchecked.
-    const [ruleAnswer, setRuleAnswer] = useState<{ text: string; verdict: "ok" | "empty" | null } | null>(null);
-    // The rule plain text that found nothing reads as once "=" leads it, null when it reads as
-    // none, or undefined until the element has answered.
-    const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<{ text: string; rule: string | null } | null>(null);
-    const listId = useId();
-    // The value rows added to the selection with Shift while the list stays open, marked as picked.
-    const [pickedValues, setPickedValues] = useState<ReadonlySet<string>>(new Set());
-    // A Shift pick keeps the list for the next one; once the list closes, the box clears as it
-    // does after a plain pick.
-    const shiftPicked = useRef(false);
-    useEffect(() => {
-        if (!listOpen && shiftPicked.current) {
-            shiftPicked.current = false;
-            setText("");
-            setActive(-1);
-            setPickedValues(new Set());
-        }
-    }, [listOpen]);
-    // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
-    const version = useSessionVersion(session);
+/** What the element said of a typed rule: "ok", "empty", or null while unchecked. */
+interface RuleAnswer {
+    readonly text: string;
+    readonly verdict: "ok" | "empty" | null;
+}
 
-    const found: FindResult | null = useMemo(() => {
-        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
-        return session === null || text.trim() === ""
-            ? null
-            : session.find(text, { limit: LIMIT, edgeNameJoiner: edgeJoiner(session), booleanWords: BOOLEAN_WORDS });
-    }, [session, text, version]);
-    const isRule = found?.notSearchable === "expression";
-    const ruleCheck = isRule && ruleAnswer?.text === text ? ruleAnswer.verdict : null;
-    const { word, columns } = useMemo(() => {
-        const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
-        return session !== null && isRule ? columnOptions(session, text) : { word: "", columns: [] };
-    }, [session, text, isRule, version]);
-    // Nodes first, then edges, each under its own heading; the keyboard walks them in that order.
-    const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
-    const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
-    const hits = [...nodeHits, ...edgeHits];
-    // Each value row, then its "or more" row when the element offers one; then the element's
-    // "or more" rows for a typed number no value equals.
-    const valueOptions = [
+/** The rule plain text that found nothing reads as once "=" leads it, null when it reads as none. */
+interface TextAsRuleAnswer {
+    readonly text: string;
+    readonly rule: string | null;
+}
+
+/** How many the rule option selects. */
+interface OfferCount {
+    readonly rule: string;
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+type Workspace = ReturnType<typeof useWorkspace>;
+
+/**
+ * A list row's id.
+ * @param listId - the list's id.
+ * @param i - the row's place among the options.
+ * @returns the id.
+ */
+function optionIdOf(listId: string, i: number): string {
+    return `${listId}-${String(i)}`;
+}
+
+/**
+ * What the element finds for the typed text, or null for an empty box.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @returns the result, or null.
+ */
+function findIn(session: GraphSession | null, text: string): FindResult | null {
+    return session === null || text.trim() === ""
+        ? null
+        : session.find(text, { limit: LIMIT, edgeNameJoiner: edgeJoiner(session), booleanWords: BOOLEAN_WORDS });
+}
+
+/**
+ * The columns offered while a rule is typed.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @param isRule - whether the text is a rule.
+ * @returns the word being typed and the columns it may name.
+ */
+function columnsFor(
+    session: GraphSession | null,
+    text: string,
+    isRule: boolean,
+): { word: string; columns: ColumnOption[] } {
+    return session !== null && isRule ? columnOptions(session, text) : { word: "", columns: [] };
+}
+
+/**
+ * Each value row, then its "or more" row when the element offers one; then the element's
+ * "or more" rows for a typed number no value equals.
+ * @param found - what the element found.
+ * @returns the value options.
+ */
+function valueOptionsOf(found: FindResult | null): Option[] {
+    return [
         ...(found?.values.flatMap((row): Option[] =>
             row.atLeast === undefined
                 ? [{ type: "value", row }]
@@ -537,32 +532,107 @@ export function FindBox(): React.JSX.Element {
             orMore: true,
         })),
     ];
-    // Plain text that finds nothing is asked of the element as a rule once typing pauses.
-    const foundNothing =
-        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0;
-    const textAsRule = foundNothing && textAsRuleAnswer?.text === text ? textAsRuleAnswer.rule : undefined;
-    // A rule run with Enter is the selection's origin until anything else changes the selection,
-    // typed with its "=" or as plain text that reads as a rule.
+}
+
+/**
+ * Whether plain text found nothing at all, so it is asked of the element as a rule.
+ * @param found - what the element found.
+ * @param valueOptions - the value options.
+ * @returns true when nothing was found.
+ */
+function isNothingFound(found: FindResult | null, valueOptions: readonly Option[]): boolean {
+    return (
+        found !== null && found.notSearchable === undefined && found.records.length === 0 && valueOptions.length === 0
+    );
+}
+
+/**
+ * The element's verdict on the typed rule, once it is for the text in the box.
+ * @param isRule - whether the text is a rule.
+ * @param answer - the element's last answer.
+ * @param text - the typed text.
+ * @returns the verdict, or null while unchecked.
+ */
+function ruleCheckOf(isRule: boolean, answer: RuleAnswer | null, text: string): "ok" | "empty" | null {
+    return isRule && answer?.text === text ? answer.verdict : null;
+}
+
+/**
+ * The rule the element reads plain text that found nothing as, once it is for the text in the box.
+ * @param foundNothing - whether the text found nothing.
+ * @param answer - the element's last answer.
+ * @param text - the typed text.
+ * @returns the rule, null when it reads as none, or undefined until the element has answered.
+ */
+function textAsRuleOf(foundNothing: boolean, answer: TextAsRuleAnswer | null, text: string): string | null | undefined {
+    return foundNothing && answer?.text === text ? answer.rule : undefined;
+}
+
+/**
+ * Whether the selection came from running the box's rule: typed with its "=" or as plain text
+ * that reads as a rule. A rule run with Enter is the selection's origin until anything else
+ * changes the selection.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @param isRule - whether the text is a rule.
+ * @param textAsRule - the rule the plain text reads as.
+ * @returns true when the box's rule ran.
+ */
+function ranFromBox(
+    session: GraphSession | null,
+    text: string,
+    isRule: boolean,
+    textAsRule: string | null | undefined,
+): boolean {
     const origin = session?.selection.origin;
     const originText = origin !== null && origin !== undefined && "text" in origin ? origin.text : undefined;
-    let ran = false;
-    if (session !== null && originText !== undefined) {
-        ran = isRule
-            ? [text, `=${elementRule(session, text.slice(1))}`, correctedRule(session, text)].includes(originText)
-            : typeof textAsRule === "string" && originText === `=${elementRule(session, textAsRule)}`;
+    if (session === null || originText === undefined) {
+        return false;
     }
-    // Once a rule ran, from the reader's words or from the element's correction of them, the line
-    // says what it selected rather than offering the correction again.
-    const refusal = ran ? null : refused;
-    // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
-    // rule not yet run, is an option too: the last, and the one Enter picks.
-    let ruleOption: string | null = null;
     if (isRule) {
-        ruleOption = refusal?.rule ?? null;
-    } else if (typeof textAsRule === "string" && !ran) {
-        ruleOption = `=${textAsRule}`;
+        return [text, `=${elementRule(session, text.slice(1))}`, correctedRule(session, text)].includes(originText);
     }
-    const options: Option[] = found
+    return typeof textAsRule === "string" && originText === `=${elementRule(session, textAsRule)}`;
+}
+
+/**
+ * A rule shown under the box, the element's rewrite of a refused rule or the plain text as a rule
+ * not yet run: an option too, the last, and the one Enter picks.
+ * @param isRule - whether the text is a rule.
+ * @param refusal - the element's refusal of the typed rule.
+ * @param textAsRule - the rule the plain text reads as.
+ * @param ran - whether the box's rule ran.
+ * @returns the rule, with its "=", or null.
+ */
+function ruleOptionOf(
+    isRule: boolean,
+    refusal: Refusal | null,
+    textAsRule: string | null | undefined,
+    ran: boolean,
+): string | null {
+    if (isRule) {
+        return refusal?.rule ?? null;
+    }
+    return typeof textAsRule === "string" && !ran ? `=${textAsRule}` : null;
+}
+
+/**
+ * Every option of the list, in the order the keyboard walks them.
+ * @param found - what the element found.
+ * @param hits - the hits, nodes first.
+ * @param valueOptions - the value options.
+ * @param columns - the columns offered.
+ * @param ruleOption - the rule option.
+ * @returns the options.
+ */
+function optionsOf(
+    found: FindResult | null,
+    hits: readonly FindHit[],
+    valueOptions: readonly Option[],
+    columns: readonly ColumnOption[],
+    ruleOption: string | null,
+): Option[] {
+    return found
         ? [
               ...hits.map((hit): Option => ({ type: "hit", hit })),
               ...valueOptions,
@@ -570,9 +640,480 @@ export function FindBox(): React.JSX.Element {
               ...(ruleOption === null ? [] : [{ type: "rule", rule: ruleOption } as const]),
           ]
         : [];
+}
 
-    // How many the rule option selects, asked of the element as Enter would select it.
-    const [offerCount, setOfferCount] = useState<{ rule: string; nodes: number; edges: number } | null>(null);
+/**
+ * Whether Enter runs the typed text as a selection: a regex or expression is not run while
+ * typing.
+ * @param found - what the element found.
+ * @param session - the element's session.
+ * @param isRule - whether the text is a rule.
+ * @param text - the typed text.
+ * @returns true when Enter runs the text.
+ */
+function runsTypedOf(found: FindResult | null, session: GraphSession | null, isRule: boolean, text: string): boolean {
+    return found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text));
+}
+
+/**
+ * The option Enter picks: the first until the arrows move it; none while Enter would run the
+ * typed rule or pattern instead.
+ * @param active - the row the arrows are on, or -1.
+ * @param ruleOption - the rule option.
+ * @param runsTyped - whether Enter runs the typed text.
+ * @param count - how many options there are.
+ * @returns the option's place, or -1.
+ */
+function enterTarget(active: number, ruleOption: string | null, runsTyped: boolean, count: number): number {
+    if (active >= 0) {
+        return active;
+    }
+    if (ruleOption !== null) {
+        return count - 1;
+    }
+    return runsTyped ? -1 : 0;
+}
+
+/**
+ * The refusal as it is spoken: the correction it offers, or its words with an example rule.
+ * @param session - the element's session.
+ * @param refusal - the refusal.
+ * @returns the words.
+ */
+function refusalSpeech(session: GraphSession, refusal: Refusal): string {
+    const example = refusal.example ? exampleRule(session) : null;
+    if (refusal.rule !== null) {
+        return `Did you mean ${shownRule(session, refusal.rule.slice(1))}?`;
+    }
+    return example === null ? refusal.words : `${refusal.words}. A rule reads like ${example}`;
+}
+
+/**
+ * Runs a typed rule or pattern as a selection. The rule stays in the box with the caret at its
+ * end, so it can be changed; the line under the box then says what it selected.
+ * @param current - the element's session.
+ * @param typed - the typed text.
+ * @param setRefusal - shows a refusal under the box.
+ */
+async function runTypedRule(
+    current: GraphSession,
+    typed: string,
+    setRefusal: (refusal: Refusal | null) => void,
+): Promise<void> {
+    try {
+        // A rule over a column the graph does not have would select nothing, which reads like
+        // an answer; it is refused instead.
+        const rule = typed.startsWith("=") ? `=${elementRule(current, typed.slice(1))}` : typed;
+        const unknown = rule.startsWith("=")
+            ? unknownRefusal(current, current.selection.checkRule(rule.slice(1)))
+            : null;
+        if (unknown !== null) {
+            setRefusal(unknown);
+            return;
+        }
+        await current.selection.apply({ text: rule });
+    } catch (error) {
+        const refused = ruleRefusal(error);
+        if (refused === null) {
+            throw error;
+        }
+        setRefusal(refused);
+    }
+}
+
+/** What a pick reads and changes. */
+interface PickContext {
+    readonly session: GraphSession | null;
+    readonly element: Workspace["element"];
+    readonly store: Workspace["store"];
+    readonly text: string;
+    readonly word: string;
+    readonly shiftPicked: React.RefObject<boolean>;
+    readonly setText: (text: string) => void;
+    readonly setActive: (active: number) => void;
+    readonly setRefusal: (refusal: Refusal | null) => void;
+    readonly setListOpen: (open: boolean) => void;
+    readonly setPickedValues: React.Dispatch<React.SetStateAction<ReadonlySet<string>>>;
+}
+
+/**
+ * Shift adds the pick to the selection and keeps the list, for the next pick.
+ * @param ctx - what the pick reads and changes.
+ * @param session - the element's session.
+ * @param option - the picked row.
+ */
+async function addPick(
+    ctx: PickContext,
+    session: GraphSession,
+    option: Extract<Option, { type: "value" | "hit" }>,
+): Promise<void> {
+    await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
+    ctx.shiftPicked.current = true;
+    if (option.type === "value") {
+        ctx.setPickedValues((before) => new Set(before).add(valueKey(option)));
+    }
+    ctx.setListOpen(true);
+}
+
+/**
+ * Selects a picked node or edge and moves the keyboard into its values.
+ * @param ctx - what the pick reads and changes.
+ * @param session - the element's session.
+ * @param hit - the picked hit.
+ */
+async function pickHit(ctx: PickContext, session: GraphSession, hit: FindHit): Promise<void> {
+    // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
+    focusValuesNext();
+    await session.selection.apply(hit.target);
+    // The inspector shows what is selected once no row is open.
+    ctx.store.set({ inspected: null });
+    // On the Style tab no values view takes the request: the title does, so Enter leaves the
+    // box the same way whichever tab is open and however focus reached the box.
+    requestAnimationFrame(() => {
+        if (takeValuesFocus()) {
+            focusInspectorTitle();
+        }
+    });
+    // The element glides the camera to center every pick (camera.pivotOnSelection, set in
+    // ElementHost); a pick that is off screen is also zoomed to, so it is drawn at a size to see.
+    const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
+    if (!ids.every((id) => ctx.element?.nodeScreenPosition(id)?.visible === true)) {
+        await ctx.element?.zoomToSelection();
+    }
+}
+
+/**
+ * Picks one row of the list.
+ * @param ctx - what the pick reads and changes.
+ * @param option - the row.
+ * @param adding - whether Shift adds it to the selection.
+ */
+async function pickOption(ctx: PickContext, option: Option, adding: boolean): Promise<void> {
+    const { session } = ctx;
+    if (session === null) {
+        return;
+    }
+    if (adding && (option.type === "value" || option.type === "hit")) {
+        await addPick(ctx, session, option);
+        return;
+    }
+    if (option.type === "column") {
+        // The column replaces the word being typed; the box keeps focus for the rest of the rule.
+        ctx.setText(ctx.text.slice(0, ctx.text.length - ctx.word.length) + option.column.insert);
+        ctx.setActive(-1);
+        return;
+    }
+    if (option.type === "rule") {
+        // The box keeps the reader's own words, and runs, as if run with Enter: a typed rule the
+        // element corrected runs the correction, which the line under the box named.
+        ctx.setActive(-1);
+        ctx.setRefusal(null);
+        await runTypedRule(session, option.rule, ctx.setRefusal);
+        return;
+    }
+    ctx.setText("");
+    ctx.setActive(-1);
+    if (option.type === "value") {
+        await session.selection.apply(valueTarget(option));
+        return;
+    }
+    await pickHit(ctx, session, option.hit);
+}
+
+/** What the box's keys read and change. */
+interface KeyContext {
+    readonly session: GraphSession | null;
+    readonly element: Workspace["element"];
+    readonly store: Workspace["store"];
+    readonly text: string;
+    readonly listOpen: boolean;
+    readonly count: number;
+    readonly target: number;
+    readonly chosen: Option | undefined;
+    readonly runsTyped: boolean;
+    readonly spokenLine: string | null;
+    readonly setListOpen: (open: boolean) => void;
+    readonly setActive: (active: number) => void;
+    readonly pick: (option: Option) => Promise<void>;
+    readonly setRefusal: (refusal: Refusal | null) => void;
+}
+
+/**
+ * Enter picks the chosen row, runs the typed rule or pattern, or says there is nothing to pick.
+ * @param ctx - what the keys read and change.
+ */
+function enterKey(ctx: KeyContext): void {
+    if (ctx.chosen !== undefined) {
+        void ctx.pick(ctx.chosen);
+    } else if (ctx.runsTyped && ctx.session !== null) {
+        void runTypedRule(ctx.session, ctx.text, ctx.setRefusal);
+    } else if (ctx.text.trim() !== "") {
+        // Enter with nothing to pick says so, rather than nothing at all.
+        ctx.store.set({ announcement: ctx.spokenLine ?? `No match for "${ctx.text}"` });
+    }
+}
+
+/**
+ * The box's keys: the arrows walk the list, Enter picks, Esc in an empty box leaves it.
+ * @param event - the key.
+ * @param ctx - what the keys read and change.
+ */
+function findKeyDown(event: React.KeyboardEvent<HTMLInputElement>, ctx: KeyContext): void {
+    const arrow = event.key === "ArrowDown" || event.key === "ArrowUp";
+    if (!ctx.listOpen && arrow && ctx.count > 0) {
+        // A closed list opens on the arrows first, as a list box does.
+        event.preventDefault();
+        ctx.setListOpen(true);
+    } else if (arrow && ctx.count > 0) {
+        event.preventDefault();
+        ctx.setActive(
+            event.key === "ArrowDown" ? Math.min(ctx.target + 1, ctx.count - 1) : Math.max(ctx.target - 1, 0),
+        );
+    } else if (event.key === "Enter") {
+        event.preventDefault();
+        enterKey(ctx);
+    } else if (event.key === "Escape" && ctx.text === "") {
+        // An empty box has nothing left to clear: Escape leaves it for the drawing and keeps
+        // the selection, which Escape on the drawing clears.
+        event.preventDefault();
+        event.stopPropagation();
+        ctx.element?.focus();
+    }
+}
+
+/** The line under the box, as drawn and as a screen reader hears it. */
+interface FindLine {
+    readonly emptyLine: React.ReactNode;
+    readonly lineWords: string | null;
+}
+
+/**
+ * The line under a typed rule: the press-Enter hint is only for a rule the element accepts.
+ * @param ruleCheck - the element's verdict on the rule.
+ * @param example - an example rule, or null.
+ * @returns the line.
+ */
+function ruleLine(ruleCheck: "ok" | "empty" | null, example: string | null): FindLine {
+    if (ruleCheck === null) {
+        return { emptyLine: null, lineWords: null };
+    }
+    if (ruleCheck === "ok") {
+        const ok = "Rule: press Enter to select matches";
+        return { emptyLine: ok, lineWords: ok };
+    }
+    if (example === null) {
+        return { emptyLine: "Type a rule", lineWords: "Type a rule" };
+    }
+    // The example rule never breaks: the sentence wraps before it.
+    return {
+        emptyLine: (
+            <>
+                Type a rule, such as <span className="ws-nowrap ws-mono">{example}</span>
+            </>
+        ),
+        lineWords: `Type a rule, such as ${example}`,
+    };
+}
+
+/** What the line under the box is worded from. */
+interface LineFacts {
+    readonly session: GraphSession | null;
+    readonly text: string;
+    readonly ran: boolean;
+    readonly isRule: boolean;
+    readonly ruleCheck: "ok" | "empty" | null;
+    readonly example: string | null;
+    readonly textAsRule: string | null | undefined;
+    readonly listOpen: boolean;
+    readonly keptWords: string;
+    readonly found: FindResult | null;
+}
+
+/**
+ * The line under the box. The example is drawn on a line of its own, so what stays selected is
+ * said before it; the status line speaks the words, since the line arrives with its words.
+ * @param facts - what the line is worded from.
+ * @returns the line.
+ */
+function findLine(facts: LineFacts): FindLine {
+    const { session, text, keptWords, textAsRule, example } = facts;
+    const noMatch = `No match for "${text}"`;
+    if (facts.ran && session !== null) {
+        const { nodes, edges } = session.selection;
+        const words = nodes.length + edges.length === 0 ? "Nothing matches this rule" : selectedNameWords(session);
+        return { emptyLine: words, lineWords: words };
+    }
+    if (facts.isRule) {
+        return ruleLine(facts.ruleCheck, example);
+    }
+    if (typeof textAsRule === "string") {
+        // The rule itself is the option under this line: with the list closed there is no row for
+        // the heading to lead to, so it goes too.
+        const words = facts.listOpen ? "Select by a value:" : null;
+        return { emptyLine: words, lineWords: words };
+    }
+    if (textAsRule === null && example !== null) {
+        // Text that reads as no rule gets an example of one, on a line of its own.
+        return {
+            emptyLine: (
+                <>
+                    <span>{noMatch}</span>
+                    {keptWords}. To select by a value, type a rule such as{" "}
+                    <span className="ws-find-example ws-mono">{example}</span>
+                </>
+            ),
+            lineWords: `${noMatch}${keptWords}. To select by a value, type a rule such as ${example}`,
+        };
+    }
+    if (textAsRule === null) {
+        return { emptyLine: `${noMatch}${keptWords}`, lineWords: `${noMatch}${keptWords}` };
+    }
+    if (facts.found?.notSearchable === "regex") {
+        const words = `Press Enter to select "${text}"`;
+        return { emptyLine: words, lineWords: words };
+    }
+    return { emptyLine: noMatch, lineWords: noMatch };
+}
+
+/**
+ * What stays selected while a find misses or is refused, said so the drawing is not misread.
+ * @param session - the element's session.
+ * @param held - how many nodes and edges are selected.
+ * @returns the words, or "".
+ */
+function keptWordsOf(session: GraphSession | null, held: number): string {
+    return session === null || held === 0
+        ? ""
+        : `. Still selected: ${sizeWords(session.selection.nodes.length, session.selection.edges.length)}`;
+}
+
+/**
+ * A refusal keeps the earlier selection; one the element cannot read at all shows a rule that
+ * works. A refusal that offers a correction is a suggestion, drawn as the hint is, not an error.
+ * @param refusal - the refusal.
+ * @param session - the element's session.
+ * @param example - an example rule, or null.
+ * @param keptWords - what stays selected.
+ * @returns the error line, or null.
+ */
+function refusalLineOf(
+    refusal: Refusal | null,
+    session: GraphSession | null,
+    example: string | null,
+    keptWords: string,
+): React.ReactNode {
+    if (refusal === null || session === null || refusal.rule !== null) {
+        return null;
+    }
+    return refusal.example && example !== null ? (
+        <>
+            {refusal.words}
+            {keptWords}. A rule reads like <span className="ws-find-example ws-mono">{example}</span>
+        </>
+    ) : (
+        `${refusal.words}${keptWords}`
+    );
+}
+
+/** What decides whether the line shows and what it says aloud. */
+interface SpeechFacts {
+    readonly session: GraphSession | null;
+    readonly found: FindResult | null;
+    readonly count: number;
+    readonly isRule: boolean;
+    readonly ruleOption: string | null;
+    readonly refusal: Refusal | null;
+    readonly line: FindLine;
+    readonly foundNothing: boolean;
+    readonly textAsRule: string | null | undefined;
+    readonly offerCount: OfferCount | null;
+}
+
+/**
+ * Whether the line under the box shows, and the words said for it. Plain text the element has
+ * not yet read as a rule is not said to match nothing: on the next pause it may offer one. An
+ * offered rule is said with what it selects, once that is counted.
+ * @param facts - what decides it.
+ * @returns whether the line shows, and its spoken words or null.
+ */
+function lineSpeech(facts: SpeechFacts): { showLine: boolean; spokenLine: string | null } {
+    const { session, ruleOption, textAsRule, offerCount } = facts;
+    const showLine =
+        facts.found !== null &&
+        (facts.count === 0 || facts.isRule || ruleOption !== null) &&
+        facts.refusal === null &&
+        facts.line.emptyLine !== null;
+    const settled = !(facts.foundNothing && textAsRule === undefined);
+    const spokenLine = showLine && settled ? facts.line.lineWords : null;
+    if (spokenLine === null || typeof textAsRule !== "string" || ruleOption === null || session === null) {
+        return { showLine, spokenLine };
+    }
+    return {
+        showLine,
+        spokenLine:
+            offerCount?.rule === ruleOption
+                ? `${spokenLine} ${shownRule(session, ruleOption.slice(1))}. ${offerWords(session, ruleOption.slice(1), offerCount)}`
+                : null,
+    };
+}
+
+/**
+ * The list closes as a list does: on a click anywhere outside the find box.
+ * @param boxRef - the find box.
+ * @param setListOpen - opens or closes the list.
+ */
+function useCloseOnPointerOutside(
+    boxRef: React.RefObject<HTMLDivElement | null>,
+    setListOpen: (open: boolean) => void,
+): void {
+    useEffect(() => {
+        const onPointerDown = (event: PointerEvent): void => {
+            if (!(event.target instanceof Node && boxRef.current?.contains(event.target) === true)) {
+                setListOpen(false);
+            }
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true);
+        };
+    }, [boxRef, setListOpen]);
+}
+
+/**
+ * A Shift pick keeps the list for the next one; once the list closes, the box clears as it does
+ * after a plain pick.
+ * @param listOpen - whether the list is open.
+ * @param shiftPicked - whether a Shift pick kept the list.
+ * @param setText - sets the box's text.
+ * @param setActive - sets the arrows' row.
+ * @param setPickedValues - sets the value rows marked as picked.
+ */
+function useClearAfterShiftPicks(
+    listOpen: boolean,
+    shiftPicked: React.RefObject<boolean>,
+    setText: (text: string) => void,
+    setActive: (active: number) => void,
+    setPickedValues: (values: ReadonlySet<string>) => void,
+): void {
+    useEffect(() => {
+        if (!listOpen && shiftPicked.current) {
+            shiftPicked.current = false;
+            setText("");
+            setActive(-1);
+            setPickedValues(new Set());
+        }
+    }, [listOpen, shiftPicked, setText, setActive, setPickedValues]);
+}
+
+/**
+ * How many the rule option selects, asked of the element as Enter would select it.
+ * @param session - the element's session.
+ * @param ruleOption - the rule option.
+ * @param version - the session's change count.
+ * @returns the count, for the rule it was asked for.
+ */
+function useOfferCount(session: GraphSession | null, ruleOption: string | null, version: number): OfferCount | null {
+    const [offerCount, setOfferCount] = useState<OfferCount | null>(null);
     useEffect(() => {
         if (session === null || ruleOption === null) {
             return undefined;
@@ -590,7 +1131,26 @@ export function FindBox(): React.JSX.Element {
             current = false;
         };
     }, [session, ruleOption, version]);
-    // A typed rule is checked once typing pauses, so a refusal shows before Enter.
+    return offerCount;
+}
+
+/**
+ * A typed rule is checked once typing pauses, so a refusal shows before Enter.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @param isRule - whether the text is a rule.
+ * @param version - the session's change count.
+ * @param setRuleAnswer - keeps the element's verdict.
+ * @param setRefusal - shows a refusal under the box.
+ */
+function useRuleCheck(
+    session: GraphSession | null,
+    text: string,
+    isRule: boolean,
+    version: number,
+    setRuleAnswer: (answer: RuleAnswer) => void,
+    setRefusal: (refusal: Refusal | null) => void,
+): void {
     useEffect(() => {
         if (session === null || !isRule) {
             return undefined;
@@ -614,7 +1174,24 @@ export function FindBox(): React.JSX.Element {
             current = false;
             clearTimeout(timer);
         };
-    }, [session, text, isRule, version]);
+    }, [session, text, isRule, version, setRuleAnswer, setRefusal]);
+}
+
+/**
+ * Plain text that finds nothing is asked of the element as a rule once typing pauses.
+ * @param session - the element's session.
+ * @param text - the typed text.
+ * @param foundNothing - whether the text found nothing.
+ * @param version - the session's change count.
+ * @param setTextAsRuleAnswer - keeps the element's answer.
+ */
+function useTextAsRule(
+    session: GraphSession | null,
+    text: string,
+    foundNothing: boolean,
+    version: number,
+    setTextAsRuleAnswer: (answer: TextAsRuleAnswer) => void,
+): void {
     useEffect(() => {
         if (session === null || !foundNothing) {
             return undefined;
@@ -631,126 +1208,49 @@ export function FindBox(): React.JSX.Element {
             current = false;
             clearTimeout(timer);
         };
-    }, [session, text, foundNothing, version]);
-    // The refusal is spoken from a region that stays mounted and keeps its words while the reader
-    // types, so a refusal is said once, politely, not again on every keystroke; it empties only
-    // once the box holds no rule or a rule Find can read.
+    }, [session, text, foundNothing, version, setTextAsRuleAnswer]);
+}
+
+/**
+ * The refusal is spoken from a region that stays mounted and keeps its words while the reader
+ * types, so a refusal is said once, politely, not again on every keystroke; it empties only once
+ * the box holds no rule or a rule Find can read.
+ * @param session - the element's session.
+ * @param refusal - the refusal.
+ * @param isRule - whether the text is a rule.
+ * @param ruleCheck - the element's verdict on the rule.
+ * @param ran - whether the box's rule ran.
+ * @returns the words the region holds.
+ */
+function useSpokenRefusal(
+    session: GraphSession | null,
+    refusal: Refusal | null,
+    isRule: boolean,
+    ruleCheck: "ok" | "empty" | null,
+    ran: boolean,
+): string {
     const [spoken, setSpoken] = useState("");
     useEffect(() => {
         if (refusal === null || session === null) {
             return;
         }
-        const example = refusal.example ? exampleRule(session) : null;
-        if (refusal.rule !== null) {
-            setSpoken(`Did you mean ${shownRule(session, refusal.rule.slice(1))}?`);
-        } else {
-            setSpoken(example === null ? refusal.words : `${refusal.words}. A rule reads like ${example}`);
-        }
+        setSpoken(refusalSpeech(session, refusal));
     }, [refusal, session]);
     useEffect(() => {
         if (!isRule || ruleCheck !== null || ran) {
             setSpoken("");
         }
     }, [isRule, ruleCheck, ran]);
-    const optionId = (i: number): string => `${listId}-${String(i)}`;
+    return spoken;
+}
 
-    const pick = async (option: Option, adding = false): Promise<void> => {
-        if (session === null) {
-            return;
-        }
-        if (adding && (option.type === "value" || option.type === "hit")) {
-            // Shift adds the pick to the selection and keeps the list, for the next pick.
-            await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
-            shiftPicked.current = true;
-            if (option.type === "value") {
-                setPickedValues((before) => new Set(before).add(valueKey(option)));
-            }
-            setListOpen(true);
-            return;
-        }
-        if (option.type === "column") {
-            // The column replaces the word being typed; the box keeps focus for the rest of the rule.
-            setText(text.slice(0, text.length - word.length) + option.column.insert);
-            setActive(-1);
-            return;
-        }
-        if (option.type === "rule") {
-            // The box keeps the reader's own words, and runs, as if run with Enter: a typed rule the
-            // element corrected runs the correction, which the line under the box named.
-            setActive(-1);
-            setRefusal(null);
-            await runTyped(session, option.rule);
-            return;
-        }
-        setText("");
-        setActive(-1);
-        if (option.type === "value") {
-            await session.selection.apply(valueTarget(option));
-            return;
-        }
-        const { hit } = option;
-        // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
-        focusValuesNext();
-        await session.selection.apply(hit.target);
-        // The inspector shows what is selected once no row is open.
-        store.set({ inspected: null });
-        // On the Style tab no values view takes the request: the title does, so Enter leaves the
-        // box the same way whichever tab is open and however focus reached the box.
-        requestAnimationFrame(() => {
-            if (takeValuesFocus()) {
-                focusInspectorTitle();
-            }
-        });
-        // The element glides the camera to center every pick (camera.pivotOnSelection, set in
-        // ElementHost); a pick that is off screen is also zoomed to, so it is drawn at a size to see.
-        const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
-        if (!ids.every((id) => element?.nodeScreenPosition(id)?.visible === true)) {
-            await element?.zoomToSelection();
-        }
-    };
-
-    const runTyped = async (current: GraphSession, typed: string): Promise<void> => {
-        // The rule stays in the box with the caret at its end, so it can be changed; the line under
-        // the box then says what it selected.
-        try {
-            // A rule over a column the graph does not have would select nothing, which reads like
-            // an answer; it is refused instead.
-            const rule = typed.startsWith("=") ? `=${elementRule(current, typed.slice(1))}` : typed;
-            const unknown = rule.startsWith("=")
-                ? unknownRefusal(current, current.selection.checkRule(rule.slice(1)))
-                : null;
-            if (unknown !== null) {
-                setRefusal(unknown);
-                return;
-            }
-            await current.selection.apply({ text: rule });
-        } catch (error) {
-            const refused = ruleRefusal(error);
-            if (refused === null) {
-                throw error;
-            }
-            setRefusal(refused);
-        }
-    };
-
-    // A regex or expression is not run while typing; Enter runs it as a selection unless an
-    // option was chosen with the arrows.
-    const runsTyped = found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text));
-    // The option Enter picks: the first until the arrows move it, and marked as such; none while
-    // Enter would run the typed rule or pattern instead.
-    let target = 0;
-    if (active >= 0) {
-        target = active;
-    } else if (ruleOption !== null) {
-        target = options.length - 1;
-    } else if (runsTyped) {
-        target = -1;
-    }
-    const chosen: Option | undefined = options[target];
-    // Focus stays in the text box, so the browser never scrolls the list to the arrows' row: the
-    // row is brought into view here, by the least scroll that shows it whole, with its group's
-    // heading when it is the group's first row.
-    const activeId = active >= 0 ? optionId(active) : undefined;
+/**
+ * Focus stays in the text box, so the browser never scrolls the list to the arrows' row: the row
+ * is brought into view here, by the least scroll that shows it whole, with its group's heading
+ * when it is the group's first row.
+ * @param activeId - the arrows' row's id.
+ */
+function useScrollActiveIntoView(activeId: string | undefined): void {
     useLayoutEffect(() => {
         const row = activeId === undefined ? null : document.getElementById(activeId);
         const heading = row?.previousElementSibling;
@@ -759,44 +1259,20 @@ export function FindBox(): React.JSX.Element {
         }
         row?.scrollIntoView({ block: "nearest" });
     }, [activeId]);
+}
 
-    const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-        if (!listOpen && (event.key === "ArrowDown" || event.key === "ArrowUp") && options.length > 0) {
-            // A closed list opens on the arrows first, as a list box does.
-            event.preventDefault();
-            setListOpen(true);
-        } else if (event.key === "ArrowDown" && options.length > 0) {
-            event.preventDefault();
-            setActive(Math.min(target + 1, options.length - 1));
-        } else if (event.key === "ArrowUp" && options.length > 0) {
-            event.preventDefault();
-            setActive(Math.max(target - 1, 0));
-        } else if (event.key === "Enter") {
-            event.preventDefault();
-            if (chosen !== undefined) {
-                void pick(chosen);
-            } else if (runsTyped) {
-                void runTyped(session, text);
-            } else if (text.trim() !== "") {
-                // Enter with nothing to pick says so, rather than nothing at all.
-                store.set({ announcement: spokenLine ?? `No match for "${text}"` });
-            }
-        } else if (event.key === "Escape" && text === "") {
-            // An empty box has nothing left to clear: Escape leaves it for the drawing and keeps
-            // the selection, which Escape on the drawing clears.
-            event.preventDefault();
-            event.stopPropagation();
-            element?.focus();
-        }
-    };
-
-    const open = found !== null && listOpen;
-    // The list takes the room the panel has below it, less what stays of the tree and the panel's
-    // foot. Past that room it ends on a whole row: its height is cut back to the bottom of the last
-    // option row that fits, headings counted in, so it never ends on a heading. Scrolling then
-    // stops only where a row's bottom meets the edge, or at the top (scroll-snap in graph-place.css).
-    const listRef = useRef<HTMLDivElement>(null);
-    const viewportRef = useRef<HTMLDivElement>(null);
+/**
+ * The list takes the room the panel has below it, less what stays of the tree and the panel's
+ * foot. Past that room it ends on a whole row: its height is cut back to the bottom of the last
+ * option row that fits, headings counted in, so it never ends on a heading. Scrolling then
+ * stops only where a row's bottom meets the edge, or at the top (scroll-snap in graph-place.css).
+ * @param listRef - the list.
+ * @param viewportRef - the list's scrolling viewport.
+ */
+function useListHeight(
+    listRef: React.RefObject<HTMLDivElement | null>,
+    viewportRef: React.RefObject<HTMLDivElement | null>,
+): void {
     useLayoutEffect(() => {
         const { current: list } = listRef;
         const { current: viewport } = viewportRef;
@@ -815,116 +1291,541 @@ export function FindBox(): React.JSX.Element {
         // The max height counts the bottom border too (border-box).
         list.style.maxHeight = `${String(Math.max(...fits, 0) + list.offsetHeight - list.clientHeight)}px`;
     });
-    // What stays selected while a find misses or is refused, said so the drawing is not misread.
-    const held = session === null ? 0 : session.selection.nodes.length + session.selection.edges.length;
-    const keptWords =
-        session === null || held === 0
-            ? ""
-            : `. Still selected: ${sizeWords(session.selection.nodes.length, session.selection.edges.length)}`;
-    // The example is drawn on a line of its own, so what stays selected is said before it.
-    let emptyLine: React.ReactNode = `No match for "${text}"`;
-    // The line's words as a screen reader hears them: the status line speaks them, since the
-    // line arrives with its words.
-    let lineWords: string | null = `No match for "${text}"`;
-    const example = session === null ? null : exampleRule(session);
-    if (ran && session !== null) {
-        const { nodes, edges } = session.selection;
-        lineWords = nodes.length + edges.length === 0 ? "Nothing matches this rule" : selectedNameWords(session);
-        emptyLine = lineWords;
-    } else if (isRule) {
-        // The press-Enter hint is only for a rule the element accepts.
-        const ruleLines = {
-            ok: "Rule: press Enter to select matches",
-            // The example rule never breaks: the sentence wraps before it.
-            empty:
-                example === null ? (
-                    "Type a rule"
-                ) : (
-                    <>
-                        Type a rule, such as <span className="ws-nowrap ws-mono">{example}</span>
-                    </>
-                ),
-        } as const;
-        emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
-        if (ruleCheck === null) {
-            lineWords = null;
-        } else if (ruleCheck === "ok") {
-            lineWords = ruleLines.ok;
-        } else {
-            lineWords = example === null ? "Type a rule" : `Type a rule, such as ${example}`;
-        }
-    } else if (typeof textAsRule === "string") {
-        // The rule itself is the option under this line: with the list closed there is no row for
-        // the heading to lead to, so it goes too.
-        lineWords = listOpen ? "Select by a value:" : null;
-        emptyLine = lineWords;
-    } else if (textAsRule === null && example !== null) {
-        // Text that reads as no rule gets an example of one, on a line of its own.
-        emptyLine = (
-            <>
-                <span>{emptyLine}</span>
-                {keptWords}. To select by a value, type a rule such as{" "}
-                <span className="ws-find-example ws-mono">{example}</span>
-            </>
-        );
-        lineWords = `${lineWords}${keptWords}. To select by a value, type a rule such as ${example}`;
-    } else if (textAsRule === null) {
-        lineWords = `${lineWords}${keptWords}`;
-        emptyLine = lineWords;
-    } else if (found?.notSearchable === "regex") {
-        lineWords = `Press Enter to select "${text}"`;
-        emptyLine = lineWords;
-    }
+}
 
-    // A refusal keeps the earlier selection; one the element cannot read at all shows a rule that
-    // works. A refusal that offers a correction is a suggestion, drawn as the hint is, not an error.
-    let refusalLine: React.ReactNode = null;
-    if (refusal !== null && session !== null && refusal.rule === null) {
-        refusalLine =
-            refusal.example && example !== null ? (
-                <>
-                    {refusal.words}
-                    {keptWords}. A rule reads like <span className="ws-find-example ws-mono">{example}</span>
-                </>
-            ) : (
-                `${refusal.words}${keptWords}`
-            );
-    }
-    const suggestion = refusal?.rule === null || refusal === null ? null : refusal.words;
-    const showLine =
-        found !== null &&
-        (options.length === 0 || isRule || ruleOption !== null) &&
-        refusal === null &&
-        emptyLine !== null;
-    // Plain text the element has not yet read as a rule is not said to match nothing: on the next
-    // pause it may offer one. An offered rule is said with what it selects, once that is counted.
-    const settled = !(foundNothing && textAsRule === undefined);
-    let spokenLine = showLine && settled ? lineWords : null;
-    if (spokenLine !== null && typeof textAsRule === "string" && ruleOption !== null && session !== null) {
-        spokenLine =
-            offerCount?.rule === ruleOption
-                ? `${spokenLine} ${shownRule(session, ruleOption.slice(1))}. ${offerWords(session, ruleOption.slice(1), offerCount)}`
-                : null;
-    }
+/**
+ * Said to the reader in the box; a line that changes because something else changed (a selection
+ * cleared by Esc elsewhere) does not talk over that change's own message.
+ * @param spokenLine - the line's spoken words.
+ * @param store - the workspace store.
+ */
+function useSayInBox(spokenLine: string | null, store: Workspace["store"]): void {
     useEffect(() => {
-        // Said to the reader in the box; a line that changes because something else changed (a
-        // selection cleared by Esc elsewhere) does not talk over that change's own message.
         if (spokenLine !== null && spokenLine !== "" && document.activeElement?.id === FIND_BOX_ID) {
             store.set({ announcement: spokenLine });
         }
     }, [spokenLine, store]);
+}
+
+/**
+ * The box's blur: focus moving on to another control closes the list; focus leaving the window
+ * does not.
+ * @param setListOpen - opens or closes the list.
+ * @returns the handler.
+ */
+function closeOnFocusOut(setListOpen: (open: boolean) => void): (event: React.FocusEvent<HTMLDivElement>) => void {
+    return (event) => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && !event.currentTarget.contains(next)) {
+            setListOpen(false);
+        }
+    };
+}
+
+/** The props every group of the list shares. */
+interface GroupProps {
+    readonly listId: string;
+    readonly target: number;
+    readonly pick: (option: Option, adding?: boolean) => Promise<void>;
+}
+
+/**
+ * A group of hits, nodes or edges, under its heading.
+ * @param props - Component props
+ * @param props.label - the heading.
+ * @param props.group - the hits.
+ * @param props.first - the first hit's place among the options.
+ * @param props.total - every match of its kind, not only the rows listed.
+ * @param props.session - the element's session.
+ * @param props.text - the typed text.
+ * @param props.listId - the list's id.
+ * @param props.target - the place of the option Enter picks.
+ * @param props.pick - picks a row.
+ * @returns the group.
+ */
+function HitGroup({
+    label,
+    group,
+    first,
+    total,
+    session,
+    text,
+    listId,
+    target,
+    pick,
+}: GroupProps & {
+    readonly label: string;
+    readonly group: readonly FindHit[];
+    readonly first: number;
+    readonly total: number;
+    readonly session: GraphSession;
+    readonly text: string;
+}): React.JSX.Element {
+    return (
+        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+            role="group"
+            aria-label={label}
+        >
+            {/* The heading counts every match of its kind, not only the rows listed. */}
+            <Text component="div" className="ws-find-heading" aria-hidden="true">
+                {label} <span className="ws-find-heading-count">{total}</span>
+            </Text>
+            {group.map((hit, j) => {
+                const i = first + j;
+                const name = hitName(session, hit);
+                const where =
+                    String(hit.match.value) === name
+                        ? undefined
+                        : `${attributeName(session, hit.match.path)}: ${valueWord(hit.match.value)}`;
+                const isEdge = hit.kind === "edge";
+                return (
+                    <ResultRow
+                        lines={2}
+                        key={optionIdOf(listId, i)}
+                        id={optionIdOf(listId, i)}
+                        name={name}
+                        match={text}
+                        path={where}
+                        icon={isEdge ? <GLYPHS.edge size={14} /> : <GLYPHS.node size={14} />}
+                        current={i === target}
+                        picked={(isEdge ? session.selection.edges : session.selection.nodes).includes(hit.id)}
+                        onClick={(event) => {
+                            void pick({ type: "hit", hit }, event.shiftKey);
+                        }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+/**
+ * The value rows, under Values.
+ * @param props - Component props
+ * @param props.valueOptions - the value options.
+ * @param props.first - the first row's place among the options.
+ * @param props.session - the element's session.
+ * @param props.held - how many nodes and edges are selected.
+ * @param props.pickedValues - the rows added with Shift.
+ * @param props.listId - the list's id.
+ * @param props.target - the place of the option Enter picks.
+ * @param props.pick - picks a row.
+ * @returns the group.
+ */
+function ValuesGroup({
+    valueOptions,
+    first,
+    session,
+    held,
+    pickedValues,
+    listId,
+    target,
+    pick,
+}: GroupProps & {
+    readonly valueOptions: readonly Option[];
+    readonly first: number;
+    readonly session: GraphSession;
+    readonly held: number;
+    readonly pickedValues: ReadonlySet<string>;
+}): React.JSX.Element {
+    return (
+        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+            role="group"
+            aria-label="Values"
+        >
+            <Text component="div" className="ws-find-heading" aria-hidden="true">
+                Values
+            </Text>
+            {valueOptions.map((option, j) => {
+                if (option.type !== "value") {
+                    return null;
+                }
+                const i = first + j;
+                const { row } = option;
+                const orMore = option.orMore === true;
+                const count = orMore ? row.atLeast?.count : row.count;
+                const more = orMore ? " or more" : "";
+                const words = `${attributeName(session, row.path)} is ${valueWord(row.value)}${more} (${String(count)})`;
+                return (
+                    <ResultRow
+                        lines={2}
+                        key={optionIdOf(listId, i)}
+                        id={optionIdOf(listId, i)}
+                        name={words}
+                        aria-label={`Select where ${words}`}
+                        icon={<GLYPHS.filter size={14} />}
+                        current={i === target}
+                        picked={held > 0 && pickedValues.has(valueKey(option))}
+                        onClick={(event) => {
+                            void pick(option, event.shiftKey);
+                        }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+/**
+ * The columns a rule can name, under Columns.
+ * @param props - Component props
+ * @param props.columns - the columns.
+ * @param props.first - the first row's place among the options.
+ * @param props.word - the word being typed.
+ * @param props.listId - the list's id.
+ * @param props.target - the place of the option Enter picks.
+ * @param props.pick - picks a row.
+ * @returns the group.
+ */
+function ColumnsGroup({
+    columns,
+    first,
+    word,
+    listId,
+    target,
+    pick,
+}: GroupProps & {
+    readonly columns: readonly ColumnOption[];
+    readonly first: number;
+    readonly word: string;
+}): React.JSX.Element {
+    return (
+        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+            role="group"
+            aria-label="Columns"
+        >
+            <Text component="div" className="ws-find-heading" aria-hidden="true">
+                Columns
+            </Text>
+            {columns.map((column, j) => {
+                const i = first + j;
+                return (
+                    <ResultRow
+                        lines={2}
+                        key={optionIdOf(listId, i)}
+                        id={optionIdOf(listId, i)}
+                        name={column.name}
+                        match={word}
+                        path={kindWords(column.kinds)}
+                        icon={<GLYPHS.attribute size={14} />}
+                        current={i === target}
+                        onClick={() => {
+                            void pick({ type: "column", column });
+                        }}
+                    />
+                );
+            })}
+        </div>
+    );
+}
+
+/**
+ * The rule option, the list's last row.
+ * @param props - Component props
+ * @param props.ruleOption - the rule, with its "=".
+ * @param props.index - its place among the options.
+ * @param props.session - the element's session.
+ * @param props.offerCount - how many it selects, once counted.
+ * @param props.listId - the list's id.
+ * @param props.target - the place of the option Enter picks.
+ * @param props.pick - picks a row.
+ * @returns the group.
+ */
+function RuleGroup({
+    ruleOption,
+    index,
+    session,
+    offerCount,
+    listId,
+    target,
+    pick,
+}: GroupProps & {
+    readonly ruleOption: string;
+    readonly index: number;
+    readonly session: GraphSession | null;
+    readonly offerCount: OfferCount | null;
+}): React.JSX.Element {
+    const rule = ruleOption.slice(1);
+    return (
+        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+            role="group"
+            aria-label="Rule"
+            className="ws-find-rule"
+        >
+            <ResultRow
+                lines={2}
+                id={optionIdOf(listId, index)}
+                name={session === null ? plainRule(rule) : shownRule(session, rule)}
+                path={
+                    offerCount?.rule === ruleOption && session !== null
+                        ? offerWords(session, rule, offerCount)
+                        : "Select its matches"
+                }
+                icon={<GLYPHS.filter size={14} />}
+                current={index === target}
+                onClick={() => {
+                    void pick({ type: "rule", rule: ruleOption });
+                }}
+            />
+        </div>
+    );
+}
+
+/**
+ * The find box's live list: nodes, edges, values, columns and the rule, each under its heading.
+ * @param props - Component props
+ * @param props.found - what the element found.
+ * @param props.session - the element's session.
+ * @param props.nodeHits - the node hits.
+ * @param props.edgeHits - the edge hits.
+ * @param props.valueOptions - the value options.
+ * @param props.columns - the columns offered.
+ * @param props.ruleOption - the rule option.
+ * @param props.count - how many options there are.
+ * @param props.text - the typed text.
+ * @param props.word - the word being typed.
+ * @param props.held - how many nodes and edges are selected.
+ * @param props.pickedValues - the value rows added with Shift.
+ * @param props.offerCount - how many the rule option selects.
+ * @param props.listRef - the list.
+ * @param props.viewportRef - the list's scrolling viewport.
+ * @param props.listId - the list's id.
+ * @param props.target - the place of the option Enter picks.
+ * @param props.pick - picks a row.
+ * @returns the list.
+ */
+function FindList({
+    found,
+    session,
+    nodeHits,
+    edgeHits,
+    valueOptions,
+    columns,
+    ruleOption,
+    count,
+    text,
+    word,
+    held,
+    pickedValues,
+    offerCount,
+    listRef,
+    viewportRef,
+    listId,
+    target,
+    pick,
+}: GroupProps & {
+    readonly found: FindResult;
+    readonly session: GraphSession | null;
+    readonly nodeHits: readonly FindHit[];
+    readonly edgeHits: readonly FindHit[];
+    readonly valueOptions: readonly Option[];
+    readonly columns: readonly ColumnOption[];
+    readonly ruleOption: string | null;
+    readonly count: number;
+    readonly text: string;
+    readonly word: string;
+    readonly held: number;
+    readonly pickedValues: ReadonlySet<string>;
+    readonly offerCount: OfferCount | null;
+    readonly listRef: React.RefObject<HTMLDivElement | null>;
+    readonly viewportRef: React.RefObject<HTMLDivElement | null>;
+}): React.JSX.Element {
+    const shared = { listId, target, pick };
+    return (
+        // The scrollbar is drawn while the list overflows, so more rows below are seen. It
+        // scrolls only up and down: a long name ends in "..." rather than widening the list.
+        <ScrollArea.Autosize
+            type="auto"
+            scrollbars="y"
+            className="ws-find-list"
+            classNames={{ viewport: "ws-find-viewport" }}
+            ref={listRef}
+            viewportRef={viewportRef}
+        >
+            <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                id={listId}
+                role="listbox"
+                aria-label="Find results"
+            >
+                {[
+                    { label: "Nodes", group: nodeHits, first: 0, total: found.totals.node },
+                    { label: "Edges", group: edgeHits, first: nodeHits.length, total: found.totals.edge },
+                ].map(({ label, group, first, total }) =>
+                    group.length === 0 || session === null ? null : (
+                        <HitGroup
+                            key={label}
+                            label={label}
+                            group={group}
+                            first={first}
+                            total={total}
+                            session={session}
+                            text={text}
+                            {...shared}
+                        />
+                    ),
+                )}
+                {valueOptions.length > 0 && session !== null ? (
+                    <ValuesGroup
+                        valueOptions={valueOptions}
+                        first={found.records.length}
+                        session={session}
+                        held={held}
+                        pickedValues={pickedValues}
+                        {...shared}
+                    />
+                ) : null}
+                {columns.length > 0 ? (
+                    <ColumnsGroup
+                        columns={columns}
+                        first={found.records.length + valueOptions.length}
+                        word={word}
+                        {...shared}
+                    />
+                ) : null}
+                {ruleOption === null ? null : (
+                    <RuleGroup
+                        ruleOption={ruleOption}
+                        index={count - 1}
+                        session={session}
+                        offerCount={offerCount}
+                        {...shared}
+                    />
+                )}
+            </div>
+        </ScrollArea.Autosize>
+    );
+}
+
+/**
+ * The find box and its one live list (tier1-design.md section 2.5 and task T12): results appear
+ * as the reader types and focus stays in the box; Down enters the list, Enter picks, Esc clears
+ * and then leaves the box. A node pick moves focus to that node's values in the inspector. The selection changes only on a pick. Every match comes from
+ * graphty-element's `session.find`; the box only words and arranges it.
+ * @returns The find box
+ */
+export function FindBox(): React.JSX.Element {
+    const { session, element, store } = useWorkspace();
+    const [text, setText] = useState("");
+    const [active, setActive] = useState(-1);
+    const [refused, setRefusal] = useState<Refusal | null>(null);
+    // The list closes as a list does -- a click or focus anywhere outside the find box -- and
+    // opens again on typing, a click in the box or the Down arrow.
+    const [listOpen, setListOpen] = useState(true);
+    const boxRef = useRef<HTMLDivElement>(null);
+    useCloseOnPointerOutside(boxRef, setListOpen);
+    // The element's answers below are kept with the text they were asked for: a session change
+    // asks again, and the line under the box keeps the last answer until the new one arrives
+    // rather than blinking out (and being announced again by its status region) on every change.
+    const [ruleAnswer, setRuleAnswer] = useState<RuleAnswer | null>(null);
+    const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<TextAsRuleAnswer | null>(null);
+    const listId = useId();
+    // The value rows added to the selection with Shift while the list stays open, marked as picked.
+    const [pickedValues, setPickedValues] = useState<ReadonlySet<string>>(new Set());
+    const shiftPicked = useRef(false);
+    useClearAfterShiftPicks(listOpen, shiftPicked, setText, setActive, setPickedValues);
+    // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
+    const version = useSessionVersion(session);
+
+    const found: FindResult | null = useMemo(() => {
+        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
+        return findIn(session, text);
+    }, [session, text, version]);
+    const isRule = found?.notSearchable === "expression";
+    const ruleCheck = ruleCheckOf(isRule, ruleAnswer, text);
+    const { word, columns } = useMemo(() => {
+        const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
+        return columnsFor(session, text, isRule);
+    }, [session, text, isRule, version]);
+    // Nodes first, then edges, each under its own heading; the keyboard walks them in that order.
+    const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
+    const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
+    const valueOptions = valueOptionsOf(found);
+    const foundNothing = isNothingFound(found, valueOptions);
+    const textAsRule = textAsRuleOf(foundNothing, textAsRuleAnswer, text);
+    const ran = ranFromBox(session, text, isRule, textAsRule);
+    // Once a rule ran, from the reader's words or from the element's correction of them, the line
+    // says what it selected rather than offering the correction again.
+    const refusal = ran ? null : refused;
+    const ruleOption = ruleOptionOf(isRule, refusal, textAsRule, ran);
+    const options = optionsOf(found, [...nodeHits, ...edgeHits], valueOptions, columns, ruleOption);
+
+    const offerCount = useOfferCount(session, ruleOption, version);
+    useRuleCheck(session, text, isRule, version, setRuleAnswer, setRefusal);
+    useTextAsRule(session, text, foundNothing, version, setTextAsRuleAnswer);
+    const spoken = useSpokenRefusal(session, refusal, isRule, ruleCheck, ran);
+
+    const pick = (option: Option, adding = false): Promise<void> =>
+        pickOption(
+            {
+                session,
+                element,
+                store,
+                text,
+                word,
+                shiftPicked,
+                setText,
+                setActive,
+                setRefusal,
+                setListOpen,
+                setPickedValues,
+            },
+            option,
+            adding,
+        );
+
+    const runsTyped = runsTypedOf(found, session, isRule, text);
+    const target = enterTarget(active, ruleOption, runsTyped, options.length);
+    const chosen: Option | undefined = options[target];
+    useScrollActiveIntoView(active >= 0 ? optionIdOf(listId, active) : undefined);
+
+    const open = found !== null && listOpen;
+    const listRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    useListHeight(listRef, viewportRef);
+    const held = session === null ? 0 : session.selection.nodes.length + session.selection.edges.length;
+    const keptWords = keptWordsOf(session, held);
+    const example = session === null ? null : exampleRule(session);
+    const line = findLine({ session, text, ran, isRule, ruleCheck, example, textAsRule, listOpen, keptWords, found });
+    const refusalLine = refusalLineOf(refusal, session, example, keptWords);
+    const suggestion = refusal === null || refusal.rule === null ? null : refusal.words;
+    const { showLine, spokenLine } = lineSpeech({
+        session,
+        found,
+        count: options.length,
+        isRule,
+        ruleOption,
+        refusal,
+        line,
+        foundNothing,
+        textAsRule,
+        offerCount,
+    });
+    useSayInBox(spokenLine, store);
+
+    const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+        findKeyDown(event, {
+            session,
+            element,
+            store,
+            text,
+            listOpen,
+            count: options.length,
+            target,
+            chosen,
+            runsTyped,
+            spokenLine,
+            setListOpen,
+            setActive,
+            pick,
+            setRefusal,
+        });
+    };
 
     return (
-        <div
+        <div // NOSONAR(S6848): blur only closes the list as focus leaves the box; the box is not a control
             className="ws-find"
             ref={boxRef}
-            onBlur={(event) => {
-                // Focus moving on to another control closes the list; focus leaving the window does not.
-                const next = event.relatedTarget;
-                if (next instanceof Node && !event.currentTarget.contains(next)) {
-                    setListOpen(false);
-                }
-            }}
+            onBlur={closeOnFocusOut(setListOpen)}
         >
             <SearchInput
                 id={FIND_BOX_ID}
@@ -947,173 +1848,36 @@ export function FindBox(): React.JSX.Element {
                 aria-autocomplete="list"
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
-                aria-activedescendant={chosen === undefined || !open ? undefined : optionId(target)}
+                aria-activedescendant={chosen === undefined || !open ? undefined : optionIdOf(listId, target)}
                 // Mantine ties its error line and the line under the box to it with aria-describedby.
                 error={refusalLine}
                 errorProps={{ className: "ws-find-refusal" }}
-                description={suggestion ?? (showLine ? emptyLine : undefined)}
+                description={suggestion ?? (showLine ? line.emptyLine : undefined)}
                 descriptionProps={{ className: "ws-find-empty" }}
                 inputWrapperOrder={["label", "input", "error", "description"]}
                 disabled={session === null}
             />
             {found !== null && listOpen && options.length > 0 ? (
-                // The scrollbar is drawn while the list overflows, so more rows below are seen. It
-                // scrolls only up and down: a long name ends in "..." rather than widening the list.
-                <ScrollArea.Autosize
-                    type="auto"
-                    scrollbars="y"
-                    className="ws-find-list"
-                    classNames={{ viewport: "ws-find-viewport" }}
-                    ref={listRef}
+                <FindList
+                    found={found}
+                    session={session}
+                    nodeHits={nodeHits}
+                    edgeHits={edgeHits}
+                    valueOptions={valueOptions}
+                    columns={columns}
+                    ruleOption={ruleOption}
+                    count={options.length}
+                    text={text}
+                    word={word}
+                    held={held}
+                    pickedValues={pickedValues}
+                    offerCount={offerCount}
+                    listRef={listRef}
                     viewportRef={viewportRef}
-                >
-                    <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
-                        id={listId}
-                        role="listbox"
-                        aria-label="Find results"
-                    >
-                        {[
-                            { label: "Nodes", group: nodeHits, first: 0, total: found.totals.node },
-                            { label: "Edges", group: edgeHits, first: nodeHits.length, total: found.totals.edge },
-                        ].map(({ label, group, first, total }) =>
-                            group.length === 0 || session === null ? null : (
-                                <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                                    key={label}
-                                    role="group"
-                                    aria-label={label}
-                                >
-                                    {/* The heading counts every match of its kind, not only the rows listed. */}
-                                    <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                        {label} <span className="ws-find-heading-count">{total}</span>
-                                    </Text>
-                                    {group.map((hit, j) => {
-                                        const i = first + j;
-                                        const name = hitName(session, hit);
-                                        const where =
-                                            String(hit.match.value) === name
-                                                ? undefined
-                                                : `${attributeName(session, hit.match.path)}: ${valueWord(hit.match.value)}`;
-                                        return (
-                                            <ResultRow
-                                                lines={2}
-                                                key={optionId(i)}
-                                                id={optionId(i)}
-                                                name={name}
-                                                match={text}
-                                                path={where}
-                                                icon={
-                                                    hit.kind === "edge" ? (
-                                                        <GLYPHS.edge size={14} />
-                                                    ) : (
-                                                        <GLYPHS.node size={14} />
-                                                    )
-                                                }
-                                                current={i === target}
-                                                picked={
-                                                    hit.kind === "edge"
-                                                        ? session.selection.edges.includes(hit.id)
-                                                        : session.selection.nodes.includes(hit.id)
-                                                }
-                                                onClick={(event) => {
-                                                    void pick({ type: "hit", hit }, event.shiftKey);
-                                                }}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            ),
-                        )}
-                        {valueOptions.length > 0 && session !== null ? (
-                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                                role="group"
-                                aria-label="Values"
-                            >
-                                <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                    Values
-                                </Text>
-                                {valueOptions.map((option, j) => {
-                                    if (option.type !== "value") {
-                                        return null;
-                                    }
-                                    const i = found.records.length + j;
-                                    const { row } = option;
-                                    const count = option.orMore === true ? row.atLeast?.count : row.count;
-                                    const words = `${attributeName(session, row.path)} is ${valueWord(row.value)}${option.orMore === true ? " or more" : ""} (${String(count)})`;
-                                    return (
-                                        <ResultRow
-                                            lines={2}
-                                            key={optionId(i)}
-                                            id={optionId(i)}
-                                            name={words}
-                                            aria-label={`Select where ${words}`}
-                                            icon={<GLYPHS.filter size={14} />}
-                                            current={i === target}
-                                            picked={held > 0 && pickedValues.has(valueKey(option))}
-                                            onClick={(event) => {
-                                                void pick(option, event.shiftKey);
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        ) : null}
-                        {columns.length > 0 ? (
-                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                                role="group"
-                                aria-label="Columns"
-                            >
-                                <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                    Columns
-                                </Text>
-                                {columns.map((column, j) => {
-                                    const i = found.records.length + valueOptions.length + j;
-                                    return (
-                                        <ResultRow
-                                            lines={2}
-                                            key={optionId(i)}
-                                            id={optionId(i)}
-                                            name={column.name}
-                                            match={word}
-                                            path={kindWords(column.kinds)}
-                                            icon={<GLYPHS.attribute size={14} />}
-                                            current={i === target}
-                                            onClick={() => {
-                                                void pick({ type: "column", column });
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        ) : null}
-                        {ruleOption === null ? null : (
-                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                                role="group"
-                                aria-label="Rule"
-                                className="ws-find-rule"
-                            >
-                                <ResultRow
-                                    lines={2}
-                                    id={optionId(options.length - 1)}
-                                    name={
-                                        session === null
-                                            ? plainRule(ruleOption.slice(1))
-                                            : shownRule(session, ruleOption.slice(1))
-                                    }
-                                    path={
-                                        offerCount?.rule === ruleOption && session !== null
-                                            ? offerWords(session, ruleOption.slice(1), offerCount)
-                                            : "Select its matches"
-                                    }
-                                    icon={<GLYPHS.filter size={14} />}
-                                    current={options.length - 1 === target}
-                                    onClick={() => {
-                                        void pick({ type: "rule", rule: ruleOption });
-                                    }}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </ScrollArea.Autosize>
+                    listId={listId}
+                    target={target}
+                    pick={pick}
+                />
             ) : null}
             <VisuallyHidden role="status">{spoken}</VisuallyHidden>
         </div>

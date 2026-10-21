@@ -813,7 +813,7 @@ export function StartScreen({
     );
 
     return (
-        <div
+        <div // NOSONAR(S6848): focus only records which door last held it; the page is not a control
             className="ws-land"
             data-scheme={scheme}
             onFocus={(event) => {

@@ -392,6 +392,40 @@ function sameRule(a: RuleTree, b: RuleTree): boolean {
 }
 
 /**
+ * The side a step's attribute is on: a node's or an edge's.
+ * @param card - the step's condition card.
+ * @returns the side.
+ */
+function sideOf(card: Card | null): CardField["on"] {
+    return card !== null && "field" in card ? card.field.on : "node";
+}
+
+/**
+ * The Keep menu's choices.
+ * @param neighbors - whether "the neighbors of the selection" is offered.
+ * @returns the choices.
+ */
+function keepChoicesOf(neighbors: boolean): { value: string; label: string }[] {
+    return [
+        { value: "attribute", label: "an attribute's value" },
+        { value: "largest", label: "the largest component" },
+        ...(neighbors ? [{ value: "neighbors", label: "the neighbors of the selection" }] : []),
+    ];
+}
+
+/**
+ * The Attribute menu's choices, grouped under Nodes and Edges; a side with none has no group.
+ * @param choosable - the attributes a step can test.
+ * @returns the grouped choices.
+ */
+function attributeChoicesOf(choosable: CardField[]): { group: string; items: { value: string; label: string }[] }[] {
+    return (["node", "edge"] as const).flatMap((kind) => {
+        const items = choosable.filter((f) => f.on === kind).map((f) => ({ value: keyOf(f), label: f.name }));
+        return items.length === 0 ? [] : [{ group: kind === "node" ? "Nodes" : "Edges", items }];
+    });
+}
+
+/**
  * The step editor, drawn in the inspector: Keep, then the attribute, the comparison and the
  * value. Committing adds the step or saves the edited one, on either way.
  * @param props - Component props
@@ -444,7 +478,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
     const rule = ruleOf(fields, seeds.length > 0 ? seeds : kept);
     const { card } = fields;
-    const side = card !== null && "field" in card ? card.field.on : "node";
+    const side = sideOf(card);
     // Save step waits for a change: a rule that is the step's own saves nothing. An off step's
     // "Save and turn on" does something either way.
     const unchanged = step?.on === true && rule !== null && sameRule(rule, step.rule);
@@ -474,19 +508,10 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         );
     }
 
-    const keepChoices = [
-        { value: "attribute", label: "an attribute's value" },
-        { value: "largest", label: "the largest component" },
-        // Offered only with a selection to start from, or on a step that already has one.
-        ...(seeds.length > 0 || fields.keep === "neighbors"
-            ? [{ value: "neighbors", label: "the neighbors of the selection" }]
-            : []),
-    ];
+    // Neighbors is offered only with a selection to start from, or on a step that already has one.
+    const keepChoices = keepChoicesOf(seeds.length > 0 || fields.keep === "neighbors");
     const choosable = stepFields(session);
-    const attributeChoices = (["node", "edge"] as const).flatMap((kind) => {
-        const items = choosable.filter((f) => f.on === kind).map((f) => ({ value: keyOf(f), label: f.name }));
-        return items.length === 0 ? [] : [{ group: kind === "node" ? "Nodes" : "Edges", items }];
-    });
+    const attributeChoices = attributeChoicesOf(choosable);
 
     const commit = async (): Promise<void> => {
         // A press or Enter on an incomplete or unchanged rule adds nothing.

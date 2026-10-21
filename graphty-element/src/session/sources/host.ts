@@ -46,6 +46,12 @@ export interface SourceHost {
      */
     sourceKeyOf(load: string): SourceKey | undefined;
     /**
+     * The credential slot an opened project's load filled, as its file named it.
+     * @param load - the load's key
+     * @returns the slot, or undefined when the file named none
+     */
+    credentialSlotOf(load: string): string | undefined;
+    /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command
      * @returns what it settles with

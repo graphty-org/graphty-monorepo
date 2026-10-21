@@ -10,8 +10,10 @@ import type { Credential, SourceCursor, SourceValidators } from "@graphty/graph-
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { SOURCE_RECORD_VERSION } from "./ids";
 import type { ExpandBehavior, SourceCredentialIdentity, SourceExpansionRecord, SourceLoadRecord } from "./types";
+
+/** The version of the records' own shape, which `toMember` and `fromMember` move them in. */
+export const LEDGER_VERSION = 1;
 
 /** The load options a record keeps; everything else (credential, write, signal, fetch) is dropped. */
 const RECORDED_OPTIONS: readonly string[] = [
@@ -257,7 +259,7 @@ export class SourceLedger {
      * @returns the version and the records
      */
     toMember(): SourceRecordMember {
-        return { version: SOURCE_RECORD_VERSION, loads: plain(this.records) };
+        return { version: LEDGER_VERSION, loads: plain(this.records) };
     }
 
     /**
@@ -273,12 +275,12 @@ export class SourceLedger {
         if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
             badMember("The graphty-sources member has no version.");
         }
-        if (version > SOURCE_RECORD_VERSION) {
+        if (version > LEDGER_VERSION) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED_VERSION",
                 source: "data",
-                message: `The graphty-sources member is version ${String(version)}; this element reads up to ${String(SOURCE_RECORD_VERSION)}.`,
-                details: { member: "graphty-sources", version, supported: SOURCE_RECORD_VERSION },
+                message: `The graphty-sources member is version ${String(version)}; this element reads up to ${String(LEDGER_VERSION)}.`,
+                details: { member: "graphty-sources", version, supported: LEDGER_VERSION },
             });
         }
         if (!Array.isArray(loads)) {

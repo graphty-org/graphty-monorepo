@@ -6,6 +6,7 @@
  * | Part | Holds |
  * | --- | --- |
  * | `data` | the `graphty-data` member |
+ * | `sources` | the `graphty-sources` member, written with `data`; absent when the session holds no load |
  * | `arrangement` | the `graphty-arrangement` member |
  * | `run:<id>` | one run of the `graphty-results` member (their order is the meta's `runs`) |
  * | `rest` | the document's head, the session, style, notes and view-state members, the results' head |
@@ -26,6 +27,7 @@ import {
     resultsMember,
     runEntry,
     sessionMember,
+    sourcesFileOf,
     styleMember,
     viewStateMember,
 } from "../session/projectFile";
@@ -118,9 +120,15 @@ export function buildParts(
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
-    const parts: Record<string, string | null> = tags.has("data")
-        ? { data: attempt("data", () => JSON.stringify(dataMember(session))) }
-        : {};
+    const parts: Record<string, string | null> = {};
+    if (tags.has("data")) {
+        // A load changes the data, so the record of the loads is written with it.
+        // ponytail: a refresh that found nothing new changes only the record, and waits for the next data write.
+        const file = sourcesFileOf(session);
+        parts.data = attempt("data", () => JSON.stringify(dataMember(session, file)));
+        parts.sources = file?.member ? attempt("sources", () => JSON.stringify(file.member)) : null;
+    }
+
     const runs = new Map<RunId, unknown>();
     let ids: GraphIds | undefined;
     const idsNow = (): GraphIds => (ids ??= graphIdsOf(session));
@@ -204,6 +212,7 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
             rest.style,
             rest.notes,
             rest.viewState,
+            ...(typeof parts.sources === "string" ? [JSON.parse(parts.sources) as unknown] : []),
         ],
     };
 }

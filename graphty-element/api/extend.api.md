@@ -2088,6 +2088,7 @@ export const PATH_FIELD_SPECS: readonly ResultFieldSpec[];
 // @public
 export interface PendingSourceLoad {
     readonly authRequired: "required" | "optional" | "none";
+    readonly credentialSlot?: string;
     readonly endpoint: string | null;
     readonly hasQuery: boolean;
     readonly id: string;
@@ -2380,7 +2381,7 @@ export { SOURCE_ISSUE }
 // @public
 export const SOURCE_RECORD_MEMBER = "graphty-sources";
 
-// @public
+// @public @deprecated
 export const SOURCE_RECORD_VERSION = 1;
 
 // @public
@@ -2563,6 +2564,9 @@ export { SourceRequestInit }
 export { SourceRuntime }
 
 export { SourceRuntimeReason }
+
+// @public
+export const SOURCES_MEMBER_VERSION = 2;
 
 export { SourceSample }
 

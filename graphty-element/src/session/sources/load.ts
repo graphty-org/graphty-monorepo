@@ -805,16 +805,18 @@ export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad
     return host.ledger
         .loads()
         .filter((record) => host.pending.has(record.key))
-        .map((record) =>
-            Object.freeze({
+        .map((record) => {
+            const slot = host.credentialSlotOf(record.key);
+            return Object.freeze({
                 id: record.key,
                 source: record.source,
                 endpoint: record.endpoint,
                 hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
                 isLocalNetwork: isLocalNetwork(record.endpoint),
                 authRequired: descriptorOf(record.source)?.authRequired ?? "none",
-            }),
-        );
+                ...(slot === undefined ? {} : { credentialSlot: slot }),
+            });
+        });
 }
 
 /**

@@ -12,7 +12,7 @@
 import "../data/index";
 
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
-import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
+import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe } from "@graphty/graph-io";
 import {
     DATASET_NAMES,
     fetchDataset,
@@ -81,9 +81,10 @@ import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { isSourceFactKey, SOURCE_RECORD_VERSION, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
+import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
+import { type LoadFacts, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource } from "./sources/provenance";
 import type {
     CollapseResult,
@@ -475,6 +476,14 @@ export class SessionData implements SessionDataApi {
     readonly ledger = new SourceLedger();
     /** The keys of the loads an opened project holds that have not run since it opened. */
     private readonly pendingLoads = new Set<string>();
+    /** What each load left that `sources()` does not list, by its key: what a project file's entry records. */
+    private readonly loadFacts = new Map<SourceKey, LoadFacts>();
+    /**
+     * An opened project's `graphty-sources` member that was skipped, written back in place while
+     * the loads are the ones the file opened with.
+     */
+    private skippedMember: { readonly member: Readonly<Record<string, unknown>>; readonly stored: unknown } | null =
+        null;
     /** What click-to-expand keeps beside the graph. */
     private readonly expansions = new ExpansionState();
 
@@ -640,7 +649,10 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options, "sample");
+        await this.importVia(send, recordsSource(graph, name), options, "sample", {
+            generator: name,
+            params: { ...params },
+        });
     }
 
     /**
@@ -675,23 +687,34 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(snapshot, name), load, "sample");
+        await this.importVia(send, recordsSource(snapshot, name), load, "sample", {
+            dataset: name,
+            ...(baseUrl === undefined ? {} : { baseUrl }),
+        });
     }
 
     /**
      * The body of `import`, dispatching through an importer taken before any await.
-     * @param send - The importer, taken when the verb was called.
+     * @param dispatch - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
      * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
+     * @param sample - For a generated graph or a dataset: what it was, for the project file.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
-        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        dispatch: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
         origin?: LoadedSourceKind,
+        sample?: LoadFacts["sample"],
     ): Promise<void> {
+        let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
+        const send = this.noting(
+            dispatch,
+            () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample })),
+            choiceOptions(options),
+        );
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -726,8 +749,52 @@ export class SessionData implements SessionDataApi {
         });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
-        const resolved = resolveImportSource(source);
-        await send(command(resolved instanceof Promise ? await resolved : resolved));
+        const resolving = resolveImportSource(source);
+        const resolved = resolving instanceof Promise ? await resolving : resolving;
+        resolvedConfig = resolved.config ?? source.config;
+        await send(command(resolved));
+    }
+
+    /**
+     * A dispatch that records, for each load it adds to `sources()`, when it finished, whether it
+     * replaced the graph, and what was read: what a project file's entry for it records.
+     * @param send - The dispatch, taken when the verb was called.
+     * @param read - What the load's bytes were, read once it is in the graph.
+     * @param options - The import choices given beside the source's own configuration.
+     * @returns The dispatch.
+     */
+    private noting(
+        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        read: () => Promise<Partial<LoadFacts>>,
+        options?: Readonly<Record<string, unknown>>,
+    ): (command: DataImportCommand | BatchCommand) => Promise<unknown> {
+        return async (command) => {
+            // Read before the dispatch, which takes its turn as soon as it is called.
+            const before = new Set(this.storedSources().map((each) => each.key));
+            const result = await send(command);
+            const added = this.storedSources().filter((each) => !before.has(each.key));
+            if (added.length > 0) {
+                const facts: LoadFacts = {
+                    ...(await read()),
+                    loadedAt: new Date().toISOString(),
+                    mode: modeOf(command),
+                    ...(options === undefined ? {} : { options }),
+                };
+                for (const each of added) {
+                    this.loadFacts.set(each.key, facts);
+                }
+            }
+
+            return result;
+        };
+    }
+
+    /**
+     * The loads the `graph` slice lists, as stored: not recounted.
+     * @returns The loads.
+     */
+    private storedSources(): readonly LoadedSource[] {
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
     }
 
     /**
@@ -907,28 +974,41 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The project file's `graphty-sources` member, or null when the graph holds no source load.
+     * What a project file writes about the loads: the `graphty-sources` member (null when the graph
+     * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.
-     * @returns the member
+     * @returns the member and its ids
      */
-    sourceMember(): unknown {
-        const loads = this.loads();
-        return loads.length === 0 ? null : { version: SOURCE_RECORD_VERSION, loads };
+    sourceFile(): SourcesWrite {
+        const write = writeSourcesMember({ sources: this.sources(), loads: this.loads(), facts: this.loadFacts });
+        const skipped = this.skippedMember;
+        // A member the file held and this release skipped goes back in place while the loads are
+        // the ones the file opened with.
+        if (skipped !== null && skipped.stored === this.writes.slice().values.get(SOURCES_VALUE)) {
+            return { ...write, member: { ...skipped.member } };
+        }
+
+        return write;
     }
 
     /**
-     * Take an opened project's `graphty-sources` member: its loads are recorded and wait, fetching
-     * nothing, until `runPendingSourceLoad`. Internal: the project file calls it.
-     * @param member - the member, or undefined when the file holds none
+     * Take what an opened project's `graphty-sources` member held: its network loads are recorded
+     * and wait, fetching nothing, until `runPendingSourceLoad`. Internal: the project file calls it
+     * once the project's graph is in.
+     * @param read - what the member held, or undefined when the file holds none
      */
-    restoreSourceMember(member: unknown): void {
+    restoreSourceMember(read: SourcesRead | undefined): void {
         this.pendingLoads.clear();
-        if (member === undefined) {
-            this.ledger.clear();
-            return;
+        this.loadFacts.clear();
+        this.skippedMember =
+            read?.skipped === undefined
+                ? null
+                : { member: read.skipped, stored: this.writes.slice().values.get(SOURCES_VALUE) };
+        this.ledger.fromMember({ version: 1, loads: read?.records ?? [] });
+        for (const [key, facts] of read?.facts ?? []) {
+            this.loadFacts.set(key, facts);
         }
 
-        this.ledger.fromMember(member);
         for (const record of this.ledger.loads()) {
             this.pendingLoads.add(record.key);
         }
@@ -947,6 +1027,10 @@ export class SessionData implements SessionDataApi {
             expansions: this.expansions,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            credentialSlotOf: (load) => {
+                const key = this.sources().find((each) => each.loadKey === load)?.key;
+                return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
+            },
             node: (id) => this.node(id),
             nodeIds: () => [...this.current().ids],
             edges: () => {
@@ -1023,7 +1107,7 @@ export class SessionData implements SessionDataApi {
                     const slice = this.writes.slice();
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
                 },
-                importer: () => this.writes.importer(),
+                importer: () => this.noting(this.writes.importer(), () => bytesFacts(source.config)),
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {
@@ -1748,7 +1832,9 @@ export class SessionData implements SessionDataApi {
                 const key = (each as Partial<LoadedSource>).key ?? `s${String(at + 1)}`;
                 const supplied = provenance?.[key];
                 const kind = (each as Partial<LoadedSource>).kind ?? "file";
-                const loadKey = kind === "server" ? this.networkLoadOf(supplied?.nodes ?? []) : undefined;
+                // An opened project's network load keeps its entry's key; one loaded here is found by its rows.
+                const found = records.has(key) ? key : this.networkLoadOf(supplied?.nodes ?? []);
+                const loadKey = kind === "server" && found !== undefined && records.has(found) ? found : undefined;
                 return Object.freeze({
                     ...each,
                     key,
@@ -2672,6 +2758,72 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * What a load's bytes were, for its project-file entry: a file's name, size, media type and
+ * SHA-256, inline data's size and SHA-256, a URL's SHA-256 when its body was read here. Nothing
+ * for anything else (a pair of files, a URL its reader fetched itself).
+ * ponytail: a URL load that names its type is fetched by its reader, so its body is not hashed;
+ * fetch it here, as an undetected one is, if every URL entry must carry its digest.
+ * @param config - The source's options as the load read them.
+ * @returns The facts.
+ */
+async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Partial<LoadFacts>> {
+    const { data, file, url } = config;
+    if (typeof url === "string") {
+        const sha256 = data instanceof Uint8Array ? await sha256Hex(data) : undefined;
+        return { url: { ...(sha256 === undefined ? {} : { sha256 }), fetchedAt: new Date().toISOString() } };
+    }
+
+    const blob = fileOf(file);
+    if (blob !== null) {
+        const bytes = new Uint8Array(await blob.slice(0, blob.size).arrayBuffer());
+        const { type } = file as { type?: unknown };
+        return {
+            file: {
+                ...(blob.name === "" ? {} : { name: blob.name }),
+                size: blob.size,
+                sha256: await sha256Hex(bytes),
+                ...(typeof type === "string" && type !== "" ? { mediaType: type } : {}),
+            },
+        };
+    }
+
+    if (isSourceData(data)) {
+        const input = toSourceInput(data);
+        const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+        return { file: { size: bytes.byteLength, sha256: await sha256Hex(bytes) } };
+    }
+
+    return {};
+}
+
+/**
+ * Whether an import command replaces the graph or adds to it.
+ * @param command - The command, or the batch holding it.
+ * @returns Its mode.
+ */
+function modeOf(command: DataImportCommand | BatchCommand): "replace" | "merge" {
+    const load = command.op === "batch" ? command.steps.find((step) => step.op === "data.import") : command;
+    return load !== undefined && "mode" in load && load.mode === "merge" ? "merge" : "replace";
+}
+
+/**
+ * The import choices a project file's entry records beside the source's own options.
+ * @param options - The choices.
+ * @returns The ones given, or undefined when none was.
+ */
+function choiceOptions(
+    options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+): Record<string, unknown> | undefined {
+    const { mapping, unmatched, directed, duplicateIds, existing } = options;
+    const given = Object.fromEntries(
+        Object.entries({ mapping, unmatched, directed, duplicateIds, existing }).filter(
+            ([, value]) => value !== undefined,
+        ),
+    );
+    return Object.keys(given).length === 0 ? undefined : given;
 }
 
 /**

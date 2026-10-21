@@ -150,10 +150,10 @@ import {
 import {
     type ColumnEncodingSpec,
     type EncodingProposal,
-    type ParamEncodingSpec,
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
+    type ParamEncodingSpec,
     planColumnEncoding,
     planEncoding,
     proposeColumnBinding,

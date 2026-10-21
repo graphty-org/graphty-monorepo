@@ -38,11 +38,11 @@ export type {
     ColumnEncodingSpec,
     EncodingOptions,
     EncodingProposal,
-    ParamEncodingSpec,
     EncodingRefusalCode,
     EncodingRun,
     EncodingSource,
     EncodingSpec,
+    ParamEncodingSpec,
 } from "./EncodingSpec";
 export type {
     ChannelAgreement,

@@ -103,6 +103,7 @@ import { registeredAlgorithmByKey } from "./catalog/registry";
 import type {
     AlgorithmKey,
     BoundaryAtResult,
+    DrawnShaders,
     EdgeId,
     ElementAtResult,
     FormatId,
@@ -189,6 +190,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
@@ -4976,6 +4978,19 @@ export class Graph implements GraphContext {
 
         const hit = this.renderManager.pickBoundary(point.x, point.y);
         return hit === null ? null : { kind: "boundary", layer: hit.layer, group: hit.group };
+    }
+
+    /**
+     * What the shaders draw now; see `Graphty.drawnShaders`.
+     * @returns Per node shader its counts, and the boundaries drawn last frame.
+     */
+    drawnShaders(): DrawnShaders {
+        const nodes = NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map();
+        const boundaries = this.renderManager.shaderPasses().boundary?.drawn() ?? [];
+        return {
+            nodes,
+            boundaries: boundaries.map(({ layer, groups }) => ({ layer, groups: [...groups] })),
+        };
     }
 
     /**

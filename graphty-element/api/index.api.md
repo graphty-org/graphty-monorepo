@@ -932,6 +932,18 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @public
+export interface DrawnShaders {
+    readonly boundaries: readonly {
+        readonly layer: LayerId;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+    readonly nodes: ReadonlyMap<string, {
+        readonly drawn: number;
+        readonly entering: number;
+    }>;
+}
+
+// @public
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
@@ -1937,6 +1949,7 @@ export class Graph implements GraphContext {
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
+    drawnShaders(): DrawnShaders;
     get edgeLabelCounts(): EdgeLabelCounts;
     // (undocumented)
     element: Element;
@@ -2401,6 +2414,7 @@ export class Graphty extends LitElement {
     downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
+    drawnShaders(): DrawnShaders;
     get edgeData(): Record<string, unknown>[] | undefined;
     set edgeData(value: Record<string, unknown>[] | undefined);
     get edgeDstIdPath(): string | undefined;

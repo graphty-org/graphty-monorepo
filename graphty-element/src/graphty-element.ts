@@ -20,7 +20,15 @@ import type {
 } from "./autosave/types";
 import type { ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, BoundaryAtResult, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type {
+    AlgorithmKey,
+    BoundaryAtResult,
+    DrawnShaders,
+    ElementAtResult,
+    FormatId,
+    Scope,
+    ScopeInput,
+} from "./catalog/types";
 import type {
     FitInsets,
     GraphBackgroundConfig,
@@ -4811,6 +4819,24 @@ export class Graphty extends LitElement {
      */
     boundaryAt(point: { x: number; y: number }): BoundaryAtResult | null {
         return this.#graph.boundaryAt(point);
+    }
+
+    /**
+     * What the element's shaders draw at this moment: per node shader (a surface, a sprite or an
+     * effect), how many nodes draw it and how many play its entrance now (a reticle's snap, a
+     * shockwave's ring); and the group boundaries drawn on the last frame, each layer with the
+     * groups it outlines. For tools, tests and an application that shows whether an effect plays;
+     * read it again after a frame, it is not a live value.
+     * @returns The counts.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * const ring = element.drawnShaders().nodes.get("shockwave");
+     * if ((ring?.entering ?? 0) > 0) console.log("a shockwave is playing");
+     * ```
+     */
+    drawnShaders(): DrawnShaders {
+        return this.#graph.drawnShaders();
     }
 
     // ============================================================================

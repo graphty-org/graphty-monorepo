@@ -676,6 +676,41 @@ export class NodeShaderDrawing {
     }
 
     /**
+     * Per shader id, how many nodes draw it now (on any path) and how many play its entrance at
+     * this moment: what `element.drawnShaders()` reports.
+     * @returns The counts, by shader id.
+     */
+    drawnById(): Map<string, { drawn: number; entering: number }> {
+        const out = new Map<string, { drawn: number; entering: number }>();
+        const count = (id: string): void => {
+            const now = out.get(id) ?? { drawn: 0, entering: 0 };
+            now.drawn++;
+            out.set(id, now);
+        };
+        for (const entry of this.entries.values()) {
+            if (entry.surface !== null && entry.surface !== undefined) {
+                count(entry.surface.id);
+            }
+
+            if (entry.meshShader !== null) {
+                count(entry.meshShader);
+            }
+
+            for (const id of entry.effects.keys()) {
+                count(id);
+            }
+        }
+
+        for (const [id, playing] of this.stats().entrances) {
+            const now = out.get(id) ?? { drawn: 0, entering: 0 };
+            now.entering = playing;
+            out.set(id, now);
+        }
+
+        return out;
+    }
+
+    /**
      * The pasted shaders drawn now, for the frame guard and the flashing check: whether any is,
      * and the text hashes of those that move by themselves.
      * @returns Whether a pasted shader draws, and the moving ones' hashes.

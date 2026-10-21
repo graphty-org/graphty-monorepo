@@ -177,6 +177,38 @@ describe("the shockwave", () => {
     });
 });
 
+describe("element.drawnShaders()", () => {
+    it("reports a node effect drawn and its entrance playing, and each group a boundary outlines", async () => {
+        const element = await mounted([
+            onSelected("shockwave"),
+            {
+                name: "Groups",
+                target: "node",
+                selector: { match: "everything" },
+                boundary: { shader: "metaball-hull", groupBy: "data.degree" },
+            },
+        ]);
+        assert.isUndefined(element.drawnShaders().nodes.get(presetId("shockwave")), "nothing selected, nothing drawn");
+        await clickNode(element, "a");
+        await until(element, "the ring plays on the clicked node", () => {
+            const drawn = element.drawnShaders().nodes.get(presetId("shockwave"));
+            return drawn?.drawn === 1 && drawn.entering === 1;
+        });
+        await until(element, "the ring ends, the node still carries it", () => {
+            const drawn = element.drawnShaders().nodes.get(presetId("shockwave"));
+            return drawn?.drawn === 1 && drawn.entering === 0;
+        });
+        const layer = element.session.styles.list().find((each) => each.name === "Groups")?.id;
+        const outlined = (): readonly unknown[] =>
+            element.drawnShaders().boundaries.find((each) => each.layer === layer)?.groups ?? [];
+        await until(element, "one outline per degree", () => outlined().length === NODES.length);
+        assert.sameMembers(
+            [...outlined()],
+            NODES.map((node) => node.degree),
+        );
+    });
+});
+
 describe("the change flash", () => {
     it("plays when a node's data changes, and lets the graph rest after", async () => {
         const element = await mounted([

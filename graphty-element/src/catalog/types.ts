@@ -74,6 +74,28 @@ export interface BoundaryAtResult {
     readonly group: string | number | boolean | null;
 }
 
+/**
+ * What the element's shaders draw now, as `element.drawnShaders()` reads it: for tools, tests and
+ * an application that shows whether an effect is playing. Read it again after a frame; it is not
+ * a live value.
+ * @since 3.36.0
+ */
+export interface DrawnShaders {
+    /**
+     * Per node shader id (surfaces, sprites and effects): how many nodes draw it now, and how many
+     * of them are playing its entrance (a reticle's snap, a shockwave's ring) at this moment.
+     */
+    readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
+    /**
+     * The group boundaries drawn on the last frame, bottom layer first: each layer's id and the
+     * `groupBy` value of each group it outlines (null for a layer drawing one boundary).
+     */
+    readonly boundaries: readonly {
+        readonly layer: LayerId;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+}
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 

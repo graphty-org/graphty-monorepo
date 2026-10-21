@@ -36,6 +36,8 @@ const DECLARED = [
     "node.labelFont",
     "node.labelWeight",
     "node.labelItalic",
+    "node.labelOutline",
+    "node.labelOutlineWidth",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -87,6 +89,8 @@ const DECLARED = [
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
+    "edge.labelOutline",
+    "edge.labelOutlineWidth",
 ];
 
 describe("the channel set", () => {
@@ -113,9 +117,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-five node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 35);
-        assert.strictEqual(channelsFor("edge").length, 27);
+    it("splits into thirty-seven node channels and twenty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 37);
+        assert.strictEqual(channelsFor("edge").length, 29);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -330,11 +334,15 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelFont",
         "node.labelWeight",
         "node.labelItalic",
+        "node.labelOutline",
+        "node.labelOutlineWidth",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        "edge.labelOutline",
+        "edge.labelOutlineWidth",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -417,10 +425,11 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the ten that carry a colour, and the type says the same ten", () => {
+    it("are the twelve that carry a colour, and the type says the same twelve", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
+            "node.labelOutline",
             "node.outline",
             "node.glow",
             "node.haloColor",
@@ -429,6 +438,7 @@ describe("colour channels", () => {
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
             "edge.labelColor",
+            "edge.labelOutline",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

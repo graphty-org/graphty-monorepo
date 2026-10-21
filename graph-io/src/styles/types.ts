@@ -111,6 +111,8 @@ export interface NodeStyleValues {
     readonly borderColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
+    /** The color of the outline drawn around each letter of the label. */
+    readonly labelOutlineColor: StyleColor;
     /** The opacity of the fill alone, 0..1 (0 is an unfilled node). */
     readonly fillOpacity: number;
     /** The opacity of the whole node, 0..1. */
@@ -125,6 +127,8 @@ export interface NodeStyleValues {
     readonly cornerRadius: number;
     /** The label's font size. */
     readonly labelSize: number;
+    /** The width of the outline drawn around each letter of the label (0 is no outline). */
+    readonly labelOutlineWidth: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /** The border's line style. */
@@ -160,12 +164,16 @@ export interface EdgeStyleValues {
     readonly targetArrowColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
+    /** The color of the outline drawn around each letter of the label. */
+    readonly labelOutlineColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */
     readonly opacity: number;
     /** The line width. */
     readonly width: number;
     /** The label's font size. */
     readonly labelSize: number;
+    /** The width of the outline drawn around each letter of the label (0 is no outline). */
+    readonly labelOutlineWidth: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. */
     readonly arrowSize: number;
     /** The line style. */

@@ -494,7 +494,8 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight` and `labelItalic` are
+ * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight`, `labelItalic`,
+ * `labelOutline` and `labelOutlineWidth` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -515,6 +516,8 @@ export type Channel =
     | "node.labelFont"
     | "node.labelWeight"
     | "node.labelItalic"
+    | "node.labelOutline"
+    | "node.labelOutlineWidth"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -565,7 +568,9 @@ export type Channel =
     | "edge.labelSize"
     | "edge.labelFont"
     | "edge.labelWeight"
-    | "edge.labelItalic";
+    | "edge.labelItalic"
+    | "edge.labelOutline"
+    | "edge.labelOutlineWidth";
 
 /**
  * The values the "edge.style" channel accepts.

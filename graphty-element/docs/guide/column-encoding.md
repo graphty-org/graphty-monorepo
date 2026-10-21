@@ -230,7 +230,8 @@ describes:
 - **Points at uneven spacing**: `stops`, for a ramp whose colors or sizes change at chosen values,
   with jumps where you want them.
 - **A label from a column**: bind `node.labelColor`, `node.labelSize`, `node.labelFont`,
-  `node.labelWeight` or `node.labelItalic` (and the same on edges); a whole `node.labelStyle` can
+  `node.labelWeight`, `node.labelItalic`, `node.labelOutline` or `node.labelOutlineWidth` (and the
+  same on edges); a whole `node.labelStyle` can
   only be set.
 - **A value the element provides**: `graphty.degree`, `graphty.indegree` and `graphty.outdegree`
   are each node's degree as the graph stands now, and `graphty.style.<format>.<kind>.<key>` is a

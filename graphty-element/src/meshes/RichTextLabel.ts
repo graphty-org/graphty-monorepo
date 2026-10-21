@@ -497,10 +497,12 @@ export class RichTextLabel {
             return 1;
         }
 
+        // Measured without the outline: an outline is drawn around the letters, so it grows the
+        // label instead of shrinking the letters to make room for itself.
         const { lineBox } = measureLine(ctx, firstLine, {
             lineHeight: DEFAULT_LINE_HEIGHT,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
+            textOutline: false,
+            textOutlineWidth: 0,
         });
         const oneLine = this.actualDimensions.height - totalHeight + lineBox;
         return oneLine > 0 ? this.actualDimensions.height / oneLine : 1;

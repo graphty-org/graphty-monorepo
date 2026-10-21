@@ -420,6 +420,11 @@ describe("node effects", () => {
             [],
         );
         await element.session.selection.apply({ nodes: ["a", "b"] });
+        // Already selected means drawn selected: the element applies a selection to its nodes on
+        // its next update, and a state change that lands with the layer is a cause like a click.
+        await until(element, "the selection reaches the nodes", () =>
+            ["a", "b"].every((id) => nodeOf(element, id).isSelected()),
+        );
         await element.session.styles.add({
             name: "Reticle",
             target: "node",

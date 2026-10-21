@@ -461,6 +461,8 @@ export class Node {
 
     /** The shader drawing of this node's scene, once this node has drawn a shader. */
     private shaderDrawing: NodeShaderDrawing | null = null;
+    /** When a shader state changed while this node had no shader drawing, until its next paint. */
+    private pendingShaderCause: number | undefined;
 
     /** The faint point drawn in this node's place while it is a context node, or null. */
     private contextPoint: AbstractMesh | null = null;
@@ -969,6 +971,10 @@ export class Node {
             return;
         }
 
+        // A state change before this node had a shader drawing is the cause of this paint, or of
+        // none: it is handed on once, here, and never kept for a later paint.
+        const cause = this.pendingShaderCause;
+        this.pendingShaderCause = undefined;
         const shader = shaderStyleOf(style);
         const scene = this.context.getScene();
         const drawing = namesShader(shader)
@@ -979,6 +985,10 @@ export class Node {
         }
 
         this.shaderDrawing = drawing;
+        if (cause !== undefined) {
+            drawing.noteCause(this, cause);
+        }
+
         // States first: a state that brought this shader (a pin onto a pinned-state layer) is
         // then the cause the new slot's entrance plays for.
         this.syncShaderStates();
@@ -1062,6 +1072,20 @@ export class Node {
     }
 
     /**
+     * Whether an enabled node layer of the session names a node shader or effect.
+     * @returns True when one does.
+     */
+    private layersNameANodeShader(): boolean {
+        const layers = this.context.getSession?.()?.styles.list() ?? [];
+        return layers.some(
+            (layer) =>
+                layer.enabled &&
+                layer.target === "node" &&
+                (layer.set?.["node.shader"] !== undefined || layer.set?.["node.effects"] !== undefined),
+        );
+    }
+
+    /**
      * A state the shaders read changed: stamp it.
      * @param state - The state.
      * @param on - Its value now.
@@ -1073,6 +1097,14 @@ export class Node {
         }
 
         this.shaderStates[state] = on;
+        if (this.shaderDrawing === null && this.layersNameANodeShader()) {
+            // No shader drawing yet, but a layer names a node shader: the repaint this change
+            // starts may be what brings it (the first click on a Selected layer naming an
+            // effect), and its entrance plays for it. A layer added later, over a node already
+            // selected, finds no cause and shows its effect at rest.
+            this.pendingShaderCause = performance.now();
+        }
+
         this.shaderDrawing?.stateChanged(this, state, on);
     }
 

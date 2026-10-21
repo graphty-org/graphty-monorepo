@@ -139,6 +139,8 @@ interface Known {
     shader: HostShader | null | undefined;
     /** Nodes drawn plainly until it can draw. */
     readonly waiting: Set<ShadedNode>;
+    /** When the first of the nodes now waiting began to wait (performance.now()). */
+    waitingSince: number;
 }
 
 /** A batch and whether its program compiled. */
@@ -559,6 +561,21 @@ export class NodeShaderDrawing {
     }
 
     /**
+     * A node's state changed before it had a shader drawing, and the paint that brings one
+     * follows: the shader it starts carrying enters as if the change happened with the drawing.
+     * @param node - The node.
+     * @param cause - When the state changed (performance.now()).
+     */
+    noteCause(node: ShadedNode, cause: number): void {
+        const entry = this.entries.get(node);
+        if (entry === undefined) {
+            this.causes.set(node, cause);
+        } else {
+            entry.causedAt = Math.max(entry.causedAt, cause);
+        }
+    }
+
+    /**
      * A node's selection, hover or pin changed: stamp the time, set the bit, and draw again.
      * @param node - The node.
      * @param state - Which state.
@@ -567,6 +584,9 @@ export class NodeShaderDrawing {
     stateChanged(node: ShadedNode, state: NodeShaderState, on: boolean): void {
         const entry = this.entries.get(node);
         if (entry === undefined || this.data === null || this.runtime === null) {
+            // The node draws no shader yet (the shader may still be loading): keep the cause, so
+            // the effect this change gives it enters when it first draws.
+            this.causes.set(node, performance.now());
             return;
         }
 
@@ -716,18 +736,18 @@ export class NodeShaderDrawing {
     private resolved(id: string, node: ShadedNode): HostShader | null {
         let known = this.known.get(id);
         if (known === undefined) {
-            known = { shader: undefined, waiting: new Set() };
+            known = { shader: undefined, waiting: new Set(), waitingSince: 0 };
             this.known.set(id, known);
         }
 
         if (known.shader === undefined) {
-            known.waiting.add(node);
+            this.waitOn(id, node);
             this.resolve(id, known);
             return null;
         }
 
         if (known.shader === null) {
-            known.waiting.add(node);
+            this.waitOn(id, node);
         }
 
         return known.shader;
@@ -800,19 +820,52 @@ export class NodeShaderDrawing {
     private loading: Promise<void> | null = null;
 
     /**
+     * A cause as the entrance sees it: while a wake draws the nodes that waited for a shader, a
+     * cause from just before or during that wait counts as now, so the wait does not eat the
+     * entrance; any other cause is unchanged.
+     * @param cause - When it happened (performance.now()).
+     * @returns When it counts as having happened.
+     */
+    private freshCause(cause: number): number {
+        return this.wakingAt !== null && cause >= this.wakingAt - CAUSE_WINDOW_MS ? performance.now() : cause;
+    }
+
+    /** When a node's state last changed before it had an entry (performance.now()). */
+    private readonly causes = new WeakMap<ShadedNode, number>();
+
+    /** While a wake repaints its waiting nodes, when their wait began; else null. */
+    private wakingAt: number | null = null;
+
+    /**
      * Draw the nodes waiting on a shader again.
      * @param known - The shader's entry.
      */
     private wake(known: Known): void {
         const waiting = [...known.waiting];
         known.waiting.clear();
-        const repaint = REPAINTS.get(this.scene);
-        if (repaint === undefined) {
-            for (const node of waiting) {
-                node.refreshShaderPaint();
+        // A node selected (or hovered, pinned, changed) just before or while the shader was
+        // loading or compiling plays its entrance now that it can draw: the first click on a
+        // fresh graph snaps a reticle in like every later one. A cause from well before the wait
+        // began (a layer added over nodes selected earlier) still plays nothing.
+        this.wakingAt = known.waitingSince;
+        for (const node of waiting) {
+            const entry = this.entries.get(node);
+            if (entry !== undefined) {
+                entry.causedAt = this.freshCause(entry.causedAt);
             }
-        } else {
-            repaint(waiting);
+        }
+
+        const repaint = REPAINTS.get(this.scene);
+        try {
+            if (repaint === undefined) {
+                for (const node of waiting) {
+                    node.refreshShaderPaint();
+                }
+            } else {
+                repaint(waiting);
+            }
+        } finally {
+            this.wakingAt = null;
         }
 
         // A slot written into a batch that already exists changes nothing the render loop
@@ -872,7 +925,18 @@ export class NodeShaderDrawing {
      * @param node - The node.
      */
     private waitOn(id: string, node: ShadedNode): void {
-        this.known.get(id)?.waiting.add(node);
+        const known = this.known.get(id);
+        if (known === undefined) {
+            return;
+        }
+
+        if (known.waiting.size === 0) {
+            // A wait that begins while a wake repaints (the batch is made, then compiles) counts
+            // from that wake, so a cause carried over from the load still plays.
+            known.waitingSince = this.wakingAt ?? performance.now();
+        }
+
+        known.waiting.add(node);
     }
 
     /**
@@ -894,6 +958,12 @@ export class NodeShaderDrawing {
             effects: new Map(),
         };
         this.entries.set(node, entry);
+        const cause = this.causes.get(node);
+        if (cause !== undefined) {
+            this.causes.delete(node);
+            entry.causedAt = this.freshCause(cause);
+        }
+
         const arrived = this.arrivals.get(node);
         if (arrived !== undefined && this.runtime !== null) {
             this.arrivals.delete(node);

@@ -8,6 +8,7 @@
  * Browser only (it reads graphty's Babylon scene).
  */
 import type { Graphty } from "../../../index.js";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../../src/layout/graphviz/engines";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
 import {
@@ -300,7 +301,15 @@ export async function compareWithOracle(
             },
             graphty: { command, width: graphty.width, height: graphty.height },
         },
-        { mirror: meta.mirrored === true, standIn: isStandIn(meta) },
+        {
+            mirror: meta.mirrored === true,
+            standIn: isStandIn(meta),
+            // the file placed no node and graphty ran its own layout, not the program's (Graphviz lays a DOT file out
+            // on both sides alike)
+            ownLayouts:
+                element.session.seededNodeCount === 0 &&
+                !GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === element.layout),
+        },
     );
     // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
     // never scored; another program's real drawing standing in (draw.io for yEd) is scored.

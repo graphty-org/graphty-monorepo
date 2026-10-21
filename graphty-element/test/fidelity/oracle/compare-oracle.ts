@@ -1362,6 +1362,10 @@ const fillOf = (b: PBox, width: number, height: number): number =>
  *     that copies y-down coordinates into a y-up space), so the fit may reflect; otherwise both
  *     sides are y-down screen drawings and a mirror is a difference to report, never to fit away
  * @param options.standIn - the oracle is another program's drawing standing in for the file's own
+ * @param options.ownLayouts - the file stores no positions and each side laid it out by its own algorithm (Gephi's
+ *     random placement, Cytoscape desktop's load layout, vis-network's physics against graphty's force layout): where
+ *     those layouts are unrelated, where a node sits and how large the nodes are beside the spacing are each
+ *     program's layout and not the file's, and are not judged
  * @returns the report, rounded
  */
 export function compareOracle(
@@ -1369,7 +1373,7 @@ export function compareOracle(
     oracleScene: PScene,
     graphtyScene: PScene,
     association: unknown = null,
-    options: { mirror?: boolean; standIn?: boolean } = {},
+    options: { mirror?: boolean; standIn?: boolean; ownLayouts?: boolean } = {},
 ): OracleReport {
     const oracle = withoutCaptions(oracleScene, graphtyScene);
     const graphty = withoutCaptions(graphtyScene, oracleScene);
@@ -1486,8 +1490,14 @@ export function compareOracle(
     const centersG = boxOfPoints(pairs.map(([, g]): Pt => [g.cx, g.cy]));
     const extentDiagO = Math.hypot(boxW(centersO), boxH(centersO));
     const extentDiagG = Math.hypot(boxW(centersG), boxH(centersG));
+    // Two layouts of a file that stores no positions, each its program's own and unrelated: neither where a node sits
+    // nor its size beside the spacing is the file's
+    const layoutJudged = !(options.ownLayouts === true && (transform?.unrelatedLayout ?? false));
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
+        if (!layoutJudged) {
+            return null;
+        }
         if (p === "node.sizeToExtent") {
             return pairs.length >= 3 && extentDiagO > 0 && extentDiagG > 0 ? extentDiagO / extentDiagG : null;
         }
@@ -1513,7 +1523,9 @@ export function compareOracle(
         const [ow, oh] = outerOf(o, "oracle");
         const off = Math.hypot(c[0] - o.cx, c[1] - o.cy);
         const near = Math.max(T.positionOfSize * Math.min(ow, oh), pixel);
-        j.add("node.position", "node", id, Math.max(0, off / near - 1), [o.cx, o.cy], c);
+        if (layoutJudged) {
+            j.add("node.position", "node", id, Math.max(0, off / near - 1), [o.cx, o.cy], c);
+        }
         const [gw0, gh0] = outerOf(g, "graphty");
         const [gw, gh] = [gw0 * lengthScale, gh0 * lengthScale];
         j.add("node.width", "node", id, sizeMiss(ow, gw, T.sizeRatio), ow, gw);

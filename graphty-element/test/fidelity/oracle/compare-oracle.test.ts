@@ -1761,6 +1761,27 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         const r = compareOracle("t", o, g);
         assert.isTrue(r.transform?.unrelatedLayout);
         assert.strictEqual(r.properties["edge.arrowToSpacing"].passRate, 0);
+        // a file with no positions, which each side lays out by its own algorithm: where a node sits and how far
+        // apart the nodes are is each program's layout, not the file's, and is not judged; its sizes still are
+        const own = compareOracle("t", o, g, null, { ownLayouts: true });
+        assert.isTrue(own.transform?.unrelatedLayout);
+        for (const p of ["node.position", "node.sizeToSpacing", "node.sizeToExtent", "edge.arrowToSpacing"] as const) {
+            assert.isNull(own.properties[p].passRate, p);
+        }
+        assert.strictEqual(own.properties["node.width"].passRate, 1);
+        assert.isNotNull(own.properties["edge.arrowLength"].passRate);
+        // between related layouts a file with no positions is judged as any other: its program's layout is graphty's
+        const related = compareOracle(
+            "t",
+            sceneOf("oracle", 600, 400, grid()),
+            sceneOf("graphty", 600, 400, grid()),
+            null,
+            {
+                ownLayouts: true,
+            },
+        );
+        assert.strictEqual(related.properties["node.position"].passRate, 1);
+        assert.strictEqual(related.properties["node.sizeToSpacing"].passRate, 1);
     });
 
     it("reports a turned frame and a zoomed one instead of fitting them away", () => {

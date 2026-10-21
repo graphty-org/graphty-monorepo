@@ -93,7 +93,8 @@ function unapply(t: NonNullable<ReturnType<typeof fitSimilarity>>, q: Pt): Pt {
 /**
  * Moves graphty's nodes to where the program drew them, pinned, so a second comparison judges style with the layout
  * taken out: each oracle node's center is taken into graphty's pixels through the comparison's frame (between
- * unrelated layouts, by matching the two drawings' extents), and from there into the world through graphty's own
+ * unrelated layouts, about the two drawings' middles at the scale their node sizes fit, so the nodes stand as far
+ * apart beside their sizes as the program drew them), and from there into the world through graphty's own
  * camera, read off where it draws its nodes.
  * @param element - the mounted element
  * @param first - the first comparison
@@ -136,10 +137,12 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
                   { reflect: mirror },
               )
             : null;
-    // between unrelated layouts: the oracle's centers onto graphty's, extent onto extent
+    // between unrelated layouts: the oracle's middle onto graphty's, at the scale the node sizes fit (oracle pixels per
+    // graphty pixel), so the program's spacing beside its node sizes is kept; matching extents instead drew the
+    // program's arrangement at graphty's own spacing, and every node then failed its size against the fitted frame
     const bo = boxOfPoints(pairs.map(([o]): Pt => [o.cx, o.cy]));
     const bg = boxOfPoints(pairs.map(([, g]): Pt => [g.cx, g.cy]));
-    const k = Math.hypot(bg.x1 - bg.x0, bg.y1 - bg.y0) / Math.max(Math.hypot(bo.x1 - bo.x0, bo.y1 - bo.y0), 1e-9);
+    const k = 1 / Math.max(first.report.transform?.lengthScale ?? 1, 1e-9);
     const intoGraphty = (p: Pt): Pt =>
         fit === null
             ? [
@@ -163,6 +166,11 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
     // layouts are related, and a related layout's bends were already placed by the file.
     await element.session.positions.set(entries);
     await element.session.positions.pin(entries.map((e) => e.id));
+    // between unrelated layouts, framed as graphty frames a drawing it loads: the program's spacing can be wider or
+    // narrower than graphty's own
+    if (fit === null) {
+        element.zoomToFit();
+    }
     await element.waitForSettled();
     await element.waitForStableFrame();
     return true;

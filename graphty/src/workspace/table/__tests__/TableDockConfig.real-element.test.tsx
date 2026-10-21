@@ -113,6 +113,34 @@ function headerCell(name: string): HTMLElement {
     return cell;
 }
 
+/**
+ * Drops the fraud fixture's two files, waits for every issue, and maximizes the table.
+ * @returns the store, the session, the dock, its configuration and its Issues list.
+ */
+async function openMaximized(): Promise<{
+    store: ReturnType<typeof createWorkspaceStore>;
+    session: GraphSession;
+    dock: HTMLElement;
+    config: HTMLElement;
+    list: HTMLElement;
+}> {
+    const store = createWorkspaceStore();
+    render(<Workspace store={store} />);
+    drop(await fixture("accounts.csv"), await fixture("transfers.csv"));
+    const session = await elementSession();
+    await waitFor(
+        () => {
+            assert.lengthOf(session.data.issues(), ISSUES.length);
+            assert.isTrue(store.get().dockOpen);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    const dock = await screen.findByRole("region", { name: "Table" });
+    await userEvent.click(within(dock).getByRole("button", { name: "Maximize table" }));
+    const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
+    return { store, session, dock, config, list: within(config).getByRole("list", { name: "Issues" }) };
+}
+
 describe("the table dock's configuration", () => {
     beforeAll(async () => {
         await page.viewport(1366, 900);
@@ -203,6 +231,11 @@ describe("the table dock's configuration", () => {
         }
         // Esc in a menu closed the menu, not the maximized view.
         assert.isTrue(store.get().dockMaximized);
+    });
+
+    it("fixes, ignores, hides and filters from the maximized table's headers and Issues list", async () => {
+        const { store, session, dock, config, list } = await openMaximized();
+        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
 
         // A fix from the header's hover: the "N/A" becomes blank, and the issue goes.
         const amount = headerCell("amount");

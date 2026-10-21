@@ -15,6 +15,7 @@ import {
     acquireLock,
     context,
     defaultPreview,
+    handOff,
     issueRefs,
     landedBranches,
     main,
@@ -780,6 +781,12 @@ describe("the live copy", () => {
         assert.match(lines[0], /^land: no live copy at .*no-live-here.*; running .*land\.mjs instead$/);
         assert.match(lines[1], /usage: node tools\/land\.mjs/);
         assert.equal(lines.length, 2);
+    });
+
+    it("the live copy runs itself and drops the hand-off mark, so the gate it pushes through starts clean", async () => {
+        const handed = { ...env, LAND_LIVE: live, LAND_LIVE_COPY: join(live, "tools/land.mjs") };
+        assert.equal(await handOff(["status"], handed), null);
+        assert.equal("LAND_LIVE_COPY" in handed, false);
     });
 
     it("never loops: a live copy that is this tool itself runs once", () => {

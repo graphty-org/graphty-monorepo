@@ -631,8 +631,15 @@ export class Node {
         }
 
         const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+        // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
+        // depends on the zoom, so counting it made the box depend on the camera that frames it.
+        // The first framing measured the ring built for the camera before it, the ring was then
+        // rebuilt for the new zoom, and whether a second framing came along to measure that one
+        // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
+        // few pixels.
+        const reach = typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
 
-        return (extent + this.borderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        return (extent + reach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
     }
 
     /**

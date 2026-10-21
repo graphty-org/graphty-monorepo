@@ -6,7 +6,7 @@ import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@m
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
-import { modelName, modelThumbnail, pictureName } from "../canvas/models";
+import { modelName, pictureName, useModelThumbnail } from "../canvas/models";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { LayerLink } from "../inspector/WhyThisLook";
@@ -462,7 +462,7 @@ export function Field({
     pending = false,
     onCancel,
 }: Readonly<FieldProps>): React.JSX.Element | null {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const { session } = ctx;
     const { channel } = descriptor;
@@ -485,6 +485,9 @@ export function Field({
     // The Shape field holds a model in place of a built-in shape (node-models design 13.2).
     const [modelsOpen, setModelsOpen] = useState(false);
     const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+    // A model picked while it waits for parts: the Parts pop-over opens in the Models pop-over's
+    // place (design 13.2), once the field names it.
+    const [partsAsked, setPartsAsked] = useState(false);
     // Fill's Picture row (node-models design 13.7): added with "+", its pop-over opens at once.
     const isPicture = channel === "node.texture";
     const [pictureOpen, setPictureOpen] = useState(() => isPicture && pending);
@@ -493,6 +496,7 @@ export function Field({
         modelLine !== undefined && !modelLine.layer.locked && typeof modelLine.value === "string"
             ? modelLine.value
             : undefined;
+    const modelPicture = useModelThumbnail(element, session, model);
     const partly = own === undefined ? partlySet(ctx, channel) : undefined;
     // Several layers holding different plain values: each one's value, and a click edits them.
     const spread = own === undefined && !pending ? ctx.many?.plain?.(channel) : undefined;
@@ -578,9 +582,13 @@ export function Field({
             box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
         });
     };
-    const pickModel = (ref: string, into: Channel = "node.model"): void => {
+    const pickModel = (ref: string, into: Channel = "node.model", waiting = false): void => {
         setModelsOpen(false);
-        focusShape();
+        if (waiting) {
+            setPartsAsked(true);
+        } else {
+            focusShape();
+        }
         writeIn(ctx, into, { value: ref })
             .then(() => {
                 store.set({
@@ -594,7 +602,7 @@ export function Field({
     const pickPicture = (ref: string, into: Channel = "node.texture"): void => {
         setPictureOpen(false);
         requestAnimationFrame(() => {
-            box.current?.querySelector<HTMLElement>(".ws-field-control button")?.focus();
+            box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
         });
         writeIn(ctx, into, { value: ref })
             .then(() => {
@@ -659,23 +667,28 @@ export function Field({
             .catch(fail);
     };
     const remove = (): void => {
-        store.set({ announcement: `${name} removed` });
+        const removed = (): void => {
+            store.set({ announcement: `${name} removed` });
+        };
         // Focus goes to the section's "+", never onto the line that slides up into this one's place.
         if (box.current?.contains(document.activeElement) === true) {
             focusSectionNext(box.current, channel);
         }
         // A property "+" added is no longer waiting, set or not.
         onCancel?.();
-        if (own === undefined && partly === undefined) {
+        if (own === undefined && partly === undefined && model === undefined) {
             // Added with "+" and set on no row yet: nothing to write.
+            removed();
             return;
         }
         const { many } = ctx;
         if (many !== undefined) {
-            many.clear(channel).catch(fail);
+            many.clear(channel).then(removed).catch(fail);
             return;
         }
-        if (own === undefined && modelLine !== undefined && model !== undefined) {
+        if (modelLine !== undefined && model !== undefined) {
+            // The line shows the model: the minus takes it off, with its settings and any shape
+            // the layer kept under it, in one step.
             const holder = modelLine.layer;
             session
                 .transaction(
@@ -685,12 +698,18 @@ export function Field({
                         if (layer !== undefined) {
                             await removeLine(tx, layer, ...MODEL_CHANNELS);
                         }
+                        const shaped = own === undefined ? undefined : tx.styles.get(own.layer.id);
+                        if (shaped !== undefined) {
+                            await removeLine(tx, shaped, channel);
+                        }
                     },
                 )
+                .then(removed)
                 .catch(fail);
             return;
         }
         if (own === undefined) {
+            removed();
             return;
         }
         // One step, named so Undo reads "Undid removing node size from Key people".
@@ -704,6 +723,7 @@ export function Field({
                     }
                 },
             )
+            .then(removed)
             .catch(fail);
     };
     const bind = (choice: DataChoice): void => {
@@ -764,6 +784,7 @@ export function Field({
     if (isPicture) {
         control = (
             <PictureField
+                label={name}
                 pictureRef={typeof own?.value === "string" ? own.value : undefined}
                 expanded={pictureOpen}
                 onOpen={() => {
@@ -778,7 +799,7 @@ export function Field({
                 label={name}
                 value={undefined}
                 shown={undefined}
-                model={{ name: modelName(session, model), thumbnail: modelThumbnail(session, model) }}
+                model={{ name: modelName(session, model), thumbnail: modelPicture }}
                 footerAction={modelTile}
                 onChange={shapeOverModel}
             />
@@ -912,8 +933,41 @@ export function Field({
     }
 
     let varySlot: React.ReactNode = null;
-    if (model !== undefined || isPicture) {
-        // A model or a picture does not vary by a value yet; the column stays, so the field keeps its width.
+    if (model !== undefined) {
+        // A model does not vary by a value here yet (a value table of models is a later step, as
+        // for Picture, design 13.7): its settings button takes the vary column, so the label column
+        // stays where every other field's is.
+        varySlot = (
+            <Popout
+                opened={modelSettingsOpen}
+                onOpenChange={(next) => {
+                    setModelSettingsOpen(next);
+                }}
+            >
+                <Popout.Trigger>
+                    <Tooltip label="Model settings">
+                        <PopoutButton
+                            icon={<GLYPHS.settings size={14} aria-hidden />}
+                            aria-label="Model settings"
+                            aria-haspopup="dialog"
+                            aria-expanded={modelSettingsOpen}
+                        />
+                    </Tooltip>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: "Model settings" }}
+                >
+                    <Popout.Content>
+                        <ModelSettings ctx={ctx} model={model} />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        );
+    } else if (isPicture) {
+        // A picture does not vary by a value yet (design 13.7); the column stays, so the field keeps its width.
     } else if (own?.binding !== undefined) {
         // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
         // field). It is the one way back to a single value, so its words say what it does.
@@ -998,35 +1052,6 @@ export function Field({
                 so the field keeps its width (Figma's property row). */}
             <div className="ws-field ws-varies" data-named="">
                 <span className="ws-field-label">
-                    {model === undefined ? null : (
-                        <Popout
-                            opened={modelSettingsOpen}
-                            onOpenChange={(next) => {
-                                setModelSettingsOpen(next);
-                            }}
-                        >
-                            <Popout.Trigger>
-                                <Tooltip label="Model settings">
-                                    <PopoutButton
-                                        icon={<GLYPHS.settings size={14} aria-hidden />}
-                                        aria-label="Model settings"
-                                        aria-haspopup="dialog"
-                                        aria-expanded={modelSettingsOpen}
-                                    />
-                                </Tooltip>
-                            </Popout.Trigger>
-                            <Popout.Panel
-                                width={POPOUT_WIDTH}
-                                placement="left"
-                                alignment="start"
-                                header={{ variant: "title", title: "Model settings" }}
-                            >
-                                <Popout.Content>
-                                    <ModelSettings ctx={ctx} model={model} />
-                                </Popout.Content>
-                            </Popout.Panel>
-                        </Popout>
-                    )}
                     <span className="ws-field-name" title={word ?? channelWord(channel)} aria-hidden>
                         {word ?? channelWord(channel)}
                     </span>
@@ -1042,12 +1067,22 @@ export function Field({
                 </span>
             </div>
             {model === undefined ? null : (
-                <ModelProblems modelRef={model} anchor={box} onDone={focusShape} onUseAsPicture={modelToPicture} />
+                <ModelProblems
+                    modelRef={model}
+                    anchor={box}
+                    onDone={focusShape}
+                    onUseAsPicture={modelToPicture}
+                    openParts={partsAsked}
+                    onPartsOpened={() => {
+                        setPartsAsked(false);
+                    }}
+                />
             )}
             {isPicture ? (
                 <PicturePopover
                     opened={pictureOpen}
                     anchor={box}
+                    current={typeof own?.value === "string" ? own.value : undefined}
                     onPick={(ref) => {
                         pickPicture(ref);
                     }}
@@ -1056,8 +1091,17 @@ export function Field({
                     }}
                     onClose={() => {
                         setPictureOpen(false);
+                        if (pending && own === undefined) {
+                            // Just added with "+" and holding nothing: taken back, focus on the "+".
+                            store.set({ announcement: `${name} not added` });
+                            if (box.current !== null) {
+                                focusSectionNext(box.current, channel);
+                            }
+                            onCancel?.();
+                            return;
+                        }
                         requestAnimationFrame(() => {
-                            box.current?.querySelector<HTMLElement>(".ws-field-control button")?.focus();
+                            box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
                         });
                     }}
                 />
@@ -1066,8 +1110,9 @@ export function Field({
                 <ModelsPopover
                     opened={modelsOpen}
                     anchor={box}
-                    onPick={(ref) => {
-                        pickModel(ref);
+                    current={model}
+                    onPick={(ref, waiting) => {
+                        pickModel(ref, "node.model", waiting);
                     }}
                     onPicture={(ref) => {
                         pickModel(ref, "node.texture");

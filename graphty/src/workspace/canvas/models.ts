@@ -5,6 +5,7 @@
  * this file only hands it the files and words the answer.
  */
 
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { detectAssetKind } from "@graphty/graphty-element/catalog";
 import type { AssetOffer, AssetRecord, AssetSource, GraphSession, ModelChange } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
@@ -122,14 +123,67 @@ export function filesOf(source: AssetSource): File[] {
     return [...(source as Iterable<File>)].filter((f) => f instanceof File);
 }
 
+/** How large a model's picture is drawn in a field's glyph slot, in CSS pixels. */
+const THUMBNAIL_PX = 16;
+
 /**
- * A model's picture: a sample's catalog thumbnail, else nothing (the cube stands in).
+ * A model's picture: a sample's catalog thumbnail, else the model as graphty-element draws it
+ * (`nodeThumbnail`) once it is drawn; undefined until then (the cube stands in).
+ * @param element - the element, which draws the picture.
  * @param session - the element's session.
- * @param ref - what a layer names.
+ * @param ref - what a layer names, or undefined for no model.
  * @returns the picture's URL, or undefined.
  */
-export function modelThumbnail(session: GraphSession, ref: string): string | undefined {
-    return session.catalog.models().find((m) => m.id === ref)?.thumbnail;
+export function useModelThumbnail(
+    element: GraphtyElement | null,
+    session: GraphSession | null,
+    ref: string | undefined,
+): string | undefined {
+    const states = useModelStates(ref === undefined ? null : session);
+    const drawn = states.some((change) => change.ref === ref && change.state === "drawn");
+    const [drawing, setDrawing] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        if (element === null || ref === undefined || !drawn) {
+            setDrawing(undefined);
+            return undefined;
+        }
+        let live = true;
+        element
+            .nodeThumbnail({ shape: "box", model: ref, size: THUMBNAIL_PX * Math.ceil(window.devicePixelRatio || 1) })
+            .then((url) => {
+                if (live) {
+                    setDrawing(url);
+                }
+            })
+            .catch(() => {
+                // The cube stays.
+            });
+        return () => {
+            live = false;
+        };
+    }, [element, ref, drawn]);
+    const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
+    return sample ?? drawing;
+}
+
+/**
+ * A file's name for the reader: the last part of its path or address, without its query, its
+ * fragment or its extension.
+ * @param path - a path or an address.
+ * @returns the name, or "" when there is none.
+ */
+export function fileStem(path: string): string {
+    const file = path.split(/[?#]/)[0].split("/").pop() ?? "";
+    return file.replace(/\.[^.]*$/, "");
+}
+
+/**
+ * What a layer names, when it is an address and not an asset id.
+ * @param ref - what the layer names.
+ * @returns the address, or "" for an id.
+ */
+function addressOf(ref: string): string {
+    return ref.startsWith("asset:") ? "" : ref;
 }
 
 /**
@@ -143,8 +197,9 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
-    const path = session.assets.list().find((r) => r.id === ref || r.url === ref)?.path;
-    return path === undefined ? "Model" : (path.split("/").pop() ?? path).replace(/\.[^.]*$/, "");
+    // The element resolves what a layer names: an id, the id a model had while it waited for
+    // parts, a URL. A waiting model is named by its main file too.
+    return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Model";
 }
 
 /**
@@ -154,15 +209,72 @@ export function modelName(session: GraphSession, ref: string): string {
  * @returns the name.
  */
 export function pictureName(session: GraphSession, ref: string): string {
-    const path = session.assets.list().find((r) => r.id === ref || r.url === ref)?.path ?? ref;
-    const file = path.split(/[?#]/)[0].split("/").pop() ?? "";
-    return file.replace(/\.[^.]*$/, "") || "Picture";
+    return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Picture";
 }
 
 /**
- * Hands the files to a model waiting for them first; else adds them and, once accepted, makes one
- * undoable layer drawing the model (`node.model`) or the picture (`node.texture`) on the selected
- * nodes, or on every node when nothing is selected. A refusal is said in a notice.
+ * Whether any node layer names a model or picture, by any name the element knows it by.
+ * @param session - the element's session.
+ * @param ref - the model's id, or the id it had while it waited.
+ * @returns true when a layer names it.
+ */
+function named(session: GraphSession, ref: string): boolean {
+    const id = session.assets.find(ref)?.id ?? ref;
+    return session.styles
+        .list()
+        .some((layer) =>
+            [layer.set?.["node.model"], layer.set?.["node.texture"]].some(
+                (value) => typeof value === "string" && (value === ref || session.assets.find(value)?.id === id),
+            ),
+        );
+}
+
+/**
+ * One undoable layer drawing a model or a picture on the selected nodes, or on every node when
+ * nothing is selected, and the notice that says so with Undo.
+ * @param session - the element's session.
+ * @param store - the workspace store, for the notice.
+ * @param record - the model or the picture: accepted, or a model waiting for parts.
+ * @param message - the notice's words, when they are not "Nodes drawn as ...".
+ */
+async function drawOnNodes(
+    session: GraphSession,
+    store: WorkspaceStore,
+    record: AssetRecord,
+    message?: string,
+): Promise<void> {
+    const { nodes } = session.selection;
+    const picture = record.kind === "image";
+    const name = picture ? pictureName(session, record.id) : modelName(session, record.id);
+    const layer = await session.styles.add({
+        name,
+        target: "node",
+        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
+        set: picture ? { "node.texture": record.id } : { "node.model": record.id },
+    });
+    const drawn = `${picture ? "drawn with" : "drawn as"} ${name}`;
+    store.set({
+        // The new layer opens in the Style panel, so its Shape or Picture field (and a model's
+        // missing-parts chip) is in view.
+        inspected: { kind: "layer-row", id: layer.id, tab: "style" },
+        notice: {
+            message: message ?? (nodes.length > 0 ? `Selected nodes ${drawn}` : `Nodes ${drawn}`),
+            action: {
+                label: "Undo",
+                run: () => {
+                    void session.undo();
+                },
+            },
+        },
+    });
+}
+
+/**
+ * Hands the files to a model waiting for them first; else adds them, and makes one undoable layer
+ * drawing the model (`node.model`) or the picture (`node.texture`) on the selected nodes, or on
+ * every node when nothing is selected. A model waiting for parts gets its layer too, so the Shape
+ * field names it and offers its parts; a model finished by these files that no layer names yet is
+ * put on the nodes. A refusal is said in a notice.
  * @param session - the element's session.
  * @param store - the workspace store, for the notice.
  * @param source - the model's or the picture's files.
@@ -176,36 +288,23 @@ export async function putAssetOnNodes(
     const { supplied, rest } = await offerFirst(session, source, filesOf(source));
     if (rest === null) {
         const [part] = supplied;
+        const finished = session.assets.find(part.ref);
+        if (finished?.state === "accepted" && !named(session, part.ref)) {
+            await drawOnNodes(session, store, finished);
+            return null;
+        }
         store.set({ notice: { message: `${part.fileName} added to ${modelName(session, part.ref)}` } });
         return null;
     }
     const record = await session.assets.add(rest);
-    if (record.state !== "accepted") {
+    const waits = session.assets.waiting().some((w) => w.id === record.id);
+    if (record.state !== "accepted" && !waits) {
         const [first] = record.problems;
         store.set({ notice: { message: first === undefined ? "The model could not be added." : modelWords(first) } });
         return null;
     }
-    const { nodes } = session.selection;
-    const picture = record.kind === "image";
-    const name = picture ? pictureName(session, record.id) : modelName(session, record.id);
-    await session.styles.add({
-        name,
-        target: "node",
-        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
-        set: picture ? { "node.texture": record.id } : { "node.model": record.id },
-    });
-    const drawn = `${picture ? "drawn with" : "drawn as"} ${name}`;
-    store.set({
-        notice: {
-            message: nodes.length > 0 ? `Selected nodes ${drawn}` : `Nodes ${drawn}`,
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
+    const [missing] = waits ? record.problems : [];
+    await drawOnNodes(session, store, record, missing === undefined ? undefined : modelWords(missing));
     return record;
 }
 

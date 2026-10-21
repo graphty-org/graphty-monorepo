@@ -38,7 +38,7 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
     const { store } = useWorkspace();
     const { session } = ctx;
     const states = useModelStates(session);
-    const record = session.assets.list().find((r) => r.id === model || r.url === model);
+    const record = session.assets.find(model);
     const problems = [...(states.find((change) => change.ref === model)?.problems ?? []), ...(record?.problems ?? [])];
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Model setting", "changed", error), error: true } });
@@ -60,7 +60,12 @@ export function ModelSettings({ ctx, model }: Readonly<{ ctx: RowContext; model:
                 if (choices === undefined) {
                     control = (
                         <ComboInput
-                            label={word}
+                            // Named as the select rows are: the value, or the default an unset one shows.
+                            label={
+                                typeof value === "number"
+                                    ? word
+                                    : `${word}, default ${typeof fallback === "number" ? String(fallback) : ""} deg`
+                            }
                             width="100%"
                             numeric
                             variant="outlined"

@@ -36,6 +36,8 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
     "node.outline": "Outline",
     "node.glow": "Glow",
     "node.label": "Label",
+    "node.model": "Model",
+    "node.texture": "Picture",
     "node.haloColor": "Halo",
     "edge.color": "Edge color",
     "edge.width": "Edge width",

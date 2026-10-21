@@ -1,13 +1,13 @@
-import { FileDrop, Popout } from "@graphty/compact-mantine";
+import { FileDrop, PanelField, Popout, useRovingFocus } from "@graphty/compact-mantine";
 import type { AssetSource, CodedFact, GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import { modelName, pictureName } from "../canvas/models";
+import { fileStem, pictureName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ModelChip } from "./ModelChip";
-import { modelChip } from "./modelWords";
+import { modelChip, modelWords } from "./modelWords";
 
 /** The files the chooser offers; a drop is not filtered, and the element says what arrived. */
 const ACCEPT = ".png,.jpg,.jpeg,.webp";
@@ -26,8 +26,12 @@ const WIDTH = 240;
 function useThumbnail(session: GraphSession | null, ref: string): string | undefined {
     const [url, setUrl] = useState<string | undefined>(undefined);
     useEffect(() => {
-        const record = session?.assets.list().find((r) => r.id === ref && r.kind === "image");
-        const [bytes] = record === undefined || session === null ? [] : [...session.assets.files(record.id).values()];
+        const record = session?.assets.find(ref);
+        if (record?.kind !== "image" || record.state !== "accepted") {
+            setUrl(undefined);
+            return undefined;
+        }
+        const [bytes] = session === null ? [] : [...session.assets.files(record.id).values()];
         if (bytes === undefined) {
             setUrl(undefined);
             return undefined;
@@ -58,39 +62,43 @@ function Thumb({ pictureRef }: Readonly<{ pictureRef: string }>): React.JSX.Elem
 }
 
 /**
- * The Picture row's field (node-models design 13.7): the picture's thumbnail and name, opening the
- * Picture pop-over. Before a picture is chosen it reads "Choose".
+ * The Picture row's field (node-models design 13.7): drawn as every property field, the picture's
+ * thumbnail in its glyph slot and its name as its value, opening the Picture pop-over. Before a
+ * picture is chosen it reads "Choose".
  * @param props - Component props
+ * @param props.label - the property's name, "Node picture"
  * @param props.pictureRef - what the layer's `node.texture` names, or undefined
  * @param props.expanded - whether the pop-over is open
  * @param props.onOpen - opens the pop-over
  * @returns The field
  */
 export function PictureField({
+    label,
     pictureRef,
     expanded,
     onOpen,
-}: Readonly<{ pictureRef: string | undefined; expanded: boolean; onOpen: () => void }>): React.JSX.Element {
+}: Readonly<{
+    label: string;
+    pictureRef: string | undefined;
+    expanded: boolean;
+    onOpen: () => void;
+}>): React.JSX.Element {
     const { session } = useWorkspace();
     const name = pictureRef === undefined || session === null ? undefined : pictureName(session, pictureRef);
     return (
-        <Button
-            size="compact-xs"
-            variant="default"
-            fullWidth
-            justify="space-between"
-            className="ws-picture-field"
-            aria-label={name === undefined ? "Node picture" : `Node picture, ${name}`}
+        <PanelField
+            kind="select"
+            width="fill"
+            label={`${label}, ${name ?? "Choose"}`}
+            value={name ?? ""}
+            placeholder={name === undefined ? "Choose" : undefined}
             aria-haspopup="dialog"
             aria-expanded={expanded}
-            leftSection={
+            glyph={
                 pictureRef === undefined ? <GLYPHS.picture size={14} aria-hidden /> : <Thumb pictureRef={pictureRef} />
             }
-            rightSection={<GLYPHS.expand size={12} aria-hidden />}
             onClick={onOpen}
-        >
-            {name ?? "Choose"}
-        </Button>
+        />
     );
 }
 
@@ -100,6 +108,8 @@ interface PicturePopoverProps {
     readonly opened: boolean;
     /** The row it opens beside. */
     readonly anchor: React.RefObject<HTMLElement | null>;
+    /** What the layer's `node.texture` names now, so its picture reads as chosen. */
+    readonly current?: string;
     /** Called with what the layer's `node.texture` should name: an asset id or a pasted URL. */
     readonly onPick: (ref: string) => void;
     /** Called with a model's asset id when the reader takes a model that arrived here as the layer's model. */
@@ -122,6 +132,7 @@ interface ArrivedModel {
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
+ * @param props.current - what `node.texture` names now
  * @param props.onPick - called with what `node.texture` should name
  * @param props.onModel - called with a model's id for `node.model`
  * @param props.onClose - closed
@@ -130,29 +141,73 @@ interface ArrivedModel {
 export function PicturePopover({
     opened,
     anchor,
+    current,
     onPick,
     onModel,
     onClose,
 }: Readonly<PicturePopoverProps>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const [busy, setBusy] = useState(false);
     const [problem, setProblem] = useState<CodedFact | null>(null);
     const [model, setModel] = useState<ArrivedModel | null>(null);
     const [url, setUrl] = useState("");
+    const grid = useRovingFocus<HTMLDivElement>("horizontal", "pressed", false);
+    // A model that arrived here and waits for parts is the reader's only once taken as the model:
+    // left, it is let go, so it never waits in the session for files dropped later.
+    const stray = useRef<string | null>(null);
+    const letGo = (): void => {
+        if (stray.current !== null) {
+            session?.assets.remove(stray.current);
+            stray.current = null;
+        }
+    };
+    useEffect(() => {
+        if (!opened && stray.current !== null) {
+            session?.assets.remove(stray.current);
+            stray.current = null;
+            setModel(null);
+        }
+    }, [opened, session]);
+    // Also when the row goes with the pop-over (a line just added and taken back on Escape).
+    useEffect(
+        () => () => {
+            if (stray.current !== null) {
+                session?.assets.remove(stray.current);
+                stray.current = null;
+            }
+        },
+        [session],
+    );
     if (session === null) {
         return null;
     }
+    const refuse = (fact: CodedFact): void => {
+        setProblem(fact);
+        store.set({ announcement: modelWords(fact) });
+    };
     const add = (source: AssetSource): void => {
         setBusy(true);
         setProblem(null);
         setModel(null);
+        letGo();
+        let given = "";
+        if (typeof source === "string") {
+            given = source;
+        } else if ("name" in source && typeof source.name === "string") {
+            given = source.name;
+        }
         const run = async (): Promise<void> => {
             const record = await session.assets.add(source);
             if (record.kind === "model") {
                 // graphty-element read a model, accepted or waiting for its parts: the Shape field's.
                 const waits = session.assets.waiting().some((w) => w.id === record.id);
                 if (record.state === "accepted" || waits) {
-                    setModel({ id: record.id, name: modelName(session, record.id) });
+                    if (waits) {
+                        stray.current = record.id;
+                    }
+                    const name = fileStem(record.path ?? given) || "model";
+                    setModel({ id: record.id, name });
+                    store.set({ announcement: `Not a picture: ${name} is a 3D model` });
                     return;
                 }
             } else if (record.state === "accepted") {
@@ -160,11 +215,11 @@ export function PicturePopover({
                 onPick(typeof source === "string" ? source : record.id);
                 return;
             }
-            setProblem(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
+            refuse(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
         };
         run()
             .catch((error: unknown) => {
-                setProblem({ code: "E_MODEL_PARSE", params: { message: String(error) } });
+                refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
             })
             .finally(() => {
                 setBusy(false);
@@ -176,6 +231,7 @@ export function PicturePopover({
         .filter((r) => r.kind === "image" && r.state === "accepted")
         .reverse();
     const pasted = url.trim();
+    const chosen = current === undefined ? undefined : (session.assets.find(current)?.id ?? current);
 
     return (
         <Popout
@@ -197,16 +253,24 @@ export function PicturePopover({
                     <Stack gap={8}>
                         {own.length === 0 ? null : (
                             <>
-                                <Text size="xs" fw={600}>
+                                <Text component="h3" size="xs" fw={600} m={0}>
                                     In this project
                                 </Text>
-                                <Group gap={4} role="group" aria-label="In this project">
+                                <Group
+                                    ref={grid.ref}
+                                    gap={4}
+                                    role="group"
+                                    aria-label="In this project"
+                                    onKeyDown={grid.onKeyDown}
+                                    onFocus={grid.onFocus}
+                                >
                                     {own.map((record, index) => {
                                         const name = pictureName(session, record.id);
                                         return (
                                             <Tooltip key={record.id} label={name}>
                                                 <UnstyledButton
                                                     aria-label={name}
+                                                    aria-pressed={record.id === chosen}
                                                     data-autofocus={index === 0 ? true : undefined}
                                                     className="ws-model-tile"
                                                     onClick={() => {
@@ -227,42 +291,43 @@ export function PicturePopover({
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
-                                if (pasted !== "") {
+                                if (pasted !== "" && !busy) {
                                     add(pasted);
                                 }
                             }}
                         >
                             <Group gap={4} wrap="nowrap">
-                                <Tooltip label="Picture address">
-                                    <TextInput
-                                        size="xs"
-                                        flex={1}
-                                        variant="outlined"
-                                        aria-label="Picture address"
-                                        placeholder="Paste URL"
-                                        value={url}
-                                        onChange={(event) => {
-                                            setUrl(event.currentTarget.value);
-                                        }}
-                                        onKeyDown={(event) => {
-                                            // Escape takes the typing back (decided.md, 2026-10-19); an
-                                            // empty field lets it close the pop-over.
-                                            if (event.key === "Escape" && url !== "") {
-                                                event.preventDefault();
-                                                event.stopPropagation();
-                                                setUrl("");
-                                            }
-                                        }}
-                                    />
-                                </Tooltip>
+                                {/* No tooltip: one opened on focus would take the dialog's first Escape. */}
+                                <TextInput
+                                    size="xs"
+                                    flex={1}
+                                    variant="outlined"
+                                    aria-label="Picture address"
+                                    placeholder="Paste URL"
+                                    value={url}
+                                    onChange={(event) => {
+                                        setUrl(event.currentTarget.value);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        // Escape takes the typing back and says so (decided.md,
+                                        // 2026-10-19); an empty field lets it close the pop-over.
+                                        if (event.key === "Escape" && url !== "") {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            setUrl("");
+                                            store.set({ announcement: "Address discarded" });
+                                        }
+                                    }}
+                                />
                                 <Tooltip label="Add picture address">
                                     <ActionIcon
                                         type="submit"
                                         variant="subtle"
                                         size="sm"
                                         aria-label="Add picture address"
-                                        disabled={pasted === ""}
-                                        loading={busy}
+                                        // Busy keeps it focusable: a disabled button drops focus to the page.
+                                        aria-disabled={pasted === "" || busy || undefined}
+                                        data-loading={busy || undefined}
                                     >
                                         <GLYPHS.go size={14} aria-hidden />
                                     </ActionIcon>
@@ -274,7 +339,7 @@ export function PicturePopover({
                             chooseLabel="Choose picture"
                             accept={ACCEPT}
                             multiple={false}
-                            disabled={busy}
+                            busy={busy}
                             onFiles={(files) => {
                                 add(files.length === 1 ? files[0] : files);
                             }}
@@ -286,13 +351,18 @@ export function PicturePopover({
                         )}
                         {model === null ? null : (
                             <Group gap={4} wrap="nowrap">
-                                <ModelChip chip={{ word: "Model", tip: "this file is a 3D model" }} tone="warning" />
+                                <ModelChip
+                                    chip={{ word: "Not a picture", tip: "this file is a 3D model" }}
+                                    tone="warning"
+                                />
                                 <Tooltip label={`Use ${model.name} as model`}>
                                     <Button
                                         size="compact-xs"
                                         variant="default"
                                         aria-label={`Use ${model.name} as model`}
                                         onClick={() => {
+                                            // Taken as the model: it is the reader's now, not let go.
+                                            stray.current = null;
                                             onModel(model.id);
                                         }}
                                     >

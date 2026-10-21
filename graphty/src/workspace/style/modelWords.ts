@@ -84,7 +84,10 @@ function notLoaded(tip: string): () => ModelChipWords {
 const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWords>> = {
     E_MODEL_MISSING_FILE: (p) => ({ word: "1 missing", tip: said(p.name) }),
     E_MODEL_PART_AMBIGUOUS: (p) => ({ word: "1 missing", tip: said(p.name) }),
-    E_MODEL_AMBIGUOUS: () => ({ word: "1 missing", tip: "Model" }),
+    E_MODEL_AMBIGUOUS: (p) => ({
+        word: `${String((Array.isArray(p.candidates) ? p.candidates.length : 0) + (typeof p.more === "number" ? p.more : 0))} models`,
+        tip: said(p.candidates),
+    }),
     E_MODEL_FORMAT_UNSUPPORTED: (p) =>
         p.assetKind === "image"
             ? { word: "Picture", tip: "this file is a picture" }
@@ -105,7 +108,8 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     E_MODEL_DECODER_UNAVAILABLE: notLoaded("compression not read"),
     E_MODEL_PARSE: (p) => ({ word: "Not loaded", tip: both(said(p.format).toUpperCase(), "file damaged") }),
     E_MODEL_ZIP: notLoaded(".zip not opened"),
-    E_MODEL_NAME_TAKEN: (p) => ({ word: "Not loaded", tip: both(said(p.id).replace(/^asset:/, ""), "name taken") }),
+    // The id is the element's (a digest for an unnamed file), never words for a reader.
+    E_MODEL_NAME_TAKEN: () => ({ word: "Not loaded", tip: "name taken" }),
     E_MODEL_UNKNOWN_ASSET: notLoaded("model not in this project"),
     E_MODEL_DIGEST_MISMATCH: notLoaded("model in this file damaged"),
     E_MODEL_PART_REQUIRED: (p) => ({ word: "Needed", tip: said(p.name) }),
@@ -148,7 +152,11 @@ export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefin
     }
     const tip = facts.map((f) => modelChip(f).tip).join(", ");
     const n = String(facts.length);
-    return first.code === "W_MODEL_PART_SKIPPED" ? { word: `Without ${n}`, tip } : { word: `${n} missing`, tip };
+    if (first.code === "W_MODEL_PART_SKIPPED") {
+        return { word: `Without ${n}`, tip };
+    }
+    // Several models in a zip: a choice, not a missing part.
+    return facts.length === 1 && first.code === "E_MODEL_AMBIGUOUS" ? modelChip(first) : { word: `${n} missing`, tip };
 }
 
 /**

@@ -14,6 +14,19 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The file an address names, for the question about a part the reader supplied by address.
+ * @param url - the address as the element shows it (origin and path).
+ * @returns its last path segment, else the address.
+ */
+function partName(url: string): string {
+    try {
+        return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || url;
+    } catch {
+        return url;
+    }
+}
+
+/**
  * The question before a project opens a web address it names (a model, a picture, a data
  * source): graphty-element holds every such fetch in `session.network` until it is answered, and
  * this asks the reader, one address at a time. Continue opens it (and the rest of that site, this
@@ -62,11 +75,21 @@ export function NetworkPrompt(): React.JSX.Element | null {
         >
             {request === undefined ? null : (
                 <Stack gap="xs">
-                    <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
-                    <Text size="xs" c="dimmed">
-                        It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue opens it
-                        and anything else this project names on that site.
-                    </Text>
+                    {request.params.by === "supplied" ? (
+                        // The reader typed this address for a part of a model: it is theirs, not
+                        // the project's, and nothing is known of it until it is fetched.
+                        <Text size="sm">
+                            Load a part of this model from {request.params.host}? It is {partName(request.params.url)}.
+                        </Text>
+                    ) : (
+                        <>
+                            <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
+                            <Text size="xs" c="dimmed">
+                                It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue
+                                opens it and anything else this project names on that site.
+                            </Text>
+                        </>
+                    )}
                     <ModalFooter mt="md">
                         <Button
                             variant="default"

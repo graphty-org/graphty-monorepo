@@ -193,14 +193,14 @@ export function ValueField({
                     label={`${label}, ${model.name}`}
                     kind="select"
                     width="fill"
-                    className="ws-model-field"
                     data={options.map((o) => ({ value: o.value, label: o.label }))}
-                    // A model is no built-in shape: the list checks none, and the field shows the
-                    // model's name where a shape's would be.
+                    // A model is no built-in shape: the list checks Model..., the choice in force,
+                    // and the field shows the model's name as its value, set and not a placeholder.
                     value={null}
-                    placeholder={model.name}
                     optionGlyphs={glyphs}
-                    footerAction={footerAction}
+                    footerAction={
+                        footerAction === undefined ? undefined : { ...footerAction, selectedLabel: model.name }
+                    }
                     glyph={<ModelGlyph thumbnail={model.thumbnail} />}
                     onChange={(next) => {
                         onChange(String(next));

@@ -526,7 +526,8 @@ export const ModelSettingsOpen: Story = {
 
 /**
  * The Parts pop-over: Key people drawn as the car kit's police.glb chosen alone, so the Shape
- * field carries "1 missing" for Textures/colormap.png; the chip opens the pop-over on that part.
+ * field carries "1 missing" for Textures/colormap.png, and the pop-over opens on that part in the
+ * Models pop-over's place.
  */
 export const Parts: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
@@ -541,9 +542,8 @@ export const Parts: Story = sceneStory(async () => {
     }
     const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
     await userEvent.upload(chooser, new File([police], "police.glb", { type: "model/gltf-binary" }));
-    const chip = await within(tab).findByRole("button", { name: "police: 1 file missing" }, storyWaitOptions(10_000));
-    await userEvent.click(chip);
-    await page().findByRole("dialog", { name: "police.glb" }, storyWaitOptions(1000));
+    await within(tab).findByRole("button", { name: "1 missing, police" }, storyWaitOptions(10_000));
+    await page().findByRole("dialog", { name: "police.glb" }, storyWaitOptions(10_000));
 });
 
 /**
@@ -562,7 +562,7 @@ export const Picture: Story = sceneStory(async ({ session }) => {
     }
     const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
     await userEvent.upload(chooser, new File([colormap], "colormap.png", { type: "image/png" }));
-    const field = await within(tab).findByRole("button", { name: "Node picture, colormap" }, storyWaitOptions(10_000));
+    const field = await within(tab).findByRole("textbox", { name: "Node picture, colormap" }, storyWaitOptions(10_000));
     await waitFor(() => {
         expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);
     }, storyWaitOptions(10_000));

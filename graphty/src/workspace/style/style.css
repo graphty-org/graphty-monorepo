@@ -286,14 +286,6 @@
     padding-bottom: 4px;
 }
 
-/* The Shape field holding a model (node-models design 13.2): the model's name is its value, drawn
-   in the value's color, not the placeholder's that an unset default uses. */
-.ws-model-field input::placeholder {
-    color: var(--cm-text-primary);
-    font-style: normal;
-    opacity: 1;
-}
-
 /* A sample model in the Models pop-over: its picture over its name. */
 .ws-model-tile {
     border-radius: 4px;

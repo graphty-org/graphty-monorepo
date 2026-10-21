@@ -258,17 +258,33 @@ function chooserIn(root: HTMLElement, folder = false): HTMLInputElement {
 }
 
 /**
- * police.glb chosen alone in the Models pop-over: the layer names it while it waits, and the
- * Shape field shows the chip.
+ * police.glb chosen alone in the Models pop-over: the layer names it while it waits, the Parts
+ * pop-over opens in the Models pop-over's place with focus in the first row's address, one Escape
+ * closes it, and the Shape field keeps the chip.
  * @returns the session, the Style tab and the chip.
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
     const { session, tab } = await openShapes();
     const models = await openModels(tab);
     await userEvent.upload(chooserIn(models), [await policeFile()]);
-    const chip = await within(tab).findByRole("button", { name: "police: 1 file missing" }, { timeout: TIMEOUT_MS });
+    const parts = await screen.findByRole("dialog", { name: "police.glb" }, { timeout: TIMEOUT_MS });
+    assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "one pop-over at a time");
+    await waitFor(() => {
+        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART} address`);
+    });
+    assert.isTrue(parts.contains(document.activeElement));
+    // One Escape closes it from the field it opened in: no tooltip takes the key first.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog", { name: "police.glb" }));
+    });
+    const chip = await within(tab).findByRole("button", { name: "1 missing, police" }, { timeout: TIMEOUT_MS });
     assert.equal(chip.textContent, "1 missing");
+    assert.equal(chip.getAttribute("aria-expanded"), "false");
     assert.isDefined(namedModel(session), "the layer names the model while it waits");
+    // Named by its main file while it waits, as the value of the field, not its placeholder.
+    const field = within(tab).getByRole<HTMLInputElement>("combobox", { name: "Node shape, police" });
+    assert.equal(field.value, "police");
     return { session, tab, chip };
 }
 
@@ -278,6 +294,11 @@ async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement;
  * @returns the pop-over.
  */
 async function openParts(chip: HTMLElement): Promise<HTMLElement> {
+    // A model just added while it waits opens it by itself.
+    const open = screen.queryByRole("dialog", { name: "police.glb" });
+    if (open !== null) {
+        return open;
+    }
     chip.focus();
     await userEvent.keyboard("{Enter}");
     const parts = await screen.findByRole("dialog", { name: "police.glb" });
@@ -299,6 +320,8 @@ async function finished(session: GraphSession, tab: HTMLElement): Promise<void> 
         assert.isNull(within(tab).queryByText(/missing$/));
         assert.equal(document.activeElement, shapeField(tab));
     });
+    // Still named police once drawn, though the drawn model has a new id.
+    assert.equal(within(tab).getByRole<HTMLInputElement>("combobox", { name: "Node shape, police" }).value, "police");
 }
 
 describe("a model missing parts, on the real element", () => {
@@ -330,8 +353,19 @@ describe("a model missing parts, on the real element", () => {
 
     it("shows '1 missing' for police.glb alone, and takes colormap.png dropped on its row", async () => {
         const { session, tab, chip } = await policeAlone();
+        // The detail is the chip's description, for a screen reader, and its tooltip on hover.
+        assert.equal(document.getElementById(chip.getAttribute("aria-describedby") ?? "")?.textContent, PART);
+        assert.equal(document.activeElement, chip, "focus is back on the chip");
+        // A pointer reader: focus has moved on (a focused Mantine tooltip trigger ignores hover).
+        await userEvent.tab();
         await userEvent.hover(chip);
-        assert.equal((await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS })).textContent, PART);
+        await waitFor(
+            () => {
+                const tips = screen.queryAllByRole("tooltip").map((tip) => tip.textContent);
+                assert.include(tips, PART, JSON.stringify(tips));
+            },
+            { timeout: TIMEOUT_MS },
+        );
         const parts = await openParts(chip);
         const row = within(parts).getByRole("group", { name: PART });
         assert.isNotNull(within(row).getByText("Texture"));
@@ -358,7 +392,7 @@ describe("a model missing parts, on the real element", () => {
     it("draws without the picture on Load without it, showing 'Without 1'", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART}` }));
+        await userEvent.click(within(parts).getByRole("button", { name: `Load without it, ${PART}` }));
         await finished(session, tab);
         const without = await within(tab).findByText("Without 1");
         await userEvent.hover(without);
@@ -378,11 +412,7 @@ describe("a model missing parts, on the real element", () => {
         const { session, tab } = await openShapes();
         const models = await openModels(tab);
         await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), `${main}{Enter}`);
-        const chip = await within(tab).findByRole(
-            "button",
-            { name: "police: 1 file missing" },
-            { timeout: TIMEOUT_MS },
-        );
+        const chip = await within(tab).findByRole("button", { name: "1 missing, police" }, { timeout: TIMEOUT_MS });
 
         // Another site: the web-address question comes first.
         let parts = await openParts(chip);
@@ -391,9 +421,11 @@ describe("a model missing parts, on the real element", () => {
             "https://assets.example.com/colormap.png{Enter}",
         );
         const question = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
-        assert.include(question.textContent, "assets.example.com");
+        // Worded for an address the reader supplied, naming the site and the file.
+        assert.include(question.textContent, "Load a part of this model from assets.example.com?");
+        assert.include(question.textContent, "colormap.png");
         await userEvent.click(within(question).getByRole("button", { name: "Cancel" }));
-        const still = await within(tab).findByRole("button", { name: "police: 1 file missing" });
+        const still = await within(tab).findByRole("button", { name: "1 missing, police" });
 
         // The same site: fetched at once, and drawn.
         parts = screen.queryByRole("dialog", { name: "police.glb" }) ?? (await openParts(still));
@@ -406,25 +438,26 @@ describe("a model missing parts, on the real element", () => {
     it("words a GitHub page address as 'Web page' and fills in the file's own address", async () => {
         const blob = "https://github.com/kenney/car-kit/blob/main/Textures/colormap.png";
         const raw = "https://raw.githubusercontent.com/kenney/car-kit/main/Textures/colormap.png";
+        const requested: string[] = [];
         const original = globalThis.fetch.bind(globalThis);
         vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
             const url = input instanceof Request ? input.url : String(input);
-            return url === blob
-                ? Promise.resolve(new Response("<!doctype html><html><body>GitHub</body></html>", { status: 200 }))
-                : original(input, init);
+            requested.push(url);
+            return original(input, init);
         });
         const { tab, chip } = await policeAlone();
         const parts = await openParts(chip);
         const field = within(parts).getByRole("textbox", { name: `${PART} address` });
         await userEvent.type(field, `${blob}{Enter}`);
-        const question = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(question).getByRole("button", { name: "Continue" }));
 
-        const open = screen.queryByRole("dialog", { name: "police.glb" }) ?? (await openParts(chip));
-        const row = within(open).getByRole("group", { name: PART });
+        // Known as a page by its address: no question, and nothing fetched (GitHub sends no CORS
+        // header, so a fetch would only ever say "Not reached").
+        const row = within(parts).getByRole("group", { name: PART });
         assert.isNotNull(await within(row).findByText("Web page", {}, { timeout: TIMEOUT_MS }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Open a web address?" }));
+        assert.notInclude(requested, blob);
         await userEvent.click(within(row).getByRole("button", { name: "Use file address" }));
         assert.equal(within(row).getByRole<HTMLInputElement>("textbox", { name: `${PART} address` }).value, raw);
-        assert.isNotNull(within(tab).getByRole("button", { name: "police: 1 file missing" }));
+        assert.isNotNull(within(tab).getByRole("button", { name: "1 missing, police" }));
     });
 });

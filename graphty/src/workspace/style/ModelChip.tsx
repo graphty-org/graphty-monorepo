@@ -1,6 +1,6 @@
 import type { CodedFact } from "@graphty/graphty-element/session";
-import { Badge, Tooltip } from "@mantine/core";
-import React from "react";
+import { Badge, Tooltip, VisuallyHidden } from "@mantine/core";
+import React, { useId } from "react";
 
 import { modelChip, type ModelChipWords } from "./modelWords";
 
@@ -10,50 +10,68 @@ interface ModelChipProps {
     readonly chip: ModelChipWords;
     /** Red for what stops a model, yellow for what is worth knowing. */
     readonly tone?: "error" | "warning";
-    /** Its accessible name, when it says more than its words. */
+    /** Its accessible name, when it says more than its words; it starts with them. */
     readonly name?: string;
     /** Makes it a button. */
     readonly onClick?: () => void;
+    /** For a button that opens a pop-over: whether it is open. */
+    readonly expanded?: boolean;
 }
 
 /**
  * One problem graphty-element reports on a model or a picture, as a chip (node-models design
- * 13.6): one or two words, the detail in the tooltip, never a sentence.
+ * 13.6): one or two words, the detail in the tooltip, never a sentence. Every chip takes focus, so
+ * its tooltip shows on keyboard focus as on hover, and its detail is its description, so a screen
+ * reader hears it too.
  * @param props - Component props
  * @param props.chip - its words and tooltip
  * @param props.tone - error or warning
  * @param props.name - its accessible name
  * @param props.onClick - what pressing it does, when it is a button
+ * @param props.expanded - whether the pop-over it opens is open
  * @returns The chip
  */
 export const ModelChip = React.forwardRef<HTMLButtonElement, ModelChipProps>(function ModelChip(
-    { chip, tone = "error", name, onClick },
+    { chip, tone = "error", name, onClick, expanded },
     ref,
 ) {
     const color = tone === "error" ? "red" : "yellow";
+    const detail = useId();
     return (
-        <Tooltip label={chip.tip}>
-            {onClick === undefined ? (
-                <Badge size="sm" color={color} variant="light" role="status" aria-label={name}>
-                    {chip.word}
-                </Badge>
-            ) : (
-                <Badge
-                    ref={ref}
-                    component="button"
-                    type="button"
-                    size="sm"
-                    color={color}
-                    variant="light"
-                    className="ws-chip-button"
-                    aria-label={name ?? chip.word}
-                    aria-haspopup="dialog"
-                    onClick={onClick}
-                >
-                    {chip.word}
-                </Badge>
-            )}
-        </Tooltip>
+        <>
+            <Tooltip label={chip.tip}>
+                {onClick === undefined ? (
+                    <Badge
+                        size="sm"
+                        color={color}
+                        variant="light"
+                        tabIndex={0}
+                        aria-label={name}
+                        aria-describedby={detail}
+                    >
+                        {chip.word}
+                    </Badge>
+                ) : (
+                    <Badge
+                        ref={ref}
+                        component="button"
+                        type="button"
+                        size="sm"
+                        color={color}
+                        variant="light"
+                        className="ws-chip-button"
+                        aria-label={name ?? chip.word}
+                        aria-describedby={detail}
+                        aria-haspopup="dialog"
+                        aria-expanded={expanded}
+                        onClick={onClick}
+                    >
+                        {chip.word}
+                    </Badge>
+                )}
+            </Tooltip>
+            <VisuallyHidden id={detail}>{chip.tip}</VisuallyHidden>
+        </>
     );
 });
 

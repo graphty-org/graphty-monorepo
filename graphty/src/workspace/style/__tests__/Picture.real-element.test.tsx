@@ -165,7 +165,7 @@ describe("pictures on nodes, on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(written(session, "node.shape"), "sphere");
-        assert.isNotNull(await within(tab).findByRole("button", { name: "Node picture, colormap" }));
+        assert.isNotNull(await within(tab).findByRole("textbox", { name: "Node picture, colormap" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Picture" }), "picking closes the pop-over");
         });
@@ -187,11 +187,12 @@ describe("pictures on nodes, on the real element", () => {
 
         // The row opens the pop-over again; the project's picture is there, and a .glb chosen
         // there is a model: Use as model writes node.model, never node.texture.
-        await userEvent.click(await within(tab).findByRole("button", { name: "Node picture, colormap" }));
+        await userEvent.click(await within(tab).findByRole("textbox", { name: "Node picture, colormap" }));
         picture = await screen.findByRole("dialog", { name: "Picture" });
         assert.isNotNull(within(picture).getByRole("button", { name: "colormap" }));
         await userEvent.upload(chooserIn(picture), [new File([quadGlb()], "quad.glb")]);
         const use = await within(picture).findByRole("button", { name: "Use quad as model" }, { timeout: TIMEOUT_MS });
+        assert.isNotNull(within(picture).getByText("Not a picture"));
         await userEvent.click(use);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
@@ -225,7 +226,7 @@ describe("pictures on nodes, on the real element", () => {
         assert.isUndefined(written(session, "node.texture"));
     });
 
-    it("supplies a model waiting for the picture dropped on the canvas, adding no layer", async () => {
+    it("puts on the nodes a waiting model the picture dropped on the canvas finishes, when no layer names it", async () => {
         const store = createWorkspaceStore({ project: { name: "Pictures", id: 1 } });
         render(<Workspace store={store} />);
         const { session } = await canvasElement();
@@ -242,8 +243,86 @@ describe("pictures on nodes, on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(session.assets.list().find((r) => r.kind === "model")?.state, "accepted");
-        assert.lengthOf(session.styles.list(), before, "no layer was made");
         assert.notEqual(police.state, "accepted");
+        await waitFor(() => {
+            assert.lengthOf(session.styles.list(), before + 1, "one layer draws the finished model");
+        });
+        const layer = session.styles.list().find((l) => l.set?.["node.model"] !== undefined);
+        const named = layer?.set?.["node.model"];
+        assert.isString(named);
+        assert.equal(session.assets.find(named as string)?.state, "accepted");
+        assert.equal(store.get().notice?.message, "Nodes drawn as police");
+    });
+
+    it("draws police.glb then colormap.png dropped on the canvas: the layer waits, then draws", async () => {
+        const store = createWorkspaceStore({ project: { name: "Pictures", id: 1 } });
+        render(<Workspace store={store} />);
+        const { session } = await canvasElement();
+        await session.data.addNodes(NODES);
+        const before = session.styles.list().length;
+
+        // The car alone: one layer names it while it waits, and the notice names what is missing.
+        dropOn(screen.getByTestId("canvas"), [await fixture(policeUrl, "police.glb")]);
+        await waitFor(
+            () => {
+                assert.lengthOf(session.styles.list(), before + 1);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.lengthOf(session.assets.waiting(), 1);
+        assert.include(store.get().notice?.message ?? "", "Textures/colormap.png");
+        // The new layer opens in the Style panel, its Shape field naming the car with its chip in view.
+        const made = session.styles.list().find((l) => l.set?.["node.model"] !== undefined);
+        assert.deepEqual(store.get().inspected, { kind: "layer-row", id: made?.id, tab: "style" });
+        assert.isNotNull(
+            await screen.findByRole("button", { name: "1 missing, police" }, { timeout: TIMEOUT_MS }),
+            "the missing-parts chip is in view",
+        );
+
+        // Its picture: the same layer draws it, and no second layer is made.
+        dropOn(screen.getByTestId("canvas"), [await colormap()]);
+        await waitFor(
+            () => {
+                assert.lengthOf(session.assets.waiting(), 0);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const layer = session.styles.list().find((l) => l.set?.["node.model"] !== undefined);
+        const ref = layer?.set?.["node.model"] as string;
+        await waitFor(
+            () => {
+                assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, "drawn");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.lengthOf(session.styles.list(), before + 1);
+        assert.equal(store.get().notice?.message, "colormap.png added to police");
+    });
+
+    it("takes back a Picture line just added and holding nothing on Escape, focus on the '+'", async () => {
+        const { session, tab } = await openShapes({ "node.shape": "sphere" });
+        await addPicture(tab);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Picture" }));
+            assert.isNull(within(tab).queryByRole("textbox", { name: /^Node picture/ }));
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add to node fill");
+        });
+        assert.isUndefined(written(session, "node.texture"));
+    });
+
+    it("lets go of a model chosen in the Picture pop-over and not taken as the model", async () => {
+        const { session, tab } = await openShapes({ "node.shape": "sphere" });
+        const picture = await addPicture(tab);
+        await userEvent.upload(chooserIn(picture), [await fixture(policeUrl, "police.glb")]);
+        assert.isNotNull(
+            await within(picture).findByRole("button", { name: "Use police as model" }, { timeout: TIMEOUT_MS }),
+        );
+        assert.lengthOf(session.assets.waiting(), 1);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.lengthOf(session.assets.waiting(), 0, "nothing the reader did not choose waits");
+        });
     });
 
     it("draws a picture dropped on the canvas on every node, as one undoable layer", async () => {

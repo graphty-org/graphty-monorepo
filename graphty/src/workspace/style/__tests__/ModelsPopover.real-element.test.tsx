@@ -48,9 +48,13 @@ async function canvasElement(): Promise<HTMLElementTagNameMap["graphty-element"]
 
 /**
  * A project with two nodes and a "Shapes" layer drawing them as cylinders, its Style tab open.
- * @returns the session and the Style tab.
+ * @returns the session, the Style tab and the workspace store.
  */
-async function openShapes(): Promise<{ session: GraphSession; tab: HTMLElement }> {
+async function openShapes(): Promise<{
+    session: GraphSession;
+    tab: HTMLElement;
+    store: ReturnType<typeof createWorkspaceStore>;
+}> {
     const store = createWorkspaceStore({ project: { name: "Models", id: 1 } });
     render(<Workspace store={store} />);
     const { session } = await canvasElement();
@@ -69,7 +73,7 @@ async function openShapes(): Promise<{ session: GraphSession; tab: HTMLElement }
     if (style.getAttribute("aria-selected") !== "true") {
         await userEvent.click(style);
     }
-    return { session, tab: await screen.findByTestId("style-tab") };
+    return { session, tab: await screen.findByTestId("style-tab"), store };
 }
 
 /**
@@ -171,8 +175,9 @@ describe("models in the Shape field, on the real element", () => {
 
         // Choose files: a .glb from the file chooser, drawn on the layer's nodes.
         models = await openModels(tab);
-        const chooser = within(models).getByRole("button", { name: "Choose model files" });
-        assert.equal(chooser.getAttribute("title"), "Choose model files");
+        // Its name starts with its words, and its tooltip says the same.
+        const chooser = within(models).getByRole("button", { name: "Choose files, model" });
+        assert.equal(await tooltipOf(chooser), "Choose files, model");
         const input = models.querySelector<HTMLInputElement>("input[type=file]:not([webkitdirectory])");
         if (input === null) {
             throw new Error("no file input");
@@ -187,7 +192,18 @@ describe("models in the Shape field, on the real element", () => {
         );
         const quad = String(written(session, "node.model"));
         await drawn(session, quad);
-        assert.isNotNull(await within(tab).findByRole("combobox", { name: "Node shape, quad" }));
+        const field = await within(tab).findByRole<HTMLInputElement>("combobox", { name: "Node shape, quad" });
+        assert.equal(field.value, "quad", "the model's name is the field's value");
+
+        // The list checks Model..., and the Models pop-over marks quad as the one in force.
+        await userEvent.click(field);
+        const tile = await screen.findByRole("option", { name: "Model..." });
+        assert.equal(tile.getAttribute("aria-selected"), "true");
+        await userEvent.keyboard("{Escape}");
+        models = await openModels(tab);
+        const own = within(models).getByRole("group", { name: "In this project" });
+        assert.equal(within(own).getByRole("button", { name: "quad" }).getAttribute("aria-pressed"), "true");
+        await userEvent.keyboard("{Escape}");
 
         // Model settings: Up set to Z writes node.modelSourceUp.
         const settings = within(tab).getByRole("button", { name: "Model settings" });
@@ -214,6 +230,45 @@ describe("models in the Shape field, on the real element", () => {
             assert.equal(written(session, "node.model"), quad);
             assert.equal(written(session, "node.modelSourceUp"), "z");
         });
+    });
+
+    it("walks the samples as one Tab stop with the arrows, stopping at the edges", async () => {
+        const { tab } = await openShapes();
+        const models = await openModels(tab);
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Box");
+        });
+        const samples = within(models).getByRole("group", { name: "Samples" });
+        const tiles = within(samples).getAllByRole("button");
+        await userEvent.keyboard("{ArrowLeft}");
+        assert.equal(document.activeElement, tiles[0], "the first tile is an edge");
+        await userEvent.keyboard("{ArrowRight}");
+        assert.equal(document.activeElement, tiles[1]);
+        await userEvent.keyboard("{End}{ArrowRight}");
+        assert.equal(document.activeElement, tiles[tiles.length - 1], "the last tile is an edge");
+        // One Tab leaves the grid.
+        await userEvent.tab();
+        assert.isFalse(samples.contains(document.activeElement));
+        assert.equal(document.activeElement?.getAttribute("aria-label"), "Model address");
+    });
+
+    it("removes the model with the Shape line's minus, and says so once it is gone", async () => {
+        const { session, tab, store } = await openShapes();
+        await openModels(tab);
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Box");
+        });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(written(session, "node.model"), "asset:sample/box");
+        });
+        const minus = await within(tab).findByRole("button", { name: "Remove node shape" });
+        await userEvent.click(minus);
+        await waitFor(() => {
+            assert.isUndefined(written(session, "node.model"));
+        });
+        assert.isUndefined(written(session, "node.shape"), "the shape kept under the model goes with it");
+        assert.equal(store.get().announcement, "Node shape removed");
     });
 
     it("offers a lone picture as the layer's picture, never refusing it as a model", async () => {

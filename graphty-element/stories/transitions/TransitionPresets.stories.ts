@@ -191,12 +191,19 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         }
 
         await frame();
-        // Every edge is drawn between its nodes where they are drawn, not where the layout has them.
+        // Every edge is drawn between its nodes where they are drawn, not where the layout has
+        // them: the middle of its line lies on the segment between them (not at its midpoint,
+        // since the arrowhead trims the target end).
         for (const edge of element.graph.getDataManager().edges.values()) {
             const a = edge.srcNode.mesh.position;
             const b = edge.dstNode.mesh.position;
             const middle = edge.drawnCentre;
-            if (Math.hypot(middle.x - (a.x + b.x) / 2, middle.y - (a.y + b.y) / 2) > 0.05) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const length = Math.max(Math.hypot(dx, dy), 1e-9);
+            const along = ((middle.x - a.x) * dx + (middle.y - a.y) * dy) / (length * length);
+            const across = Math.abs((middle.x - a.x) * dy - (middle.y - a.y) * dx) / length;
+            if (across > 0.05 || along <= 0 || along >= 1) {
                 throw new Error(`${story}: an edge did not follow its nodes`);
             }
         }

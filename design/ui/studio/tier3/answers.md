@@ -84,6 +84,25 @@ These override any line below that says otherwise.
   its color in the style tree, not by how its selection ring tints it. A tint that makes it read
   as a color the key does not say is recorded for the audit as a key-and-drawing disagreement.
 
+## Rules settled before round 1 (2026-10-21)
+
+- **A participant's file merged into an open sample** (any task whose file is brought in while a
+  sample is open; seen on T43 B and T51 A). On 758b8e8081, Control+O and the
+  Main menu's "Open project or file..." over a sample offer "Add to <sample>" with Cancel and Load
+  only, no Replace, so Load merges the file into the sample (T43 B: 58 nodes, 137 edges, 2
+  components; T51 A over Florentine: 39 nodes). Graders read each task's success definition over
+  the nodes and ties that came from the participant's file: they carry the file's ids (`v01` to
+  `v24`, `s01` to `s24`) and its columns. The sample's nodes and ties, which carry none of the
+  file's columns, are left out of "every node", of every count and of "everything else unchanged";
+  a sample node drawn in a task's look, or a size or color scale they leave unmeasured ("15 carry
+  no value the scale can read", a key line missing for them), changes no grade. A count, a name or
+  a color the participant gives for the sample's nodes, or for the merged whole, is graded as given
+  against the file's answer: Harlan Development read as the biggest donor is S, a sample node named
+  or a merged total said as the file's is F. Graders add `Merged: yes` to grade.md, and the merge
+  is recorded as a finding about the open-a-file route, never as a wrong turn by itself. Undo
+  (one Control+Z: "Undid changing settings and importing data.") or New project > Add data leaves
+  the file alone, and is graded as usual.
+
 ## Facts no briefing may hold
 
 What a task asks a participant to find. `real.mjs --brief` refuses a briefing that holds one;
@@ -191,9 +210,13 @@ file" and Load were three). Things every path meets on this build:
   Samples the 16th; Enter on Samples scrolls to the library but leaves focus on the button, out of
   view, and the next Tabs pass New project, "MIT licensed" and "Put it on your own site" before
   the search box; a sample card is 16 to 18 Tabs after Samples (Les Miserables 16, the karate club 17, College football 18; 32 to 34 from the top). Enter on the top bar's Samples link also leaves focus at the top: College football's card is then 30 Tabs on (T46 B).
-- **After a sample or file opens**, a notice "This looks like a private window: your work is gone
-  when it closes. Save a copy to a file to keep it." sits at the bottom of the canvas above the toolbar, with Dismiss and Save buttons (by Shift+Tab they come before the layer list), covering the bottom of the drawing (with the table open, its bottom cluster); it went at the first click on some walks and stayed until dismissed on others, and on 758b8e8081 it did not show on any T45 A walk. It is announced as soon as the graph opens, while the top bar reads "Autosave: saved" (it may
-  come from the study browser's profile).
+- **After a sample or file opens**, a notice "This browser may clear what it keeps for this site.
+  Save a copy to a file to be sure." sits at the bottom of the canvas above the toolbar, with Dismiss and Save buttons (by Shift+Tab they come before the layer list), covering the bottom of the drawing (with the table open, its bottom cluster); it went at the first click on some walks and stayed until dismissed on others, and on 758b8e8081 it did not show on any T45 A walk. It is announced as soon as the graph opens, while the top bar reads "Autosave: saved". It is the
+  notice a first-time visitor's own browser gets: the site's storage is not marked persistent.
+  Until 2026-10-21 study sessions ran in an incognito browser context, and the notice read "This
+  looks like a private window: your work is gone when it closes. Save a copy to a file to keep
+  it."; since then each session runs on a browser profile on disk. Pilot screenshots taken before
+  that show the old wording.
 - **A new layer's name box** opens with "Layer 1" selected. Enter, Escape or the next click all
   keep the name, so it is no step of its own (by keyboard, focus is in the "Layer name" box after
   Layer, and Enter puts it on the tree row). A new layer reads "Node and edge layer". It becomes
@@ -216,7 +239,7 @@ file" and Load were three). Things every path meets on this build:
 - **A sample or file just opened** shows the Graph inspector on its Values tab. By keyboard, focus
   lands on the inspector's heading "Graph, volunteers: 24 nodes, 63 edges" (no focus ring is drawn
   on it) and the counts are announced ("Les Miserables: 77 nodes, 254 edges"); the layer list is 5
-  or 6 Shift+Tabs back (Everything is 5; with the private-window notice showing, its Dismiss and Save come first, so Everything is 7 and "Add a layer or a folder" 8), or about 15 Tabs forward through the inspector and the
+  or 6 Shift+Tabs back (Everything is 5; with the storage notice showing, its Dismiss and Save come first, so Everything is 7 and "Add a layer or a folder" 8), or about 15 Tabs forward through the inspector and the
   top bar (the inspector's rows, "Resize inspector", Main menu, Project, Undo, Redo, Local only,
   Graph, "Graph <name>", Find, then the layer "+"). Tab into the layer tree lands on Everything,
   its last row, not its first (Hovered). F6 cycles four stops and never the top bar: the
@@ -314,8 +337,11 @@ file" and Load were three). Things every path meets on this build:
   picker as Done does. Picking a match ("Starts with", "Between", "Highest") puts focus in the
   card's value box, so typing goes there. A card left with no value is dropped with a notice
   ("Dropped the name condition: it was not finished", no Undo) after Enter, Escape in its empty box,
-  or a click on the drawing, which also deselects the layer; a click in either side panel leaves the
-  picker open and drops nothing.
+  or a click on the drawing, which also deselects the layer. A click in either side panel leaves the
+  picker open and drops nothing once focus has left the card's box; while focus is still in a new
+  text card's empty box, a click in the left panel's layer tree drops the card and closes the
+  picker, with the same notice (round 1 pilot T41 B, `rounds/round-1/pilot/T41B/detours/11.png`,
+  again at `18.png`; with focus elsewhere it dropped nothing, `16.png`, `17.png`).
 - **Chips** carry the word: "role: board, staff, 8 nodes", "name contains Mme, 6 nodes", "hours 20
   to 52, 11 nodes". Each chip counts its own card over the whole file. With two cards where one alone leaves none (`hours` Has no value: 0), the warning still reads "Each condition leaves some; together none" (T43 A).
 - **The find box:** a word with no match gives 'No match for "most". To select by a value, type
@@ -495,7 +521,7 @@ file" and Load were three). Things every path meets on this build:
   the inspector and 5 Tabs: "Select what it paints", "Layer actions", the Style tab, the Node tab,
   "Style nodes", then Which nodes).
 - **B:** the same with sources.graphml ("sources: 24 nodes, 59 edges"), `kind` (person 14,
-  company 6, agency 4), company and agency ("10 of 24"), 12 steps. Nodes are titled by id in the inspector and the find box (`v23`, `s12`), the name only a row below. By keyboard on 6de5f95d12, "Add a layer or a folder" is 8 Shift+Tabs from the graph heading (the private-window notice's Dismiss and Save come first). A layer made from the find box's company and agency rows ("10 nodes", "Picked by hand: 10 nodes") still paints the same 10 after Control+O > Replace with the same file (two pages, two Replace clicks).
+  company 6, agency 4), company and agency ("10 of 24"), 12 steps. Nodes are titled by id in the inspector and the find box (`v23`, `s12`), the name only a row below. By keyboard on 6de5f95d12, "Add a layer or a folder" is 8 Shift+Tabs from the graph heading (the storage notice's Dismiss and Save come first). A layer made from the find box's company and agency rows ("10 nodes", "Picked by hand: 10 nodes") still paints the same 10 after Control+O > Replace with the same file (two pages, two Replace clicks).
 - **Dead ends on this build:** right-clicking a node offers no way to pick everyone like it;
   right-clicking a table cell does nothing; a column's "Options" offers only Move left and Move
   right; the inspector's value cannot be clicked. The Data place's attribute lists its values with
@@ -533,7 +559,7 @@ file" and Load were three). Things every path meets on this build:
   the key. A node's Style > "Why this look" (which lists "Selected: Glow, Halo" and Everything) >
   "Everything" opens Everything with focus in the color box and its value selected. By keyboard
   (A and B), Samples is 16 Tabs from the top and the card 16 more on A, 18 on B; after the open,
-  Everything is 5 Shift+Tabs from the graph heading (7 on 758b8e8081 with the private-window notice's Dismiss and Save first), Enter on its row keeps focus there, F6 goes
+  Everything is 5 Shift+Tabs from the graph heading (7 on 758b8e8081 with the storage notice's Dismiss and Save first), Enter on its row keeps focus there, F6 goes
   to the heading "Everything", and the color box is 15 Tabs on; `darkgreen` and Enter announce
   "Node color now dark green, on 77 nodes". Focus never fell to the page.
 - **Bar 4:** frozen at 12 steps as "twice the answer key's 6"; the key counts 5 on this build
@@ -641,7 +667,7 @@ file" and Load were three). Things every path meets on this build:
   instead of coloring the four: F (Undo restores); with a selection hidden, the inspector
   still reads "15 nodes selected". A click on the drawing that drops an unfinished card also
   moves the inspector off the layer to the Graph overview.
-- **Success path (A, 18 steps):** 1. "Open a file", volunteers.graphml. 2. Load (the private-window notice sits above the toolbar until the first click). 3. "+". 4. Layer. 5. Which nodes (only
+- **Success path (A, 18 steps):** 1. "Open a file", volunteers.graphml. 2. Load (the storage notice sits above the toolbar until the first click). 3. "+". 4. Layer. 5. Which nodes (only
   expands). 6. "Add a condition" (phone reads "70% have a value"). 7. `trained` (the card starts
   on Yes: "15 of 24"). 8. "Add a condition". 9. `phone` (focus in its text box, past the match
   menu: by keyboard one Shift+Tab back). 10. Its match menu ("phone: how to match", value
@@ -945,7 +971,7 @@ file" and Load were three). Things every path meets on this build:
   (whose tooltip covers the Arrowheads "+"); Escape in the color box after typing says "Edit
   discarded; this stays 0000FF." on screen and spoken; Escape in the color picker closes it onto
   "Pick edge color". A new layer's foot reads "Edges: nothing set, Edit edges" and, on 6de5f95d12, "Nodes: nothing set" until a condition is added, then "Nodes: not styled, Edit nodes". By keyboard the sample is 32 to 33 Tabs from the top (16 to Samples, then
-  the library's search, view toggles and chips); after the open, "Add a layer or a folder" is 6 Shift+Tabs back (8 on 758b8e8081, the private-window notice's Dismiss and Save first); Enter, Layer, Enter (name), then F6 to "Select what it paints", Tab to Layer
+  the library's search, view toggles and chips); after the open, "Add a layer or a folder" is 6 Shift+Tabs back (8 on 758b8e8081, the storage notice's Dismiss and Save first); Enter, Layer, Enter (name), then F6 to "Select what it paints", Tab to Layer
   actions, the Style tab, the Node tab, ArrowRight to the Edge tab, "Style edges", then "Add a
   condition" directly (no Which edges stop); Escape in the from box with `5` typed keeps `5` ("51
   of 254 edges") and the picker open, and Enter closes it; three Tabs to "Add to edge line".
@@ -1098,6 +1124,18 @@ file" and Load were three). Things every path meets on this build:
 - **Undo past the run, then Redo,** brings back the folder with every group, its count and color
   and the key; Box then applies normally, and a run after undoing offers plain Louvain. The Undo
   and the Redo each move the whole drawing about 130 px (against `decided.md`).
+- **The folder's Shape field when one group layer already sets a shape** (a detour of A and B:
+  one group made a Box on its own first). On 758b8e8081 the field shows "Box" with "1 layer sets
+  shape; not set: ...". Picking Box there changes nothing and raises "Shape could not be changed:
+  that value is outside what the property accepts.", a notice that stays until it is dismissed,
+  even after a later change works; no "Also set those 5" (B: those 9) is offered (A
+  `rounds/round-1/pilot/T47A/p3-detours/22.png`, `24.png`; B `T47B/p3-detours/16.png`). The route
+  that works: pick another shape in the field first (Cylinder), then Box; Box then offers "Also set
+  those 5", which sets every group's shape; Dismiss the notice (A `p3-detours/26.png` to `28.png`:
+  all six groups `box`, colors kept). Undo of the one group's Box, then Box on the folder, works
+  too, as does picking the other groups together (`several`). Graded as usual (S, `Route: folder`
+  or `several`); a participant who stops at the notice with five groups still balls is F, and the
+  notice is recorded as a finding of the folder route.
 - **Undo of a shape set on the folder or on several layers** turns the drawing back to balls and
   the open inspector back to an unset "Icosphere"; Box picked again applies at once (the trap of
   older builds is gone).
@@ -1197,7 +1235,8 @@ file" and Load were three). Things every path meets on this build:
   when reached, runs the analysis at once); Enter on the folder's
   Which nodes focuses the Louvain card; the card's value box is named "trained: how to match"
   while it holds "Yes"; "Remove trained" comes before the card's value
-  (Shift+Tab), and Tab from the value goes to "Add a condition"; from the folder row, Which nodes is 9 Tabs on (10 on 7d87760756); Which nodes is named "Louvain: each layer's own value" while the screen shows
+  (Shift+Tab), and Tab from the value goes to "Add a condition"; from the folder row, Which nodes is 10 Tabs on (on 758b8e8081, round 1 pilot T48 A
+  `rounds/round-1/pilot/T48A/keys/15.png` and `16.png`; 9 was counted on 6de5f95d12, 10 on 7d87760756); Which nodes is named "Louvain: each layer's own value" while the screen shows
   "Louvain: <<Layer>>". The "Select layers..." route (the `several` route) works; its checkboxes
   have no accessible name, checking the folder's box checks none of its layers, the folder's own
   checkbox shows partly checked with all three layers checked, and with the picker open two
@@ -1259,7 +1298,8 @@ file" and Load were three). Things every path meets on this build:
   what it paints, Hide, Lock, Delete dimmed on Everything) and the canvas's right-click menu hold
   no undo; the find box answers `undo` and `reset` with "No match".
 - **Success path (A, 5 + 1 steps):** 1. Samples. 2. The card "Who holds the novel together" (B: "A
-  club that split in two"; a notice says this looks like a private window, with a Save button). 3.
+  club that split in two"; the storage notice, "This browser may clear what it keeps for this
+  site.", with a Save button). 3.
   Everything (Style open). 4. Click the color box ("Node color, set here, indigo"; selects the hex; no picker opens). 5. Type `red`, Enter (focus stays in the box). `--end` gives the follow-up. 6. The Undo arrow, or
   Control+Z (one key, focus still in the box): the color reads `6366F1` again ("Undid changing
   node color on Everything."). Control+Shift+Z and Control+Y redo. B: Zachary's karate club,
@@ -1409,6 +1449,15 @@ file" and Load were three). Things every path meets on this build:
   reading `data.role` (or `data.kind`), palette okabe-ito.
 
 ## Change log
+
+- 2026-10-21 (round 1 entry walks on 758b8e8081, `rounds/round-1/pilot/`): no step count, no
+  success definition and no bar changed. Added a settled rule for a participant's file merged into
+  an open sample (Control+O over a sample offers no Replace): graded over the file's own nodes,
+  `Merged: yes`. T47: the folder's Shape field over a group that already sets a shape refuses Box
+  with a notice that does not time out; the route that works is recorded. T41: a click in the left
+  panel drops a new text card while focus is still in its empty box. T48 A: Which nodes is 10 Tabs
+  from the folder row. The notice after a sample or file opens is the storage notice ("This
+  browser may clear what it keeps for this site."), now that sessions run on a disk profile.
 
 - 2026-10-21 (round 1 pilots on 758b8e8081): the key reads the frozen build 758b8e8081 as the pilots in `rounds/r1d2/pilot/` saw it (15 halves; each task names its folders). No step count, no success definition and no bar changed: every success path walked matched its count. Changed to match the screen: a layer made from a find-box selection takes condition edits before its first look (T41 B's "Has no value" switch is accepted, Done keeps both cards; T38, T41); Undo after Control+O > Replace with the same file redraws from the layers, so T44 B's deleted-label state is gone and its grading line from the last screenshot is withdrawn; the first find-box pick after Replace draws its ring; deleting one's own layer gives T49's start look exactly; the sample pictures load. Recorded: a `>` rule layer's card shows raw rule text and takes no edit (T42); Escape in a category card's value search closes the picker (T46); the key drops a run's section after Replace and one undo (T46); a count of its own on a just-added number card (T45); the private-window notice adds two Shift+Tab stops (T39, T45); the drawing's move with a selection held can hide painted nodes on the last screen (T38, T41); keyboard counts (T37, T43, T46, T49).
 

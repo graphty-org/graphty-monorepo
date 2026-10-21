@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody, costClassOf, inferShaderReads } from "../../../src/catalog/shaderGlsl";
-import { drawingOf, type ShaderDescriptor, type ShaderMotion } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor, type ShaderMotion, timingOf } from "../../../src/catalog/shaders";
 import { BODY as COMET_TRACERS_BODY } from "../../../src/shaders/presets/comet-tracers/body";
 import { COMET_TRACERS } from "../../../src/shaders/presets/comet-tracers/descriptor";
 import { BODY as EDGE_CHANGE_BODY } from "../../../src/shaders/presets/edge-change/body";
@@ -41,7 +41,7 @@ const TABLE: readonly {
         descriptor: FIBER_OPTIC,
         body: FIBER_OPTIC_BODY,
         name: "Fiber",
-        kind: "edge-look",
+        kind: "edge-paint",
         reads: ["color", "width"],
         motion: {},
         cost: "medium",
@@ -55,7 +55,7 @@ const TABLE: readonly {
         descriptor: FIBER_PACKETS,
         body: FIBER_PACKETS_BODY,
         name: "Light packets",
-        kind: "edge-effect",
+        kind: "edge-along",
         reads: ["color"],
         motion: { loop: { speedParam: "speed" } },
         cost: "medium",
@@ -72,7 +72,7 @@ const TABLE: readonly {
         descriptor: COMET_TRACERS,
         body: COMET_TRACERS_BODY,
         name: "Comets",
-        kind: "edge-effect",
+        kind: "edge-along",
         reads: ["color"],
         motion: { loop: { speedParam: "speed" } },
         cost: "medium",
@@ -92,7 +92,7 @@ const TABLE: readonly {
         descriptor: EDGE_GLOW,
         body: EDGE_GLOW_BODY,
         name: "Edge glow",
-        kind: "edge-effect",
+        kind: "edge-along",
         reads: ["color", "width"],
         motion: { loop: { speedParam: "glintSpeed" } },
         cost: "medium",
@@ -108,10 +108,10 @@ const TABLE: readonly {
         descriptor: EDGE_CHANGE,
         body: EDGE_CHANGE_BODY,
         name: "Edge change",
-        kind: "edge-effect",
+        kind: "edge-along",
         reads: ["color", "times"],
-        // The design's change and exit, plus the entrance the element plays for an arriving edge.
-        motion: { enter: 0.5, change: 0.5, exit: 0.5 },
+        // Its plays come from clock-bound parameters, not from motion.
+        motion: {},
         cost: "light",
         bloom: false,
         params: [["flashColor", "color", "#e8f4ff", undefined, undefined, true]],
@@ -170,7 +170,18 @@ describe("the edge presets", () => {
         assert.strictEqual(String.fromCharCode(...bytes.subarray(8, 12)), "WEBP");
     });
 
-    it("keeps a removed edge for edge change's 0.5 s exit, within the element's 1 s cap", () => {
-        assert.strictEqual(EDGE_CHANGE.motion.exit, 0.5);
+    it("takes how long a removed edge keeps drawing from a parameter bound to since.unmatched", () => {
+        const fading = {
+            params: [
+                {
+                    name: "fade",
+                    plainName: "Fade",
+                    type: "number" as const,
+                    default: { by: "since.unmatched", domain: [0, 0.5] },
+                },
+            ],
+        };
+        assert.strictEqual(timingOf(fading).exit, 0.5);
+        assert.isUndefined(timingOf(EDGE_CHANGE).exit, "motion no longer times a play");
     });
 });

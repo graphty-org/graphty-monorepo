@@ -14,7 +14,7 @@ export const COMET_TRACERS: ShaderDescriptor = Object.freeze({
     id: "comet-tracers",
     plainName: "Comets",
     target: "edge",
-    role: "effect",
+    place: "along",
     categories: Object.freeze(["Flow"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "speed", plainName: "Speed", type: "number", default: 1, min: -3, max: 3, varies: true },

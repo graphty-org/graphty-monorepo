@@ -13,7 +13,6 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "nebula",
     plainName: "Nebula",
     target: "background",
-    role: "look",
     categories: Object.freeze(["Space"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         Object.freeze({ name: "gasA", plainName: "Deep gas", type: "color", default: "#2a0f4a" }),

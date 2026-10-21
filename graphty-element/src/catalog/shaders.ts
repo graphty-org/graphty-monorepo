@@ -1,9 +1,9 @@
 /**
- * @file Shaders as catalog data: targets and roles, the descriptor a catalog lists, the parameter
+ * @file Shaders as catalog data: targets and places, the descriptor a catalog lists, the parameter
  * maps a style layer writes, and the channels a shader covers.
  *
  * A shader is a small GPU program that decides the color of each pixel of something drawn. Here it
- * is only data: an id, a target and a role, the parameters it declares and the facts the element and an editor
+ * is only data: an id, a target and a place, the parameters it declares and the facts the element and an editor
  * read. The GLSL text is checked in `./shaderText` and kept by `./shaderRegistry`; drawing it is
  * the renderer's (design/rendering/shader-styles.md).
  *
@@ -23,33 +23,82 @@ import type { Channel, OptionDescriptor } from "./types";
 export type ShaderTarget = "node" | "edge" | "group" | "background";
 
 /**
- * Whether a shader replaces how its target is painted (`"look"`: one per node or edge, the topmost
- * layer's wins) or is drawn on or around it (`"effect"`: effects stack). Groups and the background
- * take looks only.
+ * Where a use of a shader draws, as a fact about the use, not a kind of shader:
+ *
+ * - `"paint"`: the node's or edge's own surface; one per element, the topmost layer's wins.
+ * - `"replace"`: a node's shape is not drawn, the shader draws in its place; one per node.
+ * - `"over"`: over the node's paint, inside its outline; they stack.
+ * - `"around"`: outside the node's outline, reaching past it; they stack.
+ * - `"behind"`: before the node, which covers its middle; they stack.
+ * - `"along"`: a strip that follows an edge over the line; they stack.
+ * - `"group"`: one outline around the nodes that carry the use; they stack.
+ *
+ * `replace`, `over`, `around` and `behind` are one drawing (a square that faces the camera), so a
+ * shader written for one may be moved among all four unless it narrows `places`. `paint`, `along`
+ * and `group` are separate drawings, so a shader written for one stays there. The background has
+ * no place.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
-export type ShaderRole = "look" | "effect";
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+
+/** The places drawn as a square facing the camera, among which a shader may be moved. */
+export const SQUARE_PLACES: readonly ShaderPlace[] = Object.freeze(["replace", "over", "around", "behind"]);
+
+/** The places `minSize` applies at: the square-drawn places that reach outside the node. */
+const MIN_SIZE_PLACES: readonly ShaderPlace[] = ["replace", "around", "behind"];
+
+/** The places each target's shaders may be used at. */
+export const PLACES_BY_TARGET: Readonly<Record<ShaderTarget, readonly ShaderPlace[]>> = Object.freeze({
+    node: Object.freeze<ShaderPlace[]>(["paint", ...SQUARE_PLACES]),
+    edge: Object.freeze<ShaderPlace[]>(["paint", "along"]),
+    group: Object.freeze<ShaderPlace[]>(["group"]),
+    background: Object.freeze<ShaderPlace[]>([]),
+});
 
 /**
- * Where a shader is added: what it draws on and its role. Supplies the role of shader text that
- * does not declare one (`parseShaderText(text, { place })`).
- * @since 3.36.0
+ * The places a shader may be used at when it declares none: all four square-drawn places for a
+ * shader whose place is one of them, else its own place alone.
+ * @param place - Its default place.
+ * @returns The places.
  */
-export interface ShaderPlace {
-    /** What it draws on. */
-    readonly target: ShaderTarget;
-    /** Its role there. */
-    readonly role: ShaderRole;
+export function defaultPlaces(place: ShaderPlace): readonly ShaderPlace[] {
+    return SQUARE_PLACES.includes(place) ? SQUARE_PLACES : [place];
 }
 
 /**
- * How a node look is drawn: on the node's own shape (`"shape"`, the default), or as a flat card
- * facing the camera in place of the shape (`"card"`), which covers every shape channel.
+ * Whether `minSize` can apply at any of these places.
+ * @param places - The places a shader allows.
+ * @returns True when one of them draws a square reaching outside the node.
+ */
+export function minSizeApplies(places: readonly ShaderPlace[]): boolean {
+    return places.some((place) => MIN_SIZE_PLACES.includes(place));
+}
+
+/**
+ * The problem with using a shader at a place, or null when the shader allows it.
+ * @param descriptor - The shader: its id, target and the places it allows.
+ * @param place - Where the use draws; absent means the shader's own place.
+ * @returns `shader.place-unsupported` `{ shader, place, allowed }`, or null.
  * @since 3.36.0
  */
-export type ShaderGeometry = "shape" | "card";
+export function shaderPlaceProblem(
+    descriptor: Pick<ShaderDescriptor, "id" | "target" | "place" | "places">,
+    place: ShaderPlace | undefined,
+): ShaderProblem | null {
+    const own = descriptor.place;
+    const allowed = descriptor.places ?? (own === undefined ? [] : defaultPlaces(own));
+    const wanted = place ?? own;
+    if (wanted !== undefined && allowed.includes(wanted)) {
+        return null;
+    }
+
+    return {
+        code: "shader.place-unsupported",
+        params: { shader: descriptor.id, place: wanted ?? "", allowed },
+    };
+}
 
 /**
  * The frame a shader's thumbnail is drawn from: its parameters and the time, in seconds.
@@ -63,53 +112,128 @@ export interface ShaderPreview {
 }
 
 /**
- * The seven drawings the renderer tells apart: a target, a role and, for a node look, its
- * geometry. Internal; nothing public names it.
+ * The drawings the renderer tells apart, keyed by target and place: a node's surface, a node's
+ * square in place of its shape (`replace`), a node's square over, around or behind it, an edge's
+ * surface, a strip along an edge, a group outline and the background. Internal; nothing public
+ * names it.
  */
 export type ShaderDrawing =
-    "node-look" | "node-card" | "node-effect" | "edge-look" | "edge-effect" | "background" | "group";
+    "node-paint" | "node-replace" | "node-square" | "edge-paint" | "edge-along" | "background" | "group";
 
 /**
- * The drawing a shader asks the renderer for.
- * @param descriptor - Its target, role and geometry.
+ * The drawing a shader asks the renderer for at a place.
+ * @param descriptor - Its target and its default place.
+ * @param place - The place of the use; absent means the shader's own.
  * @returns The drawing.
  */
-export function drawingOf(descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry">): ShaderDrawing {
-    const { target, role } = descriptor;
+export function drawingOf(
+    descriptor: Pick<ShaderDescriptor, "target" | "place">,
+    place = descriptor.place,
+): ShaderDrawing {
+    const { target } = descriptor;
     if (target === "group" || target === "background") {
         return target;
     }
 
-    if (role === "effect") {
-        return `${target}-effect`;
+    if (target === "edge") {
+        return place === "along" ? "edge-along" : "edge-paint";
     }
 
-    return target === "node" && descriptor.geometry === "card" ? "node-card" : `${target}-look`;
+    if (place === "replace") {
+        return "node-replace";
+    }
+
+    return place === "over" || place === "around" || place === "behind" ? "node-square" : "node-paint";
 }
 
 /**
- * What a shader takes from the layers beneath and from element state. `times` is the entered,
- * exited and changed times; `members` is a boundary's members.
+ * Whether a shader is drawn in place of its target's paint (`"look"`: `paint` and `replace`, a
+ * group outline, the background) or stacks on it (`"effect"`). The single shader channels and the
+ * effects maps key on it until the shader lists replace them.
+ * @since 3.36.0
+ */
+export type ShaderSlotRole = "look" | "effect";
+
+/** What a single shader channel takes: a target and a slot role. @since 3.36.0 */
+export interface ShaderSlot {
+    readonly target: ShaderTarget;
+    readonly role: ShaderSlotRole;
+}
+
+/**
+ * The slot role of a shader at its own place.
+ * @param descriptor - Its target and place.
+ * @returns `"effect"` for a node square that is not `replace` and for `along`, else `"look"`.
+ */
+export function slotRoleOf(descriptor: Pick<ShaderDescriptor, "target" | "place">): ShaderSlotRole {
+    const drawing = drawingOf(descriptor);
+    return drawing === "node-square" || drawing === "edge-along" ? "effect" : "look";
+}
+
+/**
+ * What a shader takes from the layers beneath, from element state and from the scene. `times` is
+ * the clocks (`sinceMatched`, `sinceChanged` and the rest); `members` is a group's members;
+ * `light` is the scene's light (`lightDir`), so a gallery can say it reacts to the light.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
 export type ShaderInput =
-    "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members";
+    | "color"
+    | "opacity"
+    | "size"
+    | "shape"
+    | "width"
+    | "selected"
+    | "hovered"
+    | "pinned"
+    | "times"
+    | "members"
+    | "light";
 
 /**
- * How a shader moves. One shape everywhere; the strings `"still"` and `"loop"` are shorthand.
+ * Whether a shader animates on its own. One shape everywhere; the strings `"still"` and `"loop"`
+ * are shorthand. A shader loops when its body reads its input's `time` field; this is a declared
+ * override of that, a fact the element uses for reduced motion and quality, never a trigger. When
+ * a shader draws is its layer's condition, and how it plays in or out is a parameter bound to a
+ * clock ({@link ShaderClockBinding}).
  * @since 3.36.0
  */
 export interface ShaderMotion {
     /** Animates while on screen; still while the named parameter is 0. */
     readonly loop?: { readonly speedParam?: string };
-    /** Seconds of an entrance played when an element starts carrying the shader. */
+}
+
+/** How long a shader plays on each moment of an element, in seconds. Internal. */
+export interface ShaderTiming {
     readonly enter?: number;
-    /** Seconds the element keeps drawing it after it stops carrying it. */
     readonly exit?: number;
-    /** Seconds played when the element's data changes (or it is added or removed). */
     readonly change?: number;
+}
+
+/**
+ * How long a shader plays when an element starts carrying it, stops carrying it, and changes: the
+ * end of the domain of its parameters bound to `since.matched` (or `since.added`),
+ * `since.unmatched` and `since.changed`. Internal: the renderer's timed plays read it.
+ * @param descriptor - The shader's parameters, if it is known.
+ * @returns The seconds, each absent when no parameter is bound to that clock.
+ */
+export function timingOf(descriptor: Pick<ShaderDescriptor, "params"> | undefined): ShaderTiming {
+    const end = (clocks: readonly ShaderClock[]): number | undefined => {
+        const ends = (descriptor?.params ?? []).flatMap((param) =>
+            isClockBinding(param.default) && clocks.includes(param.default.by) ? [param.default.domain[1]] : [],
+        );
+        return ends.length === 0 ? undefined : Math.max(...ends);
+    };
+    const enter = end(["since.matched", "since.added"]);
+    const exit = end(["since.unmatched"]);
+    const change = end(["since.changed"]);
+
+    return {
+        ...(enter === undefined ? {} : { enter }),
+        ...(exit === undefined ? {} : { exit }),
+        ...(change === undefined ? {} : { change }),
+    };
 }
 
 /** A {@link ShaderMotion}, or its shorthand: `"still"` is `{}`, `"loop"` is `{ loop: {} }`. @since 3.36.0 */
@@ -132,9 +256,72 @@ export type ShaderCost = "light" | "medium" | "heavy";
 export type ShaderRequirement = "webgl2";
 
 /**
+ * A clock: the seconds since a moment of an element, as the `since.*` paths spell it. A moment that
+ * never happened reads as -1. In a body the same clock is the input's field `sinceX` for `since.x`.
+ *
+ * OPEN UNION: members may be added in a minor release; handle unknown members.
+ * @since 3.36.0
+ */
+export type ShaderClock =
+    | "since.selected"
+    | "since.deselected"
+    | "since.hovered"
+    | "since.unhovered"
+    | "since.pinned"
+    | "since.unpinned"
+    | "since.added"
+    | "since.changed"
+    | "since.matched"
+    | "since.unmatched";
+
+/** Every clock a parameter may be bound to. */
+export const SHADER_CLOCKS: readonly ShaderClock[] = Object.freeze([
+    "since.selected",
+    "since.deselected",
+    "since.hovered",
+    "since.unhovered",
+    "since.pinned",
+    "since.unpinned",
+    "since.added",
+    "since.changed",
+    "since.matched",
+    "since.unmatched",
+]);
+
+/**
+ * A number or color parameter bound to a clock, as its default: the seconds `by` reads, mapped
+ * linearly from `domain` onto `range` and clamped. `range` defaults to `[0, 1]` for a number; a
+ * color gives two `#rrggbb` colors. The element stops drawing frames for an element once its clock
+ * has left the domain.
+ *
+ * ```ts
+ * fade: { by: "since.matched", domain: [0, 0.3] }
+ * ```
+ * @since 3.36.0
+ */
+export interface ShaderClockBinding {
+    /** The clock. */
+    readonly by: ShaderClock;
+    /** The seconds that map onto the range, first below the second. */
+    readonly domain: readonly [number, number];
+    /** What they map onto. Default `[0, 1]`; a color parameter gives two colors. */
+    readonly range?: readonly [number, number] | readonly [string, string];
+}
+
+/**
+ * Whether a value is a clock binding.
+ * @param value - Anything.
+ * @returns True for an object with a `by`.
+ */
+export function isClockBinding(value: unknown): value is ShaderClockBinding {
+    return typeof value === "object" && value !== null && !Array.isArray(value) && "by" in value;
+}
+
+/**
  * A shader parameter: an ordinary option descriptor (the type every algorithm and layout uses, so
  * an option form draws it), with two shader facts. Its type is one of "number", "integer",
- * "boolean", "enum" and "color".
+ * "boolean", "enum" and "color". A number or color parameter's `default` may be a
+ * {@link ShaderClockBinding}; there is no clock parameter type.
  * @since 3.36.0
  */
 export type ShaderParamDescriptor = OptionDescriptor & {
@@ -187,15 +374,23 @@ export interface ShaderDescriptor {
     readonly plainName: string;
     /** What it draws on, read from the entry function's input. */
     readonly target: ShaderTarget;
-    /** Whether it replaces how its target is painted or is drawn on or around it. */
-    readonly role: ShaderRole;
-    /** Node looks: on the node's shape (absent means `"shape"`), or a card in its place. */
-    readonly geometry?: ShaderGeometry;
     /**
-     * Effects: the smallest on-screen radius, in CSS pixels, the effect is drawn at, so its detail
-     * survives a far camera. Absent means it scales with the node.
+     * Where a use draws when it names no place. Default `"paint"` on a node or edge, `"group"` for
+     * a group outline; the background has none.
      */
-    readonly minPixels?: number;
+    readonly place?: ShaderPlace;
+    /**
+     * Where a use may draw. Default: all four square-drawn places (`replace`, `over`, `around`,
+     * `behind`) for a shader whose place is one of them, else its place alone. `place` is among
+     * them. The catalog always lists it, except for the background.
+     */
+    readonly places?: readonly ShaderPlace[];
+    /**
+     * The smallest size, in CSS pixels, the square of `replace`, `around` and `behind` is drawn
+     * at. Declaring it adds a number parameter `minSize` with this default, which a use can change,
+     * set to 0 (off) or bind. Absent: it scales with the node.
+     */
+    readonly minSize?: number;
     /** Catalog data: where a gallery may file it, such as `"Glass"`. An application orders them. */
     readonly categories?: readonly string[];
     /** The frame its thumbnail is drawn from. */
@@ -218,9 +413,9 @@ export interface ShaderDescriptor {
     readonly requires?: readonly ShaderRequirement[];
     /** Whether it contributes to the shared bloom pass. */
     readonly bloom?: boolean;
-    /** Effects: the drawn square is `reach` times the radius, 1 to 6. Absent means 1. */
+    /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. Absent means 1. */
     readonly reach?: number;
-    /** Effects and boundaries: how the result combines. Absent means `"over"`. */
+    /** Stacking places and group outlines: how the result combines. Absent means `"over"`. */
     readonly blend?: "over" | "add";
     /** Boundaries: a splatted field or one sphere per group. Absent means `"field"`. */
     readonly form?: "field" | "sphere";
@@ -321,6 +516,8 @@ export type ShaderProblemCode =
     | "shader.webgpu-unsupported"
     | "shader.unknown"
     | "shader.target-mismatch"
+    | "shader.place-unsupported"
+    | "shader.min-size-place"
     | "shader.held"
     | "shader.quarantined"
     | "shader.flashing"
@@ -338,8 +535,11 @@ export type ShaderProblemCode =
 export interface ShaderProblem {
     /** What is wrong. */
     readonly code: ShaderProblemCode;
-    /** Its values: `line` and `column` (1-based, in the whole text) where the problem has a place. */
-    readonly params: Readonly<Record<string, string | number>>;
+    /**
+     * Its values: `line` and `column` (1-based, in the whole text) where the problem has a place; a
+     * list (the `allowed` places) where it names several.
+     */
+    readonly params: Readonly<Record<string, string | number | readonly string[]>>;
 }
 
 /**
@@ -356,15 +556,13 @@ export interface ShaderRegistration {
     /** The catalog facts. The element fills in what is left out. */
     readonly descriptor: Omit<
         ShaderDescriptor,
-        "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target" | "role"
+        "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target"
     > & {
         /**
          * What it draws on. Default: read from the body's entry function; required when `glsl` is
          * a loader, whose body is not read until something draws it.
          */
         readonly target?: ShaderTarget;
-        /** Default: `"effect"` when `reach` is given (nodes and edges), else `"look"`. */
-        readonly role?: ShaderRole;
         /** Default: the static checker's class (`"heavy"` until a loader's body is read). */
         readonly cost?: ShaderCost;
         /** Default: inferred from the body. */
@@ -379,7 +577,7 @@ export interface ShaderRegistration {
     /** An optional native WebGPU body (`webgpu: "native"`). */
     readonly wgsl?: string;
     /**
-     * An optional cheaper GLSL body with the same entry and parameters, for a heavy look: the
+     * An optional cheaper GLSL body with the same entry and parameters, for a heavy paint: the
      * element draws it for a whole batch while the median node on screen is under 12 px, chosen
      * each time the camera comes to rest. Checked as `glsl` is. In shader text it is the entry
      * `vec4 shadeFar(...)`.
@@ -399,17 +597,14 @@ export type ShaderTextResult =
     | {
           readonly ok: true;
           readonly registration: ShaderRegistration & {
-              readonly descriptor: ShaderRegistration["descriptor"] & {
-                  readonly target: ShaderTarget;
-                  readonly role: ShaderRole;
-              };
+              readonly descriptor: ShaderRegistration["descriptor"] & { readonly target: ShaderTarget };
               readonly glsl: string;
               readonly lowDetail?: string;
           };
       }
     | { readonly ok: false; readonly problems: readonly ShaderProblem[] };
 
-/** The channels the shape rows draw, which a card draws instead. */
+/** The channels the shape rows draw, which a `replace` shader draws instead. */
 const CARD_COVERS: readonly Channel[] = [
     "node.shape",
     "node.width",
@@ -427,35 +622,33 @@ const CARD_COVERS: readonly Channel[] = [
 ];
 
 /**
- * Every channel one shader covers on an element it is drawn on: what is no longer drawn there,
- * whichever layer beneath wrote it.
+ * Every channel one shader covers on an element it is drawn on at its own place: what is no longer
+ * drawn there, whichever layer beneath wrote it.
  *
- * - A card covers every shape channel.
- * - A node look covers flat, unlit and wireframe.
- * - An edge look covers `edge.style` and `edge.patternCount`.
- * - A look that does not read `"color"` also covers the color, and one that does not read
- *   `"opacity"` the opacity.
- * - Effects, group and background shaders cover nothing.
+ * - `replace` covers every shape channel.
+ * - A node's `paint` covers flat, unlit and wireframe.
+ * - An edge's `paint` covers `edge.style` and `edge.patternCount`.
+ * - `paint` and `replace` that do not read `"color"` also cover the color, and ones that do not
+ *   read `"opacity"` the opacity.
+ * - Every other place, group and background shaders cover nothing.
  *
- * A card and a shape follow "the topmost layer wins": a `node.shape` on a layer above the card's
- * draws the shape on those nodes, and the card is not drawn there.
+ * `replace` and a shape follow "the topmost layer wins": a `node.shape` on a layer above the
+ * shader's draws the shape on those nodes, and the shader is not drawn there.
  * @param descriptor - The shader.
  * @returns The covered channels.
  * @since 3.36.0
  */
-export function shaderCovers(
-    descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry" | "reads">,
-): readonly Channel[] {
+export function shaderCovers(descriptor: Pick<ShaderDescriptor, "target" | "place" | "reads">): readonly Channel[] {
     const drawing = drawingOf(descriptor);
     let covered: Channel[];
     switch (drawing) {
-        case "node-card":
+        case "node-replace":
             covered = [...CARD_COVERS];
             break;
-        case "node-look":
+        case "node-paint":
             covered = ["node.flat", "node.unlit", "node.wireframe"];
             break;
-        case "edge-look":
+        case "edge-paint":
             covered = ["edge.style", "edge.patternCount"];
             break;
         default:

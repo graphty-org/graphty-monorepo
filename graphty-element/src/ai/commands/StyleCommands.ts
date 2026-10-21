@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 
+import { slotRoleOf } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
@@ -385,8 +386,8 @@ export const findAndStyleNodes: GraphCommand = {
                 };
             }
 
-            const { id, role } = added.descriptor;
-            if (role === "effect") {
+            const { id } = added.descriptor;
+            if (slotRoleOf(added.descriptor) === "effect") {
                 set["node.effects"] = { [id]: true };
             } else {
                 set["node.shader"] = id;

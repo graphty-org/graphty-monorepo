@@ -28,16 +28,15 @@ import {
 import {
     drawingOf,
     type ShaderDescriptor,
-    type ShaderGeometry,
     type ShaderParams,
     type ShaderPlace,
     type ShaderProblem,
     type ShaderRegistration,
-    type ShaderRole,
     type ShaderTarget,
     type ShaderText,
+    timingOf,
 } from "../catalog/shaders";
-import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC } from "../catalog/shaderText";
+import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC, type ShaderTextOptions } from "../catalog/shaderText";
 import type { LayerId, LayerSpec } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import { sha256Hex } from "../utils/sha256";
@@ -87,10 +86,8 @@ export interface ProjectShader {
     readonly plainName: string;
     /** What it draws on. */
     readonly target: ShaderTarget;
-    /** Whether it is a look or an effect. */
-    readonly role: ShaderRole;
-    /** A node look's geometry, when it draws a card in place of the shape. */
-    readonly geometry?: ShaderGeometry;
+    /** Where a use draws when it names none; absent for the background. */
+    readonly place?: ShaderPlace;
     /** The SHA-256 of its text, as 64 hex digits. */
     readonly hash: string;
     /** What it is doing. */
@@ -108,10 +105,11 @@ export interface ShaderAddOptions {
      */
     readonly source?: "reader" | "content";
     /**
-     * Where the shader is being added. Text that declares no `role` (and no `reach`) takes this
-     * role; text whose entry function draws on another target, or that declares another role, is
+     * What the shader is being added for: text whose entry function draws on another target is
      * refused with `shader.target-mismatch`.
      */
+    readonly target?: ShaderTarget;
+    /** The place text that names none takes, when its target allows it. */
     readonly place?: ShaderPlace;
     /** When the header's id is taken: refuse (the default) or add under the next free id. */
     readonly onTaken?: "refuse" | "rename";
@@ -398,7 +396,7 @@ export interface ShadersSources {
 
 /** A shader with its descriptor complete and its bodies loaded: what the renderer compiles. */
 export interface LoadedRegistration {
-    readonly descriptor: ShaderRegistration["descriptor"] & Pick<ShaderDescriptor, "target" | "role">;
+    readonly descriptor: ShaderRegistration["descriptor"] & Pick<ShaderDescriptor, "target">;
     readonly glsl: string;
     readonly wgsl?: string;
     readonly lowDetail?: string;
@@ -569,16 +567,16 @@ function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: Shade
     };
     const drawing = drawingOf(descriptor);
     switch (drawing) {
-        case "node-look":
-        case "node-card":
+        case "node-paint":
+        case "node-replace":
             surface("node");
             break;
-        case "edge-look":
+        case "edge-paint":
             surface("edge");
             break;
-        case "node-effect":
-        case "edge-effect": {
-            const channel = drawing === "node-effect" ? "node.effects" : "edge.effects";
+        case "node-square":
+        case "edge-along": {
+            const channel = drawing === "node-square" ? "node.effects" : "edge.effects";
             const effects = Object.assign(Object.create(null) as Record<string, unknown>, set[channel]);
             effects[descriptor.id] = given ? params : true;
             set[channel] = effects;
@@ -707,28 +705,28 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     /**
      * Read a text: parse, hash, describe. Cached by text.
      * @param text - The text.
-     * @param place - Where it is being added, which supplies a role the text leaves out.
+     * @param place - Where it is being added: its target, and the place text that names none takes.
      * @param id - An id to give it in place of its header's.
      * @returns What it read into, or the problems.
      */
-    const readText = (text: string, place?: ShaderPlace, id?: string): ReadText | readonly ShaderProblem[] => {
-        const key = `${place === undefined ? "" : `${place.target} ${place.role}`}\u0000${id ?? ""}\u0000${text}`;
+    const readText = (text: string, place?: ShaderTextOptions, id?: string): ReadText | readonly ShaderProblem[] => {
+        const key = `${place?.target ?? ""} ${place?.place ?? ""}\u0000${id ?? ""}\u0000${text}`;
         const cached = read.get(key);
         if (cached !== undefined) {
             return cached;
         }
 
-        const parsed = parseShaderText(text, place === undefined ? undefined : { place });
+        const parsed = parseShaderText(text, place);
         let result: ReadText | readonly ShaderProblem[];
         if (parsed.ok) {
             const registration = id === undefined ? parsed.registration : renamed(parsed.registration, id);
             const headed =
                 text.includes(SHADER_TEXT_MAGIC) && registration.descriptor.id === parsed.registration.descriptor.id;
-            // A role the place supplied is written into the stored text, so it reads back the same
-            // with no place: a saved project is opened with none.
+            // A place the options supplied is written into the stored text, so it reads back the same
+            // with no options: a saved project is opened with none.
             const alone = place === undefined ? parsed : parseShaderText(text);
-            const keepsRole = alone.ok && alone.registration.descriptor.role === registration.descriptor.role;
-            const stored = headed && keepsRole ? text : formatShaderText(registration);
+            const keepsPlace = alone.ok && alone.registration.descriptor.place === registration.descriptor.place;
+            const stored = headed && keepsPlace ? text : formatShaderText(registration);
             const hash = sha256Hex(stored);
             try {
                 result = {
@@ -761,7 +759,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      */
     const catalogCopy = (
         text: string,
-        place: ShaderPlace | undefined,
+        place: ShaderTextOptions | undefined,
         id: string | undefined,
         problems: readonly ShaderProblem[],
     ): ReadText | undefined => {
@@ -944,7 +942,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "still", problem: { code: "shader.flashing", params: { id: descriptor.id } } };
         }
 
-        const { loop, enter, exit, change } = descriptor.motion;
+        const { loop } = descriptor.motion;
+        const { enter, exit, change } = timingOf(descriptor);
         const moves = loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0;
         if (moves && (quality.motion === "paused" || quality.motion === "still")) {
             let reason = settings.motion === "off" ? "setting" : "system";
@@ -1251,7 +1250,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         if (taken(wanted, shader.text)) {
             const free = freeId(wanted, (candidate) => taken(candidate));
             if (options.onTaken === "rename") {
-                shader = readText(read.copyOf === undefined ? text : read.text, options.place, free) as ReadText;
+                shader = readText(read.copyOf === undefined ? text : read.text, options, free) as ReadText;
             } else {
                 problems.push({ code: "shader.id-taken", params: { id: wanted, free } });
             }
@@ -1365,7 +1364,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
     const api: SessionShaders = {
         add(text, options = {}) {
-            const first = readText(text, options.place);
+            const first = readText(text, options);
             if (Array.isArray(first)) {
                 return Promise.resolve({ ok: false, problems: first as readonly ShaderProblem[] });
             }
@@ -1383,7 +1382,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         },
 
         async check(text, options = {}) {
-            const first = readText(text, options.place);
+            const first = readText(text, options);
             if (Array.isArray(first)) {
                 return { ok: false, problems: first as readonly ShaderProblem[] };
             }
@@ -1475,10 +1474,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                             id,
                             plainName: shader.descriptor.plainName,
                             target: shader.descriptor.target,
-                            role: shader.descriptor.role,
-                            ...(shader.descriptor.geometry === undefined
-                                ? {}
-                                : { geometry: shader.descriptor.geometry }),
+                            ...(shader.descriptor.place === undefined ? {} : { place: shader.descriptor.place }),
                             hash: shader.hash,
                             state: statusOf(shader).state,
                             usedBy: counts.get(id) ?? 0,
@@ -1851,10 +1847,10 @@ async function bodyOf(id: string): Promise<string | undefined> {
 /**
  * The place a project shader was added for, so a replacement text keeps it.
  * @param descriptor - The shader's descriptor, if the project holds it.
- * @returns Its target and role, or undefined.
+ * @returns Its target and place, or undefined.
  */
-function placeOf(descriptor: ShaderDescriptor | undefined): ShaderPlace | undefined {
-    return descriptor === undefined ? undefined : { target: descriptor.target, role: descriptor.role };
+function placeOf(descriptor: ShaderDescriptor | undefined): ShaderTextOptions | undefined {
+    return descriptor === undefined ? undefined : { target: descriptor.target, place: descriptor.place };
 }
 
 /**

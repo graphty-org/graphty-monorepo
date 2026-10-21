@@ -2,7 +2,7 @@
 {
     "id": "lab/comet-tracers",
     "name": "comet-tracers",
-    "role": "effect",
+    "place": "along",
     "params": [
         {
             "name": "speed",

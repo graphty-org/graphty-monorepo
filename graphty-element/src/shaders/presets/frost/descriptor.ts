@@ -17,7 +17,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "frost",
     plainName: "Frost",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Glass"]),
     params: Object.freeze([
         Object.freeze({
@@ -37,8 +37,8 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         }),
         Object.freeze({ name: "sparkle", plainName: "Sparkle", type: "number", default: 0.8, min: 0, max: 1 }),
     ]),
-    reads: Object.freeze(["color", "times"] as const),
-    motion: Object.freeze({ enter: 2, exit: 1 }),
+    reads: Object.freeze(["color", "times", "light"] as const),
+    motion: Object.freeze({}),
     cost: "medium",
     origin: "element",
     webgpu: "translate",

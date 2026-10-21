@@ -10,7 +10,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "uncertainty-aura",
     plainName: "Aura",
     target: "node",
-    role: "effect",
+    place: "around",
     categories: Object.freeze(["Data"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         {

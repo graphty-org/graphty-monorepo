@@ -2,7 +2,7 @@
 {
     "id": "lab/change-flash",
     "name": "Change flash",
-    "role": "effect",
+    "place": "around",
     "params": [
         {
             "name": "flashColor",

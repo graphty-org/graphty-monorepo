@@ -165,7 +165,7 @@ describe("a card and a shape on two layers", () => {
     it("draws whichever the higher layer sets, and names a lower shape covered", async () => {
         defineShader({
             id: "guide/card",
-            geometry: "card",
+            place: "replace",
             glsl: "vec4 shade(NodeInput n) { return vec4(0.0, 1.0, 0.0, 1.0); }",
         });
 

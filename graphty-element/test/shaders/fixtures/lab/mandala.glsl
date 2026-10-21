@@ -2,7 +2,7 @@
 {
     "id": "lab/mandala",
     "name": "Mandala",
-    "geometry": "card",
+    "place": "replace",
     "params": [
         {
             "name": "folds",

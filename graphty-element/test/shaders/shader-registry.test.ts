@@ -38,7 +38,7 @@ describe("defineShader", () => {
     it("registers a shader from the short form, filling in what was left out", () => {
         defineShader({
             id: "acme/pulse-ring",
-            role: "effect",
+            place: "around",
             reach: 2,
             params: {
                 tint: "#FFAA00",
@@ -127,22 +127,22 @@ describe("registerShader", () => {
 });
 
 describe("what a shader covers", () => {
-    it("follows the target, role and geometry, plus color and opacity for a look that does not read them", () => {
-        const card = shaderCovers({ target: "node", role: "look", geometry: "card", reads: ["color", "opacity"] });
+    it("follows the target and place, plus color and opacity for paint or replace that do not read them", () => {
+        const card = shaderCovers({ target: "node", place: "replace", reads: ["color", "opacity"] });
         assert.include(card, "node.shape");
         assert.notInclude(card, "node.size");
-        assert.deepEqual(shaderCovers({ target: "node", role: "effect", reads: [] }), []);
-        assert.deepEqual(shaderCovers({ target: "group", role: "look", reads: [] }), []);
-        assert.deepEqual(shaderCovers({ target: "node", role: "look", reads: ["color", "opacity"] }), [
+        assert.deepEqual(shaderCovers({ target: "node", place: "around", reads: [] }), []);
+        assert.deepEqual(shaderCovers({ target: "group", place: "group", reads: [] }), []);
+        assert.deepEqual(shaderCovers({ target: "node", place: "paint", reads: ["color", "opacity"] }), [
             "node.flat",
             "node.unlit",
             "node.wireframe",
         ]);
         assert.includeMembers(
-            [...shaderCovers({ target: "node", role: "look", geometry: "card", reads: ["size"] })],
+            [...shaderCovers({ target: "node", place: "replace", reads: ["size"] })],
             ["node.color", "node.opacity"],
         );
-        assert.include(shaderCovers({ target: "edge", role: "look", reads: [] }), "edge.color");
-        assert.includeMembers([...shaderCovers({ target: "edge", role: "look", reads: ["color"] })], ["edge.style"]);
+        assert.include(shaderCovers({ target: "edge", place: "paint", reads: [] }), "edge.color");
+        assert.includeMembers([...shaderCovers({ target: "edge", place: "paint", reads: ["color"] })], ["edge.style"]);
     });
 });

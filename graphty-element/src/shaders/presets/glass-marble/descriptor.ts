@@ -12,7 +12,7 @@ export const GLASS_MARBLE: ShaderDescriptor = Object.freeze({
     id: "glass-marble",
     plainName: "Glass marble",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Glass"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "twist", plainName: "Twist", type: "number", default: 2.2, min: 0, max: 8, primary: true },
@@ -24,7 +24,7 @@ export const GLASS_MARBLE: ShaderDescriptor = Object.freeze({
         { name: "glassTint", plainName: "Glass tint", type: "color", default: "#cfe6ff" },
         { name: "secondColor", plainName: "Second color", type: "color", default: "#f2efe6" },
     ]),
-    reads: Object.freeze<ShaderInput[]>(["color"]),
+    reads: Object.freeze<ShaderInput[]>(["color", "light"]),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "spin" }) }),
     cost: "heavy",
     origin: "element",

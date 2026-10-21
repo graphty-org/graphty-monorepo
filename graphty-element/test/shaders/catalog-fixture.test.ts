@@ -188,7 +188,7 @@ describe("the shader presets", () => {
 
     // The registry hands every heavy node look a low-detail loader, so the two lists must agree.
     it("has a small-size program for exactly the heavy node looks", () => {
-        const heavy = SHADER_PRESETS.filter((preset) => preset.cost === "heavy" && drawingOf(preset) === "node-look");
+        const heavy = SHADER_PRESETS.filter((preset) => preset.cost === "heavy" && drawingOf(preset) === "node-paint");
         assert.sameMembers(
             heavy.map((preset) => preset.id),
             Object.keys(SHADER_PRESET_LOW_DETAIL),

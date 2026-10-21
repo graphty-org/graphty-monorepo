@@ -27,7 +27,7 @@ const TINT = `/* graphty-shader 1
 {
     "id": "user/tint",
     "name": "Tint",
-    "role": "look",
+    "place": "paint",
     "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }]
 }
 */
@@ -38,7 +38,7 @@ vec4 shade(NodeInput n) {
 
 /** A node effect. */
 const RING = `/* graphty-shader 1
-{ "id": "user/ring", "name": "Ring", "role": "effect", "reach": 2, "motion": "loop" }
+{ "id": "user/ring", "name": "Ring", "place": "around", "reach": 2, "motion": "loop" }
 */
 vec4 shade(NodeInput n) {
     float ring = smoothstep(0.04, 0.0, abs(length(n.uv) - fract(n.time)));
@@ -398,8 +398,8 @@ describe("session.shaders", () => {
         const host = fakeHost();
         shadersControllerOf(s)?.attach(host);
         const previewed = TINT.replace(
-            '"role": "look",',
-            '"role": "look", "preview": { "params": { "amount": 0.3 }, "time": 2.5 },',
+            '"place": "paint",',
+            '"place": "paint", "preview": { "params": { "amount": 0.3 }, "time": 2.5 },',
         );
         await s.shaders.add(previewed);
         const asked: unknown[] = [];
@@ -483,7 +483,7 @@ describe("session.shaders", () => {
         const host = fakeHost();
         const controller = shadersControllerOf(s);
         controller?.attach(host);
-        const heavy = TINT.replace('"role": "look",', '"role": "look", "cost": "heavy",');
+        const heavy = TINT.replace('"place": "paint",', '"place": "paint", "cost": "heavy",');
         await s.shaders.add(heavy);
         await s.shaders.add(TINT.replace('"user/tint"', '"user/light"'));
         // glass-marble is a heavy preset; pearl a light one.
@@ -525,7 +525,7 @@ describe("session.shaders", () => {
         const host = fakeHost();
         const controller = shadersControllerOf(s);
         controller?.attach(host);
-        await s.shaders.add(TINT.replace('"role": "look",', '"role": "look", "cost": "heavy",'));
+        await s.shaders.add(TINT.replace('"place": "paint",', '"place": "paint", "cost": "heavy",'));
         host.guard.lend({
             claimed: () => true,
             heavyOnScreen: () => false,
@@ -630,14 +630,14 @@ describe("session.shaders", () => {
 
     it("names a missing or wrong entry function, not a missing header", async () => {
         const { session: s } = await session();
-        const codes = async (text: string, role?: "look"): Promise<string[]> => {
-            const checked = await s.shaders.check(text, role === undefined ? {} : { place: { target: "node", role } });
+        const codes = async (text: string, place?: "paint"): Promise<string[]> => {
+            const checked = await s.shaders.check(text, place === undefined ? {} : { target: "node", place });
             return checked.ok ? [] : checked.problems.map((each) => each.code);
         };
         assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n"), ["shader.entry-signature"]);
         assert.deepEqual(await codes("vec4 shade(Node n) { return n.color; }\n"), ["shader.entry-signature"]);
         assert.deepEqual(await codes("vec4 paint(NodeInput n) { return n.color; }\n"), ["shader.entry-missing"]);
-        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n", "look"), [
+        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n", "paint"), [
             "shader.entry-signature",
         ]);
         // A node body with no header is a node look: its entry says the target, and no place asked

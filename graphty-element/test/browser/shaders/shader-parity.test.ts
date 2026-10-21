@@ -19,7 +19,7 @@ import { drawnFrames } from "../../helpers/drawn-frames";
 
 /** A pasted node effect with no picture of its own: an orange ring around the node. */
 const RING = `/* graphty-shader 1
-{ "id": "user/ring", "name": "Ring", "role": "effect", "reach": 2.5 }
+{ "id": "user/ring", "name": "Ring", "place": "around", "reach": 2.5 }
 */
 vec4 shade(NodeInput n) {
     float ring = smoothstep(0.25, 0.0, abs(length(n.uv) - 1.8));
@@ -185,7 +185,7 @@ describe("the flashing check, for every origin", () => {
     it("freezes a registered effect that flashes 10 times a second, with shader.flashing", async () => {
         defineShader({
             id: "parity/strobe",
-            role: "effect",
+            place: "around",
             reach: 4,
             motion: "loop",
             glsl: "vec4 shade(NodeInput n) { float on = step(0.5, fract(n.time * 10.0)); return vec4(vec3(on), 1.0); }",

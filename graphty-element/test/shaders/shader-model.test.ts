@@ -1,8 +1,8 @@
 /**
- * @file The shader model: four targets and one role, the text format that carries every fact a
+ * @file The shader model: four targets and a place, the text format that carries every fact a
  * preset needs, the templates for each place, loaders for bodies, and the presets registered
- * through the same checks as everyone else (design/rendering/shader-studio/decisions.md sections
- * 2 and 3).
+ * through the same checks as everyone else (design/rendering/shader-studio/decisions-v2.md
+ * section 6).
  */
 
 import { afterEach, assert, describe, it } from "vitest";
@@ -15,7 +15,7 @@ import {
     shaderDescriptor,
     shaderDescriptors,
 } from "../../src/catalog/shaderRegistry";
-import { drawingOf, drawnShaderParams, type ShaderPlace, type ShaderRegistration } from "../../src/catalog/shaders";
+import { drawingOf, drawnShaderParams, type ShaderRegistration } from "../../src/catalog/shaders";
 import { shaderTemplate } from "../../src/catalog/shaderTemplate";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { isGraphtyError } from "../../src/errors";
@@ -40,7 +40,6 @@ function text(header: Record<string, unknown>, body: string): string {
 
 const NODE_BODY = "vec4 shade(NodeInput n) { return n.color; }\n";
 const EDGE_BODY = "vec4 shade(EdgeInput e) { return e.color; }\n";
-const EFFECT_PLACE: ShaderPlace = { target: "node", role: "effect" };
 
 describe("every preset round-trips through shader text", () => {
     // Pasted text may not take a bare id, so each preset is written under a namespaced copy of its
@@ -68,21 +67,30 @@ describe("every preset round-trips through shader text", () => {
         }
     });
 
-    it("carries every new descriptor fact: shadeFar, motion, minPixels, categories, preview, thumbnail", () => {
+    it("carries every new descriptor fact: shadeFar, place, places, minSize, a clock binding, categories", () => {
         const registration: ShaderRegistration = {
             descriptor: {
                 id: "acme/halo",
                 plainName: "Halo",
                 target: "node",
-                role: "effect",
+                place: "around",
+                places: ["around", "behind"],
                 reach: 3,
-                minPixels: 24,
+                minSize: 24,
                 categories: ["Attention"],
                 preview: { params: { tint: "#00ff00" }, time: 1.5 },
                 thumbnail: "https://example.com/halo.webp",
-                motion: { enter: 0.4 },
+                motion: { loop: {} },
                 cost: "medium",
-                params: [{ name: "tint", plainName: "Tint", type: "color", default: "#ff0000" }],
+                params: [
+                    { name: "tint", plainName: "Tint", type: "color", default: "#ff0000" },
+                    {
+                        name: "fade",
+                        plainName: "Fade",
+                        type: "number",
+                        default: { by: "since.matched", domain: [0, 0.3] },
+                    },
+                ],
             },
             glsl: "float ring(vec2 p) { return length(p); }\nvec4 shade(NodeInput n) { return vec4(tint * ring(n.uv), 1.0); }\n",
             lowDetail:
@@ -101,48 +109,48 @@ describe("every preset round-trips through shader text", () => {
     });
 });
 
-describe("target and role", () => {
+describe("target and place", () => {
     it("reads the target from the entry's input", () => {
         const parsed = parseShaderText(text({}, EDGE_BODY));
         assert.isTrue(parsed.ok);
         assert.strictEqual(parsed.ok && parsed.registration.descriptor.target, "edge");
         const group = parseShaderText("vec4 shade(GroupInput g) { return vec4(g.field); }");
         assert.strictEqual(group.ok && group.registration.descriptor.target, "group");
+        assert.strictEqual(group.ok && group.registration.descriptor.place, "group");
     });
 
-    it("takes the role from the place when the text names none", () => {
-        const parsed = parseShaderText(text({}, NODE_BODY), { place: EFFECT_PLACE });
-        assert.strictEqual(parsed.ok && parsed.registration.descriptor.role, "effect");
+    it("takes the place from the options when the text names none, and paint with none", () => {
+        const parsed = parseShaderText(text({}, NODE_BODY), { place: "around" });
+        assert.strictEqual(parsed.ok && parsed.registration.descriptor.place, "around");
         const alone = parseShaderText(text({}, NODE_BODY));
-        assert.strictEqual(alone.ok && alone.registration.descriptor.role, "look", "with no place, a look");
+        assert.strictEqual(alone.ok && alone.registration.descriptor.place, "paint", "with no place, paint");
+        const named = parseShaderText(text({ place: "behind" }, NODE_BODY), { place: "around" });
+        assert.strictEqual(named.ok && named.registration.descriptor.place, "behind", "the text's own place wins");
     });
 
-    it("makes text with a reach and no role an effect", () => {
-        const parsed = parseShaderText(text({ reach: 2 }, NODE_BODY));
-        assert.strictEqual(parsed.ok && parsed.registration.descriptor.role, "effect");
-    });
-
-    it("refuses a declared role the place does not take", () => {
-        const parsed = parseShaderText(text({ role: "look" }, NODE_BODY), { place: EFFECT_PLACE });
-        assert.deepEqual(parsed, {
-            ok: false,
-            problems: [{ code: "shader.target-mismatch", params: { expected: "effect", found: "look" } }],
-        });
-    });
-
-    it("refuses an entry for another target than the place's", () => {
-        const parsed = parseShaderText(text({}, EDGE_BODY), { place: { target: "node", role: "look" } });
+    it("refuses an entry for another target than the options'", () => {
+        const parsed = parseShaderText(text({}, EDGE_BODY), { target: "node" });
         assert.deepEqual(parsed, {
             ok: false,
             problems: [{ code: "shader.target-mismatch", params: { expected: "node", found: "edge" } }],
         });
     });
 
-    it("refuses an effect on a group, and a card on anything but a node look", () => {
-        const group = parseShaderText(text({ role: "effect" }, "vec4 shade(GroupInput g) { return vec4(0.0); }"));
-        assert.deepEqual(!group.ok && group.problems, [{ code: "shader.header-key", params: { key: "role" } }]);
-        const card = parseShaderText(text({ geometry: "card" }, EDGE_BODY));
-        assert.deepEqual(!card.ok && card.problems, [{ code: "shader.header-key", params: { key: "geometry" } }]);
+    it("refuses a place the target does not draw at, and a list that moves a fixed place", () => {
+        const group = parseShaderText(text({ place: "around" }, "vec4 shade(GroupInput g) { return vec4(0.0); }"));
+        assert.deepEqual(!group.ok && group.problems, [
+            { code: "shader.place-unsupported", params: { shader: "test/case", place: "around", allowed: ["group"] } },
+        ]);
+        const along = parseShaderText(text({ place: "along" }, NODE_BODY));
+        assert.strictEqual(!along.ok && along.problems[0].code, "shader.place-unsupported");
+        const mixed = parseShaderText(text({ place: "paint", places: ["paint", "over"] }, NODE_BODY));
+        assert.deepEqual(!mixed.ok && mixed.problems, [{ code: "shader.header-key", params: { key: "places" } }]);
+        const background = parseShaderText(
+            text({ place: "paint" }, "vec4 shade(BackgroundInput b) { return vec4(1.0); }"),
+        );
+        assert.deepEqual(!background.ok && background.problems, [
+            { code: "shader.header-key", params: { key: "place" } },
+        ]);
     });
 });
 
@@ -166,8 +174,9 @@ describe("motion is inferred from the input's time field", () => {
                 "vec4 shade(NodeInput n) { return n.color * time; }",
             ),
         );
-        // A parameter may not take a struct field's name; whatever the verdict, it never loops.
-        assert.isFalse(parsed.ok && JSON.stringify(parsed.registration.descriptor.motion).includes("loop"));
+        // A parameter may take a field's name, since a field is only ever read after "."; it never loops.
+        assert.isTrue(parsed.ok);
+        assert.isUndefined(parsed.ok ? parsed.registration.descriptor.motion : "refused");
         const named = parseShaderText(
             text(
                 { params: [{ name: "speed", type: "number", default: 1 }] },
@@ -181,29 +190,40 @@ describe("motion is inferred from the input's time field", () => {
 
 describe("shaderTemplate", () => {
     const places = [
-        { target: "node", role: "look" },
-        { target: "node", role: "look", geometry: "card" },
-        { target: "node", role: "effect" },
-        { target: "edge", role: "look" },
-        { target: "edge", role: "effect" },
-        { target: "group", role: "look" },
-        { target: "background", role: "look" },
+        { target: "node", place: "paint" },
+        { target: "node", place: "replace" },
+        { target: "node", place: "over" },
+        { target: "node", place: "around" },
+        { target: "node", place: "behind" },
+        { target: "edge", place: "paint" },
+        { target: "edge", place: "along" },
+        { target: "group", place: "group" },
+        { target: "background" },
     ] as const;
 
     it.each(places.map((place) => [JSON.stringify(place), place] as const))("%s parses and checks", (_name, place) => {
-        const parsed = parseShaderText(shaderTemplate(place), { place: { target: place.target, role: place.role } });
+        // Read with no options: the template's own header says where it draws.
+        const parsed = parseShaderText(shaderTemplate(place));
         assert.isTrue(parsed.ok, JSON.stringify(!parsed.ok && parsed.problems));
         if (parsed.ok) {
             const { descriptor } = parsed.registration;
             assert.strictEqual(descriptor.target, place.target);
-            assert.strictEqual(descriptor.role, place.role);
-            assert.strictEqual(descriptor.geometry, "geometry" in place ? place.geometry : undefined);
+            assert.strictEqual(descriptor.place, "place" in place ? place.place : undefined);
             assert.deepEqual(
                 descriptor.params.map((param) => [param.name, param.type]),
                 [["tint", "color"]],
             );
             assert.deepEqual(checkShaderBody(parsed.registration.glsl, drawingOf(descriptor)).problems, []);
             assert.isAtMost(shaderTemplate(place).split("\n").length, 20, "about 15 lines");
+        }
+    });
+
+    it("refuses a place its target does not draw at", () => {
+        try {
+            shaderTemplate({ target: "edge", place: "around" });
+            assert.fail("it wrote a template");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error) && error.details.code === "shader.place-unsupported");
         }
     });
 });
@@ -222,7 +242,7 @@ describe("registering", () => {
         assert.strictEqual(loads, 0);
         const listed = shaderDescriptor("acme/lazy");
         assert.strictEqual(listed?.target, "node");
-        assert.strictEqual(listed?.role, "look");
+        assert.strictEqual(listed?.place, "paint");
         assert.include(
             shaderDescriptors().map((descriptor) => descriptor.id),
             "acme/lazy",
@@ -312,7 +332,7 @@ describe("a layer's plain shader parameters", () => {
 
 describe("a card and a shape: the topmost layer's is drawn", () => {
     it("names the lower layer's shape covered only while the card's layer is higher", async () => {
-        defineShader({ id: "acme/card", geometry: "card", glsl: NODE_BODY });
+        defineShader({ id: "acme/card", place: "replace", glsl: NODE_BODY });
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);
         const card = (name: string) =>
@@ -337,16 +357,16 @@ describe("a card and a shape: the topmost layer's is drawn", () => {
     });
 });
 
-describe("text added for a place keeps its role when the project is saved", () => {
-    it("writes the role the place supplied into the stored text", async () => {
+describe("text added for a place keeps it when the project is saved", () => {
+    it("writes the place the options supplied into the stored text", async () => {
         const session = createGraphSession();
         const body = text({}, "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 0.5); }");
-        const added = await session.shaders.add(body, { place: EFFECT_PLACE });
+        const added = await session.shaders.add(body, { target: "node", place: "around" });
         assert.isTrue(added.ok, JSON.stringify(added));
         const stored = session.shaders.list()[0];
-        assert.strictEqual(stored.role, "effect");
+        assert.strictEqual(stored.place, "around");
         const reread = parseShaderText(await session.shaders.source(stored.id));
-        assert.strictEqual(reread.ok && reread.registration.descriptor.role, "effect");
+        assert.strictEqual(reread.ok && reread.registration.descriptor.place, "around");
         session.dispose();
     });
 });

@@ -37,7 +37,7 @@ const LIT: ShaderDefinition = {
 /** A five-pointed star sticker with a white border. */
 const STAR: ShaderDefinition = {
     id: "demo/star",
-    geometry: "card",
+    place: "replace",
     glsl: `vec4 shade(NodeInput n) {
         float d = sdStar5(n.uv * vec2(1.0, -1.0), 0.9, 0.45);
         float fill = fillAA(d);
@@ -49,7 +49,7 @@ const STAR: ShaderDefinition = {
 /** A dashed ring around the node, still. */
 const RING: ShaderDefinition = {
     id: "demo/ring",
-    role: "effect",
+    place: "around",
     reach: 1.8,
     glsl: `vec4 shade(NodeInput n) {
         float r = length(n.uv);

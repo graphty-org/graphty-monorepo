@@ -40,7 +40,8 @@ import {
     type ShaderDescriptor,
     type ShaderEffects,
     type ShaderParamSets,
-    type ShaderPlace,
+    type ShaderSlot,
+    slotRoleOf,
 } from "../../catalog/shaders";
 import type {
     Channel,
@@ -1038,13 +1039,13 @@ function coveringShader(
         return null;
     }
 
-    const place = CHANNEL_DESCRIPTORS[channel].shaderPlace;
+    const place = CHANNEL_DESCRIPTORS[channel].shaderSlot;
     if (place === undefined || placeMismatch(place, descriptor) !== null) {
         return null;
     }
 
-    // A card and a shape: the topmost layer's is drawn.
-    const shape = descriptor.geometry === "card" ? winnerOf("node.shape") : undefined;
+    // A `replace` shader and a shape: the topmost layer's is drawn.
+    const shape = descriptor.place === "replace" ? winnerOf("node.shape") : undefined;
     if (shape !== undefined && rankOf(shape) > rankOf(layerId)) {
         return null;
     }
@@ -1060,14 +1061,15 @@ function coveringShader(
  *   null when it fits.
  */
 function placeMismatch(
-    place: ShaderPlace,
-    descriptor: Pick<ShaderDescriptor, "target" | "role">,
+    place: ShaderSlot,
+    descriptor: Pick<ShaderDescriptor, "target" | "place">,
 ): { readonly expected: string; readonly found: string } | null {
     if (descriptor.target !== place.target) {
         return { expected: place.target, found: descriptor.target };
     }
 
-    return descriptor.role === place.role ? null : { expected: place.role, found: descriptor.role };
+    const role = slotRoleOf(descriptor);
+    return role === place.role ? null : { expected: place.role, found: role };
 }
 
 /** Each prepared stack's rank lookup, built once per stack. */
@@ -1215,7 +1217,7 @@ function checkShaderId(tally: ShaderFactTally, channel: Channel, id: string): vo
     if (descriptor === undefined) {
         countFact(tally, "shader.unknown", { channel, shader: id });
     } else {
-        const place = CHANNEL_DESCRIPTORS[channel].shaderPlace;
+        const place = CHANNEL_DESCRIPTORS[channel].shaderSlot;
         const mismatch = place === undefined ? null : placeMismatch(place, descriptor);
         if (mismatch !== null) {
             countFact(tally, "shader.target-mismatch", { channel, shader: id, ...mismatch });

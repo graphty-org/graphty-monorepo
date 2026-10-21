@@ -13,13 +13,13 @@
  */
 
 import type {
+    ShaderClockBinding,
     ShaderCost,
-    ShaderGeometry,
     ShaderInput,
     ShaderMotionInput,
+    ShaderPlace,
     ShaderPreview,
     ShaderRequirement,
-    ShaderRole,
     ShaderSource,
     ShaderTarget,
 } from "../catalog/shaders";
@@ -455,15 +455,23 @@ export interface LogDestinationDefinition {
 
 /**
  * One shader parameter in short form: a bare number or boolean is a parameter of that type with
- * that default, a bare `#rrggbb` string a color; an object is an option in short form plus the
- * two shader facts.
+ * that default, a bare `#rrggbb` string a color, and a {@link ShaderClockBinding} a number (or,
+ * with a range of two colors, a color) bound to a clock. An object is an option in short form plus
+ * the two shader facts; its `type` may be left out when its `default` says it (a number, a boolean,
+ * a `#rrggbb` color).
  * @since 3.36.0
  */
 export type ShaderParamShorthand =
     | number
     | boolean
     | string
-    | (Exclude<OptionShorthand, number | string | boolean> & {
+    | ShaderClockBinding
+    | ((
+          | Exclude<OptionShorthand, number | string | boolean>
+          | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on" | "default">>> & {
+                readonly default: number | boolean | string | ShaderClockBinding;
+            })
+      ) & {
           /** Can be bound per element with `encode` (at most 4 per shader). */
           readonly varies?: boolean;
           /** The parameter that most changes the look. */
@@ -471,8 +479,8 @@ export type ShaderParamShorthand =
       });
 
 /**
- * What defineShader takes. Every key but `glsl` and `target` is also a key of the shader text
- * header, spelled the same.
+ * What defineShader takes. Only `id` and `glsl` are required. Every key but `glsl` and `target` is
+ * also a key of the shader text header, spelled the same.
  * @since 3.36.0
  */
 export interface ShaderDefinition {
@@ -487,21 +495,29 @@ export interface ShaderDefinition {
     readonly glsl: ShaderSource;
     /** What it draws on. Default: read from the body's entry; required when `glsl` is a loader. */
     readonly target?: ShaderTarget;
-    /** A look (replaces how its target is painted) or an effect. Default: an effect when `reach` is given, else a look. */
-    readonly role?: ShaderRole;
-    /** Node looks: on the node's shape (the default), or a `"card"` drawn in its place. */
-    readonly geometry?: ShaderGeometry;
+    /** Where a use draws when it names no place. Default `"paint"`, or `"group"` for `shade(GroupInput g)`. */
+    readonly place?: ShaderPlace;
+    /**
+     * Advanced: where a user may move it. Default: all of `replace`, `over`, `around` and `behind`
+     * for a shader whose place is one of them, else its place alone. Narrow it for a shader that
+     * looks broken somewhere, such as an `around` ring with an empty middle: `["around", "behind"]`.
+     */
+    readonly places?: readonly ShaderPlace[];
+    /**
+     * The smallest size, in CSS pixels, it is drawn at in `replace`, `around` and `behind`, so a
+     * far node stays findable. Adds a number parameter `minSize` with this default. Refused with
+     * `shader.min-size-place` when none of its places is one of those.
+     */
+    readonly minSize?: number;
     /** What pickers show (the descriptor's `plainName`). Default: the name part of the id in sentence case. */
     readonly name?: string;
     /** Its parameters, keyed by name, in the order a form shows them. */
     readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
-    /** How it moves. Default: `"loop"` when the body reads its input's `time` field, else `"still"`. */
+    /** Advanced: whether it animates. Default: `"loop"` when the body reads its input's `time` field, else `"still"`. */
     readonly motion?: ShaderMotionInput;
-    /** Effects: the drawn square is `reach` times the radius, 1 to 6. */
+    /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. */
     readonly reach?: number;
-    /** Effects: the smallest on-screen radius, in CSS pixels, it is drawn at. */
-    readonly minPixels?: number;
-    /** Effects and group outlines: how the result combines. Default `"over"`. */
+    /** Stacking places and group outlines: how the result combines. Default `"over"`. */
     readonly blend?: "over" | "add";
     /** Whether it contributes to the shared bloom pass. */
     readonly bloom?: boolean;

@@ -34,7 +34,7 @@ const HEIGHT = 300;
 
 /** A pasted sprite that does not move, declared heavy. */
 const PASTED = `/* graphty-shader 1
-{ "id": "user/plate", "name": "Plate", "geometry": "card", "cost": "heavy" }
+{ "id": "user/plate", "name": "Plate", "place": "replace", "cost": "heavy" }
 */
 vec4 shade(NodeInput n) {
     return vec4(n.color.rgb, 1.0);
@@ -48,7 +48,7 @@ vec4 shade(NodeInput n) {
  */
 function strobe(hz: number): string {
     return `/* graphty-shader 1
-{ "id": "user/strobe-${String(hz)}", "name": "Strobe", "geometry": "card", "motion": "loop" }
+{ "id": "user/strobe-${String(hz)}", "name": "Strobe", "place": "replace", "motion": "loop" }
 */
 vec4 shade(NodeInput n) {
     float on = step(0.5, fract(n.time * ${hz.toFixed(1)}));
@@ -62,13 +62,13 @@ const cleanups: (() => void)[] = [];
 beforeAll(() => {
     defineShader({
         id: "e4/spin",
-        geometry: "card",
+        place: "replace",
         motion: "loop",
         glsl: "vec4 shade(NodeInput n) { return vec4(vec3(fract(n.time)), 1.0); }",
     });
     defineShader({
         id: "e4/ring",
-        role: "effect",
+        place: "around",
         reach: 4,
         glsl: `vec4 shade(NodeInput n) {
             float d = length(n.uv);
@@ -78,7 +78,7 @@ beforeAll(() => {
     // Enough work per pixel that SwiftShader takes well over 50 ms a frame on a canvas this size.
     defineShader({
         id: "e4/slow",
-        geometry: "card",
+        place: "replace",
         motion: "loop",
         glsl: `vec4 shade(NodeInput n) {
             float v = n.time;

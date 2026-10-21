@@ -4,7 +4,7 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import { drawnShaderParams, motionOf, type ShaderEffects, type ShaderParamSets } from "./catalog/shaders";
+import { drawnShaderParams, type ShaderEffects, type ShaderParamSets, timingOf } from "./catalog/shaders";
 import {
     type AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -1628,7 +1628,7 @@ export class Edge {
             return;
         }
 
-        const seconds = exit ? Math.min(motionOf(run.batch.shader.registration.descriptor.motion).exit ?? 0, 1) : 0;
+        const seconds = exit ? Math.min(timingOf(run.batch.shader.registration.descriptor).exit ?? 0, 1) : 0;
         const drawing = EdgeShaderDrawing.peek(this.context.getScene());
         if (seconds <= 0 || drawing === undefined) {
             for (const slot of run.slots) {
@@ -1766,8 +1766,7 @@ export class Edge {
         if (style !== null && (this.lineStatic !== null || this.effectRuns.size > 0)) {
             this.syncShading(style);
             const seconds = (batch: EdgeLineBatch | null): number => {
-                const motion = motionOf(shaded(batch)?.shader.registration.descriptor.motion);
-                return motion.change ?? 0;
+                return timingOf(shaded(batch)?.shader.registration.descriptor).change ?? 0;
             };
             const play = (batch: EdgeLineBatch | null, slots: readonly number[]): void => {
                 const change = seconds(batch);

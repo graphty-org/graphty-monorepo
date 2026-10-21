@@ -10,7 +10,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "lock-on-reticle",
     plainName: "Reticle",
     target: "node",
-    role: "effect",
+    place: "around",
     categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "hudColor", plainName: "Color", type: "color", default: "#5cffb0", primary: true },
@@ -19,7 +19,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         { name: "lineWidth", plainName: "Line width", type: "number", default: 1.8, min: 0.5, max: 5 },
     ]),
     reads: Object.freeze<ShaderInput[]>(["size", "times"]),
-    motion: Object.freeze({ loop: Object.freeze({ speedParam: "spin" }), enter: 0.55, exit: 0.3 }),
+    motion: Object.freeze({ loop: Object.freeze({ speedParam: "spin" }) }),
     cost: "light",
     origin: "element",
     webgpu: "translate",

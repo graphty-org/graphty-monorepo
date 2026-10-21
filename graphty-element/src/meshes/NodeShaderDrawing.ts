@@ -45,6 +45,8 @@ import {
     type ShaderParamDescriptor,
     type ShaderParams,
     type ShaderParamSets,
+    slotRoleOf,
+    timingOf,
 } from "../catalog/shaders";
 import type { Rgba } from "../catalog/types";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -515,15 +517,15 @@ export class NodeShaderDrawing {
         }
 
         const kind = drawingOf(shader.registration.descriptor);
-        if (kind === "node-look" && !round) {
+        if (kind === "node-paint" && !round) {
             return this.renderer !== null && !this.scene.getEngine().isWebGPU ? "mesh" : null;
         }
 
-        if (kind !== "node-look" && kind !== "node-card") {
+        if (kind !== "node-paint" && kind !== "node-replace") {
             return null;
         }
 
-        const role = kind === "node-card" ? "sprite" : "impostor";
+        const role = kind === "node-replace" ? "sprite" : "impostor";
         return this.batchFor(role, shader, node) === null ? null : role;
     }
 
@@ -741,7 +743,8 @@ export class NodeShaderDrawing {
         const moving = new Set<string>();
         const note = (shader: HostShader): void => {
             heavy ||= shader.heavy === true;
-            const { loop, enter, exit, change } = motionOf(shader.registration.descriptor.motion);
+            const { loop } = motionOf(shader.registration.descriptor.motion);
+            const { enter, exit, change } = timingOf(shader.registration.descriptor);
             if (loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0) {
                 moving.add(shader.hash);
             }
@@ -1093,7 +1096,7 @@ export class NodeShaderDrawing {
 
         if (entry.surface?.batch !== batch) {
             this.releaseSlot(entry.surface);
-            entry.surface = this.newSlot(id, batch, entry, motionOf(descriptor.motion).enter);
+            entry.surface = this.newSlot(id, batch, entry, timingOf(descriptor).enter);
             data.stamp(entry.row, "entered", entry.surface.entered);
         }
 
@@ -1128,7 +1131,7 @@ export class NodeShaderDrawing {
             return true;
         }
 
-        const exit = motionOf(this.known.get(slot.id)?.shader?.registration.descriptor.motion).exit ?? 0;
+        const exit = timingOf(this.known.get(slot.id)?.shader?.registration.descriptor).exit ?? 0;
         if (exit <= 0 || !look.drawn || this.runtime === null || this.data === null) {
             return false;
         }
@@ -1191,7 +1194,7 @@ export class NodeShaderDrawing {
         if (
             shader === null ||
             shader.registration.descriptor.target !== "node" ||
-            shader.registration.descriptor.role !== "effect"
+            slotRoleOf({ target: "node", place: shader.registration.descriptor.place }) !== "effect"
         ) {
             if (shader === null && this.known.get(id)?.shader === null) {
                 dropped.add(id);
@@ -1212,7 +1215,7 @@ export class NodeShaderDrawing {
             slot = undefined;
         }
 
-        slot ??= this.newSlot(id, batch, entry, motionOf(descriptor.motion).enter);
+        slot ??= this.newSlot(id, batch, entry, timingOf(descriptor).enter);
         slot.exited = NEVER;
         slot.exitEnds = 0;
         entry.effects.set(id, slot);
@@ -1245,7 +1248,7 @@ export class NodeShaderDrawing {
                 continue;
             }
 
-            const exit = motionOf(this.known.get(id)?.shader?.registration.descriptor.motion).exit ?? 0;
+            const exit = timingOf(this.known.get(id)?.shader?.registration.descriptor).exit ?? 0;
             if (exit > 0 && look.drawn && this.runtime !== null && !dropped.has(id)) {
                 // Kept drawing while its exit plays.
                 slot.exited = this.runtime.uniforms.now();
@@ -1395,7 +1398,7 @@ export class NodeShaderDrawing {
                 continue;
             }
 
-            const motion = motionOf(descriptor.motion);
+            const motion = timingOf(descriptor);
             // A state change plays whatever a shader that reads the times does with them; a
             // shader that reads none has nothing to play.
             const timed = descriptor.reads?.includes("times") === true;

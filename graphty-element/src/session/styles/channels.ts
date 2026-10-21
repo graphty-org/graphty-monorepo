@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import type { ShaderEffects, ShaderParams, ShaderParamSets, ShaderPlace } from "../../catalog/shaders";
+import type { ShaderEffects, ShaderParams, ShaderParamSets, ShaderSlot } from "../../catalog/shaders";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
@@ -666,7 +666,7 @@ export type ChannelValueKind =
     | "enum"
     | "labelStyle"
     | "nothing"
-    /** A shader id from the catalog, for the place `shaderPlace` names, or `"none"`. @since 3.36.0 */
+    /** A shader id from the catalog, for the slot `shaderSlot` names, or `"none"`. @since 3.36.0 */
     | "shader"
     /** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
     | "shaderParams"
@@ -779,11 +779,11 @@ export interface ChannelDescriptor {
      */
     readonly modifies?: Channel;
     /**
-     * The target and role of the shaders the channel names, on a shader channel: what a picker
-     * offers for it. Absent on every other channel.
+     * The target and slot role of the shaders the channel names, on a shader channel: what a
+     * picker offers for it. Absent on every other channel.
      * @since 3.36.0
      */
-    readonly shaderPlace?: ShaderPlace;
+    readonly shaderSlot?: ShaderSlot;
 }
 
 /**
@@ -1948,7 +1948,7 @@ function shaderChannels<T extends "node" | "edge">(target: T): Record<`${T}.${Sh
         name: ShaderChannelName,
         accepts: ChannelValueKind,
         plainName: string,
-        role: ShaderPlace["role"],
+        role: ShaderSlot["role"],
     ): ChannelDescriptor => ({
         channel: `${target}.${name}` as Channel,
         target,
@@ -1961,7 +1961,7 @@ function shaderChannels<T extends "node" | "edge">(target: T): Record<`${T}.${Sh
         stylePath: `shader.${SHADER_STYLE_FIELD[name]}`,
         renderable: true,
         caveat: SHADER_CAVEAT,
-        shaderPlace: { target, role },
+        shaderSlot: { target, role },
         ...(name === "shader" ? { off: SHADER_NONE, default: SHADER_NONE } : {}),
     });
 

@@ -36,11 +36,11 @@ export const SHADER_NESTING_LIMIT = 64;
  * budget per pixel is the same.
  */
 const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
-    "node-look": 400_000,
-    "node-card": 120_000,
-    "node-effect": 120_000,
-    "edge-look": 60_000,
-    "edge-effect": 60_000,
+    "node-paint": 400_000,
+    "node-replace": 120_000,
+    "node-square": 120_000,
+    "edge-paint": 60_000,
+    "edge-along": 60_000,
     background: 60_000,
     group: 60_000,
 };
@@ -129,44 +129,15 @@ const ENTRY_NAME: Readonly<Record<string, string>> = {
     GroupInput: "g",
 };
 
-/** The input structs and every field they carry: names a parameter may not take. */
+/**
+ * The input structs: names a parameter may not take. Their fields may: a field is read after `.`
+ * (`n.color`), so a parameter named `color` never collides with it.
+ */
 export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
     "NodeInput",
     "EdgeInput",
     "BackgroundInput",
     "GroupInput",
-    "uv",
-    "local",
-    "normal",
-    "viewDir",
-    "color",
-    "size",
-    "pixelSize",
-    "seed",
-    "selected",
-    "hovered",
-    "pinned",
-    "sinceSelected",
-    "sinceHovered",
-    "sincePinned",
-    "sinceEntered",
-    "sinceExited",
-    "sinceChanged",
-    "time",
-    "t",
-    "side",
-    "lengthPx",
-    "widthPx",
-    "sourceColor",
-    "targetColor",
-    "sourceSelected",
-    "targetSelected",
-    "resolution",
-    "field",
-    "fieldGradient",
-    "group",
-    "depth",
-    "groupTint",
 ]);
 
 /**
@@ -1431,8 +1402,12 @@ const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
     [/\.(?:selected|sourceSelected|targetSelected)\b/, "selected"],
     [/\.hovered\b/, "hovered"],
     [/\.pinned\b/, "pinned"],
-    [/\.since(?:Entered|Exited|Changed|Selected|Hovered|Pinned)\b/, "times"],
+    [
+        /\.since(?:Entered|Exited|Matched|Unmatched|Added|Changed|Selected|Deselected|Hovered|Unhovered|Pinned|Unpinned)\b/,
+        "times",
+    ],
     [/\.(?:field|fieldGradient|group|groupTint)\b/, "members"],
+    [/(?<![.\w])lightDir\b/, "light"],
 ];
 
 /**

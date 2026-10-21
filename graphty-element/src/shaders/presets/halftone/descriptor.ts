@@ -12,7 +12,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "halftone",
     plainName: "Halftone",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Drawn"]),
     params: Object.freeze([
         Object.freeze({

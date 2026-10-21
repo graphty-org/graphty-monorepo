@@ -12,7 +12,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "anodized-steel",
     plainName: "Anodized steel",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Metal"]),
     params: Object.freeze([
         Object.freeze({
@@ -27,7 +27,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "brush", plainName: "Brush", type: "number", default: 0.5, min: 0, max: 1 }),
         Object.freeze({ name: "tint", plainName: "Tint", type: "number", default: 0.2, min: 0, max: 1 }),
     ]),
-    reads: Object.freeze<ShaderInput[]>(["color"]),
+    reads: Object.freeze<ShaderInput[]>(["color", "light"]),
     motion: Object.freeze({}),
     cost: "medium",
     origin: "element",

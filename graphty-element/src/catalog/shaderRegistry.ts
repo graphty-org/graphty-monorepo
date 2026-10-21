@@ -19,14 +19,17 @@ import { SHADER_PRESETS } from "../shaders/presets";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
 import { checkShaderBody, inferShaderReads, readsShaderTime } from "./shaderGlsl";
 import {
+    defaultPlaces,
     drawingOf,
     motionOf,
     type ShaderCost,
     type ShaderDescriptor,
-    type ShaderPlace,
+    type ShaderParamDescriptor,
     type ShaderProblem,
     type ShaderRegistration,
+    type ShaderSlot,
     type ShaderSource,
+    slotRoleOf,
 } from "./shaders";
 import { readShaderDescriptor, settleShaderPlace } from "./shaderText";
 
@@ -82,8 +85,18 @@ function refuse(id: unknown, field: string, problems: readonly ShaderProblem[]):
         code: "E_BAD_COMMAND",
         message: `The shader "${name}" was refused at ${field}: ${problems.map((problem) => problem.code).join(", ")}.`,
         source: "registry",
-        details: { kind: "shader", name, field, problems },
+        // The first problem's code and values also sit at the top, so one check reads them.
+        details: { kind: "shader", name, field, problems, ...firstProblem(problems) },
     });
+}
+
+/**
+ * The first of some problems, as `{ code, params }`, or nothing.
+ * @param problems - The problems.
+ * @returns Its code and values.
+ */
+export function firstProblem(problems: readonly ShaderProblem[]): Partial<ShaderProblem> {
+    return problems.length === 0 ? {} : { code: problems[0].code, params: problems[0].params };
 }
 
 /**
@@ -112,6 +125,14 @@ function fieldOf(problem: ShaderProblem): string {
         return "descriptor.params";
     }
 
+    if (problem.code === "shader.place-unsupported") {
+        return "descriptor.place";
+    }
+
+    if (problem.code === "shader.min-size-place") {
+        return "descriptor.minSize";
+    }
+
     return problem.code === "shader.target-mismatch" ? "descriptor.target" : "glsl";
 }
 
@@ -132,14 +153,14 @@ function checkBackendFacts(id: unknown, native: boolean, wgsl: unknown): void {
  * @param id - The shader's id.
  * @param field - `glsl` or `lowDetail`.
  * @param body - The body.
- * @param descriptor - The shader's target, role and geometry.
+ * @param descriptor - The shader's target and place.
  * @returns The checker's cost class.
  */
 function checkBody(
     id: string,
     field: "glsl" | "lowDetail",
     body: unknown,
-    descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry">,
+    descriptor: Pick<ShaderDescriptor, "target" | "place">,
 ): ShaderCost {
     if (typeof body !== "string") {
         refuse(id, field, [{ code: "shader.entry-missing", params: { target: descriptor.target, expected: "shade" } }]);
@@ -163,19 +184,42 @@ function isSource(source: unknown): source is ShaderSource {
 }
 
 /**
+ * The facts the catalog lists that a registration may leave out: the places a use may draw at,
+ * and the `minSize` parameter a declared minimum size adds.
+ * @param descriptor - The settled descriptor.
+ * @returns It, with those facts filled in.
+ */
+function catalogFacts<T extends Pick<ShaderDescriptor, "place" | "places" | "minSize" | "params">>(descriptor: T): T {
+    const { place, places, minSize, params } = descriptor;
+    const minSizeParam: ShaderParamDescriptor = {
+        name: "minSize",
+        plainName: "Minimum size",
+        type: "number",
+        default: minSize,
+        min: 0,
+        max: 512,
+    };
+    const sized = minSize !== undefined && !params.some((param) => param.name === "minSize");
+
+    return {
+        ...descriptor,
+        ...(place === undefined || places !== undefined ? {} : { places: defaultPlaces(place) }),
+        ...(sized ? { params: [...params, minSizeParam] } : {}),
+    };
+}
+
+/**
  * Check a registration and build the descriptor the catalog lists. A body given as a string is
  * checked now; a loader's body is checked when it loads ({@link loadShaderSource}).
  * @param registration - The shader.
  * @param origin - Whose it is.
  * @param namespaced - Whether its id must carry a namespace.
- * @param place - Where it is being added, which supplies a role the registration leaves out.
  * @returns The descriptor and its bodies.
  */
 function admit(
     registration: ShaderRegistration,
     origin: ShaderDescriptor["origin"],
     namespaced: boolean,
-    place?: ShaderPlace,
 ): RegisteredShader {
     if (typeof registration !== "object" || typeof registration.descriptor !== "object") {
         refuse("", "descriptor", [{ code: "shader.header-key", params: { key: "descriptor" } }]);
@@ -207,7 +251,7 @@ function admit(
         refuse(given.id, "lowDetail", [{ code: "shader.entry-missing", params: { expected: "shade" } }]);
     }
 
-    const settled = settleShaderPlace(read, typeof glsl === "string" ? glsl : undefined, place);
+    const settled = settleShaderPlace(read, typeof glsl === "string" ? glsl : undefined);
     if (Array.isArray(settled)) {
         refuse(given.id, fieldOf(settled[0]), settled);
     }
@@ -220,7 +264,7 @@ function admit(
 
     const inferredMotion = ready && readsShaderTime(glsl) ? "loop" : "still";
     const descriptor: ShaderDescriptor = Object.freeze({
-        ...settled,
+        ...catalogFacts(settled),
         motion: motionOf(given.motion ?? inferredMotion),
         reads: given.reads ?? (ready ? inferShaderReads(glsl) : []),
         cost: given.cost ?? costClass,
@@ -241,10 +285,11 @@ function admit(
  * Register a shader so a style layer can name it, and the catalog lists it.
  *
  * The descriptor and the body are checked as shader text is (design/rendering/shader-styles.md
- * section 4.3); what is left out is filled in: the target from the body's entry function, the role
- * (an effect when `reach` is given, else a look), the cost from the static checker, the inputs
- * from the fields the body reads, the motion (`"loop"` when the body reads its input's `time`),
- * and `webgpu` as `"translate"`.
+ * section 4.3); what is left out is filled in: the target from the body's entry function, the place
+ * (`"paint"` on a node or edge, `"group"` for a group outline) and the places a use may move it to,
+ * the `minSize` parameter a declared minimum size adds, the cost from the static checker, the
+ * inputs from the fields the body reads, the motion (`"loop"` when the body reads its input's
+ * `time`), and `webgpu` as `"translate"`.
  *
  * `glsl` and `lowDetail` may each be a function that loads the body: the shader is listed at
  * once, and the body is loaded and checked the first time something draws it. Such a
@@ -282,11 +327,11 @@ function registerBuiltIn(registration: ShaderRegistration): void {
 }
 
 // The bodies module is imported only when a body is first loaded, so listing the catalog loads no
-// GLSL. Every heavy node look ships a low-detail body (test/shaders/catalog-fixture.test.ts).
+// GLSL. Every heavy node paint ships a low-detail body (test/shaders/catalog-fixture.test.ts).
 for (const preset of SHADER_PRESETS) {
     const { origin: _origin, ...descriptor } = preset;
     const { id } = preset;
-    const far = preset.cost === "heavy" && drawingOf(preset) === "node-look";
+    const far = preset.cost === "heavy" && drawingOf(preset) === "node-paint";
     registerBuiltIn({
         descriptor,
         glsl: async () => (await import("../shaders/presets/bodies")).SHADER_PRESET_BODIES[id](),
@@ -497,11 +542,12 @@ export function shaderDescriptor(id: string): ShaderDescriptor | undefined {
 }
 
 /**
- * The ids of every shader for one place, for a refusal that lists what would have been right.
- * @param place - The target and role.
+ * The ids of every shader for one single shader channel, for a refusal that lists what would have
+ * been right.
+ * @param slot - The target and slot role.
  * @returns The ids.
  */
-export function shaderIdsFor(place: ShaderPlace): readonly string[] {
+export function shaderIdsFor(slot: ShaderSlot): readonly string[] {
     const pasted = [...pastedSources].flatMap((source) =>
         source.ids().flatMap((id) => {
             const descriptor = source.descriptor(id);
@@ -510,7 +556,7 @@ export function shaderIdsFor(place: ShaderPlace): readonly string[] {
     );
 
     return [...shaderDescriptors(), ...pasted]
-        .filter((descriptor) => descriptor.target === place.target && descriptor.role === place.role)
+        .filter((descriptor) => descriptor.target === slot.target && slotRoleOf(descriptor) === slot.role)
         .map((descriptor) => descriptor.id);
 }
 

@@ -29,33 +29,41 @@ export async function heat(element: Graphty): Promise<void> {
 `defineShader` registers the shader; the layer draws it on every node and sets one of its
 parameters. Every other parameter keeps its default.
 
-## Where a shader goes: a target and a role
+## Where a shader goes: a target and a place
 
 A shader draws on one **target**, read from its entry function:
 
 | Entry function                  | Target       | Where a layer sets it                                               |
 | ------------------------------- | ------------ | ------------------------------------------------------------------- |
-| `vec4 shade(NodeInput n)`       | `node`       | `node.shader` (a look) or `node.effects` (an effect)                |
-| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shader` (a look) or `edge.effects` (an effect)                |
+| `vec4 shade(NodeInput n)`       | `node`       | `node.shader` (`paint`, `replace`) or `node.effects` (the others)   |
+| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shader` (`paint`) or `edge.effects` (`along`)                 |
 | `vec4 shade(GroupInput g)`      | `group`      | a layer's `boundary: { shader: "<id>" }`                            |
 | `vec4 shade(BackgroundInput b)` | `background` | `element.background = { backgroundType: "shader", shader: "<id>" }` |
 
-Each shader also has a **role**:
+Each shader also has a **place**, where it draws. It is `"paint"` unless the shader gives `place`,
+and `"group"` for a group outline; the background has none.
 
-- A **look** (`role: "look"`, the default) replaces how its target is painted. A node or an edge
-  draws one look: the topmost layer that sets one wins, as with any style value.
-- An **effect** (`role: "effect"`) is drawn on or around its target. Effects stack: a layer adds
-  as many as it likes in `node.effects` or `edge.effects`, keyed by id.
+| Place     | On         | What it does                                                 | Per element           |
+| --------- | ---------- | ------------------------------------------------------------ | --------------------- |
+| `paint`   | node, edge | Paints the node's or line's own surface                      | one; the topmost wins |
+| `replace` | node       | The node's shape is not drawn; the shader draws in its place | one; the topmost wins |
+| `over`    | node       | Drawn over the node's paint, inside its outline              | they stack            |
+| `around`  | node       | Drawn outside the node's outline, reaching past it           | they stack            |
+| `behind`  | node       | Drawn before the node, so the node covers its middle         | they stack            |
+| `along`   | edge       | A strip that follows the edge over the line                  | they stack            |
+| `group`   | group      | One outline around a group of nodes                          | they stack            |
 
-Groups and the background take looks only. A shader that gives `reach` and no `role` is an effect.
+`replace`, `over`, `around` and `behind` are one drawing, a square facing the camera, so a shader
+written for one may be used at any of the four. `places` narrows that list, for a shader that looks
+wrong somewhere (an `around` ring with an empty middle declares `places: ["around", "behind"]`).
+`paint`, `along` and `group` stay where they are.
 
-A node look paints the node's own shape. With `geometry: "card"` it is drawn instead as a flat card
-facing the camera, in place of the shape; a card covers the shape, size-of-shape and border
-channels of the layers beneath it. A card and a shape follow "the topmost layer wins": a
-`node.shape` on a layer above the card's layer draws the shape on those nodes, and the card is not
-drawn there. `styles.explain()` names a channel a drawn shader hides with `coveredBy`.
+A `replace` shader covers the shape, size-of-shape and border channels of the layers beneath it. It
+and a shape follow "the topmost layer wins": a `node.shape` on a layer above the shader's layer
+draws the shape on those nodes, and the shader is not drawn there. `styles.explain()` names a
+channel a drawn shader hides with `coveredBy`.
 
-### An edge look
+### An edge's paint
 
 ```ts
 import { defineShader, type Graphty } from "@graphty/graphty-element";
@@ -84,12 +92,11 @@ in pixels however long the edge is.
 
 ### One example per target
 
-A node effect: a ring past the node's edge. `reach` makes it an effect, drawn on a square
-`reach` times the node's radius.
+A ring around the node: `place: "around"`, drawn on a square `reach` times the node's radius.
 
 ```glsl
 /* graphty-shader 1
-{ "id": "acme/ring", "reach": 2, "params": [{ "name": "tint", "type": "color", "default": "#ffaa00" }] }
+{ "id": "acme/ring", "place": "around", "reach": 2, "params": [{ "name": "tint", "type": "color", "default": "#ffaa00" }] }
 */
 vec4 shade(NodeInput n) {
     float ring = smoothstep(0.15, 0.0, abs(length(n.uv) - 1.5));
@@ -125,8 +132,8 @@ vec4 shade(BackgroundInput b) {
 }
 ```
 
-`shaderTemplate({ target, role, geometry })` returns a working shader like these for any place, as
-shader text, ready to edit.
+`shaderTemplate({ target, place })` returns a working shader like these for any place, as shader
+text, ready to edit.
 
 ## Three ways to write one shader
 
@@ -298,7 +305,7 @@ encode: { "node.shaderParams.acme/heat.hot": { by: "data.score", scale: "linear"
 written (`#ff8000` is `vec3(1.0, 0.5, 0.0)`), and what `shade()` returns is written in the same
 space, with no conversion.
 
-- A **look** on a node or an edge returns straight alpha: the color, and how opaque it is.
+- A `paint` or `replace` shader returns straight alpha: the color, and how opaque it is.
 - An **effect** and a **group outline** return premultiplied alpha: the color already multiplied
   by its alpha, so `vec4(tint * a, a)`. Pixels it leaves at 0 show what is beneath.
 - A **background** fills the canvas: its alpha is ignored.
@@ -307,12 +314,15 @@ A result that is not a number (a division by zero) is replaced with the color be
 
 ## Motion, distance and the far body
 
-- `motion` says how a shader moves: `"still"`, `"loop"` (animates while on screen), or
-  `{ loop: { speedParam }, enter, exit, change }` with seconds for an entrance, an exit and a change.
-  Left out, a body that reads its input's `time` field (`n.time`, `e.time`, `g.time`, `b.time`) is
-  a loop, and any other is still. A parameter named like a field never counts.
-- `minPixels` (effects): the smallest radius on screen, in pixels, the effect is drawn at, so its
-  detail survives a far camera.
+- A shader loops when its body reads its input's `time` field (`n.time`, `e.time`, `g.time`,
+  `b.time`); any other is still. A parameter named like a field never counts. `motion` (`"still"`,
+  `"loop"`, `{ loop: { speedParam } }`) overrides that.
+- A number or color parameter whose default is bound to a clock, `fade: { by: "since.matched",
+domain: [0, 0.3] }`, reads the seconds since a moment mapped onto `range` (default `[0, 1]`,
+  clamped). That is how a shader plays in or out: when it draws is its layer's condition.
+- `minSize`: the smallest size, in CSS pixels, the square of `replace`, `around` and `behind` is
+  drawn at, so a far node stays findable. Declaring it adds a number parameter `minSize` with that
+  default.
 - `lowDetail` (in shader text, a second entry `vec4 shadeFar(NodeInput n)` beside `shade`): a
   cheaper body the element draws while nodes are small on screen.
 - `preview`: the parameters and the time, in seconds, a thumbnail is drawn at.
@@ -342,8 +352,11 @@ column: 5 } }`, and the application words it.
 - `defineShader` and `registerShader` are synchronous. A definition that is wrong throws
   `E_BAD_COMMAND`, and `error.details.field` names the member at fault (`"glsl"`,
   `"params.speed.default"`), with every problem in `error.details.problems`.
-- Text whose signature draws on another target than the place it is added to, or that declares
-  another role, is refused with `shader.target-mismatch`, with `{ expected, found }`.
+- Text whose signature draws on another target than the one it is added for is refused with
+  `shader.target-mismatch`, with `{ expected, found }`. A place the shader does not allow is
+  refused with `shader.place-unsupported`, with `{ shader, place, allowed }`, and a `minSize` that
+  none of its places can apply with `shader.min-size-place`, with `{ shader, places }`. A definition
+  problem's first code and values are also in `error.details.code` and `error.details.params`.
 - A body given as a loader is checked when it loads. If it fails, the shader draws nothing and
   `session.shaders.status(id)` reports `failed` with the problem.
 - `styles.add` refuses a layer that names an id the catalog does not list with

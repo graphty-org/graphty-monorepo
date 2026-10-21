@@ -93,12 +93,12 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
 export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/shaderRegistry";
 export type {
+    ShaderClock,
+    ShaderClockBinding,
     ShaderDescriptor,
-    ShaderGeometry,
     ShaderPlace,
     ShaderPreview,
     ShaderRegistration,
-    ShaderRole,
     ShaderSource,
     ShaderTarget,
 } from "./src/catalog/shaders";

@@ -12,7 +12,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "liquid-metal",
     plainName: "Liquid metal",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Metal"]),
     params: Object.freeze([
         Object.freeze({ name: "speed", plainName: "Speed", type: "number", default: 0.3, min: 0, max: 2 }),

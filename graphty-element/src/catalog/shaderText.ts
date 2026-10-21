@@ -4,7 +4,7 @@
  *
  * ```glsl
  * /* graphty-shader 1
- * { "id": "user/pulse-ring", "name": "Pulse ring", "role": "effect", "params": [...] }
+ * { "id": "user/pulse-ring", "name": "Pulse ring", "place": "around", "params": [...] }
  * \/
  * vec4 shade(NodeInput n) { ... }
  * ```
@@ -35,19 +35,24 @@ import {
     SHADER_STRUCT_NAMES,
 } from "./shaderGlsl";
 import {
+    defaultPlaces,
     drawingOf,
+    isClockBinding,
     isShaderId,
     isShaderParamName,
+    minSizeApplies,
     motionOf,
+    PLACES_BY_TARGET,
+    SHADER_CLOCKS,
     type ShaderMotion,
     type ShaderParamDescriptor,
     type ShaderPlace,
     type ShaderProblem,
     type ShaderRegistration,
-    type ShaderRole,
     type ShaderTarget,
     type ShaderText,
     type ShaderTextResult,
+    SQUARE_PLACES,
 } from "./shaders";
 
 /** What the header comment starts with. */
@@ -78,9 +83,9 @@ const VARYING_TYPES: ReadonlySet<string> = new Set(["number", "integer", "color"
 const HEADER_KEYS: ReadonlySet<string> = new Set([
     "id",
     "name",
-    "role",
-    "geometry",
-    "minPixels",
+    "place",
+    "places",
+    "minSize",
     "categories",
     "preview",
     "cost",
@@ -125,10 +130,17 @@ const INPUTS: ReadonlySet<string> = new Set([
     "pinned",
     "times",
     "members",
+    "light",
 ]);
 
 /** A color, `#rrggbb`. */
 const HEX_COLOR = /^#[\da-fA-F]{6}$/;
+
+/** Every place a shader may name. */
+const PLACES: ReadonlySet<string> = new Set(Object.values(PLACES_BY_TARGET).flat());
+
+/** The largest `minSize`, in CSS pixels. */
+const MIN_SIZE_LIMIT = 512;
 
 /**
  * Whether a character may stay in a name: not a control character, not a bidirectional override.
@@ -256,6 +268,10 @@ function valueFault(raw: Record<string, unknown>, type: string): string | null {
         return "default";
     }
 
+    if (isClockBinding(raw.default)) {
+        return isClockDefault(raw.default, type) ? numberFault({ ...raw, default: undefined }, false) : "default";
+    }
+
     switch (type) {
         case "number":
             return numberFault(raw, false);
@@ -268,6 +284,26 @@ function valueFault(raw: Record<string, unknown>, type: string): string | null {
         default:
             return enumFault(raw);
     }
+}
+
+/**
+ * Whether a default bound to a clock is well formed: a known clock, a domain of two increasing
+ * seconds, and an optional range of two numbers (a number) or two colors (a color, which needs one).
+ * @param value - The default.
+ * @param type - The parameter's type.
+ * @returns True when it is.
+ */
+function isClockDefault(value: object, type: string): boolean {
+    const { by, domain, range, ...rest } = value as Record<string, unknown>;
+    const pair = (entry: unknown, each: (item: unknown) => boolean): entry is unknown[] =>
+        Array.isArray(entry) && entry.length === 2 && entry.every(each);
+    const numbers = pair(domain, isFloat32) && (domain[0] as number) < (domain[1] as number);
+    const ranged =
+        type === "color"
+            ? pair(range, (item) => typeof item === "string" && HEX_COLOR.test(item))
+            : type === "number" && (range === undefined || pair(range, isFloat32));
+
+    return Object.keys(rest).length === 0 && SHADER_CLOCKS.includes(by as never) && numbers && ranged;
 }
 
 /**
@@ -363,7 +399,7 @@ function choicesFault(choices: unknown, type: string): string | null {
 function paramDescriptor(raw: Record<string, unknown>, name: string, type: string): ShaderParamDescriptor {
     const plainName = typeof raw.plainName === "string" ? cleanName(raw.plainName) : sentenceCase(name);
     const values = raw.values as { value: string; label: string }[] | undefined;
-    const value = type === "color" ? (raw.default as string).toLowerCase() : raw.default;
+    const value = type === "color" && typeof raw.default === "string" ? raw.default.toLowerCase() : raw.default;
 
     return {
         name,
@@ -437,13 +473,7 @@ function readMotion(raw: unknown, params: readonly ShaderParamDescriptor[]): Sha
         return motionOf(raw);
     }
 
-    if (!isRecord(raw) || Object.keys(raw).some((key) => !["loop", "enter", "exit", "change"].includes(key))) {
-        return null;
-    }
-
-    const seconds = (value: unknown): boolean =>
-        value === undefined || (typeof value === "number" && value >= 0 && value <= 10);
-    if (!seconds(raw.enter) || !seconds(raw.exit) || !seconds(raw.change)) {
+    if (!isRecord(raw) || Object.keys(raw).some((key) => key !== "loop")) {
         return null;
     }
 
@@ -471,9 +501,13 @@ const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
     requires: (value) => Array.isArray(value) && value.every((entry) => entry === "webgl2"),
     reads: (value) => Array.isArray(value) && value.every((entry) => INPUTS.has(entry as string)),
     webgpu: (value) => value === "translate" || value === "none",
-    role: (value) => value === "look" || value === "effect",
-    geometry: (value) => value === "shape" || value === "card",
-    minPixels: (value) => typeof value === "number" && value >= 0 && value <= 512,
+    place: (value) => typeof value === "string" && PLACES.has(value),
+    places: (value) =>
+        Array.isArray(value) &&
+        value.length > 0 &&
+        new Set(value).size === value.length &&
+        value.every((entry) => typeof entry === "string" && PLACES.has(entry)),
+    minSize: (value) => typeof value === "number" && value >= 0 && value <= MIN_SIZE_LIMIT,
     categories: (value) =>
         Array.isArray(value) &&
         value.length <= 8 &&
@@ -664,23 +698,32 @@ function parseHeaderJson(text: string, split: Split): { value: unknown } | Shade
 }
 
 /** What a parsed registration's descriptor always carries. */
-type SettledDescriptor = ShaderRegistrationDescriptor & { readonly target: ShaderTarget; readonly role: ShaderRole };
+type SettledDescriptor = ShaderRegistrationDescriptor & { readonly target: ShaderTarget };
+
+/** Where a shader is being added, which settles what its text leaves out. @since 3.36.0 */
+export interface ShaderTextOptions {
+    /** What it must draw on: text whose entry function draws on another is refused. */
+    readonly target?: ShaderTarget;
+    /** The place it takes when its text names none, if its target allows it. */
+    readonly place?: ShaderPlace;
+}
 
 /**
- * The target and role of a shader, and the problems that rule it out.
+ * The target and place of a shader, and the problems that rule them out.
  *
- * The target is read from the entry function's input; a declared one (registration only) must
- * agree. The role, in order: a declared role; an effect when `reach` is given on a node or edge;
- * the place's role; a look.
+ * The target is read from the entry function's input; a declared one (registration only) and the
+ * options' must agree. The place, in order: a declared `place`; the options' place when the target
+ * and `places` allow it; the first of `places`; `"group"` for a group outline, else `"paint"`. The
+ * background has no place.
  * @param descriptor - The checked facts.
  * @param body - The body, when it is known.
- * @param place - Where the shader is being added, if anywhere.
+ * @param options - Where the shader is being added, if anywhere.
  * @returns The settled descriptor, or the problems.
  */
 export function settleShaderPlace(
     descriptor: ShaderRegistrationDescriptor,
     body: string | undefined,
-    place?: ShaderPlace,
+    options?: ShaderTextOptions,
 ): SettledDescriptor | ShaderProblem[] {
     const found = body === undefined ? undefined : entryTargetOf(body);
     const declared = descriptor.target;
@@ -688,45 +731,76 @@ export function settleShaderPlace(
         return [{ code: "shader.target-mismatch", params: { expected: declared, found } }];
     }
 
-    if (found !== undefined && place !== undefined && found !== place.target) {
-        return [{ code: "shader.target-mismatch", params: { expected: place.target, found } }];
+    const wanted = options?.target;
+    if (found !== undefined && wanted !== undefined && found !== wanted) {
+        return [{ code: "shader.target-mismatch", params: { expected: wanted, found } }];
     }
 
-    const target = found ?? declared ?? place?.target ?? "node";
-    const sided = target === "node" || target === "edge";
-    const implied = sided && descriptor.reach !== undefined ? "effect" : undefined;
-    const named = descriptor.role ?? implied;
-    if (named !== undefined && place !== undefined && named !== place.role) {
-        return [{ code: "shader.target-mismatch", params: { expected: place.role, found: named } }];
+    const target = found ?? declared ?? wanted ?? "node";
+    const allowed = PLACES_BY_TARGET[target];
+    const { place: named, places } = descriptor;
+    if (allowed.length === 0) {
+        return named === undefined && places === undefined
+            ? { ...descriptor, target }
+            : [{ code: "shader.header-key", params: { key: named === undefined ? "places" : "place" } }];
     }
 
-    const role = named ?? place?.role ?? "look";
-    const fault = placeFault(descriptor, target, role);
-    if (fault !== null) {
-        return [{ code: "shader.header-key", params: { key: fault } }];
-    }
+    const offered = options?.place;
+    const takes = offered !== undefined && allowed.includes(offered) && (places?.includes(offered) ?? true);
+    const place = named ?? (takes ? offered : undefined) ?? places?.[0] ?? allowed[0];
+    const problem = placeFault(descriptor.id, place, places, allowed) ?? minSizeFault(descriptor, place, places);
 
-    return { ...descriptor, target, role };
+    return problem === null ? { ...descriptor, target, place } : [problem];
 }
 
 /**
- * The key that does not fit where a shader draws: an effect on a group or the background, a
- * geometry on anything but a node look, a minimum size on anything but an effect.
- * @param descriptor - The facts.
- * @param target - What it draws on.
- * @param role - Its role.
- * @returns The key at fault, or null.
+ * The problem with a shader's place and places: one its target does not draw, a list that mixes a
+ * fixed place with others, or a place outside its list.
+ * @param id - The shader.
+ * @param place - Its settled place.
+ * @param places - Its declared places.
+ * @param allowed - The places of its target.
+ * @returns The problem, or null.
  */
-function placeFault(descriptor: ShaderRegistrationDescriptor, target: ShaderTarget, role: ShaderRole): string | null {
-    if (role === "effect" && (target === "group" || target === "background")) {
-        return "role";
+function placeFault(
+    id: string,
+    place: ShaderPlace,
+    places: readonly ShaderPlace[] | undefined,
+    allowed: readonly ShaderPlace[],
+): ShaderProblem | null {
+    const outside = [place, ...(places ?? [])].find((entry) => !allowed.includes(entry));
+    if (outside !== undefined) {
+        return { code: "shader.place-unsupported", params: { shader: id, place: outside, allowed } };
     }
 
-    if (descriptor.geometry !== undefined && (target !== "node" || role !== "look")) {
-        return "geometry";
+    // `paint`, `along` and `group` are drawings of their own: a shader written for one stays there.
+    const mixed = places !== undefined && places.length > 1 && places.some((entry) => !SQUARE_PLACES.includes(entry));
+    if (mixed) {
+        return { code: "shader.header-key", params: { key: "places" } };
     }
 
-    return descriptor.minPixels !== undefined && role !== "effect" ? "minPixels" : null;
+    const listed = places ?? defaultPlaces(place);
+    return listed.includes(place)
+        ? null
+        : { code: "shader.place-unsupported", params: { shader: id, place, allowed: listed } };
+}
+
+/**
+ * The problem with a minimum size no allowed place can apply.
+ * @param descriptor - The facts.
+ * @param place - The settled place.
+ * @param places - The declared places.
+ * @returns `shader.min-size-place` `{ shader, places }`, or null.
+ */
+function minSizeFault(
+    descriptor: ShaderRegistrationDescriptor,
+    place: ShaderPlace,
+    places: readonly ShaderPlace[] | undefined,
+): ShaderProblem | null {
+    const listed = places ?? defaultPlaces(place);
+    return descriptor.minSize === undefined || minSizeApplies(listed)
+        ? null
+        : { code: "shader.min-size-place", params: { shader: descriptor.id, places: listed } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -880,22 +954,22 @@ function joinFar(id: string, near: string, far: string): string {
 }
 
 /**
- * Check the body (and the far body) and complete the registration: its target and role settled,
+ * Check the body (and the far body) and complete the registration: its target and place settled,
  * its motion inferred when the header gives none.
  * @param descriptor - The checked descriptor.
  * @param body - The body.
  * @param origin - Where the body starts in the text.
- * @param place - Where the shader is being added, if anywhere.
+ * @param options - Where the shader is being added, if anywhere.
  * @returns The result.
  */
 function finishText(
     descriptor: ShaderRegistrationDescriptor,
     body: string,
     origin: BodyOrigin,
-    place: ShaderPlace | undefined,
+    options: ShaderTextOptions | undefined,
 ): ShaderTextResult {
     const { near, far } = splitFar(body);
-    const settled = settleShaderPlace(descriptor, near, place);
+    const settled = settleShaderPlace(descriptor, near, options);
     if (Array.isArray(settled)) {
         return { ok: false, problems: settled };
     }
@@ -923,17 +997,19 @@ function finishText(
  * Read and check shader text: its header against a strict schema, then its body against the
  * static rules. Nothing is registered or drawn.
  *
- * The target is read from the entry function's input. The role is the header's `role`; else an
- * effect when the header gives `reach`; else the role of `options.place`; else a look. Text whose
- * signature names another target than the place's, or whose role is another than the place's, is
- * refused with `shader.target-mismatch` (`{ expected, found }`).
+ * The target is read from the entry function's input; text whose entry draws on another target than
+ * `options.target` is refused with `shader.target-mismatch` (`{ expected, found }`). The place is
+ * the header's `place`; else `options.place` when the target allows it; else the first of the
+ * header's `places`; else `"group"` for a group outline and `"paint"` for a node or edge. A place
+ * the shader cannot draw at is refused with `shader.place-unsupported` (`{ shader, place, allowed }`),
+ * and a `minSize` no allowed place can apply with `shader.min-size-place` (`{ shader, places }`).
  * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone.
- * @param options - Where the shader is being added.
- * @param options.place - That place: its target and role.
+ * @param options - Where the shader is being added: what it must draw on, and the place it takes
+ *   when its text names none.
  * @returns The registration the text describes, or every problem the first failing step found.
  * @since 3.36.0
  */
-export function parseShaderText(text: ShaderText, options?: { readonly place?: ShaderPlace }): ShaderTextResult {
+export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): ShaderTextResult {
     if (typeof text !== "string") {
         return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
     }
@@ -944,10 +1020,14 @@ export function parseShaderText(text: ShaderText, options?: { readonly place?: S
         return { ok: false, problems: [{ code: "shader.not-ascii", params: { line: at.line, column: at.column } }] };
     }
 
-    const place = options?.place;
     const split = splitHeader(text);
     if (split === null) {
-        return finishText({ id: "user/shader", plainName: "Shader", params: [] }, text, { line: 1, column: 1 }, place);
+        return finishText(
+            { id: "user/shader", plainName: "Shader", params: [] },
+            text,
+            { line: 1, column: 1 },
+            options,
+        );
     }
 
     const parsed = parseHeaderJson(text, split);
@@ -975,7 +1055,7 @@ export function parseShaderText(text: ShaderText, options?: { readonly place?: S
         return { ok: false, problems: descriptor };
     }
 
-    return finishText(descriptor, split.body, placeOf(text, split.bodyOffset), place);
+    return finishText(descriptor, split.body, placeOf(text, split.bodyOffset), options);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1022,6 +1102,16 @@ function motionEntry(motion: ShaderRegistrationDescriptor["motion"]): unknown {
 }
 
 /**
+ * Whether two lists hold the same entries in the same order.
+ * @param a - One list.
+ * @param b - The other.
+ * @returns True when they do.
+ */
+function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
+    return a.length === b.length && a.every((entry, index) => entry === b[index]);
+}
+
+/**
  * Write a shader as text, the inverse of {@link parseShaderText}: reading what this writes gives
  * back an equal registration.
  * @param registration - The shader.
@@ -1050,14 +1140,19 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         });
     }
 
+    // The place is always written, so the text never leans on where it is pasted; the places only
+    // when they are not the place's default.
     const header: Record<string, unknown> = { id: descriptor.id, name: descriptor.plainName };
-    // The role is written whenever the reach would not imply it, so the text never leans on a place.
-    const implied = descriptor.reach !== undefined && (descriptor.target === "node" || descriptor.target === "edge");
-    if (descriptor.role !== undefined && (descriptor.role !== "effect" || !implied)) {
-        header.role = descriptor.role;
+    const { place, places, minSize } = descriptor;
+    if (place !== undefined) {
+        header.place = place;
     }
 
-    for (const key of ["geometry", "minPixels", "categories", "preview", "cost", "thumbnail"] as const) {
+    if (places !== undefined && (place === undefined || !sameList(places, defaultPlaces(place)))) {
+        header.places = places;
+    }
+
+    for (const key of ["minSize", "categories", "preview", "cost", "thumbnail"] as const) {
         if (descriptor[key] !== undefined) {
             header[key] = descriptor[key];
         }
@@ -1074,7 +1169,10 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         }
     }
 
-    header.params = descriptor.params.map(paramEntry);
+    // The parameter a declared minimum size adds is the element's, not the text's.
+    header.params = descriptor.params
+        .filter((param) => minSize === undefined || param.name !== "minSize")
+        .map(paramEntry);
     const body = lowDetail === undefined ? glsl : joinFar(descriptor.id, glsl, lowDetail);
 
     return `/* ${SHADER_TEXT_MAGIC}\n${JSON.stringify(header, null, 4)}\n*/\n${body}`;

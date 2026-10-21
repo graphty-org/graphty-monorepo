@@ -58,7 +58,7 @@ describe("the node-effect presets in the style stack", () => {
     it("lists all five in the catalog under their bare ids", () => {
         const ids = createGraphSession()
             .catalog.shaders()
-            .filter((descriptor) => drawingOf(descriptor) === "node-effect")
+            .filter((descriptor) => drawingOf(descriptor) === "node-square")
             .map((descriptor) => descriptor.id);
         assert.includeMembers(ids, [
             "uncertainty-aura",

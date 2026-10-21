@@ -53,7 +53,8 @@ import {
     isShaderParamName,
     type LayerBoundary,
     type ShaderDescriptor,
-    type ShaderPlace,
+    type ShaderSlot,
+    slotRoleOf,
 } from "../../catalog/shaders";
 import type {
     Binding,
@@ -1344,7 +1345,7 @@ function checkSetChannel(
     const path = `set.${channel}`;
     const descriptor = checkChannel(channel, target, path, log);
 
-    if (descriptor?.shaderPlace !== undefined && value !== undefined) {
+    if (descriptor?.shaderSlot !== undefined && value !== undefined) {
         checkShaderValue(descriptor, value, path, catalog, log);
     } else if (descriptor !== null && value !== undefined) {
         const problem = checkStaticValue(descriptor, value, path);
@@ -1413,10 +1414,10 @@ function isPlainMap(value: unknown): value is Record<string, unknown> {
 }
 
 /** The place a layer's boundary takes: a group look. */
-const GROUP_PLACE: ShaderPlace = { target: "group", role: "look" };
+const GROUP_PLACE: ShaderSlot = { target: "group", role: "look" };
 
 /** A place no shader fits, for a channel that names none. */
-const NO_PLACE: ShaderPlace = { target: "background", role: "effect" };
+const NO_PLACE: ShaderSlot = { target: "background", role: "effect" };
 
 /**
  * Check one shader id against the catalog: it must be listed, and for the place it is written to.
@@ -1426,7 +1427,7 @@ const NO_PLACE: ShaderPlace = { target: "background", role: "effect" };
  * @param log - Where problems are collected.
  * @returns The shader, or null when it was refused.
  */
-function checkShaderRef(id: string, place: ShaderPlace, path: string, log: ProblemLog): ShaderDescriptor | null {
+function checkShaderRef(id: string, place: ShaderSlot, path: string, log: ProblemLog): ShaderDescriptor | null {
     const descriptor = shaderDescriptor(id);
     if (descriptor === undefined) {
         report(log, {
@@ -1439,10 +1440,11 @@ function checkShaderRef(id: string, place: ShaderPlace, path: string, log: Probl
         return null;
     }
 
-    if (descriptor.target !== place.target || descriptor.role !== place.role) {
+    const role = slotRoleOf(descriptor);
+    if (descriptor.target !== place.target || role !== place.role) {
         report(log, {
             code: "E_SHADER_KIND",
-            message: `"${id}" is a ${descriptor.target} ${descriptor.role}, and this takes a ${place.target} ${place.role}.`,
+            message: `"${id}" is a ${descriptor.target} ${role}, and this takes a ${place.target} ${place.role}.`,
             path,
             candidates: shaderIdsFor(place),
         });
@@ -1574,7 +1576,7 @@ function checkParamSet(
  */
 function checkMapKey(
     id: string,
-    place: ShaderPlace,
+    place: ShaderSlot,
     path: string,
     catalog: boolean,
     log: ProblemLog,
@@ -1603,7 +1605,7 @@ function checkShaderValue(
     catalog: boolean,
     log: ProblemLog,
 ): void {
-    const place = descriptor.shaderPlace ?? NO_PLACE;
+    const place = descriptor.shaderSlot ?? NO_PLACE;
     if (descriptor.accepts === "shader") {
         if (typeof value !== "string" || (value !== SHADER_NONE && !isShaderId(value))) {
             report(log, {
@@ -1668,7 +1670,7 @@ function checkParamBinding(
         readsPath(log, binding.by);
     }
 
-    const shader = checkMapKey(address.shader, descriptor.shaderPlace ?? NO_PLACE, path, catalog, log);
+    const shader = checkMapKey(address.shader, descriptor.shaderSlot ?? NO_PLACE, path, catalog, log);
     if (shader === null || shader === undefined) {
         return;
     }

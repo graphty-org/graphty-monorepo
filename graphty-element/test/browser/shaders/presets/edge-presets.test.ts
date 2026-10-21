@@ -18,10 +18,10 @@ import type { Graphty } from "../../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../../src/catalog/shaderRegistry";
 import {
     drawingOf,
-    motionOf,
     type ShaderDescriptor,
     type ShaderParamDescriptor,
     type ShaderParams,
+    timingOf,
 } from "../../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../../src/catalog/types";
 import type { Edge } from "../../../../src/Edge";
@@ -229,7 +229,7 @@ vec4 shade(EdgeInput e) {
  * @returns The `set` of the layer.
  */
 function setOf(descriptor: ShaderDescriptor, id: string, params: ShaderParams): Record<string, unknown> {
-    return drawingOf(descriptor) === "edge-look"
+    return drawingOf(descriptor) === "edge-paint"
         ? { "edge.shader": id, "edge.shaderParams": { [id]: params } }
         : { "edge.effects": { [id]: params } };
 }
@@ -275,7 +275,7 @@ describe("the edge presets, every parameter at each end of its range", () => {
                 await element.session.styles.update(layer.id, { set: setOf(descriptor, probe, set) });
                 await operationQueueOf(element.graph).waitForCompletion();
                 // A timed preset draws only while it plays: change the edge's data to play it.
-                if ((motionOf(descriptor.motion).change ?? 0) > 0) {
+                if ((timingOf(descriptor).change ?? 0) > 0) {
                     await element.session.data.updateEdges([{ id: edge.id, values: { k } }]);
                 }
 

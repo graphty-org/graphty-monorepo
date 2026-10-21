@@ -17,7 +17,7 @@
 
 import type { Scene } from "@babylonjs/core";
 
-import { motionOf, type ShaderParamDescriptor, type ShaderParams } from "../catalog/shaders";
+import { motionOf, type ShaderParamDescriptor, type ShaderParams, slotRoleOf, timingOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
 import type { GraphSession } from "../session/types";
@@ -264,7 +264,7 @@ export class EdgeShaderDrawing {
      * @returns The entered stamp, or {@link EDGE_NEVER} to start at rest, and until when it plays.
      */
     entrance(shader: HostShader, causedAt: number): { stamp: number; untilMs: number } {
-        const enter = motionOf(shader.registration.descriptor.motion).enter ?? 0;
+        const enter = timingOf(shader.registration.descriptor).enter ?? 0;
         const now = performance.now();
         if (enter <= 0 || now - causedAt > CAUSE_WINDOW_MS || this.runtime === null) {
             return { stamp: EDGE_NEVER, untilMs: 0 };
@@ -318,7 +318,8 @@ export class EdgeShaderDrawing {
             }
 
             heavy ||= shader.heavy === true;
-            const { loop, enter, exit, change } = motionOf(shader.registration.descriptor.motion);
+            const { loop } = motionOf(shader.registration.descriptor.motion);
+            const { enter, exit, change } = timingOf(shader.registration.descriptor);
             if (loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0) {
                 moving.add(shader.hash);
             }
@@ -386,7 +387,7 @@ export class EdgeShaderDrawing {
         if (
             shader === null ||
             shader.registration.descriptor.target !== "edge" ||
-            shader.registration.descriptor.role !== wanted ||
+            slotRoleOf({ target: "edge", place: shader.registration.descriptor.place }) !== wanted ||
             renderer === null ||
             runtime === null ||
             data === null

@@ -471,7 +471,7 @@ describe("loops and the active-mesh freeze", () => {
         assert.isTrue(scene._activeMeshesFrozen, "and the active meshes stayed frozen");
     });
 
-    it("with 10,000 nodes and a loop shader the active meshes stay frozen across 120 frames", async () => {
+    it("with 10,000 nodes and a loop shader the active meshes stay frozen across 30 frames", async () => {
         const nodes = Array.from({ length: 10_000 }, (_, i) => ({
             id: `n${String(i)}`,
             position: { x: (i % 100) - 50, y: Math.floor(i / 100) - 50, z: 0 },
@@ -497,7 +497,9 @@ describe("loops and the active-mesh freeze", () => {
             unfrozen += scene._activeMeshesFrozen ? 0 : 1;
         });
         try {
-            await drawnFrames(scene, 120);
+            // 30 frames: a software GPU (SwiftShader, as in CI) draws 10,000 impostors at about 10
+            // frames a second, so 120 frames alone outran the test's time limit.
+            await drawnFrames(scene, 30);
         } finally {
             scene.onAfterRenderObservable.remove(observer);
         }

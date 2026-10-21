@@ -427,6 +427,38 @@ describe("shader rows on the real element", () => {
         assert.isNotNull(section("effects").querySelector('[data-line="node.effects:uncertainty-aura"]'));
     });
 
+    it("a row whose shader draws nothing says why, and stops saying it once it runs", async () => {
+        const { session, element } = await mountElement();
+        const text = [
+            "/* graphty-shader 1",
+            '{ "id": "user/ring", "name": "Ring", "kind": "node-effect", "reach": 2 }',
+            "*/",
+            "vec4 shade(NodeInput n) { float r = step(abs(length(n.uv) - 0.8), 0.05); return vec4(r, r, r, r); }",
+        ].join("\n");
+        const added = await session.shaders.add(text, { source: "content" });
+        assert.isTrue(added.ok);
+        const ring = await session.styles.add({
+            name: "Ring",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.effects": { "user/ring": true } },
+        });
+        renderPanel(session, element, [ring.id]);
+        await showKind("node");
+
+        const line = (): HTMLElement | null => section("effects").querySelector('[data-shader="user/ring"]');
+        await waitFor(() => {
+            assert.include(line()?.textContent ?? "", "Held until you run it");
+        });
+        await session.shaders.approve("user/ring");
+        await waitFor(
+            () => {
+                assert.isNull(line()?.querySelector("[data-shader-problem]") ?? null);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+
     it("Backspace on a tile in a row's gallery keeps the row; on the row's own button it removes it", async () => {
         const { session, element } = await mountElement();
         const layer = await session.styles.add({

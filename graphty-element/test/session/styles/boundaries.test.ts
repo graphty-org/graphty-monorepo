@@ -133,8 +133,11 @@ describe("GraphBackground: the shader member", () => {
 
     it("refuses a parameter name that could reach a prototype, and unknown members", () => {
         assert.isFalse(
-            GraphBackground.safeParse({ backgroundType: "shader", shader: "nebula", params: { __proto__x: 1 } })
-                .success,
+            GraphBackground.safeParse({
+                backgroundType: "shader",
+                shader: "nebula",
+                params: Object.fromEntries([["__proto__x", 1]]),
+            }).success,
         );
         assert.isFalse(GraphBackground.safeParse({ backgroundType: "shader", shader: "nebula", trust: "run" }).success);
         assert.isFalse(GraphBackground.safeParse({ backgroundType: "shader", shader: "" }).success);

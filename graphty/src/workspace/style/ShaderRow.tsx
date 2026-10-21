@@ -2,7 +2,7 @@ import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Badge, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -28,17 +28,31 @@ import {
     writeShown,
 } from "./shaderSlots";
 import { focusSectionNext, headerBottom } from "./useFocusLine";
-import { copyNameWords, effectOffWords, failureWords, MATERIAL_WORDS, TRIGGER_TIPS, triggerWord } from "./words";
+import {
+    copyNameWords,
+    effectOffWords,
+    failureWords,
+    MATERIAL_WORDS,
+    shaderProblemWords,
+    TRIGGER_TIPS,
+    triggerWord,
+} from "./words";
 
 /** The width of a shader row's pop-outs: the gallery and the settings, as every field's. */
 const POPOUT_WIDTH = 240;
+
+/** The pictures of the Material row's two choices that are not shaders: a node drawn plain and as a wireframe. */
+const MATERIAL_PICTURES = {
+    plain: new URL("./thumbs/plain.webp", import.meta.url).href,
+    wireframe: new URL("./thumbs/wireframe.webp", import.meta.url).href,
+} as const;
 
 /**
  * The Material row's choices that are not shaders, before the surfaces.
  */
 const MATERIAL_CHOICES: readonly GalleryChoice[] = [
-    { value: "plain", label: MATERIAL_WORDS.plain },
-    { value: "wireframe", label: MATERIAL_WORDS.wireframe },
+    { value: "plain", label: MATERIAL_WORDS.plain, picture: MATERIAL_PICTURES.plain },
+    { value: "wireframe", label: MATERIAL_WORDS.wireframe, picture: MATERIAL_PICTURES.wireframe },
 ];
 
 /**
@@ -119,6 +133,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
     const [settings, setSettings] = useState(() => takeSettingsNext(entry.key));
     const { descriptor } = entry;
     const name = rowName(entry);
+    const why = useNotDrawn(ctx, entry);
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(name, verb, error), error: true } });
     };
@@ -160,6 +175,8 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                       .catch(fail("copied"));
               };
     const trigger = descriptor === undefined ? undefined : triggerWord(descriptor);
+    const picture =
+        entry.id === "plain" || entry.id === "wireframe" ? MATERIAL_PICTURES[entry.id] : descriptor?.thumbnail;
     const effect = slot.role === "effect";
     const swap = (
         <Popout opened={swapping} onOpenChange={setSwapping}>
@@ -170,10 +187,10 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                     aria-haspopup="dialog"
                     aria-expanded={swapping}
                 >
-                    {descriptor?.thumbnail === undefined ? (
+                    {picture === undefined ? (
                         <span className="ws-shader-thumb" aria-hidden />
                     ) : (
-                        <img className="ws-shader-thumb" src={descriptor.thumbnail} alt="" />
+                        <img className="ws-shader-thumb" src={picture} alt="" />
                     )}
                     <Text size="xs" truncate>
                         {name}
@@ -330,6 +347,11 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                     </Tooltip>
                 </span>
             </div>
+            {why === undefined ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-shader-problem>
+                    {why}
+                </Text>
+            )}
         </div>
     );
     return (
@@ -358,6 +380,56 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             <Menu.Item onClick={remove}>Remove</Menu.Item>
         </ContextMenu>
     );
+}
+
+/**
+ * Why the row's shader draws nothing now (the frame guard turned it off, it is held, it failed),
+ * kept current from the element's `shader:status`; undefined while it draws.
+ * @param ctx - the row's context.
+ * @param entry - the row.
+ * @returns the words, or undefined.
+ */
+function useNotDrawn(ctx: RowContext, entry: ShaderEntry): string | undefined {
+    const { session } = ctx;
+    const { id } = entry;
+    const known = entry.descriptor !== undefined && entry.off !== true;
+    const [why, setWhy] = useState(() => notDrawnWords(session, id, known));
+    useEffect(() => {
+        const update = (): void => {
+            setWhy(notDrawnWords(session, id, known));
+        };
+        update();
+        const offs = [
+            session.on("shader:status", (status) => {
+                if (status.id === id) {
+                    update();
+                }
+            }),
+            session.on("render:quality", update),
+        ];
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session, id, known]);
+    return why;
+}
+
+/**
+ * The words for a shader that draws nothing now.
+ * @param session - the element's session.
+ * @param id - the shader.
+ * @param known - whether the row names a shader the catalog lists.
+ * @returns why it draws nothing now, or undefined.
+ */
+function notDrawnWords(session: RowContext["session"], id: string, known: boolean): string | undefined {
+    if (!known) {
+        return undefined;
+    }
+    const status = session.shaders.status(id);
+    const off = status.state === "off" || status.state === "held" || status.state === "failed";
+    return off && status.problem !== undefined ? shaderProblemWords(status.problem) : undefined;
 }
 
 /**

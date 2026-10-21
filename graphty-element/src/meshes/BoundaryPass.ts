@@ -784,10 +784,15 @@ export class BoundaryPass {
 
     /**
      * Bind the field targets to a program's field samplers, the first target standing in for any
-     * missing.
+     * missing. A sphere boundary reads no field, so it binds none.
      * @param program - The program.
+     * @param sphere - Whether the layer draws spheres rather than fields.
      */
-    private bindFields(program: SceneEffect["wrapper"]["effect"]): void {
+    private bindFields(program: SceneEffect["wrapper"]["effect"], sphere: boolean): void {
+        if (sphere) {
+            return;
+        }
+
         FIELD_SAMPLERS.forEach((name, i) => {
             const texture = (this.fields[i] ?? this.fields[0]) as FieldTarget | undefined;
             if (texture !== undefined) {
@@ -857,9 +862,7 @@ export class BoundaryPass {
                     program.setFloat4("graphty_groupColor", ...group.color);
                     program.setFloat4("graphty_groupInfo", group.index, layer.depth, Math.max(group.slot, 0), 0);
                     program.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(shader.hash));
-                    if (!layer.sphere) {
-                        this.bindFields(program);
-                    }
+                    this.bindFields(program, layer.sphere);
 
                     setParams(program, shader.registration.descriptor.params, layer.params);
                     this.renderer.draw();

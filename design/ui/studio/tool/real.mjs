@@ -663,6 +663,8 @@ function gateCheck(rd) {
             } catch {
                 // an unreadable session.json is no walk
             }
+            // a replay that diverged was ended partway: not a whole walk (tool/README.md, "Replaying a route")
+            if (w.endsWith("-diverged")) continue;
             const kind = walkKind(w);
             if (!sess) why.push(`${w}: unreadable session.json`);
             else if (!readdirSync(wd).some((x) => /^\d+\.png$/.test(x))) why.push(`${w}: no screenshots`);
@@ -821,7 +823,9 @@ function parseSteps(list) {
             };
         if ((a === "--upload" || a === "--drop") && !existsSync(fileArg(v[0])))
             return { refused: `${a}: no file "${v[0]}" (a path, or a name in ${files})` };
-        steps.push([a, ...v]);
+        // a file is found from the folder the command runs in, not the session process's: a warm
+        // browser was started from another one
+        steps.push(a === "--upload" || a === "--drop" ? [a, fileArg(v[0])] : [a, ...v]);
         i += 1 + n;
     }
     return { steps };
@@ -2070,6 +2074,8 @@ async function recordRoute(s, { steps, out, code, missed }) {
 // row), at most REAL_REPLAY_TOLERANCE of them (default 2, or 5% of the screen's controls).
 function divergence(rec, now) {
     if (now.missed && !rec.missed) return `a control the route used is missing: ${now.out.join(" | ")}`;
+    // a route written by hand (its steps only) has no check points but its names
+    if (!rec.out) return null;
     if (now.code !== rec.code) return `the step exited ${now.code}, the route's ${rec.code}: ${now.out.join(" | ")}`;
     const a = rec.out.join("\n"),
         b = now.out.join("\n");
@@ -2143,7 +2149,9 @@ async function settle(s, out, ms = 15000) {
 // in any of the captures, is left out.
 async function canvasMoves(s) {
     const { page } = s;
-    s.cdp ??= await s.context.newCDPSession(page);
+    // a page closed under the check (the session is closing) has no motion to report
+    s.cdp ??= await s.context.newCDPSession(page).catch(() => null);
+    if (!s.cdp) return false;
     const clip = await page
         .locator("graphty-element")
         .first()

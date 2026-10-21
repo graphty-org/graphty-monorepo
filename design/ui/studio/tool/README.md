@@ -482,7 +482,9 @@ leaves the session open on that screen: whoever replayed it looks at the screens
 by hand with `--step`, then `--end`, and the new folder's own `route.jsonl` becomes the route to
 replay next time. A route that matched to the end is ended (exit 0; `--keep` leaves it open to
 extend it); `--end-on-diverge` ends a diverged one too. `replay.json` in the new folder records how
-many steps matched and where it diverged.
+many steps matched and where it diverged. A route written by hand -- a first line such as
+`{"start": "empty", "keys": false}`, then one `{"steps": ["--click", "Load"]}` line per step --
+replays too, with only its names checked, since it records no screens.
 
 `--rewalk <old walks folder> <new walks folder>` replays every route it finds under the old folder
 (a task's pilot folder, or a pilot folder of tasks), `REAL_REWALK_PARALLEL` (default 4) at a time,

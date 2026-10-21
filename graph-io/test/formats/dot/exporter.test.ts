@@ -246,6 +246,30 @@ describe("dot exporter: capabilities and shape", () => {
     });
 });
 
+describe("dot exporter: rank subgraphs", () => {
+    it("writes each rank subgraph after the nodes, named or anonymous, and reads the same graph back", async () => {
+        const snapshot = await imported(
+            "digraph { a; b; c; d; { rank=min; c } subgraph top { rank=same; a; b } { rank=sink; a; d } c -> a }",
+        );
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text)).toEqual([
+            "digraph {",
+            "a;",
+            "b;",
+            "c;",
+            "d;",
+            "subgraph top { rank=same; a; b; }",
+            "{ rank=min; c; }",
+            "{ rank=sink; d; }",
+            "c -> a;",
+            "}",
+        ]);
+        expect(text).not.toContain("graphty.rank");
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expectSameSnapshot(snapshot, back);
+    });
+});
+
 describe("dot exporter: clusters", () => {
     it("notes a parent that is a plain node: it reads back marked as a cluster", async () => {
         const b = new GraphBuilder({ directed: true });

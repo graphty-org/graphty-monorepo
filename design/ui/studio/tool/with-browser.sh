@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
 # Runs a command that launches a headless browser only when one of the machine's shared browser
-# slots is free, so this machine never runs more than four gated browsers at once.
+# slots is free, so this machine never runs more gated browsers at once than it has slots.
 # On 2026-10-01 a design round ran 23 browsers at once (49 GB), filled swap and set off an alert.
 #
 # The slots are the machine-wide ones every browser-driving command takes: the main checkout's
-# tmp/browser-slots/slot1..slot4, the same lock files as <main checkout>/tmp/with-browser.sh, which
+# tmp/browser-slots/slot1..slotN; slot1..slot4 are the same lock files as <main checkout>/tmp/with-browser.sh, which
 # the pre-push gate's browser shards and visual-preview captures take. Until 2026-10-09 this script
 # kept a pool of its own in /tmp, so study sessions and test runs each had four slots and together
 # ran eight or more browsers at once (tool/README.md, "Browsers").
 #
-# Usage: with-browser.sh <command> [args...]. BROWSER_SLOTS (1 to 4) uses fewer of the four.
+# Usage: with-browser.sh <command> [args...].
+#
+# How many: BROWSER_SLOTS, 1 to 16. A command that draws on the GPU (BROWSER_GPU=1, which real.mjs
+# sets for its sessions) defaults to 8: a GPU-drawn graphty page idles at 27-51% CPU, a software-drawn
+# one (SwiftShader) at 550-690%, so eight GPU browsers cost the machine less than one software one.
+# Every other command defaults to 4. Slots 1 to 4 are the ones the pre-push gate's shards share;
+# slots 5 and up are the studio's alone.
+#
+# BROWSER_SLOT_TRY=1 takes a free slot at once or gives up (exit 75), never waits, and never takes a
+# slot while anyone waits in the queue or one of the four shared slots: the warm pool (real.mjs --warm)
+# fills only spare slots above 4, so a waiting start or a test shard never waits behind it.
 set -u
-SLOTS=${BROWSER_SLOTS:-4}
-if ! [[ "$SLOTS" =~ ^[1-4]$ ]]; then
-    echo "with-browser.sh: BROWSER_SLOTS must be 1 to 4 (the machine runs at most four browsers), not \"$SLOTS\"" >&2
+if [[ "${BROWSER_GPU:-}" == 1 ]]; then SLOTS=${BROWSER_SLOTS:-8}; else SLOTS=${BROWSER_SLOTS:-4}; fi
+if ! [[ "$SLOTS" =~ ^([1-9]|1[0-6])$ ]]; then
+    echo "with-browser.sh: BROWSER_SLOTS must be 1 to 16, not \"$SLOTS\"" >&2
     exit 2
 fi
 here=$(cd "$(dirname "$0")" && pwd)
@@ -23,7 +33,8 @@ here=$(cd "$(dirname "$0")" && pwd)
 # it held one slot with no browser while that process waited for a second. real.mjs --prove runs
 # the gate itself for every browser it starts, so wrapped it waited forever when the other three
 # slots were busy.
-if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove)( |$) ]]; then
+# real.mjs --replay and --rewalk start their sessions through the gate as --start does.
+if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove|replay|rewalk)( |$) ]]; then
     exec "$@"
 fi
 # bars.mjs launches no browser itself: its tier 2 and tier 3 walks are real.mjs sessions, each
@@ -42,6 +53,21 @@ mkdir -p "$DIR/queue"
 # tool dry run 2). A ticket whose process is gone (killed while it waited) is removed by whoever
 # finds it. Commands that take the machine's slots without this script (the pre-push gate's
 # shards) do not queue here; they take a free slot when they find one.
+if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
+    [[ -n "$(ls "$DIR/queue")" ]] && exit 75
+    for i in $(seq "$SLOTS" -1 5); do
+        exec 9>"$DIR/slot$i"
+        if flock -n 9; then
+            export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
+            "$@"
+            code=$?
+            flock -u 9
+            exit $code
+        fi
+        exec 9>&-
+    done
+    exit 75
+fi
 ticket="$DIR/queue/$(date +%s%N)-$$"
 : >"$ticket"
 trap 'rm -f "$ticket"' EXIT

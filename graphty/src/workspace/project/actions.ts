@@ -11,7 +11,9 @@ import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/sess
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
+import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
+import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, rememberRecent } from "./recent";
 
@@ -39,7 +41,7 @@ interface ProjectFileState {
     pending: PendingFile | null;
 }
 
-/** Where a file being opened came from, and what to do when graphty-element reads it as data. */
+/** Where a file being opened came from. */
 export interface FileSource {
     /** Its handle, where the browser keeps them. */
     handle?: FileSystemFileHandle;
@@ -47,11 +49,8 @@ export interface FileSource {
     recentId?: string;
     /** The new project's name until the file names it, when it opens from the start screen. */
     name?: string;
-    /**
-     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
-     * project; `fresh` when it opens a new project from the start screen.
-     */
-    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
+    /** The reader picked it with Open a file, so it may be graph data rather than a project. */
+    intake?: boolean;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -59,9 +58,6 @@ interface PendingFile extends FileSource {
     file: File;
     fresh?: boolean;
 }
-
-/** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
-const DATA_REFUSALS: ReadonlySet<string> = new Set(["E_UNKNOWN_FORMAT", "E_PARSE_FAILED"]);
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
 
@@ -110,6 +106,31 @@ export function problemSentence(fileName: string, error: unknown): string {
         default:
             return `${fileName} could not be opened.`;
     }
+}
+
+/**
+ * What the reader is told when a file picked with Open a file cannot be opened or added: the
+ * element's own reason after the file's name.
+ * @param fileName - the file's name.
+ * @param fresh - whether it was to open a new project from the start screen.
+ * @param error - what the element refused it with.
+ * @returns the sentence.
+ */
+function intakeProblem(fileName: string, fresh: boolean, error: unknown): string {
+    const reason = error instanceof Error ? error.message : String(error);
+    const what = fresh
+        ? `${fileNameWithoutExtension(fileName)} could not be opened.`
+        : `${fileName} could not be added.`;
+    return `${what} ${reason}`;
+}
+
+/**
+ * A file's name without its extension.
+ * @param name - the file's name.
+ * @returns the name, or the whole name when that would leave nothing.
+ */
+export function fileNameWithoutExtension(name: string): string {
+    return name.replace(/\.[^.]*$/, "") || name;
 }
 
 /**
@@ -373,17 +394,17 @@ async function openInSession(
     discard: boolean,
 ): Promise<void> {
     const { workspace } = ctx;
-    const { file, handle, recentId, onData, fresh = false } = pending;
+    const { file, handle, recentId, intake = false, fresh = false } = pending;
     if (!discard && fileState(workspace).writeFailed) {
         askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
         return;
     }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
-        if (report.opened === "graph" && onData !== undefined) {
-            // A data file: imported the way the caller imports one, not as the element's draft.
-            report.draft?.dispose();
-            await onData(ctx, fresh);
+        if (report.opened === "graph") {
+            // A data file: a new project's graph, or added to the open one.
+            await report.draft?.load({ ...(fresh ? {} : { mode: "merge" as const }), styles: fileStylesChoice() });
+            noticeFileStyles(workspace, session);
             return;
         }
         if (report.opened !== "project") {
@@ -408,23 +429,19 @@ async function openInSession(
             askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
             return;
         }
-        if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
-            // A data file the element could not read: the data import says why, in its own words.
-            await onData(ctx, fresh);
-            return;
-        }
-        workspace.set({ notice: { message: problemSentence(file.name, error) } });
+        workspace.set({
+            notice: { message: intake ? intakeProblem(file.name, fresh, error) : problemSentence(file.name, error) },
+        });
     }
 }
 
 /**
  * Opens a file through graphty-element's `project.open`, which decides what it is: inside an open
- * project a project file opens in its place (asking first over unsaved changes); from the start
- * screen it opens a project whose element reads the file once it is up. A data file goes to
- * `source.onData`.
+ * project a project file opens in its place (asking first over unsaved changes) and a data file is
+ * added to it; from the start screen it opens a project whose element reads the file once it is up.
  * @param ctx - the command context.
  * @param file - the file.
- * @param source - its handle, its Recent projects entry, and how to import it as data.
+ * @param source - its handle, its Recent projects entry, and whether Open a file picked it.
  */
 export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
     const { name = file.name, ...from } = source;

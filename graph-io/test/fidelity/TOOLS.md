@@ -35,7 +35,10 @@ length in the unit of the positions, so their 1200 x 900 canvas does not change 
 
 An oracle is the program's own SVG drawing of a committed file, kept in `oracles/<sample id>.svg` with a PNG of it
 and an `.oracle.json` that records the program, its version, the exact command, the file's hash and whether the
-program is a stand-in for the one that wrote the file. One script per program makes them, from
+program is a stand-in for the one that wrote the file. Where the program says where it drew each node, the
+`.oracle.json` records that too (`drawn`): sigma.js for its raster, and vis-network (each node's id, center and box,
+from its own `getPositions` and `getBoundingBox`), which the comparator names the SVG's shapes by, since a vis-network
+SVG carries no ids. One script per program makes them, from
 `oracles/tools/`:
 
 | Script                  | Program                              | Draws                                                                                  |

@@ -66,6 +66,9 @@ const DEFAULT_IDS = [
     "cytoscapejs-specimen-labels-p2",
     "vis-network-specimen-arrows",
     "gml-specimen-groups",
+    // no ids, no positions and no legible labels: only vis-network's own account of where it drew each node tells its
+    // bodies apart, and a defect that swaps two nodes' looks is caught only through it
+    "json-vis-siblings",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");

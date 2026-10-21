@@ -10,7 +10,16 @@
 import type { Graphty } from "../../../index.js";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
-import { associate, type Association, diskColor, type RasterDrawing, rasterScene, withoutCovered } from "./associate";
+import {
+    associate,
+    type Association,
+    diskColor,
+    type DrawnNodes,
+    nameDrawnNodes,
+    type RasterDrawing,
+    rasterScene,
+    withoutCovered,
+} from "./associate";
 import {
     compareOracle,
     namedCaptions,
@@ -168,11 +177,17 @@ async function associateOracle(
     prims: Parameters<typeof associate>[0],
     size: { width: number; height: number },
     graphty: PScene,
+    ownLayout: boolean,
 ): Promise<Association> {
     const drawing = meta.drawn as RasterDrawing | undefined;
     const pngUrl = await oraclePngUrl(id);
     if (meta.svgKind !== "raster" || drawing === undefined || pngUrl === undefined) {
-        return associate(prims, size.width, size.height, graphty);
+        // a vector oracle whose program said where it drew each node (vis-network) names its shapes by that
+        const named =
+            meta.svgKind !== "raster" && drawing !== undefined
+                ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
+                : prims;
+        return associate(named, size.width, size.height, graphty, { ownLayout });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;
@@ -256,7 +271,14 @@ export async function compareWithOracle(
         throw new Error(`${id} has no oracle SVG`);
     }
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
-    const associated = await associateOracle(id, meta, prims, { width, height }, namedCaptions(graphty, numbers));
+    const associated = await associateOracle(
+        id,
+        meta,
+        prims,
+        { width, height },
+        namedCaptions(graphty, numbers),
+        element.session.seededNodeCount === 0,
+    );
     // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
     const association = {
         ...associated,

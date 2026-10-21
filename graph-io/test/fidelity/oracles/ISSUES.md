@@ -3704,3 +3704,43 @@ Node shape and label anchor, the other two most failed properties, are draw.io's
 and draw.io, not knowing the style, draws as a rectangle; `graphml-cla-checker-graph`'s 84 `label.anchor` failures are
 SmartNodeLabelModel labels centered in their nodes (ratios 0, box centered), which draw.io places about 5 px left of
 the middle (its own label spacing). Both wait for the owner's yEd exports.
+
+## json-vis-siblings: vis-network's nodes named by where it drew them (round 4, 2026-10-20)
+
+`json-vis-siblings` stores no positions, and at the zoom vis-network fits its physics layout to (0.27) every label is
+under vis-network's draw threshold, so its SVG names no node by id or by label. The comparator then related the two
+drawings by their extents alone, paired 86 of graphty's 200 nodes with whatever body lay near each by chance, and
+the fit through those pairs called the layouts related (rms 0.008): it judged positions, edges and node bodies as
+if the layout matched, left the other 114 nodes extra and their bodies strays. The earlier rows that called this an
+import defect, or said vis-network hides some nodes, were wrong: vis-network draws all 200 nodes and 284 edges, in
+file order (its 200 node fills match the file's colors one for one).
+
+- Fixed in the oracle tool: `web-oracle.mjs` records where vis-network drew each node (`drawn` in the
+  `.oracle.json`: id, center from `getPositions` through `canvasToDOM`, box from `getBoundingBox`). Regenerated for
+  `json-vis-siblings` only; its SVG and PNG are byte-identical. The other vis-network oracles pick it up when next
+  regenerated (their labels already name their nodes).
+- Fixed in the comparator: a vector oracle with `drawn` names each shape, picture or text centered on a drawn node as
+  that node (`nameDrawnNodes`, `graphty-element/test/fidelity/oracle/associate.ts`), as markup would. And where
+  graphty laid every node out itself (`seededNodeCount` 0), a geometric association seeded by the extents alone pairs
+  nothing, since such pairs are chance (`associate-drawn-nodes.test.ts`). Planted defect "two nodes' fills swapped"
+  (`mutations.ts`, `json-vis-siblings` added to the mutants' default samples) is absorbed by known failures without the
+  fix and caught with it.
+
+After (before -> after): nodes associated 86 -> 200, edges 21 -> 284, strays 351 -> 31, failing elements 964 -> 568;
+the layouts are now unrelated (rms 0.15). node.fill 0.453 -> 1, node.stroke 0.314 -> 1, node.width 0.465 -> 1,
+node.extra 0.43 -> 1, edge.present 0.174 -> 1, edge.color 0.381 -> 1, edge.arrow 0.667 -> 0.951, edge.arrowShape
+0.3 -> 0.955. With graphty's nodes at vis-network's positions (`@matched`): node.position 0.82 -> 1, edge.route
+0.077 -> 0.743.
+
+Lowered floors (in `oracle-floors.json` `lowered`, with this reason): node.position 0.012 -> 0 and frame.mirror,
+frame.rotation and the raster regions no longer judged (the layouts are unrelated; the old rates came from the chance
+pairs); edge.curve 0.905 -> 0.764 (`@matched` 0.808 -> 0.764), now judged on all 284 edges.
+
+Still failing, open:
+
+- edge.curve (67 edges): vis-network draws its default `smooth: { type: "dynamic" }` curves, graphty straight lines.
+  The file sets no smooth option; graph-io does not read vis-network's default curve.
+- edge.width (all 284): vis-network's 1-wide edge at its zoom is 0.3 px, graphty's 0.245 px against the same node
+  spacing (ratio 0.82, tolerance 0.9).
+- edge.arrow (42 target ends) and stray.present (31 shapes): about 5 x 3 px arrowheads at crowded nodes that the
+  comparator gives to no edge. Comparator, open.

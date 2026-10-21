@@ -179,6 +179,15 @@ const DEFECTS = {
         });
         return s;
     },
+    // what only a comparison that knows which body is which node catches: the same fills, on the wrong nodes
+    "two nodes' fills swapped": (s) => {
+        const a = s.nodes.find((n) => n.fill !== null);
+        const b = s.nodes.find((n) => n.fill !== null && n.fill.color !== a?.fill?.color);
+        if (a?.fill && b?.fill) {
+            [a.fill.color, b.fill.color] = [b.fill.color, a.fill.color];
+        }
+        return s;
+    },
     "node fill removed (outline only)": eachNode((n) => {
         if (n.fill !== null && n.stroke === null) {
             n.stroke = { color: n.fill.color, opacity: 1, width: 1, dash: null, dashClass: "solid" };
@@ -754,6 +763,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node size x3": ["node.width", "node.height", "node.sizeToSpacing", "node.sizeToExtent"],
     "node size x0.5": ["node.width", "node.height", "node.sizeToSpacing", "node.sizeToExtent"],
     "node fills one color": ["node.fill", "node.gradient"],
+    "two nodes' fills swapped": ["node.fill", "node.gradient"],
     "node fill removed (outline only)": ["node.fill", "node.fillOpacity", "node.gradient", "node.stroke"],
     "node outline black": ["node.stroke"],
     "node outline width x2": ["node.strokeWidth", "node.width", "node.height"],

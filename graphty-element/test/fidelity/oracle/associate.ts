@@ -1118,14 +1118,55 @@ export interface Association {
 }
 
 /**
+ * A vector oracle's own account of where its program drew each node (`drawn` in its metadata): the node's id, its
+ * center and its bounding box's size, in the SVG's pixels (vis-network's getPositions and getBoundingBox).
+ */
+export interface DrawnNodes {
+    nodes: { id: string; x: number; y: number; w: number; h: number }[];
+}
+
+/**
+ * The oracle's primitives with each shape, picture or text drawn centered on a node the program says it drew there
+ * named as that node, as markup would name it: the only identity a drawing with no ids and no legible labels has
+ * (json-vis-siblings: no positions in the file, labels below vis-network's draw threshold). A primitive centered on
+ * two drawn nodes, or larger than the node's box, stays unnamed.
+ * @param prims - the oracle's primitives
+ * @param drawn - where the program drew each node
+ * @returns the primitives, the named ones with a node hint
+ */
+export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[] {
+    const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
+        Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w &&
+        Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h &&
+        bw(p.box) <= 1.5 * n.w + 2 &&
+        bh(p.box) <= 1.5 * n.h + 2;
+    return prims.map((p) => {
+        if (p.hint !== null || (p.kind !== "shape" && p.kind !== "image" && p.text === null)) {
+            return p;
+        }
+        const at = drawn.nodes.filter((n) => on(p, n));
+        return at.length === 1 ? { ...p, hint: { role: "node", id: at[0].id, key: at[0].id } } : p;
+    });
+}
+
+/**
  * Associates an oracle's primitives with graph elements.
  * @param prims - the oracle's primitives (`readSvgPrimitives`)
  * @param width - the oracle's rendered width
  * @param height - the oracle's rendered height
  * @param guide - graphty's drawing of the same file, in graphty pixels
+ * @param options - what is known of graphty's drawing
+ * @param options.ownLayout - graphty placed no node where the file did (the file stores no positions): its layout is
+ *     its own, so the two drawings' extents relate no node to any body, and only ids or labels can pair them
  * @returns the oracle scene
  */
-export function associate(prims: readonly Prim[], width: number, height: number, guide: PScene): Association {
+export function associate(
+    prims: readonly Prim[],
+    width: number,
+    height: number,
+    guide: PScene,
+    options: { ownLayout?: boolean } = {},
+): Association {
     const used = new Set<number>();
     const take = (p: Prim): Prim => {
         used.add(p.index);
@@ -1320,9 +1361,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // The free texts both draw frame the drawing too (a specimen sheet's captions, where its nodes carry no
         // labels), when they find more bodies than the frame without them: a program may set every caption off its
         // node by more than a small node's size.
-        let seed = seedTransform(guide, nodes, pool, width, height);
+        const ownLayout = options.ownLayout === true;
+        let seed = unlessChance(seedTransform(guide, nodes, pool, width, height), ownLayout);
         let { framed, groupFrame } = frameThrough(seed);
-        const byTexts = seedTransform(guide, nodes, pool, width, height, true);
+        const byTexts = unlessChance(seedTransform(guide, nodes, pool, width, height, true), ownLayout);
         if (byTexts !== null && byTexts !== seed && byTexts.source === "texts") {
             const other = frameThrough(byTexts);
             if (other.framed.size > framed.size) {
@@ -2299,6 +2341,15 @@ function seedTransform(
         anchors,
     };
 }
+
+/**
+ * A seed, unless it relates only the extents of two layouts each program made its own way: those pair bodies by chance.
+ * @param seed - the seed
+ * @param ownLayout - graphty laid every node out itself
+ * @returns the seed, or null
+ */
+const unlessChance = (seed: Seed | null, ownLayout: boolean): Seed | null =>
+    ownLayout && seed?.source === "extent" ? null : seed;
 
 /** Two node ids as one key, either way round. */
 const unorderedPair = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);

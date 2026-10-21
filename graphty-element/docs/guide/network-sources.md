@@ -124,21 +124,45 @@ a function (a token refresher, an AWS provider) cannot be remembered: `remember`
 An application without an element uses `createCredentialStore()` from
 `@graphty/graphty-element/credentials`.
 
+### Credential slots: the OpenAlex API key
+
+A source names the credentials it takes as slots in its descriptor, and `credentialSlots(descriptor)`
+reads them (a source that takes a credential and names none has one slot, `default`). OpenAlex has
+one optional slot, `api_key`, sent as the `api_key` query parameter as OpenAlex documents. Without
+a key a load still runs; with one, `credentials.forSlot` makes the credential from the key:
+
+```ts
+import { credentials, credentialSlots, listSources } from "@graphty/graphty-element";
+
+const [slot] = credentialSlots(listSources().find((s) => s.id === "openalex")?.descriptor);
+const key = credentials.forSlot(slot, "my-openalex-key"); // sent as ?api_key=my-openalex-key
+
+await element.session.data.import({ source: "openalex", config: { work: "W2112090702" } }, { credential: key });
+
+// or remember it for the reader, so later loads, pages, refreshes and expansions use it
+await element.credentials.remember({ source: "openalex", endpoint: "https://api.openalex.org", slot: "api_key" }, key);
+```
+
+The key goes on every request of the load (each page, an expansion, a stub's details) and only to
+api.openalex.org. A saved project records `credentialSlot: "api_key"` and never the key. A
+remembered credential is looked up by the source, the origin about to be contacted and the slot,
+so a project file edited to name another endpoint gets no key.
+
 ## Errors
 
 Every failure is a `GraphtyError` whose `code` names what went wrong and whose `details` carry
 the values. Your application writes the words.
 
-| Code                   | When                                           | Details                      |
-| ---------------------- | ---------------------------------------------- | ---------------------------- |
-| `E_SOURCE_AUTH`        | the service wants a credential, or refused one | `origin`, `status`, `stored` |
-| `E_SOURCE_BLOCKED`     | the browser refused the request (often CORS)   | `url`, `cause`               |
-| `E_SOURCE_NOT_FOUND`   | the named item does not exist                  | `what`, `value`              |
-| `E_SOURCE_PARAM`       | a parameter or option is invalid               | `name`, `reason`             |
-| `E_SOURCE_UNSUPPORTED` | the source cannot do what was asked            | `feature`                    |
+| Code                   | When                                           | Details                              |
+| ---------------------- | ---------------------------------------------- | ------------------------------------ |
+| `E_SOURCE_AUTH`        | the service wants a credential, or refused one | `origin`, `status`, `slot`, `stored` |
+| `E_SOURCE_BLOCKED`     | the browser refused the request (often CORS)   | `url`, `cause`                       |
+| `E_SOURCE_NOT_FOUND`   | the named item does not exist                  | `what`, `value`                      |
+| `E_SOURCE_PARAM`       | a parameter or option is invalid               | `name`, `reason`                     |
+| `E_SOURCE_UNSUPPORTED` | the source cannot do what was asked            | `feature`                            |
 
 `stored: true` on `E_SOURCE_AUTH` means a remembered credential was used and refused, so you can
-offer to replace it. The full list is `SOURCE_ISSUE` in `@graphty/graphty-element`.
+offer to replace it; `slot` names the credential slot to ask the reader for. The full list is `SOURCE_ISSUE` in `@graphty/graphty-element`.
 
 ## Undo, more pages and merging
 
@@ -160,15 +184,15 @@ attributes unless you pass `existing: "update"`.
 
 ## Saved projects
 
-A saved project keeps every load's source, parameters and endpoint, and who the credential was
-(its kind, origin and user name), never the secret. Opening the project draws the saved rows at
+A saved project keeps every load's source, parameters and endpoint, and the credential slot a
+credential filled (`credentialSlot`), never the credential. Opening the project draws the saved rows at
 once and fetches nothing: a shared project file never runs a query by itself. Your application
 decides whether to fetch again:
 
 ```ts
 await element.session.project.open(file);
 for (const load of element.session.data.pendingSourceLoads()) {
-    // load.source, load.endpoint, load.hasQuery, load.isLocalNetwork, load.authRequired
+    // load.source, load.endpoint, load.hasQuery, load.isLocalNetwork, load.authRequired, load.credentialSlot
     await element.session.data.runPendingSourceLoad(load.id); // read-only; asks element.credentials
 }
 ```

@@ -266,8 +266,10 @@ const methods = restMethods<OpenAlexParams>(plan, false);
  * The OpenAlex preset (https://openalex.org): `work` (the citation graph around a work, default)
  * or `author` (the works they wrote), `graph: "coauthorship"` for authors joined by shared works,
  * and `include` (`"authors"`, `"institutions"`, `"topics"`) for more node kinds. Without a key,
- * the first page loads and a later one warns W_SOURCE_AUTH with `report.source.next`; pass
- * `credentials.apiKey({ query: "api_key" }, key)` and continue with the cursor. Experimental.
+ * the first page loads and a later one warns W_SOURCE_AUTH with `report.source.next`. Its one
+ * optional credential slot, `api_key`, is sent as the `api_key` query parameter: pass
+ * `credentials.forSlot(slot, key)` (or `credentials.apiKey({ query: "api_key" }, key)`) and
+ * continue with the cursor. Experimental.
  * @category Network sources
  */
 export const openalexSource: GraphSource<OpenAlexParams> = defineSource<OpenAlexParams>({

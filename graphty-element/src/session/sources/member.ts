@@ -264,7 +264,7 @@ function sourcePart(
         sourceVersion: record.version,
         endpoint: record.endpoint,
         params: jsonOf(record.config) ?? {},
-        credentialSlot: record.credential === null ? slot : DEFAULT_SLOT,
+        credentialSlot: record.credential === null ? slot : (record.credential.slot ?? DEFAULT_SLOT),
         pages: Math.max(1, record.pages),
         next: jsonOf(record.next) ?? null,
         validators: validatorsOf(record.validators),

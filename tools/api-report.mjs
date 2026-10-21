@@ -154,6 +154,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // the name of a source's credential slot, an identifier its descriptor declares ("api_key")
+    "slot",
+    "credentialSlot",
     // a value the consumer's data holds: a source preview row's label (`name`, `title`, ...)
     "label",
 ]);

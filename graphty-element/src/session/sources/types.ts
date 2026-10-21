@@ -117,6 +117,12 @@ export interface SourceCredentialIdentity {
     readonly origin: string;
     /** A basic credential's user name. */
     readonly username?: string;
+    /**
+     * The credential slot it filled (`"api_key"` for OpenAlex, `"default"` for a source that
+     * declares none), as a project file records it.
+     * @since 3.30.0
+     */
+    readonly slot?: string;
 }
 
 /** One expansion of a recorded load. Experimental. */

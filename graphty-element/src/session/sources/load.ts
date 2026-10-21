@@ -33,7 +33,7 @@ import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
 import type { RowUpdate } from "../types";
-import { resolve } from "./credentialLookup";
+import { resolve, slotNameOf, slotOf } from "./credentialLookup";
 import { toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
@@ -77,17 +77,20 @@ function originOf(endpoint: string): string {
     return `${url.protocol}//${url.host}`;
 }
 
-/** What one read of a source settled: the credential it used and whether it was remembered. */
+/** What one read of a source settled: the credential it used, its slot and whether it was remembered. */
 interface Access {
     readonly endpoint: string | null;
     readonly credential: Credential | undefined;
+    /** The credential slot the credential fills: the source's, else `default`. */
+    readonly slot: string;
     readonly stored: boolean;
 }
 
 /**
  * The endpoint and the credential a call uses: the caller's, else the remembered one for the
- * source and the endpoint's origin. A source that requires a credential and gets none is refused
- * before any request, with `E_SOURCE_AUTH` (`stored: false`).
+ * source, the endpoint's origin and the source's credential slot. A source whose slot is required
+ * and gets none is refused before any request, with `E_SOURCE_AUTH` (`slot`, `stored: false`); an
+ * optional slot with none runs without.
  * @param host - the session pieces
  * @param id - the source id
  * @param options - the caller's options
@@ -96,12 +99,13 @@ interface Access {
 async function accessFor(host: SourceHost, id: string, options: SourceLoadOptions): Promise<Access> {
     const descriptor = descriptorOf(id);
     const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
+    const slot = slotNameOf(id);
     if (options.credential !== undefined) {
-        return { endpoint, credential: options.credential, stored: false };
+        return { endpoint, credential: options.credential, slot, stored: false };
     }
 
     const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint));
-    if (remembered === undefined && descriptor?.authRequired === "required") {
+    if (remembered === undefined && (descriptor?.authRequired === "required" || slotOf(id)?.required === true)) {
         throw new GraphtyError({
             code: "E_SOURCE_AUTH",
             message: `The ${id} source needs a credential and none was given or remembered.`,
@@ -109,14 +113,15 @@ async function accessFor(host: SourceHost, id: string, options: SourceLoadOption
             details: {
                 origin: endpoint === null ? null : originOf(endpoint),
                 status: null,
-                scheme: descriptor.auth?.[0] ?? null,
+                scheme: descriptor?.auth?.[0] ?? null,
                 serverCode: null,
+                slot,
                 stored: false,
             },
         });
     }
 
-    return { endpoint, credential: remembered, stored: remembered !== undefined };
+    return { endpoint, credential: remembered, slot, stored: remembered !== undefined };
 }
 
 /**
@@ -147,7 +152,7 @@ async function coded<T>(access: Access, work: () => Promise<T>): Promise<T> {
     try {
         return await work();
     } catch (error) {
-        throw toGraphtyError(error, { stored: access.stored });
+        throw toGraphtyError(error, { slot: access.slot, stored: access.stored });
     }
 }
 
@@ -338,6 +343,7 @@ export async function importSource(
         next: read.info?.next ?? null,
         validators: read.info?.validators ?? {},
         credential: access.credential ?? null,
+        credentialSlot: access.slot,
         ...totalOf(read, total),
         ...(options.expand === undefined ? {} : { expand: options.expand }),
     });
@@ -471,6 +477,7 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         next: read.info?.next ?? null,
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
+        credentialSlot: access.slot,
         endpoint: access.endpoint,
         // A count the source ran replaces the total; a page read on from a cursor counts nothing,
         // so the total is kept. A capped Cypher query reruns from the start, so its last page
@@ -676,6 +683,7 @@ export async function refreshSource(
         next: read.info?.next ?? null,
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
+        credentialSlot: access.slot,
         endpoint: access.endpoint,
         ...totalOf(read, record.total),
     });
@@ -897,6 +905,7 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         next: read.info?.next ?? null,
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
+        credentialSlot: access.slot,
         endpoint: access.endpoint,
     });
 }

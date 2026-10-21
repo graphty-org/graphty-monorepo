@@ -8,6 +8,7 @@ import { AwsCredentials } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
+import { credentialSlots } from '@graphty/graph-io';
 import type { DatasetMeta } from '@graphty/graph-samples';
 import { defineSource } from '@graphty/graph-io';
 import type { DerivedGraph } from '@graphty/graph-format';
@@ -32,6 +33,7 @@ import { ReplayOptions } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
+import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
@@ -488,6 +490,8 @@ export { Credential_2 as Credential }
 export { CredentialKind }
 
 export { credentials }
+
+export { credentialSlots }
 
 // @public
 export interface DataSourceDescriptor {
@@ -4172,8 +4176,11 @@ export interface SourceCounts {
 export interface SourceCredentialIdentity {
     readonly kind: CredentialKind;
     readonly origin: string;
+    readonly slot?: string;
     readonly username?: string;
 }
+
+export { SourceCredentialSlot }
 
 export { SourceCursor }
 

@@ -52,6 +52,7 @@ export type {
     ReplayOptions,
     RetryOptions,
     SourceContext,
+    SourceCredentialSlot,
     SourceCursor,
     SourceDescriptor,
     EdgeRecord as SourceEdgeRecord,
@@ -81,6 +82,7 @@ export type {
 } from "@graphty/graph-io";
 export {
     credentials,
+    credentialSlots,
     defineSource,
     listSources,
     recordingFrom,

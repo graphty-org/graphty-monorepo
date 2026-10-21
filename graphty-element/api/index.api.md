@@ -16,6 +16,7 @@ import { CommonImportOptions } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
+import { credentialSlots } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
@@ -80,6 +81,7 @@ import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
+import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
@@ -627,6 +629,8 @@ export { CredentialKind }
 
 export { credentials }
 
+export { credentialSlots }
+
 // @public
 export class CredentialStore {
     constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>);
@@ -634,7 +638,7 @@ export class CredentialStore {
     forget(target: SourceCredentialTarget): Promise<void>;
     forgetAll(): Promise<void>;
     list(): readonly StoredCredentialInfo[];
-    lookup(source: string, origin: string | URL): Promise<Credential_2 | undefined>;
+    lookup(source: string, origin: string | URL, slot?: string): Promise<Credential_2 | undefined>;
     remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
 }
 
@@ -5180,12 +5184,16 @@ export interface SourceCounts {
 export interface SourceCredentialIdentity {
     readonly kind: CredentialKind;
     readonly origin: string;
+    readonly slot?: string;
     readonly username?: string;
 }
+
+export { SourceCredentialSlot }
 
 // @public
 export interface SourceCredentialTarget {
     readonly endpoint: string | URL;
+    readonly slot?: string;
     readonly source: string;
 }
 
@@ -5439,6 +5447,7 @@ export type StoredCredentialInfo = {
     readonly origin: string;
     readonly kind: CredentialKind;
     readonly username?: string;
+    readonly slot?: string;
 };
 
 // @public

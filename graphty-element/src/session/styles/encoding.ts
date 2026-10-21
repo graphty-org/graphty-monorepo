@@ -82,6 +82,7 @@ import {
     type ChannelValues,
     type ColorValue,
     type EdgeLineValue,
+    isEnumCount,
     type NodeShapeValue,
     OFF_COLOR,
     parseShaderParamAddress,
@@ -835,6 +836,11 @@ function enumConverter(descriptor: ChannelDescriptor): ChannelConverter {
             return values.includes(scaled) ? scaled : undefined;
         }
 
+        // A channel that takes a count beside its words (a segment count) reads the number as that count.
+        if (descriptor.min !== undefined) {
+            return Number.isFinite(scaled) ? Math.max(descriptor.min, Math.round(scaled)) : undefined;
+        }
+
         const slot = Math.round(scaled);
 
         return slot >= 0 && slot < values.length ? values[slot] : undefined;
@@ -1064,6 +1070,10 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         case "boolean":
             return authoredBoolean(value, wrongKind);
         case "enum":
+            if (isEnumCount(descriptor, value)) {
+                return value;
+            }
+
             if (typeof value !== "string" || !(values ?? []).includes(value)) {
                 throw outOfRange(descriptor, value, what);
             }

@@ -490,17 +490,28 @@ graphty-element runs the example from the docs). The plugin-author personas in
   lower-detail mesh, and the solid nodes are unaffected.
 - **The app's Wireframe row** writes `node.wireframe: true` and `node.meshDetail: "low"` in one undo
   step; turning it off removes both. This is the app's choice through an element option.
-- **Babylon's edges rendering is open until captured.** The first reason for rejecting it (a smooth
-  sphere has no hard edges) does not hold for a low-detail mesh. The likely difference: an
-  icosphere has no coplanar faces, so wireframe and edges both draw a geodesic of triangles; a UV
-  sphere's quads are planar, so edges rendering drops their diagonals and draws a latitude and
-  longitude grid (a globe), while wireframe draws the diagonals too. Before this section is frozen,
-  both are captured on a sphere and an icosphere at "low" detail through the browser gate, and the
-  images are judged by eye (not by the image model's yes or no). If edges rendering looks better,
-  it becomes an additive option, `node.wireframeStyle: "triangles" | "edges"` (default
-  "triangles", today's drawing; `node.wireframe` is a released boolean and cannot take a new
-  value), and the app's Wireframe row chooses it. Otherwise the captures are recorded here as the
-  reason.
+- **Babylon's edges rendering, captured: not added.** Both were drawn through the browser gate on
+  2026-10-21 (one node, 600 x 600, the camera 2.6 node diameters away) and judged by eye:
+    - At "low" detail, a sphere and an icosphere are both an icosphere of one subdivision (an
+      icosahedron, 20 faces). No two of its faces are coplanar, so edges rendering keeps every
+      triangle edge: it draws exactly the same 30 lines as `node.wireframe`, only thicker. It reads
+      no better, so `node.wireframeStyle` is not added and the app's Wireframe row keeps
+      `node.wireframe: true` with `node.meshDetail: "low"`.
+    - Edges rendering does read better on a UV sphere (a sphere at `node.meshDetail: 8`): it drops
+      the diagonals of the planar quads and draws a clean latitude and longitude globe, where the
+      wireframe draws the diagonals too. But "low" never draws a UV sphere, and two costs stand
+      against adding it for that case alone. Babylon's edges renderer draws one color per source
+      mesh, while a node's color is per instance, so differently colored nodes sharing a mesh would
+      draw in one color; and it only finds the globe at an epsilon near 1 (at its default 0.95 an
+      8-segment sphere's 18-degree steps count as smooth and nothing but the poles is drawn).
+      Building it on a feature-edge index drawn by the node's own material would fix both, and is
+      the route if the owner wants the globe.
+    - Images, in the main checkout: `tmp/shader-studio/wireframe/sphere-low-wireframe.png`,
+      `sphere-low-edges.png`, `icosphere-low-wireframe.png`, `icosphere-low-edges.png`, and for the
+      UV sphere `sphere-8-wireframe.png`, `sphere-8-edges.png`, with `sphere-full-wireframe.png`
+      (today's default) for comparison.
+    - For the owner's next review (section 13): the "low" sphere reads as a twenty-sided die, not a
+      globe. If that is too coarse, "low" can become two subdivisions (80 faces) with no new option.
 - Saved layers that use `node.wireframe` keep drawing exactly as they do now.
 
 ---

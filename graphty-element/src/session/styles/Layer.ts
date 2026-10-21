@@ -83,6 +83,7 @@ import {
     type ChannelDescriptor,
     channelDescriptor,
     channelsFor,
+    isEnumCount,
     labelFieldOf,
     parseShaderParamAddress,
     SHADER_NONE,
@@ -824,6 +825,11 @@ function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: str
     const values = descriptor.values ?? [];
 
     if (typeof value === "string" && values.includes(value)) {
+        return null;
+    }
+
+    // An enum with a `min` also takes a whole number from there up (a segment count).
+    if (isEnumCount(descriptor, value)) {
         return null;
     }
 

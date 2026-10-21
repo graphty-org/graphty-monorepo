@@ -4379,6 +4379,10 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
             uniform: "uniform";
         }>>;
+        detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
+            full: "full";
+            low: "low";
+        }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
             diamond: "diamond";

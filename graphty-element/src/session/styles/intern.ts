@@ -215,6 +215,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.shader": "content",
     "edge.shaderParams": "content",
     "edge.effects": "content",
+    // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
+    // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
+    "edge.taper": "content",
+    "edge.lift": "content",
 });
 
 /**

@@ -402,14 +402,25 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
     ).map((channel): UnpaintedChannel => ({
         channel,
         ...unownedDefect(
-            "THE SHADER CHANNELS ARE ACCEPTED, MERGED AND EXPLAINED, AND NOTHING DRAWS THEM YET. " +
-                "A layer may name a shader, its parameters and its effects, the repaint stacks them " +
-                "and `styles.counts` reports what they cover, but the shader runtime and the node and " +
-                "edge drawing paths are later packages of design/rendering/shader-styles.md (section 8, " +
-                "E2, E3 and E5), and the element ships no preset yet. Until they land a layer writing " +
-                "one of these draws exactly what the layers beneath draw.",
+            "THE ELEMENT SHIPS NO SHADER PRESET YET, so the only value this gate can write to these " +
+                'channels on every build is `"none"` (or an empty map), which draws the plain look. ' +
+                "A registered or pasted shader draws: node surfaces, sprites and effects " +
+                "(test/browser/shaders/node-drawing.test.ts) and edge surfaces and effects " +
+                "(test/browser/shaders/edge-drawing.test.ts). " +
+                "The presets are later packages of design/rendering/shader-styles.md (section 8, P1 " +
+                "to P6); once one ships, this gate can write it and this waiver goes.",
         ),
     })),
+    {
+        channel: "edge.lift",
+        kind: "by-design",
+        reason:
+            "A LIFT RISES OUT OF A FLAT LAYOUT'S PLANE, so it draws only for a flat layout in the 3D " +
+            "view, and this gate's scene is a 3D layout. Anywhere else the edge is drawn flat and " +
+            "`styles.counts(id).undrawn` reports `edge.lift-needs-flat-layout`. " +
+            "`test/browser/shaders/edge-drawing.test.ts` draws and picks a lifted edge on a flat " +
+            "layout in 3D.",
+    },
 ];
 
 /**

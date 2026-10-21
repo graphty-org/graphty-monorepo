@@ -283,6 +283,15 @@ void main() {
     }
 
     /**
+     * Whether a scene draws its lines as the 2D view does: flat rectangles in world units.
+     * @param scene - The scene.
+     * @returns True in the 2D view.
+     */
+    static drawsFlat(scene: Scene): boolean {
+        return this.is2DMode(scene);
+    }
+
+    /**
      * The thin-instance batch that draws one edge appearance, or null for a patterned line.
      *
      * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), so a style draws what
@@ -303,6 +312,9 @@ void main() {
      * @param options - Edge mesh options including styleId, width, and color.
      * @param style - Full edge style configuration.
      * @param scene - Babylon.js scene.
+     * @param widened - A batch whose slots carry a taper (`edge.taper`): a joined line with the
+     *     static attributes (`EdgeLineBatch`), in a batch of its own. An animated line is drawn
+     *     still when widened.
      * @returns The batch to take a slot in, or null for a patterned line.
      */
     static lineBatch(
@@ -310,10 +322,11 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
+        widened = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
-        const key = `edge-style-${options.styleId}`;
-        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
+        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
 
         if (this.drawsAsPattern(style)) {
@@ -337,6 +350,7 @@ void main() {
                             color: options.color,
                             opacity: style.line?.opacity ?? 1,
                             worldWidth: true,
+                            widened,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -363,12 +377,13 @@ void main() {
                         options.color,
                         style.line?.opacity ?? 1,
                         scene,
+                        widened,
                     ),
                 scene,
             );
         }
 
-        if (!curve && style.line?.animationSpeed) {
+        if (!curve && !widened && style.line?.animationSpeed) {
             return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
@@ -559,10 +574,11 @@ void main() {
         scene: Scene,
 
         _cache: MeshCache,
+        widened = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
-        if (this.USE_CUSTOM_RENDERER) {
+        if (this.USE_CUSTOM_RENDERER || widened) {
             // A joined line: a straight edge is one piece with square ends, as it always was; a
             // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
             return CustomLineRenderer.createJoinedLineMesh(
@@ -570,6 +586,7 @@ void main() {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
                     opacity: style.line?.opacity,
+                    widened,
                 },
                 scene,
             );

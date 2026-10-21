@@ -13,6 +13,7 @@ import type { Scene } from "@babylonjs/core";
 
 import type { ShaderParams, ShaderProblem } from "../catalog/shaders";
 import { QUALITY_LEVELS, ShaderGuard } from "../managers/ShaderGuard";
+import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import type { HostShader, RenderQualityChange, ShaderHost } from "../session/shaders";
 import { readCrashMarker } from "./crashMarker";
@@ -93,9 +94,14 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
             apply();
             guard.lend({
                 claimed: () => built.uniforms.claimed,
-                pastedOnScreen: () => NodeShaderDrawing.peek(scene)?.pastedDrawn().any === true,
+                pastedOnScreen: () =>
+                    NodeShaderDrawing.peek(scene)?.pastedDrawn().any === true ||
+                    EdgeShaderDrawing.peek(scene)?.pastedDrawn().any === true,
                 movingPasted: () =>
-                    (NodeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []).filter((hash) => !flashing.has(hash)),
+                    [
+                        ...(NodeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []),
+                        ...(EdgeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []),
+                    ].filter((hash) => !flashing.has(hash)),
                 freeze: (hashes) => {
                     for (const hash of hashes) {
                         flashing.add(hash);

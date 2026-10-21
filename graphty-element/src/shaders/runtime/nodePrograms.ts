@@ -68,7 +68,7 @@ export const GLOW_REACH = 1.8;
  * @param row - The parameter-set row expression, an int.
  * @returns The GLSL statements.
  */
-function paramLocals(params: readonly ShaderParamDescriptor[], varying: string, row: string): string {
+export function paramLocals(params: readonly ShaderParamDescriptor[], varying: string, row: string): string {
     const slots = varyingSlots(params);
     return params
         .map((param, column) => {

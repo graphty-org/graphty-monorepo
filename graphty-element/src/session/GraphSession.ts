@@ -3107,6 +3107,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         directed: () => snapshot().directed,
+        // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
+        liftDrawn: () => {
+            const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;
+            return layout.dimension === "3d" && arrangedDimension(layout) === "2d";
+        },
         paths,
         scales,
         runs: encodingSourceOf(runs),

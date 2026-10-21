@@ -342,12 +342,18 @@ export interface ChannelCovers {
  * | `shader.kind-mismatch` | `channel`; `shader`; `kind`: its kind, which that channel does not take; `count` |
  * | `shader.param-unused` | `shader`, `param`: a parameter set for a shader not drawn on those elements; `count` |
  * | `shader.effect-cap` | `left`: the most effects left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
+ * | `edge.lift-needs-flat-layout` | `count`: how many edges the layer lifts that are drawn flat, because the view is not a flat layout in 3D (`edge.lift` rises out of a flat layout's plane, so it draws only there) |
  *
  * New codes may be added in a minor release: word an unknown one generically.
  * @since 3.26.0
  */
 export type UndrawnCode =
-    "caption.noArrow" | "shader.unknown" | "shader.kind-mismatch" | "shader.param-unused" | "shader.effect-cap";
+    | "caption.noArrow"
+    | "shader.unknown"
+    | "shader.kind-mismatch"
+    | "shader.param-unused"
+    | "shader.effect-cap"
+    | "edge.lift-needs-flat-layout";
 
 /**
  * Why a "top N" took fewer than N, as the `code` of a {@link StyleCounts.leftOut} fact. The
@@ -472,6 +478,11 @@ export interface ExplainSources {
      * one. Absent reads as directed, as the painter does.
      */
     readonly directed?: () => boolean;
+    /**
+     * Whether `edge.lift` draws now: only for a flat layout in the 3D view. Absent, the session
+     * cannot say, and no lift is reported as drawing nothing.
+     */
+    readonly liftDrawn?: () => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1265,6 +1276,9 @@ export function styleCounts(
     const others = new Map<LayerId, number>();
     const captions = captionTally(sources.directed?.() ?? true);
     const shaders = shaderTally(layer.target);
+    // A lift the layer wins on an edge drawn flat; see `edge.lift-needs-flat-layout`.
+    const liftFlat = layer.target === "edge" && sources.liftDrawn?.() === false;
+    let flatLifts = 0;
     const perChannel = new Map<Channel, Map<LayerId, number>>();
     // The elements once, as an array: the walk below and the tops' ranking both read them.
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
@@ -1293,6 +1307,16 @@ export function styleCounts(
                         if (winner === layerId) {
                             captions.add(channel, found.values);
                         }
+                    }
+
+                    const lift = found.values["edge.lift"];
+                    if (
+                        liftFlat &&
+                        found.winners.get("edge.lift") === layerId &&
+                        typeof lift === "number" &&
+                        lift !== 0
+                    ) {
+                        flatLifts++;
                     }
 
                     shaders.add(found);
@@ -1333,7 +1357,12 @@ export function styleCounts(
         reads,
         paintedBy,
         covers: coversOf(perChannel),
-        undrawn: Object.freeze([...captions.facts(), ...shaders.facts(), ...boundaryFacts]),
+        undrawn: Object.freeze([
+            ...captions.facts(),
+            ...shaders.facts(),
+            ...boundaryFacts,
+            ...(flatLifts > 0 ? [{ code: "edge.lift-needs-flat-layout" as const, params: { count: flatLifts } }] : []),
+        ]),
         ...topFacts(layer.selector, columns, indices),
         adjusted: Object.freeze(facts),
         revision,

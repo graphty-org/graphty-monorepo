@@ -147,6 +147,8 @@
         "Sets/Kept Sets::LayoutOneSet",
         "Sets/Kept Sets::RuleSetFollowsData",
         "Sets/Kept Sets::ShortestPathAsASet",
+        "Shaders/Edge Drawing::Lift",
+        "Shaders/Edge Drawing::SurfacesAndEffects",
         "Shaders/Node Drawing::ThreePaths",
         "Styles/Edge::AnimationSpeed",
         "Styles/Edge::ArrowColor",

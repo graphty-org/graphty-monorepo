@@ -628,7 +628,9 @@ export type Channel =
     | "node.effects"
     | "edge.shader"
     | "edge.shaderParams"
-    | "edge.effects";
+    | "edge.effects"
+    | "edge.taper"
+    | "edge.lift";
 
 /**
  * The values the "edge.style" channel accepts.

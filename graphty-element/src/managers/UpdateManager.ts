@@ -17,6 +17,7 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
+import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
@@ -360,6 +361,11 @@ export class UpdateManager implements Manager {
     private lendShaderRepaint(): void {
         NodeShaderDrawing.lendRepaint(this.graphContext.getScene(), (nodes) => {
             this.repaintNodes(nodes as readonly Node[]);
+        });
+        // An edge drawn again because a shader became drawable takes new slots, which only an
+        // edge walk places.
+        EdgeShaderDrawing.lendWalk(this.graphContext.getScene(), () => {
+            this.forceEdgeWalk();
         });
     }
 

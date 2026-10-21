@@ -351,6 +351,8 @@ export interface ChannelValues {
     "edge.shader": string;
     "edge.shaderParams": ShaderParamSets;
     "edge.effects": ShaderEffects;
+    "edge.taper": number;
+    "edge.lift": number;
 }
 
 /**
@@ -1643,6 +1645,40 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "edge.labelColor": LOOK_AND_VISIBILITY["edge.labelColor"],
     ...shaderChannels("node", ["node-surface", "node-sprite"], ["node-effect"]),
     ...shaderChannels("edge", ["edge-surface"], ["edge-effect"]),
+    "edge.taper": {
+        channel: "edge.taper",
+        target: "edge",
+        plainName: "Edge Taper",
+        shortName: "Taper",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 4,
+        stylePath: "line.taper",
+        renderable: true,
+        caveat:
+            "The width at the target as a multiple of the width at the source: 1 draws the line " +
+            "the same width all along, below 1 narrows it toward the target, above 1 widens it. " +
+            "The arrowhead sits at the target, where the line arrives at its tapered width. A patterned " +
+            "line drawn as separate elements (star, diamond, box, dash-dot, zigzag, sinewave) does " +
+            "not taper.",
+    },
+    "edge.lift": {
+        channel: "edge.lift",
+        target: "edge",
+        plainName: "Edge Lift",
+        shortName: "Lift",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        stylePath: "line.lift",
+        renderable: true,
+        caveat:
+            "How far the middle of the edge's route rises out of the layout plane, in world units, " +
+            "as an arc. Drawn only for a flat layout in the 3D view; anywhere else the edge is drawn " +
+            "flat and the layer reports `edge.lift-needs-flat-layout` as drawing nothing.",
+    },
 };
 
 /**

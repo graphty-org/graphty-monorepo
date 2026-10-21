@@ -100,3 +100,50 @@ export function fileStylesChoice(): "file" | "none" {
 export function writeFileStylesChoice(on: boolean): void {
     writePreference(IMPORT_FILE_STYLES, on ? "on" : "off");
 }
+
+/**
+ * "Don't ask again for this project": the sites the reader let each project open without asking,
+ * by graphty-element's `session.project.id`. Kept in this browser, never in the project file, so
+ * a copy of the project on another machine asks again.
+ */
+export const PROJECT_HOSTS_KEY = "graphty.projectHosts.v1";
+
+/**
+ * Reads every project's remembered sites.
+ * @returns project id to host names; empty when storage is blocked or holds something unknown.
+ */
+function readAllProjectHosts(): Record<string, string[]> {
+    try {
+        const stored: unknown = JSON.parse(localStorage.getItem(PROJECT_HOSTS_KEY) ?? "{}");
+        return typeof stored === "object" && stored !== null && !Array.isArray(stored)
+            ? (stored as Record<string, string[]>)
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * The sites the reader let one project open without asking.
+ * @param projectId - graphty-element's `session.project.id`.
+ * @returns host names.
+ */
+export function readProjectHosts(projectId: string): readonly string[] {
+    const hosts = readAllProjectHosts()[projectId];
+    return Array.isArray(hosts) ? hosts.filter((host) => typeof host === "string") : [];
+}
+
+/**
+ * Remembers that the reader let one project open a site without asking.
+ * @param projectId - graphty-element's `session.project.id`.
+ * @param host - the site's host name.
+ */
+export function rememberProjectHost(projectId: string, host: string): void {
+    const all = readAllProjectHosts();
+    all[projectId] = [...new Set([...readProjectHosts(projectId), host])];
+    try {
+        localStorage.setItem(PROJECT_HOSTS_KEY, JSON.stringify(all));
+    } catch {
+        // Storage blocked: the choice holds for this page view only.
+    }
+}

@@ -1,14 +1,19 @@
 /**
  * `session.network` and models fetched by URL (design/rendering/node-models.md sections 2.6 and
- * 3.3): one question per URL, an answer that holds for its host, policies for the page and the
- * project, and a model fetched by URL bringing its own files from beside it.
+ * 3.3): one question per URL, an answer that holds for its host, the page's policy, the hosts the
+ * page remembers for a project (never a project file's own say), and a model fetched by URL bringing its own files from beside it.
  */
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
 import { createAssetsApi } from "../../src/session/assets/AssetsApi";
-import { createNetworkApi, isPrivateHost, type NetworkRequest } from "../../src/session/network";
+import {
+    createNetworkApi,
+    isPrivateHost,
+    type NetworkApiInternal,
+    type NetworkRequest,
+} from "../../src/session/network";
 import { gltfPair, objSet, PNG_1X1, sphereGlb, triangleGltf, utf8 } from "../fixtures/models/fixtures";
 
 /**
@@ -63,15 +68,11 @@ describe("session.network", () => {
         assert.equal(published[0].params.url, "https://models.example.com/rack.glb");
     });
 
-    it("stops asking under the page's policy or the project's, and allowHosts as code does", async () => {
+    it("stops asking under the page's policy, and allowHosts as code does", async () => {
         const { network, published } = gate();
         const waiting = network.ask({ url: RACK, kind: "model", by: "file", layerIds: [] });
-        network.setProjectPolicy("allow");
-        assert.isTrue(await waiting, "the project's policy releases what waits");
-        assert.isTrue(await network.ask({ url: ELSEWHERE, kind: "model", by: "file", layerIds: [] }));
-        network.setProjectPolicy("ask");
-
         network.setPolicy("allow");
+        assert.isTrue(await waiting, "the page's policy releases what waits");
         assert.isTrue(await network.ask({ url: ELSEWHERE, kind: "model", by: "file", layerIds: [] }));
         network.setPolicy("ask");
 
@@ -80,12 +81,29 @@ describe("session.network", () => {
         assert.lengthOf(published, 1);
     });
 
-    it("remembers an answer for the project when asked to", async () => {
-        const { network, published } = gate();
+    it("allows the hosts the page remembers for the open project, and only for it", async () => {
+        const published: NetworkRequest[] = [];
+        let project = "first";
+        const network = createNetworkApi(
+            (request) => published.push(request),
+            undefined,
+            () => project,
+        );
         const waiting = network.ask({ url: RACK, kind: "model", by: "file", layerIds: [] });
-        await network.allow(published[0].params.id, { remember: "project" });
-        assert.isTrue(await waiting);
-        assert.equal(network.projectPolicy, "allow");
+        network.setProjectHosts((id) => (id === "first" ? ["Models.Example.com"] : []));
+        assert.isTrue(await waiting, "remembered hosts release what waits");
+        assert.lengthOf(published, 1);
+
+        project = "second";
+        network.projectChanged();
+        void network.ask({ url: OTHER, kind: "model", by: "file", layerIds: [] });
+        assert.lengthOf(published, 2, "another project asks");
+
+        network.setProjectHosts(() => {
+            throw new Error("storage blocked");
+        });
+        void network.ask({ url: ELSEWHERE, kind: "model", by: "file", layerIds: [] });
+        assert.lengthOf(published, 3, "a lookup that fails remembers nothing");
     });
 
     it("refuses an id that is not waiting", async () => {
@@ -158,19 +176,86 @@ describe("session.network", () => {
         assert.isFalse(network.allowed(""));
     });
 
-    it("saves the project's policy and reads it back; a file without it asks", async () => {
+    it("gives a project an id that a save writes and an open reads back", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);
-        session.network.setProjectPolicy("allow");
         const { text } = await session.project.save();
+        assert.match(session.project.id, /^[0-9a-f]{32}$/);
 
         const opened = createGraphSession();
+        assert.notEqual(opened.project.id, session.project.id, "a new session is a new project");
         await opened.project.open(text);
-        assert.equal(opened.network.projectPolicy, "allow");
+        assert.equal(opened.project.id, session.project.id);
 
-        session.network.setProjectPolicy("ask");
-        await opened.project.open((await session.project.save()).text, { discard: true });
-        assert.equal(opened.network.projectPolicy, "ask");
+        const document = JSON.parse(text) as { members: Record<string, unknown>[] };
+        delete document.members.find((member) => member.kind === "graphty-session")?.id;
+        await opened.project.open(JSON.stringify(document), { discard: true });
+        assert.match(opened.project.id, /^[0-9a-f]{32}$/);
+        assert.notEqual(opened.project.id, session.project.id, "a file with no id gets a fresh one");
+    });
+});
+
+describe("a project file cannot approve its own fetches", () => {
+    /**
+     * A saved project, and the same file as an older release wrote it, carrying `policy: "allow"`.
+     * @returns The project's id and the file's text.
+     */
+    async function savedWithPolicy(): Promise<{ id: string; text: string }> {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        const document = JSON.parse((await session.project.save()).text) as { members: Record<string, unknown>[] };
+        const state = document.members.find((member) => member.kind === "graphty-session");
+        assert.isDefined(state);
+        if (state !== undefined) {
+            state.network = { policy: "allow" };
+        }
+        return { id: session.project.id, text: JSON.stringify(document) };
+    }
+
+    /**
+     * Ask the session's gate about a model URL, as a layer from a file does.
+     * @param session - The session.
+     * @returns Whether a question was published.
+     */
+    function asks(session: ReturnType<typeof createGraphSession>): boolean {
+        let published = false;
+        const stop = session.on("network:pending", () => {
+            published = true;
+        });
+        void (session.network as NetworkApiInternal).ask({ url: RACK, kind: "model", by: "file", layerIds: [] });
+        stop();
+        return published;
+    }
+
+    it("still asks when the file carries policy allow, and says the field was ignored", async () => {
+        const { text } = await savedWithPolicy();
+        const opened = createGraphSession();
+        const report = await opened.project.open(text);
+        assert.deepInclude(report.problems, { code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } });
+        assert.isTrue(asks(opened));
+        assert.notInclude((await opened.project.save()).text, '"policy"', "the field is not written back");
+    });
+
+    it("skips the question for the project the reader's machine remembers, and only for it", async () => {
+        const { id, text } = await savedWithPolicy();
+        const machine = new Map([[id, ["models.example.com"]]]);
+        const opened = createGraphSession();
+        opened.network.setProjectHosts((projectId) => machine.get(projectId) ?? []);
+        await opened.project.open(text);
+        assert.isFalse(asks(opened), "remembered on this machine");
+
+        const other = createGraphSession();
+        await other.data.addNodes([{ id: "b" }]);
+        await opened.project.open((await other.project.save()).text, { discard: true });
+        assert.isTrue(asks(opened), "another project asks");
+    });
+
+    it("asks on another machine, whose preferences are fresh", async () => {
+        const { text } = await savedWithPolicy();
+        const elsewhere = createGraphSession();
+        elsewhere.network.setProjectHosts(() => []);
+        await elsewhere.project.open(text);
+        assert.isTrue(asks(elsewhere));
     });
 });
 

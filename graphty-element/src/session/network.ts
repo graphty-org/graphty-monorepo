@@ -7,10 +7,11 @@
  * of a reopened project are each listed as a {@link NetworkRequest}, a coded fact with the URL, its
  * host and what asked for it, and nothing is fetched until the page answers with `allow` or
  * `deny`. Allowing one request allows its host for the rest of the session, so a reader is asked
- * once per host. A project may record that it is not to ask (`setProjectPolicy("allow")`, saved in
- * the project file), and the page may stop asking altogether (`setPolicy("allow")`, the reader's own
- * preference, never saved). Private, loopback and link-local addresses are refused for anything
- * that did not come from the page's code, whatever the policy.
+ * once per host. Nothing saved in a project file can stop the asking: a reader's "don't ask again
+ * for this project" is kept by the page, on the reader's machine, keyed by `session.project.id`,
+ * and handed back with `setProjectHosts`; the page may stop asking altogether (`setPolicy("allow")`,
+ * the reader's own preference, never saved). Private, loopback and link-local addresses are refused
+ * for anything that did not come from the page's code, whatever the policy.
  */
 
 import type { LayerId } from "../catalog/types";
@@ -58,25 +59,29 @@ export interface NetworkApi {
     /**
      * Make a waiting fetch, and every later one to the same host this session.
      * @param id - The request's `params.id`.
-     * @param options - `remember: "project"` also stops this project asking (`setProjectPolicy("allow")`).
-     * @param options.remember - Whether the answer holds for the project too.
      * @returns Settles once the request is released (a source load: once it is loaded).
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` for an id that is not waiting.
      */
-    allow(id: string, options?: { readonly remember?: "project" }): Promise<void>;
+    allow(id: string): Promise<void>;
     /**
      * Refuse a waiting fetch: a model or texture keeps its node's shape and reports
      * `E_MODEL_URL_BLOCKED`; a source load stays unloaded. Nothing happens for an unknown id.
      * @param id - The request's `params.id`.
      */
     deny(id: string): void;
-    /** Whether this project asks: `"allow"` once a reader chose not to be asked again for it. Saved in the project file. */
-    readonly projectPolicy: NetworkPolicy;
     /**
-     * Set whether this project asks. Saved with the project; not a step of the history.
-     * @param policy - The policy.
+     * Hand back the hosts a reader chose not to be asked about again for one project, from your
+     * page's own storage on the reader's machine. graphty-element calls `lookup` with
+     * `session.project.id` now and each time a project opens, before anything is fetched, and
+     * allows the hosts it returns until another project opens. Nothing in a project file does
+     * this, so a file received from someone else always asks. Never saved; `null` stops it.
+     * @param lookup - The project's id to the host names (`"models.example.com"`) to allow.
+     * @example
+     * ```ts
+     * session.network.setProjectHosts((projectId) => JSON.parse(localStorage.getItem(projectId) ?? "[]"));
+     * ```
      */
-    setProjectPolicy(policy: NetworkPolicy): void;
+    setProjectHosts(lookup: ((projectId: string) => readonly string[]) | null): void;
     /** Whether the page asks at all: the reader's own preference, which the page sets. Never saved. */
     readonly policy: NetworkPolicy;
     /**
@@ -188,7 +193,7 @@ export interface NetworkApiInternal extends NetworkApi {
     /**
      * Whether a fetch to a host may be made now without asking.
      * @param host - The URL's host.
-     * @returns True when the page, the reader or the project allowed it.
+     * @returns True when the page or the reader allowed it, for the session or this project.
      */
     allowed(host: string): boolean;
     /**
@@ -203,6 +208,8 @@ export interface NetworkApiInternal extends NetworkApi {
      * @param hosts - Host names.
      */
     allowHosts(hosts: readonly string[]): void;
+    /** Ask the page's `setProjectHosts` lookup again: a project opened, or its loads were restored. */
+    projectChanged(): void;
 }
 
 /** What the session lends the gate for its network-source loads. */
@@ -231,15 +238,19 @@ function shown(url: URL): string {
  * Build `session.network`.
  * @param publish - Publishes `network:pending` for each new request.
  * @param sources - The session's network-source loads, listed and run through the same gate.
+ * @param projectId - The open project's id, for the page's `setProjectHosts` lookup.
  * @returns The API.
  */
 export function createNetworkApi(
     publish: (request: NetworkRequest) => void,
     sources?: NetworkSources,
+    projectId?: () => string,
 ): NetworkApiInternal {
     let policy: NetworkPolicy = "ask";
-    let projectPolicy: NetworkPolicy = "ask";
     const hosts = new Set<string>();
+    // The hosts the page remembers for the open project: replaced whenever a project opens.
+    let projectLookup: ((id: string) => readonly string[]) | null = null;
+    const projectHosts = new Set<string>();
     const waiting = new Map<string, Waiting>();
     const dismissed = new Set<string>();
     let next = 0;
@@ -297,11 +308,7 @@ export function createNetworkApi(
             return Object.freeze([...[...waiting.values()].map((each) => each.request), ...sourceRequests()]);
         },
 
-        async allow(id, options = {}) {
-            if (options.remember === "project") {
-                api.setProjectPolicy("allow");
-            }
-
+        async allow(id) {
             const held = [...waiting.values()].find((each) => each.request.params.id === id);
             if (held !== undefined) {
                 // A question with no host never leaves an empty name allowed for everything else.
@@ -316,10 +323,6 @@ export function createNetworkApi(
             if (sourceRequests().some((request) => request.params.id === id)) {
                 await sources?.runPendingSourceLoad(id);
                 return;
-            }
-
-            if (options.remember === "project") {
-                return; // Already released by the project policy.
             }
 
             throw new GraphtyError({
@@ -341,14 +344,28 @@ export function createNetworkApi(
             dismissed.add(id);
         },
 
-        get projectPolicy() {
-            return projectPolicy;
+        setProjectHosts(lookup) {
+            projectLookup = lookup;
+            api.projectChanged();
         },
 
-        setProjectPolicy(value) {
-            projectPolicy = value === "allow" ? "allow" : "ask";
-            // Also after a project opens: its source loads on allowed hosts run now.
-            release(() => projectPolicy === "allow");
+        projectChanged() {
+            projectHosts.clear();
+            let listed: readonly unknown[] = [];
+            try {
+                const id = projectId?.();
+                listed = projectLookup === null || id === undefined ? [] : projectLookup(id);
+            } catch {
+                // A page whose storage fails remembers nothing: the reader is asked.
+            }
+
+            for (const host of Array.isArray(listed) ? listed : []) {
+                if (typeof host === "string") {
+                    projectHosts.add(host.toLowerCase());
+                }
+            }
+
+            release((request) => projectHosts.has(request.params.host.toLowerCase()));
         },
 
         get policy() {
@@ -363,7 +380,8 @@ export function createNetworkApi(
         },
 
         allowed(host) {
-            return policy === "allow" || projectPolicy === "allow" || hosts.has(host.toLowerCase());
+            const lower = host.toLowerCase();
+            return policy === "allow" || hosts.has(lower) || projectHosts.has(lower);
         },
 
         ask(question) {

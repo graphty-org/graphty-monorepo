@@ -405,17 +405,27 @@ node draws `node.shape` and the model is `pending`.
   is asked once per host. A source load runs as `runPendingSourceLoad` would run it.
 - `network.deny(id)` refuses it: the model is `E_MODEL_URL_BLOCKED { hosts, layerIds, denied: true }`
   and keeps its shape; a source load stays unloaded and is not listed again.
-- `network.setProjectPolicy("allow")` stops this project asking; it is saved in the project
-  (`graphty-session` member, `network: { policy: "allow" }`). `allow(id, { remember: "project" })`
-  sets it in the same call.
+- `network.setProjectHosts(lookup)` hands back what a reader chose not to be asked about again for
+  one project. graphty-element calls `lookup(session.project.id)` now and as each project opens,
+  before anything is fetched, and allows the hosts it returns until another project opens. The
+  page keeps those choices in its own storage on the reader's machine; graphty-element saves none.
 - `network.setPolicy("allow")` stops the page asking at all: the reader's own preference, set by the
   page's code, never saved.
 - `session.assets.allowHosts([...])` (code) allows hosts for the session without asking.
 
-**Known risk, recorded with the owner's choice:** a project file can carry `network: { policy:
-"allow" }` without a reader ever having chosen it, and then opens without asking. The private-address
-rule below still holds, and an application that wants a project's choice to count only on the
-machine that made it can ignore the saved policy (`setProjectPolicy("ask")` after opening).
+**A file cannot approve its own fetches (owner, 2026-10-20).** "Don't ask again for this project"
+is stored on the reader's machine, not in the project file, so a project file someone sends cannot
+open web addresses without asking. graphty-element neither writes nor honors a network approval in
+a file: a file an earlier build wrote with `graphty-session` `network: { policy: "allow" }` opens
+without error, the field is ignored and not written back, and the open's problems carry
+`{ code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } }`.
+
+`session.project.id` is what a page keys a remembered choice by: an opaque string (128 random bits
+in hex) written in the `graphty-session` member as `id` and read back on open, so a copy of the
+file is the same project. A new session, and a file without one, get a fresh id. It carries no
+permission: the same file on another machine, whose page remembers nothing for it, asks. A file
+claiming the id of a project the reader approved gets only the hosts the reader approved for that
+project.
 
 Whatever the answers, private, loopback and link-local addresses are refused for anything that did
 not come from the page's code, and previews and thumbnails never fetch. An embedded copy in a
@@ -429,9 +439,9 @@ answers. graphty-element reports each waiting fetch as the fact above and never 
 graphty app asks "This project wants to open <url>. Continue?" with Continue, Cancel, "Don't ask
 again for this project" and "Don't ask again". Recorded interpretation: "don't ask" means stop
 asking and continue (open what waits, and open without asking from then on). "For this project"
-is `setProjectPolicy("allow")`, a field graphty-element owns and round-trips in the project file;
-"Don't ask again" is the reader's own preference, which the application stores and hands to every
-session with `setPolicy("allow")`. A waiting source load on an allowed host runs as soon as it is
+is the application's record, on the reader's machine, of the host for `session.project.id`, handed
+back with `setProjectHosts`; "Don't ask again" is the reader's own preference, which the application
+stores and hands to every session with `setPolicy("allow")`. A waiting source load on an allowed host runs as soon as it is
 allowed when it needs no credential; one that needs a login waits for the application, which holds
 it. Private network addresses stay refused regardless.
 
@@ -708,6 +718,7 @@ string param from a file (names, clip names) is cut to 256 characters.
 | `E_MODEL_FETCH`               | `url` (no query), `status: number \| null`, `offline: boolean`                                                                       | The URL answered with an error, or not at all (offline, CORS, DNS look alike)                      | "Could not download rack.glb (404)." / with no status: "The server did not answer or does not share its files with other sites. Download the model and drop it here." |
 | `E_MODEL_URL_BLOCKED`         | `hosts`, `layerIds`, `denied?`                                                                                                       | A private address not from code, a scheme other than http(s), or the reader denied the fetch (2.6) | "This style loads a model from models.example.com, which is not allowed."                                                                                             |
 | `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`, `layerIds`                                                                                        | A fetch not from code waits in `session.network` (2.6)                                             | "This project wants to open models.example.com/rack.glb. Continue?"                                                                                                   |
+| `W_NETWORK_POLICY_IGNORED`    | `kind`                                                                                                                               | A project file carries a network approval an earlier build wrote; it is ignored (2.6)              | "This project asked to open web addresses without asking. It will ask."                                                                                               |
 | `E_MODEL_TOO_LARGE`           | `what: "bytes" \| "unzipped" \| "triangles" \| "textureBytes" \| "decodedBytes" \| "sceneTextureBytes" \| "count"`, `found`, `limit` | Over a limit in section 6                                                                          | "This model has 4.2 million triangles; the limit is 1 million. Pick a lighter one."                                                                                   |
 | `E_MODEL_STRUCTURE`           | `rule: "index" \| "cycle" \| "depth" \| "accessor" \| "json" \| "instancing"`                                                        | The glTF's structure is unsafe or broken                                                           | "The file is damaged."                                                                                                                                                |
 | `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                                                                                                 | Recognized but not loadable (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon)                        | "FBX files cannot be loaded yet. Export as GLB from your 3D program."                                                                                                 |
@@ -950,8 +961,9 @@ The app writes words and arranges controls; every fact and every check comes fro
    A layer whose model failed shows a warning badge in the layer list; the graph still draws the
    placeholder.
 6. **The question before a web address** (2.6): a dialog per waiting fetch with Continue, Cancel,
-   "Don't ask again for this project" and "Don't ask again", the last kept in the app's
-   preferences (`graphty.openProjectUrls.v1`).
+   "Don't ask again for this project" and "Don't ask again", both kept in the app's preferences on
+   the reader's machine, never in the project file: the site per project id in
+   `graphty.projectHosts.v1`, and the always choice in `graphty.openProjectUrls.v1`.
 7. **Pasting a URL.** The Model picker and the picture picker (the texture line, in Fill) take a
    pasted URL as well as a file or a drop; the layer names the URL itself, so a save can keep it by
    URL.

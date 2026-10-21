@@ -3,7 +3,13 @@ import type { NetworkRequest } from "@graphty/graphty-element/session";
 import { Button, Modal, Stack, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { OPEN_PROJECT_URLS, readPreference, writePreference } from "../settings/preferences";
+import {
+    OPEN_PROJECT_URLS,
+    readPreference,
+    readProjectHosts,
+    rememberProjectHost,
+    writePreference,
+} from "../settings/preferences";
 import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What each kind of fetch is, in the question. */
@@ -30,9 +36,10 @@ function partName(url: string): string {
  * The question before a project opens a web address it names (a model, a picture, a data
  * source): graphty-element holds every such fetch in `session.network` until it is answered, and
  * this asks the reader, one address at a time. Continue opens it (and the rest of that site, this
- * session); Cancel does not. "Don't ask again for this project" is saved in the project by
- * graphty-element; "Don't ask again" is the reader's own preference, kept here and handed to the
- * element on every project.
+ * session); Cancel does not. Both "don't ask" choices are the reader's own, kept in this browser
+ * and never in the project file: "Don't ask again for this project" remembers the site for the
+ * element's `session.project.id`, handed back through `session.network.setProjectHosts` whenever
+ * a project opens; "Don't ask again" is handed to the element on every project.
  * @returns The dialog
  */
 export function NetworkPrompt(): React.JSX.Element | null {
@@ -45,10 +52,15 @@ export function NetworkPrompt(): React.JSX.Element | null {
             return undefined;
         }
         session.network.setPolicy(readPreference(OPEN_PROJECT_URLS));
+        session.network.setProjectHosts(readProjectHosts);
         setWaiting(session.network.pending());
-        return session.on("network:pending", () => {
+        const stop = session.on("network:pending", () => {
             setWaiting(session.network.pending());
         });
+        return () => {
+            stop();
+            session.network.setProjectHosts(null);
+        };
     }, [session]);
 
     if (session === null) {
@@ -104,7 +116,8 @@ export function NetworkPrompt(): React.JSX.Element | null {
                         <Button
                             variant="default"
                             onClick={() => {
-                                settle(() => session.network.allow(request.params.id, { remember: "project" }));
+                                rememberProjectHost(session.project.id, request.params.host);
+                                settle(() => session.network.allow(request.params.id));
                             }}
                         >
                             Don&apos;t ask again for this project

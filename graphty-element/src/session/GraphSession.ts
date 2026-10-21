@@ -549,6 +549,7 @@ class Session implements ElementSession {
                 pendingSourceLoads: () => this.data.pendingSourceLoads(),
                 runPendingSourceLoad: (id) => this.data.runPendingSourceLoad(id),
             },
+            () => this.project.id,
         );
         this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
@@ -644,6 +645,9 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            projectChanged: () => {
+                this.network.projectChanged();
+            },
             sources: {
                 member: () => this.sessionData.sourceMember(),
                 restore: (member) => {

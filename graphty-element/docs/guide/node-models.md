@@ -353,10 +353,29 @@ element.session.on("network:pending", (request) => {
 ```
 
 `element.session.network.pending()` lists what is waiting now, for a page that starts listening
-late. A reader who does not want to be asked again for this project:
-`network.allow(id, { remember: "project" })`, saved with the project. One who does not want to be
-asked at all: your page calls `network.setPolicy("allow")` (it is never saved; keep that preference
-yourself). To trust hosts from your page's code instead, name them:
+late.
+
+Nothing saved in a project file can skip the question, so a project someone sends you always asks.
+A reader who does not want to be asked again for this project: keep that choice yourself, on the
+reader's machine, keyed by `session.project.id` (a project's identity, saved in its file, the same
+in every copy), and hand it back with `network.setProjectHosts`. graphty-element asks your lookup
+as each project opens, before anything is fetched, and allows the hosts it returns for that project
+only:
+
+```ts
+const key = "my-app.projectHosts";
+const remembered = (): Record<string, string[]> => JSON.parse(localStorage.getItem(key) ?? "{}");
+element.session.network.setProjectHosts((projectId) => remembered()[projectId] ?? []);
+
+// The reader's "Don't ask again for this project" on a waiting request:
+const all = remembered();
+all[element.session.project.id] = [...(all[element.session.project.id] ?? []), request.params.host];
+localStorage.setItem(key, JSON.stringify(all));
+void element.session.network.allow(request.params.id);
+```
+
+One who does not want to be asked at all: your page calls `network.setPolicy("allow")` (it is never
+saved; keep that preference yourself). To trust hosts from your page's code instead, name them:
 
 ```ts
 element.session.assets.allowHosts(["models.example.com"]);
@@ -473,3 +492,4 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `W_MODEL_PART_UNUSED`         | `fileName`                                          | A file given for a model matched none of the files it is missing, and was not used                                                                                                                                        |
 | `W_MODEL_NOT_KEPT_BY_URL`     | `url`, `reason`                                     | A model asked to be kept by its address was saved with its files, because its missing files came from elsewhere (`reason: "parts"`)                                                                                       |
 | `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`                   | An address waits for the reader in `session.network` (not a model's own event: `network:pending`)                                                                                                                         |
+| `W_NETWORK_POLICY_IGNORED`    | `kind`                                              | In `project.open`'s problems: the file carries a network approval an earlier release wrote, which is ignored; its addresses still wait for the reader                                                                     |

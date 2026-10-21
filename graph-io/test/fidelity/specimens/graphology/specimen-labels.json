@@ -1,0 +1,360 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-labels"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 152,
+                "y": 737.3333333333334
+            }
+        },
+        {
+            "key": "label-text",
+            "attributes": {
+                "x": 376,
+                "y": 737.3333333333334,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "Text"
+            }
+        },
+        {
+            "key": "label-long",
+            "attributes": {
+                "x": 600,
+                "y": 737.3333333333334,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "A longer label text"
+            }
+        },
+        {
+            "key": "label-multiline",
+            "attributes": {
+                "x": 824,
+                "y": 737.3333333333334,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "Line one\nLine two"
+            }
+        },
+        {
+            "key": "label-spaces",
+            "attributes": {
+                "x": 1048,
+                "y": 737.3333333333334,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "  padded  "
+            }
+        },
+        {
+            "key": "label-empty",
+            "attributes": {
+                "x": 152,
+                "y": 464,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": ""
+            }
+        },
+        {
+            "key": "label-null",
+            "attributes": {
+                "x": 376,
+                "y": 464,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": null
+            }
+        },
+        {
+            "key": "label-on-colored",
+            "attributes": {
+                "x": 600,
+                "y": 464,
+                "size": 18,
+                "color": "#d62728",
+                "label": "On red"
+            }
+        },
+        {
+            "key": "label-size-below-threshold",
+            "attributes": {
+                "x": 824,
+                "y": 464,
+                "size": 3,
+                "color": "#c8c8c8",
+                "label": "Small"
+            }
+        },
+        {
+            "key": "label-size-at-threshold",
+            "attributes": {
+                "x": 1048,
+                "y": 464,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "Seven"
+            }
+        },
+        {
+            "key": "force-label-small",
+            "attributes": {
+                "x": 152,
+                "y": 190.66666666666674,
+                "size": 3,
+                "color": "#c8c8c8",
+                "label": "Forced",
+                "forceLabel": true
+            }
+        },
+        {
+            "key": "label-hidden-node",
+            "attributes": {
+                "x": 376,
+                "y": 190.66666666666674,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "Hidden",
+                "hidden": true
+            }
+        },
+        {
+            "key": "label-color-blue",
+            "attributes": {
+                "x": 600,
+                "y": 190.66666666666674,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "Blue",
+                "labelColor": "#1f77b4"
+            }
+        },
+        {
+            "key": "label-size-24",
+            "attributes": {
+                "x": 824,
+                "y": 190.66666666666674,
+                "size": 18,
+                "color": "#c8c8c8",
+                "label": "Large",
+                "labelSize": 24
+            }
+        },
+        {
+            "key": "label-grid-larger",
+            "attributes": {
+                "x": 1028,
+                "y": 190.66666666666674,
+                "size": 12,
+                "color": "#c8c8c8",
+                "label": "Big"
+            }
+        },
+        {
+            "key": "label-grid-smaller",
+            "attributes": {
+                "x": 1068,
+                "y": 190.66666666666674,
+                "size": 8,
+                "color": "#c8c8c8",
+                "label": "Small"
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 107.6,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-label-text",
+            "attributes": {
+                "x": 335,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=Text"
+            }
+        },
+        {
+            "key": "cap-label-long",
+            "attributes": {
+                "x": 559,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=long"
+            }
+        },
+        {
+            "key": "cap-label-multiline",
+            "attributes": {
+                "x": 766,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=two lines"
+            }
+        },
+        {
+            "key": "cap-label-spaces",
+            "attributes": {
+                "x": 1000.2,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=padded"
+            }
+        },
+        {
+            "key": "cap-label-empty",
+            "attributes": {
+                "x": 57.8,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=\"\""
+            }
+        },
+        {
+            "key": "cap-label-null",
+            "attributes": {
+                "x": 275,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=null"
+            }
+        },
+        {
+            "key": "cap-label-on-colored",
+            "attributes": {
+                "x": 552.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=on red"
+            }
+        },
+        {
+            "key": "cap-label-size-below-threshold",
+            "attributes": {
+                "x": 776.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=size 3"
+            }
+        },
+        {
+            "key": "cap-label-size-at-threshold",
+            "attributes": {
+                "x": 1000.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=size 7"
+            }
+        },
+        {
+            "key": "cap-force-label-small",
+            "attributes": {
+                "x": 64,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "forceLabel=true"
+            }
+        },
+        {
+            "key": "cap-label-hidden-node",
+            "attributes": {
+                "x": 271.6,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "hidden=true"
+            }
+        },
+        {
+            "key": "cap-label-color-blue",
+            "attributes": {
+                "x": 531.8,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "labelColor=#1f77b4"
+            }
+        },
+        {
+            "key": "cap-label-size-24",
+            "attributes": {
+                "x": 776.2,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "labelSize=24"
+            }
+        },
+        {
+            "key": "cap-label-grid",
+            "attributes": {
+                "x": 962.8,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "label grid=one per cell"
+            }
+        }
+    ],
+    "edges": []
+}

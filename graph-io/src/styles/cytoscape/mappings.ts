@@ -4,6 +4,8 @@
  * (`visualProperties`, `visualEditorProperties`). Every table keyed by file text is a `Map`.
  */
 
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleNotes } from "../notes.js";
 import type { StyleTarget } from "../types.js";
@@ -108,6 +110,103 @@ export function emptyCytoscapeStyle(): CytoscapeStyle {
         bypassAliases: new Map(),
     });
     return { network: { defaults: new Map() }, node: target(), edge: target() };
+}
+
+/** Cytoscape's network-collection columns and the plain columns it fills them from when a file holds only those. */
+const SHARED_COLUMNS: ReadonlyMap<string, string> = new Map([
+    ["shared name", "name"],
+    ["shared interaction", "interaction"],
+]);
+
+/**
+ * Points every mapping over `shared name` or `shared interaction` at `name` or `interaction` when the file holds only
+ * the plain column: Cytoscape fills the shared column from it on import, so the mapping reads the same values.
+ * @param style - the target's style, changed in place
+ * @param has - whether the file holds a column
+ * @category Styles
+ */
+export function sharedColumnFallback(style: CytoscapeTargetStyle, has: (column: string) => boolean): void {
+    for (const [vp, m] of style.mappings) {
+        const plain = SHARED_COLUMNS.get(m.column);
+        if (plain !== undefined && !has(m.column) && has(plain)) {
+            style.mappings.set(vp, { ...m, column: plain });
+        }
+    }
+}
+
+/**
+ * Points every mapping over the attribute an import read as the edge weight at the column it is kept in
+ * (`graphty.weight`, which `snapshot.edges.byRole("weight")` finds): the importer takes that attribute out of the
+ * plain columns, while Cytoscape keeps it as an ordinary column its mappings read.
+ * @param style - the edge style, changed in place
+ * @param weightFrom - the attribute read as the weight, or null when none was
+ * @param table - the edge table
+ * @category Styles
+ */
+export function weightColumnFallback(
+    style: CytoscapeTargetStyle,
+    weightFrom: string | null,
+    table: GraphSnapshot["edges"],
+): void {
+    const kept = weightFrom === null || table.has(weightFrom) ? undefined : table.byRole("weight")?.meta.name;
+    if (kept === undefined) {
+        return;
+    }
+    for (const [vp, m] of style.mappings) {
+        if (m.column === weightFrom) {
+            style.mappings.set(vp, { ...m, column: kept });
+        }
+    }
+}
+
+/**
+ * Whether a numeric type name is integral (`integer`, `long`), floating (`double`, `real`) or neither.
+ * @param type - the type name as a file gives it
+ * @returns the family, or null
+ */
+function numericFamily(type: string | null): "integral" | "floating" | null {
+    const t = (type ?? "")
+        .toLowerCase()
+        .replace(/^list_of_/, "")
+        .replace(/^java\.lang\./, "");
+    if (t === "integer" || t === "long" || t === "int" || t === "short") {
+        return "integral";
+    }
+    if (t === "double" || t === "float" || t === "real") {
+        return "floating";
+    }
+    return null;
+}
+
+/**
+ * Empties every discrete mapping whose keys are typed integral (`integer`, `long`) over a floating (`double`)
+ * column, or the other way round. Cytoscape compares a Java Integer key with a Double value, which never match, so
+ * the mapping sets nothing and the default shows (`4.0` does not match key `4`). Noted as `W_STYLE_BAD_MAPPING`.
+ * @param style - the target's style, changed in place
+ * @param typeOf - a column's declared type, or null when unknown
+ * @param notes - where problems are noted
+ * @param target - nodes or edges, for notes
+ * @category Styles
+ */
+export function dropMismatchedKeys(
+    style: CytoscapeTargetStyle,
+    typeOf: (column: string) => string | null,
+    notes: StyleNotes,
+    target: StyleTarget,
+): void {
+    for (const [vp, m] of style.mappings) {
+        if (m.kind !== "discrete" || m.table.length === 0) {
+            continue;
+        }
+        const key = numericFamily(m.type);
+        const column = numericFamily(typeOf(m.column));
+        if (key !== null && column !== null && key !== column) {
+            style.mappings.set(vp, { ...m, table: [] });
+            notes.add(STYLE_ISSUE.BAD_MAPPING, target, m.column, {
+                sample: `${vp}: ${key} keys on a ${column} column`,
+            });
+        }
+    }
 }
 
 const NUMERIC_TYPES: ReadonlySet<string> = new Set(["integer", "long", "double", "float", "int", "short"]);
@@ -561,6 +660,8 @@ export function cytoscapeStyleFromCx2(
     }
     style.node.dependencies.set("nodeSizeLocked", own(editor, "nodeSizeLocked") === true);
     style.edge.dependencies.set("arrowColorMatchesEdge", own(editor, "arrowColorMatchesEdge") === true);
+    // charts are fitted to their node unless the editor says otherwise
+    style.node.dependencies.set("nodeCustomGraphicsSizeSync", own(editor, "nodeCustomGraphicsSizeSync") !== false);
     for (const [target, key] of [
         ["node", "nodeMapping"],
         ["edge", "edgeMapping"],
@@ -576,6 +677,13 @@ export function cytoscapeStyleFromCx2(
         }
     }
     lockedSizeFromWidth(style.node);
+    // CX2 names an edge's bend handles EDGE_CONTROL_POINTS
+    for (const part of [style.edge.defaults, style.edge.mappings] as Map<string, unknown>[]) {
+        if (part.has("EDGE_CONTROL_POINTS") && !part.has("EDGE_BEND")) {
+            part.set("EDGE_BEND", part.get("EDGE_CONTROL_POINTS"));
+        }
+    }
+    style.edge.bypassAliases.set("EDGE_CONTROL_POINTS", "EDGE_BEND");
     return style;
 }
 

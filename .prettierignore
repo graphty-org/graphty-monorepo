@@ -15,6 +15,9 @@ graph-samples/public-data/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# The oracle scorecard's known failures: written by graphty-element/test/fidelity/oracle/run-oracle.ts one line per
+# sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
+graphty-element/test/fidelity/oracle-known-failures.json
 # Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
 # compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
 graphty-element/test/layout/graphviz-fixtures/
@@ -77,6 +80,8 @@ graph-io/test/corpus/styles/
 # they hash byte for byte
 graph-io/test/fidelity/scenes/
 graph-io/test/fidelity/samples/
+# Gephi JSON specimen sheets: Gson's compact output byte for byte (escapes, key order), which the oracles hash
+graph-io/test/fidelity/specimens/gephi-json/*.json
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/

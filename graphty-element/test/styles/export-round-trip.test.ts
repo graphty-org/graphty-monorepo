@@ -66,6 +66,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.shape": ["shape"],
     "node.label": ["label"],
     "node.tooltip": ["tooltip"],
+    "node.labelDeclutter": ["labelAvoidOverlap"],
     "edge.color": ["color"],
     "edge.width": ["width"],
     "edge.opacity": ["opacity"],
@@ -78,6 +79,9 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.arrowTailSize": ["arrowSize"],
     "edge.curvature": ["curved"],
     "edge.bends": ["bends"],
+    "edge.fanSpacing": ["fanSpacing"],
+    "edge.sourcePort": ["sourcePort"],
+    "edge.targetPort": ["targetPort"],
     "edge.label": ["label"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
@@ -88,9 +92,9 @@ const LABEL_PROPERTIES = [
     "labelFont",
     "labelWeight",
     "labelItalic",
-    "labelOutlineColor",
-    "labelOutlineWidth",
     "labelPosition",
+    "labelWrapWidth",
+    "labelWrapTrailingSpace",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -262,10 +266,119 @@ async function handMade(): Promise<GraphSession> {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Round trips that fail today for a reason that is not the style system's, each with the reason.
- * They run as expected failures, so each is noticed the day it is fixed.
+ * Round trips that fail today, each with the reason: the writer defects the style fidelity work found, recorded in
+ * graph-io/test/fidelity/oracles/ISSUES.md. They run as expected failures, so each is noticed the day it is fixed.
  */
-const KNOWN_GAPS: ReadonlyMap<string, string> = new Map();
+const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
+    [
+        "Cytoscape.js JSON: a stack of every kind of layer",
+        "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
+    ],
+    [
+        "XGMML: cx2/fidelity/repro-shared-interaction.cx2",
+        "the written file reads back with one more layer than was written: a per-element exceptions column comes back as a layer of its own (graph-io ISSUES.md, Cytoscape desktop writers)",
+    ],
+    [
+        "CX2: cx2/fidelity/repro-shared-interaction.cx2",
+        "the written file reads back with one more layer than was written: a per-element exceptions column comes back as a layer of its own (graph-io ISSUES.md, Cytoscape desktop writers)",
+    ],
+    [
+        "XGMML: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
+        "Graphviz's arrow gap is written into a Cytoscape file, which has no arrow gap, and read back as Cytoscape's own 4 with no note (graph-io ISSUES.md, Specimen sheets: Graphviz DOT)",
+    ],
+    [
+        "CX2: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
+        "Graphviz's arrow gap is written into a Cytoscape file, which has no arrow gap, and read back as Cytoscape's own 4 with no note (graph-io ISSUES.md, Specimen sheets: Graphviz DOT)",
+    ],
+    [
+        "Cytoscape.js JSON: cyjs/adv/cyjs-selector-zoo.cyjs",
+        "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
+    ],
+    [
+        "Cytoscape.js JSON: gexf/fidelity/graphology-rio.gexf.gz",
+        "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
+    ],
+    [
+        "Cytoscape.js JSON: xgmml/fidelity/aracne-mycccnd1.xgmml.gz",
+        "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
+    ],
+    [
+        "graphology JSON: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
+        "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
+    ],
+    [
+        "graphology JSON: graphml/LTVA1_STM32CrapSynth__func.graphml.gz",
+        "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
+    ],
+    [
+        "vis.js JSON: cx2/fidelity/imatinib-smpdb.cx2",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: cx2/fidelity/repro-shared-interaction.cx2",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: cyjs/adv/cyjs-selector-zoo.cyjs",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: gexf/fidelity/graphology-rio.gexf.gz",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: gml/ImperialCollegeLondon_pyrealm__pmodel.gml",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: gml/di-unipi-socc_dgLBF__germany50.gml",
+        "the vis writer's label offset comes back moved by vis-network's label hang below a sized node (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: graphml/LTVA1_STM32CrapSynth__func.graphml.gz",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: pajek/SamTseng_CATAR__Pajek_format.net",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: pajek/fidelity/1crn.net",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: xgmml/BasicDataVizDemo.xgmml.gz",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "vis.js JSON: xgmml/fidelity/aracne-mycccnd1.xgmml.gz",
+        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
+    ],
+    [
+        "CSV: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
+        "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
+    ],
+    [
+        "CSV: gexf/fidelity/graphology-rio.gexf.gz",
+        "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
+    ],
+    [
+        "CSV: graphml/LTVA1_STM32CrapSynth__func.graphml.gz",
+        "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
+    ],
+]);
 
 /** The element's reader for each corpus directory. */
 const READERS: Readonly<Record<string, string>> = {
@@ -462,13 +575,17 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
 
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
-    const properties = /\.label(?:Style|Color|Size|Font|Weight|Italic|Outline|OutlineWidth)$/.test(channel)
-        ? LABEL_PROPERTIES
-        : (PROPERTIES[channel] ?? []);
+    const properties =
+        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|Location)$/.test(channel)
+            ? LABEL_PROPERTIES
+            : (PROPERTIES[channel] ?? []);
+    // a rule whose column did not come back names the property it draws among its samples
+    const samples = Array.isArray(note.params.samples) ? (note.params.samples as unknown[]) : [];
     return (
         properties.includes(property) ||
         property === `graphty:${channel}` ||
-        property.split(",").some((one) => properties.includes(one))
+        property.split(",").some((one) => properties.includes(one)) ||
+        (note.code === "W_STYLE_COLUMN_ABSENT" && samples.includes(`graphty:${channel}`))
     );
 }
 
@@ -687,7 +804,8 @@ async function roundTrip(source: GraphSession, writer: (typeof WRITERS)[number],
 
 describe("styles written into every format come back", () => {
     for (const writer of WRITERS) {
-        it(`${writer.name}: a stack of every kind of layer`, async () => {
+        const name = `${writer.name}: a stack of every kind of layer`;
+        (KNOWN_GAPS.has(name) ? it.fails : it)(name, async () => {
             const session = await handMade();
             try {
                 await roundTrip(session, writer, true);

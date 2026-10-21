@@ -104,6 +104,21 @@ function attempt(part: string, build: () => string): string {
 }
 
 /**
+ * The `data` part and, written with it because a load changes the data, the `sources` part.
+ * ponytail: a refresh that found nothing new changes only the record, and waits for the next data write.
+ * @param session - The session.
+ * @returns The parts; `sources` is null when the session holds no load.
+ */
+function dataParts(session: GraphSession): Record<string, string | null> {
+    const file = sourcesFileOf(session);
+    const member = file?.member ?? null;
+    return {
+        data: attempt("data", () => JSON.stringify(dataMember(session, file))),
+        sources: member === null ? null : attempt("sources", () => JSON.stringify(member)),
+    };
+}
+
+/**
  * Build the parts a set of tags names, from the session as it is now.
  * @param session - The session.
  * @param tags - What is unwritten.
@@ -120,14 +135,7 @@ export function buildParts(
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
-    const parts: Record<string, string | null> = {};
-    if (tags.has("data")) {
-        // A load changes the data, so the record of the loads is written with it.
-        // ponytail: a refresh that found nothing new changes only the record, and waits for the next data write.
-        const file = sourcesFileOf(session);
-        parts.data = attempt("data", () => JSON.stringify(dataMember(session, file)));
-        parts.sources = file?.member ? attempt("sources", () => JSON.stringify(file.member)) : null;
-    }
+    const parts: Record<string, string | null> = tags.has("data") ? dataParts(session) : {};
 
     const runs = new Map<RunId, unknown>();
     let ids: GraphIds | undefined;

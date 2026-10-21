@@ -302,6 +302,7 @@ const VALUE_EXPORTS = [
     "validateSource",
     "replayFetch",
     "recordingFrom",
+    "sha256Hex",
     "NDEX_SOURCE_ID",
     "CYPHER_SOURCE_ID",
     "NEO4J_SOURCE_ID",

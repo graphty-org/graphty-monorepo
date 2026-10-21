@@ -804,31 +804,65 @@ interface ReadEntry {
  * @returns The load, in the data member's legacy `sources` shape.
  */
 function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
-    const part = (name: string): Record<string, unknown> => (isObject(raw[name]) ? raw[name] : {});
-    const options = isObject(raw.options) ? raw.options : {};
-    const added = isObject(raw.added) ? raw.added : {};
     const kinds: Readonly<Record<string, string>> = { file: "file", url: "file", source: "server", sample: "sample" };
     const kind = typeof raw.kind === "string" ? raw.kind : "file";
-    const network = kind === "source";
-    const params = isObject(part("source").params) ? part("source").params : {};
-    const { address } = part("url");
-    const config = network ? params : { ...options, ...(typeof address === "string" ? { url: address } : {}) };
-    const format = typeof raw.format === "string" ? raw.format : undefined;
+    const { size } = partOf(raw, "file");
+    const joinedOnto = typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined;
     return defined({
-        type: network ? `source:${String(part("source").id)}` : format,
+        ...describedOf(raw, kind === "source"),
         name: typeof raw.name === "string" ? raw.name : undefined,
-        size: typeof part("file").size === "number" ? part("file").size : undefined,
-        config,
+        size: typeof size === "number" ? size : undefined,
         key: raw.id,
-        kind: typeof raw.joinedOnto === "string" ? "join" : (kinds[kind] ?? kind),
-        joinedOnto: typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined,
+        kind: joinedOnto === undefined ? (kinds[kind] ?? kind) : "join",
+        joinedOnto,
         tables: Array.isArray(raw.tables) ? raw.tables : [],
         tableRows: Array.isArray(raw.tableRows) ? raw.tableRows : undefined,
-        added: {
-            nodes: typeof added.nodes === "number" ? added.nodes : 0,
-            edges: typeof added.edges === "number" ? added.edges : 0,
-        },
+        added: countsOf(raw.added),
     });
+}
+
+/**
+ * An entry's member that is an object.
+ * @param raw - The entry.
+ * @param name - The member.
+ * @returns It, or an empty object.
+ */
+function partOf(raw: Record<string, unknown>, name: string): Record<string, unknown> {
+    const part = raw[name];
+    return isObject(part) ? part : {};
+}
+
+/**
+ * The type and configuration a listed load reports for an entry: a network load's source and
+ * params, else the format and the options, a URL's address among them.
+ * @param raw - The entry.
+ * @param network - Whether it is a network load.
+ * @returns `{ type, config }`.
+ */
+function describedOf(raw: Record<string, unknown>, network: boolean): Record<string, unknown> {
+    const source = partOf(raw, "source");
+    if (network) {
+        return { type: `source:${String(source.id)}`, config: isObject(source.params) ? source.params : {} };
+    }
+
+    const { address } = partOf(raw, "url");
+    return {
+        type: typeof raw.format === "string" ? raw.format : undefined,
+        config: { ...partOf(raw, "options"), ...(typeof address === "string" ? { url: address } : {}) },
+    };
+}
+
+/**
+ * Node and edge counts, a missing one as 0.
+ * @param value - The counts as read.
+ * @returns The counts.
+ */
+function countsOf(value: unknown): { nodes: number; edges: number } {
+    const counts = isObject(value) ? value : {};
+    return {
+        nodes: typeof counts.nodes === "number" ? counts.nodes : 0,
+        edges: typeof counts.edges === "number" ? counts.edges : 0,
+    };
 }
 
 /**
@@ -1026,7 +1060,7 @@ function readEntries(
             raw,
             runnable,
             loaded: loadedOf(raw),
-            facts: runnable ? facts : { ...facts, kept: JSON.parse(JSON.stringify(raw)) as Record<string, unknown> },
+            facts: runnable ? facts : { ...facts, kept: structuredClone(raw) },
             ...(runnable && raw.kind === "source" ? { record: recordOf(raw) } : {}),
         };
     });
@@ -1094,11 +1128,13 @@ function readVersion2(
     member: Record<string, unknown>,
     ctx: SourcesReadContext,
     problems: SourcesProblem[],
-    upgrade: {
+    upgrade?: {
         rename: ReadonlyMap<string, string>;
         provenance: Record<string, { nodes: NodeId[]; edges: number[] }>;
-    } = { rename: new Map(), provenance: {} },
+    },
 ): SourcesRead {
+    const rename = upgrade?.rename ?? new Map<string, string>();
+    const legacy = upgrade?.provenance ?? {};
     if (member.data === "steps") {
         // ponytail: steps-only rebuilds are not built yet; a file that also embeds the graph opens embedded.
         problems.push({
@@ -1110,9 +1146,9 @@ function readVersion2(
     const entries = readEntries(member.loads as Record<string, unknown>[], ctx, problems);
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
     const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
-    const nodes = readColumn(ctx.nodes, byId, upgrade.rename, provenance, "nodes");
-    const links = readColumn(ctx.links, byId, upgrade.rename, provenance, "edges");
-    for (const [id, supplied] of Object.entries(upgrade.provenance)) {
+    const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes");
+    const links = readColumn(ctx.links, byId, rename, provenance, "edges");
+    for (const [id, supplied] of Object.entries(legacy)) {
         const into = (provenance[id] ??= { nodes: [], edges: [] });
         into.nodes = [...new Set([...into.nodes, ...supplied.nodes])];
         into.edges = [...new Set([...into.edges, ...supplied.edges])];
@@ -1245,32 +1281,10 @@ function entryFromItem(
     ctx: SourcesReadContext,
 ): Record<string, unknown> {
     const config = isObject(item.config) ? item.config : {};
-    const { url, ...options } = config;
+    const { url: _url, ...options } = config;
     const loadedAt = (joined?.loadedAt as string | undefined) ?? ctx.now;
     const name = typeof item.name === "string" ? item.name : undefined;
-    let part: Record<string, unknown>;
-    if (item.kind === "server") {
-        part = {
-            source: joined?.source ?? {
-                id: (typeof item.type === "string" ? item.type : "").replace(/^source:/, ""),
-                sourceVersion: 1,
-                endpoint: null,
-                params: config,
-                pages: 1,
-                next: null,
-                validators: {},
-                expansions: [],
-            },
-        };
-    } else if (item.kind === "sample") {
-        const sample = name ?? "sample";
-        part = { sample: ctx.isGenerator(sample) ? { generator: sample, params: {} } : { dataset: sample } };
-    } else if (typeof url === "string") {
-        part = { url: { address: redactUrl(url).address, fetchedAt: loadedAt } };
-    } else {
-        part = { file: defined({ name, size: typeof item.size === "number" ? item.size : 0 }) };
-    }
-
+    const part = itemPart(item, joined, ctx, loadedAt);
     const kind = Object.keys(part)[0];
     return defined({
         id: item.key,
@@ -1287,6 +1301,53 @@ function entryFromItem(
         added: item.added,
         total: joined?.total,
     });
+}
+
+/**
+ * The kind part a version 1 data member's `sources` item becomes.
+ * @param item - The item.
+ * @param joined - What its version 1 record gives it, for a network item.
+ * @param ctx - The file.
+ * @param loadedAt - When it loaded.
+ * @returns `{ <kind>: part }`.
+ */
+function itemPart(
+    item: Record<string, unknown>,
+    joined: Record<string, unknown> | undefined,
+    ctx: SourcesReadContext,
+    loadedAt: string,
+): Record<string, unknown> {
+    const config = isObject(item.config) ? item.config : {};
+    const name = typeof item.name === "string" ? item.name : "sample";
+    if (item.kind === "server") {
+        return {
+            source: joined?.source ?? {
+                id: (typeof item.type === "string" ? item.type : "").replace(/^source:/, ""),
+                sourceVersion: 1,
+                endpoint: null,
+                params: config,
+                pages: 1,
+                next: null,
+                validators: {},
+                expansions: [],
+            },
+        };
+    }
+
+    if (item.kind === "sample") {
+        return { sample: ctx.isGenerator(name) ? { generator: name, params: {} } : { dataset: name } };
+    }
+
+    if (typeof config.url === "string") {
+        return { url: { address: redactUrl(config.url).address, fetchedAt: loadedAt } };
+    }
+
+    return {
+        file: defined({
+            name: typeof item.name === "string" ? item.name : undefined,
+            size: typeof item.size === "number" ? item.size : 0,
+        }),
+    };
 }
 
 /**

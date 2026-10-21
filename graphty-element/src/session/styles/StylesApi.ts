@@ -150,6 +150,7 @@ import {
 import {
     type ColumnEncodingSpec,
     type EncodingProposal,
+    type ParamEncodingSpec,
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
@@ -645,12 +646,17 @@ export interface StylesApi {
      *
      * A refusal is a coded fact whose codes `EncodingRefusalCode` lists; a run spec's refusal carries
      * the code `E_BAD_COMMAND` that `encode()` would reject with.
+     *
+     * `channel` may also be a shader parameter declared `varies`, by its address
+     * (`"node.effects.uncertainty-aura.intensity"`, since 3.36.0): the binding then maps onto the
+     * parameter's declared range, and is written under that address in a layer's `encode`.
      * @param spec - What `encode()` would be asked.
      * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE`, `E_UNKNOWN_RUN` or `E_UNKNOWN_CHANNEL`
-     *     for something that does not exist.
+     *     for something that does not exist, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM` for an
+     *     address naming no shader or no parameter that varies.
      */
-    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal;
     /**
      * Paint the elements a run chose: a route, a chosen set of nodes, a chosen set of edges.
      *
@@ -4402,7 +4408,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal {
+        proposeEncoding(asked: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal {
+            // An address is read through its parameter's descriptor where a channel's is read.
+            const spec = asked as EncodingSpec | ColumnEncodingSpec;
             if ("column" in spec) {
                 const { column, declaration } = columnOf(spec);
                 return proposeColumnBinding(spec, column, declaration, scales);

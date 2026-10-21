@@ -138,6 +138,9 @@ export type {
     ChannelValueKind,
 } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
+// editor's vary picker and `styles.proposeEncoding` read for it.
+export { shaderParamChannel } from "./src/session/styles/encoding";
 // The one color reader a channel uses: a hex string, any CSS color the element understands, or
 // Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
 // value is not a color). A color control reads a layer's value through this rather than

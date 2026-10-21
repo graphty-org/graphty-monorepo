@@ -68,6 +68,7 @@ import type {
     PaletteId,
     Path,
     Rgba,
+    ShaderParamAddress,
 } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
@@ -2723,6 +2724,30 @@ export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescri
         ...(typeof param.min === "number" ? { min: param.min } : {}),
         ...(typeof param.max === "number" ? { max: param.max } : {}),
     };
+}
+
+/**
+ * The descriptor a shader parameter declared `varies` is bound as, by its encode address: a number
+ * or a color between the parameter's declared ends, on the map channel the value lands in. What an
+ * editor's vary picker reads for a parameter, as it reads `channelDescriptor` for a channel.
+ * @param address - The address, `"<target>.<shaderParams|effects>.<shader id>.<parameter id>"`.
+ * @returns The descriptor; its `channel` is the address's map channel.
+ * @throws A `GraphtyError`: `E_BAD_COMMAND` for a string that is not an address,
+ *   `E_UNKNOWN_SHADER` and `E_UNKNOWN_SHADER_PARAM` as {@link shaderParamDescriptor}.
+ * @since 3.36.0
+ */
+export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor {
+    const target = parseShaderParamAddress(address);
+    if (target === null) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `"${address}" is not a shader parameter address: "<target>.<shaderParams|effects>.<shader>.<parameter>".`,
+            source: "style",
+            details: { address },
+        });
+    }
+
+    return shaderParamDescriptor(target);
 }
 
 /**

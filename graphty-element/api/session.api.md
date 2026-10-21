@@ -2775,6 +2775,11 @@ export interface PageColumn {
 }
 
 // @public
+export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
+    readonly channel: ShaderParamAddress;
+};
+
+// @public
 export function parseScope(value: unknown): Scope;
 
 // @public
@@ -5046,7 +5051,7 @@ export interface StylesApi {
         readonly span?: PreviewSpan;
         readonly within?: LayerId;
     }): BindingPreview;
-    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;

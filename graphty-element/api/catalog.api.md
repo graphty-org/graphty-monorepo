@@ -2116,6 +2116,9 @@ export type ShaderOrigin = "element" | "registered" | "pasted";
 export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects"}.${string}.${string}`;
 
 // @public
+export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor;
+
+// @public
 export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     readonly primary?: boolean;

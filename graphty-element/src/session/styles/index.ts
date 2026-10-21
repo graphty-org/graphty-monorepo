@@ -38,6 +38,7 @@ export type {
     ColumnEncodingSpec,
     EncodingOptions,
     EncodingProposal,
+    ParamEncodingSpec,
     EncodingRefusalCode,
     EncodingRun,
     EncodingSource,

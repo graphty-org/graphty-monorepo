@@ -545,6 +545,7 @@ export type {
     ElementLayerSpec,
     EncodingOptions,
     EncodingProposal,
+    ParamEncodingSpec,
     EncodingRefusalCode,
     EncodingRun,
     EncodingSpec,

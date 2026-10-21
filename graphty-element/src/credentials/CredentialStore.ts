@@ -23,6 +23,9 @@ import { GraphtyError } from "../errors/GraphtyError";
 /** The item the source namespace keeps in the AI key manager's store. */
 const SOURCE_ITEM = "source-credentials";
 
+/** The slot of a source that declares none; a credential saved before slots existed fills it. */
+const DEFAULT_SLOT = "default";
+
 /** Where a source credential is used. Experimental. */
 export interface SourceCredentialTarget {
     /** The source id. */
@@ -200,13 +203,34 @@ export class CredentialStore {
     async lookup(source: string, origin: string | URL, slot?: string): Promise<Credential | undefined> {
         await this.#ready;
         const wanted = originOf(origin);
-        for (const entry of this.#entries.values()) {
-            if (entry.source === source && entry.origin === wanted && fills(entry, slot)) {
-                return fromStorableCredential(entry.parts, { origins: [entry.origin] });
-            }
+        const matches = [...this.#entries.entries()].filter(
+            ([, entry]) => entry.source === source && entry.origin === wanted && fills(entry, slot),
+        );
+        // A credential remembered for this very slot wins over one remembered for no slot.
+        const [key, entry] = matches.find(([, e]) => e.slot === slot) ?? matches[0] ?? [];
+        if (key === undefined || entry === undefined) {
+            return undefined;
         }
 
-        return undefined;
+        if (slot === DEFAULT_SLOT && entry.slot === undefined) {
+            this.#migrate(key, { ...entry, slot });
+        }
+
+        return fromStorableCredential(entry.parts, { origins: [entry.origin] });
+    }
+
+    /**
+     * Re-key an entry saved before credentials had slots under the slot a lookup found it for.
+     * @param key - its old key
+     * @param entry - the entry with its slot
+     */
+    #migrate(key: string, entry: Entry): void {
+        this.#entries.delete(key);
+        const migrated = keyOf(entry);
+        if (!this.#entries.has(migrated)) {
+            this.#entries.set(migrated, entry);
+        }
+        this.#save();
     }
 
     /**

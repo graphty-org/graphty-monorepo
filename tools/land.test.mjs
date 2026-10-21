@@ -27,6 +27,10 @@ const dir = mkdtempSync(join(tmpdir(), "land-"));
 const repo = join(dir, "main");
 const other = join(dir, "other");
 const env = isolatedGitEnv();
+// A landing runs this file through its own hand-off to the live copy, which marks the environment;
+// the tests' land.mjs must not inherit that mark, or it never hands off itself.
+delete env.LAND_LIVE;
+delete env.LAND_LIVE_COPY;
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 const git = (cwd, ...args) => {

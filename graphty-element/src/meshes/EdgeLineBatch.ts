@@ -409,6 +409,10 @@ export class EdgeLineBatch {
 
         const { elementLength, count } = this.pattern;
         const n = discreteMeshCount(length, elementLength, count);
+        // one element: the next would start past the line's end
+        if (n < 2) {
+            return 2 * (length + elementLength);
+        }
 
         return Math.max((length - elementLength) / (n - 1), 1e-6);
     }

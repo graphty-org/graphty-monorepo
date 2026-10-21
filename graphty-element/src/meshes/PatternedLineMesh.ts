@@ -73,14 +73,17 @@ export function patternElementPeriod(meshWidth: number): number {
  *
  * The layout this counts for: the first element's left edge sits exactly on the start of
  * the line, the last element's right edge sits exactly on the end of it, and any interior
- * elements are distributed evenly in between. So the answer is always at least 2.
+ * elements are distributed evenly in between. A line too short to hold two elements with a
+ * gap between them takes one, at its start, as a dash pattern starts on its line: two
+ * elements squeezed onto it would touch or overlap and draw a solid line (`pajek-synth-lines`
+ * arc 2 -> 3, Pajek's 5 px dash on the 6 px of line between the source and the arrowhead).
  *
  * The count is unbounded by design: it follows the spacing rule, so a longer edge gets more
  * elements. A caller that needs a ceiling sets `line.patternCount`, which overrides the rule.
  * @param lineLength - Length of the line in world units, ALREADY trimmed for the node surface and the arrowhead by Edge.transformArrowCap
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
  * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
- * @returns Mesh count, at least 2
+ * @returns Mesh count, at least 1
  * @public
  */
 export function discreteMeshCount(lineLength: number, meshWidth: number, patternCount?: number): number {
@@ -94,14 +97,13 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
     // edge. lineLength is already adjusted for the node surface and the arrow, so nothing
     // is subtracted for those a second time.
     const dynamicLength = lineLength - 2 * meshWidth;
-
-    // Line too short to hold anything between the two boundary elements.
-    if (dynamicLength < 0) {
-        return 2;
-    }
-
     const period = patternElementPeriod(meshWidth);
     const minSpacing = period - meshWidth;
+
+    // Line too short to hold the two boundary elements apart: one element.
+    if (dynamicLength < minSpacing) {
+        return 1;
+    }
 
     // K interior elements open K + 1 gaps, so K * meshWidth + (K + 1) * minSpacing must fit
     // inside dynamicLength. Solving for K gives the line below.
@@ -129,7 +131,7 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
  * that keeps the last gap correct when the ceiling bites.
  * @param totalLength - Length of the line in world units, already trimmed for node surface and arrowhead
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
- * @param meshCount - Number of elements to place; values below 2 are treated as 2
+ * @param meshCount - Number of elements to place; values below 2 place one
  * @returns Centre offsets from the line start, in world units, in order, one per element
  * @public
  */
@@ -138,7 +140,12 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
     const firstCentre = meshRadius;
     const lastCentre = totalLength - meshRadius;
 
-    if (meshCount <= 2) {
+    // one element at the line's start, or its middle when the line is shorter than the element
+    if (meshCount < 2) {
+        return [Math.min(firstCentre, totalLength / 2)];
+    }
+
+    if (meshCount === 2) {
         return [firstCentre, lastCentre];
     }
 
@@ -376,7 +383,9 @@ export class PatternedLineMesh {
 
     /**
      * Check if mesh count needs adjustment based on line length change
-     * Uses hysteresis (±1 mesh) to prevent thrashing
+     * Uses hysteresis (one mesh too few) to prevent thrashing; never one too many, which the
+     * line has no room for: its elements overlap and draw it solid (`pajek-synth-lines` arc 2 -> 3,
+     * laid out longer and then shortened, kept three dashes on a line with room for two)
      * @param newLength - New length of the line
      * @returns True if mesh count needs adjustment
      */
@@ -385,7 +394,7 @@ export class PatternedLineMesh {
         const currentCount = this.elements.length;
         const optimalCount = this.calculateOptimalMeshCount(newLength, patternDef);
 
-        return Math.abs(currentCount - optimalCount) > 1; // Hysteresis: ±1 mesh
+        return currentCount > optimalCount || optimalCount - currentCount > 1;
     }
 
     /**

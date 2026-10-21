@@ -1,4 +1,4 @@
-The study runs on build 6de5f95d12 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12
+The study runs on build 758b8e8081 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-758b8e8081
 
 Frozen on 2026-10-20 for the tier 3 rounds.
 
@@ -373,6 +373,14 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-20 (round 1 build refrozen): the study build is 758b8e8081, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-758b8e8081`. It replaces
+  6de5f95d12, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12`.
+  `real.mjs --prove` passes on it once two of its checks were corrected (they failed on 6de5f95d12
+  too): selecting a node moves the camera, so the click-at check reads a node's point after the
+  selection, and a reopened tab's start page pictures, which graphty.app does not serve, are logged
+  without failing the step. No bar changed.
 
 - 2026-10-20 (round 1 pilots on 6de5f95d12; no session has run): `answers.md` matches the frozen
   build 6de5f95d12 as the pilots in `rounds/r1d1/pilot/` saw it (21 of 30 halves; T38 A, T40 B,

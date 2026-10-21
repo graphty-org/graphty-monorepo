@@ -57,7 +57,7 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
     const t = snapshot.edgeTarget(e);
     const [source, target] = [cx.center(s), cx.center(t)];
     const route = source === null || target === null ? null : edgeRoute(source, target, get("pos"));
-    const lp = route === null || route.start === null ? null : point(get("lp"));
+    const lp = (route?.start ?? null) === null ? null : point(get("lp"));
     if (lp === null && cx.external && s !== t && (get("label") ?? get("xlabel")) !== null) {
         // ponytail: the first place xlabels.c tries; one that would cover another label or node moves elsewhere
         put("labelPosition", "center");

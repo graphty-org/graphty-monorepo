@@ -57,9 +57,15 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 /**
  * Puts focus on the graph's heading in the inspector once a graph has opened (a sample, a file,
  * a project, a load from the Data page), so a screen reader starts with which graph it is and
- * how big; else, while the inspector shows something else, on the open place's list.
+ * how big; else, while the inspector shows something else, on the open place's list. A reader
+ * who has already moved into the drawing, or into a dialog, while the graph was still being read
+ * keeps their place.
  */
 export function focusOpenedGraph(): void {
+    const active = document.activeElement;
+    if (active?.tagName === "GRAPHTY-ELEMENT" || (active?.closest('[role="dialog"]') ?? null) !== null) {
+        return;
+    }
     const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
     if (title === null) {
         focusCurrentPlace();

@@ -150,7 +150,9 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
 
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
-        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
+        assert.isNotNull(
+            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
     });
 
@@ -158,7 +160,7 @@ describe("the start screen", () => {
         renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
-        assert.isNotNull(screen.getByText(/Usage data stays off\./));
+        assert.isNotNull(screen.getByText(/Usage data stays off\./, { selector: ".ws-start-answer" }));
         assert.equal(initSentry.mock.calls.length, 0);
 
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));

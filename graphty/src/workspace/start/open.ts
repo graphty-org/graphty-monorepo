@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { focusOpenedGraph } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
@@ -224,6 +225,62 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
     });
 }
 
+/**
+ * Settles a newly opened graph once its load does: its history starts (Undo never unloads it) and
+ * focus goes to its heading, so its size is heard. The graph is drawn before its load settles, so
+ * a reader may already have acted -- changed something, started a run, selected something, moved
+ * focus into the drawing or a dialog; then their history and their place are left as they are.
+ * @param session - the new project's session.
+ * @param focus - whether focus goes to the heading (only on the graph panels).
+ */
+export function settleOpened(session: GraphSession, focus = true): void {
+    // ponytail: the opening's steps are told by their ops (data and config); a reader's own data
+    // edit made in that moment keeps the opening undoable too.
+    const { steps, pending } = session.history;
+    const untouched =
+        pending.length === 0 &&
+        steps.every((step) =>
+            step.ops.every((op) => op.startsWith("data.") || op.startsWith("config.") || op === "batch"),
+        );
+    if (!untouched) {
+        return;
+    }
+    session.history.clear();
+    const { nodes, edges } = session.selection;
+    if (focus && nodes.length === 0 && edges.length === 0) {
+        focusOpenedGraph();
+    }
+}
+
+/**
+ * Loads a file opened from the start screen into its new project, drawn as a first file is. The
+ * graph starts its history (Undo never unloads it) and focus goes to its heading, as for a sample.
+ * A file the element refuses was never really opened: back to the start screen, with the reason
+ * staying until it is dismissed.
+ * @param ctx - the command context, with the new project's session.
+ * @param ctx.workspace - the workspace store.
+ * @param ctx.session - the new project's session.
+ * @param incoming - the source.
+ */
+async function openFirst({ workspace, session }: CommandContext, incoming: Incoming): Promise<void> {
+    if (session === null) {
+        return;
+    }
+    try {
+        await drawFirst(workspace, session, incoming.source);
+        settleOpened(session);
+    } catch (error) {
+        workspace.set({
+            project: null,
+            page: "panels",
+            inspected: null,
+            dialog: null,
+            renaming: false,
+            notice: { message: refusalFor(error, incoming.name).what, error: true },
+        });
+    }
+}
+
 /** How a whole graph loads into a session: replacing what it holds, or added to it. */
 export type GraphLoad = (session: GraphSession, mode: "replace" | "merge") => Promise<void>;
 
@@ -260,7 +317,10 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length === 1 && incoming !== undefined) {
         void openProjectFile(ctx, files[0], {
             name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-            onData: (next) => {
+            onData: (next, fresh) => {
+                if (fresh) {
+                    return openFirst(next, incoming);
+                }
                 addSource(next, incoming);
                 return Promise.resolve();
             },

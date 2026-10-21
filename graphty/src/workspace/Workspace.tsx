@@ -6,8 +6,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { findRecovered } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusOpenedGraph, installFocusGuard } from "./frame/focus";
+import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
+import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
@@ -15,7 +16,7 @@ import { notReadSentence, openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { useDropToOpen } from "./start/open";
+import { settleOpened, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
@@ -30,6 +31,13 @@ interface WorkspaceProps {
     /** The registrations; every package's by default. */
     registrations?: readonly WorkspaceRegistration[];
 }
+
+/** The start screen's first way in (Resume, else Open a file), read when focus goes to it. */
+const firstDoor = {
+    get current(): HTMLElement | null {
+        return document.querySelector<HTMLElement>(".ws-land-go, .ws-land-tint");
+    },
+};
 
 /**
  * The reader's workspace: the new graphty app shell (design/ui/tier1-real-app/tier1-design.md).
@@ -95,10 +103,7 @@ export function Workspace({
             // until the reader changes something, so one Undo too many never unloads the graph.
             // Focus goes to the graph's heading once it is read, so its size is heard.
             .then(() => {
-                session.history.clear();
-                if (store.get().page === "panels") {
-                    focusOpenedGraph();
-                }
+                settleOpened(session, store.get().page === "panels");
             })
             .catch((error: unknown) => {
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
@@ -161,7 +166,7 @@ export function Workspace({
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
     // project, New project) hands focus to the open place's list as its element comes up (the
     // style layers), never the drawing's outline. Its element is keyed by project, so this runs
-    // once per project.
+    // once per project. Closing a project hands focus to the start screen's first way in.
     // Focus never falls to the page, on the start screen or in a project: Tab wraps, and a
     // control that goes while it holds focus hands it on (focus.ts).
     useEffect(() => installFocusGuard(), []);
@@ -175,11 +180,21 @@ export function Workspace({
             focusOpenedGraph();
         }
     }, [element, store, startProjectId]);
+    const projectWasOpen = useRef(false);
+    useEffect(() => {
+        if (projectOpen) {
+            projectWasOpen.current = true;
+        } else if (projectWasOpen.current && focusIsLost()) {
+            firstDoor.current?.focus();
+        }
+    }, [projectOpen]);
 
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
             {projectOpen ? null : <StartScreen />}
+            {/* A failed open lands on the start screen with its reason: the one notice slot, there too. */}
+            {projectOpen ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

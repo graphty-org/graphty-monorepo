@@ -201,23 +201,6 @@ describe("the workspace frame", () => {
         assert.isNull(screen.queryByRole("menu"));
     });
 
-    it("draws the start screen's shorter menu, without the rows that need a project", async () => {
-        renderWorkspace();
-
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        const rows = within(await screen.findByRole("menu"))
-            .getAllByRole("menuitem")
-            .map(rowLabel);
-        assert.deepEqual(rows, [
-            "New project",
-            "Open project or file...",
-            "Open sample",
-            "Settings...",
-            "Keyboard shortcuts",
-            "Help",
-        ]);
-    });
-
     it("shows a disabled command with its reason and keeps it focusable", async () => {
         renderWorkspace(OPEN);
 

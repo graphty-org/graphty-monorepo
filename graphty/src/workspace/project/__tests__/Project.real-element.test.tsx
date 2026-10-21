@@ -440,7 +440,9 @@ const FRIENDS =
  * @returns left, right, top and bottom.
  */
 function drawnBounds(): number[] {
-    const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])");
+    const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+        "graphty-element:not([data-start-page])",
+    );
     const session = element?.session;
     assert.isDefined(session);
     const at = (session?.data.nodes() ?? []).flatMap((node) => element?.nodeScreenPosition(node.id) ?? []);
@@ -462,7 +464,9 @@ async function framedWithLegend(store: WorkspaceStore): Promise<void> {
         },
         { timeout: TIMEOUT_MS },
     );
-    await document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")?.waitForStableFrame();
+    await document
+        .querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")
+        ?.waitForStableFrame();
 }
 
 describe("a reopened project's framing, on the real element", () => {
@@ -482,7 +486,9 @@ describe("a reopened project's framing, on the real element", () => {
             [...new Set(edges.flatMap((edge) => [edge.source, edge.target]))].map((id) => ({ id })),
         );
         await session.data.addEdges(edges);
-        await document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")?.waitForStableFrame();
+        await document
+            .querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")
+            ?.waitForStableFrame();
         // PageRank paints color, so the legend card comes up after the graph was framed.
         await session.runs.start("pagerank");
         await session.styles.settled();
@@ -618,21 +624,16 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             const counts = { nodes: session.data.nodes().length, edges: session.data.edges().length };
             assert.deepEqual(counts, { nodes: 105, edges: 441 });
 
-            // Save as downloads the project file.
-            await userEvent.keyboard("{Control>}s{/Control}");
-            const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
-            await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+            // Save local copy... downloads the project file (Save keeps it in this browser).
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
             await waitFor(() => {
                 assert.lengthOf(downloads, 1);
-            });
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog"));
             });
             const text = await downloads[0].text();
 
             // Back to the start screen, then Open a file with the saved project.
-            await userEvent.click(screen.getByRole("button", { name: /^Project: / }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
+            await closeFromMenu();
             await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
             await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
             const reopened = await elementSession(session);

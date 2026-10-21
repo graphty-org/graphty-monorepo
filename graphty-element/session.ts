@@ -155,6 +155,29 @@ export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
+// 3D model files: session.assets
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The model files a style layer can draw nodes as (`node.model`), the ids that name them, what
+ * `session.assets.add` accepts and returns, and the limits only the page's code may change.
+ */
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+} from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+
+// ---------------------------------------------------------------------------------------------
 // The node coordinates
 // ---------------------------------------------------------------------------------------------
 

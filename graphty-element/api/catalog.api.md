@@ -234,6 +234,9 @@ export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
 }
 
 // @public
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+
+// @public
 export interface ByDesignWaiver {
     readonly kind: "by-design";
     readonly reason: string;
@@ -398,6 +401,9 @@ export interface DetectionInput {
     readonly filename?: string;
     readonly sample?: string;
 }
+
+// @public
+export function detectModelFormat(input: ModelDetectionInput): ModelDetection | undefined;
 
 // @public
 export type DrawingMode = "2d" | "3d";
@@ -1052,7 +1058,58 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`; settle it with `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. `params.name`, `params.referencedBy`.
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET" | "E_INTERNAL";
 
 // @public
 export function isAttributeType(value: unknown): value is AttributeType;
@@ -1413,6 +1470,21 @@ export interface MetricAvailability {
     // (undocumented)
     technicalName: string;
 }
+
+// @public
+export interface ModelDetection {
+    readonly format: ModelFormat;
+    readonly supported: boolean;
+}
+
+// @public
+export interface ModelDetectionInput {
+    readonly filename?: string;
+    readonly head?: Uint8Array;
+}
+
+// @public
+export type ModelFormat = string;
 
 // @public
 export type NodeId = string | number;

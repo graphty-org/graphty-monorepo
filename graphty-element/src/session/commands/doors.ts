@@ -549,6 +549,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    assets: READ,
     journal: READ,
     selection: READ,
     visibility: READ,
@@ -2125,6 +2126,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
         },
+    },
+    {
+        name: "AssetsApi",
+        file: "src/session/assets/AssetsApi.ts",
+        half: "session",
+        whole: exempt(
+            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+        ),
     },
     {
         name: "JournalApi",

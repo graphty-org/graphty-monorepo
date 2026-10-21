@@ -275,6 +275,18 @@ export const MUTATING: readonly string[] = [
 ];
 
 export const READ_ONLY: readonly string[] = [
+    // The model file library: it changes no node, edge, style or saved state, and its cost grows
+    // with the files added, not with the graph. Reclassify add and remove when layers draw assets.
+    "AssetsApi.add",
+    "AssetsApi.allowHosts",
+    "AssetsApi.files",
+    "AssetsApi.get",
+    "AssetsApi.inspect",
+    "AssetsApi.list",
+    "AssetsApi.ready",
+    "AssetsApi.remove",
+    "AssetsApi.setLimits",
+    "NamedBlob.arrayBuffer",
     "AcceleratorRegistry.clear",
     "AcceleratorRegistry.has",
     "AcceleratorRegistry.list",

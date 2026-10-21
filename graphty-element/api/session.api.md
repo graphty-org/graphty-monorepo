@@ -109,6 +109,15 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AddAssetOptions {
+    readonly format?: ModelFormat;
+    readonly main?: string;
+    readonly name?: AssetId;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+}
+
+// @public
 export interface AlgorithmRunCommand {
     readonly algorithm: AlgorithmKey;
     readonly applySuggestedStyles?: boolean;
@@ -120,6 +129,58 @@ export interface AlgorithmRunCommand {
     readonly scope?: Scope;
     readonly seed?: number;
 }
+
+// @public
+export type AssetId = `asset:${string}`;
+
+// @public
+export interface AssetRecord {
+    readonly byteLength: number;
+    readonly digest: string;
+    readonly format: ModelFormat;
+    readonly id: AssetId;
+    readonly kind: "model";
+    readonly path?: string;
+    readonly problems: readonly CodedFact[];
+    readonly state: AssetState;
+}
+
+// @public
+export interface AssetsApi {
+    add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    allowHosts(hosts: readonly string[]): void;
+    files(id: AssetId): ReadonlyMap<string, Uint8Array>;
+    get(id: AssetId): AssetRecord | undefined;
+    inspect(id: AssetId): ModelSummary;
+    list(): readonly AssetRecord[];
+    ready(ref: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetRecord>;
+    remove(id: AssetId): void;
+    setLimits(limits: Partial<ModelLimits>): void;
+}
+
+// @public
+export type AssetSource =
+/** A URL, fetched with no credentials. */
+string
+/** A File. */
+| NamedBlob
+/** Several files: an array of Files, or a FileList (structurally). */
+| Iterable<NamedBlob> | ArrayLike<NamedBlob>
+/** The bytes of one file. */
+| ArrayBuffer | Uint8Array
+/** Files by path, and optionally which one is the model. */
+| {
+    readonly files: ReadonlyMap<string, NamedBlob | {
+        readonly size: number;
+        arrayBuffer(): Promise<ArrayBuffer>;
+    } | Uint8Array>;
+    readonly main?: string;
+};
+
+// @public
+export type AssetState = "pending" | "accepted" | "rejected";
 
 // @public
 export interface AttributeDescriptor {
@@ -229,6 +290,9 @@ export interface BindingStop {
     below?: string | number;
     value: string | number;
 }
+
+// @public
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
 
 // @public
 export interface Capabilities {
@@ -510,6 +574,9 @@ export const DEFAULT_EXACT_COMPUTATION_CAP_SECONDS = 30;
 
 // @public
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits>;
+
+// @public
+export const DEFAULT_MODEL_LIMITS: ModelLimits;
 
 // @public
 export const DEFAULT_SCOPE_SAMPLE = 10000;
@@ -1044,6 +1111,7 @@ export interface GraphAccelerator {
 // @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    readonly assets: AssetsApi;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
     readonly capabilities: AccelerationCapabilities;
@@ -1637,7 +1705,58 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`; settle it with `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. `params.name`, `params.referencedBy`.
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1730,7 +1849,14 @@ export type GraphtyWarningCode =
 * event. `params.requested` holds the options as given and `params.used` the values used, by
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
-| "W_DIMENSION_OVERRIDDEN";
+| "W_DIMENSION_OVERRIDDEN"
+/**
+* A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+* `node.modelSourceUp` turns it.
+*/
+| "W_MODEL_UP_GUESSED"
+/** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+| "W_MODEL_HAS_ANIMATIONS";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -1853,6 +1979,9 @@ export function isAccelerationPolicy(value: unknown): value is AccelerationPolic
 
 // @public
 export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunCommand;
+
+// @public
+export function isAssetId(value: unknown): value is AssetId;
 
 // @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
@@ -2216,6 +2345,64 @@ export interface Memberships {
         readonly of: number;
     }[];
     readonly sets: readonly SetId[];
+}
+
+// @public
+export type ModelFormat = string;
+
+// @public
+export interface ModelLimits {
+    readonly fetchTimeoutMs: number;
+    readonly maxBytes: number;
+    readonly maxDecodedBytes: number;
+    readonly maxTextBytes: number;
+    readonly maxTextureBytes: number;
+    readonly maxTextureSize: number;
+    readonly maxTriangles: number;
+    readonly sceneTextureBytes: number;
+    readonly sceneTriangleBudget: number;
+    readonly sessionBytes: number;
+}
+
+// @public
+export interface ModelSummary {
+    // (undocumented)
+    readonly animations: readonly {
+        readonly name: string;
+        readonly seconds: number;
+    }[];
+    readonly bounds?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+    readonly extensionsRequired: readonly string[];
+    // (undocumented)
+    readonly format: ModelFormat;
+    readonly materials: readonly string[];
+    // (undocumented)
+    readonly meshes: number;
+    // (undocumented)
+    readonly morphTargets: number;
+    // (undocumented)
+    readonly skinned: boolean;
+    readonly textureBytes: number;
+    // (undocumented)
+    readonly textures: number;
+    // (undocumented)
+    readonly transparent: boolean;
+    readonly triangles: number;
+    readonly upAxis: "y" | "z" | "unknown";
+}
+
+// @public
+export interface NamedBlob {
+    // (undocumented)
+    arrayBuffer(): Promise<ArrayBuffer>;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly size: number;
+    readonly webkitRelativePath?: string;
 }
 
 // @public

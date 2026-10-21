@@ -50,6 +50,7 @@ import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
@@ -421,6 +422,7 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly assets: AssetsApiInternal;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -474,6 +476,8 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        // Model files live beside the project, not in it: no command, no step, no recipe.
+        this.assets = createAssetsApi();
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;

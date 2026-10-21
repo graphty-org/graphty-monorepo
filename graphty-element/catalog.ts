@@ -59,6 +59,8 @@ export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
+export type { BuiltInModelFormat, ModelDetection, ModelDetectionInput, ModelFormat } from "./src/catalog/detectModel";
+export { detectModelFormat } from "./src/catalog/detectModel";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
 export type {

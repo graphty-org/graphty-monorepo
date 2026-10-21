@@ -10,6 +10,20 @@
  * enforces it.
  */
 
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+} from "./assets/AssetsApi";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";

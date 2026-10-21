@@ -3673,6 +3673,7 @@ export abstract class LayoutEngine {
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     // (undocumented)
     abstract get edges(): Iterable<Edge>;
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
     // (undocumented)
@@ -3715,7 +3716,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
-    protected setFollowers(rows: ReadonlySet<number> | null): void;
+    protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)

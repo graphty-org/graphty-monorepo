@@ -86,13 +86,56 @@ describe("the DOT the element hands Graphviz", () => {
         assert.include(dot, "n2 -> n0;");
     });
 
-    it("writes a node with two different sides as a box that size, and leaves out the skipped rows", () => {
-        const dot = toDot(graph(true, TRIANGLE), {}, [3, 1, 1], [3, 1.5, 1, 1, 4, 2], (row) => row === 2);
+    it("writes a node with two different sides as a box that size, and leaves a group's row out as a node", () => {
+        const dot = toDot(graph(true, TRIANGLE), {}, [3, 1, 1], [3, 1.5, 1, 1, 4, 2], new Map([[2, []]]));
 
         assert.include(dot, "n0 [shape=box, width=3, height=1.5];", "a wide node is a box its own size");
         assert.include(dot, "n1 [width=1];", "a node as tall as it is wide stays a circle");
-        assert.notMatch(dot, /n2/, "a skipped row and its edges are not handed over");
+        assert.notMatch(dot, /\bn2\b/, "a group's row and its edges are not handed over as a node");
         assert.strictEqual(dot.match(/n0 -> n1;/g)?.length, 2);
+    });
+
+    it("writes each group as a cluster of its members, a group inside a group nested in it", () => {
+        // rows: a0 b1 c2 d3 outer4 inner5; outer holds a and inner, inner holds b and c.
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["c", "d"],
+            ["outer", "inner"],
+        ]);
+        const groups = new Map([
+            [4, [0, 5]],
+            [5, [1, 2]],
+        ]);
+
+        const dot = toDot(snapshot, {}, undefined, undefined, groups);
+
+        assert.include(dot, "subgraph cluster_n4 {\nn0;\nsubgraph cluster_n5 {\nn1;\nn2;\n}\n}");
+        assert.strictEqual(dot.match(/cluster_n5/g)?.length, 1, "the nested group is written once, inside its parent");
+        assert.notMatch(dot, /n4 ->|-> n5/, "an edge between groups is not handed over");
+    });
+
+    it("has Graphviz keep a group's members together and every other node out of its box", async () => {
+        // Without the cluster, dot puts x between a and b in their rank, in edge order.
+        const snapshot = graph(true, [
+            ["r", "a"],
+            ["r", "x"],
+            ["r", "b"],
+            ["g", "g"],
+        ]);
+        const g = snapshot.ids.requireIndex("g");
+        const [a, x, b] = ["a", "x", "b"].map((id) => snapshot.ids.requireIndex(id));
+
+        const between = async (members: number[]): Promise<boolean> => {
+            const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map([[g, members]])), "dot");
+            assert.isTrue(reply.ok, JSON.stringify(reply));
+            const positions = reply.ok ? fromJson(reply.json, snapshot.nodeCount) : new Float32Array(0);
+            assert.isTrue(Number.isNaN(positions[2 * g]), "the group is not placed by Graphviz");
+            const [ax, xx, bx] = [a, x, b].map((row) => positions[2 * row]);
+            return Math.min(ax, bx) < xx && xx < Math.max(ax, bx);
+        };
+
+        assert.isTrue(await between([]), "the case this guards: with no cluster, x lands between a and b");
+        assert.isFalse(await between([a, b]), "with the cluster, x stays out of the group's box");
     });
 
     it("writes an undirected graph with undirected edges, and escapes attribute values", () => {
@@ -296,7 +339,7 @@ describe("the catalogue", () => {
 
 describe("the recommendation for a Graphviz file", () => {
     const connected = sizeOnly(30, 40);
-    const dotFile = { format: "dot", attributes: { rankdir: "LR", label: "not passed on" } };
+    const dotFile = { format: "dot", attributes: { rankdir: "LR", clusterrank: "none", label: "not passed on" } };
 
     it("draws a DOT file with no coordinates with dot, passing on its layout attributes", () => {
         const advice = recommendLayout(connected, { file: dotFile, graphvizAvailable: true });
@@ -304,7 +347,7 @@ describe("the recommendation for a Graphviz file", () => {
         assert.strictEqual(advice?.layout.id, "graphviz-dot");
         assert.strictEqual(advice?.fact.code, "recommend.graphviz-file");
         assert.strictEqual(advice?.fact.params.engine, "dot");
-        assert.deepEqual(advice?.options, { attributes: { rankdir: "LR" } });
+        assert.deepEqual(advice?.options, { attributes: { rankdir: "LR", clusterrank: "none" } });
     });
 
     it("draws the engine the file names", () => {

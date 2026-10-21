@@ -2178,22 +2178,29 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        const rows: number[] = [];
-        for (const { group } of this.followingGroups()) {
-            const index = this.dataManager.nodes.get(group)?.index;
-            if (index !== undefined && validRow(index)) {
-                rows.push(index);
+        const rowOf = (id: NodeIdType): number | undefined => {
+            const index = this.dataManager.nodes.get(id)?.index;
+            return index !== undefined && validRow(index) ? index : undefined;
+        };
+        const groups = new Map<number, number[]>();
+        for (const { group, members } of this.followingGroups()) {
+            const index = rowOf(group);
+            if (index !== undefined) {
+                groups.set(
+                    index,
+                    members.map(rowOf).filter((row) => row !== undefined),
+                );
             }
         }
 
-        const key = rows.join(",");
+        const key = JSON.stringify([...groups]);
         if (engine === this.followersOf && key === this.followersKey) {
             return;
         }
 
         this.followersOf = engine;
         this.followersKey = key;
-        layoutEngineInternals.setFollowers(engine, rows.length === 0 ? null : new Set(rows));
+        layoutEngineInternals.setFollowers(engine, groups.size === 0 ? null : new Set(groups.keys()), groups);
     }
 
     /**

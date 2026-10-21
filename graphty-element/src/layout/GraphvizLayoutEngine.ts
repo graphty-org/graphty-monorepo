@@ -178,14 +178,15 @@ export function graphvizAttributes(
  * @param engine - the engine
  * @param input - the run's input
  * @param options - the parsed options
- * @param skip - the rows Graphviz is not handed: groups the element draws round their members
+ * @param groups - the groups the element draws round their members, each with its member rows:
+ *     handed over as clusters, not as nodes
  * @returns the coordinates, two per row (NaN for a skipped row)
  */
 async function computeWith(
     engine: GraphvizEngine,
     input: SnapshotLayoutInput,
     options: Readonly<Record<string, unknown>>,
-    skip: (row: number) => boolean,
+    groups: ReadonlyMap<number, readonly number[]>,
 ): Promise<F32> {
     const n = input.graph.nodeCount;
     if (n === 0) {
@@ -210,7 +211,7 @@ async function computeWith(
     const scale = options.scale as number;
     const sizes = input.nodeSizes?.().map((size) => size / scale);
     const extents = input.nodeExtents?.().map((size) => size / scale);
-    const dot = toDot(input.stored, attributes, sizes, extents, skip);
+    const dot = toDot(input.stored, attributes, sizes, extents, groups);
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });
@@ -271,9 +272,9 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         }
 
         protected compute(input: SnapshotLayoutInput): Promise<F32> {
-            // A group drawn round its members is placed by the element, not by Graphviz: handed
-            // over as a node, it would take up room of its own beside the members it encloses.
-            return computeWith(engine, input, this.options, (row) => this.isFollower(row));
+            // A group drawn round its members is placed by the element, not by Graphviz: it is
+            // handed over as a cluster of its members, not as a node with room of its own.
+            return computeWith(engine, input, this.options, this.followerGroups);
         }
     };
 }

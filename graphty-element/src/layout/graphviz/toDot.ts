@@ -53,7 +53,9 @@ function isLength(value: number | undefined): value is number {
  * @param sizes - the drawn size of each node, in scene units; NaN or absent for the default
  * @param extents - the drawn width and height of each node, two per row, in scene units: a row
  *     with two different sides is a box that size, the rest are circles as wide as `sizes` says
- * @param skip - the rows left out, with their edges: groups the element draws round their members
+ * @param groups - the groups the element draws round their members, by row, each with its member
+ *     rows: each is handed over as a `cluster` subgraph of its members, not as a node, so Graphviz
+ *     keeps a group's members together and the other nodes out of its box
  * @returns the DOT text
  */
 export function toDot(
@@ -61,8 +63,9 @@ export function toDot(
     attributes: Readonly<Record<string, string>>,
     sizes?: ArrayLike<number>,
     extents?: ArrayLike<number>,
-    skip: (row: number) => boolean = () => false,
+    groups: ReadonlyMap<number, readonly number[]> = new Map(),
 ): string {
+    const skip = (row: number): boolean => groups.has(row);
     const lines: string[] = [];
     const arrow = stored.directed ? "->" : "--";
     lines.push(`${stored.directed ? "digraph" : "graph"} G {`);
@@ -89,6 +92,8 @@ export function toDot(
         lines.push(`n${row} [width=${inches}];`);
     }
 
+    writeClusters(groups, lines);
+
     const { src, dst } = stored.edgeList();
     for (let e = 0; e < src.length; e++) {
         if (skip(src[e]) || skip(dst[e])) {
@@ -99,4 +104,36 @@ export function toDot(
 
     lines.push("}");
     return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Write each group as a `cluster` subgraph of its members, a group inside a group nested in it.
+ * A group or node held by two groups is written in the first only: Graphviz clusters do not overlap.
+ * @param groups - the groups, by row, each with its member rows
+ * @param lines - the DOT lines, appended to
+ */
+function writeClusters(groups: ReadonlyMap<number, readonly number[]>, lines: string[]): void {
+    const nested = new Set([...groups.values()].flat().filter((row) => groups.has(row)));
+    const written = new Set<number>();
+    const write = (group: number): void => {
+        written.add(group);
+        lines.push(`subgraph cluster_n${group} {`);
+        for (const member of groups.get(group) ?? []) {
+            if (written.has(member)) {
+                continue;
+            }
+            if (groups.has(member)) {
+                write(member);
+                continue;
+            }
+            written.add(member);
+            lines.push(`n${member};`);
+        }
+        lines.push("}");
+    };
+    for (const group of groups.keys()) {
+        if (!nested.has(group)) {
+            write(group);
+        }
+    }
 }

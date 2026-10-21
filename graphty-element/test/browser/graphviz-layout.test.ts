@@ -147,6 +147,26 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(radius("d"), radius("a"), "the second ring further out");
     });
 
+    it("lays a DOT file's cluster out as Graphviz does: its members together, the other nodes outside it", async () => {
+        // In edge order dot puts x between a and b; the cluster keeps a and b side by side.
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "dot",
+                config: { data: "digraph { r -> a; r -> x; r -> b; subgraph cluster_g { a; b } }" },
+            },
+            { layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const [a, x, b] = [at("a").x, at("x").x, at("b").x];
+        assert.isFalse(
+            Math.min(a, b) < x && x < Math.max(a, b),
+            `x at ${String(x)}, a at ${String(a)}, b at ${String(b)}`,
+        );
+    });
+
     it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
         // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
         // 0.5 inch ranksep): each box is twice as wide as the step between their centres.

@@ -143,6 +143,7 @@ const GRAPHVIZ_FILE_ATTRIBUTES = [
     "root",
     "mindist",
     "newrank",
+    "clusterrank",
     "ordering",
     "ratio",
     "pack",

@@ -327,6 +327,13 @@ export const GROUPS = {
 const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook", "graph-io-browser"]);
 
 /**
+ * Where a shard's lcov report is: its own "coverage-file", else its package's coverage directory.
+ * @param shard a SHARDS entry
+ * @returns the path from the repository root
+ */
+const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/coverage/lcov.info";
+
+/**
  * The matrix entry of one group, holding only the members a run must test.
  * @param name the group's name
  * @param members the SHARDS entries to run, in order
@@ -341,7 +348,7 @@ export function groupEntry(name, members) {
         "needs-browser": members.some((m) => m["needs-browser"]),
         coverage: members
             .filter((m) => !NO_COVERAGE.has(m.shard))
-            .map((m) => `${m.shard}=${m["coverage-file"] ?? `${m.package}/coverage/lcov.info`}`)
+            .map((m) => `${m.shard}=${coverageFile(m)}`)
             .join(" "),
     };
 }

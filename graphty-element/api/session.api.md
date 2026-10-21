@@ -1791,7 +1791,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2149,11 +2149,14 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly features?: SourceFeatures;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
     readonly kind: LoadedSourceKind;
+    readonly loadKey?: string;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
+    readonly total?: number;
 }
 
 // @public
@@ -2290,6 +2293,15 @@ export interface NodeRecord {
 
 // @public
 export type NodeRecordInput = Readonly<Record<string, unknown>>;
+
+// @public
+export interface NodeSource {
+    readonly canExpand: boolean;
+    readonly expanded: boolean;
+    readonly hiddenNeighbors: number | null;
+    readonly loadKey: string;
+    readonly source: SourceKey | null;
+}
 
 // @public
 export type Normalization = "max" | "min-max" | "none";
@@ -3707,6 +3719,7 @@ export interface SessionDataApi {
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
     attributes(): readonly AttributeDescriptor[];
+    checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
@@ -3719,7 +3732,7 @@ export interface SessionDataApi {
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
-    expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
+    expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
     fingerprint(): string;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
@@ -3729,7 +3742,7 @@ export interface SessionDataApi {
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
     loads(): readonly SourceLoadRecord[];
     loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
-    more(options?: SourceLoadOptions): Promise<void>;
+    more(options?: SourceMoreOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
@@ -3741,10 +3754,13 @@ export interface SessionDataApi {
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
+    nodeSource(id: NodeId_2): NodeSource | null;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
     }): Promise<LoadDraft>;
+    previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+    refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -4116,7 +4132,23 @@ export const SOURCE_RECORD_MEMBER = "graphty-sources";
 // @public
 export const SOURCE_RECORD_VERSION = 1;
 
+// @public
+export interface SourceCatalogEntry extends SourceInfo {
+    readonly features: SourceFeatures;
+}
+
+// @public
+export interface SourceCheck {
+    readonly changed: boolean | null;
+}
+
 export { SourceContext }
+
+// @public
+export interface SourceCounts {
+    readonly edges: number;
+    readonly nodes: number;
+}
 
 // @public
 export interface SourceCredentialIdentity {
@@ -4141,6 +4173,9 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 export type SourceExpandFailed = CodedFact;
 
 // @public
+export type SourceExpandResult = CodedFact<"I_SOURCE_EXPANDED" | "I_SOURCE_NOTHING_NEW">;
+
+// @public
 export interface SourceExpandStart {
     readonly seeds: readonly NodeId[];
 }
@@ -4158,6 +4193,13 @@ export interface SourceExpansionRecord {
 }
 
 export { SourceFeature }
+
+// @public
+export interface SourceFeatures {
+    readonly expand: boolean;
+    readonly more: boolean;
+    readonly refresh: boolean;
+}
 
 export { SourceFile }
 
@@ -4199,6 +4241,7 @@ export interface SourceLoadOptions extends LoadChoices {
     readonly cursor?: SourceCursor;
     readonly endpoint?: string;
     readonly existing?: "keep" | "update";
+    readonly expand?: ExpandBehavior;
     readonly fetch?: typeof fetch;
     readonly limits?: SourceLimitOptions;
     readonly retry?: RetryOptions | false;
@@ -4211,6 +4254,7 @@ export interface SourceLoadRecord {
     readonly config: Readonly<Record<string, unknown>>;
     readonly credential: SourceCredentialIdentity | null;
     readonly endpoint: string | null;
+    readonly expand?: ExpandBehavior;
     readonly expansions: readonly SourceExpansionRecord[];
     readonly key: string;
     readonly loadedAt: string;
@@ -4218,8 +4262,14 @@ export interface SourceLoadRecord {
     readonly options: Readonly<Record<string, unknown>>;
     readonly pages: number;
     readonly source: string;
+    readonly total?: number;
     readonly validators: SourceValidators;
     readonly version: number;
+}
+
+// @public
+export interface SourceMoreOptions extends SourceLoadOptions {
+    readonly load?: string;
 }
 
 export { SourceNodeRecord }
@@ -4228,7 +4278,38 @@ export { SourceParamDescriptor }
 
 export { SourceParamType }
 
+// @public
+export interface SourcePreview {
+    readonly columns: readonly AttributeDescriptor[];
+    readonly edges: readonly Readonly<Record<string, unknown>>[];
+    readonly facts: Readonly<Record<string, string>>;
+    readonly issues: readonly CodedFact[];
+    readonly more: boolean;
+    readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    readonly rows: readonly SourcePreviewRow[];
+    readonly serverFacts: readonly CodedFact[];
+}
+
+// @public
+export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "cursor"> {
+    readonly maxNodes?: number;
+}
+
+// @public
+export interface SourcePreviewRow {
+    readonly id: NodeId;
+    readonly label: string | null;
+}
+
 export { SourceProbe }
+
+// @public
+export interface SourceRefreshReport {
+    readonly added: SourceCounts;
+    readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly removed: SourceCounts;
+    readonly updated: SourceCounts;
+}
 
 export { SourceReportInfo }
 

@@ -148,6 +148,18 @@ Gaps found while finishing, each open:
   reference scenes, which are graph-io's own earlier reading and not the programs' drawings; 36 of its properties
   now read as each program draws them and score lower there, and are allowed drops in `requested-floors.json`.
   The oracle report is the judge for those properties.
+- Fixed 2026-10-21: the raster floors failed on the GPU path they were not recorded on. Chromium's SwiftShader path
+  (`GRAPHTY_BROWSER_GPU` unset: the documented command, and CI) and the NVIDIA path antialias thin lines and glyph
+  edges differently: over all 563 oracles on one code state, a region measured up to 0.046 apart (a 1 px edge line,
+  crisp on one path and spread over two pixels on the other; node bodies, outlines and labels within 0.01). Floored to
+  2 places, 95 raster regions read as drops on the NVIDIA path against floors recorded on SwiftShader, and 9 on
+  SwiftShader against floors a later NVIDIA run had raised, with nothing drawn changed. The raster floors are now
+  SwiftShader's: judged there with one unit of slack, judged on another path with 0.05 of slack, and recorded only
+  from SwiftShader (`rasterSlack` and `recordableScores` in `graphty-element/test/fidelity/oracle/floors.ts`). 28
+  raster floors rose to SwiftShader's measurement; `cytoscapejs-specimen-groups` raster.edge was lowered 0.95 to 0.93
+  (graphty now ends the edge from a compound at the compound's border, as Cytoscape.js does, so the short edge's
+  region reaches the border's antialiasing). `dot-real-siblings` raster.edge and raster.nodeOutline still fail on
+  both paths: its Graphviz layout changed with the DOT layout scale fix, which the Graphviz-layout work owns.
 - The SonarQube changed-lines scan could not run (the server was unreachable from this machine); the next push from
   the owner's network checks the branch.
 

@@ -6,7 +6,14 @@
 import { assert, describe, it } from "vitest";
 
 import type { OracleReport } from "./compare-oracle";
-import { checkScored, dropLapsed, mergeRecords, type OracleFloors, type OracleScored } from "./floors";
+import {
+    checkScored,
+    dropLapsed,
+    mergeRecords,
+    type OracleFloors,
+    type OracleScored,
+    recordableScores,
+} from "./floors";
 
 const empty = (): OracleFloors => ({
     about: "",
@@ -47,6 +54,38 @@ describe("oracle floors", () => {
         assert.deepEqual(checkScored("s", scored(0.5, {}), false, stored, "2026-10-18").dropped, []);
         stored.floors.s["edge.label"] = 0.2;
         assert.lengthOf(checkScored("s", scored(0.5, {}), false, stored, "2026-10-18").dropped, 1);
+    });
+
+    it("lets a raster region measure one unit under its floor on SwiftShader, and five on another GPU path", () => {
+        const stored = empty();
+        stored.floors.s = { "raster.edge": 0.97, "node.fill": 0.97 };
+        const at = (edge: number, fill: number, gpu?: string): string[] =>
+            checkScored(
+                "s",
+                {
+                    report: { properties: {}, failures: {} } as unknown as OracleReport,
+                    scores: { "raster.edge": edge, "node.fill": fill },
+                },
+                false,
+                stored,
+                "2026-10-18",
+                gpu,
+            ).dropped.map((d) => d.split(":")[0]);
+        // 0.9703 and 0.9689, floored: 0.97 and 0.96, the same drawing
+        assert.deepEqual(at(0.96, 0.97), []);
+        assert.deepEqual(at(0.95, 0.97), ["s raster.edge"]);
+        // a 1 px line measured 0.046 apart on the NVIDIA path
+        assert.deepEqual(at(0.92, 0.97, "nvidia"), []);
+        assert.deepEqual(at(0.91, 0.97, "nvidia"), ["s raster.edge"]);
+        // a judged property has no slack on any path
+        assert.deepEqual(at(0.97, 0.96), ["s node.fill"]);
+        assert.deepEqual(at(0.97, 0.96, "nvidia"), ["s node.fill"]);
+    });
+
+    it("records raster floors from SwiftShader only", () => {
+        const scores = { "raster.edge": 0.9, "node.fill": 1 };
+        assert.deepEqual(recordableScores(scores, "none"), scores);
+        assert.deepEqual(recordableScores(scores, "nvidia"), { "node.fill": 1 });
     });
 
     it("asks for a record of a property whose failures were never recorded", () => {

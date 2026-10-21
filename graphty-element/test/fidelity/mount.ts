@@ -14,7 +14,8 @@ export { drawnScene, nodeKeys } from "./load-sample";
 
 export const WIDTH = 800;
 export const HEIGHT = 600;
-const GPU = (import.meta.env.GRAPHTY_BROWSER_GPU as string | undefined) || "none";
+/** The GPU path the browser draws on: `GRAPHTY_BROWSER_GPU`, "none" (SwiftShader) when unset. */
+export const GPU = (import.meta.env.GRAPHTY_BROWSER_GPU as string | undefined) || "none";
 
 let mounted: Graphty | null = null;
 let blobUrl: string | null = null;

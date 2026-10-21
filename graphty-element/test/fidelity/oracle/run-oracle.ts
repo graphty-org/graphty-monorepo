@@ -16,7 +16,7 @@ import { CORPUS_SAMPLES } from "../../../../graph-io/test/fidelity/corpus-sample
 import { SAMPLES } from "../../../../graph-io/test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../../../graph-io/test/fidelity/specimens/index";
 import type { Graphty } from "../../../index.js";
-import { mountSample, readJson } from "../mount";
+import { GPU, mountSample, readJson } from "../mount";
 import { pairNodes } from "./compare-oracle";
 import {
     checkScored,
@@ -25,6 +25,7 @@ import {
     type OracleFloors,
     type OracleRecord,
     type OracleScored,
+    recordableScores,
 } from "./floors";
 import {
     compareWithOracle,
@@ -194,8 +195,9 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     const shot = captureCanvas(element);
     const raster = pngUrl === undefined ? null : await rasterCompare(shot, pngUrl, { width, height }, graphty, report);
     // The raster regions are asserted like every property, at 2 places (a region's similarity is a mean over its
-    // pixels, which a renderer's antialiasing moves in the third), and only where the layouts are related: between
-    // unrelated layouts the regions of one drawing fall on nothing of the other.
+    // pixels, which a renderer's antialiasing moves in the third), with the GPU path's slack (`rasterSlack` in
+    // floors.ts), and only where the layouts are related: between unrelated layouts the regions of one drawing fall on
+    // nothing of the other.
     if (raster !== null && report.transform?.unrelatedLayout === false) {
         for (const r of RASTER_REGIONS) {
             const sim = raster.regions[r].similarity;
@@ -280,9 +282,9 @@ export function checkFloors(
     stored: OracleFloors,
     today = new Date().toISOString().slice(0, 10),
 ): FloorCheck {
-    const parts = [checkScored(id, run, run.standIn, stored, today)];
+    const parts = [checkScored(id, run, run.standIn, stored, today, GPU)];
     if (run.matched !== null) {
-        parts.push(checkScored(matchedKey(id), run.matched, run.standIn, stored, today));
+        parts.push(checkScored(matchedKey(id), run.matched, run.standIn, stored, today, GPU));
     }
     return {
         dropped: parts.flatMap((p) => p.dropped),
@@ -298,7 +300,9 @@ export function checkFloors(
  * @returns the records
  */
 export function recordOf(id: string, run: OracleRun): OracleRecord {
-    const out: OracleRecord = { [id]: { scores: run.scores, failures: run.report.failures, standIn: run.standIn } };
+    const out: OracleRecord = {
+        [id]: { scores: recordableScores(run.scores, GPU), failures: run.report.failures, standIn: run.standIn },
+    };
     if (run.matched !== null) {
         out[matchedKey(id)] = {
             scores: run.matched.scores,

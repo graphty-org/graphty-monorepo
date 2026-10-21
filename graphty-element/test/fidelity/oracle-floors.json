@@ -1,5 +1,5 @@
 {
-    "about": "Ratcheted pass-rate floors of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts): per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places). Stand-in oracles (another program's drawing, or a raster) keep their floors in standInFloors. Recording keeps the higher of the stored and the measured rate, so a floor is never lowered by a run; a floor lowered by hand is listed in lowered with why. An allowed drop is \"<sample>/<property>\": { reason, issue: \"#N\" or \"ISSUES.md <row>\", expires: \"YYYY-MM-DD\", atLeast }, and fails the run once expired or under atLeast. The elements known to fail each property are in oracle-known-failures.json.",
+    "about": "Ratcheted pass-rate floors of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts): per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places, measured on SwiftShader: GRAPHTY_BROWSER_GPU unset, as CI runs; a run on another GPU path records no raster floor and judges them with a wider slack, rasterSlack in oracle/floors.ts). Stand-in oracles (another program's drawing, or a raster) keep their floors in standInFloors. Recording keeps the higher of the stored and the measured rate, so a floor is never lowered by a run; a floor lowered by hand is listed in lowered with why. An allowed drop is \"<sample>/<property>\": { reason, issue: \"#N\" or \"ISSUES.md <row>\", expires: \"YYYY-MM-DD\", atLeast }, and fails the run once expired or under atLeast. The elements known to fail each property are in oracle-known-failures.json.",
     "floors": {
         "cx-ddram": {
             "node.present": 1,
@@ -11470,7 +11470,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
-            "raster.edge": 0.95,
+            "raster.edge": 0.93,
             "raster.label": 0.82,
             "raster.canvas": 0.97
         },
@@ -12180,12 +12180,12 @@
             "frame.rotation": 0,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.85,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.84,
-            "raster.label": 0.75,
-            "raster.nodeBody": 0.77,
-            "raster.nodeOutline": 0.93
+            "raster.arrowhead": 0.9,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.87,
+            "raster.label": 0.87,
+            "raster.nodeBody": 0.89,
+            "raster.nodeOutline": 0.94
         },
         "dot-profile@matched": {
             "node.present": 1,
@@ -12500,11 +12500,11 @@
             "frame.rotation": 1,
             "frame.zoom": 0,
             "background": 1,
-            "raster.canvas": 0.96,
-            "raster.edge": 0.9,
-            "raster.label": 0.87,
-            "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.92
+            "raster.canvas": 0.98,
+            "raster.edge": 0.96,
+            "raster.label": 0.88,
+            "raster.nodeBody": 0.89,
+            "raster.nodeOutline": 0.98
         },
         "dot-real-happiness@matched": {
             "node.present": 0.987,
@@ -12702,11 +12702,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.81,
-            "raster.canvas": 0.96,
+            "raster.arrowhead": 0.84,
+            "raster.canvas": 0.98,
             "raster.edge": 0.89,
-            "raster.label": 0.76,
-            "raster.nodeBody": 0.76,
+            "raster.label": 0.81,
+            "raster.nodeBody": 0.81,
             "raster.nodeOutline": 0.93
         },
         "dot-real-siblings@matched": {
@@ -12810,12 +12810,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.45,
-            "raster.canvas": 0.84,
-            "raster.edge": 0.27,
-            "raster.label": 0.51,
-            "raster.nodeBody": 0.51,
-            "raster.nodeOutline": 0.48
+            "raster.arrowhead": 0.9,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.88,
+            "raster.label": 0.88,
+            "raster.nodeBody": 0.9,
+            "raster.nodeOutline": 0.91
         },
         "dot-real-softmaint@matched": {
             "node.present": 0.657,
@@ -29306,11 +29306,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.96,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.98,
-            "raster.edge": 0.87,
+            "raster.edge": 0.92,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.85,
+            "raster.nodeBody": 0.86,
             "raster.nodeOutline": 0.97
         },
         "vis-network-specimen-arrows@matched": {
@@ -29642,10 +29642,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
-            "raster.label": 0.93,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.98
+            "raster.edge": 0.98,
+            "raster.label": 0.94,
+            "raster.nodeBody": 0.92,
+            "raster.nodeOutline": 0.99
         },
         "vis-network-specimen-edges-lines-p2@matched": {
             "node.present": 1,
@@ -51953,6 +51953,12 @@
             "from": 0.333,
             "to": 0,
             "reason": "a box yEd draws round one node, which graphty draws as a group, is now read as that group (group.* 4/4) instead of a stray graphty drew nothing over, so the one passing stray left; the stray still failing, the words \"Text is not SVG - cannot display\", failed before",
+            "date": "2026-10-21"
+        },
+        "cytoscapejs-specimen-groups/raster.edge": {
+            "from": 0.95,
+            "to": 0.93,
+            "reason": "not a regression: graphty-element now ends the 'edge from a compound' edge at its compound's border, where Cytoscape.js ends it (it used to stop about 5 px short); the edge is 15 px long, so its raster region (130 px) now reaches the compound's 1 px border, whose antialiasing differs between the two drawings (edge 1: 0.913). Measured on SwiftShader, the floors' path",
             "date": "2026-10-21"
         }
     }

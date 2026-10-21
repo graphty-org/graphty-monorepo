@@ -42,6 +42,44 @@ export interface OracleFloors {
 const EPSILON = 1e-9;
 
 /**
+ * How far a raster region (`raster.<region>`, floored to 2 places) may measure under its floor before it counts as a
+ * drop. The raster floors are SwiftShader's, the path Chromium takes with `GRAPHTY_BROWSER_GPU` unset (the documented
+ * command, and CI's), and a run there is the same every time; one unit of the last place is left for a floor another
+ * path raised (a region at 0.9703 floors to 0.97, at 0.9689 to 0.96, though nothing drawn changed).
+ */
+export const RASTER_SLACK = 0.01;
+
+/**
+ * The same on another GPU path (`GRAPHTY_BROWSER_GPU=nvidia`), which antialiases thin lines and glyph edges
+ * differently: over every oracle on one code state the two paths measured a region up to 0.046 apart (a 1 px edge
+ * line, drawn crisp on one and spread over two pixels on the other; node bodies, outlines and labels within 0.01),
+ * so a run there catches only a raster drop past that, and records no raster floor (`recordableScores`).
+ */
+export const RASTER_SLACK_OTHER_GPU = 0.05;
+
+/**
+ * The raster slack of a GPU path.
+ * @param gpu - `GRAPHTY_BROWSER_GPU`, "none" when unset
+ * @returns how far a raster region may measure under its floor
+ */
+export function rasterSlack(gpu: string): number {
+    return gpu === "none" ? RASTER_SLACK : RASTER_SLACK_OTHER_GPU;
+}
+
+/**
+ * The scores a run on a GPU path may record: all of them on SwiftShader, and none of the raster regions elsewhere,
+ * since the raster floors are SwiftShader's.
+ * @param scores - a run's scores
+ * @param gpu - `GRAPHTY_BROWSER_GPU`, "none" when unset
+ * @returns the scores to record
+ */
+export function recordableScores(scores: Record<string, number>, gpu: string): Record<string, number> {
+    return gpu === "none"
+        ? scores
+        : Object.fromEntries(Object.entries(scores).filter(([p]) => !p.startsWith("raster.")));
+}
+
+/**
  * Why an allowed drop no longer excuses its floor, or null while it does.
  * @param drop - the entry
  * @param rate - the measured rate
@@ -86,6 +124,7 @@ export interface FloorCheck {
  * @param standIn - whether its floors are kept with the stand-ins
  * @param stored - the floors
  * @param today - `YYYY-MM-DD`
+ * @param gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset), which sets the raster slack
  * @returns what failed
  */
 export function checkScored(
@@ -94,11 +133,13 @@ export function checkScored(
     standIn: boolean,
     stored: OracleFloors,
     today: string,
+    gpu = "none",
 ): FloorCheck {
     const floors = (standIn ? stored.standInFloors : stored.floors)[key] ?? {};
     const dropped = Object.entries(floors).flatMap(([p, floor]) => {
         const rate = scored.scores[p];
-        if (rate !== undefined && rate >= floor - EPSILON) {
+        const slack = p.startsWith("raster.") ? rasterSlack(gpu) : 0;
+        if (rate !== undefined && rate >= floor - slack - EPSILON) {
             return [];
         }
         // a property no longer judged at a floor of 0 asked for nothing; and a stray property with no stray left to

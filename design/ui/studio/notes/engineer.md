@@ -17,6 +17,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0z. (2026-10-20) Re-walked the two element fixes (empty layer takes a selector, 4a008f063f; undo
+across Replace redraws, e3baf98a84) on graphty/dist, which already held both (built from the tree
+before e3 was committed; `placeKept` is in the bundle), so no rebuild. No regression, each
+acceptance holds. `design/ui/studio/tmp/r1-dry2-recheck-layer-from-selection-takes-conditions/`:
+t41b 10 (Has no value written, 9), 13 (on_record Yes, 4), 20 (4 red, key "4 of 24"); t41a 10-13
+(phone by ArrowDown+Enter, trained, Done keeps both), 15-18 (undo walks fill, then each condition);
+t41a 26-29 and baseline-plus-frozen 12 ("+" layer path identical on the frozen build);
+t38a-color-replace 19-22 (3 red kept over Replace; undo load keeps them, undo color clears), 26
+(first find pick after Replace draws its ring), 29 (ring after undoing the Replace);
+t44b-replace 13-14 (label gone after undoing it across a Replace), 18 (Everything: 24 labels);
+t45a 13-15 (8 picked ties kept, undo clears their red). Pre-existing, not from these diffs: the
+drawing jumps about 136 px right when the first key arrives after a find-box pick (sources and
+volunteers; same in the earlier walk; mechanism not traced; breaks decided "a key never
+re-frames"); clicking "Which nodes" on a layer with no condition leaves the attribute list closed
+(same on the frozen build; decided 2026-10-19 says it opens with focus in its search). Tool
+lessons: the start page now has "Open a file" (setups with "No thanks" / "Open project or file"
+fail); "Replace <file>" opens a review page and only its "Replace" button replaces -- a walk that
+stops at the first button never replaced anything; a right-click "on empty canvas" after a pick
+can land on an edge because the camera glided, so read the printed target.
 0y. (2026-10-20) Undo across a file opened over itself redraws from the layers. Mechanism: undoing
 a replacing load puts the old graph back as a new builder whose walk from the old rows is all
 INVALID (`GraphStore.takeBack`), so `walkNodeRemap`/`walkEdgeRemap` left every render node and edge

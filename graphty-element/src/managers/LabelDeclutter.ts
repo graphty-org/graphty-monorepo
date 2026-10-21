@@ -1657,12 +1657,23 @@ function edgeTexts(edge: Edge): RichTextLabel[] {
     const texts: RichTextLabel[] = [];
     for (const text of [edge.label, edge.arrowHeadText, edge.arrowTailText]) {
         const mesh = text?.labelMesh;
-        if (text && mesh && !mesh.isDisposed()) {
+        // a text with no words (an empty label column) has a plane of no size, placed nowhere a
+        // number can say (NaN): it draws nothing, so it is neither counted nor watched
+        if (text && mesh && !mesh.isDisposed() && hasWords(text)) {
             texts.push(text);
         }
     }
 
     return texts;
+}
+
+/**
+ * Whether a text has any words to draw.
+ * @param text - The text.
+ * @returns True when one of its runs holds a letter.
+ */
+function hasWords(text: RichTextLabel): boolean {
+    return text.textRuns.some((line) => line.some((run) => run.text.length > 0));
 }
 
 /**

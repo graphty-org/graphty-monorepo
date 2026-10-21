@@ -584,7 +584,7 @@ const CASES: readonly Case[] = [
         methods: ["Graphty.render"],
         prepare: (element) => {
             let rendered: unknown;
-            let before: Node[] = [];
+            let before: ChildNode[] = [];
             return Promise.resolve(
                 drawing(
                     element.graph,

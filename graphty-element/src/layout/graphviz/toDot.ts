@@ -55,6 +55,32 @@ function isLength(value: number | undefined): value is number {
 }
 
 /**
+ * One node's DOT statement: a box when its two drawn sides differ, else a circle of its size.
+ * @param row - the node's row
+ * @param sizes - the drawn size of each node, in scene units; NaN or absent for the default
+ * @param extents - the drawn width and height of each node, two per row
+ * @param cellAreas - also give the node a patchwork `area` that fits its drawn size
+ * @returns the node's line
+ */
+function nodeLine(
+    row: number,
+    sizes: ArrayLike<number> | undefined,
+    extents: ArrayLike<number> | undefined,
+    cellAreas: boolean,
+): string {
+    const width = extents?.[2 * row];
+    const height = extents?.[2 * row + 1];
+    if (isLength(width) && isLength(height) && width !== height) {
+        const boxArea = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * width * height}` : "";
+        return `n${row} [shape=box, width=${width}, height=${height}${boxArea}];`;
+    }
+    const size = sizes?.[row];
+    const inches = isLength(size) ? size : DEFAULT_NODE_SIZE;
+    const area = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * inches * inches}` : "";
+    return `n${row} [width=${inches}${area}];`;
+}
+
+/**
  * Write the graph as DOT.
  * @param stored - the graph as the element stores it: direction and every parallel edge
  * @param attributes - graph attributes, already as Graphviz text
@@ -86,20 +112,9 @@ export function toDot(
 
     lines.push('node [shape=circle, fixedsize=true, label=""];');
     for (let row = 0; row < stored.nodeCount; row++) {
-        if (skip(row)) {
-            continue;
+        if (!skip(row)) {
+            lines.push(nodeLine(row, sizes, extents, cellAreas));
         }
-        const width = extents?.[2 * row];
-        const height = extents?.[2 * row + 1];
-        if (isLength(width) && isLength(height) && width !== height) {
-            const boxArea = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * width * height}` : "";
-            lines.push(`n${row} [shape=box, width=${width}, height=${height}${boxArea}];`);
-            continue;
-        }
-        const size = sizes?.[row];
-        const inches = isLength(size) ? size : DEFAULT_NODE_SIZE;
-        const area = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * inches * inches}` : "";
-        lines.push(`n${row} [width=${inches}${area}];`);
     }
 
     const { src, dst } = stored.edgeList();

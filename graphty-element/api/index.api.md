@@ -358,6 +358,7 @@ export interface AutosaveEntry {
     readonly live: boolean;
     readonly name: string;
     readonly nodes: number;
+    readonly own?: boolean;
     readonly revision: number;
     readonly savedAt: string;
 }

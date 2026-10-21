@@ -106,6 +106,8 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
     private checkPending = false;
     private readonly loops: boolean;
     private readonly stopData: () => void;
+    /** The scene's shared data textures, which this batch's material borrows and never owns. */
+    private readonly data: NodeShaderData;
 
     /**
      * Start a batch on a shaded line mesh ({@link shadedLineMesh}).
@@ -125,6 +127,7 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         data: NodeShaderData,
     ) {
         super(mesh, scene, retire);
+        this.data = data;
         this.loops = motionOf(shader.registration.descriptor.motion).loop !== undefined;
         if (shader.registration.descriptor.bloom === true) {
             noteBloomMesh(scene, mesh);
@@ -171,6 +174,11 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         this.stopData();
         this.releaseMotion?.();
         this.releaseMotion = null;
+        // THE PARAMETER TEXTURE IS THE SCENE'S, NOT THIS BATCH'S. The line batch disposes its mesh
+        // with its material's textures, which took the shared texture with it: every edge shader
+        // batch built after that (a line color, opacity or width change, an undo, a reload)
+        // waited for ever on a disposed texture, and its edges drew the plain line.
+        (this.mesh.material as ShaderMaterial | null)?.removeTexture(this.data.paramSampler);
         super.dispose();
     }
 

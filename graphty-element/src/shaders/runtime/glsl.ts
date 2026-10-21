@@ -86,6 +86,7 @@ export const GLSL_HELPERS = `
 vec3 lightDir;
 vec3 lightColor;
 vec3 ambient;
+vec3 canvasColor;
 
 float Q(float lo, float med, float hi) { return graphty_quality < 0.5 ? lo : (graphty_quality < 1.5 ? med : hi); }
 int Q(int lo, int med, int hi) { return graphty_quality < 0.5 ? lo : (graphty_quality < 1.5 ? med : hi); }

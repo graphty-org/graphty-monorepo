@@ -93,6 +93,7 @@ export const SHADER_HELPERS: readonly string[] = Object.freeze([
     "lightDir",
     "lightColor",
     "ambient",
+    "canvasColor",
 ]);
 
 /** The input struct of each kind's entry function. */

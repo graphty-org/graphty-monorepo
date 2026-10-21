@@ -46,6 +46,9 @@ export class SceneUniforms {
     private time = 0;
     /** The time each frozen shader (by text hash) stands at. */
     private readonly frozen = new Map<string, number>();
+    /** The canvas color the buffer last held. */
+    private canvas: readonly number[] = [];
+    private readonly canvasObserver: Observer<Scene> | null;
     /** The largest square an effect draws on, in screen pixels across. */
     effectCap = 512;
 
@@ -65,6 +68,15 @@ export class SceneUniforms {
 
         this.buffer.create();
         this.write();
+        // The canvas color changes outside any frame claim (a theme or a background setting), so
+        // a still scene writes the buffer again when it does.
+        this.canvasObserver = scene.onBeforeRenderObservable.add(() => {
+            const { r, g, b } = scene.clearColor;
+            if (r !== this.canvas[0] || g !== this.canvas[1] || b !== this.canvas[2]) {
+                this.canvas = [r, g, b];
+                this.write();
+            }
+        });
     }
 
     /**
@@ -177,6 +189,8 @@ export class SceneUniforms {
         target.updateFloat4("graphty_scene_lightDir", LIGHT.x, LIGHT.y, LIGHT.z, 0);
         target.updateFloat4("graphty_scene_lightColor", 1, 1, 1, 0);
         target.updateFloat4("graphty_scene_ambient", 0.35, 0.35, 0.38, 0);
+        const { r, g, b } = this.scene.clearColor;
+        target.updateFloat4("graphty_scene_canvas", r, g, b, 0);
     }
 
     /**
@@ -218,6 +232,7 @@ export class SceneUniforms {
 
     /** Release the buffer and the frame observer. */
     dispose(): void {
+        this.scene.onBeforeRenderObservable.remove(this.canvasObserver);
         if (this.observer !== null) {
             this.scene.onBeforeRenderObservable.remove(this.observer);
             this.observer = null;

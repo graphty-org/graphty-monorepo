@@ -732,7 +732,8 @@ Built-in helpers available to every body, presets and registered shaders include
 `hsv2rgb`, `oklabMix`, `blackbody`, `luminance`, the 2D distance functions (`sdCircle`, `sdBox`,
 `sdRoundBox`, `sdSegment`, `sdTriangle`, `sdHexagon`, `sdStar5`), `iconSdf(int icon, vec2 p)` (the
 twelve icons of the sticker preset as distance functions), `fillAA`, `strokeAA`, and the light:
-`lightDir`, `lightColor`, `ambient`, matching the scene's lighting preset. `Q(lo, med, hi)` returns
+`lightDir`, `lightColor`, `ambient`, matching the scene's lighting preset, and `canvasColor`, the
+canvas's background color (so a surface can keep its contrast on a light or a dark canvas). `Q(lo, med, hi)` returns
 the value for the current quality level at run time (a uniform, not a compile-time choice), so a
 quality change never recompiles; a loop written `for (int i = 0; i < 64; i++) { if (i >= Q(16, 32, 64)) break; ... }`
 keeps its constant bound.

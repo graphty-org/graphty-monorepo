@@ -42,6 +42,8 @@ export const SCENE_MEMBERS = [
     "graphty_scene_lightDir",
     "graphty_scene_lightColor",
     "graphty_scene_ambient",
+    // xyz: the canvas's clear color, 0..1, what a shader drawn over the background sits on
+    "graphty_scene_canvas",
 ] as const;
 
 /** The uniforms of the sample program beside the parameters. */
@@ -451,6 +453,7 @@ export function mainPrelude(params: readonly ShaderParamDescriptor[]): string {
     graphty_lightDir = graphty_scene_lightDir.xyz;
     graphty_lightColor = graphty_scene_lightColor.xyz;
     graphty_ambient = graphty_scene_ambient.xyz;
+    graphty_canvasColor = graphty_scene_canvas.xyz;
 ${params.map((param) => `    ${paramAssignment(param)}`).join("\n")}`;
 }
 

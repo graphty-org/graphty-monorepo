@@ -282,13 +282,18 @@ function importCommand(
 }
 
 /**
- * How many nodes the source holds for a read: what it read when the read is complete, else what
- * the caller knew.
+ * How many nodes the source holds for a read: what the source counted, else what it read when the
+ * read is complete, else what the caller knew.
  * @param read - the read
  * @param known - what the caller knew
- * @returns `{ total }`, or nothing when neither tells
+ * @returns `{ total }`, or nothing when none tells
  */
 function totalOf(read: Read, known: number | undefined): { total?: number } {
+    const counted = read.info?.total?.nodes;
+    if (counted !== undefined) {
+        return { total: counted };
+    }
+
     if ((read.info?.next ?? null) === null) {
         return { total: read.held.nodes.length };
     }
@@ -328,7 +333,8 @@ export async function importSource(
         config: input.config,
         endpoint: read.info?.endpoint ?? access.endpoint,
         // The ledger keeps only the recordable choices; the credential and `write` never reach it.
-        options: options as Readonly<Record<string, unknown>>,
+        // The mode is the one the load ran with, as an opened project's record says it.
+        options: { ...options, mode: options.mode ?? "replace" },
         next: read.info?.next ?? null,
         validators: read.info?.validators ?? {},
         credential: access.credential ?? null,
@@ -466,10 +472,13 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
         endpoint: access.endpoint,
-        // A capped Cypher query reruns from the start, so its last page holds every row.
+        // A count the source ran replaces the total; a page read on from a cursor counts nothing,
+        // so the total is kept. A capped Cypher query reruns from the start, so its last page
+        // holds every row.
         ...((read.info?.next ?? null) === null && record.next.rows !== undefined
             ? { total: read.held.nodes.length }
             : {}),
+        ...(read.info?.total?.nodes === undefined ? {} : { total: read.info.total.nodes }),
     });
 }
 
@@ -805,16 +814,18 @@ export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad
     return host.ledger
         .loads()
         .filter((record) => host.pending.has(record.key))
-        .map((record) =>
-            Object.freeze({
+        .map((record) => {
+            const slot = host.credentialSlotOf(record.key);
+            return Object.freeze({
                 id: record.key,
                 source: record.source,
                 endpoint: record.endpoint,
                 hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
                 isLocalNetwork: isLocalNetwork(record.endpoint),
                 authRequired: descriptorOf(record.source)?.authRequired ?? "none",
-            }),
-        );
+                ...(slot === undefined ? {} : { credentialSlot: slot }),
+            });
+        });
 }
 
 /**

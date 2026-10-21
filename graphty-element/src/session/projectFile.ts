@@ -13,18 +13,23 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
+import { GENERATOR_CATALOG } from "@graphty/graph-samples";
+
+import { sourceDescriptors } from "../catalog/sources";
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
+import type { SessionData } from "./data";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
-import { SOURCE_RECORD_MEMBER } from "./sources/ids";
+import { SOURCE_RECORD_MEMBER, sourceLoadsOf, SOURCES_MEMBER_VERSION } from "./sources/ids";
+import { readSourcesMember, redactUrl, savedLoads, type SourcesRead, type SourcesWrite } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import {
     asFileStyleStore,
@@ -111,18 +116,41 @@ export interface ProjectSaveOptions {
     readonly markSaved?: boolean;
 }
 
-/** What the session lends the project file for the loads from network sources. */
+/** What the session lends the project file for the loads. */
 interface NetworkSourceRecords {
     /**
-     * The `graphty-sources` member to write.
-     * @returns it, or null when nothing was loaded from a source
+     * Take what an opened project's `graphty-sources` member held; its network loads wait until
+     * they are run.
+     * @param read - what the member held, or undefined when the file holds none
      */
-    member(): unknown;
-    /**
-     * Take an opened project's member; its loads wait until they are run.
-     * @param member - the member, or undefined when the file holds none
-     */
-    restore(member: unknown): void;
+    restore(read: SourcesRead | undefined): void;
+}
+
+/** The versions of a member kind this element reads, where they are not just {@link VERSION}. */
+const READS: Partial<Record<string, readonly number[]>> = { [SOURCE_RECORD_MEMBER]: [1, SOURCES_MEMBER_VERSION] };
+
+/**
+ * What a session's project file writes about its loads.
+ * @param session - The session.
+ * @returns The sources member and the ids of each record's loads, or undefined for a session
+ *     that keeps no load records (one this module did not build).
+ */
+export function sourcesFileOf(session: GraphSession): SourcesWrite | undefined {
+    const data = session.data as Partial<Pick<SessionData, "sourceFile">>;
+    return typeof data.sourceFile === "function" ? data.sourceFile() : undefined;
+}
+
+/**
+ * Hear every change to a session's load records (a load, a next page, a refresh, an expansion),
+ * including those that change no row.
+ * @param session - The session.
+ * @param listener - Called after each change.
+ * @returns Stops listening; a session that keeps no load records never calls it.
+ */
+export function onSourceRecords(session: GraphSession, listener: () => void): () => void {
+    const { ledger } = session.data as Partial<Pick<SessionData, "ledger">>;
+    ledger?.changed.add(listener);
+    return () => ledger?.changed.delete(listener);
 }
 
 /** Where the project was last saved: a history step, and whether that step has changed since. */
@@ -492,6 +520,19 @@ export function graphIdsOf(session: GraphSession): GraphIds {
     };
 }
 
+/**
+ * A load's description as a file keeps it: a URL without its user name, password, fragment or
+ * the query parameters whose names mark a credential.
+ * @param described - The description.
+ * @returns It, or a copy with its URL redacted.
+ */
+function withoutSecrets<T extends { readonly config?: Readonly<Record<string, unknown>> }>(described: T): T {
+    const url = described.config?.url;
+    return typeof url === "string"
+        ? { ...described, config: { ...described.config, url: redactUrl(url).address } }
+        : described;
+}
+
 /** The version of the column declarations the session member carries. */
 const DECLARATIONS_VERSION = 1;
 
@@ -502,11 +543,27 @@ const COLUMNS_VERSION = 1;
  * The `graphty-data` member: the records, the direction and the source. The only builder that
  * reads the records.
  * @param session - The session.
+ * @param file - What the save writes about the loads; read from the session when not given.
  * @returns The member.
  */
-export function dataMember(session: GraphSession): Record<string, unknown> {
-    const nodes = session.data.nodes();
-    const edges = session.data.edges();
+export function dataMember(
+    session: GraphSession,
+    file: SourcesWrite | undefined = sourcesFileOf(session),
+): Record<string, unknown> {
+    // Each record names the loads that supplied it, as the sources member's ids (sources.md, "Provenance").
+    const withLoads = <T extends Readonly<Record<string, unknown>>>(record: T, supplied: readonly string[]): T => {
+        if (file?.member === null || file === undefined) {
+            return record;
+        }
+
+        const loads = savedLoads(supplied, sourceLoadsOf(record), file);
+        const { "_source.loads": _held, ...rest } = record;
+        return (loads === undefined ? rest : { ...rest, "_source.loads": loads }) as unknown as T;
+    };
+    const nodes = session.data.nodes().map((node) => withLoads(node, session.data.sourcesOf(node.id)));
+    const edges = session.data
+        .edges()
+        .map((edge) => withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
     const sources = session.data.sources();
@@ -539,8 +596,8 @@ export function dataMember(session: GraphSession): Record<string, unknown> {
             nodes,
             links: edges.map(({ id: _id, ...edge }) => edge),
         },
-        ...(source === null ? {} : { source }),
-        ...(sources.length === 0 ? {} : { sources }),
+        ...(source === null ? {} : { source: withoutSecrets(source) }),
+        ...(sources.length === 0 ? {} : { sources: sources.map(withoutSecrets) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
     };
 }
@@ -777,20 +834,19 @@ export function documentAround(
  * Write the session as a graphty document: every member's builder, in file order.
  * @param sources - The session, its dispatcher and which run ids the element minted.
  * @param options - What to leave out, and the caller's extensions.
- * @param networkSources - The loads from network sources, when the session has any.
  * @returns The document and what was left out.
  */
 function write(
     sources: ProjectSources,
     options: ProjectSaveOptions,
-    networkSources?: NetworkSourceRecords,
 ): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
     const { session, dispatcher } = sources;
     const extensions = checkedExtensions(options.extensions ?? {});
     const ids = graphIdsOf(session);
     const leaveOut = new Set<string>(options.leaveOut ?? []);
+    const file = sourcesFileOf(session);
     const members = [
-        dataMember(session),
+        dataMember(session, file),
         sessionMember(sources, ids),
         arrangementMember(session, ids),
         resultsMember(
@@ -804,15 +860,17 @@ function write(
         notesMember(session),
         viewStateMember(session, ids),
     ].filter((member) => !leaveOut.has(member.kind as string));
-    const sourceMember = networkSources?.member() as Record<string, unknown> | null | undefined;
-    if (sourceMember !== null && sourceMember !== undefined) {
-        members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
+    if (file?.member !== null && file?.member !== undefined) {
+        members.push(file.member);
     }
 
-    const leftOut: ProjectProblem[] = session.runs
-        .list()
-        .filter((run) => !dispatcher.state.runs.has(run.id))
-        .map((run) => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } }));
+    const leftOut: ProjectProblem[] = [
+        ...session.runs
+            .list()
+            .filter((run) => !dispatcher.state.runs.has(run.id))
+            .map((run): ProjectProblem => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } })),
+        ...(file?.problems ?? []),
+    ];
     return { document: documentAround(session, members, extensions), leftOut };
 }
 
@@ -826,6 +884,8 @@ interface ReadDocument {
     readonly extensions: Readonly<Record<string, unknown>>;
     /** The members this element reads, by kind; each kind's first, styles and notes all. */
     readonly members: ReadonlyMap<MemberKind, readonly Record<string, unknown>[]>;
+    /** Each member's position in the file, for a JSON pointer into it. */
+    readonly positions: ReadonlyMap<Record<string, unknown>, number>;
     readonly problems: ProjectProblem[];
 }
 
@@ -997,6 +1057,7 @@ function readDocument(text: string): ReadDocument {
 
     const problems: ProjectProblem[] = [];
     const members = new Map<MemberKind, Record<string, unknown>[]>();
+    const positions = new Map<Record<string, unknown>, number>();
     (document.members as unknown[]).forEach((member, index) => {
         if (
             !isObject(member) ||
@@ -1011,7 +1072,7 @@ function readDocument(text: string): ReadDocument {
         const { kind } = member;
         if (!known.has(kind)) {
             problems.push({ code: "W_UNKNOWN_KIND", params: { index, kind } });
-        } else if (member.version !== VERSION) {
+        } else if (!(READS[kind] ?? [VERSION]).includes(member.version as number)) {
             problems.push({ code: "E_UNSUPPORTED_VERSION", params: { index, kind, found: member.version as number } });
         } else {
             const held = members.get(kind as MemberKind) ?? [];
@@ -1021,6 +1082,7 @@ function readDocument(text: string): ReadDocument {
             }
 
             members.set(kind as MemberKind, [...held, member]);
+            positions.set(member, index);
         }
     });
 
@@ -1028,6 +1090,7 @@ function readDocument(text: string): ReadDocument {
         ...(typeof document.name === "string" ? { name: document.name } : {}),
         extensions: isObject(document.extensions) ? document.extensions : {},
         members,
+        positions,
         problems,
     };
 }
@@ -1216,6 +1279,33 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
     );
 }
 
+/** What a load's entry in the data member's `sources` holds that the sources member does not. */
+const HELD_CHOICES = ["join", "choices", "mapping"] as const;
+
+/**
+ * The loads a sources member lists, each with the join, choices and mapping the data member's
+ * `sources` holds for the same key, which the sources member does not record.
+ * @param listed - The loads the sources member lists.
+ * @param held - The data member's `sources`.
+ * @returns The loads, with what the data member held for each.
+ */
+function withHeldChoices(listed: unknown, held: unknown): unknown {
+    if (!Array.isArray(listed) || !Array.isArray(held)) {
+        return listed;
+    }
+
+    const byKey = new Map(held.filter(isObject).map((each) => [each.key, each]));
+    return listed.map((each: unknown) => {
+        const saved = isObject(each) ? byKey.get(each.key) : undefined;
+        if (saved === undefined) {
+            return each;
+        }
+
+        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name) => [name, saved[name]]);
+        return { ...(each as Record<string, unknown>), ...Object.fromEntries(kept) };
+    });
+}
+
 /**
  * Whether a saved value is shaped like one entry of `data.sources()`.
  * @param value - The saved value.
@@ -1314,6 +1404,7 @@ async function addStylesAndNotes(
  * @param graph - Its data, checked.
  * @param name - The project's name.
  * @param canned - Where the saved results wait for their runs.
+ * @param loads - What the file's sources member held.
  */
 async function readProject(
     opening: Opening,
@@ -1321,15 +1412,21 @@ async function readProject(
     graph: NodeLink,
     name: string | null,
     canned: CannedOutcomes,
+    loads: SourcesRead,
 ): Promise<void> {
-    const { source, sources, provenance } = doc.members.get("graphty-data")?.[0] ?? {};
+    // A sources member that was read says where the data came from; else the data member's own fields do.
+    const legacy = doc.members.get("graphty-data")?.[0] ?? {};
+    const { source, sources: listed, provenance } = loads.graph ?? legacy;
+    const sources = loads.graph === undefined ? listed : withHeldChoices(listed, legacy.sources);
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
     await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
-    const edgeIds = await importInto(tx, graph, source, sources, provenance);
+    const records =
+        loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
+    const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
     await readDeclarations(opening, state.declarations);
@@ -1927,21 +2024,25 @@ export function projectOf(
         const graph = nodeLinkOf(data);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        const member = doc.members.get(SOURCE_RECORD_MEMBER)?.[0];
+        const loads = readSourcesMember(member, {
+            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+            data,
+            nodes: graph.nodes,
+            links: graph.links,
+            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+            now: new Date().toISOString(),
+        });
+        problems.push(...loads.problems);
         projectBoundary(session, "open");
         await session.transaction(
             "Open project",
-            (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+            (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned, loads),
             opening,
         );
-        // The loads from network sources wait, fetching nothing, until the application runs them.
-        try {
-            networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
-        } catch (error) {
-            problems.push({
-                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
-                params: { kind: SOURCE_RECORD_MEMBER },
-            });
-        }
+        // The network loads wait, fetching nothing, until the application runs them.
+        networkSources?.restore(member === undefined ? undefined : loads);
         // A project opens with a fresh history: its opened state is the baseline.
         session.history.clear();
         fresh = false;
@@ -2000,7 +2101,7 @@ export function projectOf(
             return session.config.set({ name });
         },
         save(options = {}) {
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options, networkSources);
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,

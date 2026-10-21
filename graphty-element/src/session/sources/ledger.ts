@@ -10,8 +10,10 @@ import type { Credential, SourceCursor, SourceValidators } from "@graphty/graph-
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { SOURCE_RECORD_VERSION } from "./ids";
 import type { ExpandBehavior, SourceCredentialIdentity, SourceExpansionRecord, SourceLoadRecord } from "./types";
+
+/** The version of the records' own shape, which `toMember` and `fromMember` move them in. */
+export const LEDGER_VERSION = 1;
 
 /** The load options a record keeps; everything else (credential, write, signal, fetch) is dropped. */
 const RECORDED_OPTIONS: readonly string[] = [
@@ -117,6 +119,8 @@ function badMember(message: string): never {
 
 /** The load records of one session. Experimental. */
 export class SourceLedger {
+    /** Called after every change to the records; autosave hears it to write the sources member. */
+    readonly changed = new Set<() => void>();
     private records: SourceLoadRecord[] = [];
     private serial = 0;
 
@@ -148,7 +152,7 @@ export class SourceLedger {
             ...(facts.total === undefined ? {} : { total: facts.total }),
             ...(facts.expand === undefined ? {} : { expand: plain(facts.expand) }),
         };
-        this.records = [...this.records, record];
+        this.set([...this.records, record]);
         return record;
     }
 
@@ -257,7 +261,7 @@ export class SourceLedger {
      * @returns the version and the records
      */
     toMember(): SourceRecordMember {
-        return { version: SOURCE_RECORD_VERSION, loads: plain(this.records) };
+        return { version: LEDGER_VERSION, loads: plain(this.records) };
     }
 
     /**
@@ -273,12 +277,12 @@ export class SourceLedger {
         if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
             badMember("The graphty-sources member has no version.");
         }
-        if (version > SOURCE_RECORD_VERSION) {
+        if (version > LEDGER_VERSION) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED_VERSION",
                 source: "data",
-                message: `The graphty-sources member is version ${String(version)}; this element reads up to ${String(SOURCE_RECORD_VERSION)}.`,
-                details: { member: "graphty-sources", version, supported: SOURCE_RECORD_VERSION },
+                message: `The graphty-sources member is version ${String(version)}; this element reads up to ${String(LEDGER_VERSION)}.`,
+                details: { member: "graphty-sources", version, supported: LEDGER_VERSION },
             });
         }
         if (!Array.isArray(loads)) {
@@ -294,13 +298,13 @@ export class SourceLedger {
                 badMember("A graphty-sources record has no key, source or expansions.");
             }
         }
-        this.records = plain(loads as SourceLoadRecord[]);
+        this.set(plain(loads as SourceLoadRecord[]));
         this.serial = Math.max(0, ...this.records.map((r) => Number(/^load-(\d+)$/.exec(r.key)?.[1] ?? 0)));
     }
 
     /** Forget every record. */
     clear(): void {
-        this.records = [];
+        this.set([]);
     }
 
     /**
@@ -322,6 +326,17 @@ export class SourceLedger {
      * @param record - the new record
      */
     private replace(key: string, record: SourceLoadRecord): void {
-        this.records = this.records.map((r) => (r.key === key ? record : r));
+        this.set(this.records.map((r) => (r.key === key ? record : r)));
+    }
+
+    /**
+     * Take new records and tell every listener.
+     * @param records - the records
+     */
+    private set(records: SourceLoadRecord[]): void {
+        this.records = records;
+        for (const listener of this.changed) {
+            listener();
+        }
     }
 }

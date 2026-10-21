@@ -4,7 +4,14 @@
  * element's own load, expand and record types. Experimental.
  */
 
-export { SOURCE_ATTR, SOURCE_EVENT_DOM_NAMES, SOURCE_RECORD_MEMBER, SOURCE_RECORD_VERSION } from "./ids";
+export {
+    SOURCE_ATTR,
+    SOURCE_EVENT_DOM_NAMES,
+    SOURCE_RECORD_MEMBER,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for code written against it
+    SOURCE_RECORD_VERSION,
+    SOURCES_MEMBER_VERSION,
+} from "./ids";
 export type {
     CollapseResult,
     ExpandBehavior,

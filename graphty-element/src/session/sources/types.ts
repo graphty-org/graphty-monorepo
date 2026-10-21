@@ -100,6 +100,13 @@ export interface PendingSourceLoad {
     readonly isLocalNetwork: boolean;
     /** Whether the source needs a credential. */
     readonly authRequired: "required" | "optional" | "none";
+    /**
+     * The credential slot the load filled when it ran, as the project file names it (`"default"`
+     * for a source that declares none); absent when it used no credential. The credential itself
+     * is never in the file: look it up, or ask the reader, by this slot.
+     * @since 3.30.0
+     */
+    readonly credentialSlot?: string;
 }
 
 /** Who a recorded load's credential was, never what it was. Experimental. */

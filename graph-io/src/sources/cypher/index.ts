@@ -25,6 +25,7 @@ import {
     type SourceDescriptor,
     type SourceFreshness,
     type SourceProbe,
+    type SourceTotal,
     type SourceValidators,
 } from "../types.js";
 import { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
@@ -43,6 +44,7 @@ import {
     nodePage,
     type QueryFilters,
     quoted,
+    storeCount,
 } from "./query-builder.js";
 import { boltTransport } from "./transports/bolt.js";
 import { neptuneAnalyticsTransport } from "./transports/neptune-analytics.js";
@@ -125,6 +127,8 @@ class Reader {
     private known: CypherProfile | null = null;
     private degree = true;
     readonly filters: QueryFilters;
+    /** What the source holds for this load, when a count ran. */
+    counted: SourceTotal | undefined;
     /** The raw id property, for the node ids. */
     readonly idProperty: string | null;
 
@@ -196,9 +200,10 @@ class Reader {
     /**
      * The pages of a read, as `mode` asks.
      * @param cursor - where to resume
+     * @param counting - whether a first page of mode "all" may count what the source holds
      * @yields one page at a time
      */
-    async *pages(cursor: SourceCursor | null): AsyncGenerator<Page> {
+    async *pages(cursor: SourceCursor | null, counting = true): AsyncGenerator<Page> {
         const { params, ctx } = this;
         const { report } = ctx;
         const mode = params.mode ?? (typeof params.query === "string" && params.query !== "" ? "query" : "all");
@@ -227,7 +232,7 @@ class Reader {
             yield { collected, next: null };
             return;
         }
-        yield* this.everything(profile, cursor);
+        yield* this.everything(profile, cursor, counting);
     }
 
     /**
@@ -273,11 +278,19 @@ class Reader {
      * id expression (never SKIP), so a page is stable under unrelated writes.
      * @param profile - the server's profile
      * @param cursor - where to resume
+     * @param counting - whether a first page may count what the source holds
      * @yields one page at a time
      */
-    private async *everything(profile: CypherProfile, cursor: SourceCursor | null): AsyncGenerator<Page> {
+    private async *everything(
+        profile: CypherProfile,
+        cursor: SourceCursor | null,
+        counting: boolean,
+    ): AsyncGenerator<Page> {
         const { params, ctx } = this;
         const size = checkedInteger(params.pageSize ?? DEFAULT_PAGE_SIZE, "pageSize", 1, MAX_PAGE_SIZE, ctx.report);
+        if (cursor === null && counting) {
+            this.counted = await this.count(profile);
+        }
         const cap = ctx.limits.maxNodes;
         if (cap !== undefined && cursor?.phase !== "edges") {
             const capped = Number(checkedInteger(cap, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
@@ -287,7 +300,11 @@ class Reader {
 
         let phase: "nodes" | "edges" = cursor?.phase === "edges" ? "edges" : "nodes";
         let after: string | number | boolean | null = cursor?.after ?? null;
-        const total = params.countFirst === true && cursor === null ? await this.total() : undefined;
+        const { counted } = this;
+        const total =
+            params.countFirst === true && counted !== undefined
+                ? (counted.nodes ?? 0) + (counted.edges ?? 0)
+                : undefined;
         for (;;) {
             const nodes = phase === "nodes";
             const { collected, rows, fields } = await this.generated(
@@ -348,13 +365,29 @@ class Reader {
     }
 
     /**
-     * How many nodes and relationships the filters match, for progress.
-     * @returns the count
+     * What a first page of mode "all" counts: with `countFirst`, the nodes and relationships the
+     * filters match (for progress too); else, on Neo4j with at most one label and the server's
+     * ids, the nodes from the count store; else nothing.
+     * @param profile - the server's profile
+     * @returns the count, or undefined
      */
-    private async total(): Promise<number> {
-        const [n, r] = counts(this.filters);
-        const [a, b] = await Promise.all([this.transport.run(n, {}), this.transport.run(r, {})]);
-        return Number(a.rows[0]?.[0] ?? 0) + Number(b.rows[0]?.[0] ?? 0);
+    private async count(profile: CypherProfile): Promise<SourceTotal | undefined> {
+        // A count is a non-negative integer; anything else a server answers is no count.
+        const first = async (statement: string): Promise<number | undefined> => {
+            const c = Number((await this.transport.run(statement, {})).rows[0]?.[0]);
+            return Number.isSafeInteger(c) && c >= 0 ? c : undefined;
+        };
+        const { labels, idProperty } = this.filters;
+        if (this.params.countFirst === true) {
+            const [n, r] = counts(this.filters);
+            const [nodes, edges] = await Promise.all([first(n), first(r)]);
+            return { ...(nodes === undefined ? {} : { nodes }), ...(edges === undefined ? {} : { edges }) };
+        }
+        if (profile.name !== "neo4j" || labels.length > 1 || idProperty !== null) {
+            return undefined;
+        }
+        const nodes = await first(storeCount(labels[0]));
+        return nodes === undefined ? undefined : { nodes };
     }
 
     /**
@@ -472,7 +505,8 @@ function cypher(preset: Preset): GraphSource<CypherParams> {
                         break;
                     }
                 }
-                return ctx.finish({ next, ...(await reader.facts(lines)) });
+                const total = reader.counted === undefined ? {} : { total: reader.counted };
+                return ctx.finish({ next, ...total, ...(await reader.facts(lines)) });
             }),
         expand: (request, sink, ctx) =>
             withReader(request.params, ctx, preset, (reader) => expand(reader, request, sink)),
@@ -484,7 +518,7 @@ function cypher(preset: Preset): GraphSource<CypherParams> {
         validate: (params, seen, ctx) =>
             withReader(params, ctx, preset, async (reader): Promise<SourceFreshness> => {
                 const lines: string[] = [];
-                for await (const page of reader.pages(null)) {
+                for await (const page of reader.pages(null, false)) {
                     lines.push(...canonicalRows(page.collected, reader.idProperty));
                 }
                 const { validators } = await reader.facts(lines);

@@ -283,6 +283,7 @@ describe("the parts a change writes", () => {
             "data",
             "rest",
             "run:links",
+            "sources",
             "stash",
         ]);
     });

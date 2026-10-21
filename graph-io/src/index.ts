@@ -139,6 +139,7 @@ export {
     SPARQL_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
+export { sha256Hex } from "./sources/sigv4.js";
 export {
     type Recording,
     recordingFrom,
@@ -186,6 +187,7 @@ export {
     type SourceRuntime,
     type SourceRuntimeReason,
     type SourceSample,
+    type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
 

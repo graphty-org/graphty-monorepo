@@ -281,8 +281,9 @@ function sourceImport(
 
 /** The saved load an opened project's `runPendingSourceLoad` door runs. */
 const DOOR_PENDING = {
-    version: 1,
-    loads: [
+    problems: [],
+    facts: new Map(),
+    records: [
         {
             key: "door-load",
             source: DOOR_SOURCE,
@@ -2207,7 +2208,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     args: ["door-load"],
                     around: (target) => {
                         doorSource();
-                        (target as { restoreSourceMember(member: unknown): void }).restoreSourceMember(DOOR_PENDING);
+                        (target as { restoreSourceMember(read: unknown): void }).restoreSourceMember(DOOR_PENDING);
                         return Promise.resolve(() => Promise.resolve());
                     },
                 },

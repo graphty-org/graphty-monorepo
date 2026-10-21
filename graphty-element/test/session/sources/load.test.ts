@@ -335,6 +335,7 @@ describe("a saved project with source loads", () => {
                 hasQuery: false,
                 isLocalNetwork: false,
                 authRequired: "none",
+                credentialSlot: "default",
             });
             assert.strictEqual(fetch.calls.length, 0, "opening fetched nothing");
 
@@ -371,10 +372,12 @@ describe("a saved project with source loads", () => {
             );
             ({ text } = await session.project.save());
         });
-        const record = '"source":"people-load","version":2,"config":{"team":"core"}';
+        const part = (version: number, params: string): string =>
+            `"source":{"id":"people-load","sourceVersion":${String(version)},"endpoint":"${ENDPOINT}/","params":${params}`;
+        const record = part(2, '{"team":"core"}');
         assert.include(text, record);
-        const older = text.replace(record, '"source":"people-load","version":1,"config":{"group":"core"}');
-        const newer = text.replace(record, '"source":"people-load","version":9,"config":{"team":"core"}');
+        const older = text.replace(record, part(1, '{"group":"core"}'));
+        const newer = text.replace(record, part(9, '{"team":"core"}'));
 
         await withSession(async (session) => {
             const fetch = peopleFetch();

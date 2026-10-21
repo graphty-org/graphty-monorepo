@@ -224,6 +224,18 @@ export interface RetryOptions {
 }
 
 /**
+ * How much a source holds for a load, as it counted it, so a caller can show "100 of 28,455".
+ * Experimental.
+ * @category Network sources
+ */
+export interface SourceTotal {
+    /** The nodes the load's params match at the source. */
+    readonly nodes?: number | undefined;
+    /** The edges the load's params match at the source. */
+    readonly edges?: number | undefined;
+}
+
+/**
  * Facts a source reports with `ctx.finish()`. Experimental.
  * @category Network sources
  */
@@ -243,6 +255,8 @@ export interface SourceFinish {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**
@@ -589,6 +603,8 @@ export interface SourceReportInfo {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**

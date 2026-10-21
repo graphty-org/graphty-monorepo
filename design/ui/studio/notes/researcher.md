@@ -10,9 +10,16 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-21) Round 1 scored (`tier3/rounds/round-1/scores.md`): 55 of 56 S/SD, Opus only (0
-  Sonnet). Bars 1 (T49 B), 5, 6 and 8 fail; 2, 3, 4 and 7 hold. Headline: "not passable in round
-  1: three tasks not run by plan". Next: the skeptic check settles bar 5 into `insights.md`.
+- (2026-10-21) Round 1 settled (`tier3/rounds/round-1/insights.md`): no new severity 3 survived
+  the skeptics; bar 5 fails only on the two backlog 3s (by rule). Bar 1's only F (T49 B) is the
+  color table's, not the reader's. Top insights: Graph inspector first (9 sessions, 5 halves); new
+  lines start at the current value; results checked by eye; keyboard focus lost twice; one color
+  table decides grades and spoken names.
+- (2026-10-21) Graders over-rate on one half: every "3" from a single half or a single persona
+  came down to 2 under skeptic check. Ask graders for the behavioral cost (blocked, misread) behind
+  any 3, and count a 3 only with it.
+- (2026-10-21) A synthetic input event is not a real one: one `--wheel 3000` is one clamped notch.
+  Before a gesture defect counts, repro it with real-sized events.
 - (2026-10-21) `score.mjs` bar 4 is wrong on tier 3: it takes the start page's demo as the start,
   so the sample opening counts as "styled" (printed 3; true median 6; Sam 20 -> 35). Start must be
   the first steps line after the graph opens. Owed to the tool.
@@ -28,8 +35,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   T51), routes and problems. Read tasks for leading before spending another round on the ceiling.
 - (2026-10-21) Avoidance is not comprehension: 0 of 10 T46/T47 sessions sprang the token trap,
   yet 6 called `<<Layer>>` jargon. Question 3 needs a measure that separates the two.
-- (2026-10-21) The newcomer's first place for "the dots' color" is the Graph inspector's Style
-  tab (9 sessions, 5 halves); recovery rested on matching "Everything 77" to the node count.
 - (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only the three items
   criteria preflight 4 names. Flag again if a later round counts bar 5.
 - (2026-10-20) Pilot "mismatches" are often the key being right and decided.md being wrong-way:
@@ -78,6 +83,14 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
+  one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
+  left the node's Style tab without a change, and r1-s35 rated the one-node layer 2, so only r1-s53
+  rated it 3 (skeptic 1 was right). Checked the wheel mechanism in `OrbitInputController` (one
+  event clamped to one notch, 0.75% per notch) before writing it: weakened, not dropped, since a
+  notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
+  bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
+
 - **2026-10-21 (round 1 scoring):** Scored bars 1 to 4 by hand where `score.mjs` was wrong and
   said so in `scores.md` rather than editing the tool or a grader's file mid-scoring: the tool and
   the grades are other roles' files, and a silent fix would hide the defects from them. Kept T49
@@ -111,6 +124,11 @@ logged). Their reasons, in short:
   task walked first; task words never echo the screen; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-21 (round 1 insights) -- Worked: grepping the three grades behind a disputed evidence
+  claim instead of picking a skeptic; grepping source for the mechanism a skeptic named; one
+  screenshot per owner insight, each viewed. Did not work: `scores.md` counting the same defect
+  in three lists (bar 5, build defects, design problems) -- count each once, at its highest list.
 
 - 2026-10-21 (round 1 scoring) -- Worked: re-tallying every grade from plan.md plus each
   grade.md's `^Grade:` line anywhere (caught r1-s06b, which `score.mjs` dropped); recomputing bar 4

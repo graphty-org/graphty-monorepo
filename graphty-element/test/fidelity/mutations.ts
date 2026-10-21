@@ -299,6 +299,18 @@ const DEFECTS = {
             }
         });
     }),
+    // a full arrowhead cut to one side on a curved line, where the comparator once read the program's full one along
+    // a chord from far back on the curve and called it half (dot-profile main->fclose), so a half one passed there:
+    // dot-synth-edges-clusters' loops f2->f2 and f3->f3 catch it
+    "arrowheads on curved lines cut to one side (triangle->half)": eachEdge((e) => {
+        if (curvature(e.points) > 0.04) {
+            e.arrows.forEach((a) => {
+                if (a.shape === "triangle") {
+                    a.shape = "half";
+                }
+            });
+        }
+    }),
     "labels x1.5": (s) => {
         allTexts(s).forEach((t) => {
             t.sizePx *= 1.5;
@@ -796,6 +808,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
     "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
     "arrowhead notch filled in (vee<->triangle)": ["edge.arrowShape"],
+    "arrowheads on curved lines cut to one side (triangle->half)": ["edge.arrowShape"],
     "labels x1.5": ["label.size", "label.present", "edge.label", "group.label"],
     "labels bold (or bold->normal)": ["label.weight", "label.present", "edge.label", "group.label"],
     "label color changed": ["label.color", "label.present", "edge.label", "group.label"],

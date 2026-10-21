@@ -66,4 +66,45 @@ describe("an empty row", () => {
         assert.isDefined(session.styles.get(nodes.id));
         session.dispose();
     });
+    it("of one kind takes a new selector or name before it has a look, and paints once a value arrives", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a", email: "x" }, { id: "b" }, { id: "c" }]);
+
+        const row = await session.styles.addRow({
+            name: "email: has a value",
+            target: "node",
+            selector: { match: "expression", where: "email" },
+        });
+        await session.styles.updateMany([
+            {
+                id: row.id,
+                patch: {
+                    name: "email: has no value",
+                    selector: {
+                        match: "rule",
+                        where: { kind: "not", of: { kind: "text", reads: "data.email", mode: "regex", text: "" } },
+                    },
+                },
+            },
+        ]);
+        assert.strictEqual(session.styles.get(row.id)?.name, "email: has no value");
+        assert.deepStrictEqual(session.styles.counts(row.id).painted, {}, "it paints nothing yet");
+
+        await session.styles.update(row.id, { set: { "node.color": "#ff0000" } });
+        assert.strictEqual(session.styles.counts(row.id).matched, 2, "b and c have no email");
+        assert.isAbove(Object.keys(session.styles.counts(row.id).painted).length, 0, "it paints once it has a value");
+
+        let refused: unknown;
+        try {
+            await session.styles.update(row.id, { set: {} });
+        } catch (error) {
+            refused = error;
+        }
+        assert.strictEqual(
+            (refused as { code?: string } | undefined)?.code,
+            "E_BAD_LAYER",
+            "emptying a layer with a value still needs keepEmpty",
+        );
+        session.dispose();
+    });
 });

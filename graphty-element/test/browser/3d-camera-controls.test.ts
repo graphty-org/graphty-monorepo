@@ -107,10 +107,10 @@ describe("3D Camera Controls", () => {
 
         assert.isTrue(cameraController.cameraDistance < initialDistance, "W key should zoom in (decrease distance)");
 
-        // Release W, press S, reset and test S key (zoom out)
+        // Release W, reset, and test S key (zoom out): the press itself zooms a notch
         await releaseKey("w");
-        await holdKey("s");
         cameraController.cameraDistance = initialDistance;
+        await holdKey("s");
         inputController.update();
 
         assert.isTrue(cameraController.cameraDistance > initialDistance, "S key should zoom out (increase distance)");

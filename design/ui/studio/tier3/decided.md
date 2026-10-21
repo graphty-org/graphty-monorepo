@@ -213,3 +213,23 @@ Each entry is new; none reverses an earlier one.
   (2026-10-19) is for a data file, which can be added to the open graph. Opening a project asks
   only to discard unsaved changes. (2026-10-20.) A project cannot be added to a graph, so a
   Replace or Load page for it would offer a choice that does not exist (T50A, Control+O).
+
+## Added 2026-10-20 (dry run pass 2 on build 6de5f95d12)
+
+Each entry is new; none reverses an earlier one.
+
+- **A layer made from a selection takes its conditions before it has a look.** "New layer from
+  selection" makes a layer that paints nothing yet; editing its Which nodes (switching a match,
+  adding a card) is written at once, as on a layer made by "+", and Done keeps every edit. The
+  layer paints nothing until a look is set. (2026-10-20.) On T41 B the find-box layer "email: has
+  a value" refused "Has no value" ("That rule could not be used for this layer"), Done dropped the
+  edits without a word, and Fill red then painted the 15 with an email: the same stack the answer
+  key counts on T41 A. Cause: graphty-element admits an empty one-kind row (team entry 2026-10-19,
+  "a row of one kind may start empty") and then refuses its first selector write as a layer that
+  paints nothing.
+- **Undo across a file opened over itself redraws from the layers.** After Control+O > Replace and
+  Undo of that open, every later Undo leaves the drawing as the remaining layers say: a look given
+  by a layer that is removed or emptied leaves the drawing, and a look set afterwards on any layer
+  is drawn on every node it reaches. (2026-10-20.) On T44 B a removed one-node layer's label stayed
+  drawn and labeling Everything drew only that name while the tree painted 24; on volunteers.graphml
+  an undone green stayed on v01 with no layer setting it.

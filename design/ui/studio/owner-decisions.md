@@ -4,6 +4,18 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-20 -- Decided by the team: a row that started empty takes its first rule (graphty-element)
+
+graphty-element, non-breaking, the second half of "a row of one kind may start empty" (2026-10-19).
+`styles.addRow` with target `"node"` or `"edge"` and no look adds an empty row, but the row's next
+`styles.update` or `updateMany` that changes only its selector or name is refused with `E_BAD_LAYER`
+("writes no channel"), because a one-kind row carries no `row` id and is re-checked as a lone
+layer. The fix keeps a row the element admitted empty admissible until something writes a channel,
+as an empty both-kinds row already is. Only calls that threw now succeed; an update that takes the
+last value away from a layer that had one still needs `keepEmpty`, and `styles.add` still refuses
+an empty layer. Without it, "New layer from selection" makes a layer whose condition cannot be
+edited before a look is chosen. Recorded in `tier3/decided.md`, 2026-10-20 (pass 2).
+
 ## 2026-10-20 -- Decided by the team: a saved project reads a renamed channel, and a reload keeps picked ties (graphty-element)
 
 graphty-element, non-breaking, both fixes of documents and loads that failed. (1) `project.open`

@@ -113,8 +113,7 @@ the T49 looks repeated. Read again on the frozen build 7d87760756 by the same pi
 folders named in each task below): every data value held; Les Miserables' Louvain run gave 20,
 17, 11, 11, 10 and 8 in all three walks, Javert in Group 3 of 11; College football's gave 16, 15,
 14, 12, 11, 10, 10, 9, 9, 9, Nebraska in Group 4 of 12; volunteers' and sources' runs left 15 and
-12 in cluster colors; the T49 looks have new hashes (T49 below). The two project files' layers do
-not load on this build (T50 below).
+12 in cluster colors; the T49 looks have new hashes (T49 below). The two project files' layers did not load on that build. Read again on the frozen build 6de5f95d12 by the pilots in `rounds/r1d1/pilot/`: every data value held; Les Miserables' Louvain run gave 20, 17, 11, 11, 10 and 8, Javert in Group 3 of 11; College football's gave 16, 15, 14, 12, 11, 10, 10, 9, 9, 9, Nebraska in Group 4 of 12; the karate club's gave 12, 11, 6 and 5; and both project files open with their layers again (T50 below).
 
 | What                                                | Value                                                                                                                                                                                   |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,13 +146,17 @@ not load on this build (T50 below).
 | lesmis-poster.graphty.json                          | Les Miserables with one layer "Poster": name contains "Mlle", node color `#FFA500` (orange), 3 characters                                                                               |
 | volunteers-thanks.graphty.json                      | volunteers with one layer "Thank-you cards": hours 30 to 52 and trained yes, node color `#008000` (green), 6 people                                                                     |
 
-## Success paths on build 7d87760756
+## Success paths on build 6de5f95d12
 
-Every success path below was walked on the frozen build 7d87760756 by the round 1 pilots in
-`rounds/r1/pilot/<task><half>/`, by pointer, by detours and by keyboard; each task names its
-session folders (the other folders there belong to older builds or earlier walks of this one).
-Every half was walked all three ways; T50's success path cannot be walked on this build (T50
-below). Most halves' `report.md` was not rewritten for this build (the walk agents could not write
+Every success path below was walked on build 7d87760756 by the round 1 pilots in
+`rounds/r1/pilot/<task><half>/`, by pointer, by detours and by keyboard, and walked again on the
+frozen build 6de5f95d12 by the pilots in `rounds/r1d1/pilot/<task><half>/`: 21 of the 30 halves,
+each success path by pointer and most by keyboard, with the detours that build's changes touch
+(opening a file again over the graph, the table after a community run, the two project files).
+T38 A, T40 B, T42 B, T46 B, T47 A, T48 B, T49 A and T51 were not walked again (T46 B's table
+route was walked from T43 B's sessions). Each task names its session folders (the other folders
+there belong to older builds or earlier walks). Where 6de5f95d12 differs from 7d87760756 the text
+says what 6de5f95d12 shows. Most halves' `report.md` was not rewritten for this build (the walk agents could not write
 it); the screenshots in the named folders are the record. Steps are counted one thing a person
 does each: a click, a typed entry with its Enter, one key, one option picked. "Open a file" with
 the file chosen in the chooser is one step (the tool's `--upload` does both). Against the key on
@@ -173,11 +176,9 @@ file" and Load were three). Things every path meets on this build:
   graph. The top bar holds Main menu, a "Samples" link (two controls named Samples), Docs, For
   developers, GitHub, "Switch to dark mode" and "Settings...". **Samples** (the button or the
   link) scrolls to the "Sample library": a "Search samples" box, Grid, List, "Any" and eight
-  category chips, and cards titled by a question, the dataset in a smaller line: Les Miserables
-  is "Who holds the novel together", Zachary's karate club "A club that split in two" ("34 nodes,
+  category chips, and cards titled by a question, the dataset in a smaller line: Les Miserables is "Who holds the novel together" (its smaller line "Les Miserables -- 77 nodes, 254 edges"), Zachary's karate club "A club that split in two" ("34 nodes,
   78 edges"), College football "Conferences fall out of who played whom"; each card's accessible
-  name is "Open the <sample> sample". Every card's picture is a broken image (the thumbnails are
-  fetched from graphty.app and blocked, logged as failed requests on every step). The search
+  name is "Open the <sample> sample". Every card's picture is a broken image (the thumbnails are fetched from graphty.app/data/graph-samples/v1/, which answers 404 with an HTML page, so the browser blocks them with ERR_BLOCKED_BY_ORB, logged as failed requests on every step). The search
   filters with no spoken count, and Enter with one card left does nothing. **The usage-data
   notice** ("No thanks") sits at the foot of the page, below the library, out of view at 1440 x
   900; no path needs it and it is no step (the tool's click on it only scrolls the page). **"Open
@@ -189,10 +190,9 @@ file" and Load were three). Things every path meets on this build:
   file" is the 14th to 16th Tab stop (after the top bar, the demo canvas and its five buttons) and
   Samples the 16th; Enter on Samples scrolls to the library but leaves focus on the button, out of
   view, and the next Tabs pass New project, "MIT licensed" and "Put it on your own site" before
-  the search box; a sample card is about 17 Tabs after Samples (about 33 from the top).
+  the search box; a sample card is 16 to 18 Tabs after Samples (Les Miserables 16, the karate club 17, College football 18; 32 to 34 from the top).
 - **After a sample or file opens**, a notice "This looks like a private window: your work is gone
-  when it closes. Save a copy to a file to keep it." covers the bottom of the drawing until the
-  first click or a timeout, and is announced, while the top bar reads "Autosave: saved" (it may
+  when it closes. Save a copy to a file to keep it." sits at the bottom of the canvas above the toolbar, with Dismiss and Save buttons (by Shift+Tab they come before the layer list), covering the bottom of the drawing (with the table open, its bottom cluster); it went at the first click on some walks and stayed until dismissed on others. It is announced as soon as the graph opens, while the top bar reads "Autosave: saved" (it may
   come from the study browser's profile).
 - **A new layer's name box** opens with "Layer 1" selected. Enter, Escape or the next click all
   keep the name, so it is no step of its own (by keyboard, focus is in the "Layer name" box after
@@ -261,8 +261,7 @@ file" and Load were three). Things every path meets on this build:
 - **Enter in a just-added color box** keeps focus in the box with the new value selected
   ("Node color, set here, blue", `0000FF`), on every kind of layer; Tab then goes to "Node color
   by attribute". After a Line "+" > Color, Enter leaves the Color row below Width and focus in the
-  box. Escape in a just-added box removes the whole line, even with typed text in it, and moves
-  focus to the section's "+", with no notice on screen (a selection's just-added Size line too;
+  box. Escape in a just-added box removes the whole line, even with typed text in it, and moves focus to the section's "+", with no notice on screen (on 6de5f95d12 a screen reader hears "Node color not added"; a selection's just-added Size line too;
   only a Label line says "Label not added: no value was picked"); in a set box it only discards
   the edit.
 - **An unset Color line** (Fill "+" on a new layer that will cover others, or Color added back
@@ -348,13 +347,11 @@ file" and Load were three). Things every path meets on this build:
   layer"; Enter on that unset Size line (showing 1) does nothing and makes no layer, against
   `decided.md` ("an unset line takes the value it shows"). Right-click > "New layer from
   selection" makes the layer at once ("Made a layer for the 6 selected nodes"; from a find-box
-  rule it is named for the rule at once, "phone: has a value"), and it opens on the tab last
-  shown, the Edge tab included. In such a layer "Style nodes" shows dimmed. It is named after the
+  rule it is named for the rule at once, "phone: has a value"), and on 6de5f95d12 it opens on the Node tab, even right after Everything's Edge tab (on 7d87760756 it opened on the tab last shown, the Edge tab included). In such a layer "Style nodes" shows dimmed. It is named after the
   one node (`Valjean`, `v16`, `74`; "Made layer 74 for 1 node"), "8 nodes" ("Picked by hand: 8
   nodes"), after everything selected by Select all or Control+A ("77 nodes, 254 edges", and its
   key line "Color: 77 nodes, 254 edges" though it paints nodes only), or, from a find-box rule,
-  after its rule ("hours 20 or more", "donations above 10000", "email: has a value", "Rule:
-  trained && !phone"). Its cards can be edited and it renames itself to follow them ("Picked and
+  after its rule ("hours 20 or more", "donations above 10000", "email: has a value", "Rule: trained && !phone"; after a Degree run, `=degree > 16` makes "Rule: graphty.degree > 16", an internal field path, where the find box said "Degree > 16"). Its cards can be edited and it renames itself to follow them ("Picked and
   name" while a hand-picked card and a rule card are both there; cards combine with AND), though
   on T41 B switching "email: has a value" to "Has no value" was refused ("That rule could not be
   used for this layer") where the same switch on T41 A's phone worked. The first color or size on
@@ -376,9 +373,7 @@ file" and Load were three). Things every path meets on this build:
   would be added again ("the load makes 24 nodes and 118 edges"), and Cancel, "Replace <file>"
   (the main button) and Load (which adds the file a second time); Escape does nothing there, and
   Cancel leaves the graph as it was. "Replace <file>" leads to a second page, "Replace: <file>",
-  whose Replace replaces it; a replace with the same file empties every hand-picked layer (it keeps
-  the old node or edge ids and matches 0) with no notice. With a saved project open, Control+O
-  with the same project replaces it at once.
+  whose Replace replaces it. On 6de5f95d12 a replace with the same file keeps every layer, hand-picked and rule layers alike, on the same nodes or edges (on 7d87760756 it emptied every hand-picked layer); the reopened drawing is framed small and right of the canvas's middle. A GraphML file exported from the open graph and opened with Replace adds layers named "A group from the file on ...", one with internal names in its rule ("graphty.style.graphml..."), and a notice that runs off both edges of the canvas; the export writes style fields (width, color, position, layer members) as data columns, which the read-the-file page offers as attributes, and its text ids do not match the karate club's number ids ("the load makes 68 nodes and 156 edges"). With a saved project open, Control+O with the same project replaces it at once; after a change it first asks "Discard unsaved changes?" (Escape closes the dialog with focus back where it was).
 - **Main menu > Open sample and Back to start** ask "Discard unsaved changes? <graph> has changes
   that are not saved" even over a sample nobody changed, while the top bar reads "Autosave:
   saved"; Escape keeps the work, Discard goes on. Back to start lands on the start page scrolled to
@@ -388,7 +383,7 @@ file" and Load were three). Things every path meets on this build:
 ## T37. A first look
 
 - **Not run in round 1.** Walked on 7d87760756 by `rounds/r1/pilot/T37A/` (`g-pointer/`,
-  `g-detours/`, `g-keyboard/`) and `T37B/` (`p4-success/`, `p4-detours/`, `p4-keyboard/`).
+  `g-detours/`, `g-keyboard/`) and `T37B/` (`p4-success/`, `p4-detours/`, `p4-keyboard/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T37A/6de-r2/` and `T37B/` (`g-success/`, `g-community/`, `g-findlayer/`, `g-handpicked/`).
 - **The start page gives A's answer first:** its demo is Les Miserables, unnamed, and "Key
   players" says "Valjean is the biggest", a click on it "Valjean, 36 connections", with no node or
   tie counts and no way into the workspace. A participant on B sees another network's answer
@@ -402,8 +397,7 @@ file" and Load were three). Things every path meets on this build:
   after one wrong pick corrected from the screen (on B the color ramp draws 17, 16 and 12 in
   nearly the same dark brown, so a first click may land on member 1, "#2 of 34", or 33, "#3").
 - **Where the counts are:** the sample opens on the Graph's Values tab, which already shows Nodes,
-  Edges and "Degree, Highest 36" (B: 17) with no name; B's library card already says "34 nodes, 78
-  edges" (A's card gives no counts), and the in-app "Open a sample" menu says "34 members". One
+  Edges and "Degree, Highest 36" (B: 17) with no name; the library cards already say "77 nodes, 254 edges" (A, on 6de5f95d12; on 7d87760756 A's card gave no counts) and "34 nodes, 78 edges" (B), and Main menu > Open sample marks the open sample "Open now" with no count. One
   fact goes by three names: "36 connections" on the demo, "nodes"/"edges" on the cards, "Degree"
   in the inspector. The Data place shows them too (B: Node table 34 rows, Edge
   table 78 rows), and a keyboard opening announces "Zachary's karate club: 34 nodes, 78 edges".
@@ -474,7 +468,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T38A/` (`v-success/`, `v-detour-newdata/`,
   `v-detour-data/`, `v-keyboard/`) and `T38B/` (`g-pointer/`, `g-detour-open-find/`,
-  `g-detour-data-rclick/`, `g-keys/`).
+  `g-detour-data-rclick/`, `g-keys/`). B walked again on 6de5f95d12 by `rounds/r1d1/pilot/T38B/` (`r3-pointer/`, `r3-find-replace/`, `r3-keys/`).
 - **Success (S):** the file loaded as a new graph (24 nodes; 63 ties A, 59 ties B, both said from
   the screen), and exactly the board and staff (A, 8) or companies and agencies (B, 10) drawn blue
   (any color a reader calls blue), everyone else unchanged.
@@ -509,8 +503,7 @@ file" and Load were three). Things every path meets on this build:
   the inspector and 5 Tabs: "Select what it paints", "Layer actions", the Style tab, the Node tab,
   "Style nodes", then Which nodes).
 - **B:** the same with sources.graphml ("sources: 24 nodes, 59 edges"), `kind` (person 14,
-  company 6, agency 4), company and agency ("10 of 24"), 12 steps. Nodes are titled by id in the
-  inspector and the find box (`v23`, `s12`), the name only a row below.
+  company 6, agency 4), company and agency ("10 of 24"), 12 steps. Nodes are titled by id in the inspector and the find box (`v23`, `s12`), the name only a row below. By keyboard on 6de5f95d12, "Add a layer or a folder" is 8 Shift+Tabs from the graph heading (the private-window notice's Dismiss and Save come first). A layer made from the find box's company and agency rows ("10 nodes", "Picked by hand: 10 nodes") still paints the same 10 after Control+O > Replace with the same file (two pages, two Replace clicks).
 - **Dead ends on this build:** right-clicking a node offers no way to pick everyone like it;
   right-clicking a table cell does nothing; a column's "Options" offers only Move left and Move
   right; the inspector's value cannot be clicked. The Data place's attribute lists its values with
@@ -522,15 +515,13 @@ file" and Load were three). Things every path meets on this build:
   "Open network data" opens no local file (the file name typed as an address gets "Please enter a
   URL."); Cancel on the read-the-file page returns to the start page, and a second "Open a file"
   loads. Opening the table re-frames the drawing small in the canvas's top half.
-- **Final screen:** 8 (A) or 10 (B) blue dots; the picker reads "role: board, staff, 8 nodes" (B:
-  "kind: company, agency, 10 nodes", values in the order ticked). The key over the drawing names
-  the layer ("Color: Layer 1, 8 of 24 nodes"), not the values.
+- **Final screen:** 8 (A) or 10 (B) blue dots; the picker reads "role: board, staff, 8 nodes" (B: "kind: company, agency, 10 nodes", values in the order ticked). The key over the drawing names the layer ("Color: Layer 1", "8 of 24 nodes" on a second line), not the values.
 
 ## T39. One color for the whole drawing
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T39A/` (`r-pointer/`, `r-detours1/` to
   `r-detours3/`, `r-keys/`) and `T39B/` (`7d8c-pointer/`, `7d8c-detours/`, `7d8c-detours2/`,
-  `7d8c-keys/`).
+  `7d8c-keys/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T39A/` (`i-pointer/`, `i-detours/`, `i-keys/`) and `T39B/` (`v2-pointer/`, `v2-detours/`, `v2-keys/`).
 - **Success (S):** every node drawn in the asked color (A: any dark green; B: any orange), the ties
   unchanged.
 - **Stacks that count:** the Everything layer's node color changed (S); a new layer with no
@@ -539,9 +530,7 @@ file" and Load were three). Things every path meets on this build:
   stays put); every node selected and colored (SD: a selection, not the whole drawing): Control+A,
   or the canvas's right-click "Select all", selects all 77 (115) nodes and 254 (613) edges, and
   the selection's Fill "+" and the color make the layer "77 nodes, 254 edges" (key "Color: 77
-  nodes, 254 edges", though it paints nodes only), the drawing jumping about 130 px right; "Select
-  all" then "New layer from selection" opens the new layer on the Edge tab last shown, whose first
-  "+" is Line. The find box's `all` gives "No match" with a rule hint.
+  nodes, 254 edges", though it paints nodes only), the drawing jumping about 130 px right (150 on B; against `decided.md` 2026-10-19, which says an arriving key never re-frames the drawing: a defect, recorded, not graded); "Select all" then "New layer from selection" opens the new layer on the Node tab on 6de5f95d12 (on 7d87760756 on the Edge tab last shown, whose first "+" is Line). The find box's `all` gives "No match" with a rule hint.
   Coloring one node from its own inspector (Fill "+") makes a one-node layer named after the node
   ("Javert", "Valjean"): not a success.
 - **Success path (A, 5 steps, the key steps of bar 4):** 1. Samples. 2. The card "Who holds the
@@ -551,7 +540,7 @@ file" and Load were three). Things every path meets on this build:
   `FFA500` (card "Conferences fall out of who played whom"). The Everything route adds nothing to
   the key. A node's Style > "Why this look" (which lists "Selected: Glow, Halo" and Everything) >
   "Everything" opens Everything with focus in the color box and its value selected. By keyboard
-  (A and B), Samples is 16 Tabs from the top and the card about 17 more; after the open,
+  (A and B), Samples is 16 Tabs from the top and the card 16 more on A, 18 on B; after the open,
   Everything is 5 Shift+Tabs from the graph heading, Enter on its row keeps focus there, F6 goes
   to the heading "Everything", and the color box is 15 Tabs on; `darkgreen` and Enter announce
   "Node color now dark green, on 77 nodes". Focus never fell to the page.
@@ -580,7 +569,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T40A/` (`h-pointer/`, `h-detour-find/`,
   `h-detour-filter/`, `h-detour-useselected/`, `h-keyboard/`) and `T40B/` (`7d8-pointer/`,
-  `7d8-detour-find/`, `7d8-detour-filter/`, `7d8-detour-other/`, `7d8-keyboard/`).
+  `7d8-detour-find/`, `7d8-detour-filter/`, `7d8-detour-other/`, `7d8-keyboard/`). A walked again on 6de5f95d12 by `rounds/r1d1/pilot/T40A/` (`rp-pointer/`, `rp-detour-find/`, `rp-detour-filter/`, `rp-detour-useselected/`, `rp-keyboard/`).
 - **Success (S):** exactly the 6 (A) or 8 (B) drawn purple, everyone else unchanged, and the count
   said from the screen (the picker's "6 of 77", the find list's "Nodes 6", or counted on screen).
   Grade the hex (`800080`; a screen reader says "purple").
@@ -592,7 +581,7 @@ file" and Load were three). Things every path meets on this build:
   selection and keeps the list open (each picked row shows a check); clicking the inspector's
   Style tab then clears the typed text; styled, the 6 make the layer "6 nodes", "Picked by hand: 6
   nodes" (SD), and while still selected they keep a thick yellow ring that makes them read yellow
-  (graded on the tree); that first color moves the drawing about 110 to 150 px right. Right-click >
+  (graded on the tree); that first color moves the drawing about 110 to 155 px right (against `decided.md` 2026-10-19: a defect, recorded, not graded). Right-click >
   "New layer from selection" on the six makes the layer "6 nodes" at once ("Made a layer for the
   6 selected nodes"). With the six selected, "+" > Layer starts at 77 of 77 and neither Which
   nodes nor the attribute list mentions the selection, so a participant who then finds "New layer
@@ -634,7 +623,7 @@ file" and Load were three). Things every path meets on this build:
 ## T41. Two facts at once
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T41A/` (`r1-pointer/`, `r1-detour-start/`,
-  `r1-detour-picker/`, `r1-keys/`) and `T41B/` (`i-pointer/`, `i-detours/`, `i-keys/`).
+  `r1-detour-picker/`, `r1-keys/`) and `T41B/` (`i-pointer/`, `i-detours/`, `i-keys/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T41A/` (`r1d1-pointer/`, `r1d1-detour-start/`, `r1d1-detour-picker/`, `r1d1-find-rule-replace/`, `r1d1-keys/`) and `T41B/` (`w3-pointer/`, `w3-findlayer-replace/`, `w3-keys/`).
 - **Success (S):** exactly the 4 drawn red, the names said match the answer and were on screen
   (the inspector after a click, or the table), everyone else unchanged.
 - **Stacks that count:** one layer with two cards: `trained` (A) or `on_record` (B) set to Yes,
@@ -645,8 +634,7 @@ file" and Load were three). Things every path meets on this build:
   selection stays) > "New layer from selection", which makes the layer "phone: has a value" at
   once; Fill red paints the wrong 17 until its card is switched to "Has no value" and trained Yes
   is added (4 of 24, SD). On B the same switch on "email: has a value" was refused ("That rule
-  could not be used for this layer"), the count stayed 15 and red painted the wrong 15 (F if
-  left). In
+  could not be used for this layer"), the count stayed 15 and red painted the wrong 15 (F if left); the card then reads 9 while the layer stays at 15, and Done drops the switch and any card added after it, with nothing said. A layer made from the find-box rule keeps its four after Control+O > Replace with the same file. In
   that second route the 15 with an email keep their selection rings while the layer paints four
   others: grade the layer. A column name alone (`=phone` 17, `=email` 15) selects those who HAVE
   a value: a layer made from it and left so paints the wrong set. An unreadable rule
@@ -662,8 +650,7 @@ file" and Load were three). Things every path meets on this build:
   instead of coloring the four: F (Undo restores); with a selection hidden, the inspector
   still reads "15 nodes selected". A click on the drawing that drops an unfinished card also
   moves the inspector off the layer to the Graph overview.
-- **Success path (A, 18 steps):** 1. "Open a file", volunteers.graphml. 2. Load (the private-window
-  notice covers the toolbar until the first click). 3. "+". 4. Layer. 5. Which nodes (only
+- **Success path (A, 18 steps):** 1. "Open a file", volunteers.graphml. 2. Load (the private-window notice sits above the toolbar until the first click). 3. "+". 4. Layer. 5. Which nodes (only
   expands). 6. "Add a condition" (phone reads "70% have a value"). 7. `trained` (the card starts
   on Yes: "15 of 24"). 8. "Add a condition". 9. `phone` (focus in its text box, past the match
   menu: by keyboard one Shift+Tab back). 10. Its match menu ("phone: how to match", value
@@ -682,8 +669,7 @@ file" and Load were three). Things every path meets on this build:
   By keyboard, the layer "+" is 15 Tabs from the graph heading (Undo and Redo are stops), Which
   nodes 9 to 10 Tabs from the new layer's row, and Enter on Which nodes with a card in it goes
   straight to the first card's value; selecting a table row announces the id ("v23 selected").
-  Escape in an empty new text card drops it and closes the picker, focus on Which nodes. Escape in
-  the just-added Color line with `red` typed and not committed removes the whole line, silently.
+  Escape in an empty new text card drops it and closes the picker, focus on Which nodes. Escape in the just-added Color line with `red` typed and not committed removes the whole line; nothing on screen says so, and on 6de5f95d12 a screen reader hears "Node color not added" with focus back on "Add to node fill".
 - **B:** the same with sources.graphml, `on_record` ("12") and `email` ("4 of 24"). The four are
   s19 Tomas Varga, s17 Friends of the Waterfront, s11 Ines Moreau and s05 Della Whitfield, 18
   steps. The find box's `=on_record && !email`, then right-click > "New layer from selection" and
@@ -699,7 +685,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Not run in round 1.** Walked on 7d87760756 by `rounds/r1/pilot/T42A/` (`7d8c-success-pointer/`,
   `7d8c-detour-start/`, `7d8c-detour-card/`, `7d8c-keyboard/`) and `T42B/` (`w4-pointer/`,
-  `w4-detour-card/`, `w4-detour-find/`, `w4-keys/`).
+  `w4-detour-card/`, `w4-detour-find/`, `w4-keys/`). A walked again on 6de5f95d12 by `rounds/r1d1/pilot/T42A/` (`6de2-success-pointer/`, `6de2-detour-start/`, `6de2-detour-card/`, `6de2-keyboard/`).
 - **Success (S):** exactly the 11 (A) or 9 (B) drawn orange and the count said from the screen.
 - **Stacks that count:** a number card on `hours` (A) or `donations` (B) with its low end at 20
   (A) or 10,000 (B) and its high end at the maximum (52, 250,000) or above. The card's match menu
@@ -746,7 +732,7 @@ file" and Load were three). Things every path meets on this build:
   line, Legend on, the drawing staying put; focus stays in the box, `FFA500` selected; "Node color
   now orange, on 11 nodes"). B: the same with `donations` and `10000` ("9 of 24"), 10 steps. By
   keyboard "Open a file" is the 14th to 15th Tab, and after Load Tab from the heading runs on
-  through the inspector: the layer "+" is reached by F6 twice and two Tabs.
+  through the inspector: the layer "+" is reached by F6 three times (the canvas, the toolbar, then the left panel) and two Tabs.
 - **Dead ends:** the Data place's attribute menu and right-click offer only Add label line, Filter
   to... and Show in table; "Filter to..." with 20 and Enter adds the step at once, without Add
   step, and hides the other 13 (F; its line reads "24 to 24 nodes" before and "24 to 11 nodes"
@@ -764,7 +750,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T43A/` (`f-success/`, `f-detours/`, `f-keys/`) and
   `T43B/` (`r1-pointer/`, `r1-detour-node/`, `r1-detour-find/`, `r1-detour-data/`, `r1-tooltip/`,
-  `r1-keys/`).
+  `r1-keys/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T43A/6de5f95d12/` (`r3-pointer/`, `r3-detours/`, `r3-file-in/`, `r3-keyboard/`) and `T43B/6de5f95d12/` (`rp-pointer/`, `rp-find-replace/` and earlier `keyboard/`, `detours/`, `detour-drop/`, `detour-picked-replace/`).
 - **Success (S):** node size follows `hours` (A) or `donations` (B) for every node, larger for more,
   and the person named as giving the most is Hannah Weiss (A) or Harlan Development (B), read from
   the screen.
@@ -776,7 +762,7 @@ file" and Load were three). Things every path meets on this build:
   makes no layer until a typed value is committed with Enter (3 makes the layer "hours: has a
   value", all dots equal: F) or the size is bound (notice "Made layer hours: has a value for 24
   nodes"); Enter on the unset 1 does nothing; Escape in it removes the line with focus on Shape
-  "+" and no notice; binding there moves the drawing about 130 px right (Undo moves it back);
+  "+" and no notice; binding there moved the drawing about 130 to 135 px right on 7d87760756 and on B on 6de5f95d12 (Undo moves it back), and not at all on A on 6de5f95d12, where binding on the one-node v09 layer moved it about 130 px instead;
   then the layer covers an earlier binding on Everything until it is bound itself. Sizes typed by hand for a few people: F (the drawing does not follow the number). A
   size bound on a one-node or hand-picked layer covers only those nodes: F; the key over the
   drawing then adds a line naming them ("v09: 1 of 24 nodes") under "Size: hours". A fixed size on
@@ -800,9 +786,7 @@ file" and Load were three). Things every path meets on this build:
   2 to 52 appears over the drawing, the drawing stays put, and a screen reader hears "Node size
   varies by hours, on 24 nodes", which nothing on screen shows). 6. Click the biggest dot: the
   inspector, titled by id (`v09`), shows Hannah Weiss, hours 52 (B: Harlan Development, donations
-  250,000). By keyboard: "Open a file" is the 14th Tab; after Load, F6 to the left panel, two Tabs
-  to Everything, Enter, F6 (which lands on the unselected Values tab, the control last focused in
-  the graph's inspector), Tab to "Node size by attribute", Enter, ArrowDown twice, Enter: chip
+  250,000). By keyboard: "Open a file" is the 14th Tab; after Load, F6 three times (the canvas first, the left panel third), Tabs to Everything (three on B), Enter, F6 (which lands on "Select what it paints" on 6de5f95d12; on 7d87760756 on the unselected Values tab), nine Tabs to "Node size by attribute", Enter, ArrowDown twice, Enter: chip
   "Node size: hours, 1 to 3"; the answer comes from the table (the toolbar's arrows to Table, the
   hours header sorted highest first, top row "Hannah Weiss"). Enter on the Size chip opens the
   dialog "Size by hours" (focus on the dialog itself), and Escape returns to the chip; it reads 20
@@ -823,9 +807,7 @@ file" and Load were three). Things every path meets on this build:
   line, Filter to..., Show in table) has "Show in table", which opens it unsorted, and its summary
   shows "Highest 52" with no name and no size action; a column's options in the table offer only
   Move left and Move right, and neither right-click menu offers size. "Open network data" opens no
-  local file; a file dropped on the start page opens the read-the-file page; Control+O with the
-  graph open titles its page "Add to volunteers" while its main button reads "Replace
-  volunteers.graphml". A click on the size link icon while an "Edit discarded" line shows can open
+  local file; a file dropped on the start page opens the read-the-file page; Control+O with the graph open titles its page "Add to volunteers" while its main button reads "Replace volunteers.graphml"; its second page's Replace keeps both hand-made layers (v09 and "hours: has a value"), with sizes still following hours. A click on the size link icon while an "Edit discarded" line shows can open
   nothing (the line goes and the row moves up before the release); a second click works. Making every dot bigger
   by hand can push a dot under the inspector's edge (the drawing is not re-framed). The
   read-the-file page already lists Hannah Weiss with 52 before Load. A name read only from a dot
@@ -836,14 +818,14 @@ file" and Load were three). Things every path meets on this build:
 ## T44. Names on the drawing
 
 - **Not run in round 1.** Walked on 7d87760756 by `rounds/r1/pilot/T44A/` (`g-pointer/`,
-  `g-detours/`, `g-keyboard/`) and `T44B/` (`h-pointer/`, `h-detours/`, `h-keys/`).
+  `g-detours/`, `g-keyboard/`) and `T44B/` (`h-pointer/`, `h-detours/`, `h-keys/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T44A/` (`r2-pointer/`, `r2-detours/`, `r2-keyboard/`) and `T44B/` (`walk-pointer/`, `walk-detours/`, `walk-detours-start/`, `walk-isolate-undo/`, `walk-isolate-replace/`, `walk-keys/`).
 - **Success (S):** every node carries its name as a label (A: `name`, or `id`, which holds the
   name with its spaces dropped, `MlleVaubois`, both accepted; B: `name`, not `id`), and Cosette
   (A) or Lucy Grant (B) is readable on the last screenshot at the participant's own framing.
 - **Labels hidden by overlap:** after the column is picked the screen reads "77 labels, 0 hidden"
   (B: "24 labels, 0 hidden"), although labels in the dense middle visibly touch. On A it reads
   "14 hidden" at size 96, with Cosette readable; on B it stays 0 at size 96, while labels of nodes
-  past the left edge are cut by the side panel. Nothing shows which names are hidden. The app leaves out labels that would overlap,
+  past the left edge are cut by the side panel. Nothing shows which names are hidden; with "Show all labels" ticked the line reads "24 labels", with no hidden part. The app leaves out labels that would overlap,
   and "Show all labels" draws them all, over each other; even with "Hide overlapping labels" on,
   some names are drawn over others, and the selection ring covers the top of a selected node's
   name. "Every node carries its name" is judged on the style tree (`node.label` by `data.name`
@@ -855,11 +837,10 @@ file" and Load were three). Things every path meets on this build:
   opening with Label highlighted). 5. Label (the column picker opens by
   itself with nothing highlighted: Find an attribute, Fixed text, then Data (`name`), then
   Structure ("Node id"; once picked the source box reads "id"); the first ArrowDown highlights
-  Fixed text; reopened from "Fixed text" it shows Fixed text highlighted). 6. `name` (live "Node
-  label added", spoken only; "77 labels, 0 hidden"; focus on "Label source: name"). 7. Label
+  Fixed text; reopened from "Fixed text" it shows Fixed text highlighted). 6. `name` (live "Node label added", spoken only; "77 labels, 0 hidden", on screen and, on 6de5f95d12, spoken too; focus on "Label source: name"). 7. Label
   settings (the gear, tooltip "Label settings", spoken "Node label settings"; its close button is
   "Close panel"). 8. Size (48, "Size in: Scene units"; at the default it has a link icon and no
-  reset): type 96, Enter, which doubles every label, keeps focus and announces nothing; Cosette
+  reset): type 96, Enter, which doubles every label, keeps focus and (on 6de5f95d12) announces the count, "77 labels, 14 hidden"; Cosette
   then reads at the default framing on the walks. The wheel barely zooms on this build (15
   notches grew the drawing about 15% on A, 10 turns about 10% on B, and `=` on the focused canvas
   about 1% a press), so it does not make a name readable on its own. In the Size box, Escape after
@@ -871,12 +852,11 @@ file" and Load were three). Things every path meets on this build:
   keyboard: `/` or Control+F to the find box, `Cosette`, Enter (Cosette selected, focus out of
   the box), then `f` (Frame selection, announced "Framed Cosette"), which makes the name large; a
   clicked find box behaves the same. `=` zooms the view when the drawing itself has focus, and
-  does nothing elsewhere.
+  does nothing elsewhere. By keyboard on A on 6de5f95d12, F6 from the layer tree landed on "Resize inspector", the inspector's last stop; Tab from there leaves for Main menu, and Text "+" is 9 Shift+Tabs back from "Edit edges".
 - **B:** brings the file in first ("Open a file", Load: 2 steps, as A's sample), then as A: 8
   steps, or 9 with "Show all labels". The keyboard route the same with `Lucy Grant` (the find row
   reads "v16 name: Lucy Grant"; the inspector heading is "v16", the announcement "v16 selected"
-  and `f` "Framed v16": the name the drawing shows is never spoken). By keyboard, "Open a file" is
-  the 16th Tab; Everything is reached from the graph heading by Tab, F6 three times and three
+  and `f` "Framed v16": the name the drawing shows is never spoken). By keyboard, "Open a file" is the 14th Tab; Everything is reached from the graph heading by Tab, F6 three times and three
   Tabs; Enter on its row keeps focus in the tree, F6 goes to the inspector ("Select what it
   paints"), and Text "+" is 12 Tabs on; Label, then ArrowDown twice (Fixed text, then `name`) and
   Enter. Escape on a node's heading clears the selection. `f` frames the selection, can turn the
@@ -900,8 +880,7 @@ file" and Load were three). Things every path meets on this build:
   nodes", Look Card, Size 72, every node labeled: a success by the usual rule, S or SD by its
   length and wrong turns). The find box answers `label` with "No match" and a rule hint, and names
   nodes by id (`MmeThenardier`, edge row "Cosette -- MmeThenardier") while the drawing labels
-  "Mme Thenardier". The right-click menu has nothing about names; the main menu no labeling
-  command; "Open network data" (B) no local file.
+  "Mme Thenardier". The right-click menu has nothing about names; the main menu no labeling command; "Open network data" (B) no local file. On 6de5f95d12 (B), a one-node label layer made from a find-box selection, then Control+O > Replace with the same file, then Control+Z twice ("Undid changing settings and importing data.", then "Undid adding the layer v16.") takes the layer out of the tree but leaves its "Lucy Grant" label drawn, and after that labeling Everything by name, Fixed text or "Show all labels" draws only that one name ("1 label, 0 hidden") while the style tree says `node.label` paints all 24: the tree is wrong there, so in such a session "every node carries its name" is graded from the last screenshot, and the session is reported as a build defect. The same layer undone with no Replace between is clean.
 - **Not a new finding:** the label drawn small at the default framing; the font with no fallback;
   ties drawn across label text.
 
@@ -909,7 +888,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T45A/` (`f-pointer/`, `f-detour-nodetab/`,
   `f-detour-find/`, `f-detour-start/`, `f-detour-tie/`, `f-keyboard/`) and `T45B/` (`g-pointer/`,
-  `g-detour-find/`, `g-detour-nodetab/`, `g-detour-everything/`, `g-keyboard/`).
+  `g-detour-find/`, `g-detour-nodetab/`, `g-detour-everything/`, `g-keyboard/`). Walked again on 6de5f95d12 by `rounds/r1d1/pilot/T45A/` (`fin-pointer/`, `fin-ctrlo-replace/`; no keyboard walk) and `T45B/` (`w-pointer/`, `w-detour-find/`, `w-detour-nodetab/`, `w-detour-everything/`, `w-keyboard/`).
 - **Success (S):** A: exactly the 8 family ties drawn thick (wider than the 8 they start at) and
   red, every person and every other tie unchanged. B: exactly the 51 ties with 5 or more shared
   chapters thick and blue (any color a reader calls blue), every character and every other tie
@@ -976,8 +955,7 @@ file" and Load were three). Things every path meets on this build:
   keeps focus and says "Edit discarded; this stays 24."; Tab goes to "Edge width by attribute"
   (whose tooltip covers the Arrowheads "+"); Escape in the color box after typing says "Edit
   discarded; this stays 0000FF." on screen and spoken; Escape in the color picker closes it onto
-  "Pick edge color". A new layer's foot reads "Edges: nothing set, Edit edges" and "Nodes: not
-  styled, Edit nodes". By keyboard the sample is about 33 Tabs from the top (16 to Samples, then
+  "Pick edge color". A new layer's foot reads "Edges: nothing set, Edit edges" and, on 6de5f95d12, "Nodes: nothing set" until a condition is added, then "Nodes: not styled, Edit nodes". By keyboard the sample is 32 to 33 Tabs from the top (16 to Samples, then
   the library's search, view toggles and chips); after the open, "Add a layer or a folder" is 6
   Shift+Tabs back; Enter, Layer, Enter (name), then F6 to "Select what it paints", Tab to Layer
   actions, the Style tab, the Node tab, ArrowRight to the Edge tab, "Style edges", then "Add a
@@ -986,12 +964,9 @@ file" and Load were three). Things every path meets on this build:
 - **Detour to watch:** conditions added on the Node tab do not pick the layer's ties; an edge
   column typed in the Node tab's list offers the action "Add kind on the Edge tab" ("Add
   shared_chapters on the Edge tab", in full), and Enter takes it: the Edge tab opens with the card
-  added; going back to the Node tab before a value is ticked drops that card ("Dropped the kind
-  condition: it was not finished"). Fill "+" there adds a Color line at `6366F1` at once, and a color
+  added; going back to the Node tab before a value is ticked drops that card ("Dropped the kind condition: it was not finished"; on B on 6de5f95d12 the untouched `shared_chapters` card, 1 to 31, was kept with no notice and the layer stayed "Edge layer", 254). Fill "+" there adds a Color line at `6366F1` at once, and a color
   typed in it paints every person (F); Control+Z with focus in the box undoes the color, and a
-  second Control+Z removes the whole new layer. A layer with only an edge condition reads "Edge
-  layer"; one node look then flips it to "Node layer" with "Edge not styled" and its key line
-  loses its count. On a new layer's Node tab, the attribute list shows only the node columns
+  second Control+Z removes the whole new layer. A layer with only an edge condition reads "Edge layer"; one node look then makes it "Node and edge layer" on 6de5f95d12 (on 7d87760756 it flipped to "Node layer" with "Edge not styled" and its key line lost its count). On a new layer's Node tab, the attribute list shows only the node columns
   (`family` typed: "Nothing found"). Everything's Edge tab (B): "Edge width by attribute" >
   `shared_chapters` sets every tie 8 to 16 (F; Control+Z undoes; its popover is about 340 px tall
   for one row); a Filters step on `shared_chapters` "Keeps edges that pass and the nodes at their
@@ -1001,8 +976,7 @@ file" and Load were three). Things every path meets on this build:
   Data place's tie attribute shows its values and counts but offers only "Filter to..." and "Show
   in table" (a filter hides ties: F). On A, "Open network data" opens no local file, and New
   project > "Add data..." with the file dropped loads 16/30 but leaves the project "Untitled"
-  with Undo enabled. Control+O with the graph open, then "Replace neighbors.csv" and the second
-  page's Replace, empties the hand-picked "8 edges" layer (0 matched) with no notice.
+  with Undo enabled. Control+O with the graph open, then "Replace neighbors.csv" and the second page's Replace ("Was 16 nodes, 30 edges; now 16, 30"), keeps the hand-picked "8 edges" layer on the same 8 family ties, red at width 24, on 6de5f95d12 (on 7d87760756 it emptied the layer, 0 matched, with no notice).
 - **Final screen:** thick red (blue) ties; `styles.json` shows the edge part's selector and
   `edge.width`, `edge.color`; no `node.` value on the new layer.
 
@@ -1010,7 +984,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756 by `rounds/r1/pilot/T46A/`** (`7d8c-pointer/`, `7d8c-detours/`,
   `7d8c-keyboard/`) **and `T46B/`** (`x4-pointer/`, `x4-detours/`, `x4-keyboard/`), all three ways
-  on both halves.
+  on both halves. A walked again on 6de5f95d12 by `rounds/r1d1/pilot/T46A/` (`r2-pointer/`, `r2-table/`, `r2-detours/`, `r2-keyboard/`); B's table route by `rounds/r1d1/pilot/T43B/6de5f95d12/rp-t46b-table/`.
 - **The start page's demo** already draws Les Miserables in six community colors, one of them
   red, and a demo node's card reads "Babet, Community 3 of 6": its numbering is not the
   workspace's (Javert's workspace Group 3 is green), it gives no sizes, and it cannot be styled.
@@ -1052,16 +1026,13 @@ file" and Load were three). Things every path meets on this build:
   "Communities" and "Colored by community"), with a tall empty popover over the drawing,
   `together` lists only Edge betweenness, and `group` lists Louvain, the other community methods,
   Girvan-Newman and Connected components; Louvain shows no "Start here" badge under any filter.
-  **The table's Nodes tab** has a "Louvain" column of 0-based numbers (Napoleon 0, Mlle
-  Baptistine 1; Javert's row would read 2 for Group 3), while the tree, the key and the table's
-  own Louvain tab say Group 1 to 6: a group number read from that column is off by one (grade the
-  group the participant painted, from the tree). Opening the table also shrinks the drawing into
+  **The table's Nodes tab** has a "Louvain" column that reads the group names the tree, the key, the inspector's Memberships and the table's own Louvain tab use (Javert's row "Group 3", B Nebraska's "Group 4"; on 7d87760756 it held 0-based numbers). The Louvain tab lists the groups largest first (A 20, 17, 11, 11, 10, 8), and a group's "Show members in table" lists its members (11 rows for Group 3). With the table open, a node picked from the find box is highlighted but the table does not scroll to it (B, 115 rows). Opening the table also shrinks the drawing into
   the top half and cuts the key to three rows ("3 more below").
   A one-node layer from a node's Style is named by id on B ("74"), and the key then scrolls ("3
   more below"). The Data place does not list the run's groups. Quick actions answers `Javert`,
   `color` and `louvain` with "No results"; the find box answers `cluster` with "No match". The
   folder shows the token as "<<Layer>>" in Which nodes ("Louvain: <<Layer>>"), in its Color field and
-  as "Source: <<Layer>>" in its table, whose palette name is cut off ("Nineteen contrasting c...").
+  as "Source: <<Layer>>" in its table, whose palette is named "Eight distinct colors" on A (B: "Nineteen contrasting colors").
   A node's right-click menu reaches nothing about its group. On B, Main menu > Open sample over
   an untouched sample asks "Discard unsaved changes?" while "Autosave: saved" shows.
 - **Success path (A, 12 steps; walked on A and B):** 1. Samples. 2. The card "Who holds the novel
@@ -1081,7 +1052,7 @@ file" and Load were three). Things every path meets on this build:
   "12 of 115" and as "Louvain: Group 4, 12 nodes". By keyboard the folder row reads "Louvain,
   folder, 10 layers"; ArrowRight expands it. Groups 3 and 4 on A both hold 11, so a count read off
   the wrong row still reads 11. By keyboard (A), Analyze is 20 Tabs from the opened graph, the
-  layer tree is entered at Everything, and the opened group layer's color box is 14 Tabs on;
+  layer tree is entered at Everything, and the opened group layer's color box is 10 Tabs on (14 on 7d87760756);
   Escape in the Louvain card's Resolution box leaves the card for the analysis filter. By keyboard
   (B), F6 reaches Analyze in two presses (canvas, then Analyze); the find pick puts focus on the
   heading "74" while the status says "Nebraska selected"; Enter on Memberships "Louvain Group 4"
@@ -1093,7 +1064,7 @@ file" and Load were three). Things every path meets on this build:
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T47A/` (`7d8-pointer/`, `7d8-detours/`,
   `7d8-detours2/`, `7d8-keyboard/`) and `T47B/` (`p4-pointer/`, `p4-detours/`,
-  `p4-detour-landing/`, `p4-keyboard/`).
+  `p4-detour-landing/`, `p4-keyboard/`). B walked again on 6de5f95d12 by `rounds/r1d1/pilot/T47B/` (`rp3-pointer/`, `rp3-table/`; no keyboard walk).
 - **Success (S):** every node drawn as Box (A and B), every cluster's color unchanged.
 - **Stacks that count:** the run's folder edited once (its Shape line, written to every group
   layer: S, `Route: folder`); two or more group layers picked together and edited once (S,
@@ -1123,7 +1094,7 @@ file" and Load were three). Things every path meets on this build:
   by keyboard). 11. Box ("Shape: 6 changed", Undo; the key gains "Shape: Louvain, Box"). Or by
   keys at step 10: type `box` (Enter takes Box, though by pointer the row under the pointer, such
   as Dodecahedron, stays drawn highlighted and Box is not), Enter. B: the same on College football: "10 layers in Louvain", "Shape: 10 changed";
-  the key then scrolls ("3 more below"), hiding Groups 8 to 10. By keyboard, Tab into the layer
+  the key, which shows all ten groups after the run, scrolls ("3 more below") once Box adds the "Shape: Louvain" entry, hiding Groups 8 to 10. With the table open after the run (B, 6de5f95d12), the Nodes tab's Louvain column uses the key's group names, the Louvain tab lists the 10 groups largest first (16, 15, 14, 12, 11, 10, 10, 9, 9, 9), "Show members in table" filters to a group, and Box on the folder works as without the table; closing the table puts focus on the drawing. By keyboard, Tab into the layer
   tree lands on Everything (the bottom row); ArrowUp reaches the folder; from the start page
   Samples is 16 Tabs and the card about 17 to 18 more; from the opened graph, Analyze is 20 Tabs
   away, and on B Enter in the Louvain card's Resolution box runs it. F6 lands on the "Resize left
@@ -1164,7 +1135,7 @@ file" and Load were three). Things every path meets on this build:
 ## T48. Cluster colors on only some people
 
 - **Walked on 7d87760756** by `rounds/r1/pilot/T48A/` (`7d8c-pointer/`, `7d8c-detour-start/`,
-  `7d8c-detour-cards/`, `7d8c-keys/`) and `T48B/` (`r4-pointer/`, `r4-detours/`, `r4-keyboard/`).
+  `7d8c-detour-cards/`, `7d8c-keys/`) and `T48B/` (`r4-pointer/`, `r4-detours/`, `r4-keyboard/`). A walked again on 6de5f95d12 by `rounds/r1d1/pilot/T48A/` (`6de5c-pointer/`, `6de5c-detour-start/`, `6de5c-detour-newproject/`, `6de5c-detour-cards/`, `6de5c-table/`, `6de5c-keys/`); the table route on B's file by `rounds/r1d1/pilot/T43B/6de5f95d12/rp-t48-table/`.
 - **Success (S):** the clusters' colors drawn only on trained people (A, 15) or sources on the
   record (B, 12); every other node in the starting color; no cluster's color changed; and the
   count said from the screen: 15 (A) or 12 (B). A number read off one cluster's line is F. The
@@ -1182,8 +1153,7 @@ file" and Load were three). Things every path meets on this build:
   showing `6366F1` in italics that paints nothing until Enter, which sets it and repaints the
   others (typing another color and then `6366F1` over it also sets it). Made while one cluster
   layer or the folder is selected, the new layer lands inside the Louvain folder, where it still
-  covers; on a new layer with no conditions Which nodes opens with the attribute list closed, and
-  one click on "Add a condition" opens it. A single cluster layer's Which nodes reads "8 of 24
+  covers; on a new layer with no conditions Which nodes opens with the attribute list closed (against `decided.md` 2026-10-19), and one click on "Add a condition" opens it. A single cluster layer's Which nodes reads "8 of 24
   nodes". Its Fill "+" line: Escape takes it back; Enter sets `6366F1` and the key reads "Color:
   Layer 1, 9 of 24". The cover route never shows the answer: the key reads "Color: Layer 1, 9 of 24 nodes"
   (B 12) and the group rows carry no count, so 15 must be worked out; the cover layer's row has no
@@ -1197,8 +1167,7 @@ file" and Load were three). Things every path meets on this build:
 - **False finishes on this build:** a Filters step "trained is Yes" ("on_record is Yes") left on
   keeps 15 (12) of 24 and hides the others instead of leaving them in the starting color: the right
   count with the wrong look (F). Removing the folder's Louvain card ("Remove Louvain from every
-  layer") makes every cluster layer paint everyone in one color (F). The find box's `trained`
-  (`on_record`) selects the 15 (12), and nothing there restores the others. Everything has no
+  layer") makes every cluster layer paint everyone in one color (F). The find box's `trained` (`on_record`) selects the 15 (12), and nothing there restores the others; right-click > "New layer from selection" on them makes a rule layer "trained: yes, 15 nodes" (not a hand-picked one), which keeps its 15 after Control+O > Replace with the same file. Everything has no
   Which nodes: "Everything styles all 24 nodes: it is the base layer, under every other layer."
   Clicking a group in the color key does nothing. The Filters button switches the left panel from
   Style layers to Data. The find box's clear button and Escape empty the text but keep the 15 (12)
@@ -1241,15 +1210,14 @@ file" and Load were three). Things every path meets on this build:
   when reached, runs the analysis at once); Enter on the folder's
   Which nodes focuses the Louvain card; the card's value box is named "trained: how to match"
   while it holds "Yes"; "Remove trained" comes before the card's value
-  (Shift+Tab), and Tab from the value goes to "Add a condition"; from the folder row, Which nodes
-  is 10 Tabs on; Which nodes is named "Louvain: each layer's own value" while the screen shows
+  (Shift+Tab), and Tab from the value goes to "Add a condition"; from the folder row, Which nodes is 9 Tabs on (10 on 7d87760756); Which nodes is named "Louvain: each layer's own value" while the screen shows
   "Louvain: <<Layer>>". The "Select layers..." route (the `several` route) works; its checkboxes
   have no accessible name, checking the folder's box checks none of its layers, the folder's own
   checkbox shows partly checked with all three layers checked, and with the picker open two
   buttons are named "Done". Other ways in: "Open network data" (no local file); New project >
   "Add data..." (Cancel returns cleanly; the project stays "Untitled"); a file dropped on the
   empty project's canvas is not taken, though the start page says "Or drop a file anywhere";
-  Control+O with the graph open ("Add to Untitled", Replace first; Cancel).
+  Control+O with the graph open ("Add to Untitled", Replace first; Cancel). The table opened after the run: its Nodes tab's Louvain column reads Group 1 to 3, as the key and Memberships do; Escape in the grid goes to the Table button.
 - **Final screen:** 15 (B: 12) dots in cluster colors, 9 (B: 12) in the starting color. The color
   key still lists every group.
 
@@ -1258,7 +1226,7 @@ file" and Load were three). Things every path meets on this build:
 - **Walked on 7d87760756** by `rounds/r1/pilot/T49A/` (`h-pointer/`, `h-detours-a/`,
   `h-detours-b/`, `h-keyboard/`, `h-keyboard-samples/`; `h-detours-a-misstep/` opened the wrong
   sample and is set aside) and `T49B/` (`k-pointer/`, `k-detours-a/`, `k-detours-b/`,
-  `k-detours-c/`, `k-keys/`), all three ways on both halves.
+  `k-detours-c/`, `k-keys/`), all three ways on both halves. B walked again on 6de5f95d12 by `rounds/r1d1/pilot/T49B/` (`n-pointer/`, `n-detour-color/`, `n-detour-menus/`, `n-detour-remove/`, `n-keys/`): the same look hashes, names, notices and Tab counts.
 - **Success (S):** after the follow-up, the drawing and the style tree are as they were when the
   sample opened: the last line of `styles-steps.jsonl` has the same `look` as its first line after
   the sample opened (not its first line with `graph: true`, which on this build is the start
@@ -1323,26 +1291,26 @@ file" and Load were three). Things every path meets on this build:
 
 ## T50. What a colleague's color picks out
 
-- **Cannot be walked on build 7d87760756** (`rounds/r1/pilot/T50A/`: `v2-pointer/`,
-  `v2-detours/`, `v2-detours-b/`, `v2-keyboard/`; `T50B/`: `f1-pointer/`, `f2-detours/`,
-  `f3-keyboard/`). Each project opens with its data (77 nodes and 254 edges, B 24 and 63, every
-  column) but without its look: the notice "Opened lesmis-poster. 1 part did not come back." (B
-  "Opened volunteers-thanks. ...") names no part and offers nothing; Style layers is empty (no
-  Poster or Thank-you cards layer, not even Everything); nothing is drawn on the canvas, with no
-  message; the Legend reads "Nothing is styled yet"; `styles.json` ends with only "Node defaults"
-  and "Edge defaults". The same through "Open a file", Main menu > "Open project or file...", a
-  drop on the start page, Control+O with the project open (which replaces it at once, with no
-  Replace or Load page) and the keyboard. "Restore starting layers" (no tooltip) draws the
-  default indigo graph and never brings the colleague's layer back; its Undo reads "Undo
-  restoring the starting rows" and "Undid restoring the starting rows." The same files opened
-  with their layer on e3c5bca8e6, so this is a regression of the build. Every route below that
-  needs the layer has nothing to act on, and no participant can reach S or SD: a T50 session on
-  this build is build-decided (reported apart, with and without build-decided sessions, as
-  `criteria.md` asks), and the defect is a blocked task for preflight 4. The rest of this section
-  is the key as it held on e3c5bca8e6, for the build that fixes it. On this build the find box
-  answers `orange` and `green` with "No match" and a rule hint, the table and the Data place show
-  only the columns, the right-click menu and Graph actions say nothing about the look, and the
-  only orange on screen in T50 A is the start page's demo, which can mislead an answer.
+- **Walked on 6de5f95d12** by `rounds/r1d1/pilot/T50A/` (`w1-pointer/`, `w2-detours/`,
+  `w3-drop/`, `w4-keyboard/`) and `T50B/` (`g1-pointer/`, `g2-detours/`, `g2b-drop/`,
+  `g3-keyboard/`), and on the same build from `T37A/6de-r2/t50a-success/`, `T37B/` (`g-t50a/`,
+  `g-t50a-detours/`, `g-t50a-keys/`, `g-t50b/`) and `T43B/6de5f95d12/` (`rp-t50a-*`, `rp-t50b-*`,
+  `rp-old-project/`). Both project files were saved by an earlier build and open with their look
+  on every way in: "Open a file", Main menu > "Open project or file...", a drop on the start page,
+  New project > "Add data...", and Control+O with the project open (which replaces it at once,
+  with no Replace or Load page; after a change it first asks "Discard unsaved changes?", saying
+  the changes are lost while the top bar reads "Autosave: saved"; Escape closes it with focus back
+  on Which nodes, and Discard reopens the project as sent). A opens with three orange dots, the
+  key "Color: Poster" with "3 of 77 nodes", and the layers Hovered, Selected, Poster (3) and
+  Everything (77); B with six green dots, the key "Color: Thank-you cards" with "6 of 24 nodes",
+  and the layer "Thank-you cards" (6). `changes.changed` stays empty on every route that only
+  reads. (On 7d87760756 both opened without their look, "1 part did not come back".) The find box
+  answers `orange` and `green` with "No match" and a rule hint; the key over the drawing has no
+  tooltip and does nothing on click. By keyboard, "Open a file" is the 14th Tab; after the open,
+  focus is on the heading "Graph, lesmis-poster: 77 nodes, 254 edges" (on B "Opened
+  volunteers-thanks" is spoken), the tree is reached by Shift+Tab (or F6 to the left panel), and the rule is spoken on
+  the button "Which nodes, 3 of 77 nodes, name contains Mlle, 3 nodes" (B "Which nodes, 6 of 24
+  nodes, hours 30 to 52, 7 nodes, trained: yes, 15 nodes").
 - **Success (S):** A: names the 3 orange characters (Mlle Baptistine, Mlle Gillenormand, Mlle
   Vaubois) and says what they share: "Mlle" in their name, read from the layer's conditions. B: says
   6 people are green and that they gave 30 or more hours and finished training, read from the
@@ -1352,9 +1320,7 @@ file" and Load were three). Things every path meets on this build:
   the names alone (all three start "Mlle") is SD under bar 1, recorded as "rule not read", and counts
   as not read (F) for question 5, which is reported per half: A's names give the rule away. On B a
   green count of 7 or 15 read off a single card's chip is F.
-- **Success path (A, 3 steps once the layer loads; 4 on e3c5bca8e6, whose start screen added "No
-  thanks"):** 1. "Open a file", lesmis-poster.graphty.json (the project should open with three
-  orange dots and a key "Color: Poster, 3 of 77 nodes"). 2. The "Poster" layer (Style open: "Which
+- **Success path (A, 3 steps; 4 on e3c5bca8e6, whose start screen added "No thanks"):** 1. "Open a file", lesmis-poster.graphty.json (the project opens with three orange dots and the key "Color: Poster", "3 of 77 nodes"). 2. The "Poster" layer (Style open: "Which
   nodes 3 of 77", the chip "name contains Mlle, 3 nodes"). 3. Values: the
   members, by id (`MlleBaptistine`), or click each orange dot (3 more steps; hover shows nothing).
   B: volunteers-thanks.graphty.json, "Thank-you cards": "Which nodes 6 of 24" with the chips "hours
@@ -1368,13 +1334,11 @@ file" and Load were three). Things every path meets on this build:
 - **Another route:** a colored node's Style > "Why this look" > "Open layer Poster" opens the
   layer on the tab last shown (usually Style, with the rule); that node's own Style tab shows Fill
   with "+" and no Color line. Opening the rule (a click on the chip) opens the card with its
-  suggestion list closed and focus in its first box; the first Escape closes the card, and Enter,
-  Escape and Done all leave the rule unchanged. On A, one ArrowDown opens the list of the three
+  suggestion list closed and focus in its first box; Escape keeps the card open with focus in its box (as `decided.md` 2026-10-19 settles), and Enter or Done closes it; none of them changes the rule. On A, one ArrowDown opens the list of the three
   names with nothing highlighted (Enter then changes nothing); a second ArrowDown and Enter
   rewrites the rule (`Mlle Baptistine`, 1 of 77): a change to the colleague's project, which
   `changes.changed` shows; Control+Z undoes it, and the open card shows the restored text at once.
-  Grade the reading; a rule left rewritten is recorded as a wrong turn. On B, Enter in the from
-  box closes the card with focus on Which nodes; the trained value select opens Yes / No / Has a
+  Grade the reading; a rule left rewritten is recorded as a wrong turn. On B, Tab goes from the from box to the to box, and Enter in either closes the card with focus on Which nodes; the trained value select opens Yes / No / Has a
   value / Has no value over Add a condition and Done.
   Right-click > "Select what it paints" on the layer selects its nodes, but the selection names
   none of them. On B its summary reads "hours 31 to 52, mean 41.67", "trained Yes (6)" and "role
@@ -1382,8 +1346,7 @@ file" and Load were three). Things every path meets on this build:
   more hours and trained" taken from that summary alone is S ("Rules settled before round 1"). Everything's Color line on B
   reads "Covered by Thank-you cards on 6 of 24", the layer's name a link to it (A: "Covered by
   Poster on 3 of 77"). Members on the Values tab are listed by id; Enter or a click on one selects
-  it and replaces the layer's inspector with the node's (titled by id), and Escape there clears
-  the selection and leaves focus on the Graph heading with the layer closed. The find box answers
+  it and replaces the layer's inspector with the node's (titled by id), and Escape there clears the selection and leaves focus on the Graph heading with the layer closed (against `decided.md` 2026-10-19, which returns to the layer with focus on that member's row: a defect, the key counts the screen). The "Why this look" row "Poster Color" (named "Open layer Poster") has no tooltip. The find box answers
   `orange` and `green` with "No match"; the table has no color column and cannot show only the
   selection.
 - **Final screen:** the layer's Style with its conditions shown; nothing changed
@@ -1461,6 +1424,21 @@ file" and Load were three). Things every path meets on this build:
   reading `data.role` (or `data.kind`), palette okabe-ito.
 
 ## Change log
+
+- 2026-10-20 (round 1 pilots on 6de5f95d12): the key reads the frozen build 6de5f95d12 as the
+  pilots in `rounds/r1d1/pilot/` saw it (21 halves; each task names its folders). No step count,
+  no success definition and no bar changed: every success path walked matched its count. Changed
+  to match the screen: T50 is walkable again (both projects open with their look on every way in;
+  Escape keeps a rule card open, Enter or Done closes it); Control+O > Replace with the same file
+  keeps hand-picked and rule layers on the same nodes or edges (T38, T41, T43, T45, T48), and an
+  exported-then-reopened GraphML adds extra "A group from the file" layers; the table's Louvain
+  column reads "Group N" (T46, T47, T48); Les Miserables' library card gives its counts and the
+  in-app sample menu says "Open now" (T37); "New layer from selection" opens on the Node tab (T39);
+  the label count is spoken (T44); keyboard counts (T38, T39, T42, T43, T44, T45, T46, T48) and
+  T45 B's foot and layer-kind lines; the drawing moving with a selection held is marked a defect
+  where the key had called it expected (T39, T40). T44 B: after Replace and two undos a deleted
+  label layer's name stays drawn and the style tree over-reports `node.label`; such a session's
+  "every node carries its name" is graded from the last screenshot.
 
 - 2026-10-20 (round 1 pilots on 7d87760756): the success paths and their notes match the frozen
   build 7d87760756 as the pilots in `rounds/r1/pilot/` saw it, every half walked by pointer,

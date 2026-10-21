@@ -829,6 +829,7 @@ export class DataManager implements Manager {
                     addedNodes++;
                 } else if (record !== undefined && node !== undefined) {
                     adoptNodeRecord(node, record as AdHocData<string | number>);
+                    this.placeKept("node", node, this.store.builder.indexOf(id));
                 }
             }
         }
@@ -860,6 +861,7 @@ export class DataManager implements Manager {
                 }
             } else if (edge !== undefined) {
                 adoptEdgeRecord(edge, record as AdHocData);
+                this.placeKept("edge", edge, this.store.edgeIndexOf(counter));
             } else if (pending !== undefined) {
                 pending.record = record;
             } else {
@@ -892,6 +894,32 @@ export class DataManager implements Manager {
         }
 
         return { added: addedNodes + addedEdges, removed: removedNodes.length + removedEdges.length };
+    }
+
+    /**
+     * Put a render object the slice keeps back on its row, and queue it to be drawn from that row's
+     * paint. Undoing a replacing load puts the graph it replaced back as a new builder, whose walk
+     * from the old rows names none of them, so a node or edge drawn in both graphs (a file opened
+     * over itself) was left with no row: every later repaint missed it and it kept the look it had.
+     * @param target - Node or edge.
+     * @param element - The render object.
+     * @param row - Its row in the store now.
+     */
+    private placeKept(target: "node" | "edge", element: Node | Edge, row: number): void {
+        if (element.index === row) {
+            return;
+        }
+
+        if (element instanceof Node) {
+            placeNodeRow(element, row);
+        } else {
+            placeEdgeRow(element, row);
+            if (row !== INVALID_INDEX) {
+                this.edgeRows[row] = element;
+            }
+        }
+
+        this.graphContext?.getStylePainter?.()?.queue(target, row);
     }
 
     /**

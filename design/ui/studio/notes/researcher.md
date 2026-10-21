@@ -10,10 +10,13 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-20) Round 1 is frozen on 7d87760756 (holds golden); the key now reads that build from
-  all 30 halves' pilot walks. T50 is BLOCKED there: both project files open without their style
-  part ("1 part did not come back"), a regression from e3c5bca8e6; T50 sessions are
-  build-decided until it is fixed (preflight 4 blocked task).
+- (2026-10-20) Round 1 is frozen on 6de5f95d12; the key reads it from 21 halves' targeted
+  re-pilots (rounds/r1d1/pilot/). T50 is unblocked (projects open with their look). Replace with
+  the same file now keeps layers. Open grading-spoiler for preflight 4: T44 B Replace + two undos
+  leaves a deleted label drawn and the tree over-reports node.label (graded from the screenshot).
+- (2026-10-20) Pilot "mismatches" are often the key being right and decided.md being wrong-way
+  (Escape on a member, drawing jumps): the key counts the screen and names the contradiction;
+  never rewrite the key toward decided.md.
 - (2026-10-20) The start page's demo is the first graph the tool records: styles-start.json,
   `changes` and the first `graph: true` steps line are the demo. Grade layers from styles.json
   itself; T49's start is the first steps line after the sample opens. real.mjs also prints "the
@@ -79,6 +82,15 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-20 (6de5f95d12 re-pilots into the key):** Kept every step count and bar: every
+  walked success path matched. Marked "the drawing jumps ~130 px" as a defect where T39/T40 had
+  called it expected, because decided.md settles that a key never re-frames. For T44 B's broken
+  state (tree says 24 labels, screen shows 1) I added a grading line -- grade from the last
+  screenshot -- because the success rule reads the tree and would give a false S; this is a
+  grading rule for a build defect, not a bar change, and it is flagged for preflight 4. Did not
+  touch tasks.md: no pilot found a wrong prompt. Wrote older-build facts as "(on 7d87760756 ...)"
+  instead of deleting them, so a grader on a different build can still tell.
 
 - **2026-10-20 (pilots on 7d87760756 into the key):** Patched answers.md task by task from 30
   pilot outputs (no report.md rewritten). File tasks lose a step ("Open a file" + Load replaces
@@ -177,6 +189,12 @@ logged). Their reasons, in short:
   section plus scoped edits per build; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-20 (6de5f95d12 re-pilots into the key) -- Worked: matching each old string with any
+  whitespace run standing for any other (`\s+` join), so key paragraphs wrapped across lines
+  match without copying line breaks; it caught one misquote before writing. `prettier
+--ignore-path /dev/null --check` on the edited files (the plain run on a tmp copy printed
+  nothing). Did not work: `--no-ignore` (not a prettier flag; failed silently).
 
 - 2026-10-20 (7d87760756 pilots into the key) -- Worked: one python helper that asserts each old
   string occurs once before replacing (caught a T40 success line shared with T47 and a misquoted

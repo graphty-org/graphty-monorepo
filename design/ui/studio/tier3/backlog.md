@@ -4,6 +4,74 @@ Problems that neither block a task nor mislead a reader: spacing, alignment, a c
 meaning still reads, a working but inconsistent component. They are fixed later in batches, each
 with a test, never inside a dry-run loop. Newest first.
 
+## From the dry run pass 2 on build 6de5f95d12 (2026-10-20)
+
+Every entry passed the session-ready bar: a participant gets past it. Kinds: friction, wording, cosmetic,
+accessibility (accessibility entries also go to the accessibility expert's walkthrough). Screens are under
+`rounds/r1d1/pilot/<task>/`; each entry's full list of rows is its section in `dry-run-r1-2.md`. An entry
+named as on 7d87760756 was seen again on this build. Most-walked first.
+
+- Sample thumbnails are broken images (cosmetic). Seen on T37A (6de-r2/pointer/02.png), T37B (g-success/05.png), T39A (i-pointer/03.png), T39B (v2-pointer/03.png), T40A (rp-pointer/03.png), T43A (r3-pointer/session.log), T43B (rp-pointer/01.png), T44A (r2-pointer/03.png), T44B (walk-pointer/02.png), T45B (w-pointer/03.png), T46A (r2-pointer/05.png), T47A (p3-pointer/02.png), T47B (rp3-pointer/03.png), T48A (6de5c-detour-start/05.png), T48B (x-detours/03.png), T49A (p3-pointer/03.png), T49B (n-pointer/03.png), T51B (rp-pointer/02.png).
+- F6 misses the top bar and stops on resize handles (accessibility). Seen on T37A (6de-r2/keyboard), T37B (g-t50a-keys), T38A (w7-keyboard), T41B (w3-keys), T42A (6de2-keyboard/21-26.png), T42B (rp-keys/27-38.png), T43A (r3-keyboard/20-33.png), T44A (r2-keyboard/63-77.png), T46A (r2-keyboard), T46B (b-keyboard/42-46.png), T47A (p3-keyboard/73-78.png), T48A (6de5c-keys/69-72.png), T49B (n-keys/100-113.png), T50A (w4-keyboard/88-94.png), T50B (g3-keyboard/20.png), T51B (rp-keyboard/38-39.png).
+- The drawing moves without the reader asking (friction). Seen on T38A (w7-find-replace/08-09.png), T38B (r3-find-replace/09-10.png), T39A (i-detours/12-14.png), T39B (v2-detours/16-18.png), T40A (rp-detour-find/08-10.png), T41A (r1d1-detour-start/13-15.png), T41B (w3-findlayer-replace/07-09.png), T42A (6de2-detour-start/22-23.png), T42B (rp-detour-find/06.png), T43A (r3-detours/14-15.png), T43B (rp-find-replace/11.png), T47A (p3-detours/47-49.png), T51A (q3-findbox-replace/05.png).
+- Enter on the start page's Samples leaves focus behind (accessibility). Seen on T39A (i-keys/21.png), T39B (v2-keys/20.png), T40A (rp-keyboard/18-19.png), T44A (r2-keyboard/24-25.png), T46A (r2-keyboard/22.png), T46B (b-keyboard/22.png), T47A (p3-keyboard/18-19.png), T49A (p3-keyboard/22.png).
+- A focused heading draws no ring (accessibility). Seen on T38A (w7-keyboard/17.png), T40B (6de3-keyboard/17.png), T41B (w3-keys/19.png), T46A (r2-keyboard/122.png), T49A (p3-keyboard/43.png), T49B (n-keys/41.png), T51A (q4-keys/20.png).
+- "Which nodes" with no condition opens without its attribute list (friction). Seen on T38B (r3-pointer/07.png), T40B (6de3-pointer/07.png), T41B (w3-pointer/06.png), T42A (6de2-success-pointer/07.png), T42B (rp-pointer/06.png), T45B (w-pointer/08.png), T48A (6de5c-detour-start/45.png).
+- A node is named by its id, not its label (wording). Seen on T38B (r3-find-replace/04.png), T39B (v2-detours/14.png), T43A (r3-detours/12.png), T44A (r2-detours/07.png), T44B (walk-keys/83.png), T46B (b-pointer/10.png), T50A (w1-pointer/04.png).
+- The private-window notice on every open (accessibility, friction). Seen on T37A (6de-r2/keyboard), T37B (g-success/06.png), T39B (v2-pointer/04.png), T40B (6de3-keyboard), T41B (w3-pointer/03.png).
+- After Replace the drawing is framed right of center (friction). Seen on T38B (r3-find-replace/13.png), T40B (6de3-detour-find/15.png), T41A (r1d1-detour-start/23.png), T41B (w3-pointer/19.png), T51B (rp-find-replace/13.png).
+- Escape on a member opened from a layer's list closes the layer (friction). Seen on T37B (g-t50a-keys/59.png), T43B (rp-t50a-keys/52.png), T50A (w4-keyboard/74.png), T50B (g3-keyboard/77-78.png).
+- Reopening an exported GraphML adds the file's own style groups (friction, cosmetic). Seen on T37B (g-findlayer/28-29.png), T37B (g-findlayer/28.png), T37B (g-findlayer/26.png), T37B (g-findlayer/26.png).
+- A pick glides to a point right of the canvas center, or zooms (friction). Seen on T38A (w7-find-replace/17.png), T41B (w3-pointer/16.png), T43A (r3-detours/17-25.png), T48B (x-table/10.png).
+- Escape in a popover's or the picker's box reverts silently (accessibility). Seen on T39A (i-keys/82.png), T49A (p3-detours-a/12.png), T49B (n-detour-color/07-08.png).
+- Selected and styled things are hard to read (friction). Seen on T41A (r1d1-detour-start/20.png), T43A (r3-detours/25.png), T45B (w-detour-find/12-13.png).
+- Two controls share a name (accessibility). Seen on T37B (g-success/03.png), T47A (p3-keyboard/03.png).
+- Opening the table re-frames the drawing (friction). Seen on T37B (g-handpicked/17.png), T41B (w3-keys/89.png).
+- A find-box pick after Replace draws no selection ring (friction). Seen on T38A (w7-find-replace/18.png), T43B (rp-find-replace/15-16.png).
+- Undo's words for a load or a setting (wording). Seen on T38A (w7-detour-newdata/14.png), T47A (p3-keyboard/122.png).
+- Replace takes two pages and two clicks (friction). Seen on T38B (r3-find-replace/11-12.png), T43A (r3-detours/28-29.png).
+- Removing a line slides the next one under the pointer (friction). Seen on T39A (i-detours/22.png), T39B (v2-detours/13.png).
+- A sample card's name leaves out its visible title (accessibility). Seen on T40A (rp-keyboard), T49A (p3-keyboard/22.png).
+- A tooltip and the control's name differ (accessibility). Seen on T40B (6de3-detour-filter/16.png), T44A (r2-pointer/11.png).
+- "Has no value" and number hints in find (wording). Seen on T41A (r1d1-detour-start/07.png), T45B (w-detour-find/04.png).
+- "Style nodes" or "Style edges" drawn dimmed with no reason (friction). Seen on T41A (r1d1-detour-start/13.png), T41B (w3-findlayer-replace/07.png).
+- The start page's demo comes before "Open a file" in Tab order (accessibility). Seen on T41A (r1d1-keys), T50A (w4-keyboard/02-15.png).
+- Escape on the inspector and in dialogs (friction). Seen on T43A (r3-detours/26.png), T46A (r2-keyboard/111.png).
+- "Open network data" is a dead end for a local file (friction). Seen on T43A (r3-file-in/03.png), T47A (p3-detours/55.png).
+- An icon or truncated control has no tooltip (accessibility). Seen on T44A (r2-detours/20.png), T50A (w1-pointer/07.png).
+- The right-click menu stays where the node was (friction). Seen on T44B (walk-detours/27.png), T47A (p3-detours/45.png).
+- A tooltip covers the next control (cosmetic). Seen on T45B (w-pointer/18.png), T47A (p3-pointer/17.png).
+- The analysis filter: Tab lands on a disabled button, Escape on Back does nothing (accessibility). Seen on T37A (6de-r2/keyboard/64-66.png).
+- Two analyses named Degree after a run (wording). Seen on T37A (6de-r2/detours/33.png).
+- A layer made from a selection is named and shown as its count (wording). Seen on T37B (g-findlayer/10.png).
+- Degree colors too close to tell apart (cosmetic). Seen on T37B (g-success/11.png).
+- Enter on a condition's checkbox closes the picker without ticking (accessibility). Seen on T38A (w7-keyboard/48.png).
+- A click on the layers '+' while the find list is open is lost (friction). Seen on T40A (rp-detour-useselected/05-06.png).
+- Dropping an unfinished card leaves the layer (friction). Seen on T41A (r1d1-detour-picker/13.png).
+- Escape on a page or form does the wrong thing (friction). Seen on T41B (w3-findlayer-replace/11-12.png).
+- Tab in a list with letters typed takes nothing (friction). Seen on T43A (r3-keyboard (size popover)).
+- The table names a column differently from the file (wording). Seen on T43A (r3-pointer/11.png).
+- An unset line does not take its value on Enter (friction). Seen on T43B (rp-find-replace/09.png).
+- Escape in a condition card closes the picker (friction). Seen on T43B (rp-t50b-keys/40.png).
+- With the table open, a find pick does not scroll the table (friction). Seen on T43B (rp-t46b-table/07-08.png).
+- Tab in a box that writes keeps focus in the box (friction). Seen on T44A (r2-detours/25.png).
+- The read-the-file page's column-role boxes look like menus and do nothing (friction). Seen on T44B (walk-detours/07-08.png).
+- New project names the work "Untitled" (wording). Seen on T44B (walk-detours/09.png).
+- "Edit discarded" squeezes its row (cosmetic). Seen on T44B (walk-pointer/15.png).
+- After Undo an unset line stays drawn (cosmetic). Seen on T45B (w-detour-nodetab/15.png).
+- Analysis popover cosmetics (cosmetic). Seen on T45B (w-detour-everything/07.png).
+- A list closed with unmatched letters reopens stale (friction). Seen on T47A (p3-keyboard/111.png).
+- The shape list's highlight (friction). Seen on T47A (p3-pointer/11.png).
+- The folder and run look (accessibility). Seen on T47A (p3-keyboard/92.png).
+- The start page demo (friction). Seen on T47A (p3-detours/05-07.png).
+- Open layer from Why this look focuses another line (friction). Seen on T47A (p3-detours/26.png).
+- The restore card names the work differently (wording). Seen on T47A (p3-detours/52.png).
+- The library search: Enter, a spoken count, the chips (friction). Seen on T47A (p3-detours2/03.png).
+- The key covers nodes, scrolls, or shows a range its nodes do not hold (friction). Seen on T48A (6de5c-pointer/06.png).
+- Escape on a just-added line or card says nothing, or takes back typed text (friction). Seen on T49B (n-detour-remove/08-09.png).
+- Tab never leaves the color picker (accessibility). Seen on T49B (n-keys/116-131.png).
+- Leaving and discarding (wording). Seen on T50A (w2-detours/10.png).
+
 ## From the dry run on build 7d87760756 (2026-10-20)
 
 Every entry passed the session-ready bar: a participant gets past it. Kinds: friction, wording, cosmetic,

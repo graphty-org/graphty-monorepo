@@ -5,12 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-21 (tier 3 round 1 closed; studio stopped at the round cap).
+Last updated: 2026-10-21 (tier 3 report rewritten with round 1's results; studio stopped at the round cap).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-10-21) TIER 3 REPORT REWRITTEN with round 1's results; the subagent harness again refused
+  `tier3/report.md`, so the text went back to the orchestrator to write. Next move is the owner's:
+  whether to fund round 2. Owner list is ELEVEN, not nine: the earlier draft missed the edge
+  line-width unit (2026-10-09) and the bare number in rules (2026-10-07); the fold region is
+  settled by the owner's 2026-10-10 minor-release ruling (tier 2 report says so).
 - (2026-10-21) TIER 3 ROUND 1 CLOSED; THE STUDIO STOPPED at the 1-round cap without meeting the
   bars. Read `tier3/rounds/round-1/insights.md` first. 55 of 56 sessions succeeded; the round is
   at its ceiling: signal is in cost, routes and problems, not success.
@@ -32,21 +37,22 @@ history.
   family as the backlog `followSelection` vs `setViewInsets` jump); "community" filter misses;
   swatch focus drawn as hex box focus. The wheel-zoom claim is a tool artifact until a 30-notch
   repro.
+- (2026-10-21) Light-theme contrast is ONE element (the "Autosave: saved" chip, 2.17:1), not every
+  screen as the pre-round draft said. Round 1's 11 voids were one runner mechanism (start inside
+  the participant's turn); 0 Sonnet sessions.
 - (2026-10-21) Owed before any next round: `score.mjs` bar 4 start from first steps line after
   open; criteria decision on CSS keywords inside the asked hue's band; a measure separating
   avoiding the `<<Layer>>` token from understanding it; read tasks for leading (the answer key
   names most problems graders cite).
-- (2026-10-21) Still open from before the round: bars 6 and 8 (light-theme contrast,
-  target-size, Samples/Docs/GitHub names, four screens over word limits) lead the fix list; raw
-  `>` threshold card must be fixed before T42 runs.
+- (2026-10-21) Fix order after the go: `colorWord`, bar 6, bar 8, the two carried-in 3s, the
+  four severity 2 design problems, the six repro'd defects; raw `>` card before T42 runs.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Do not let a
   ceiling round read as "the product is easy".
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
 - (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
   unit with the owner's leave. No bypass trailer.
-- Owner items open (nine, all breaking or defaults; `owner-decisions.md`), plus the
-  compact-mantine fold region to confirm.
+- Owner items open: eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
 
 ## Priorities and values
 
@@ -87,19 +93,23 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
+  round, per-task table, learnings in insight order, changes by package with whether round 1
+  confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the
+  reader's, but stands (frozen rule); the earlier "contrast fails on every screen" is corrected to
+  one chip because round 1 measured it; the owner list recounted entry by entry against owner
+  rulings (eleven; fold region dropped as settled 2026-10-10); a Cube synonym listed as rejected
+  (one task's word). Next steps put instrument work (bar 4 start, keyword-in-hue rule, token
+  measure, leading check, start-before-turn) ahead of product fixes because it costs no sessions.
 - **2026-10-21, round 1 closed, studio stops.** Accepted the skeptic-settled insights as the
   round's record: no new severity 3; bar 5 held open only by carried-in backlog items; bar 1's F
   stands under the frozen rule though the reader was right. Reason: changing a frozen rule after
   seeing results would make the grade mean nothing; the rule question goes to criteria between
   rounds instead. The next fix list leads with `colorWord` (shared, fixes grade and speech), then
   bars 6 and 8, then the four severity 2 design problems.
-- **2026-10-21, tier 3 report with round 1 not run.** Reported the state as it is: no bar scored,
-  bars 6 and 8 given as "would fail" from preflight measurements, not as a round's result. Did not
-  fix the bar 6 and 8 items before round 1: the round cannot pass by plan, a fix changes the build
-  and restarts the readiness walks, and the round should measure the build the walks cleared.
-  The tool's 900 x 700 gap does block the round: a bar the instrument claims to read and does not
-  is worse than an unscored one. Owner list counted from `owner-decisions.md` entries with no
-  owner answer: nine.
+- **2026-10-21, tier 3 report with round 1 not run** (superseded the same day). Bars 6 and 8 not
+  fixed before round 1 (round cannot pass by plan; a fix restarts the walks); the tool's 900 x 700
+  gap did block the round.
 - **2026-10-21, dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`).** 141 lines, 0 (a). Not
   (a), with reasons: the selection-held jump (layer graded from `styles.json`, names only as read
   from screen, Fit recovers, T41's success path already needs Fit after the owner's glide); the raw
@@ -178,6 +188,12 @@ history.
   an automation artifact (storage notice). Did not work: tasks whose wording leads (the answer key
   describes the problems graders cite; "Cube", "clusters" in B prompts) and a success bar on tasks
   the model always finishes -- 55 of 56 told us little.
+- 2026-10-21 (report after round 1) -- Worked: re-reading every "For the owner" heading in
+  `owner-decisions.md` and the tier 2 report's owner section instead of copying the earlier list;
+  it found two open items the earlier draft dropped and one it should have dropped. Worked:
+  checking each pre-round claim against round 1's measurement (contrast was one chip). Did not
+  work: the Write tool again refused `tier3/report.md` from a subagent; the text goes back in the
+  return value. Do not retry it next time; write it straight into the return.
 - 2026-10-21 (tier 3 report) -- Worked: checking the round folder and the briefing folders before
   writing (56 briefings, no `01.png` anywhere) so the report did not invent a round. Worked:
   reading `owner-decisions.md` entries for an owner answer before listing them (the number box
@@ -191,29 +207,13 @@ history.
   `session.json` commits showed T48 A's "unwalked" success path was walked on the same build by an
   earlier session. Worked: the rows file plus generator again (141 rows, per-task counts asserted).
 
-- 2026-10-20 (dry run pass 2) -- Worked: a Node repro before writing unit 1. The app's notice
-  ("That rule could not be used") hid the element's reason; one script with three patch variants
-  showed the selector alone is refused and why (`checkShape`), and that A is exposed too, which the
-  answer key's walk order had hidden. Worked: walking an unjudged task's (a) on round 1 data myself
-  (one browser, 16 steps) instead of guessing whether T44 B's ghost label reaches round 1; it did,
-  with a color. Worked: the triage generated from one rows file with asserts (228 lines, per-task
-  counts) so the file, the backlog and the counts cannot drift. Did not work: my first draft of the
-  totals carried pass 1's walk counts into prose; the generator's own counts replaced them.
-- 2026-10-20 (dry run pass 1) -- Worked: reproducing the T50 blocker in Node against the built
-  element's `./session` entry before writing the unit (two short scripts in
-  `tmp/director-r1-1/`): the report's one problem code led to the one channel in two minutes, and
-  the unit names a cause, not a symptom. Worked: reading `answers.md` "How a session is graded"
-  before classing spoils; four candidates were already graded around. Worked: a script that checks
-  every pilot line is classed exactly once (`tmp/director-r1-1/count.py`), and a second that turns
-  the backlog sections into `backlog.md` entries. Did not work: the workflow's file name for this
-  pass reused `dry-run-r1-1.md`, overwriting the 2026-10-17 triage; it lives in git (7c241de4b).
-- 2026-10-20 (criteria review) -- Worked: reading the design-studio skill before taking the red
-  team's "owner picks the build": the workflow writes line 1 when it freezes a build after the
-  criteria, so the right fix is a checkable rule (`--is-ancestor f9d8b44b9`), not a question.
-  Worked: one Python script with exact-once replacements for four files (it refused nothing, and a
-  miss would have stopped it). Worked: checking the claims I relied on (golden ancestry, the
-  token's spoken name in `words.ts`, no 30-hour volunteer). Did not work: "does not pass until"
-  sentences in preflights; three reviews found the same tool work unbuilt. Gate refusals instead.
+- 2026-10-20 (dry run passes 1 and 2, criteria review; summarized 2026-10-21, full text in git
+  history) -- Worked: a Node repro against the built element before writing a unit (the problem
+  code led to the cause in minutes); walking an unjudged task's (a) candidate myself; reading
+  `answers.md` grading before classing spoils; one rows file plus a generator with asserts for
+  every triage; reading the design-studio skill before taking a red-team claim. Did not work: a
+  pass file name reused (history in git); prose counts copied from an earlier pass; "does not pass
+  until" sentences in preflights (gate refusals instead).
 - 2026-10-19 (r1-5 and criteria review; summarized 2026-10-21) -- Worked: reading each fix
   commit's message before classing origin (two lines named 26 of 37 regressions); grepping for a
   decided rule's code before calling a defect a regression; reading `gateCheck` before taking a
@@ -237,6 +237,10 @@ history.
 
 ## Thinking
 
+- **2026-10-21, after round 1:** the cheapest next round is one where the instrument moves first.
+  Every pre-round claim I carried as a measurement (contrast on every screen, the private-window
+  notice gone with a disk profile) was narrower or different once the round measured it. Report
+  pre-round numbers as previews, and expect the round to restate them.
 - **2026-10-21, round 1:** success is saturated with same-model participants, so the next tier's
   bars should score cost (steps over key, wrong turns, routes) and named problems, not completion.
   The cheapest high-value fixes are shared ones where the product's words disagree with its
@@ -251,17 +255,11 @@ history.
   element had no rule for the moment after the pick. When two decided behaviors both own the
   camera, write down which one wins in the overlap before anyone fixes either.
 
-- **2026-10-20, dry run pass 2:** both (a) defects were in the element and both were "two halves
-  of one verb disagree": `addRow` admits what `update` refuses, and Undo restores the layers but
-  not the drawing. When a fix makes one verb accept a new state (an empty row, a reload over the
-  graph), pilot the next verb on that state, not only the verb that was fixed.
-- **2026-10-20, dry run pass 1:** a merge from upstream is a fix pass nobody triaged. The only
-  blocker on this build came from the golden merge, not from the studio's own fixes, and it broke
-  saved files, which no pilot opens unless a task brings one. Every merge into a frozen line needs
-  one walk that opens a file saved by the previous build.
-- **2026-10-20, criteria review:** the build line went stale the same way twice (a docs commit,
-  then a golden merge after the freeze). A frozen document that names a build needs a rule that a
-  script can check against the build, not a sentence about what the build contains.
+- **2026-10-20 (summarized 2026-10-21):** two halves of one verb disagreeing (`addRow` vs
+  `update`, Undo restoring layers but not the drawing) is the element's recurring defect shape;
+  pilot the next verb on any newly accepted state. A merge from upstream is an untriaged fix pass:
+  walk one file saved by the previous build. A frozen document naming a build needs a
+  script-checkable rule.
 - **2026-10-19, r1-5:** the regressions are not spread out; they come from a fix that answered one
   complaint by flipping a single switch the complaint's neighbors also depend on (when to frame,
   whether the list starts open, where focus goes after a write). Before a fix group lands, list

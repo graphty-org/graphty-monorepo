@@ -237,6 +237,52 @@ describe("Graphviz layouts in the element", () => {
         }
     });
 
+    it("draws a DOT file the same whether or not a frame is drawn between its load and its layout", async () => {
+        // dot-real-depcruise stores no positions and was drawn at 0.75 of the canvas in one oracle
+        // run and 1.29 in the next: on a busy machine no frame fell between its styles and its
+        // layout. The same file must give the same drawing however its data arrives.
+        const file = "digraph { rankdir=LR; node [shape=box, width=2, height=0.5]; a -> b; a -> c }";
+        await graph
+            .getSession()
+            .data.import({ type: "dot", config: { data: file } }, { styles: "file", layout: "recommended" });
+        await settled();
+        const ids = ["a", "b", "c"];
+        const drawn = ids.map(at);
+
+        graph.dispose();
+        graph = new Graph(container);
+        await graph.init();
+        const asked = vi.spyOn(Worker.prototype, "postMessage");
+        const held: FrameRequestCallback[] = [];
+        const raf = window.requestAnimationFrame;
+        window.requestAnimationFrame = (callback) => held.push(callback);
+        try {
+            // The frame already queued runs; the one it asks for next is held until Graphviz is asked.
+            await vi.waitFor(() => {
+                assert.isNotEmpty(held);
+            });
+            await graph
+                .getSession()
+                .data.import({ type: "dot", config: { data: file } }, { styles: "file", layout: "recommended" });
+            await vi.waitFor(() => {
+                assert.isTrue(asked.mock.calls.length > 0, "Graphviz asked before any frame is drawn");
+            });
+        } finally {
+            vi.restoreAllMocks();
+            window.requestAnimationFrame = raf;
+            for (const callback of held.splice(0)) {
+                callback(performance.now());
+            }
+        }
+        await settled();
+        const late = ids.map(at);
+
+        ids.forEach((id, i) => {
+            assert.closeTo(late[i].x, drawn[i].x, 1e-3, `${id}.x`);
+            assert.closeTo(late[i].y, drawn[i].y, 1e-3, `${id}.y`);
+        });
+    });
+
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {
         // The file's lengths are kept as points, so Graphviz's half-inch ranksep is 36 scene units:
         // the boxes' centres are one box height (as drawn) plus 36 apart.

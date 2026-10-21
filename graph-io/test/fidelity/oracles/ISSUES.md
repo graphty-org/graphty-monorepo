@@ -117,7 +117,11 @@ What the merge with master changed (judged against the same run of the branch be
   seed must give the same drawing however the data arrives, so this is an open graphty-element defect (master's
   first-frame paint, eb56d74ba, changed when imported rows are painted, a likely place to look); its floors are
   the lower of the two runs and its known failures the union. Graphviz's own layout engine is the separate open
-  gap of I12-I17.
+  gap of I12-I17. Fixed 2026-10-21: the file is laid out by Graphviz, which spaces nodes by their drawn size, and
+  a node's mesh took the size its style paints only when a frame drew that paint; when no frame fell between the
+  load's styles and its layout (a busy machine), Graphviz was handed every node as the unstyled default circle. A
+  snapshot layout now draws the paint that has arrived before it reads node sizes. Four runs (one with every core
+  busy) drew every node at the same place, frame fill 0.865 against Graphviz's 0.958, frame.zoom 1 on both views.
 - A merge regression found and fixed: master's yEd SmartNodeLabelModel reading placed a label hung from a node's
   top edge as a header inside it, overriding the label's stored box; `graphml-stm32-func` fell from 0.95 to 0.75 on
   label offset. The stored box decides again, and the ratios only where a file stores no box.

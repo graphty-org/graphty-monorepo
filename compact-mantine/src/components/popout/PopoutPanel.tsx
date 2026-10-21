@@ -15,6 +15,7 @@ import { createPortal, flushSync } from "react-dom";
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
 import type { PopoutPanelProps, PopoutPosition } from "../../types/popout";
 import { useDirection } from "../../utils/rtl";
+import { capped, visualBand } from "../overlays/viewportCap";
 import { useFloatingPanel } from "./hooks/useFloatingPanel";
 import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
@@ -75,8 +76,9 @@ function fitInWindow(
     options: { beside: boolean; boundaryTop: number; placed: Placed | null; within: DOMRect | null },
 ): void {
     const { beside, boundaryTop, placed, within } = options;
-    // A margin off the window's bottom, so the last control is never drawn on its edge.
-    const maxTop = window.innerHeight - POPOUT_WINDOW_MARGIN - size.height;
+    // A margin off the bottom of the window, or of the visual viewport when an on-screen keyboard
+    // or a zoom makes that shorter, so the last control is never drawn on its edge or under it.
+    const maxTop = Math.min(window.innerHeight, visualBand().bottom) - POPOUT_WINDOW_MARGIN - size.height;
     if (beside && placed?.rowTop === row.top) {
         next.top = placed.top;
     } else if (beside && next.top > maxTop && row.bottom - size.height >= boundaryTop) {
@@ -624,7 +626,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 width: "min-content",
                 ...(height !== undefined && { minHeight: height }),
                 ...(boundaryTop > 0 && {
-                    maxHeight: `calc(100vh - ${String(boundaryTop + POPOUT_WINDOW_MARGIN)}px)`,
+                    maxHeight: capped(`calc(100vh - ${String(boundaryTop + POPOUT_WINDOW_MARGIN)}px)`),
                 }),
                 // Hidden for the one commit between mounting and being measured,
                 // so the panel is never seen at an unmeasured position.

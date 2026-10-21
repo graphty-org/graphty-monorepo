@@ -17,6 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0x. (2026-10-20) A layer made from a selection takes its conditions before it has a look. A
+one-kind row from `styles.addRow` with no look was admitted empty (18f1cae069) but carries no `row`
+id, so its first `update`/`updateMany` that changed only the selector or name was re-checked as a
+lone layer and refused (E_BAD_LAYER "writes no channel"). Fix in `planUpdate` (StylesApi.ts): when
+the layer already writes no channel, the check gets `mayBeEmpty`, so renaming or re-selecting an
+empty layer stays allowed; emptying a layer that had a value still needs `keepEmpty`; `styles.add`
+unchanged. Non-breaking (only throwing calls now succeed); already recorded in owner-decisions.md.
+Test: `test/session/empty-row.test.ts` "of one kind takes a new selector or name..." (fails
+without: E_BAD_LAYER). Node: `tmp/director-r1-2/addrow-absent.mjs` prints ok x3 for sources/email
+and volunteers/phone. Walk, `design/ui/studio/tmp/r1-dry2-layer-from-selection-takes-conditions/t41b/`:
+10 (Made layer, 15), 13 (Has no value: no notice, card 9 = layer 9, name "email: no value"), 15
+(on_record Yes: 4), 16 (Done keeps both chips), 20 (four red nodes, key "4 of 24"). Lesson: when
+an earlier fix admits a state at creation, check every later write path re-admits it too.
 0w. (2026-10-20) Re-walked the table group-name fix (f261bbb157) on a fresh build of it, every
 route that opens the table after a community run: no regression.
 `design/ui/studio/tmp/r1-dry1-recheck-table-group-names/`: t46a 07 (Javert's row "Group 3" =

@@ -351,7 +351,8 @@ export interface StyleUpdateOptions extends RunOptions {
      * nothing until something is written again, as a starting row that writes nothing does. A
      * panel that removes properties one at a time sets it, so removing the last one does not
      * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing.
+     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
+     * added with no look yet) may be renamed or given another selector without it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -2932,13 +2933,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw readerLocked(existing.layer, holder?.id ?? key);
         }
 
-        const merged: LayerSpec = { ...specOf(existing.layer), ...patch };
+        const before = specOf(existing.layer);
+        const merged: LayerSpec = { ...before, ...patch };
 
         if (isElementSource(sourceOf(merged))) {
             throw protectedLayer(existing.layer, "given an element source");
         }
 
-        const checked = check(merged, id, true, keepEmpty);
+        // A layer the stack already holds empty (a row added with no look yet) stays admissible
+        // until something writes to it: renaming it or changing what it matches is not emptying it.
+        const alreadyEmpty =
+            Object.keys(before.set ?? {}).length === 0 && Object.keys(before.encode ?? {}).length === 0;
+        const checked = check(merged, id, true, keepEmpty || alreadyEmpty);
 
         if (checked.layer === null) {
             throw refusedSpec(merged.name, checked.result);

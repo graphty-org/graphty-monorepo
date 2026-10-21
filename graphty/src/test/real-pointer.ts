@@ -96,3 +96,36 @@ export async function dragAcross(element: Element, dx: number): Promise<void> {
         clickCount: 1,
     });
 }
+
+/**
+ * Puts a finger down on the middle of an element and keeps it there, still, until `released`
+ * settles, then lifts it: a touch hold that lasts as long as the test's condition takes, never a
+ * fixed time.
+ * @param element - Where the finger goes down.
+ * @param released - Resolves when the finger may lift (the menu the hold opens is showing).
+ */
+export async function touchHold(element: Element, released: () => Promise<unknown>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    try {
+        await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+        await released();
+    } finally {
+        await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    }
+}
+
+/**
+ * Taps the middle of an element with a finger, as on a touch screen.
+ * @param element - What the finger taps.
+ */
+export async function tap(element: Element): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}

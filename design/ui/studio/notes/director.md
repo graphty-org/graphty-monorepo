@@ -5,40 +5,40 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-20 (dry run pass 2 on build 6de5f95d12).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19 and 2026-10-20; the full earlier text is in this file's git
+Last updated: 2026-10-21 (dry run pass 3 on build 758b8e8081).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-20) Dry run pass 2 on 6de5f95d12 (`tier3/dry-run-r1-2.md`): 228 lines, 2 (a), both
-  SPOILS, both graphty-element, neither from pass 1's fixes (which all held). (1) a one-kind row
-  `addRow` admits empty is refused at its first selector write: T41 B's find-box layer drops its
-  condition edits silently. (2) Undo across Control+O > Replace leaves a removed or emptied layer's
-  look drawn (label on T44 B; green on volunteers, my walk `tmp/director-r1-2/undo-replace/`).
-- (2026-10-20) This is the second and last dry-run fix pass allowed. After its two units, re-walk
-  only the routes listed at the end of `dry-run-r1-2.md`, then the sessions start.
+- (2026-10-21) Dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`): 141 lines, 0 (a), 103 (c)
+  in 41 backlog entries, 6 (b), 32 (n). Pass 2's two fixes held on every crossing walk. The build
+  is session-ready; round 1 runs on 758b8e8081 with no rebuild.
+- (2026-10-21) Backlog first item: the drawing moves ~140 px right when a key arrives while a
+  selection is held (23 rows, 21 halves). Mechanism found in graphty-element: `followSelection`
+  re-pins the pivot to the selection each frame and undoes `setViewInsets`' compensation when the
+  key's inset arrives. Target settled in `decided.md` 2026-10-21 ("a held selection asks for
+  nothing after the pick").
+- (2026-10-21) Must fix before T42 runs in round 2: a find-box `>` rule makes a raw, uneditable
+  threshold card (`{"kind":"threshold",...}`); `>=` is fine.
 - (2026-10-20) The session-ready bar is narrow on purpose: crash, block, spoiled grading. Jumps,
-  "Which nodes" without its list, F6, heading ring, node names by id all break `decided.md` and
-  stay in the backlog (60 entries this pass). Do not pull them back in.
+  "Which nodes" without its list, F6, heading ring, node names by id break `decided.md` and stay
+  in the backlog. A node hidden off screen is not a wrong result while the layer is right and Fit
+  recovers it.
 - (2026-10-20) A route seen only on an unjudged task (T37, T42, T44) is (a) only when it also
-  reaches a round 1 route. Check that by walking it on round 1 data, as I did for T44 B.
-- (2026-10-20) The answer key already grades around many screen faults (demo layers in
-  `styles.json`, the tool's start line, counts from the key). Read `answers.md` before calling a
-  wrong-looking screen a grading spoil.
-- (2026-10-20) A backlog row can hide an (a): r1-1 sent T41 B 1 to the backlog because "the refusal
-  is on screen"; the next walk showed Done then drops the edits silently. A refusal followed by a
-  silent drop is a spoil.
+  reaches a round 1 route; check it on round 1 data (T46 B's key drop did not reproduce on
+  T48 B's plain-file walk).
+- (2026-10-20) Read `answers.md` before calling a wrong-looking screen a grading spoil; it now
+  records most 758b8e8081 faults and grades around them.
+- (2026-10-20) A backlog row can hide an (a): a refusal followed by a silent drop is a spoil.
 - (2026-10-20) ONE round only (owner). Round 1 cannot pass (T37, T42, T44 unjudged); its report
   is held / failed / not scored per bar, never "passed".
-- (2026-10-20) Keyboard walks only on Sam's halves (T39 A, T40 A, T47 B, T48 A); a keyboard block
-  there is a blocked task. None of the four was blocked on 6de5f95d12.
+- (2026-10-20) Keyboard walks matter only on Sam's halves (T39 A, T40 A, T47 B, T48 A).
 - (2026-10-20) Owed tool work, now gate refusals: `WALKS3` five screens, "Starts with" typing,
   `spoken.json`; `wording.mjs` irregular forms, phrase echoes; `gateCheck` keyed by half.
-- (2026-10-20) Owed values: all six community methods on T46-T48 twice, T51 palette.
+  Owed values: all six community methods on T46-T48 twice, T51 palette.
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
-  those (three pass-4 fixes made 29 of 37 regressions).
-- (2026-10-19) A docs-only commit never refreezes.
+  those. A docs-only commit never refreezes.
 - (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
   unit with the owner's leave. No bypass trailer.
 - Owner items open: default label font fallback; the five tier 3 breaking items; whether label
@@ -83,33 +83,22 @@ history.
 
 ## Decisions and reasons
 
-- **2026-10-20, dry run pass 2 on 6de5f95d12 (`tier3/dry-run-r1-2.md`).** 228 lines: 2 (a), 166
-  (c) in 60 backlog entries, 17 (b), 43 (n). Units, both graphty-element, both new: (1)
-  layer-from-selection-takes-conditions -- reproduced in Node (`tmp/director-r1-2/addrow-absent.mjs`):
-  `addRow` target "node" admits the empty row, `updateMany` with only a selector refuses it
-  (`E_BAD_LAYER`, `checkShape`'s `spec.row === undefined`), on `phone` as well as `email`, so T41 A
-  is exposed too; the unfinished half of 18f1cae069. Team entry in `owner-decisions.md`
-  (non-breaking: only throwing calls succeed). (2) undo-after-replace-redraws -- T44 B's ghost
-  label, and my walk on volunteers shows an undone green staying on v01 with the tree empty, so it
-  reaches round 1 tasks; not 65f41f6b15's regression (that only remaps edge `ids` layers). Not
-  (a), with reasons: the GraphML export round trip (no round 1 file holds graphty styles), Replace's
-  two pages, the missing first selection ring after Replace (no grade reads it; the unit 2 re-walk
-  checks it), T47 A's stale shape list (pointer works, not Sam's), T49 B's picker Tab trap (not
-  Sam's; Escape leaves), and the 30 PASS INCOMPLETE lines (every listed route walked by its own
-  pilot on this build, or untouched since 7d87760756). No reversal.
-- **2026-10-20, dry run pass 1 on 7d87760756 (`tier3/dry-run-r1-1.md`).** Three units, all (a):
-  (1) T50 projects open with no look -- element reads the renamed halo channel (regression of the
-  golden merge; reproduced in Node, `tmp/director-r1-1/channels.mjs`: 13 of 14 channels open, only
-  `node.haloSize` fails); (2) the table's community column prints raw group values where the key
-  says "Group N" by size rank -- a T46A participant who paints the table's group is graded F
-  (new); (3) Control+O > Replace with the same CSV empties hand-picked edge layers -- session edge
-  ids never rewind (new; lost work on a listed detour). Settled in `decided.md` (2026-10-20): those
-  three plus "a project file opens in place of the work" (Replace/Load is for data files). Team
-  entry in `owner-decisions.md` for the two element changes (non-breaking). Not (a), with reasons:
-  every drawing jump (Frame recovers; nothing on the graph is wrong), the key covering a dot (the
-  key accepts the layer's and key's counts), the demo's answers (answer key grades around them),
-  `styles-start.json` holding the demo (answer key rule), and the 25 PASS INCOMPLETE lines that
-  only lacked `report.md` or a route walked elsewhere on this build.
+- **2026-10-21, dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`).** 141 lines, 0 (a). Not
+  (a), with reasons: the selection-held jump (layer graded from `styles.json`, names only as read
+  from screen, Fit recovers, T41's success path already needs Fit after the owner's glide); the raw
+  `>` threshold card (T42 only, `>=` or Remove reaches the line); T46 B's key dropping Louvain
+  after Undo (only after reopening an app-exported GraphML; T48 B's plain-file Replace and Undo
+  keep the key, `q-findlayer-replace-undo/10.png`); the unset Width Enter (a width over 8, the
+  success step, works); T42 A's Filter-to focus (a click reaches the box). T48 A's PASS INCOMPLETE
+  is covered by `758c-pointer` on the same build. Settled in `decided.md` 2026-10-21: a held
+  selection asks for nothing after the pick (narrows the 2026-10-20 glide). Left (b): whether a
+  different file offers Replace on Control+O (T50 B). No API change.
+- **2026-10-20, dry run passes 1 and 2 on 7d87760756 and 6de5f95d12** (summarized 2026-10-21; full
+  text in git history and `tier3/dry-run-r1-1.md`, `-r1-2.md`). Five units, all fixed and held: a
+  project opens with its look across a channel rename; the table names community groups as the key
+  does; Replace with the same file keeps hand-picked layers; a layer from a selection takes its
+  conditions before a look (`addRow` admitted what `update` refused); Undo across Replace redraws
+  from the layers. Each settled in `decided.md` 2026-10-20.
 - **2026-10-20, fifth review of the tier 3 criteria, frozen** (summarized 2026-10-20; full text in
   git history). The round 1 build must hold golden (checkable by `--is-ancestor f9d8b44b9`); round 1
   verdict rule; design problems confirmed across two halves; colors by `colorWord`; core halves need
@@ -172,6 +161,14 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-10-21 (dry run pass 3) -- Worked: reading the element's camera code before classing the
+  most-walked jump: `followSelection` plus `setViewInsets` explained "only with a selection held"
+  and the 140 px (half the key's inset) in ten minutes, so the backlog item and the decided entry
+  name a cause. Worked: checking an unjudged task's (a) candidate on round 1 data already on disk
+  (T48 B's plain-file Replace and Undo kept the Louvain key) instead of a new walk. Worked:
+  `session.json` commits showed T48 A's "unwalked" success path was walked on the same build by an
+  earlier session. Worked: the rows file plus generator again (141 rows, per-task counts asserted).
+
 - 2026-10-20 (dry run pass 2) -- Worked: a Node repro before writing unit 1. The app's notice
   ("That rule could not be used") hid the element's reason; one script with three patch variants
   showed the selector alone is refused and why (`checkShape`), and that A is exposed too, which the
@@ -227,6 +224,11 @@ history.
   nobody grepped for siblings.
 
 ## Thinking
+
+- **2026-10-21, dry run pass 3:** the most-walked defect came from two settled rules meeting (the
+  owner's glide to a pick, the drawing staying put when a key arrives). Neither rule was wrong; the
+  element had no rule for the moment after the pick. When two decided behaviors both own the
+  camera, write down which one wins in the overlap before anyone fixes either.
 
 - **2026-10-20, dry run pass 2:** both (a) defects were in the element and both were "two halves
   of one verb disagree": `addRow` admits what `update` refuses, and Undo restores the layers but
@@ -286,7 +288,7 @@ history.
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-1.md` (build 7d87760756, 2026-10-20; the 2026-10-17 pass on 58556989e8 is at 7c241de4b), `tier3/dry-run-r1-2.md` (build 6de5f95d12, 2026-10-20, pilots in `tier3/rounds/r1d1/pilot/`; the 2026-10-17 pass on ed4351b258 is at 98b7f9a4df), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-3.md` (build 758b8e8081, 2026-10-21, pilots in `tier3/rounds/r1d2/pilot/`; the 2026-10-18 pass on 5bd16cda6e is at b296635060), `tier3/dry-run-r1-1.md` (build 7d87760756, 2026-10-20; the 2026-10-17 pass on 58556989e8 is at 7c241de4b), `tier3/dry-run-r1-2.md` (build 6de5f95d12, 2026-10-20, pilots in `tier3/rounds/r1d1/pilot/`; the 2026-10-17 pass on ed4351b258 is at 98b7f9a4df), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews: `notes/{researcher,user,redteam}.md` (2026-10-17: 05f4ee91a, 863ebb9a8,
   de16901f7; 2026-10-19: c1ebeeff4, 34b1e3ce0, 881ad2550; 2026-10-20: 16b22cb0d, 70575b0cf, 3bdcc279b); stopped pass 5 in `tier3/rounds/r1/pilot/`; my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

@@ -233,3 +233,19 @@ Each entry is new; none reverses an earlier one.
   is drawn on every node it reaches. (2026-10-20.) On T44 B a removed one-node layer's label stayed
   drawn and labeling Everything drew only that name while the tree painted 24; on volunteers.graphml
   an undone green stayed on v01 with no layer setting it.
+
+## Added 2026-10-21 (dry run pass 3 on build 758b8e8081)
+
+New; it narrows one entry and reverses none.
+
+- **A held selection asks for nothing after the pick.** The camera glides when the reader picks
+  (2026-10-20). A key that appears or grows, a look, a layer, a run or an Undo that lands while that
+  selection is still held leaves the drawing where it is, exactly as with nothing selected; the
+  camera keeps turning about the selection. (2026-10-21.) Narrows "The camera glides to center a
+  picked node" (2026-10-20) where it met "The drawing moves only when the reader asks"
+  (2026-10-19). On 758b8e8081 the first color or size of a layer made from a selection moved the
+  drawing about 110 to 155 px right on 23 walk rows across 21 task halves, only while the
+  selection was held, and left painted nodes off screen on the last screenshot of T38 B and T41 B.
+  Cause: the element's follow of the held selection re-centers it in the area the key's new inset
+  leaves free (`dry-run-r1-3.md`). A backlog fix, not a dry-run one: nothing drawn is wrong and Fit
+  brings every node back.

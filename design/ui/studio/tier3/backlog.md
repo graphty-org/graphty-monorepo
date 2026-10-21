@@ -4,6 +4,56 @@ Problems that neither block a task nor mislead a reader: spacing, alignment, a c
 meaning still reads, a working but inconsistent component. They are fixed later in batches, each
 with a test, never inside a dry-run loop. Newest first.
 
+## From the dry run pass 3 on build 758b8e8081 (2026-10-21)
+
+Every entry passed the session-ready bar: a participant gets past it. Kinds: friction, wording, cosmetic,
+accessibility (accessibility entries also go to the accessibility expert's walkthrough). Screens are under
+`rounds/r1d2/pilot/<task>/`; each entry's full list of rows is its section in `dry-run-r1-3.md`. Most-walked
+first. The first entry has its mechanism in `dry-run-r1-3.md` ("Why the lines that sounded like (a) are
+not") and its target behavior in `decided.md` (2026-10-21).
+
+- The drawing moves without the reader asking (friction). Seen on T37A (fx2-hasvalue-b/15.png), T38A (r5-find-edit/14-15.png), T38B (e-email/15.png), T39A (m-detours1/10-11.png), T39A (m-detours1/13-14.png), T39B (n-findbox-condition/11-12.png), T40A (r3-email-fromselection/15.png), T40B (s3-find-layer-edit/17-18.png), T41A (p3-detour-find-phone/14-15.png), T41B (q4-findlayer-replace/09.png), T42A (r3-detour-start/21.png), T42B (p4-find-edit/14.png), T43A (w3-novalue-phone/13-14.png), T43B (z-email-layer/16-17.png), T44B (p2-t41b-email/15-17.png), T44B (p2-color-replace-undo/19.png), T46A (w4-email-layer/17-18.png), T47A (r3-route1-email/14-15.png), T49A (f1-t41b-email-layer/16.png), T49B (z1-t41b-email-layer/13-15.png), T50B (t3-email-onrecord/16-17.png), T51A (rs-find-edit/16-17.png), T51B (r4-email-layer/19.png).
+- "Which nodes" with no condition opens without its attribute list (friction). Seen on T38B (e-pointer/07.png), T45B (y-pointer/09.png), T47A (r3-route4-plus-layer/07.png), T49A (f4-t41a-plus-layer/05.png), T50A (s5-plus-layer/06.png), T51B (r4-plus-layer/08.png).
+- Layers made the same way are named differently (wording). Seen on T38B (e-email/13.png), T44B (p2-t41b-email/13.png), T46A (w4-email-layer/13.png), T48B (q-email/12.png), T50B (t2-phone-trained/16.png), T51A (rs-find-edit/10.png).
+- F6 misses the top bar and stops on resize handles (accessibility). Seen on T37A (keyboard/), T41A (p3-keys/85.png), T42A (r3-keyboard/18.png to 23.png), T42A (r3-keyboard/20.png), T43A (w3-keyboard).
+- A layer made from a find-box rule shows the raw rule and cannot be edited (fix before T42 runs in round 2) (friction, wording). Seen on T37A (fx2-hasvalue-b/08.png), T37B (p-findlayer/08.png), T37B (p-findlayer/10.png), T42A (r3-fix-find-edit/08.png), T42B (p4-find-edit/08.png).
+- Enter on the start page's Samples leaves focus behind (accessibility). Seen on T37B (p-keyboard/21.png to 38.png), T39A (m-keys/22.png), T44A (s3-keyboard/18.png), T45B (y-keyboard/22.png), T46B (t3-keyboard/06.png).
+- After Replace the drawing is framed right of center (friction). Seen on T41A (p3-detour-rule-replace/12.png), T43B (z-findlayer-replace/13.png), T47A (r3-route6-color-replace-undo/12-14.png), T49A (f6-findlayer-replace-undo/10.png), T51A (rs-replace-undo/13.png).
+- Two controls share a name (accessibility). Seen on T37B (p-success/03.png), T44A (s3-replace-undo/15.png), T46A (w4-pointer/02.png).
+- A focused heading draws no ring (accessibility). Seen on T40B (s3-keyboard/17.png), T49B (y-keys/44.png), T50A (s10-keyboard/18.png).
+- Reopening an exported GraphML adds the file's own style groups (friction, cosmetic). Seen on T46B (t3-findlayer-replace-undo/13.png), T46B (t3-label-replace-undo/19.png), T46B (t3-label-replace-undo/21.png).
+- Escape on the inspector and in dialogs (friction). Seen on T37A (fx1-hasvalue/17.png), T37B (p-findlayer/14.png).
+- Find-box rows: right-click does nothing, and a click keeps or clears the text (friction). Seen on T38B (e-phone/06.png), T38B (e-email/06.png).
+- A pick glides to a point right of the canvas center, or zooms (friction). Seen on T39A (m-detours1/17-18.png), T41B (q4-pointer/17.png).
+- "Style nodes" or "Style edges" drawn dimmed with no reason (friction). Seen on T41A (p3-detour-find-phone/07.png), T45B (y-detour-find-newlayer/08.png).
+- Selected and styled things are hard to read (cosmetic). Seen on T42A (r3-detour-start/19.png), T45B (y-detour-find-newlayer/14.png).
+- The picker says "together none" when one condition alone leaves none (wording). Seen on T43A (w3-novalue-hours/12.png), T50A (s2-findbox-hasnovalue/09.png).
+- Escape in a popover's or the picker's box reverts silently (accessibility). Seen on T49A (d-a-typeback/15.png), T49B (y-detour-color/18.png).
+- A tooltip and the control's name differ (accessibility). Seen on T49A (d-b-reopen/23.png), T49B (y-keys/124.png).
+- The analysis filter: Tab lands on a disabled button, Escape on Back does nothing (accessibility). Seen on T37A (keyboard/).
+- Two analyses named Degree after a run (wording). Seen on T37A (detours/34.png).
+- The private-window notice on every open (accessibility). Seen on T37A (pointer/04.png).
+- After Load of a second file the breadcrumb names that file (wording). Seen on T37A (fx6-findlayer-open-undo/11.png).
+- '34 selected' reads as a count (wording). Seen on T37B (p-success/14.png).
+- Removing a line slides the next one under the pointer (friction). Seen on T39A (m-detours1/23.png).
+- Undo's words for a load or a setting (wording). Seen on T39A (m-detours1/07.png).
+- A node is named by its id, not its label (wording). Seen on T39B (n-findbox-condition/05.png).
+- Replace takes two pages and two clicks (friction). Seen on T40B (s3-find-replace-undo/09.png).
+- The Data place's 'Filter to...' leaves focus on the tree row (friction). Seen on T42A (r3-detour-start/11.png).
+- Tab in a list with letters typed takes nothing (friction). Seen on T43A (w3-keyboard/43.png).
+- A card with no value shows a count of its own (friction). Seen on T45B (y-pointer/11.png).
+- A tooltip covers the next control (cosmetic). Seen on T45B (y-pointer/18.png).
+- "Has no value" and number hints in find (wording). Seen on T45B (y-detour-find/05.png).
+- Escape in a condition card closes the picker (friction). Seen on T46B (t3-find-edit-before-look/14.png).
+- The find list's heading counts rows it does not list (friction). Seen on T46B (t3-findlayer-condition2/06.png).
+- Control+O while a picker is open drops the half-made line (friction). Seen on T48B (q-label-replace-undo/09.png).
+- A click into the picker's hex box does not select its value (friction). Seen on T49A (d-a-typeback/15.png).
+- After a line is removed focus goes to another section's '+' (accessibility). Seen on T49A (d-a-typeback/18.png).
+- Tab does nothing in an open '+' menu (accessibility). Seen on T50A (s10-keyboard/56.png to 64.png).
+- After Discard focus once landed on the canvas (accessibility). Seen on T50A (s7-color-reopen-undo/10.png).
+- Escape on a member opened from a layer's list closes the layer (friction). Seen on T50A (s1-pointer/06.png).
+- An unset line does not take its value on Enter (friction). Seen on T50B (t8-edge-layer-replace/10.png).
+
 ## From the dry run pass 2 on build 6de5f95d12 (2026-10-20)
 
 Every entry passed the session-ready bar: a participant gets past it. Kinds: friction, wording, cosmetic,

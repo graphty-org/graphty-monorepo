@@ -5,7 +5,7 @@
     "entries": {
         ".": 512216,
         "./session": 349716,
-        "./schema": 7654,
+        "./schema": 12883,
         "./catalog": 124874,
         "./commands": 1572,
         "./extend": 80811,
@@ -14,6 +14,7 @@
         "./react": 1044,
         "./webgpu": 4956,
         "./ai": 134199,
-        "./bundle": 2762352
+        "./credentials": 5221,
+        "./bundle": 3089518
     }
 }

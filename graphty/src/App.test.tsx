@@ -8,14 +8,15 @@ import { render, screen } from "./test/test-utils";
  * so one board cannot decide the next one's branch.
  * @param search - the query string to render under, e.g. "?demo".
  * @param assert - what to check while that branch is drawn.
+ * @returns settles once checked.
  */
-function withSearch(search: string, assert: () => void): void {
+async function withSearch(search: string, assert: () => void | Promise<void>): Promise<void> {
     const before = `${window.location.pathname}${window.location.search}`;
 
     window.history.pushState({}, "", search);
 
     try {
-        assert();
+        await assert();
     } finally {
         window.history.pushState({}, "", before);
     }
@@ -25,23 +26,23 @@ describe("App", () => {
     it("renders the workspace, on its start screen", () => {
         render(<App />);
 
-        expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
+        expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
     });
 
-    it("renders the compact component gallery at ?demo", () => {
-        withSearch("?demo", () => {
+    it("renders the compact component gallery at ?demo", async () => {
+        await withSearch("?demo", () => {
             render(<App />);
 
-            expect(screen.queryByRole("region", { name: "Samples" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("region", { name: "Sample library" })).not.toBeInTheDocument();
         });
     });
 
     for (const search of ["?next", "?legacy"]) {
-        it(`still renders the workspace at ${search}, so old links keep working`, () => {
-            withSearch(search, () => {
+        it(`still renders the workspace at ${search}, so old links keep working`, async () => {
+            await withSearch(search, () => {
                 render(<App />);
 
-                expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
+                expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
             });
         });
     }

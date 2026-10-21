@@ -147,7 +147,7 @@ bypasses (`W_STYLE_LAYER_FLATTENED`). See [Styles](../styles.md).
 | Edge properties written             | `color`, `opacity`, `width`, `lineStyle`, `sourceArrow`, `targetArrow`, `sourceArrowColor`, `targetArrowColor`, `curved`, `label`, `labelColor`, `labelSize`, `visible`, `labelFont`, `labelWeight`, `labelItalic` |
 | Graph properties written            | `background`                                                                                                                                                                                                       |
 | Rules kept for graphty              | yes, as the `graphty.styles` graph attribute                                                                                                                                                                       |
-| Not written (`W_STYLE_NOT_WRITTEN`) | node: `opacity`, `cornerRadius`, `tooltip`, `image`; edge: `arrowSize`, `bends`, `tooltip`, `sourceLabel`, `targetLabel`                                                                                           |
+| Not written (`W_STYLE_NOT_WRITTEN`) | node: `labelOutlineColor`, `labelOutlineWidth`, `opacity`, `cornerRadius`, `tooltip`, `image`; edge: `labelOutlineColor`, `labelOutlineWidth`, `arrowSize`, `bends`, `tooltip`, `sourceLabel`, `targetLabel`       |
 
 <!-- generated:end -->
 

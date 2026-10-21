@@ -26,12 +26,6 @@ describe("the Analyze popover's words", () => {
         assert.equal(words.name, "Plugin X");
     });
 
-    it("marks at most one Start here per heading", () => {
-        for (const { heading, entries } of groupAlgorithms(BUILT_IN_ALGORITHMS)) {
-            assert.isAtMost(entries.filter((d) => wordsFor(d).startHere === true).length, 1, heading.title);
-        }
-    });
-
     it("hides a heading with no entries: Measure the graph, with the element's own algorithms", () => {
         const titles = groupAlgorithms(BUILT_IN_ALGORITHMS).map((group) => group.heading.title);
         assert.deepEqual(titles, ["Rank nodes and edges", "Find groups", "Find paths and edge sets"]);

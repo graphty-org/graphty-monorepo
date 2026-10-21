@@ -91,6 +91,7 @@ Marking an issue always means both: `gh issue edit <n> --add-label in-progress` 
 - `pipeline-round: released -- <reason>` (with the `in-progress` label removed)
 - `pipeline-round: stranded branch <b> not landed -- <reason>`
 - `pipeline-round: asked owner -- <what>`
+- `pipeline-round: broke golden <branch> <cause>` (first seen; a landing gets one round from it before it is reverted)
 
 **Alive.** A marker's session is alive when this prints `alive` (session files outlive their sessions, and a pid can
 be reused, so the start time must match too):
@@ -113,6 +114,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > never touch visual-baselines/, and never change parameters.chromatic, visual-review/trusted/,
 > visual-review/passkeys.json or the gate step and visual job in ci.yml to make a check pass; a breaking change or a
 > one-way decision: commit nothing, comment the question on the issue with the `needs-decision` label, and stop.
+> Before your final tests: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
+--frozen-lockfile`, resolve any conflict keeping both intents, then run the affected tests on the merged code and
+> commit. Start each long run once and end your turn; do not re-check it again and again.
 > Scratch files go in tmp/<name>/. Report the branch and head sha.
 
 ## Escalation

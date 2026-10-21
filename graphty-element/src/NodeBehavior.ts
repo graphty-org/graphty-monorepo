@@ -2,6 +2,7 @@
 import "@babylonjs/core/Culling/ray";
 
 import {
+    type AbstractMesh,
     type ActionEvent,
     ActionManager,
     ExecuteCodeAction,
@@ -23,6 +24,27 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 
 /**
+ * The mesh a click at a canvas point lands on, as the reader sees the picture.
+ *
+ * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
+ * on top (rendering group 1, `onTop`) covers every node, even one nearer the camera, so the nearest
+ * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
+ * on top that is hit wins; otherwise the nearest hit does.
+ * @param scene - The scene to pick in.
+ * @param x - X in CSS pixels from the canvas's left edge.
+ * @param y - Y in CSS pixels from the canvas's top edge.
+ * @returns The mesh, or null when the point lands on nothing.
+ */
+export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+    const onTop = scene.pick(
+        x,
+        y,
+        (mesh) => mesh.renderingGroupId > 0 && mesh.isPickable && mesh.isVisible && mesh.isEnabled(),
+    );
+    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+}
+
+/**
  * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
  *
  * Every pointer handler that asks "which node is under the pointer" and `elementAt` ask it here,
@@ -33,7 +55,7 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The node's id, or `undefined`.
  */
 export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
-    const metadata = scene.pick(x, y).pickedMesh?.metadata as { nodeId?: NodeIdType } | null | undefined;
+    const metadata = pickAsDrawn(scene, x, y)?.metadata as { nodeId?: NodeIdType } | null | undefined;
     return metadata?.nodeId;
 }
 
@@ -237,6 +259,16 @@ export function nodeActionManagerOf(scene: Scene): ActionManager {
                 }
             }),
         );
+        manager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnPickTrigger }, (event?: ActionEvent) => {
+                const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
+                const node = metadata?.graphNode;
+                const graph = node?.parentGraph as (Graph & { fetchNodes?: unknown; fetchEdges?: unknown }) | undefined;
+                if (node && !node.isDisposed() && (!graph?.fetchNodes || !graph.fetchEdges)) {
+                    expandFromSource(node, "click");
+                }
+            }),
+        );
         nodeActionManagers.set(scene, manager);
     }
 
@@ -255,10 +287,12 @@ function expandNode(node: GraphNode): void {
 
     const { fetchNodes, fetchEdges } = graph;
 
-    // No fetchers means no on-demand expansion, which is the default and is not
-    // an error: a graph that holds everything it is ever going to hold has
-    // nothing to expand.
+    // No fetchers: the node's own network source expands it, when the consumer
+    // switched that on (`behavior.expand.trigger`). Neither is the default, and
+    // neither is an error: a graph that holds everything it is ever going to
+    // hold has nothing to expand.
     if (!fetchNodes || !fetchEdges) {
+        expandFromSource(node, "double-click");
         return;
     }
 
@@ -307,6 +341,24 @@ function expandNode(node: GraphNode): void {
         });
 }
 
+/**
+ * Expand a node from the network source that loaded it, when `behavior.expand.trigger` names
+ * the gesture that just happened. A failure is published as `source:expand-failed`, so nothing
+ * more is done with it here.
+ * @param node - the node
+ * @param gesture - what the reader did
+ */
+function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
+    const context: GraphContext = node.parentGraph;
+    const { trigger, ...options } = context.getStyles().config.behavior.expand;
+    const session = context.getSession?.();
+    if (trigger !== gesture || session === undefined) {
+        return;
+    }
+
+    session.data.expand([node.id], options).catch(() => undefined);
+}
+
 // Click detection thresholds
 const CLICK_MAX_DURATION_MS = 300; // Maximum time for a click (vs long press/drag)
 const CLICK_MAX_MOVEMENT_PX = 5; // Maximum pixels of movement for a click
@@ -347,9 +399,17 @@ export class NodeDragHandler {
         this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
         this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
+        // A restyle rebuilds the node's mesh and this handler with it, often while the pointer is
+        // over the node (a hover layer restyles the node it hovers). Starting from the session's
+        // answer, not from false, is what lets the next move off the node end the hover.
+        this.isHovered = context.getSelectionManager?.()?.isHovered(node.id) ?? false;
+
         // Join the scene's pointer roster; see nodePointerRosterOf.
         this.roster = nodePointerRosterOf(this.scene);
         this.roster.byId.set(node.id, this);
+        if (this.isHovered) {
+            this.roster.hovered.add(this);
+        }
     }
 
     // Public API for both desktop and XR
@@ -770,6 +830,13 @@ export class NodeDragHandler {
 
         const isOverThisNode = pickedNodeId === this.node.id;
 
+        // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
+        // Asked on every move over the node, not only on arrival, because the pointer can
+        // leave the canvas and come back onto the same node without this node seeing it go.
+        if (isOverThisNode) {
+            this.getContext().getSelectionManager?.()?.hover(this.node.id);
+        }
+
         // Emit node-hover when entering the node (not when already hovering)
         if (isOverThisNode && !this.isHovered) {
             this.isHovered = true;
@@ -796,6 +863,7 @@ export class NodeDragHandler {
             this.isHovered = false;
             this.roster.hovered.delete(this);
             this.node.hideTooltip();
+            this.getContext().getSelectionManager?.()?.leave(this.node.id);
         }
     }
 

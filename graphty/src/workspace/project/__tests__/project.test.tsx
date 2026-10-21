@@ -14,6 +14,7 @@ import { Workspace } from "../../Workspace";
 import { problemSentence, SAVE_AS_DIALOG } from "../actions";
 import { registration } from "../commands";
 import { clearRecent, rememberRecent } from "../recent";
+import { agoWords } from "../words";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
 
@@ -63,7 +64,7 @@ describe("the Project package", () => {
         await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
         assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {
@@ -106,5 +107,16 @@ describe("the Project package", () => {
         );
         assert.equal(problemSentence("a.json", error("E_TOO_LARGE")), "a.json is too large to open.");
         assert.equal(problemSentence("a.json", new Error("x")), "a.json could not be opened.");
+    });
+
+    it("says when a project was saved as a reader does", () => {
+        const now = new Date(2026, 9, 17, 15, 0).getTime();
+        const hour = 3600 * 1000;
+        assert.equal(agoWords(now - 20_000, now), "Just now");
+        assert.equal(agoWords(now - 5 * 60_000, now), "5 minutes ago");
+        assert.equal(agoWords(now - 2 * hour, now), "2 hours ago");
+        assert.equal(agoWords(now - 20 * hour, now), "Yesterday");
+        assert.equal(agoWords(new Date(2026, 9, 9, 10, 0).getTime(), now), "Oct 9");
+        assert.equal(agoWords(new Date(2025, 9, 9, 10, 0).getTime(), now), "Oct 9, 2025");
     });
 });

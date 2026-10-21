@@ -190,6 +190,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelOutline", plan(color, "labelOutlineColor")],
+        ["node.labelOutlineWidth", plan(number, "labelOutlineWidth")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
@@ -212,6 +214,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelOutline", plan(color, "labelOutlineColor")],
+        ["edge.labelOutlineWidth", plan(number, "labelOutlineWidth")],
     ]),
 };
 
@@ -379,7 +383,7 @@ class KindExport {
         ranked(-1);
         own.forEach((entry, at) => {
             const { layer } = entry;
-            if (layer.source.by !== "element" && layer.enabled) {
+            if (layer.source.by !== "element" && layer.enabled && !readsViewState(layer.selector)) {
                 this.#layer(entry, at);
                 ranked(stack.indexOf(entry));
             }
@@ -1022,4 +1026,16 @@ export function layersToStyles(input: LayersToStylesInput): LayersToStyles {
             kind.base === null ? [] : [{ target: at === 0 ? ("node" as const) : ("edge" as const), id: kind.base }],
         ),
     };
+}
+
+/**
+ * Whether a selector picks its elements by the reader's view of the graph -- what is selected or
+ * on screen -- rather than by the graph. No file holds that state, so such a layer is about the
+ * session, not the graph: written out, it would paint whatever was selected when the file was
+ * saved, for good. It is left out of the file's styles.
+ * @param selector - The layer's selector.
+ * @returns True for a selector of the selection or the visible elements.
+ */
+function readsViewState(selector: LayerSpec["selector"]): boolean {
+    return selector.match === "member" && (selector.of === "selection" || selector.of === "visible");
 }

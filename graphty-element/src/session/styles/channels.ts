@@ -59,6 +59,7 @@
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import {
     defaultNodeStyle,
     NodeBorderStyles,
@@ -276,14 +277,21 @@ export interface ChannelValues {
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
+    "node.labelOutline": ColorValue;
+    "node.labelOutlineWidth": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
     "node.outline": ColorValue;
     "node.glow": ColorValue;
     "node.glowStrength": number;
+    "node.halo": boolean;
+    "node.haloColor": ColorValue;
+    "node.haloScale": number;
+    "node.haloOpacity": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
+    "node.unlit": boolean;
     "node.marker": never;
     "node.width": number;
     "node.height": number;
@@ -322,6 +330,8 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "edge.labelOutline": ColorValue;
+    "edge.labelOutlineWidth": number;
 }
 
 /**
@@ -335,12 +345,15 @@ export type ColorChannel =
     | "node.color"
     | "node.outline"
     | "node.glow"
+    | "node.haloColor"
     | "node.labelColor"
+    | "node.labelOutline"
     | "node.borderColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
-    | "edge.labelColor";
+    | "edge.labelColor"
+    | "edge.labelOutline";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -414,6 +427,17 @@ export interface ChannelDescriptor {
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
 
 /**
+ * What the four halo channels draw, written once and read by each of them.
+ */
+const NODE_HALO_CAVEAT =
+    "The halo is the selection highlight -- the node's own shape, scaled about its center -- drawn " +
+    "on any node a layer picks. Any of its color, scale or opacity switches it on; `node.halo` " +
+    "alone switches it on in the selection's look, and false takes it off, even off a selected " +
+    "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
+    "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
+    "is its own source mesh; the scale is per node.";
+
+/**
  * Why an outline is a colour and nothing else, written once and read in two places.
  *
  * It is `node.outline`'s caveat. A caveat is not shelf decoration: `Layer.ts` and `encoding.ts`
@@ -425,11 +449,10 @@ export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "ar
  * question the day either is edited.
  */
 export const NODE_OUTLINE_CAVEAT =
-    "An outline has a colour and no width. Babylon draws it with a highlight LAYER, and the " +
-    "stroke's blur size belongs to that layer rather than to a mesh, so every outline on screen " +
-    "is drawn at one width whatever a style asks for -- which is why the node style declares no " +
-    "outline width to ask with. The outline's COLOUR is per style; a width per style would need " +
-    "one highlight layer per width, at a full-screen pass each.";
+    "An outline has a colour and no width. It is drawn as a ring around the node whose width is " +
+    "a fixed share of the node's own size, so every outline is drawn at that width whatever a " +
+    "style asks for -- which is why the node style declares no outline width to ask with. The " +
+    "outline's COLOUR is per style.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -588,7 +611,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic"}`;
+    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "Outline" | "OutlineWidth"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -597,13 +620,16 @@ const LABEL_FIELD_OF_SUFFIX = {
     Font: "font",
     Weight: "weight",
     Italic: "italic",
+    Outline: "outline",
+    OutlineWidth: "outlineWidth",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
 export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX];
 
 /**
- * The five label field channels of one target: color, size, font, weight and italic.
+ * The label field channels of one target: color, size, font, weight, italic and the letters
+ * outline's color and width.
  *
  * Each is ONE FIELD of the label style, which is what lets a rule drive it: a whole label style
  * is a bag of fields no scale produces, while a size is a number a column can be read into. The
@@ -638,6 +664,8 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
+        row("Outline", "Outline", { accepts: "color" }),
+        row("OutlineWidth", "Outline Width", { accepts: "number" }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -653,6 +681,8 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
+    Outline: "textOutlineColor",
+    OutlineWidth: "textOutlineWidth",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -664,7 +694,7 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic)$/.exec(channel);
+    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|Outline|OutlineWidth)$/.exec(channel);
 
     if (match === null) {
         return undefined;
@@ -682,7 +712,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
  * @returns The one-field label style.
  */
 export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyle {
-    const color = field === "color" ? asColorValue(painted) : null;
+    const color = field === "color" || field === "outline" ? asColorValue(painted) : null;
 
     return { [field]: color === null ? painted : color.hex };
 }
@@ -892,6 +922,56 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "effect.glow.strength",
         renderable: true,
     },
+    "node.halo": {
+        channel: "node.halo",
+        target: "node",
+        plainName: "Node Halo",
+        shortName: "Halo",
+        group: "effects",
+        accepts: "boolean",
+        stylePath: "effect.halo.enabled",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloColor": {
+        channel: "node.haloColor",
+        target: "node",
+        plainName: "Node Halo Color",
+        shortName: "Halo color",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.color,
+        accepts: "color",
+        stylePath: "effect.halo.color",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloScale": {
+        channel: "node.haloScale",
+        target: "node",
+        plainName: "Node Halo Scale",
+        shortName: "Halo scale",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.scale,
+        accepts: "number",
+        min: 0,
+        stylePath: "effect.halo.scale",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloOpacity": {
+        channel: "node.haloOpacity",
+        target: "node",
+        plainName: "Node Halo Opacity",
+        shortName: "Halo opacity",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.opacity,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "effect.halo.opacity",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
     "node.wireframe": {
         channel: "node.wireframe",
         target: "node",
@@ -919,6 +999,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "until a node is drawn large. A shape already drawn with flat faces " +
             "(box, the polyhedra, icosphere, goldberg, geodesic) looks the same either way, and in " +
             "2D nodes are drawn unlit, so it changes nothing there.",
+    },
+    "node.unlit": {
+        channel: "node.unlit",
+        target: "node",
+        plainName: "Node Unlit",
+        shortName: "Unlit",
+        group: "effects",
+        default: false,
+        accepts: "boolean",
+        stylePath: "effect.unlit",
+        renderable: true,
+        caveat:
+            "An unlit node is drawn in its own color everywhere, with no light and no shade, so a " +
+            "sphere reads as a flat dot. In 2D every node is drawn unlit already, so it changes " +
+            "nothing there.",
     },
     "node.marker": {
         channel: "node.marker",

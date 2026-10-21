@@ -169,6 +169,8 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
@@ -590,3 +592,9 @@ export type FilterDirection = SelectionDirection;
  * operation. Removed in the major version that ships the project file.
  */
 export type SetOp = SelectionOp;
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export * from "./src/session/sources/public";

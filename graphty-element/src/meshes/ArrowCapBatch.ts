@@ -482,6 +482,15 @@ export class ArrowCapBatch {
 
     /** Upload everything written since the last upload, one call per buffer that changed. */
     flush(): void {
+        // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
+        // of data uploaded in part), so the first frame after one uploads every buffer again.
+        if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
+            this.dirty.add("matrix");
+            for (const kind of this.billboard ? Object.keys(BILLBOARD_BUFFERS) : []) {
+                this.dirty.add(kind);
+            }
+        }
+
         if (this.gone || this.dirty.size === 0) {
             return;
         }

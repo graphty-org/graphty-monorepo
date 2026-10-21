@@ -624,8 +624,13 @@ function sayBackground(text, extra = "") {
 // the button pressed seems to do nothing. Resolves true for `yes`, false for Cancel or Escape.
 // `onYes` runs inside the click on `yes` itself, for what a browser allows only there.
 // `unavailable` makes `yes` say why instead (inside the dialog, which a screen reader hears), and
-// `why` names the element of `message` explaining it; `focusYes` focuses `yes` (a retry).
-function ask(message, yes, { onYes = () => {}, label = null, unavailable = null, why = null, focusYes = false } = {}) {
+// `why` names the element of `message` explaining it; `focusYes` focuses `yes` (a retry). `other`
+// ({ label, onclick }) adds a third button, the primary one, that runs `onclick` and answers false.
+function ask(
+    message,
+    yes,
+    { onYes = () => {}, label = null, unavailable = null, why = null, focusYes = false, other = null } = {},
+) {
     // Focus on the box, not a button: the Enter that asked (in the reason box) must not answer it.
     const text = el("div", { class: "ask-text", id: "ask-text" }, message);
     const dialog = el("dialog", {
@@ -652,11 +657,26 @@ function ask(message, yes, { onYes = () => {}, label = null, unavailable = null,
             "p",
             { class: "actions" },
             el("button", { type: "button", onclick: answer("no") }, "Cancel"),
+            other
+                ? el(
+                      "button",
+                      {
+                          type: "button",
+                          class: "primary",
+                          id: "ask-other",
+                          onclick: () => {
+                              other.onclick();
+                              dialog.close("no");
+                          },
+                      },
+                      other.label,
+                  )
+                : null,
             el(
                 "button",
                 {
                     type: "button",
-                    class: "primary",
+                    class: other ? null : "primary",
                     id: "ask-yes",
                     "aria-disabled": unavailable ? "true" : null,
                     "aria-describedby": unavailable && why ? why : null,
@@ -904,6 +924,9 @@ const short = (sha) => (sha ? sha.slice(0, 10) : "none");
 const decisionOf = (item) => state.data?.decisions[item.file] ?? null;
 // A decision the owner took, not an accept the server took because the image was approved before.
 const firmDecision = (item) => (decisionOf(item)?.approvedBefore ? null : decisionOf(item));
+// A reject an earlier Finish posted: it stays in that Finish's record, and while the image is the one
+// rejected the owner can still change it here (Accept, Exclude or Undo); the next Finish commits that.
+const postedReject = (d) => d?.posted === true && d.decision === "reject";
 const day = (iso) => (iso ? String(iso).slice(0, 10) : "");
 const prName = (pr) => (pr === null ? "seed" : "#" + pr);
 const approvedText = (a) => `Approved before (${prName(a.pr)}, ${day(a.reviewedAt)})`;
@@ -923,6 +946,10 @@ const labelOf = (t) => {
 };
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
+const reviewableOf = (t) => t.projects.reduce((n, p) => n + p.reviewable, 0);
+const rejectedOf = (t) => t.projects.reduce((n, p) => n + (p.rejected ?? 0), 0);
+// "5 rejected, waiting for a fix": rejects an earlier Finish posted, never "nothing to decide".
+const rejectsText = (t) => (rejectedOf(t) > 0 ? `${rejectedOf(t)} rejected, waiting for a fix` : null);
 const draftKey = (item) => `${state.target.id}/${state.project}/${item.file}`;
 
 // Errors first, then components by their most urgent item, stories the same way within one, and
@@ -1157,9 +1184,12 @@ function drawHeader() {
 // reason's tail is only for wide windows and screen readers, so a narrow header keeps Finish whole.
 function finishControl(t) {
     const count = t.unpublished ?? 0;
-    const can = count > 0 && !running();
-    const why = count === 0 ? ["Nothing new", " to finish"] : null;
+    // Nothing new, but an earlier Finish's record waits for the passkey: Finish signs it.
+    const resign = count === 0 && t.resign === true && t.passkey?.required === true;
+    const can = (count > 0 || resign) && !running();
+    const why = count === 0 && !resign ? ["Nothing new", " to finish"] : null;
     return [
+        tallyLine(t),
         el(
             "button",
             {
@@ -1199,6 +1229,24 @@ toItemCrumb.addEventListener("click", () => backToItem());
 titleCrumb.addEventListener("click", () => showContext());
 document.getElementById("prev-project").addEventListener("click", () => stepProject(-1));
 document.getElementById("next-project").addEventListener("click", () => stepProject(1));
+
+// "93 of 110 decided -- 17 left", beside Finish: what is still undecided is never out of sight. A
+// narrow header keeps "17 left".
+function tallyLine(t) {
+    const total = reviewableOf(t);
+    if (total === 0) {
+        return null;
+    }
+    const left = undecidedOf(t);
+    const rejects = rejectsText(t);
+    return el(
+        "span",
+        { class: left > 0 || rejects ? "finish-tally left" : "finish-tally", "data-tally": t.id },
+        el("span", { class: "wide-only" }, `${total - left} of ${total} decided -- `),
+        `${left} left`,
+        rejects ? `, ${rejects}` : null,
+    );
+}
 
 // ---------------------------------------------------------------- screen: targets
 
@@ -1380,6 +1428,17 @@ const ago = (from, now) => {
     return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 };
 
+// An inbox row's count: the images to decide (of how many, once some are decided), or the decisions
+// ready to Finish.
+function inboxCount(r) {
+    if (r.undecided === 0) {
+        return `ready to Finish (${plural(r.unpublished, "decision")})`;
+    }
+    return r.decided > 0
+        ? `${r.undecided} of ${plural(r.undecided + r.decided, "image")} left`
+        : plural(r.undecided, "image");
+}
+
 // What is waiting for the owner, on top of the targets screen: the pull requests with images to
 // decide (fewest first; a row opens its first undecided image), those whose capture failed, and
 // how many are still capturing or have nothing to decide. Coupled pull requests (they change the
@@ -1409,9 +1468,7 @@ function inboxView(inbox) {
                 el(
                     "span",
                     { class: "meta" },
-                    r.undecided > 0
-                        ? plural(r.undecided, "image")
-                        : `ready to Finish (${plural(r.unpublished, "decision")})`,
+                    inboxCount(r),
                     `, ${r.source}`,
                     r.complete ? "" : `, ${r.loaded} of ${plural(r.total, "project")} ready`,
                     `, ${ago(r.since, now)}`,
@@ -1443,7 +1500,12 @@ function inboxView(inbox) {
                 return badRow(bad);
             }
             // Only a member the server counted as done has nothing to decide; never guess it.
-            const said = { done: "nothing to decide", capturing: "still capturing", draft: "draft" }[g.states?.[n]];
+            const said = {
+                done: "nothing to decide",
+                rejected: "rejected, waiting for a fix",
+                capturing: "still capturing",
+                draft: "draft",
+            }[g.states?.[n]];
             return el("li", { class: "meta" }, `#${g.prs[n]}: ${said ?? "status unknown: reload the page"}`);
         });
         const first = g.ids.find((id) => inbox.ready.some((r) => r.id === id && r.undecided > 0));
@@ -1487,6 +1549,7 @@ function inboxView(inbox) {
     const readyCount = inbox.ready.length;
     const rest = [
         inbox.capturing > 0 ? `${inbox.capturing} capturing` : null,
+        inbox.rejected > 0 ? `${inbox.rejected} with rejects waiting for a fix` : null,
         inbox.done > 0 ? `${inbox.done} with nothing to decide` : null,
         inbox.drafts > 0 ? `${inbox.drafts} still a draft` : null,
     ].filter(Boolean);
@@ -2309,15 +2372,15 @@ function tile(item) {
     return el("div", { class: "tile-box", "data-file": item.file }, button, decisionLine(item));
 }
 
-// A decision an earlier Finish published: a reject stays; an accept or exclusion is on the branch
-// until the next CI run, which no longer shows it.
+// A decision an earlier Finish published: a reject can still be changed; an accept or exclusion is on
+// the branch until the next CI run, which no longer shows it.
 const postedText = (d) =>
     d.decision === "reject"
-        ? "Posted by an earlier Finish: it stays."
+        ? "Rejected by an earlier Finish, waiting for a fix. Accept or Exclude replaces it."
         : "Finished: it is on the branch, and the next CI run no longer shows it.";
 
-// An item's decision, with its reason, and an Undo that clears it without opening the story. A
-// reject an earlier Finish already posted stays: it is shown, never undone from the grid.
+// An item's decision, with its reason, and an Undo that clears it without opening the story. An
+// accept or exclusion an earlier Finish already published stays: it is shown, never undone.
 function decisionLine(item) {
     const d = decisionOf(item);
     if (!d) {
@@ -2327,7 +2390,9 @@ function decisionLine(item) {
     // An accept taken as approved before has nothing to undo: Reject or Exclude replaces it.
     const fixed = d.approvedBefore && !d.posted;
     let after = null;
-    if (d.posted) {
+    if (postedReject(d)) {
+        after = [el("span", { class: "meta" }, postedText(d)), undoButton(item, d)];
+    } else if (d.posted) {
         after = el("span", { class: "meta" }, postedText(d));
     } else if (!fixed) {
         after = undoButton(item, d);
@@ -2487,6 +2552,9 @@ function showGrid() {
     const next = left ? projectAt(1) : null;
     if (state.filter === "undecided") {
         empty = isLocal() ? "Nothing here." : `Everything is decided. Finish ${labelOf(state.target)} when ready.`;
+        if (!isLocal() && rejectsText(state.target)) {
+            empty = `Everything is decided; ${rejectsText(state.target)}.`;
+        }
         if (left) {
             empty = [
                 `${left}.`,
@@ -3042,12 +3110,12 @@ function available(item, d) {
     const open = !isLocal() && !state.ended;
     const acceptable = state.data.acceptable;
     // Approved before: Reject or Exclude replaces it; there is nothing to undo.
-    const firm = d && !(d.approvedBefore && !d.posted);
+    const firm = d && !(d.approvedBefore && !d.posted) && !postedReject(d);
     return {
-        accept: open && acceptable && !onlyExclude(item) && !d,
-        reject: open && !onlyExclude(item) && !firm,
+        accept: open && acceptable && !onlyExclude(item) && (!d || postedReject(d)),
+        reject: open && !onlyExclude(item) && !firm && !postedReject(d),
         exclude: open && acceptable && !firm,
-        undo: open && Boolean(d) && !d.posted && !d.approvedBefore,
+        undo: open && Boolean(d) && (!d.posted || postedReject(d)) && !d.approvedBefore,
     };
 }
 
@@ -3066,7 +3134,7 @@ function explanation(item, d) {
     if (d?.approvedBefore) {
         return (
             `${approvedText(d.approvedBefore)}: you accepted this exact image for this story there, so it is ` +
-            "accepted again, and the CI gate checks that approval. Reject or Exclude replaces it."
+            "accepted again, and your Finish signs it with the rest. Reject or Exclude replaces it."
         );
     }
     if (item.noise) {
@@ -4047,7 +4115,10 @@ async function fillEnd(card, seq) {
     const waitingFor = others.filter((p) => p.downloading);
     const left = leftToReview(t, state.project);
     const offers = endOffers(t, here, next, left);
-    const verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    let verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    if (!left && rejectsText(t)) {
+        verdict = `Every project of ${labelOf(t)} is decided; ${rejectsText(t)}.`;
+    }
     card.replaceChildren(
         ...[
             el(
@@ -4256,7 +4327,7 @@ function undoRefusal(item) {
     if (!firmDecision(item)) {
         return "Nothing to undo.";
     }
-    return before.posted ? postedText(before) : null;
+    return before.posted && !postedReject(before) ? postedText(before) : null;
 }
 
 // Why `decision` (null: Undo) cannot be taken on `item` now, or null when it can.
@@ -4266,7 +4337,11 @@ function refusal(decision, item, press) {
     }
     const before = decisionOf(item);
     const firm = firmDecision(item);
-    // No press reverses a decision: changing one is an explicit Undo first.
+    // No press reverses a decision: changing one is an explicit Undo first. A reject an earlier
+    // Finish posted is the exception: Accept or Exclude replaces it.
+    if (postedReject(before)) {
+        return decision === "reject" ? postedText(before) : null;
+    }
     if (before?.posted) {
         return postedText(before);
     }
@@ -4728,20 +4803,8 @@ function sheet(t, f, prepared, notice) {
         f.accepts > 0 ? plural(f.accepts, "accept") : null,
         f.excludes > 0 ? plural(f.excludes, "exclusion") : null,
     ].filter(Boolean);
-    const legacy = f.legacy && f.legacy.files + f.legacy.records.length > 0 ? f.legacy : null;
-    if (legacy) {
-        // Approved in this pull request before passkeys existed: the gate counts those approvals
-        // for nothing until they are signed.
-        lines.push(
-            `Sign again ${plural(legacy.files, "file")} approved before passkeys, and remove ` +
-                `${plural(legacy.records.length, "unsigned review record")} from ${t.branch}: ` +
-                `${legacy.records.join(", ")}.`,
-        );
-    }
     if (kinds.length === 0) {
-        if (!legacy) {
-            lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
-        }
+        lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
     } else if (seed) {
         const day = new Date().toISOString().slice(0, 10);
         lines.push(
@@ -4767,12 +4830,12 @@ function sheet(t, f, prepared, notice) {
     }
     if (f.approvedBefore > 0) {
         lines.push(
-            `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval and the CI gate checks it.`,
+            `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval, and your passkey signs them with the rest.`,
         );
     }
     if (f.undecided.length > 0) {
         lines.push(
-            `Still undecided, left for a later round: ${f.undecided.map((p) => `${p.project} ${p.undecided}`).join(", ")}.`,
+            `Still undecided, and blocking the merge: ${f.undecided.map((p) => `${p.project} ${p.undecided}`).join(", ")}.`,
         );
     }
     if (f.unloaded.length > 0) {
@@ -4837,14 +4900,42 @@ function approvedList(t, items) {
 }
 
 // What the passkey does for this Finish, from POST /api/finish-prepare: once a passkey is known it
-// approves the whole record (rejects too); before that, accepts are not yet protected, and the
-// sheet says so. Rejects alone never wait for a passkey to be registered.
+// signs the decisions of every Finish that commits any, and also the baselines the Finish leaves on
+// the branch when nothing is rejected or left undecided. With nothing new to decide, it signs the
+// record of an earlier Finish that was pushed unsigned. Before a passkey is known, accepts are not
+// yet protected, and the sheet says so. Rejects alone never wait for a passkey to be registered.
 function passkeySentence(f, prepared) {
     if (prepared.error) {
         return el("p", { class: "error", id: "sheet-passkey" }, `Finish cannot be approved now: ${prepared.error}`);
     }
+    const blocked =
+        "the merge stays blocked until a Finish with every image decided and none rejected signs the baselines.";
+    const why = prepared.unsigned === "rejects" ? "something is rejected" : "images are still undecided";
+    if (prepared.required && prepared.resign) {
+        return el(
+            "p",
+            { class: "passkey" },
+            "Nothing new to decide: your passkey signs the decisions of the earlier Finish, which were pushed " +
+                `unsigned, so they count as approved before. The baselines are not signed: ${blocked}`,
+        );
+    }
+    if (prepared.required && prepared.tree) {
+        return el(
+            "p",
+            { class: "passkey" },
+            "Your passkey signs your decisions, then the baselines this Finish leaves on the branch: two " +
+                "prompts (Face ID or a security key).",
+        );
+    }
     if (prepared.required) {
-        return el("p", { class: "passkey" }, "Your passkey confirms this Finish (Face ID or a security key).");
+        return el(
+            "p",
+            { class: "warning", id: "sheet-unsigned" },
+            `Your passkey signs your decisions (Face ID or a security key). The baselines are not signed, because ${why}: ${blocked}`,
+        );
+    }
+    if (prepared.unsigned) {
+        return el("p", { class: "warning", id: "sheet-unsigned" }, `Nothing is signed, because ${why}: ${blocked}`);
     }
     if (f.accepts + f.excludes === 0) {
         return null;
@@ -4858,6 +4949,27 @@ function passkeySentence(f, prepared) {
     );
 }
 
+// After the passkey signed the decisions, a Finish that signs the baselines too asks again: the
+// baselines hold the signed decisions, so one approval cannot cover both. Safari starts WebAuthn
+// only from a press, so this is a second sheet. Resolves to the approval, or null when cancelled.
+async function approveTree(t, prepared) {
+    let approval = null;
+    const go = await ask(
+        [
+            el("h2", { id: "tree-title" }, `Sign the baselines of ${labelOf(t)}`),
+            el(
+                "p",
+                {},
+                "Your decisions are signed. Now your passkey signs the baselines this Finish leaves on the branch, " +
+                    "which lets the merge go ahead.",
+            ),
+        ],
+        `Sign the baselines of ${labelOf(t)}`,
+        { label: "tree-title", onYes: () => (approval = approve(prepared)) },
+    );
+    return go ? approval : null;
+}
+
 // Finish publishes every decision of one target. It asks the server what it would do, states it
 // in a sheet, and starts on the server; then the targets screen follows it step by step.
 // The Finish sheet's final button.
@@ -4866,6 +4978,46 @@ function finishTitle(t, f, required, onlyRejects) {
         return `Sign and finish ${labelOf(t)}`;
     }
     return onlyRejects ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}` : `Finish ${labelOf(t)}`;
+}
+
+// Before a Finish: the last decision saved, and images left undecided confirmed. True to go on.
+async function readyToFinish(id) {
+    if (saving) {
+        sayBusy("Saving the last decision...");
+        await saving.catch(() => {});
+    }
+    return finishWithUndecided(id);
+}
+
+// Before a Finish that leaves images undecided: says so plainly, and offers the first of them. True
+// to go on with the Finish.
+async function finishWithUndecided(id) {
+    const t = state.target?.id === id ? state.target : state.list?.targets?.find((x) => x.id === id);
+    const left = t ? undecidedOf(t) : 0;
+    if (left === 0) {
+        return true;
+    }
+    let jump = false;
+    const go = await ask(
+        [
+            el("h2", { id: "undecided-title" }, `${plural(left, "image")} still undecided`),
+            el(
+                "p",
+                {},
+                `${plural(left, "image")} ${left === 1 ? "is" : "are"} still undecided; they will block the merge. ` +
+                    `${reviewableOf(t) - left} of ${reviewableOf(t)} are decided.`,
+            ),
+        ],
+        "Finish anyway",
+        { label: "undecided-title", other: { label: "Go to the first undecided", onclick: () => (jump = true) } },
+    );
+    if (jump) {
+        say("");
+        await openTarget(id, true);
+    } else if (!go) {
+        say("Finish cancelled: nothing was changed.");
+    }
+    return go;
 }
 
 async function finishTarget(id, button) {
@@ -4880,9 +5032,9 @@ async function finishTarget(id, button) {
     };
     button.classList.add("busy");
     button.prepend(spinner());
-    if (saving) {
-        sayBusy("Saving the last decision...");
-        await saving.catch(() => {});
+    if (!(await readyToFinish(id))) {
+        reset();
+        return;
     }
     let notice = "";
     for (;;) {
@@ -4908,7 +5060,7 @@ async function finishTarget(id, button) {
         }
         const f = t.finish;
         const onlyRejects = f.accepts + f.excludes === 0 && f.acceptNotes === 0 && f.rejects > 0;
-        const commits = f.accepts + f.excludes > 0 || (f.legacy !== null && f.legacy !== undefined);
+        const commits = f.accepts + f.excludes > 0;
         // When the server cannot prepare an approval the final button is unavailable, and the sheet
         // says why.
         let approval = null;
@@ -4924,15 +5076,38 @@ async function finishTarget(id, button) {
             say("Finish cancelled: nothing was changed.");
             return;
         }
+        const cancelled = (err) =>
+            err?.name === "NotAllowedError" || err?.name === "AbortError"
+                ? "Passkey cancelled: nothing was changed."
+                : passkeyFailure(err, t.passkey);
         if (approval) {
             sayBusy("Waiting for your passkey...");
             try {
                 approval = await approval;
             } catch (err) {
-                notice =
-                    err?.name === "NotAllowedError" || err?.name === "AbortError"
-                        ? "Passkey cancelled: nothing was changed."
-                        : passkeyFailure(err, t.passkey);
+                notice = cancelled(err);
+                say(notice);
+                continue;
+            }
+        }
+        // The decisions are signed into the accept commit (not pushed yet); the baselines, when this
+        // Finish signs them, take a second approval.
+        let signedRecord = false;
+        if (approval && prepared.signs === "record") {
+            sayBusy("Signing your decisions...");
+            try {
+                const next = await api("/api/finish-prepare", { id, challenge: prepared.challenge, approval });
+                signedRecord = true;
+                // approveTree's promise settles with Face ID's answer, or null when cancelled.
+                approval = next.required ? await approveTree(t, next) : null;
+                if (next.required && !approval) {
+                    reset();
+                    say("Finish cancelled: nothing was changed.");
+                    return;
+                }
+                prepared = next;
+            } catch (err) {
+                notice = err?.status ? `${err.message}. Nothing was changed.` : cancelled(err);
                 say(notice);
                 continue;
             }
@@ -4942,7 +5117,7 @@ async function finishTarget(id, button) {
         sayBusy("Starting Finish...");
         // A seed's accept notes go into its pull request's description: only rejects post anything.
         const posts = t.pr === null ? f.rejects > 0 : f.rejects + f.acceptNotes > 0;
-        state.plan = { seed: t.pr === null, commits, posts, signed: Boolean(approval) };
+        state.plan = { seed: t.pr === null, commits, posts, signed: Boolean(approval) || signedRecord };
         try {
             state.job = (
                 await api("/api/finish", {
@@ -5184,6 +5359,9 @@ function commitLine(out, repo) {
         return el("p", {}, "No commit: nothing was accepted or excluded.");
     }
     const commit = repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit);
+    if (out.resigned) {
+        return el("p", {}, "Signed the decisions of the earlier Finish: committed ", commit, ` to ${out.branch}.`);
+    }
     if (out.alreadyFinished) {
         return el(
             "p",
@@ -5198,7 +5376,7 @@ function commitLine(out, repo) {
 
 // The commit status a Finish posted, or why posting it failed; none when it was already finished.
 function finishStatusLine(out) {
-    if (out.alreadyFinished) {
+    if (out.alreadyFinished || out.resigned) {
         return [];
     }
     const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");

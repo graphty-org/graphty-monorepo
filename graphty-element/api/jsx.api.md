@@ -9,11 +9,14 @@ import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
+import { Credential as Credential_2 } from '@graphty/graph-io';
+import { CredentialKind } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
 import { CX_LOSS } from '@graphty/graph-io';
 import { CYS_LOSS } from '@graphty/graph-io';
+import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
@@ -22,6 +25,8 @@ import { EngineInstrumentation } from '@babylonjs/core';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import type { GeneratorDescriptor } from '@graphty/graph-samples';
+import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -44,8 +49,15 @@ import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
+import type { RetryOptions } from '@graphty/graph-io';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import type { SourceCursor } from '@graphty/graph-io';
+import type { SourceLimitOptions } from '@graphty/graph-io';
+import type { SourceListing } from '@graphty/graph-io';
+import type { SourceListQuery } from '@graphty/graph-io';
+import type { SourceProbe } from '@graphty/graph-io';
+import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
@@ -64,6 +76,7 @@ import { z } from 'zod';
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
     "auto-frame"?: boolean;
+    "auto-rotate"?: string;
     "autosave-restore"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
@@ -150,6 +163,12 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
+    // (undocumented)
+    "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
+    // (undocumented)
+    "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
+    // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
@@ -207,6 +226,7 @@ export interface GraphtyElementJSXProps {
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
+    "pixel-ratio"?: string;
     "position-scale"?: string;
     "render-on-demand"?: boolean;
     "repeated-edges"?: string;
@@ -217,6 +237,7 @@ export interface GraphtyElementJSXProps {
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     autoFrame?: Graphty["autoFrame"];
+    autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];
     autosaveOptions?: Graphty["autosaveOptions"];
     autosaveRestore?: Graphty["autosaveRestore"];
@@ -230,6 +251,7 @@ export interface GraphtyElementJSXProps {
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
+    fitInsets?: Graphty["fitInsets"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];
@@ -242,6 +264,7 @@ export interface GraphtyElementJSXProps {
     nodeLabelPath?: Graphty["nodeLabelPath"];
     // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];

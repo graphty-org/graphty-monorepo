@@ -331,7 +331,8 @@ export type ShaderProblemCode =
     | "shader.effect-cap"
     | "shader.boundary-cap"
     | "shader.apply-target"
-    | "shader.no-data";
+    | "shader.no-data"
+    | "shader.no-canvas";
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {

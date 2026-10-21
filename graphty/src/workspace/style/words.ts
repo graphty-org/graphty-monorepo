@@ -1507,17 +1507,17 @@ export const MOTION_COMMAND_WORDS = { off: "Motion off", on: "Motion on" } as co
 
 /**
  * The graph's Values tab row when the frame guard changed the quality: the level and, after a
- * dash, what the motion and pasted shaders do when they differ from full.
+ * dash, what the motion and heavy shaders do when they differ from full.
  * @param quality - the element's `renderQuality`.
  * @param quality.level - its level.
  * @param quality.motion - its motion.
- * @param quality.pasted - whether pasted shaders draw.
+ * @param quality.heavy - whether heavy shaders draw.
  * @returns the words, such as "Medium" or "Low, motion paused".
  */
 export function renderQualityWords(quality: {
     readonly level: "low" | "medium" | "high";
     readonly motion: string;
-    readonly pasted: string;
+    readonly heavy: string;
 }): string {
     const parts: string[] = [SHADER_QUALITY_WORDS[quality.level]];
     if (quality.motion === "half") {
@@ -1525,8 +1525,8 @@ export function renderQualityWords(quality: {
     } else if (quality.motion === "paused") {
         parts.push("motion paused");
     }
-    if (quality.pasted === "off") {
-        parts.push("pasted shaders off");
+    if (quality.heavy === "off") {
+        parts.push("heavy shaders off");
     }
     return parts.join(", ");
 }

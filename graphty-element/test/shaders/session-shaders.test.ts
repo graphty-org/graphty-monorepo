@@ -13,11 +13,13 @@ import { createHash } from "node:crypto";
 
 import { assert, describe, it } from "vitest";
 
+import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegistry";
 import type { ShaderProblem } from "../../src/catalog/shaders";
 import type { LayerSpec, StyleDocument } from "../../src/catalog/types";
 import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
+import { defineShader } from "../../src/simple/defineShader";
 import { sha256Hex } from "../../src/utils/sha256";
 
 /** A node look with one parameter. */
@@ -44,6 +46,13 @@ vec4 shade(NodeInput n) {
 }
 `;
 
+/** The body of a shader a page registers. */
+const HEAT_BODY = `vec4 shade(NodeInput n) {
+    float lit = 0.4 + 0.6 * max(dot(n.normal, lightDir), 0.0);
+    return vec4(hot * lit, 1.0);
+}
+`;
+
 /** A node layer to apply shaders to. */
 const MARBLES: LayerSpec = {
     name: "Marbles",
@@ -55,6 +64,8 @@ const MARBLES: LayerSpec = {
 /** A stand-in host. */
 interface FakeHost extends ShaderHost {
     readonly checked: HostShader[];
+    /** Every shader whose thumbnail it drew, one entry a drawing. */
+    readonly drawn: HostShader[];
     /** The frame guard the host draws by, as the element's render loop holds one. */
     readonly guard: ShaderGuard;
     readonly flashing: Set<string>;
@@ -71,9 +82,11 @@ interface FakeHost extends ShaderHost {
 function fakeHost(options: { problem?: ShaderProblem | null; crashMarked?: readonly string[] } = {}): FakeHost {
     const listeners = new Set<(hashes: readonly string[]) => void>();
     const checked: HostShader[] = [];
+    const drawn: HostShader[] = [];
     const guard = new ShaderGuard();
     return {
         guard,
+        drawn,
         flashing: new Set(),
         renderer: "webgl",
         crashMarked: new Set(options.crashMarked),
@@ -82,7 +95,10 @@ function fakeHost(options: { problem?: ShaderProblem | null; crashMarked?: reado
             checked.push(shader);
             return Promise.resolve(options.problem ?? null);
         },
-        thumbnail: () => Promise.resolve(new Blob([])),
+        thumbnail: (shader) => {
+            drawn.push(shader);
+            return Promise.resolve(new Blob(["png"], { type: "image/png" }));
+        },
         configure: (settings) => {
             guard.configure(settings);
         },
@@ -353,15 +369,79 @@ describe("session.shaders", () => {
         assert.notProperty(s.styles.toDocument(), "shaders");
     });
 
-    it("refuses a thumbnail with no canvas", async () => {
+    it("answers a thumbnail with no canvas with shader.no-canvas", async () => {
         const { session: s } = await session();
         await s.shaders.add(TINT);
-        try {
-            await s.shaders.thumbnail("user/tint");
-            assert.fail("expected a refusal");
-        } catch (error) {
-            assert.strictEqual((error as { code?: string }).code, "E_UNSUPPORTED");
-        }
+        assert.deepEqual(await s.shaders.thumbnail("user/tint"), {
+            code: "shader.no-canvas",
+            params: { id: "user/tint" },
+        });
+    });
+
+    it("draws a thumbnail once, and serves the same values from its cache", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        await s.shaders.add(TINT);
+
+        const first = await s.shaders.thumbnail("user/tint", { amount: 0.2 });
+        assert.instanceOf(first, Blob);
+        assert.strictEqual(await s.shaders.thumbnail("user/tint", { amount: 0.2 }), first);
+        assert.lengthOf(host.drawn, 1);
+
+        await s.shaders.thumbnail("user/tint", { amount: 0.9 });
+        assert.lengthOf(host.drawn, 2, "other values draw again");
+    });
+
+    it("draws a shader with no picture at its preview's values and time", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        const previewed = TINT.replace(
+            '"role": "look",',
+            '"role": "look", "preview": { "params": { "amount": 0.3 }, "time": 2.5 },',
+        );
+        await s.shaders.add(previewed);
+        const asked: unknown[] = [];
+        const drawn = host.thumbnail.bind(host);
+        host.thumbnail = (shader, params, time) => {
+            asked.push({ params, time });
+            return drawn(shader, params, time);
+        };
+        await s.shaders.thumbnail("user/tint");
+        await s.shaders.thumbnail("user/tint", { amount: 0.6 });
+        assert.deepEqual(asked, [
+            { params: { amount: 0.3 }, time: 2.5 },
+            { params: { amount: 0.6 }, time: 2.5 },
+        ]);
+    });
+
+    it("answers a held shader's thumbnail with shader.held, and never runs its code", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        await s.shaders.add(TINT, { source: "content" });
+        assert.strictEqual(s.shaders.status("user/tint").state, "held");
+
+        assert.deepEqual(await s.shaders.thumbnail("user/tint"), {
+            code: "shader.held",
+            params: { id: "user/tint" },
+        });
+        assert.lengthOf(host.drawn, 0);
+        assert.lengthOf(host.checked, 0);
+    });
+
+    it("answers a quarantined shader's thumbnail with shader.quarantined, drawing nothing", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        await s.shaders.add(TINT);
+        host.lose([sha256Hex(TINT)]);
+        assert.deepEqual(await s.shaders.thumbnail("user/tint"), {
+            code: "shader.quarantined",
+            params: { id: "user/tint" },
+        });
+        assert.lengthOf(host.drawn, 0);
     });
 
     it("counts the layers naming a shader", async () => {
@@ -398,33 +478,122 @@ describe("session.shaders", () => {
         });
     });
 
-    it("turns pasted shaders off when the guard does, publishes the change, and back on", async () => {
+    it("turns heavy shaders off when the guard does, presets as pasted ones, publishes it, and back on", async () => {
         const { session: s } = await session();
         const host = fakeHost();
         const controller = shadersControllerOf(s);
         controller?.attach(host);
-        await s.shaders.add(TINT);
+        const heavy = TINT.replace('"role": "look",', '"role": "look", "cost": "heavy",');
+        await s.shaders.add(heavy);
+        await s.shaders.add(TINT.replace('"user/tint"', '"user/light"'));
+        // glass-marble is a heavy preset; pearl a light one.
+        assert.isNotNull(await controller?.drawable("glass-marble"));
+        assert.isNotNull(await controller?.drawable("pearl"));
+        const statuses = events(s).status;
         const changes: string[] = [];
-        s.on("render:quality", ({ code, to }) => changes.push(`${code}:${to.pasted}`));
+        s.on("render:quality", ({ code, to }) => changes.push(`${code}:${to.heavy}`));
         host.guard.lend({
             claimed: () => true,
-            pastedOnScreen: () => true,
-            movingPasted: () => [],
+            heavyOnScreen: () => true,
+            movingShaders: () => [],
             freeze: () => undefined,
         });
         host.guard.frame({ intervalMs: 300, gpuBehind: true });
 
         assert.deepEqual(changes, ["guard.long-frame:off"]);
-        assert.deepEqual(s.shaders.status("user/tint"), {
-            state: "off",
-            problem: { code: "shader.guard-off", params: { level: "high" } },
-        });
-        assert.isNull(await controller?.drawable("user/tint"));
-        assert.strictEqual(controller?.renderQuality.pasted, "off");
+        for (const id of ["user/tint", "glass-marble"]) {
+            assert.deepEqual(s.shaders.status(id), {
+                state: "off",
+                problem: { code: "shader.guard-off", params: { level: "high" } },
+            });
+            assert.isNull(await controller?.drawable(id), id);
+        }
+
+        assert.deepInclude(statuses, { id: "glass-marble", state: "off" }, "the preset's batches hear of it");
+        assert.strictEqual(s.shaders.status("user/light").state, "ready", "a light pasted shader stays on");
+        assert.strictEqual(s.shaders.status("pearl").state, "ready", "a light preset stays on");
+        assert.strictEqual(controller?.renderQuality.heavy, "off");
 
         // Changing the settings starts the guard again.
         controller?.configure({ quality: "high" });
         assert.strictEqual(s.shaders.status("user/tint").state, "ready");
+        assert.strictEqual(s.shaders.status("glass-marble").state, "ready");
+    });
+
+    it("turns the guard's lowest steps' heavy shaders off however they arrived", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        const controller = shadersControllerOf(s);
+        controller?.attach(host);
+        await s.shaders.add(TINT.replace('"role": "look",', '"role": "look", "cost": "heavy",'));
+        host.guard.lend({
+            claimed: () => true,
+            heavyOnScreen: () => false,
+            movingShaders: () => [],
+            freeze: () => undefined,
+        });
+        // Five seconds of GPU-bound 100 ms frames: one rung a second, to heavy shaders off.
+        for (let frame = 0; frame < 50 && controller?.renderQuality.heavy !== "off"; frame++) {
+            host.guard.frame({ intervalMs: 100, gpuBehind: true });
+        }
+
+        assert.strictEqual(controller?.renderQuality.heavy, "off");
+        assert.strictEqual(s.shaders.status("glass-marble").problem?.code, "shader.guard-off");
+        assert.strictEqual(s.shaders.status("user/tint").problem?.code, "shader.guard-off");
+        assert.isNull(await controller?.drawable("glass-marble"));
+    });
+
+    it("freezes a preset that flashed, and turns one off that the GPU was lost under", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        const controller = shadersControllerOf(s);
+        controller?.attach(host);
+        const pearl = await controller?.drawable("pearl");
+        const marble = await controller?.drawable("glass-marble");
+        assert.ok(pearl && marble);
+
+        host.flashing.add(pearl.hash);
+        host.guard.announce();
+        assert.deepEqual(s.shaders.status("pearl"), {
+            state: "still",
+            problem: { code: "shader.flashing", params: { id: "pearl" } },
+        });
+
+        host.lose([marble.hash]);
+        assert.deepEqual(s.shaders.status("glass-marble"), {
+            state: "off",
+            problem: { code: "shader.quarantined", params: { id: "glass-marble" } },
+        });
+        assert.isNull(await controller?.drawable("glass-marble"));
+    });
+
+    it("embeds a registered shader a layer names, and opens it held where the page lacks it", async () => {
+        defineShader({ id: "acme/heat", params: { hot: "#ff5500" }, glsl: HEAT_BODY });
+        try {
+            const { session: s, layer } = await session();
+            await s.styles.update(layer, { set: { "node.shader": "acme/heat" } });
+            const document = s.styles.toDocument();
+            const carried = document.shaders?.find((entry) => entry.id === "acme/heat");
+            assert.ok(carried, "the registered shader's text is in the document");
+            assert.include(carried.text, HEAT_BODY.trim().split("\n")[0]);
+
+            // With the id registered on this page too, the page's version draws: nothing joins the project.
+            const here = await session();
+            await here.session.styles.applyTemplate(document);
+            assert.lengthOf(here.session.shaders.list(), 0);
+            assert.notStrictEqual(here.session.shaders.status("acme/heat").state, "held");
+
+            // On a page that never registered it, the text arrives as content and is held.
+            clearRegisteredShadersForTesting();
+            const elsewhere = await session();
+            await elsewhere.session.styles.applyTemplate(document);
+            assert.deepEqual(
+                elsewhere.session.shaders.list().map((shader) => [shader.id, shader.state]),
+                [["acme/heat", "held"]],
+            );
+        } finally {
+            clearRegisteredShadersForTesting();
+        }
     });
 
     it("reports a shader frozen for flashing as still", async () => {
@@ -533,6 +702,6 @@ describe("session.shaders", () => {
         const { session: s } = await session();
         const controller = shadersControllerOf(s);
         controller?.configure({ quality: "low", motion: "off" });
-        assert.deepEqual({ ...controller?.renderQuality }, { level: "low", motion: "still", pasted: "on" });
+        assert.deepEqual({ ...controller?.renderQuality }, { level: "low", motion: "still", heavy: "on" });
     });
 });

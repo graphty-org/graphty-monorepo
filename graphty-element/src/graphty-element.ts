@@ -2593,7 +2593,7 @@ export class Graphty extends LitElement {
     get renderQuality(): RenderQuality {
         return (
             shadersControllerOf(this.session)?.renderQuality ??
-            Object.freeze({ level: "high", motion: "on", pasted: "on" } as const)
+            Object.freeze({ level: "high", motion: "on", heavy: "on" } as const)
         );
     }
 

@@ -32,9 +32,9 @@ import { drawnFrames } from "../../helpers/drawn-frames";
 const WIDTH = 400;
 const HEIGHT = 300;
 
-/** A pasted sprite that does not move. */
+/** A pasted sprite that does not move, declared heavy. */
 const PASTED = `/* graphty-shader 1
-{ "id": "user/plate", "name": "Plate", "geometry": "card" }
+{ "id": "user/plate", "name": "Plate", "geometry": "card", "cost": "heavy" }
 */
 vec4 shade(NodeInput n) {
     return vec4(n.color.rgb, 1.0);
@@ -301,16 +301,16 @@ describe("the frame guard", () => {
         const from = ticks.drawn;
         await until(element, "40 slow frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
-        assert.deepEqual({ ...element.renderQuality }, { level: "high", motion: "on", pasted: "on" });
+        assert.deepEqual({ ...element.renderQuality }, { level: "high", motion: "on", heavy: "on" });
     });
 
-    it("turns pasted shaders off at once after one 300 ms frame with one on screen", async () => {
+    it("turns heavy shaders off at once after one 300 ms frame with one on screen", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.color": "#3366cc" }, { onDemand: false });
         const layer = shadedLayer(element);
         const added = await element.session.shaders.add(PASTED, { apply: { layer } });
         assert.isTrue(added.ok);
         const drawing = (): NodeShaderDrawing | undefined => NodeShaderDrawing.peek(element.graph.getScene());
-        await until(element, "the pasted sprite draws", () => drawing()?.pastedDrawn().any === true);
+        await until(element, "the heavy sprite draws", () => drawing()?.guardedDrawn().heavy === true);
         const seen = qualityEvents(element);
 
         let gpuMs = 300;
@@ -320,7 +320,7 @@ describe("the frame guard", () => {
             return ms;
         });
 
-        await until(element, "pasted shaders turned off", () => element.renderQuality.pasted === "off");
+        await until(element, "heavy shaders turned off", () => element.renderQuality.heavy === "off");
         assert.deepEqual(
             seen.map((change) => change.code),
             ["guard.long-frame"],
@@ -333,7 +333,7 @@ describe("the frame guard", () => {
         await until(
             element,
             "the node draws as the layers beneath paint it",
-            () => drawing()?.pastedDrawn().any === false,
+            () => drawing()?.guardedDrawn().heavy === false,
         );
     });
 
@@ -355,7 +355,7 @@ describe("the frame guard", () => {
         const from = ticks.drawn;
         await until(element, "40 GPU-bound frames were drawn", () => ticks.drawn - from >= 40);
         assert.lengthOf(seen, 0);
-        assert.deepEqual({ ...element.renderQuality }, { level: "high", motion: "on", pasted: "on" });
+        assert.deepEqual({ ...element.renderQuality }, { level: "high", motion: "on", heavy: "on" });
     });
 });
 

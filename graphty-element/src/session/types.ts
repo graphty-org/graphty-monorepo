@@ -2117,7 +2117,7 @@ export interface SessionEventMap {
     "shader:approved": { readonly id: string; readonly hash: string };
     /**
      * The frame guard changed how much shader work the element does: it stepped quality down,
-     * paused motion or turned pasted shaders off on a GPU that fell behind, or stepped back up.
+     * paused motion or turned heavy shaders off on a GPU that fell behind, or stepped back up.
      * Mirrored on the element as `graphty-render-quality`; the quality now is
      * `element.renderQuality`.
      * @since 3.36.0

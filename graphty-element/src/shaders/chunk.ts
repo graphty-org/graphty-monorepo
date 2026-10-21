@@ -19,20 +19,20 @@ import type { HostShader, RenderQualityChange, ShaderHost } from "../session/sha
 import { readCrashMarker } from "./crashMarker";
 import type { ShaderRuntime } from "./runtime";
 
-/** What the scene passes (background, boundaries) draw of pasted shaders, by scene. */
-const SCENE_PASTED = new WeakMap<Scene, () => { readonly any: boolean; readonly moving: readonly string[] }>();
+/** What the scene passes (background, boundaries) draw of shaders, by scene. */
+const SCENE_SHADERS = new WeakMap<Scene, () => { readonly heavy: boolean; readonly moving: readonly string[] }>();
 
 /**
  * Lend the frame guard and the flashing check what a scene's background and boundaries draw of
- * pasted shaders, beside what its nodes and edges draw.
+ * shaders of any origin, beside what its nodes and edges draw.
  * @param scene - The scene.
- * @param reader - Whether a pasted shader draws there, and the moving ones' text hashes.
+ * @param reader - Whether a heavy shader draws there, and the moving ones' text hashes.
  */
-export function lendScenePasted(
+export function lendSceneShaders(
     scene: Scene,
-    reader: () => { readonly any: boolean; readonly moving: readonly string[] },
+    reader: () => { readonly heavy: boolean; readonly moving: readonly string[] },
 ): void {
-    SCENE_PASTED.set(scene, reader);
+    SCENE_SHADERS.set(scene, reader);
 }
 
 /** A host whose runtime may not be loaded yet, with what the node and edge batches reach. */
@@ -110,15 +110,15 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
             apply();
             guard.lend({
                 claimed: () => built.uniforms.claimed,
-                pastedOnScreen: () =>
-                    NodeShaderDrawing.peek(scene)?.pastedDrawn().any === true ||
-                    EdgeShaderDrawing.peek(scene)?.pastedDrawn().any === true ||
-                    SCENE_PASTED.get(scene)?.().any === true,
-                movingPasted: () =>
+                heavyOnScreen: () =>
+                    NodeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
+                    EdgeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
+                    SCENE_SHADERS.get(scene)?.().heavy === true,
+                movingShaders: () =>
                     [
-                        ...(NodeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []),
-                        ...(EdgeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []),
-                        ...(SCENE_PASTED.get(scene)?.().moving ?? []),
+                        ...(NodeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
+                        ...(EdgeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
+                        ...(SCENE_SHADERS.get(scene)?.().moving ?? []),
                     ].filter((hash) => !flashing.has(hash)),
                 freeze: (hashes) => {
                     for (const hash of hashes) {
@@ -142,8 +142,11 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
             return loaded;
         },
         check: (shader: HostShader): Promise<ShaderProblem | null> => runtime().then((built) => built.check(shader)),
-        thumbnail: (shader: HostShader, params: ShaderParams): Promise<Blob> =>
-            runtime().then((built) => built.thumbnail(shader, params)),
+        thumbnail: (shader: HostShader, params: ShaderParams, time: number): Promise<Blob> =>
+            runtime().then((built) => built.thumbnail(shader, params, time)),
+        get theme() {
+            return scene.clearColor.toHexString();
+        },
         configure(settings) {
             guard.configure(settings);
             apply();

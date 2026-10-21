@@ -732,34 +732,34 @@ export class NodeShaderDrawing {
     }
 
     /**
-     * The pasted shaders drawn now, for the frame guard and the flashing check: whether any is,
-     * and the text hashes of those that move by themselves.
-     * @returns Whether a pasted shader draws, and the moving ones' hashes.
+     * The shaders drawn now, of any origin, for the frame guard and the flashing check: whether a
+     * heavy one is, and the text hashes of those that move by themselves.
+     * @returns Whether a heavy shader draws, and the moving ones' hashes.
      */
-    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
-        let any = false;
+    guardedDrawn(): { readonly heavy: boolean; readonly moving: readonly string[] } {
+        let heavy = false;
         const moving = new Set<string>();
         const note = (shader: HostShader): void => {
-            any = true;
+            heavy ||= shader.heavy === true;
             const { loop, enter, exit, change } = motionOf(shader.registration.descriptor.motion);
             if (loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0) {
                 moving.add(shader.hash);
             }
         };
         for (const { batch, ready } of this.batches.values()) {
-            if (ready === true && !batch.disposed && batch.liveCount > 0 && batch.shader.pasted === true) {
+            if (ready === true && !batch.disposed && batch.liveCount > 0) {
                 note(batch.shader);
             }
         }
 
         for (const entry of this.entries.values()) {
             const shader = entry.meshShader === null ? undefined : this.known.get(entry.meshShader)?.shader;
-            if (shader?.pasted === true) {
+            if (shader !== undefined && shader !== null) {
                 note(shader);
             }
         }
 
-        return { any, moving: [...moving] };
+        return { heavy, moving: [...moving] };
     }
 
     /** Release every batch, texture, claim and listener. */

@@ -3297,6 +3297,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         const held: string[] = [];
         for (const { id, text } of document.shaders ?? []) {
+            // A shader this page registered under the id is the page's own code: the page's
+            // version draws, and the document's copy is not needed.
+            if (trust?.pageOwns(id) === true) {
+                continue;
+            }
+
             const existing = dispatcher.state.shaders.get(id);
             if (existing !== undefined) {
                 // The first loaded wins; a second text under the id is reported, not swapped in.
@@ -4934,8 +4940,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
-            // The project's shaders travel with its look, verbatim, beside the palettes.
-            const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
+            // The project's shaders travel with its look, verbatim, beside the palettes, and so do
+            // the page's registered shaders its layers name, so the look opens on a page without them.
+            const shaders = [
+                ...[...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text })),
+                ...(SHADER_TRUST.get(api)?.embedded(layers) ?? []).map((entry) => Object.freeze({ ...entry })),
+            ];
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -5090,6 +5100,10 @@ interface ShaderTrust {
     readonly trusted: (text: string) => boolean;
     /** Approve texts for this session. */
     readonly trust: (texts: readonly string[]) => void;
+    /** The text of each page-registered shader the layers name, to embed in a saved document. */
+    readonly embedded: (layers: readonly LayerSpec[]) => readonly { readonly id: string; readonly text: string }[];
+    /** Whether the page registered a shader under this id, so a document's copy gives way to it. */
+    readonly pageOwns: (id: string) => boolean;
 }
 
 /** Each stack's shader trust, by the API that owns it. */

@@ -38,7 +38,7 @@ import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
 import { boundariesOf } from "../session/styles/StylesApi";
 import type { GraphSession, SessionEventMap } from "../session/types";
-import { type LazyShaderHost, lendScenePasted } from "../shaders/chunk";
+import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
@@ -422,11 +422,11 @@ class ShaderScene {
                 this.sync();
             }),
         );
-        lendScenePasted(scene, () => {
-            const background = this.background?.pastedDrawn();
-            const boundary = this.boundary?.pastedDrawn();
+        lendSceneShaders(scene, () => {
+            const background = this.background?.guardedDrawn();
+            const boundary = this.boundary?.guardedDrawn();
             return {
-                any: background?.any === true || boundary?.any === true,
+                heavy: background?.heavy === true || boundary?.heavy === true,
                 moving: [...(background?.moving ?? []), ...(boundary?.moving ?? [])],
             };
         });
@@ -471,7 +471,7 @@ class ShaderScene {
             stop();
         }
 
-        lendScenePasted(this.scene, () => ({ any: false, moving: [] }));
+        lendSceneShaders(this.scene, () => ({ heavy: false, moving: [] }));
         this.background?.dispose();
         this.background = null;
         this.boundary?.dispose();
@@ -633,7 +633,7 @@ export class RenderManager implements Manager {
      * loop only waited for its tick, which in Chromium is the GPU catching up.
      */
     private workEndedAt = Number.NaN;
-    /** The flashing check's readback and counter, made when a moving pasted shader first draws. */
+    /** The flashing check's readback and counter, made when a moving shader first draws. */
     private flashCheck: { readback: FlashReadback; counter: FlashCounter } | null = null;
     /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
@@ -1013,10 +1013,10 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * The flashing check (WCAG 2.3.1, design section 4.6): while a moving pasted shader draws,
-     * read a 16 x 16 downsample of every frame drawn back without waiting (sampled any slower, a
-     * strobe near the sampling rate reads as steady), and freeze those shaders' time once the canvas flashed more than 3 times in a
-     * second. WebGL 2 only.
+     * The flashing check (WCAG 2.3.1, design section 4.6): while a moving shader of any origin
+     * draws, read a 16 x 16 downsample of every frame drawn back without waiting (sampled any
+     * slower, a strobe near the sampling rate reads as steady), and freeze those shaders' time once
+     * the canvas flashed more than 3 times in a second. WebGL 2 only.
      * @param at - When the frame was drawn.
      */
     private checkFlashing(at: number): void {
@@ -1028,7 +1028,7 @@ export class RenderManager implements Manager {
         const check = this.flashCheck;
         for (let sample = check?.readback.collect(); check && sample; sample = check.readback.collect()) {
             if (check.counter.add(sample.rgba, sample.at)) {
-                const moving = guard.movingPasted();
+                const moving = guard.movingShaders();
                 if (moving.length > 0) {
                     guard.flashed(moving);
                 }
@@ -1037,7 +1037,7 @@ export class RenderManager implements Manager {
             }
         }
 
-        if (guard.movingPasted().length === 0) {
+        if (guard.movingShaders().length === 0) {
             return;
         }
 

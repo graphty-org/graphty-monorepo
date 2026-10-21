@@ -205,7 +205,7 @@ describe("LayoutTransitionRunner", () => {
         new LayoutTransitionRunner({
             scene: () => ({}) as Scene,
             config: () => config,
-            quality: () => ({ level: "high", motion, pasted: "on" }),
+            quality: () => ({ level: "high", motion, heavy: "on" }),
             nodes: () => [a, b, c],
             edges: () =>
                 [

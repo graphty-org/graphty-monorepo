@@ -87,7 +87,7 @@ export class EdgeShaderDrawing {
     private readonly ready = new WeakMap<EdgeLineBatch, boolean>();
     /** Per shader id, the end times of the entrances playing now. */
     private readonly entrances = new Map<string, number[]>();
-    /** Every shader batch made, for the frame guard's question of what pasted shaders draw. */
+    /** Every shader batch made, for the frame guard's question of what shaders draw. */
     private readonly made = new Set<EdgeLineBatch>();
     private renderer: Renderer | null = null;
     private runtime: ShaderRuntime | null = null;
@@ -300,11 +300,11 @@ export class EdgeShaderDrawing {
     }
 
     /**
-     * The pasted shaders drawn on edges now, for the frame guard and the flashing check.
-     * @returns Whether a pasted shader draws, and the moving ones' text hashes.
+     * The shaders drawn on edges now, of any origin, for the frame guard and the flashing check.
+     * @returns Whether a heavy shader draws, and the moving ones' text hashes.
      */
-    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
-        let any = false;
+    guardedDrawn(): { readonly heavy: boolean; readonly moving: readonly string[] } {
+        let heavy = false;
         const moving = new Set<string>();
         for (const batch of [...this.made]) {
             if (batch.disposed) {
@@ -313,18 +313,18 @@ export class EdgeShaderDrawing {
             }
 
             const { shader } = batch as ShadedEdgeBatch;
-            if (shader.pasted !== true || batch.liveCount === 0 || this.ready.get(batch) !== true) {
+            if (batch.liveCount === 0 || this.ready.get(batch) !== true) {
                 continue;
             }
 
-            any = true;
+            heavy ||= shader.heavy === true;
             const { loop, enter, exit, change } = motionOf(shader.registration.descriptor.motion);
             if (loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0) {
                 moving.add(shader.hash);
             }
         }
 
-        return { any, moving: [...moving] };
+        return { heavy, moving: [...moving] };
     }
 
     /**

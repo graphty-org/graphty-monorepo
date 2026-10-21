@@ -228,6 +228,13 @@ export interface ProjectApi {
     /** The project's name: from the file it was opened from, or `rename`. Null until one is given. */
     readonly name: string | null;
     /**
+     * The project's identity: an opaque string that a save writes and an open reads back, so a
+     * copy of the file is the same project. A new session, and a file that holds none, get a fresh
+     * random one. It carries no permission: key the reader's own choices about a project by it
+     * (`session.network.setProjectHosts`), kept on the reader's machine.
+     */
+    readonly id: string;
+    /**
      * Whether anything the file saves has changed since the last save or open. Undoing back to
      * that point makes it false again. The selection and the extensions never set it. The first
      * `data.import` into a new session -- one with no history that was never saved or opened --
@@ -572,6 +579,7 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
     return {
         kind: "graphty-session",
         version: VERSION,
+        id: session.project.id,
         config: configOf(session),
         layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
         visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
@@ -580,8 +588,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
-        // A reader chose not to be asked before this project's fetches (session.network).
-        ...(session.network.projectPolicy === "allow" ? { network: { policy: "allow" } } : {}),
     };
 }
 
@@ -1629,6 +1635,24 @@ export function markProjectUnsaved(session: GraphSession): void {
 }
 
 /**
+ * A fresh project id: 128 random bits in hex.
+ * @returns The id.
+ */
+function newProjectId(): string {
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * A saved project id, when it is one: a string of 1 to 128 letters, digits, `-` and `_`.
+ * @param value - What the file holds.
+ * @returns The id, or undefined.
+ */
+function projectIdOf(value: unknown): string | undefined {
+    return typeof value === "string" && /^[\w-]{1,128}$/.test(value) ? value : undefined;
+}
+
+/**
  * Build a session's project API.
  * @param session - The session.
  * @param dispatcher - Its dispatcher.
@@ -1638,6 +1662,8 @@ export function markProjectUnsaved(session: GraphSession): void {
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @param hooks.sources - Writes and restores the loads from network sources.
+ * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
+ *     fetched, and again once its source loads are restored.
  * @returns The API.
  */
 export function projectOf(
@@ -1648,9 +1674,11 @@ export function projectOf(
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
         readonly sources?: NetworkSourceRecords;
+        readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, sources: networkSources } = hooks;
+    const { announce, isDerived, sources: networkSources, projectChanged } = hooks;
+    let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -1765,18 +1793,31 @@ export function projectOf(
         }
 
         const graph = nodeLinkOf(data);
+        const state = doc.members.get("graphty-session")?.[0];
+        // A file cannot approve its own fetches: an older one's saved network policy is ignored.
+        if (state?.network !== undefined) {
+            problems.push({ code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } });
+        }
         await restoreAssetsOf(session, doc, problems);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
         projectBoundary(session, "open");
-        await session.transaction(
-            "Open project",
-            (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
-            opening,
-        );
-        // Whether this project asks before its fetches: what the file says, else ask.
-        const network = doc.members.get("graphty-session")?.[0]?.network;
-        session.network.setProjectPolicy(isObject(network) && network.policy === "allow" ? "allow" : "ask");
+        // After the boundary, which keeps the work it replaces under its own id; before anything
+        // the project names is fetched, so the page's remembered hosts for it apply.
+        const before = id;
+        id = projectIdOf(state?.id) ?? newProjectId();
+        projectChanged?.();
+        try {
+            await session.transaction(
+                "Open project",
+                (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+                opening,
+            );
+        } catch (error) {
+            id = before;
+            projectChanged?.();
+            throw error;
+        }
         // The loads from network sources wait, fetching nothing, until the application runs them.
         try {
             networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
@@ -1786,6 +1827,8 @@ export function projectOf(
                 params: { kind: SOURCE_RECORD_MEMBER },
             });
         }
+        // Its restored source loads on the hosts remembered for it run now.
+        projectChanged?.();
         // A project opens with a fresh history: its opened state is the baseline.
         session.history.clear();
         fresh = false;
@@ -1837,6 +1880,9 @@ export function projectOf(
     return {
         get name() {
             return nameNow();
+        },
+        get id() {
+            return id;
         },
         get dirty() {
             return isDirty();

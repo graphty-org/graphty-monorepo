@@ -2066,6 +2066,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             name: READ,
+            id: READ,
             dirty: READ,
             rename: {
                 kind: "dispatches",
@@ -2135,7 +2136,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/network.ts",
         half: "session",
         whole: exempt(
-            "Answers to a waiting fetch are the reader's trust, not graph content: no step and no recipe entry. The project's policy is saved with the project file.",
+            "Answers to a waiting fetch are the reader's trust, not graph content: no step and no recipe entry. Nothing of it is saved in the project file: what a reader remembers for a project the page keeps and hands back with setProjectHosts.",
         ),
     },
     {

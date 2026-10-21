@@ -1,6 +1,7 @@
 /**
  * Web addresses a project names, from the app, on the REAL graphty-element: the question before a
- * project opens one (Continue, Cancel, Don't ask again for this project, Don't ask again), a model
+ * project opens one (Continue, Cancel, Don't ask again for this project, Don't ask again -- both
+ * "don't ask" choices kept on this machine, never in the project file), a model
  * and a picture pasted by URL in the Style tab, and the choice to embed a model loaded from a URL
  * or keep only its address when saving. Every web request is answered by a stub of `fetch`, so the
  * tests reach no network; every answer is a click.
@@ -13,8 +14,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { OPEN_PROJECT_URLS, readPreference } from "../../settings/preferences";
+import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
+import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
@@ -42,12 +43,14 @@ beforeEach(() => {
         return answer === undefined ? original(input, init) : Promise.resolve(new Response(answer(), { status: 200 }));
     });
     localStorage.removeItem(OPEN_PROJECT_URLS.key);
+    localStorage.removeItem(PROJECT_HOSTS_KEY);
 });
 
 afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     localStorage.removeItem(OPEN_PROJECT_URLS.key);
+    localStorage.removeItem(PROJECT_HOSTS_KEY);
 });
 
 /**
@@ -128,15 +131,46 @@ describe("web addresses a project names, from the app", () => {
         assert.notInclude(requested, MODEL);
     });
 
-    it("Don't ask again for this project is kept by the project", async () => {
+    it("Don't ask again for this project is kept on this machine, not in the project file", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
         const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
         await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
         await reaches(session, MODEL, "drawn");
-        assert.equal(session.network.projectPolicy, "allow");
-        const { text } = await session.project.save({ markSaved: false });
-        assert.include(text, '"network":{"policy":"allow"}');
+        assert.deepEqual(readProjectHosts(session.project.id), ["models.example.com"]);
+        const { text } = await session.project.save({ markSaved: false, assets: { [MODEL]: "url" } });
+        assert.notInclude(text, '"policy"', "the file approves nothing");
+        cleanup();
+
+        // The same file opened again on this machine: the remembered choice skips the question.
+        const again = await openWithGraph();
+        await again.project.open(text, { discard: true });
+        await reaches(again, MODEL, "drawn");
+        assert.lengthOf(screen.queryAllByRole("dialog", { name: "Open a web address?" }), 0);
+        cleanup();
+
+        // A copy of the file on another machine, whose preferences are fresh: it asks.
+        localStorage.removeItem(PROJECT_HOSTS_KEY);
+        requested = [];
+        const elsewhere = await openWithGraph();
+        await elsewhere.project.open(text, { discard: true });
+        await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        assert.notInclude(requested, MODEL, "nothing is fetched before the answer");
+    });
+
+    it("Don't ask again for this project does not reach another project", async () => {
+        const session = await openWithGraph();
+        await layerFromAFile(session);
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
+        await reaches(session, MODEL, "drawn");
+        cleanup();
+
+        // Another project naming the same site, on the same machine, asks.
+        const other = await openWithGraph();
+        await layerFromAFile(other);
+        await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        assert.notEqual(other.project.id, session.project.id);
     });
 
     it("Don't ask again is the reader's own preference, kept by the app", async () => {

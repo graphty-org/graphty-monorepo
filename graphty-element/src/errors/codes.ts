@@ -711,6 +711,12 @@ export type GraphtyWarningCode =
      */
     | "W_URL_NEEDS_APPROVAL"
     /**
+     * A project file carries a network approval policy (`graphty-session` `network`), which an
+     * older release wrote. It is ignored: nothing saved in a file can make the element fetch
+     * without asking. `params.kind` is the member, `"graphty-session"`.
+     */
+    | "W_NETWORK_POLICY_IGNORED"
+    /**
      * A model or picture a project keeps by URL loaded from that URL, and is not the file the
      * project was saved with: the file at the URL changed. It is drawn. `params.url`,
      * `params.expected` and `params.found` (SHA-256 digests).

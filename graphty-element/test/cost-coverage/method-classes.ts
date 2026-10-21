@@ -294,7 +294,7 @@ export const READ_ONLY: readonly string[] = [
     "NetworkApi.deny",
     "NetworkApi.pending",
     "NetworkApi.setPolicy",
-    "NetworkApi.setProjectPolicy",
+    "NetworkApi.setProjectHosts",
     "AcceleratorRegistry.clear",
     "AcceleratorRegistry.has",
     "AcceleratorRegistry.list",

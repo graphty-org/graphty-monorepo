@@ -108,7 +108,11 @@ describe("every style has a home", () => {
         const opacities = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => d.channel.endsWith("pacity"));
         assert.isAbove(opacities.length, 0);
         for (const d of opacities) {
-            assert.isTrue(DRAWN.has(d.channel), `${d.channel} is in a section`);
+            // a channel the panel does not offer yet says why in CHANNEL_HOMES (checked above); every
+            // one it places is drawn in a section
+            if ("place" in CHANNEL_HOMES[d.channel]) {
+                assert.isTrue(DRAWN.has(d.channel), `${d.channel} is in a section`);
+            }
             assert.isTrue(takesBinding(d), `${d.channel} varies by a value`);
             assert.isTrue(isPercent(d), `${d.channel} reads as a percent`);
         }

@@ -350,9 +350,11 @@ const FRAME_BUDGET = 400_000;
 const MAX_FRAME_STEPS = 40;
 /**
  * How many steps the support points take after their nodes last moved before they are called at rest even if
- * still creeping (vis-network stops its own simulation after its stabilization iterations, 1000 by default).
+ * still creeping: the Barnes-Hut tree's cells change as the points cross them, which keeps a point trembling a little
+ * above the resting speed. vis-network itself stops after its stabilization iterations (1000 by default); stepped
+ * from vis-network's own node positions, its corpus files settle in 170 to 720 steps.
  */
-const MAX_STEPS_TO_REST = 4000;
+const MAX_STEPS_TO_REST = 1500;
 
 /**
  * Every support point of a graph, carried from frame to frame: each held as where it sits along and across its

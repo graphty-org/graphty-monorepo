@@ -6,9 +6,11 @@
 //   node tools/land.mjs land <b1> <b2> ... [--dry-run]   land several branches in one gate run
 //   node tools/land.mjs revert <branch>             take a landed branch back out of golden
 //   node tools/land.mjs cut [<commit>]              point golden-cut at a known-good golden commit, open its pull request
+//   node tools/land.mjs cut-fix <branch>            merge a fix the cut needs into golden-cut, push it, then land it on golden
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
-//   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview
-//   --priority (land, revert, cut)                  wait ahead of every ordinary landing: only for fixes that
+//   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
+//   node tools/land.mjs prune-branches              delete the branches golden already holds, on GitHub and here
+//   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //
 // Every run executes one copy of this tool, the live copy in <main checkout>/.worktrees/land-live (put a new
@@ -34,6 +36,12 @@
 // <main checkout>/.worktrees/golden-cut, opens or refreshes the draft pull request golden-cut -> master
 // and starts its preview. The owner's approvals that ship are made on that pull request, and `ship`
 // marks it ready with auto-merge. The golden pull request stays open as an early look at golden's tip.
+//
+// Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
+// (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
+// cut needs starts from origin/golden-cut and goes in with `cut-fix`: merged into golden-cut, pushed, then
+// landed on golden the normal way, so both hold the same commits. After a landing, `prune-branches` runs:
+// every branch golden holds is deleted on GitHub, and here when its worktree is gone or clean.
 //
 // Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
 // and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
@@ -63,6 +71,8 @@ import {
 import { constants as osConstants, hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
 
 export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
@@ -444,8 +454,7 @@ function hooksDir(ctx) {
     return dir;
 }
 
-const commitGit = (ctx, args, opts) =>
-    git(ctx, ctx.golden, [...(ctx.hooks ? ["-c", `core.hooksPath=${ctx.hooks}`] : []), ...args], opts);
+const commitGit = (ctx, args, opts) => git(ctx, ctx.golden, withHooks(ctx, args), opts);
 
 /**
  * Makes the golden worktree when it does not exist, from origin/golden when GitHub has it, else
@@ -586,8 +595,10 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`) {
 }
 
 function defaultGh(ctx, args) {
-    const r = spawnSync("gh", args, { cwd: ctx.golden, env: ctx.env, encoding: "utf8" });
-    if (r.status !== 0) throw new Error(`gh ${args.slice(0, 2).join(" ")} failed: ${r.stderr?.trim() || r.error}`);
+    const r = spawnSync("gh", args, { cwd: ctx.main, env: ctx.env, encoding: "utf8" });
+    // A GraphQL answer with errors (one asked-for issue does not exist) still carries the rest.
+    if (r.status !== 0 && !r.stdout?.startsWith('{"data":{'))
+        throw new Error(`gh ${args.slice(0, 2).join(" ")} failed: ${r.stderr?.trim() || r.error}`);
     return r.stdout.trim();
 }
 
@@ -709,55 +720,66 @@ function gateLog(ctx, sha, output) {
 }
 
 /**
- * Whether a failed push was GitHub refusing it because golden moved there (the owner's Finish pushes
- * accept commits to golden), rather than the gate refusing it.
+ * Whether a failed push was GitHub refusing it because the branch moved there (the owner's Finish pushes
+ * accept commits to golden or golden-cut), rather than the gate refusing it.
  * @param ctx the run's context
  * @param output what the push printed
- * @returns true when origin/golden has commits golden does not
+ * @param [wt] the worktree and branch pushed (golden's)
+ * @returns true when origin has commits of the branch that the worktree does not
  */
-function goldenMoved(ctx, output) {
+function goldenMoved(ctx, output, wt = goldenTree(ctx)) {
     if (!/\[(remote )?rejected\]|non-fast-forward|fetch first/.test(output)) return false;
-    git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
-    const ref = `origin/${GOLDEN}`;
-    if (hasRef(ctx, ctx.golden, ref).status !== 0) return false;
-    return git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status !== 0;
+    git(ctx, wt.dir, ["fetch", "-q", "origin"], { ok: true });
+    const ref = `origin/${wt.branch}`;
+    if (hasRef(ctx, wt.dir, ref).status !== 0) return false;
+    return git(ctx, wt.dir, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status !== 0;
 }
 
+const goldenTree = (ctx) => ({ dir: ctx.golden, branch: GOLDEN });
+const withHooks = (ctx, args) => [...(ctx.hooks ? ["-c", `core.hooksPath=${ctx.hooks}`] : []), ...args];
+
 /**
- * Pushes golden through the gate. When GitHub's golden moved during the gate, merges it and pushes
- * again (the gate skips the shards it already passed). On a failure golden is reset to `before` (it
- * was never pushed).
+ * Pushes golden (or golden-cut) through the gate. When the branch moved on GitHub during the gate, merges
+ * it and pushes again (the gate skips the shards it already passed). On a failure the worktree is reset
+ * to `before` (it was never pushed).
  * @param ctx the run's context
- * @param before golden's commit to go back to on a failure
+ * @param before the commit to go back to on a failure
  * @param [rollback] where an interrupted push puts golden back (`before`)
- * @returns `{ code, sha, log }`: code 0 pushed, 3 the gate refused it (`log` names its log), 4 golden moved
+ * @param [wt] the worktree and branch to push (golden's)
+ * @returns `{ code, sha, log }`: code 0 pushed, 3 the gate refused it (`log` names its log), 4 the branch moved
  */
-async function pushGolden(ctx, before, rollback = before) {
-    ctx.rollback = rollback;
+async function pushGolden(ctx, before, rollback = before, wt = goldenTree(ctx)) {
+    const isGolden = wt.dir === ctx.golden;
+    if (isGolden) ctx.rollback = rollback;
     for (let tries = 1; ; tries++) {
-        const sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
-        const { code, output } = await ctx.push(ctx);
+        const sha = git(ctx, wt.dir, ["rev-parse", "HEAD"]);
+        const { code, output } = isGolden
+            ? await ctx.push(ctx)
+            : await ctx.push(ctx, wt.dir, `HEAD:refs/heads/${wt.branch}`);
         if (code === 0) {
             ctx.rollback = null;
             return { code, sha };
         }
-        const moved = goldenMoved(ctx, output);
+        const moved = goldenMoved(ctx, output, wt);
         if (moved && tries < 3) {
-            console.log("land: golden moved on GitHub during the gate; merging origin/golden and pushing again");
-            if (commitGit(ctx, ["merge", "--no-edit", `origin/${GOLDEN}`], { ok: true }).status === 0) continue;
-            git(ctx, ctx.golden, ["merge", "--abort"], { ok: true });
+            console.log(
+                `land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`,
+            );
+            const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
+            if (git(ctx, wt.dir, args, { ok: true }).status === 0) continue;
+            git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
         }
         ctx.rollback = null;
-        git(ctx, ctx.golden, ["reset", "-q", "--hard", before]);
+        git(ctx, wt.dir, ["reset", "-q", "--hard", before]);
         if (moved) {
             console.error(
-                `land: golden moved on GitHub and could not be merged and pushed again; golden is back at ${before.slice(0, 10)}.\n` +
+                `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
                     "Nothing is wrong with the branch: land it again.",
             );
             return { code: 4, sha };
         }
         const log = gateLog(ctx, sha, output);
-        console.error(`land: the gate refused golden; golden is back at ${before.slice(0, 10)}.`);
+        console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
         console.error(`land: gate log: ${log}`);
         return { code: 3, sha, log };
     }
@@ -791,6 +813,11 @@ function announce(ctx, sha) {
     else console.error("land: the golden pull request was not updated; the next land or revert updates it");
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: golden is ${sha.slice(0, 10)} on GitHub${where}.`);
+    try {
+        ctx.prune(ctx);
+    } catch (e) {
+        console.error(`land: warning: pruning landed branches failed: ${e.message}`);
+    }
 }
 
 // ---------------------------------------------------------------- commands
@@ -816,6 +843,11 @@ export async function land(ctx, branch, opts = {}) {
         console.log(`land: ${branch} is already on golden; nothing to land.`);
         return 0;
     }
+    const copies = copiedCommits(ctx, ref);
+    if (copies.length) {
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        return fail(copyRefusal(branch, copies));
+    }
     const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref);
     if (merged !== 0) {
         git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
@@ -833,7 +865,24 @@ export async function land(ctx, branch, opts = {}) {
 }
 
 const branchRef = (ctx, branch) =>
-    [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find((r) => hasRef(ctx, ctx.golden, r).status === 0);
+    [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find((r) => hasRef(ctx, ctx.main, r).status === 0);
+
+/**
+ * The commits of a branch that golden already has under other ids: `git cherry` marks a commit "-" when
+ * golden holds one with the same patch, which only a copy (a cherry-pick or a rebase) makes.
+ * @param ctx the run's context
+ * @param ref the branch's ref
+ * @returns "<sha10> <subject>" lines, empty when there are none
+ */
+export function copiedCommits(ctx, ref) {
+    const marked = git(ctx, ctx.golden, ["cherry", "HEAD", ref]).split("\n");
+    const shas = marked.filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
+    return shas.map((sha) => git(ctx, ctx.golden, ["log", "-1", "--format=%h %s", "--abbrev=10", sha]));
+}
+
+const copyRefusal = (branch, copies) =>
+    `${branch} holds copies of commits golden already has (a cherry-pick or a rebase), so it is not landed:\n  ` +
+    `${copies.join("\n  ")}\nNever copy, always merge: start again from the original branch, or merge it.`;
 const goldenHead = (ctx) => git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
 
 /**
@@ -884,6 +933,12 @@ function mergeEach(ctx, run, list) {
         const pre = goldenHead(ctx);
         if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status === 0) {
             run.outcomes.set(b, { state: "already on golden" });
+            continue;
+        }
+        const copies = copiedCommits(ctx, ref);
+        if (copies.length) {
+            console.error(`land: ${copyRefusal(b, copies)}`);
+            run.outcomes.set(b, { state: "refused (copies of golden commits)" });
             continue;
         }
         const code = reapply(ctx, b, ref) || mergeBranch(ctx, b, ref);
@@ -1243,6 +1298,85 @@ export async function cut(ctx, given) {
 }
 
 /**
+ * Why a branch cannot go into the cut: it would bring commits of golden or master that golden-cut does
+ * not have. A cut fix starts from origin/golden-cut and holds only its own commits.
+ * @param ctx the run's context
+ * @param ref the branch's ref
+ * @returns the reason, or null when only its own commits would go in
+ */
+function notOnCut(ctx, ref) {
+    const count = (...not) => Number(git(ctx, ctx.main, ["rev-list", "--count", ref, `^origin/${CUT}`, ...not]));
+    const extra = count() - count(`^origin/${GOLDEN}`, "^origin/master");
+    if (extra === 0) return null;
+    return (
+        `it would bring ${extra} commits of golden or master that ${CUT} does not have.\n` +
+        `A fix for the cut starts from the cut: ./tools/worktree-new.sh <branch> origin/${CUT}`
+    );
+}
+
+/**
+ * Merges a fix the cut needs into golden-cut and pushes it through the gate (measured from master), then
+ * refreshes the cut pull request and starts its preview of the pushed head. The caller then lands the same
+ * branch on golden, so both branches hold the same commits.
+ * @param ctx the run's context
+ * @param branch the fix, started from origin/golden-cut
+ * @returns the exit code: 0 done (or already on golden-cut), 1 refused, 2 a conflict, 3 the gate refused it
+ */
+export async function cutFix(ctx, branch) {
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+    const ref = branchRef(ctx, branch);
+    if (!ref) return fail(`no branch ${branch} here or on origin`);
+    const cutRef = `origin/${CUT}`;
+    if (hasRef(ctx, ctx.main, cutRef).status !== 0) return fail(`there is no ${CUT} on GitHub; cut first`);
+    if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", ref, cutRef], { ok: true }).status === 0) {
+        console.log(`land: ${branch} is already on ${CUT}`);
+        return 0;
+    }
+    const why = notOnCut(ctx, ref);
+    if (why) return fail(`${branch} cannot go into the cut: ${why}`);
+    const before = git(ctx, ctx.main, ["rev-parse", cutRef]);
+    const moved = cutWorktree(ctx, before);
+    if (moved) return fail(moved);
+    mkdirSync(join(ctx.main, "tmp/golden"), { recursive: true });
+    ctx.hooks = hooksDir(ctx);
+    try {
+        const merge = withHooks(ctx, ["merge", "--no-ff", "--no-edit", "-m", `land: ${branch}`, ref]);
+        const r = git(ctx, ctx.cut, merge, { ok: true });
+        if (r.status !== 0) {
+            const files = git(ctx, ctx.cut, ["diff", "--name-only", "--diff-filter=U"], { ok: true }).stdout;
+            git(ctx, ctx.cut, ["merge", "--abort"], { ok: true });
+            git(ctx, ctx.cut, ["reset", "-q", "--hard", before]);
+            console.error(`land: ${branch} does not merge into ${CUT}:\n${files || r.stderr || r.stdout}`);
+            return files ? 2 : 1;
+        }
+        const pushed = await pushGolden(ctx, before, before, { dir: ctx.cut, branch: CUT });
+        if (pushed.code !== 0) return pushed.code;
+    } finally {
+        rmSync(ctx.hooks, { recursive: true, force: true });
+        ctx.hooks = null;
+    }
+    const head = git(ctx, ctx.cut, ["rev-parse", "HEAD"]);
+    try {
+        const intro = [
+            `A cut of \`golden\` at ${before.slice(0, 10)}, with fixes. Approvals that ship are made here.`,
+            "",
+        ];
+        const pr = upsertPr(
+            ctx,
+            CUT,
+            CUT_TITLE,
+            prBody(landedBranches(ctx, ctx.main, "origin/master", head), intro),
+            true,
+        );
+        if (pr) ctx.preview(ctx, pr, ctx.cut);
+    } catch (e) {
+        console.error(`land: the cut pull request was not updated: ${e.message}`);
+    }
+    console.log(`land: ${branch} is on ${CUT} (${head.slice(0, 10)}); now landing it on golden`);
+    return 0;
+}
+
+/**
  * Prints golden's state: against origin/golden and origin/master, what is landed, the pull request,
  * the lock and the newest preview log.
  * @param ctx the run's context
@@ -1277,7 +1411,184 @@ export function status(ctx) {
         console.log(
             `newest preview log ${newest}:\n${readFileSync(newest, "utf8").trimEnd().split("\n").slice(-10).join("\n")}`,
         );
+    console.log(openWork(ctx));
     return 0;
+}
+
+/**
+ * Every branch on GitHub that golden does not hold, as a table: its issue, the owner its progress note
+ * names, its last commit, whether a `ready` marker names its tip, and its worktree here. The issues come
+ * from one GraphQL query.
+ * @param ctx the run's context
+ * @returns the table
+ */
+export function openWork(ctx) {
+    const refs = git(ctx, ctx.main, [
+        "for-each-ref",
+        `--no-merged=origin/${GOLDEN}`,
+        "--sort=-committerdate",
+        "--format=%(refname:lstrip=3)%00%(objectname)%00%(committerdate:short)",
+        "refs/remotes/origin",
+    ]);
+    const branches = refs
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split("\0"))
+        .filter(([b]) => b !== "HEAD");
+    if (!branches.length) return "open work: none (every branch on GitHub is on golden)";
+    const set = new Map(
+        git(ctx, ctx.main, ["config", "--get-regexp", "^branch\\..*\\.issue$"], { ok: true })
+            .stdout.split("\n")
+            .filter(Boolean)
+            .map((l) => /^branch\.(.+)\.issue (\d+)$/.exec(l))
+            .filter(Boolean)
+            .map(([, b, n]) => [b, Number(n)]),
+    );
+    const trees = worktrees(ctx);
+    const issueOf = (b) => set.get(b) ?? issueInName(b);
+    let issues = new Map();
+    let error = "";
+    try {
+        issues = readIssues(
+            (args) => ctx.gh(ctx, args),
+            branches.map(([b]) => issueOf(b)),
+        );
+    } catch (e) {
+        error = `\n(issues unknown: ${e.message})`;
+    }
+    const rows = branches.map(([b, sha, date]) => {
+        const n = issueOf(b);
+        const issue = issues.get(n);
+        const note = findNote(issue, b);
+        const ready = issue?.comments.some((c) => {
+            const m = /^pipeline-round: ready (\S+) ([0-9a-f]{7,40})\b/.exec(c.body);
+            return m?.[1] === b && sha.startsWith(m[2]);
+        });
+        const owner = note ? (parseNote(note.body).owner ?? "-") : "-";
+        return [b, n ? `#${n}` : "-", owner, date, ready ? "yes" : "no", trees.get(b) ?? "-"];
+    });
+    return `open work (branches on GitHub that golden does not have):\n${table([["branch", "issue", "owner", "last commit", "ready", "worktree"], ...rows])}${error}`;
+}
+
+const table = (rows) => {
+    const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => String(r[i]).length)));
+    return rows.map((r) => `  ${r.map((c, i) => String(c).padEnd(widths[i])).join("  ")}`.trimEnd()).join("\n");
+};
+
+/**
+ * The worktrees by the branch they have checked out.
+ * @param ctx the run's context
+ * @returns a Map from branch to its worktree's path
+ */
+function worktrees(ctx) {
+    const map = new Map();
+    let dir = null;
+    for (const line of git(ctx, ctx.main, ["worktree", "list", "--porcelain"]).split("\n")) {
+        if (line.startsWith("worktree ")) dir = line.slice(9);
+        if (line.startsWith("branch refs/heads/")) map.set(line.slice(18), dir);
+    }
+    return map;
+}
+
+// Branches never pruned: the integration and release branches, revert pull requests, Dependabot.
+const KEEP = /^(HEAD|master|golden|golden-cut|gh-pages)$|^(release|revert)\b|^dependabot\//;
+
+/**
+ * Deletes, on GitHub, every branch golden already holds, and here, its local branch when its worktree is
+ * gone, or clean (nothing uncommitted, no process inside) and then removed. A branch with no commits of
+ * its own (its tip on the first-parent line of golden, golden-cut or master: it was just made) is kept
+ * while it has a worktree here.
+ * @param ctx the run's context
+ * @returns the branches deleted on GitHub
+ */
+export function pruneBranches(ctx) {
+    git(ctx, ctx.main, ["fetch", "-q", "--prune", "origin"], { ok: true });
+    const trees = worktrees(ctx);
+    // The branches the local tools run from (tools/live-tools.json) stay, wherever they point.
+    const live = new Set(
+        Object.values(readJson(join(ctx.main, "tools/live-tools.json")) ?? {}).map((t) => join(ctx.main, t.worktree)),
+    );
+    const merged = git(ctx, ctx.main, ["branch", "-r", "--format=%(refname:lstrip=3)", "--merged", `origin/${GOLDEN}`])
+        .split("\n")
+        .filter((b) => b && !KEEP.test(b) && !live.has(trees.get(b)));
+    const lines = new Set();
+    for (const base of [GOLDEN, CUT, "master"]) {
+        const r = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/${base}`], { ok: true });
+        for (const sha of r.stdout.split("\n")) lines.add(sha);
+    }
+    const gone = merged.filter((b) => {
+        const fresh = lines.has(git(ctx, ctx.main, ["rev-parse", `refs/remotes/origin/${b}`]));
+        return !fresh || !trees.has(b);
+    });
+    if (!gone.length) return [];
+    // No gate for a deletion: it carries no code. A hundred at a time keeps each push small.
+    for (let i = 0; i < gone.length; i += 100) {
+        const r = git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", "--delete", ...gone.slice(i, i + 100)], {
+            ok: true,
+        });
+        if (r.status !== 0) throw new Error(`git push --delete failed: ${r.stderr}`);
+    }
+    console.log(`land: deleted from GitHub, already on golden: ${gone.join(", ")}`);
+    for (const b of gone) pruneLocal(ctx, b, trees.get(b));
+    return gone;
+}
+
+/**
+ * Removes a pruned branch here: its clean worktree, then the branch, when golden holds all of it.
+ * @param ctx the run's context
+ * @param branch the branch
+ * @param [dir] its worktree
+ */
+function pruneLocal(ctx, branch, dir) {
+    if (hasRef(ctx, ctx.main, `refs/heads/${branch}`).status !== 0) return;
+    const ancestor = git(ctx, ctx.main, ["merge-base", "--is-ancestor", `refs/heads/${branch}`, `origin/${GOLDEN}`], {
+        ok: true,
+    });
+    if (ancestor.status !== 0) {
+        console.log(`land: kept ${branch} here: it has commits golden does not`);
+        return;
+    }
+    if (dir) {
+        const why = busy(ctx, dir);
+        if (why) {
+            console.log(`land: kept ${branch} and its worktree ${dir}: ${why}`);
+            return;
+        }
+        // The worktree's own scratch files (ignored, so removal would delete them) go to the main checkout.
+        const scratch = join(dir, "tmp");
+        const to = join(ctx.main, "tmp", basename(dir));
+        if (existsSync(scratch) && readdirSync(scratch).length && !existsSync(to)) renameSync(scratch, to);
+        const r = git(ctx, ctx.main, ["worktree", "remove", dir], { ok: true });
+        if (r.status !== 0) {
+            console.log(`land: kept ${branch}: git worktree remove ${dir} refused: ${r.stderr}`);
+            return;
+        }
+        console.log(`land: removed the worktree ${dir}`);
+    }
+    git(ctx, ctx.main, ["branch", "-D", "-q", branch]);
+    console.log(`land: deleted the local branch ${branch}`);
+}
+
+/**
+ * Why a worktree must stay: it is the main checkout, has uncommitted or untracked files, or a process works in it.
+ * @param ctx the run's context
+ * @param dir the worktree
+ * @returns the reason, or null
+ */
+function busy(ctx, dir) {
+    dir = realpathSync(dir);
+    if (dir === realpathSync(ctx.main)) return "it is the main checkout";
+    if (git(ctx, dir, ["status", "--porcelain"], { ok: true }).stdout) return "it has uncommitted files";
+    for (const pid of existsSync("/proc") ? readdirSync("/proc").filter((p) => /^\d+$/.test(p)) : []) {
+        let cwd = "";
+        try {
+            cwd = realpathSync(`/proc/${pid}/cwd`);
+        } catch {
+            continue;
+        }
+        if (cwd === dir || cwd.startsWith(`${dir}/`)) return `process ${pid} works in it`;
+    }
+    return null;
 }
 
 function prLine(ctx) {
@@ -1334,13 +1645,14 @@ export function context(cwd, overrides = {}) {
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
+        prune: pruneBranches,
         ...base,
     };
 }
 
 const USAGE =
-    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] | ship | status" +
-    " (land, revert and cut also take --priority)";
+    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] |" +
+    " cut-fix <branch> | ship | status | prune-branches (land, revert, cut and cut-fix also take --priority)";
 
 /**
  * Runs one command under the lock.
@@ -1356,6 +1668,20 @@ export async function main(argv, ctx = context(process.cwd())) {
     const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") && command !== "ship" };
     if (command === "status") return status(ctx);
     if (command === "cut") return cutLocked(ctx, branch, lockOptions);
+    if (command === "prune-branches") {
+        try {
+            ctx.prune(ctx);
+            return 0;
+        } catch (e) {
+            return fail(e.message);
+        }
+    }
+    if (command === "cut-fix") {
+        if (!branch) return fail(USAGE);
+        const code = await cutLocked(ctx, branch, lockOptions, cutFix);
+        // The same branch, the same commits, on golden: a landing like any other.
+        return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
+    }
     if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
     const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
@@ -1382,11 +1708,12 @@ export async function main(argv, ctx = context(process.cwd())) {
     }
 }
 
-// The cut under its own lock: its push runs the gate without holding up landings.
-async function cutLocked(ctx, given, lockOptions) {
-    const release = await acquireLock(ctx.cutLock, { command: "cut", branch: given ?? "" }, lockOptions);
+// The cut (or a cut fix) under its own lock: its push runs the gate without holding up landings.
+async function cutLocked(ctx, given, lockOptions, run = cut) {
+    const command = run === cut ? "cut" : "cut-fix";
+    const release = await acquireLock(ctx.cutLock, { command, branch: given ?? "" }, lockOptions);
     try {
-        return await cut(ctx, given);
+        return await run(ctx, given);
     } finally {
         release();
     }

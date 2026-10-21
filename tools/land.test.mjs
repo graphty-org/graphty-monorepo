@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
+import { noteBody } from "./branch-note.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import { acquireLock, context, handOff, issueRefs, landedBranches, main, prBody, readLock, sync } from "./land.mjs";
 
@@ -39,6 +40,7 @@ let gh;
 let previews;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
+let refspecs; // what each push sent
 let duringPush; // runs once inside the next push, as if the gate were running
 let installed = null; // the lockfile golden's node_modules were last installed from
 let installs = [];
@@ -79,6 +81,7 @@ before(() => {
         gh: (_ctx, args) => {
             gh.push(args);
             const cut = args.includes("golden-cut");
+            if (args[1] === "graphql") return graphql(args.find((a) => a.startsWith("query=")));
             if (args[1] === "list") {
                 const pr = cut ? gh.cut : gh.open && { number: 7, isDraft: true, url: "u/pull/7" };
                 return JSON.stringify(pr ? [pr] : []);
@@ -92,6 +95,7 @@ before(() => {
         },
         push: async (c, cwd = c.golden, refspec = "golden:golden") => {
             pushes++;
+            refspecs.push(refspec);
             const during = duringPush;
             duringPush = null;
             during?.();
@@ -120,9 +124,32 @@ beforeEach(() => {
     previews = [];
     pushResult = 0;
     pushes = 0;
+    refspecs = [];
     duringPush = null;
     installs = [];
 });
+
+/**
+ * The fake GitHub's answer to readIssues' query: each `iN: issue(number: N)` alias from gh.issues.
+ * @param query the `query=...` argument
+ * @returns the JSON text
+ */
+const graphql = (query) => {
+    const repository = {};
+    for (const [, alias, n] of query.matchAll(/(i\d+): issue\(number: (\d+)\)/g)) {
+        const issue = gh.issues?.[n];
+        repository[alias] = issue
+            ? {
+                  number: Number(n),
+                  title: issue.title ?? "t",
+                  state: "OPEN",
+                  labels: { nodes: [] },
+                  comments: { nodes: issue.comments.map((body, i) => ({ databaseId: i + 1, body })) },
+              }
+            : null;
+    }
+    return JSON.stringify({ data: { repository } });
+};
 
 /**
  * Whether a fake gh call is the description update (a REST PATCH of the pull request).
@@ -490,6 +517,31 @@ describe("landing several branches", () => {
     });
 });
 
+describe("copies", () => {
+    it("refuses a branch holding a cherry-picked copy of a golden commit, naming it, golden untouched", async () => {
+        const wt = branch("copy/c", { "cp.txt": "own\n" }, "feat: own work");
+        git(wt, "cherry-pick", git(repo, "rev-parse", "multi/c"));
+        const before = head();
+        const r = await run("land", "copy/c");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /copy\/c holds copies of commits golden already has/);
+        assert.match(r.out, /\n {2}[0-9a-f]{10} feat: mc\n/);
+        assert.match(r.out, /Never copy, always merge/);
+        assert.equal(head(), before);
+        assert.equal(pushes, 0);
+    });
+
+    it("refuses the copy in a landing of several and lands the rest", async () => {
+        branch("copy/ok", { "cpok.txt": "ok\n" }, "feat: fine");
+        gh.open = true;
+        const r = await run("land", "copy/c", "copy/ok");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /copy\/c\s+refused \(copies of golden commits\)\n\s+copy\/ok\s+landed/);
+        assert.equal(pushes, 1);
+        assert.ok(existsSync(join(golden, "cpok.txt")) && !existsSync(join(golden, "cp.txt")));
+    });
+});
+
 describe("cuts", () => {
     const remote = (ref) =>
         spawnSync("git", ["rev-parse", "-q", "--verify", ref], {
@@ -576,6 +628,119 @@ describe("cuts", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /#9 moved since its preview/);
         assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
+    });
+});
+
+describe("cut fixes", () => {
+    const onBoth = (sha) =>
+        ["origin/golden-cut", "origin/golden"].every(
+            (b) => spawnSync("git", ["merge-base", "--is-ancestor", sha, b], { cwd: repo, env }).status === 0,
+        );
+
+    it("refuses a branch that would bring golden commits the cut lacks, and says how to start one", async () => {
+        branch("cutfix/advance", { "adv.txt": "a\n" }, "feat: after the cut");
+        gh.open = true;
+        assert.equal((await run("land", "cutfix/advance")).code, 0);
+        branch("cutfix/from-golden", { "fg.txt": "x\n" }, "fix: from golden", "origin/golden");
+        const r = await run("cut-fix", "cutfix/from-golden");
+        assert.equal(r.code, 1, r.out);
+        assert.match(
+            r.out,
+            /cutfix\/from-golden cannot go into the cut: it would bring \d+ commits of golden or master/,
+        );
+        assert.match(r.out, /\.\/tools\/worktree-new\.sh <branch> origin\/golden-cut/);
+        assert.deepEqual(refspecs, ["golden:golden"], "nothing pushed to golden-cut");
+    });
+
+    it("merges the fix into golden-cut, pushes it, starts its preview, then lands the same commits on golden", async () => {
+        const wt = branch("cutfix/ok", { "cf.txt": "fix\n" }, "fix: the cut\n\nRefs #44", "origin/golden-cut");
+        const tip = git(wt, "rev-parse", "HEAD");
+        gh.open = true;
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
+        const r = await run("cut-fix", "cutfix/ok");
+        assert.equal(r.code, 0, r.out);
+        assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
+        git(repo, "fetch", "-q", "origin");
+        assert.ok(onBoth(tip), "one commit id on both");
+        assert.equal(git(repo, "log", "-1", "--format=%s", "origin/golden-cut"), "land: cutfix/ok");
+        assert.equal(git(repo, "log", "-1", "--format=%s", "origin/golden"), "land: cutfix/ok");
+        assert.ok(!existsSync(join(ctx.cut, "adv.txt")), "the cut did not take golden's newer landing");
+        assert.deepEqual(previews, [9, 7]);
+    });
+
+    it("run again, finds the fix on both and pushes nothing", async () => {
+        const r = await run("cut-fix", "cutfix/ok");
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /already on golden-cut/);
+        assert.match(r.out, /already on golden/);
+        assert.equal(pushes, 0);
+    });
+});
+
+describe("open work", () => {
+    it("lists each branch on GitHub that golden lacks: issue, owner, date, ready, worktree, from one query", async () => {
+        const wt = branch("feat/321-open", { "o.txt": "o\n" }, "feat: open");
+        git(wt, "push", "-q", "origin", "feat/321-open");
+        const tip = git(wt, "rev-parse", "HEAD");
+        const wt2 = branch("chore/no-number", { "n.txt": "n\n" }, "chore: n");
+        git(wt2, "push", "-q", "origin", "chore/no-number");
+        git(repo, "config", "branch.chore/no-number.issue", "55");
+        gh.issues = {
+            321: {
+                comments: [
+                    noteBody("feat/321-open", { owner: "session abc" }),
+                    `pipeline-round: ready feat/321-open ${tip}`,
+                ],
+            },
+            55: { comments: [] },
+        };
+        const r = await run("status");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(gh.filter((a) => a[1] === "graphql").length, 1);
+        assert.match(r.out, /open work \(branches on GitHub that golden does not have\):/);
+        assert.match(r.out, /branch\s+issue\s+owner\s+last commit\s+ready\s+worktree/);
+        assert.match(r.out, new RegExp(`feat/321-open\\s+#321\\s+session abc\\s+\\d{4}-\\d\\d-\\d\\d\\s+yes\\s+${wt}`));
+        assert.match(r.out, new RegExp(`chore/no-number\\s+#55\\s+-\\s+\\S+\\s+no\\s+${wt2}`));
+    });
+});
+
+describe("pruning branches", () => {
+    const remote = (b) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", `refs/heads/${b}`], {
+            cwd: join(dir, "origin.git"),
+            env,
+            encoding: "utf8",
+        }).stdout.trim();
+    const local = (b) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", `refs/heads/${b}`], { cwd: repo, env }).status === 0;
+
+    it("deletes what golden holds, on GitHub and here, and keeps new, unlanded, protected and dirty work", async () => {
+        git(repo, "fetch", "-q", "origin");
+        const tips = ["origin/golden:refs/heads/fresh/gone", "origin/golden:refs/heads/revert/x"];
+        git(repo, "push", "-q", "origin", "multi/d", "multi/f", "copy/c", ...tips);
+        git(repo, "worktree", "add", "-q", "-b", "fresh/kept", join(dir, "wt-fresh-kept"), "origin/golden");
+        git(repo, "push", "-q", "origin", "fresh/kept");
+        write(join(dir, "wt-multi-f"), "stray.txt", "x\n");
+        mkdirSync(join(dir, "wt-multi-d/tmp"));
+        write(join(dir, "wt-multi-d/tmp"), "notes.txt", "scratch\n");
+        const r = await run("prune-branches");
+        assert.equal(r.code, 0, r.out);
+        for (const b of ["multi/d", "multi/f", "fresh/gone"]) assert.equal(remote(b), "", `${b} deleted on GitHub`);
+        for (const b of ["copy/c", "fresh/kept", "revert/x", "golden", "golden-cut", "master"]) assert.ok(remote(b), b);
+        assert.ok(!existsSync(join(dir, "wt-multi-d")) && !local("multi/d"), "clean worktree and branch removed");
+        assert.equal(readFileSync(join(repo, "tmp/wt-multi-d/notes.txt"), "utf8"), "scratch\n", "its scratch kept");
+        assert.ok(existsSync(join(dir, "wt-multi-f")) && local("multi/f"), "dirty worktree kept");
+        assert.match(r.out, /kept multi\/f and its worktree .*uncommitted files/);
+    });
+
+    it("runs after every landing: the landed branch leaves GitHub and its clean worktree goes", async () => {
+        const wt = branch("prune/me", { "pm.txt": "p\n" }, "feat: pm");
+        git(wt, "push", "-q", "origin", "prune/me");
+        gh.open = true;
+        const r = await run("land", "prune/me");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(remote("prune/me"), "");
+        assert.ok(!existsSync(wt) && !local("prune/me"));
     });
 });
 
@@ -683,6 +848,7 @@ describe("the live copy", () => {
         const copy = join(dir, "live-real");
         mkdirSync(join(copy, "tools"), { recursive: true });
         writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
+        writeFileSync(join(copy, "tools/branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
         // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
         const r = cli(copy, "nonsense");
         assert.equal(r.status, 1, r.stderr);

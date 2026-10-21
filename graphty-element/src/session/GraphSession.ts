@@ -1387,6 +1387,9 @@ function configOf(
         get name() {
             return read().name;
         },
+        get layoutTransition() {
+            return read().layoutTransition;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.

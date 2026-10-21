@@ -2439,6 +2439,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editableBase: READ,
             runPlacement: READ,
             layoutBehavior: READ,
+            layoutTransition: READ,
             author: READ,
             name: READ,
             acceleration: READ,

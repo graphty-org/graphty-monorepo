@@ -231,6 +231,7 @@ import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -1226,6 +1227,20 @@ export class Graph implements GraphContext {
         dispatcherOf(this.session).services.legacy = {
             run: (command, ctx) => this.algorithmManager.runLegacy(command, ctx),
         };
+
+        // The layout transition: where nodes are drawn on their way to a new layout.
+        attachTransitions(
+            this.layoutManager,
+            new LayoutTransitionRunner({
+                scene: () => this.scene,
+                config: () => this.styles.config.graph.layoutTransition,
+                quality: () => this.renderManager.shaderGuard.quality,
+                nodes: () => this.layoutManager.nodes,
+                edges: () => this.layoutManager.edges,
+                selected: () => this.selectionManager.getSelectedNodes(),
+                layoutRunning: () => this.layoutManager.running,
+            }),
+        );
 
         // Initialize SelectionManager
         this.selectionManager = new SelectionManager(this.eventManager);
@@ -2313,6 +2328,7 @@ export class Graph implements GraphContext {
                 background: project.background,
                 selection: project.selectionStyle,
                 ...(project.startingRows ? { startingRows: true } : {}),
+                ...(project.layoutTransition === undefined ? {} : { layoutTransition: project.layoutTransition }),
             },
             data: project.data,
             behavior: GraphBehaviorOpts.parse({
@@ -7582,6 +7598,8 @@ export class Graph implements GraphContext {
      * Dispose all graph resources including voice, AI, XR, and Babylon.js components.
      */
     dispose(): void {
+        transitionsOf(this.layoutManager)?.dispose();
+
         // Clean up voice adapter if created
         this.voiceAdapter?.dispose();
         this.voiceAdapter = null;

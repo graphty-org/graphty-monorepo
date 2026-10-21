@@ -3659,6 +3659,9 @@ export class LayoutManager implements Manager {
 }
 
 // @public
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
 export interface LayoutWarningEvent {
     code: GraphtyWarningCode;
     layoutType: string;

@@ -52,7 +52,12 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
-import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
+import type {
+    GraphBackgroundConfig,
+    GraphSelectionStyleConfig,
+    GraphSelectionStyleInput,
+    LayoutTransitionConfig,
+} from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
@@ -1830,6 +1835,12 @@ export interface ProjectConfig {
     readonly author?: string;
     /** The project's name, which a project file carries. Absent when none is set, never blank. */
     readonly name?: string;
+    /**
+     * How nodes travel to a new layout: a transition from `catalog.transitions()`, its duration
+     * and parameters. Absent (the default), a new layout's positions are drawn in one frame.
+     * @since 3.36.0
+     */
+    readonly layoutTransition?: LayoutTransitionConfig;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -1856,6 +1867,8 @@ export interface ProjectConfigPatch {
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
+    readonly layoutTransition?: LayoutTransitionConfig;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */

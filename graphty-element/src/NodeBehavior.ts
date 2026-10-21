@@ -23,6 +23,7 @@ import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import { pickAtLayout } from "./transitions/LayoutTransitionRunner";
 
 /**
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
@@ -37,13 +38,20 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The mesh, or null when the point lands on nothing.
  */
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
-    const onTop = scene.pick(
-        x,
-        y,
-        (mesh) =>
-            mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && mesh.isPickable && mesh.isVisible && mesh.isEnabled(),
-    );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+    // While a layout transition moves the nodes, a click reads the layout's answer, not the
+    // moving picture: what is selected is where the node is going.
+    return pickAtLayout(scene, () => {
+        const onTop = scene.pick(
+            x,
+            y,
+            (mesh) =>
+                mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP &&
+                mesh.isPickable &&
+                mesh.isVisible &&
+                mesh.isEnabled(),
+        );
+        return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+    });
 }
 
 /**

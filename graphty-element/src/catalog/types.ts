@@ -24,6 +24,7 @@ import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
+import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
 import type { LayerBoundary, ShaderDescriptor, ShaderEffects, ShaderParamSets, ShaderText } from "./shaders";
 
@@ -1964,6 +1965,12 @@ export interface CatalogApi {
      * @since 3.36.0
      */
     shaders(): readonly ShaderDescriptor[];
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets first, then the
+     * ones registered through `registerTransition`.
+     * @since 3.36.0
+     */
+    transitions(): readonly TransitionDescriptor[];
     /**
      * Every graph generator `session.data.generate` runs, with a default name, one sentence and
      * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.

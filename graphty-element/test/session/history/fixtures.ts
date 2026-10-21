@@ -823,6 +823,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { runPlacement: "top" } },
     },
     {
+        name: "config.set layoutTransition",
+        variant: "layoutTransition",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutTransition: { transition: "fixture/glide", seconds: 0.5 } } },
+    },
+    {
         name: "config.set author",
         variant: "author",
         tags: BOTH,

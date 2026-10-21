@@ -43,6 +43,7 @@ import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
 import { toColorValue } from "./session/styles/channels";
+import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
 
@@ -738,7 +739,10 @@ export class Node {
         if (box !== undefined) {
             this.drawAsGroup(box);
         } else if (pos) {
-            this.setMeshPosition(pos.x, pos.y, pos.z ?? 0);
+            // A layout transition draws the node on its way to the layout's answer; with none,
+            // the answer itself, in one frame.
+            const at = transitionsOf(layoutManager)?.place(this, pos) ?? pos;
+            this.setMeshPosition(at.x, at.y, at.z ?? 0);
         }
 
         this.syncOverlayPositions();
@@ -1289,7 +1293,8 @@ export class Node {
         const layoutManager = this.context.getLayoutManager();
         const pos = layoutManager.layoutEngine?.getNodePosition(this);
         if (pos) {
-            this.setMeshPosition(pos.x, pos.y, pos.z ?? 0);
+            const at = transitionsOf(layoutManager)?.place(this, pos) ?? pos;
+            this.setMeshPosition(at.x, at.y, at.z ?? 0);
         }
 
         // recreate label if needed

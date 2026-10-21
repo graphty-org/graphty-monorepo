@@ -22,6 +22,7 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -1058,7 +1059,7 @@ export class UpdateManager implements Manager {
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        if (this.layoutIsMoving()) {
+        if (this.layoutIsMoving() || transitionsOf(this.layoutManager)?.active === true) {
             return false;
         }
 
@@ -1204,7 +1205,12 @@ export class UpdateManager implements Manager {
             this.drawnFrameIsFinished = false;
         }
 
+        // One clock reading for the whole pass, so every node of a layout transition is placed at
+        // the same moment; the move ends after the pass that placed its last frame.
+        const transitions = transitionsOf(this.layoutManager);
+        transitions?.beginPass();
         this.runUpdatePass(frameMs);
+        transitions?.endPass();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         if (this.sizeNodesForDepth()) {
@@ -1304,12 +1310,18 @@ export class UpdateManager implements Manager {
             // 1. Update edges (for manual node dragging)
             // 2. Handle zoom if requested
 
+            // A layout transition keeps moving the nodes after the layout itself has finished.
+            if (transitionsOf(this.layoutManager)?.active === true) {
+                this.updateNodes();
+            }
+
             // Always update edges to handle manual node dragging
             // Edges have built-in dirty tracking, so they won't do unnecessary work
             this.updateEdges();
 
-            // Handle zoom to fit if requested
-            if (this.willZoomToFit()) {
+            // Handle zoom to fit if requested; a running transition frames where it lands, once
+            // it has landed, rather than the moving picture.
+            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.active !== true) {
                 this.updateNodes();
                 this.updateEdges();
 
@@ -1337,7 +1349,7 @@ export class UpdateManager implements Manager {
         this.updateEdges();
 
         // Handle zoom to fit if needed
-        if (framing) {
+        if (framing && transitionsOf(this.layoutManager)?.active !== true) {
             this.applyZoomToFit(this.measure());
         }
 

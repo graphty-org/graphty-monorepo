@@ -149,6 +149,8 @@
         "Sets/Kept Sets::ShortestPathAsASet",
         "Shaders/Edge Drawing::Lift",
         "Shaders/Edge Drawing::SurfacesAndEffects",
+        "Shaders/Layout Transitions::Glide",
+        "Shaders/Layout Transitions::Particles",
         "Shaders/Node Drawing::ThreePaths",
         "Shaders/Scene::Background",
         "Shaders/Scene::Bloom",

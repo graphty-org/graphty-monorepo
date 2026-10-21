@@ -95,6 +95,18 @@ export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/
 export type { ShaderDescriptor, ShaderKind, ShaderRegistration } from "./src/catalog/shaders";
 
 // ---------------------------------------------------------------------------------------------
+// Layout transition: how nodes travel from one layout to the next, on the CPU
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TransitionDescriptor,
+    TransitionDrawable,
+    TransitionNode,
+    TransitionRegistration,
+} from "./src/transitions/registry";
+export { clearRegisteredTransitionsForTesting, registerTransition } from "./src/transitions/registry";
+
+// ---------------------------------------------------------------------------------------------
 // File format: a reader class carrying its own description
 // ---------------------------------------------------------------------------------------------
 

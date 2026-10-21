@@ -80,6 +80,8 @@ export type {
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How nodes travel to a new layout, as `session.config.set({ layoutTransition })` takes it
+    LayoutTransitionConfig,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
     NodeStyleConfig,

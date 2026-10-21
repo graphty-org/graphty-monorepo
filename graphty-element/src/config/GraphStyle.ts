@@ -128,6 +128,25 @@ const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
  */
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
+/**
+ * How nodes travel to a new layout: a transition from `catalog.transitions()`, how long it takes,
+ * and its parameters. Absent, a new layout's positions are drawn in one frame.
+ * @since 3.36.0
+ */
+export const LayoutTransition = z.strictObject({
+    /** A transition id: a preset (`"glide"`) or a registered one (`"my/drop"`). */
+    transition: z.string().min(1).max(81),
+    /** How long the move takes, in seconds. Default 0.8. */
+    seconds: z.number().min(0).max(30).optional(),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+});
+
+/** How nodes travel to a new layout. See {@link LayoutTransition}. @since 3.36.0 */
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
 export const GraphStyle = z.strictObject({
     /**
      * ACCEPTED AND IGNORED. It used to decide whether the element unshifted a default layer onto
@@ -150,6 +169,8 @@ export const GraphStyle = z.strictObject({
     startingCameraDistance: z.number().optional(),
     layout: z.string().optional(), // No default - let Graph constructor set the default
     layoutOptions: z.looseObject({}).optional(),
+    /** How nodes travel to a new layout: the project setting `layoutTransition`. */
+    layoutTransition: LayoutTransition.optional(),
     /**
      * View mode controls how the graph is rendered and displayed.
      * - "2d": Orthographic camera, fixed top-down view

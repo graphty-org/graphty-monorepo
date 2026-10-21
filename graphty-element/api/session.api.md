@@ -2960,6 +2960,7 @@ export interface ProjectConfig {
         readonly stepMultiplier: number;
         readonly minDelta: number;
     };
+    readonly layoutTransition?: LayoutTransitionConfig;
     readonly name?: string;
     readonly runAlgorithmsOnLoad: boolean;
     readonly runPlacement: RunPlacement;
@@ -2981,6 +2982,7 @@ export interface ProjectConfigPatch {
     readonly editableBase?: boolean;
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    readonly layoutTransition?: LayoutTransitionConfig;
     readonly name?: string | null;
     // (undocumented)
     readonly runAlgorithmsOnLoad?: boolean;

@@ -51,6 +51,7 @@ import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../catalog/shaders";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
+import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
 import type { SessionCatalogApi } from "./types";
@@ -141,6 +142,12 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the shader descriptors, the element's own first
      */
     shaders: () => shaderDescriptors(),
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets, then the
+     * registered ones.
+     * @returns the transition descriptors, the element's own first
+     */
+    transitions: () => transitionDescriptors(),
     /**
      * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
      * @returns the generator descriptors

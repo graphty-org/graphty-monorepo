@@ -108,6 +108,7 @@ export { formatShaderText, parseShaderText } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { TransitionDescriptor, TransitionDrawable } from "./src/transitions/registry";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 

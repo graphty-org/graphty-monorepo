@@ -1011,6 +1011,9 @@ export interface LayerUnmatchedGroup {
 }
 
 // @public
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
 export type Lighting = (typeof LIGHTING_VALUES)[number];
 
 // @public

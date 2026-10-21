@@ -532,6 +532,9 @@ export function clearRegisteredPalettesForTesting(): void;
 export function clearRegisteredShadersForTesting(): void;
 
 // @public
+export function clearRegisteredTransitionsForTesting(): void;
+
+// @public
 export interface CollapseResult {
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
     readonly removedEdges: number;
@@ -2006,7 +2009,7 @@ export interface OptionContext {
     // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink";
+    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 
 // @public
@@ -2282,6 +2285,9 @@ export function registerShader(registration: ShaderRegistration, options?: Regis
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void;
 
 export { registerSource }
+
+// @public
+export function registerTransition(registration: TransitionRegistration, options?: RegisterOptions): void;
 
 export { ReplayFetch }
 
@@ -2634,6 +2640,34 @@ export interface SuggestedName {
     readonly id: string;
     // (undocumented)
     readonly label: string;
+}
+
+// @public
+export interface TransitionDescriptor {
+    readonly drawable?: TransitionDrawable;
+    readonly id: string;
+    readonly params: readonly OptionDescriptor[];
+    readonly plainName: string;
+}
+
+// @public
+export type TransitionDrawable = "particles";
+
+// @public
+export interface TransitionNode {
+    readonly distanceFromCenter: number;
+    readonly hopFromSelection: number | undefined;
+    readonly index: number;
+    readonly seed: number;
+}
+
+// @public
+export interface TransitionRegistration {
+    readonly descriptor: Omit<TransitionDescriptor, "params" | "drawable"> & {
+        readonly params?: readonly OptionDescriptor[];
+    };
+    readonly drawable?: TransitionDrawable;
+    readonly move: (t: number, from: Vec3, to: Vec3, node: TransitionNode, params: Readonly<Record<string, unknown>>) => Vec3;
 }
 
 // @public

@@ -100,6 +100,7 @@ export type {
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
     ImageData,
+    LayoutTransitionConfig,
     Lighting,
     NodeStyleConfig,
     RichTextStyleType,

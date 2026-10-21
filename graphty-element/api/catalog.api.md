@@ -323,6 +323,7 @@ export interface CatalogApi {
     themes(): readonly ThemeDescriptor[];
     // @deprecated (undocumented)
     timeAttributes(): readonly AttributeDescriptor[];
+    transitions(): readonly TransitionDescriptor[];
     // @deprecated (undocumented)
     validate(query: Query, o?: {
         kind?: "selector" | "filter" | "formula";
@@ -2233,6 +2234,17 @@ export function toColorValue(value: string | Rgba | null | undefined): ColorValu
 
 // @public
 export type TopTies = "fewer" | "all";
+
+// @public
+export interface TransitionDescriptor {
+    readonly drawable?: TransitionDrawable;
+    readonly id: string;
+    readonly params: readonly OptionDescriptor[];
+    readonly plainName: string;
+}
+
+// @public
+export type TransitionDrawable = "particles";
 
 // @public
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[];

@@ -10,10 +10,12 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-20) Round 1 is frozen on 6de5f95d12; the key reads it from 21 halves' targeted
-  re-pilots (rounds/r1d1/pilot/). T50 is unblocked (projects open with their look). Replace with
-  the same file now keeps layers. Open grading-spoiler for preflight 4: T44 B Replace + two undos
-  leaves a deleted label drawn and the tree over-reports node.label (graded from the screenshot).
+- (2026-10-21) Round 1 is frozen on 758b8e8081; the key reads it from 15 halves' targeted
+  re-pilots (rounds/r1d2/pilot/). T44 B's spoiler is fixed (Undo across Replace redraws), so its
+  grade-from-screenshot line is withdrawn. New grading risk: with a find-box selection held, the
+  first look slides the drawing and hides painted nodes on the last screen (T38 B 7 of 10, T41 B
+  3 of 4) -- answers count only as on screen. New blocker-shaped trap: a `>` rule layer's card
+  is raw JSON and uneditable (T42 A).
 - (2026-10-20) Pilot "mismatches" are often the key being right and decided.md being wrong-way
   (Escape on a member, drawing jumps): the key counts the screen and names the contradiction;
   never rewrite the key toward decided.md.
@@ -82,6 +84,15 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-21 (758b8e8081 re-pilots into the key):** Kept every step count and bar; every walked
+  success path matched. Withdrew T44 B's grade-from-screenshot line because the fix makes tree and
+  drawing agree again; a grading rule for a build defect must leave with the defect. For the
+  selection-held slide hiding painted nodes I added no rule, only a pointer to the existing "an
+  answer counts only when it was on screen": a new rule would change a bar. Resolved pilot
+  contradictions from evidence, not majority: sample pictures load (T44 A screenshot and zero ORB
+  lines in session.log; T45 A's "still broken" echoed the key). Wrote 6de5f95d12 facts as
+  "(on 6de5f95d12 ...)" beside the new ones. tasks.md unchanged: no prompt wrong.
 
 - **2026-10-20 (6de5f95d12 re-pilots into the key):** Kept every step count and bar: every
   walked success path matched. Marked "the drawing jumps ~130 px" as a defect where T39/T40 had
@@ -190,6 +201,12 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-21 (758b8e8081 re-pilots) -- Worked: one asserted `\s+`-joined edit script (all 50 or so
+  edits matched first time); running prettier on a copy with `--parser markdown` and copying the
+  result back (it only moved a blank line). Checking a pilot claim against session.log (`grep -c
+ORB`) and one screenshot before writing it. Did not work: trusting a pilot line that says "the
+  key already records" -- it may be echoing the old key, not the screen.
+
 - 2026-10-20 (6de5f95d12 re-pilots into the key) -- Worked: matching each old string with any
   whitespace run standing for any other (`\s+` join), so key paragraphs wrapped across lines
   match without copying line breaks; it caught one misquote before writing. `prettier
@@ -235,26 +252,12 @@ logged). Their reasons, in short:
   Did not work: pilots reporting from different folder layouts (`5bd16cda6e/` subfolder vs
   `success/`, `detours-b/`); the key now points at both, and the gate may count only one (T44B
   pilot's note).
-- 2026-10-17 (ed4351b258 pilots into the key) -- Worked: assembling the file from saved parts
-  (top, new body, old log) in my own scratch subfolder. Did not work: writing helper files at the
-  scratchpad's root -- other agents share it, and I overwrote two of their files (head.md,
-  log.md); always use a named subfolder.
-- 2026-10-17 (pilots into the key) -- Worked: reading styleContent in measure.mjs to confirm the
-  T49 hash claim (it strips id, row, counts, not revision); opening one pilot screenshot to read
-  T51 B's key colors (styles.json holds only the palette, not value-to-color). Did not work:
-  pilot agents writing report.md (the harness refuses report files from subagents; the caller
-  must save them).
-- 2026-10-17 (second read) -- Worked: running `wording.mjs` on the latest bars vocabulary and then
-  grepping the app's style source for each prompt's content words, which separates "no echo" from
-  "never walked". Worked: grepping score.mjs for ROUTE_TASKS to check a criteria claim ("T48's
-  equivalents") against what is scored -- it is T47 only.
-- 2026-10-17 (review applied) -- Worked: asserted (old, new) edit scripts per file, a roster
-  script asserting 56 and no persona on both halves, the wording check after every prompt edit,
-  a 4-step pilot to confirm a new field before scoring on it. Did not work: trusting the wording
-  tool's kept-line regex; a T47 fixture with 1 of 2 in a half.
-- 2026-10-17 -- Worked: writing the bars walk first and letting MISS lines name each wrong control
-  name; briefing all planned rows in a test. Did not work: chaining eval'd real.mjs steps in one
-  shell call; `--expect` on a placeholder.
+- 2026-10-17 (folded) -- Worked: assembling files from saved parts in my own scratch subfolder;
+  styleContent in measure.mjs to confirm look hashes; wording.mjs plus grepping app style source
+  for prompt words; grepping score.mjs before trusting a criteria claim; asserted edit scripts and
+  a roster assert; writing the bars walk first. Did not work: helper files at the scratchpad's
+  root (overwrote other agents' files); pilots writing report.md (harness refuses); trusting the
+  wording tool's kept-line regex; chaining eval'd real.mjs steps; `--expect` on a placeholder.
 - 2026-10-11 (tier 2 rounds 4-5, folded) -- Worked: `git status`, `git log` and round listings
   first after any stop; a short call dump of each flagged participant log to settle leak flags;
   reading the workflow journal and the script the run executes rather than inferring from the

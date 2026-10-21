@@ -374,6 +374,35 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-21 (round 1 pilots on 758b8e8081; no session has run): `answers.md` matches the frozen
+  build 758b8e8081 as the pilots in `rounds/r1d2/pilot/` saw it (15 halves: T37 B, T38 B, T39 A,
+  T40 B, T41 A and B, T42 A, T43 A and B, T44 A and B, T45 A and B, T46 B, T49 A; the
+  `answers.md` change log lists what changed). No bar changed and no step count changed. `tasks.md`
+  is unchanged: no prompt was wrong. The walk agents could not write `report.md`; the session
+  folders and this log are the record.
+    - Fixed on this build: a layer made from a find-box selection takes condition edits before its
+      first look (T41 B's "Has no value" switch, a second card, Done keeps both); Undo after
+      Control+O > Replace with the same file redraws from the layers; the first find-box pick
+      after Replace draws its ring. **T44 B's grading-spoiling state is gone**, so its grading line
+      (grade from the last screenshot) is withdrawn and T44 B is graded from the tree as usual.
+    - **Grading risk, for preflight 4's triage:** with a find-box selection still held, the first
+      color or size on a layer moves the drawing about 135 to 155 px right and can leave painted
+      nodes off screen on the last screenshot (T38 B: 7 of 10 visible; T41 B: 3 of 4), so a
+      participant reading names or a count off the drawing can stop short. Graded as before: the
+      layer from `styles.json`, an answer only as it was on screen.
+    - Recorded for preflight 4's triage, not fixed here: a layer made from a `>` rule
+      (`hours > 20`) opens a card that shows raw rule text and takes no edit, only Remove (T42 A;
+      the `>=` form works); a "Rule: graphty.degree > 16" layer's card shows the internal field
+      path and its attribute list offers no Degree (T37 B); after an exported GraphML is opened
+      with Replace and undone once, the key drops the Louvain section while the groups stay
+      drawn (T46 B); Escape in a category card's value search closes the whole picker (T46 B);
+      Escape on a layer's Which nodes summary cleared a selection (T37 B); a just-added number
+      card shows a count of its own (T45 B); "Filter to..." leaves focus on the tree row on A too
+      (T42 A); a right-click on a find-box row does nothing (T38 B); the picker's hex box can leave
+      the caret after the value, "Remove node color" sends focus to Effects' "+", and the eye's
+      tooltip and name differ (T49 A); F6, Which nodes, the heading's focus ring and Enter on
+      Samples as before.
+
 - 2026-10-20 (round 1 build refrozen): the study build is 758b8e8081, served from
   `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-758b8e8081`. It replaces
   6de5f95d12, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12`.

@@ -117,6 +117,7 @@ function webLocks(locks: LockManager): PageLocks {
     // ponytail: per module copy; a page loading two copies of graphty-element hands no lock between them.
     const mine = new Set<string>();
     const parked = new Map<string, () => void>();
+    const claiming = new Map<string, Promise<boolean>>();
     const request = (name: string): Promise<(() => void) | null> =>
         new Promise((resolve, reject) => {
             locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
@@ -150,18 +151,31 @@ function webLocks(locks: LockManager): PageLocks {
                 await locks.request(name, () => undefined);
             }
         },
-        own: async (name) => {
-            if (mine.has(name)) {
-                return true;
+        own: (name) => {
+            if (mine.has(name) || parked.has(name)) {
+                return Promise.resolve(true);
             }
 
-            const release = await claim(name);
-            if (release === null) {
-                return false;
+            // Two lookups at once (a React effect run twice) share one claim: otherwise the second
+            // finds the lock the first is taking, and reports this page's own entry as another's.
+            let owning = claiming.get(name);
+            if (owning === undefined) {
+                owning = claim(name)
+                    .then((release) => {
+                        if (release === null) {
+                            return false;
+                        }
+
+                        parked.set(name, release);
+                        return true;
+                    })
+                    .finally(() => {
+                        claiming.delete(name);
+                    });
+                claiming.set(name, owning);
             }
 
-            parked.set(name, release);
-            return true;
+            return owning;
         },
     };
 }

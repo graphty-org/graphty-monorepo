@@ -5,19 +5,34 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { noteBody } from "./branch-note.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { acquireLock, context, handOff, issueRefs, landedBranches, main, prBody, readLock, sync } from "./land.mjs";
+import {
+    acquireLock,
+    context,
+    defaultPreview,
+    handOff,
+    issueRefs,
+    landedBranches,
+    main,
+    prBody,
+    readLock,
+    sync,
+} from "./land.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "land-"));
 const repo = join(dir, "main");
 const other = join(dir, "other");
 const env = isolatedGitEnv();
+// A landing runs this file through its own hand-off to the live copy, which marks the environment;
+// the tests' land.mjs must not inherit that mark, or it never hands off itself.
+delete env.LAND_LIVE;
+delete env.LAND_LIVE_COPY;
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 const git = (cwd, ...args) => {
@@ -38,6 +53,7 @@ const branch = (name, files, message, base = "origin/master") => {
 
 let gh;
 let previews;
+let previewHeads;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let refspecs; // what each push sent
@@ -108,7 +124,11 @@ before(() => {
             });
             return { code: r.status, output: r.stderr };
         },
-        preview: (_ctx, pr) => previews.push(pr),
+        // What the real preview passes as --expect: the HEAD of the worktree it is given.
+        preview: (c, pr, cwd = c.golden) => {
+            previews.push(pr);
+            previewHeads.push(git(cwd, "rev-parse", "HEAD"));
+        },
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
         addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
@@ -122,6 +142,7 @@ before(() => {
 beforeEach(() => {
     gh = [];
     previews = [];
+    previewHeads = [];
     pushResult = 0;
     pushes = 0;
     refspecs = [];
@@ -503,6 +524,16 @@ describe("landing several branches", () => {
         assert.deepEqual(installs, ["1", "2", "1", "2"]);
     });
 
+    it("skips a first branch that is already on golden and lands the ones after it", async () => {
+        branch("multi/q", { "mq.txt": "q\n" }, "feat: mq");
+        gh.open = true;
+        const r = await run("land", "multi/a", "multi/q");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(landSubjects(1)[0], "land: multi/q");
+        assert.equal(originGolden(), head());
+        assert.match(r.out, /multi\/a\s+already on golden\n\s+multi\/q\s+landed/);
+    });
+
     it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {
         branch("multi/g", { "mc.txt": "conflict\n" }, "feat: g");
         branch("multi/h", { "bad.txt": "h\n" }, "feat: h");
@@ -620,6 +651,91 @@ describe("cuts", () => {
         );
     });
 
+    it("ship counts a preview as current across a Finish's own commits, and only those", async () => {
+        const previewed = remote("refs/heads/golden-cut");
+        preview("9", previewed, ["changed"]);
+        // The owner's Finish on the cut: an accept commit and an approval commit.
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "finish", "origin/golden-cut");
+        mkdirSync(join(other, "visual-baselines/p"), { recursive: true });
+        write(other, "visual-baselines/p/s0.png", "png\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+        mkdirSync(join(other, "visual-review-approvals"), { recursive: true });
+        write(other, "visual-review-approvals/t.json", "{}\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): approve the visual baselines of #9");
+        git(other, "push", "-q", "origin", "finish:golden-cut");
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: git(other, "rev-parse", "HEAD") };
+        const r = await run("ship");
+        assert.equal(r.code, 0, r.out);
+        assert.ok(gh.some((a) => a[1] === "ready"));
+
+        // A commit that changes anything else needs a new preview.
+        write(other, "visual-baselines/p/s1.png", "png\n");
+        write(other, "code.txt", "x\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+        git(other, "push", "-q", "origin", "finish:golden-cut");
+        gh.cut = { ...gh.cut, headRefOid: git(other, "rev-parse", "HEAD") };
+        gh.length = 0;
+        const moved = await run("ship");
+        assert.equal(moved.code, 1, moved.out);
+        assert.match(moved.out, /#9 moved since its preview/);
+        git(other, "checkout", "-q", "master");
+    });
+
+    it("ship never waits behind a landing's lock, and refuses while a cut is pushing", async () => {
+        const head = remote("refs/heads/golden-cut");
+        preview("9", head, ["changed"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const hold = (dir) => {
+            mkdirSync(dir, { recursive: true });
+            write(dir, "owner.json", JSON.stringify({ pid: process.pid, host: hostname(), since: "now" }));
+        };
+        hold(ctx.lock);
+        const saved = ctx.lockOptions;
+        ctx.lockOptions = {
+            pollMs: 10,
+            onWait: () => {
+                throw new Error("ship waited for the landing lock");
+            },
+        };
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 0, r.out);
+            hold(ctx.cutLock);
+            gh.length = 0;
+            const cutting = await run("ship");
+            assert.equal(cutting.code, 1, cutting.out);
+            assert.match(cutting.out, /a cut is pushing golden-cut now/);
+            assert.equal(gh.length, 0);
+        } finally {
+            ctx.lockOptions = saved;
+            rmSync(ctx.lock, { recursive: true, force: true });
+            rmSync(ctx.cutLock, { recursive: true, force: true });
+        }
+    });
+
+    it("the preview it starts waits for GitHub to list the pushed commit as the head", async () => {
+        const fake = join(dir, "fake-preview");
+        mkdirSync(join(fake, "tools"), { recursive: true });
+        const called = join(fake, "called");
+        writeFileSync(
+            join(fake, "tools/visual-preview.sh"),
+            `#!/bin/sh\necho "$@" > ${called}.tmp\nmv ${called}.tmp ${called}\n`,
+            {
+                mode: 0o755,
+            },
+        );
+        git(dir, "init", "-q", fake);
+        git(fake, "commit", "-q", "--allow-empty", "-m", "x");
+        defaultPreview(ctx, 42, fake);
+        const sha = git(fake, "rev-parse", "HEAD");
+        while (!existsSync(called)) await new Promise((r) => setImmediate(r));
+        assert.equal(readFileSync(called, "utf8"), `42 --expect ${sha}\n`);
+    });
+
     it("ship refuses when the cut pull request moved since its preview", async () => {
         const line = firstParents();
         preview("9", line[1], ["changed"]);
@@ -666,6 +782,7 @@ describe("cut fixes", () => {
         assert.equal(git(repo, "log", "-1", "--format=%s", "origin/golden"), "land: cutfix/ok");
         assert.ok(!existsSync(join(ctx.cut, "adv.txt")), "the cut did not take golden's newer landing");
         assert.deepEqual(previews, [9, 7]);
+        assert.equal(previewHeads[0], git(repo, "rev-parse", "origin/golden-cut"), "--expect the pushed cut head");
     });
 
     it("run again, finds the fix on both and pushes nothing", async () => {

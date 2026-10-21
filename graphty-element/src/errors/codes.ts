@@ -233,6 +233,14 @@ export type GraphtyErrorCode =
      */
     | "E_PARSE_FAILED"
     /**
+     * A graphty project or document file (one `session.project.save` writes) was handed to a data
+     * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+     * opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+     * that opens it. Nothing in the session changed. The caller opens the file with
+     * `session.project.open`, which reads data files too.
+     */
+    | "E_PROJECT_FILE_AS_DATA"
+    /**
      * An edge table declares no endpoint columns and contains none of the accepted pairs
      * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
      * contain. The caller re-imports with an `ImportPlan` naming the endpoint columns. The
@@ -653,6 +661,7 @@ const CODE_TABLE = {
     E_PROTECTED: "E_PROTECTED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
     E_EMPTY_LOAD: "E_EMPTY_LOAD",

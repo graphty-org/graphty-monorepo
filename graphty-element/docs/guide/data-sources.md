@@ -188,7 +188,9 @@ try {
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
 the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
 read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
-naming the format and, when the parser knows it, the line. A replacing load that stops at
+naming the format and, when the parser knows it, the line. A graphty project or document file (what
+`session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
+`details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 

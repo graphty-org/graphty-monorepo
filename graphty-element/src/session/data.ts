@@ -49,6 +49,7 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    importCommand,
     type ImportSource,
     SOURCE_VALUE,
 } from "./commands/data";
@@ -676,19 +677,10 @@ export class SessionData implements SessionDataApi {
             return;
         }
 
-        const command = (resolved: ImportSource): DataImportCommand => ({
-            op: "data.import",
-            source: resolved,
-            mode: options.mode ?? "replace",
-            ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(options.existing === undefined ? {} : { existing: options.existing }),
-            ...(options.styles === undefined ? {} : { styles: options.styles }),
-            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
-        });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        await send(command(resolved instanceof Promise ? await resolved : resolved));
+        await send(importCommand(resolved instanceof Promise ? await resolved : resolved, options));
     }
 
     /**

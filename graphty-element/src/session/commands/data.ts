@@ -189,6 +189,35 @@ export interface HeldRows {
     readonly repeated?: DuplicatePolicy;
 }
 
+/** The load choices a `data.import` command carries. */
+export type ImportChoices = Pick<
+    DataImportCommand,
+    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
+>;
+
+/**
+ * The one `data.import` command `session.data.import` and `LoadDraft.load` both send, so a file
+ * loads the same whichever of the two loads it.
+ * @param source - Where the rows come from.
+ * @param choices - The load choices; one left out is left out of the command.
+ * @param held - The rows a draft already read, loaded in place of reading the source again.
+ * @returns The command.
+ */
+export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
+    const optional = Object.fromEntries(
+        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
+            .filter((key) => choices[key] !== undefined)
+            .map((key) => [key, choices[key]]),
+    );
+    return {
+        op: "data.import",
+        source,
+        mode: choices.mode ?? "replace",
+        ...optional,
+        ...(held === undefined ? {} : { held }),
+    };
+}
+
 /**
  * Whether a command adds rows, and so starts the load-time algorithm list once it is recorded: an
  * add of nodes or edges, or an import naming both a source type and its options.

@@ -18,8 +18,9 @@
 // copy with the same arguments and passes its exit code through. Without a live copy it runs itself and says so.
 //
 // Golden is the local branch `golden` in the worktree <main checkout>/.worktrees/golden-local (made on
-// first use), pushed to `golden` on GitHub after every landing. One landing, revert or ship runs at a
-// time (a lock in <main checkout>/tmp/golden/); the others wait and say who holds it.
+// first use), pushed to `golden` on GitHub after every landing. One landing or revert runs at a time
+// (a lock in <main checkout>/tmp/golden/); the others wait and say who holds it. `ship` takes no lock: it
+// only marks the cut pull request ready, and refuses while a cut is pushing golden-cut.
 //
 // A landing first merges origin/golden (the owner's screenshot accept commits) and origin/master
 // (release merges, the merged golden pull request) into golden, then merges <branch> with --no-ff as
@@ -79,7 +80,6 @@ export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
 export const CUT = "golden-cut";
 export const CUT_TITLE = "chore: ship a golden cut into master";
-const ACCEPT_SUBJECT = /: accept visual baselines for #\d+$/;
 const BROKEN = new Set(["failed", "unstable"]);
 const LAND_SUBJECT = /^land: (\S+)$/;
 // git 2.43+ names a revert of a revert "Reapply"; older versions nest the quotes.
@@ -161,7 +161,7 @@ function stale(dir, owner) {
 /**
  * Takes the exclusive lock, waiting while another process holds it. Waiters queue in the order they
  * asked, each with a ticket file in `<dir>.queue/`, and only the oldest live ticket tries the lock.
- * ponytail: one lock for every landing, revert and ship; per-branch locks only if landings must overlap.
+ * ponytail: one lock for every landing and revert; per-branch locks only if landings must overlap.
  * @param dir the lock directory (made with mkdir, which is atomic)
  * @param info what to record about this holder (the command and branch)
  * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
@@ -605,12 +605,13 @@ function defaultGh(ctx, args) {
 
 /**
  * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it.
+ * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
  * @param [cwd] the worktree holding its head (golden's)
  */
-function defaultPreview(ctx, pr, cwd = ctx.golden) {
+export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     const head = git(ctx, cwd, ["rev-parse", "HEAD"]);
     const done = join(ctx.main, `tmp/visual-review/local/${pr}/status.json`);
     try {
@@ -624,7 +625,7 @@ function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr)], {
+    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
         cwd,
         env: ctx.env,
         detached: true,
@@ -1114,6 +1115,10 @@ export async function revert(ctx, branch) {
  * @returns the exit code
  */
 export async function ship(ctx) {
+    const cutting = readLock(ctx.cutLock);
+    if (cutting && !stale(ctx.cutLock, cutting)) {
+        return fail(`a cut is pushing ${CUT} now (${describeOwner(cutting)}); ship after it`);
+    }
     git(ctx, ctx.main, ["fetch", "-q", "origin"]);
     updateMainCheckout(ctx);
     const pr = goldenPr(ctx, CUT);
@@ -1134,7 +1139,7 @@ export async function ship(ctx) {
 
 /**
  * Whether the cut pull request's head moved since its last finished preview: anything between the
- * preview's head and the pull request's head other than the owner's accept commits.
+ * preview's head and the pull request's head other than a Finish's own commits (finishCommit).
  * @param ctx the run's context
  * @param pr the cut pull request (`number`, `headRefOid`)
  * @returns what is wrong, or null when the preview is of this head
@@ -1147,9 +1152,43 @@ function cutMoved(ctx, pr) {
     if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", status.head, head], { ok: true }).status !== 0) {
         return `moved from ${status.head.slice(0, 10)} (its preview) to ${head.slice(0, 10)}`;
     }
-    const subjects = git(ctx, ctx.main, ["log", "--format=%s", `${status.head}..${head}`]).split("\n");
-    const other = subjects.filter((s) => s && !ACCEPT_SUBJECT.test(s));
-    return other.length ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.join("; ")}` : null;
+    const other = commitsSince(ctx, status.head, head).filter((c) => !finishCommit(ctx, c));
+    return other.length
+        ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.map((c) => c.subject).join("; ")}`
+        : null;
+}
+
+/**
+ * The commits of `from..to`, each with its parents, subject and the files it changed.
+ * @param ctx the run's context
+ * @param from the older commit
+ * @param to the newer one
+ * @returns `[{ parents, subject, files }]`
+ */
+function commitsSince(ctx, from, to) {
+    const log = git(ctx, ctx.main, ["log", "--format=%x01%P%x00%s", "--name-only", `${from}..${to}`]);
+    return log
+        .split("\x01")
+        .filter(Boolean)
+        .map((record) => {
+            const [first, ...files] = record.split("\n");
+            const [parents, subject] = first.split("\0");
+            return { parents: parents.split(" "), subject, files: files.filter(Boolean) };
+        });
+}
+
+/**
+ * Whether a commit is one a screenshot Finish makes (its accept, approval or signing commit): one
+ * parent, and nothing changed outside the baselines and approvals directories of
+ * visual-review.config.json. Such a commit changes no capture, so a preview stays current across it.
+ * @param ctx the run's context
+ * @param commit as commitsSince returns it
+ * @returns true when it is
+ */
+function finishCommit(ctx, commit) {
+    const config = readJson(join(ctx.main, "visual-review.config.json")) ?? {};
+    const dirs = [config.baselines ?? "visual-baselines", config.approvals ?? "visual-review-approvals"];
+    return commit.parents.length === 1 && commit.files.every((f) => dirs.some((d) => f.startsWith(`${d}/`)));
 }
 
 function readJson(file) {
@@ -1612,10 +1651,10 @@ export async function main(argv, ctx = context(process.cwd())) {
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
-    const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") && command !== "ship" };
+    const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") };
     const unlocked = UNLOCKED[command];
     if (unlocked) return unlocked(ctx, branch, argv, lockOptions);
-    if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
+    if (!["land", "revert"].includes(command) || !branch) return fail(USAGE);
     const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
     const onTerm = onSignal(ctx, "SIGTERM", 143);
@@ -1634,16 +1673,17 @@ export async function main(argv, ctx = context(process.cwd())) {
         ctx.hooks = hooksDir(ctx);
         if (command === "land" && branches.length > 1) return await landMany(ctx, branches, { dryRun });
         if (command === "land") return await land(ctx, branch, { dryRun });
-        if (command === "revert") return await revert(ctx, branch);
-        return await ship(ctx);
+        return await revert(ctx, branch);
     } finally {
         cleanup(ctx);
     }
 }
 
-// The commands that do not take the landing lock (cut and cut-fix take the cut's own).
+// The commands that do not take the landing lock (cut and cut-fix take the cut's own). Ship only marks the
+// cut pull request ready: it never waits behind a landing's gate.
 const UNLOCKED = {
     status: (ctx) => status(ctx),
+    ship: (ctx) => ship(ctx),
     cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
     "cut-fix": cutFixThenLand,
     "prune-branches": (ctx, _branch, argv) => {

@@ -249,6 +249,17 @@ export function credentialHeader(credential: Credential): string | null {
 }
 
 /**
+ * The query parameter a credential is sent in, so a cursor can leave it out; null for one sent in
+ * a header or not at all.
+ * @param credential - the credential
+ * @returns the parameter's name
+ */
+export function credentialQuery(credential: Credential): string | null {
+    const secret = secretOf(credential);
+    return secret?.kind === "api-key" && secret.header === null ? (secret.query ?? "api_key") : null;
+}
+
+/**
  * Add a credential to a request. Internal to graph-io: only `ctx.fetch` calls it.
  * @param credential - the credential
  * @param request - the request

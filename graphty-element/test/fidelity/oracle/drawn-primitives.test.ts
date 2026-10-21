@@ -322,6 +322,95 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
     });
 
+    it("ends an edge at the node drawn over its own, where a reader sees it end (json-cyjs-tokyo's stacked stations)", () => {
+        const sceneNode = (id: string, x: number, hiddenBy: string | null) => ({
+            id,
+            x,
+            y: 50,
+            w: 20,
+            h: 20,
+            shape: "ellipse",
+            fill: "#cccccc",
+            fillOpacity: 1,
+            border: { color: null, width: 0, style: "solid" },
+            label: null,
+            visible: hiddenBy === null,
+            drawn: { subPixel: false, fillCovered: false, fillDrawn: "#cccccc", hiddenBy },
+        });
+        const sceneEdge = (id: string, source: string, target: string) => ({
+            id,
+            source,
+            target,
+            points: [
+                [0, 50],
+                [100, 50],
+            ],
+            curved: false,
+            color: "#000000",
+            opacity: 1,
+            width: 2,
+            style: "solid",
+            arrow: { source: "none", target: "none" },
+            label: null,
+        });
+        const scene = {
+            // "low" under "mid" under "top": an end at either is at "top"
+            nodes: [
+                sceneNode("a", 0, null),
+                sceneNode("low", 100, "mid"),
+                sceneNode("mid", 100, "top"),
+                sceneNode("top", 100, null),
+            ],
+            edges: [sceneEdge("e1", "a", "low"), sceneEdge("e2", "low", "top"), sceneEdge("e3", "a", "top")],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const line = (): DrawnEdge => ({
+            kind: "line-2d",
+            shown: true,
+            points: [
+                [0, 50],
+                [100, 50],
+            ],
+            thicknessPx: 2,
+            color: "#000000",
+            opacity: 1,
+            pattern: null,
+            dashPx: null,
+            outline: null,
+            caps: [],
+            label: null,
+            endLabels: [],
+            gradient: null,
+        });
+        const drawn: DrawnGraph = {
+            nodes: new Map(),
+            edges: new Map(["e1", "e2", "e3"].map((id) => [id, line()])),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        assert.deepEqual(
+            p.nodes.map((n) => n.id),
+            ["a", "top"],
+        );
+        assert.deepEqual(
+            p.edges.map((e) => [e.id, e.source, e.target]),
+            [
+                ["e1", "a", "top"],
+                // between a node and the node over it: no loop of the node in front
+                ["e2", "low", "top"],
+                ["e3", "a", "top"],
+            ],
+        );
+        // the ends its file names are kept beside the ones a reader sees
+        assert.deepEqual(p.edges[0].ownEnds, { source: "a", target: "low" });
+        assert.isUndefined(p.edges[2].ownEnds);
+    });
+
     it("leaves out a group it draws nothing for: no fill, no outline and no label", () => {
         const groupOf = (fill: string | null, fillOpacity: number): PScene["groups"] => {
             const parent = {

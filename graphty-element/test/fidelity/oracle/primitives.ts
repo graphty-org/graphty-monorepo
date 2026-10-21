@@ -268,6 +268,11 @@ export interface PEdge {
      * none.
      */
     outline?: { color: string; opacity: number; width: number; dashClass?: DashClass } | null;
+    /**
+     * The nodes its file names as its ends, where `source` and `target` are instead the nodes a reader sees it end at:
+     * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
+     */
+    ownEnds?: { source: string; target: string };
 }
 
 /** A group box as drawn. */

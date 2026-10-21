@@ -1488,18 +1488,29 @@ export function compareOracle(
     // an end at no node of graphty's (a group's box) keeps its id, which the oracle's association takes from graphty
     const graphtyNodeIds = new Set(graphty.nodes.map((n) => n.id));
     const oid = (id: string): string => idMap.get(id) ?? (graphtyNodeIds.has(id) ? `g:${id}` : id);
-    const gEdges = new Map<string, PEdge[]>();
-    for (const e of graphty.edges) {
-        const k = pairKey(oid(e.source), oid(e.target));
-        gEdges.set(k, [...(gEdges.get(k) ?? []), e]);
-    }
+    // graphty's edges not yet paired, in its order
+    const gRemaining = new Set(graphty.edges);
+    // an edge's ends as each side names them: the nodes its file names, or the nodes a reader sees it end at (`ownEnds`)
+    type EndsKey = (e: PEdge, side: "oracle" | "graphty") => string;
+    const keyOf = (source: string, target: string, side: "oracle" | "graphty"): string =>
+        side === "graphty" ? pairKey(oid(source), oid(target)) : pairKey(source, target);
+    // the ends a file names, where they differ from the ends seen; an edge seen where its file says is in no such pass
+    const ownKey: EndsKey = (e, side) =>
+        e.ownEnds === undefined ? "" : keyOf(e.ownEnds.source, e.ownEnds.target, side);
+    const shownKey: EndsKey = (e, side) => keyOf(e.source, e.target, side);
     const edgePairs: [PEdge, PEdge][] = [];
     const oById = new Map(oracle.nodes.map((n) => [n.id, n]));
     const unmatchedOracleEdges: string[] = [];
     // graphty's path in the oracle's frame, source end first the oracle's way
+    // the edges paired by where they are drawn (below), each with whether graphty runs it the other way
+    const drawnFlip = new Map<PEdge, boolean>();
+    // run the oracle's way where either its file's ends or its seen ends start alike
+    const flips = (o: PEdge, g: PEdge): boolean =>
+        drawnFlip.get(g) ??
+        (oid(g.source) !== o.source && oid(g.ownEnds?.source ?? g.source) !== (o.ownEnds?.source ?? o.source));
     const routeOf = (o: PEdge, g: PEdge): Pt[] => {
         const gp = g.points.map((p) => toOracle(p));
-        return oid(g.source) === o.source ? gp : [...gp].reverse();
+        return flips(o, g) ? [...gp].reverse() : gp;
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
     // passes (the fanned one to the fanned one) where the layouts agree; routes drawn alike (two straight edges
@@ -1526,7 +1537,7 @@ export function compareOracle(
     };
     /** Both routes between their own nodes, graphty's in the oracle's frame and direction. */
     const visible = (o: PEdge, g: PEdge): [Pt[], Pt[]] => {
-        const [gs, gt] = oid(g.source) === o.source ? [g.source, g.target] : [g.target, g.source];
+        const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
         return [
             clipToNodes(o.points, oOuter(oById.get(o.source)), oOuter(oById.get(o.target))),
             clipToNodes(routeOf(o, g), gOuter(gs), gOuter(gt)),
@@ -1542,6 +1553,39 @@ export function compareOracle(
         const words = (e: PEdge): string => norm(e.label?.content ?? "");
         const k = list.findIndex((g) => words(g) === words(o));
         return Math.max(k, 0);
+    };
+    /**
+     * Whether graphty's node `gId` is drawn on the oracle's node `oId`: centered on it within the node position
+     * tolerance, as two nodes stacked one on the other are. One merely overlapping it is another node a reader tells
+     * apart (json-cyjs-perf's n523 beside n421), whose line ends elsewhere.
+     */
+    const drawnOn = (gId: string, oId: string): boolean => {
+        const on = oOuter(oById.get(oId));
+        const at = gOuter(gId);
+        if (on === undefined || at === undefined) {
+            return false;
+        }
+        return Math.hypot(at.cx - on.cx, at.cy - on.cy) <= Math.max(T.positionOfSize * Math.min(on.w, on.h), pixel);
+    };
+    /** Of the leftover edges graphty draws, the one drawn between the oracle edge's nodes, nearest its route. */
+    const drawnAlike = (o: PEdge, list: readonly PEdge[]): PEdge | undefined => {
+        let best: { g: PEdge; gap: number } | undefined;
+        for (const g of list) {
+            const ahead = drawnOn(g.source, o.source) && drawnOn(g.target, o.target);
+            if (!ahead && !(drawnOn(g.target, o.source) && drawnOn(g.source, o.target))) {
+                continue;
+            }
+            drawnFlip.set(g, !ahead);
+            const { gap, near } = routeGap(o, g);
+            drawnFlip.delete(g);
+            if (best === undefined || gap / near < best.gap) {
+                best = { g, gap: gap / near };
+            }
+        }
+        if (best !== undefined) {
+            drawnFlip.set(best.g, !(drawnOn(best.g.source, o.source) && drawnOn(best.g.target, o.target)));
+        }
+        return best?.g;
     };
     const closest = (o: PEdge, list: PEdge[]): number => {
         if (list.length < 2) {
@@ -1588,20 +1632,59 @@ export function compareOracle(
             )
         ];
     };
-    for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
-        const list = gEdges.get(pairKey(o.source, o.target));
-        const g = list === undefined || list.length === 0 ? undefined : list.splice(closest(o, list), 1)[0];
+    /** Pairs each oracle edge with a graphty edge between the same nodes, by `key`; returns the oracle's left over. */
+    const pairBy = (os: readonly PEdge[], key: EndsKey): PEdge[] => {
+        const byKey = new Map<string, PEdge[]>();
+        for (const g of gRemaining) {
+            const k = key(g, "graphty");
+            byKey.set(k, [...(byKey.get(k) ?? []), g]);
+        }
+        const left: PEdge[] = [];
+        for (const o of os) {
+            const k = key(o, "oracle");
+            const list = k === "" ? undefined : byKey.get(k);
+            const g = list === undefined || list.length === 0 ? undefined : list.splice(closest(o, list), 1)[0];
+            if (g === undefined) {
+                left.push(o);
+            } else {
+                gRemaining.delete(g);
+                edgePairs.push([o, g]);
+            }
+        }
+        return left;
+    };
+    // by the nodes the files name first, where both sides moved the ends to a node drawn over them (two edges of nodes
+    // stacked on one keep apart, gexf-cns-wos n5 and n100 under n109), then all the rest by the nodes a reader sees
+    // them end at, where the words decide among parallel ones (json-cyjs-tokyo's lines between stacked stations)
+    const oracleLeft = pairBy(
+        pairBy(
+            [...oracle.edges].sort((a, b) => cmp(a.id, b.id)),
+            ownKey,
+        ),
+        shownKey,
+    );
+    // An edge whose ends the two sides name differently is still the same edge where graphty draws it between the
+    // nodes the oracle's runs between: nodes drawn on one another (json-cyjs-tokyo's stations of two lines at one
+    // place, which the oracle's reader names by one of them) leave a reader no way to tell which one a line ends at.
+    // In the fitted frame, each end of graphty's edge is at a node centered on the oracle's end node; among those, the
+    // route nearest the oracle's.
+    const framedEdges = fit !== null && !(transform?.unrelatedLayout ?? false);
+    for (const o of oracleLeft) {
+        const gLeft = framedEdges ? [...gRemaining].sort((a, b) => cmp(a.id, b.id)) : [];
+        const g = gLeft.length === 0 ? undefined : drawnAlike(o, gLeft);
         if (g === undefined) {
             unmatchedOracleEdges.push(o.id);
         } else {
+            gRemaining.delete(g);
             edgePairs.push([o, g]);
         }
+    }
+    const pairedTo = new Map(edgePairs.map(([o, g]) => [o, g]));
+    for (const o of [...oracle.edges].sort((a, b) => cmp(a.id, b.id))) {
+        const g = pairedTo.get(o);
         j.add("edge.present", "edge", o.id, g === undefined ? 1 : 0, `${o.source} - ${o.target}`, g?.id ?? null);
     }
-    const unmatchedGraphtyEdges = [...gEdges.values()]
-        .flat()
-        .map((e) => e.id)
-        .sort(cmp);
+    const unmatchedGraphtyEdges = [...gRemaining].map((e) => e.id).sort(cmp);
     // what graphty draws that the oracle does not: an extra, hidden or duplicate edge is an import defect
     const extraEdges = new Set(unmatchedGraphtyEdges);
     for (const e of oracle.nodesOnly === true ? [] : [...graphty.edges].sort((a, b) => cmp(a.id, b.id))) {
@@ -1609,7 +1692,7 @@ export function compareOracle(
     }
     for (const [o, g] of edgePairs) {
         const { id } = o;
-        const flipped = oid(g.source) !== o.source;
+        const flipped = flips(o, g);
         const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
         const [vo, vg] = visible(o, g);
         // a route of no length is no route: a raster oracle records a self-loop by its one node, not the loop it drew

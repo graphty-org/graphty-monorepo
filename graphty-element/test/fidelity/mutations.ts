@@ -520,6 +520,25 @@ const DEFECTS = {
         }
         return s;
     },
+    // its line runs to a node across the drawing: never paired with the oracle's edge by where it is drawn
+    "one edge drawn to another node": (s) => {
+        const e = firstEdge(s);
+        const from = s.nodes.find((n) => n.id === e?.source);
+        const to = s.nodes.find((n) => n.id === e?.target);
+        if (e === undefined || from === undefined || to === undefined) {
+            return s;
+        }
+        const away = (n: PNode): number => Math.hypot(n.cx - to.cx, n.cy - to.cy);
+        const far = s.nodes.filter((n) => n !== from && n !== to).sort((a, b) => away(b) - away(a))[0];
+        if (far !== undefined) {
+            e.target = far.id;
+            e.points = [
+                [from.cx, from.cy],
+                [far.cx, far.cy],
+            ];
+        }
+        return s;
+    },
     "whole drawing mirrored": (s) => {
         const W = s.width;
         const fx = (x: number): number => W - x;
@@ -809,6 +828,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "one extra node added": ["node.extra"],
     "one edge deleted": ["edge.present", "edge.extra"],
     "one extra edge added": ["edge.extra"],
+    "one edge drawn to another node": ["edge.present", "edge.extra"],
     "whole drawing mirrored": ["frame.mirror", "node.position"],
     "node opacity 0.5": ["node.fillOpacity", "node.fill", "node.stroke"],
     "edge opacity 0.5": ["edge.opacity"],

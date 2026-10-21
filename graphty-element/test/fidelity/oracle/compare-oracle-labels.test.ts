@@ -706,6 +706,36 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.deepEqual([e.arrows.length, e.label?.background?.fill?.color], [0, "#ffff00"]);
     });
 
+    it("gives each of two lines drawn one over another its own label (json-cyjs-tokyo's two lines between stations)", () => {
+        const prims = drawing(() => []);
+        const along: Pt[] = [
+            [120, 100],
+            [280, 100],
+        ];
+        for (const color of ["#00ff33", "#ffffff"]) {
+            prims.push(prim({ kind: "path", closed: false, points: along, stroke: stroke(color, 1) }));
+        }
+        for (const words of ["first line", "second line"]) {
+            const t = text(words, 200, 92);
+            prims.push(prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t }));
+        }
+        const edge = (id: string, color: string, words: string): PEdge => ({
+            id,
+            source: "a",
+            target: "b",
+            points: along,
+            stroke: stroke(color, 1),
+            arrows: [],
+            label: text(words, 200, 92),
+        });
+        const twoLines: PScene = {
+            ...guide,
+            edges: [edge("e1", "#00ff33", "first line"), edge("e2", "#ffffff", "second line")],
+        };
+        const { scene: o } = associate(prims, 600, 400, twoLines);
+        assert.deepEqual(o.edges.map((e) => e.label?.content ?? null).sort(), ["first line", "second line"]);
+    });
+
     it("leaves a box graphty draws as an annotation round a label to that annotation", () => {
         const prims = drawing(() => []);
         prims.push(prim({ tag: "rect", corners: 4, points: rect(82, 93, 118, 107), fill: fill("#ffff00") }));

@@ -1365,3 +1365,64 @@ describe("a line a program stops at its arrowhead's base", () => {
         );
     });
 });
+
+describe("edges whose ends the two sides name differently", () => {
+    // graphty draws "x" on "b" (another line's station at the same place, which the oracle's reader names "b")
+    const stacked = (over: Partial<PEdge> = {}): PScene =>
+        scene(
+            "graphty",
+            [edge({ target: "x", ...over })],
+            [...NODES.map(([id, x, y]) => node(id, x, y)), node("x", 301, 100)],
+        );
+
+    it("are paired by where graphty draws them, and judged (json-cyjs-tokyo's stacked stations)", () => {
+        const o = scene("oracle", [edge()]);
+        const r = compareOracle("t", o, stacked());
+        assert.strictEqual(r.properties["edge.present"].passRate, 1);
+        assert.strictEqual(r.properties["edge.extra"].passRate, 1);
+        // the pair is judged: a line three times as wide fails its width
+        const wide = compareOracle("t", o, stacked({ stroke: stroke("#0000ff", 6) }));
+        assert.strictEqual(wide.properties["edge.width"].passRate, 0);
+        // drawn the other way round, it is the same edge
+        const back = compareOracle(
+            "t",
+            o,
+            stacked({
+                source: "x",
+                target: "a",
+                points: [
+                    [280, 100],
+                    [120, 100],
+                ],
+            }),
+        );
+        assert.strictEqual(back.properties["edge.present"].passRate, 1);
+        assert.strictEqual(back.properties["edge.route"].passRate, 1);
+    });
+
+    it("are paired by the nodes their files name first, where two stack on one node (gexf-cns-wos n5, n100 on n109)", () => {
+        // both sides see two edges a - b; the files name their sources x and y, drawn under a
+        const own = (id: string, from: string, width: number): PEdge =>
+            edge({ id, ownEnds: { source: from, target: "b" }, stroke: stroke("#0000ff", width) });
+        const o = scene("oracle", [own("e1", "x", 2), own("e2", "y", 6)]);
+        const g = scene("graphty", [own("e1", "y", 6), own("e2", "x", 2)]);
+        const r = compareOracle("t", o, g);
+        assert.strictEqual(r.properties["edge.present"].passRate, 1);
+        assert.strictEqual(r.properties["edge.width"].passRate, 1);
+    });
+
+    it("stay apart where graphty's end is at another node", () => {
+        // an edge drawn to the wrong node is missing and extra, never paired by its route
+        const o = scene("oracle", [edge()]);
+        const g = scene("graphty", [
+            edge({
+                target: "e",
+                points: [
+                    [120, 100],
+                    [300, 280],
+                ],
+            }),
+        ]);
+        assert.includeMembers(failing(o, g), ["edge.present", "edge.extra"]);
+    });
+});

@@ -1858,24 +1858,32 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const wantOf = (e: PEdge): string | undefined =>
         (guideEdges.get(`${e.source}\u0000${e.target}`) ?? guideEdges.get(`${e.target}\u0000${e.source}`))?.label
             ?.content;
+    // Every label graphty draws between a pair of nodes, each as many times as it is drawn: edges drawn one over
+    // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
+    // their own words, and each of the oracle's lines there takes one of them.
+    const pairWords = wordsByPair(guide.edges);
     const edgeCandidates = edges.flatMap((e, ei) => {
-        const want = wantOf(e);
-        if (e.label !== null || want === undefined) {
+        const wants = pairWords.get(unorderedPair(e.source, e.target));
+        if (e.label !== null || wants === undefined) {
             return [];
         }
         // the whole label near the edge's middle
         const mid = e.points[Math.floor(e.points.length / 2)];
         return freeTexts
-            .filter((p) => norm(p.text?.content ?? "") === norm(want))
+            .filter((p) => wants.has(norm(p.text?.content ?? "")))
             .map((p) => ({ ei, p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }));
     });
     edgeCandidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];
-        if (e.label === null && parts.every((q) => !used.has(q.index)) && c.p.text) {
+        const wants = pairWords.get(unorderedPair(e.source, e.target));
+        const words = norm(c.p.text?.content ?? "");
+        const left = wants?.get(words) ?? 0;
+        if (e.label === null && left > 0 && parts.every((q) => !used.has(q.index)) && c.p.text) {
             parts.forEach(take);
             e.label = c.p.text;
+            wants?.set(words, left - 1);
         }
     }
     // else each line near any point of the edge: a label at each end (a source and a target label) is drawn as texts
@@ -2290,6 +2298,29 @@ function seedTransform(
         rms: Number.POSITIVE_INFINITY,
         anchors,
     };
+}
+
+/** Two node ids as one key, either way round. */
+const unorderedPair = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+
+/**
+ * The words of the edge labels drawn between each pair of nodes, each with how many edges there carry them.
+ * @param edges - the edges
+ * @returns by unordered pair, the count of each label's words
+ */
+function wordsByPair(edges: readonly PEdge[]): Map<string, Map<string, number>> {
+    const out = new Map<string, Map<string, number>>();
+    for (const e of edges) {
+        const words = norm(e.label?.content ?? "");
+        if (words === "") {
+            continue;
+        }
+        const k = unorderedPair(e.source, e.target);
+        const counts = out.get(k) ?? new Map<string, number>();
+        counts.set(words, (counts.get(words) ?? 0) + 1);
+        out.set(k, counts);
+    }
+    return out;
 }
 
 /** The lines each stacked run of {@link stackedTexts} is made of. */
@@ -2791,6 +2822,49 @@ export function withinShape(inner: PBox, outer: PBox, ellipse: boolean, slack = 
 }
 
 /**
+ * Whether a point is where a node is: within the node position tolerance of its center (a quarter of its smaller side,
+ * at least a pixel and a half), as two nodes drawn one on the other are to a reader.
+ * @param p - the point, a node's center
+ * @param n - the node, by its center and size
+ * @param n.x - its center's x
+ * @param n.y - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @returns true when the point is on the node's center
+ */
+export function stackedOn(p: Pt, n: { x: number; y: number; w: number; h: number }): boolean {
+    return Math.hypot(p[0] - n.x, p[1] - n.y) <= Math.max(0.25 * Math.min(n.w, n.h), 1.5);
+}
+
+/**
+ * The oracle's edges with each end at a covered node moved to the node drawn over it, the one a reader sees the line
+ * end at, as graphty's side reads one (`shownEnds` in drawn-primitives.ts). An edge between a node and the node over
+ * it keeps its ends: it is no loop of the node in front.
+ * @param scene - the oracle's scene
+ * @param coverOf - each covered node stacked on its topmost cover, that cover
+ * @returns the edges, those with no such end unchanged
+ */
+function edgesAtCovers(scene: PScene, coverOf: ReadonlyMap<PNode, PNode>): PEdge[] {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const shownAt = (id: string): string => {
+        let n = byId.get(id);
+        const seen = new Set<PNode>();
+        while (n !== undefined && coverOf.has(n) && !seen.has(n)) {
+            seen.add(n);
+            n = coverOf.get(n);
+        }
+        return n?.id ?? id;
+    };
+    return scene.edges.map((e) => {
+        const [source, target] = [shownAt(e.source), shownAt(e.target)];
+        const same = source === e.source && target === e.target;
+        return same || (source === target && e.source !== e.target)
+            ? e
+            : { ...e, source, target, ownEnds: { source: e.source, target: e.target } };
+    });
+}
+
+/**
  * The oracle's scene without what it draws wholly under a node, judged as graphty's side judges its own (`occluders`
  * in extract-scene.ts, `linelessCaps` in drawn-primitives.ts): a node, or a stray shape, is covered by an opaque node
  * drawn after it (later in the document) whose box, out to its outline's outer edge, holds its whole box (a stray's box
@@ -2800,6 +2874,7 @@ export function withinShape(inner: PBox, outer: PBox, ellipse: boolean, slack = 
  * graphty's scene marks hidden, and the arrowheads of edges whose nodes swallow their line under those nodes
  * (`gexf-sigma-ediaspora`). The half pixel a box may poke past is graphty's, taken into the oracle's pixels by the
  * ratio of the two drawings' sizes of the same nodes (`gexf-cns-wos` draws 1.36 oracle pixels to graphty's one).
+ * An edge's end at a covered node stacked on the node over it moves there (`edgesAtCovers`).
  * @param scene - the oracle's scene
  * @param guide - graphty's scene, whose nodes' sizes give the scale; none takes the oracle's pixel as graphty's
  * @returns the scene without what is covered
@@ -2825,11 +2900,22 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
     const covers = scene.nodes
         .filter((n) => n.order !== undefined && n.fill !== null && n.fill.opacity >= OPAQUE)
         .map((n) => ({ n, box: boxOf(n), order: n.order ?? -1 }));
-    const covered = new Set(
-        scene.nodes.filter((n) =>
-            covers.some((c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack)),
-        ),
+    // each covered node's topmost cover: the node a reader sees over it
+    const coverOf = new Map<PNode, PNode>();
+    for (const n of scene.nodes) {
+        const over = covers.filter(
+            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack),
+        );
+        if (over.length > 0) {
+            coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);
+        }
+    }
+    const covered = new Set(coverOf.keys());
+    // only a node stacked on its cover moves its edges' ends there, as graphty's side moves them (`shownEnds`)
+    const stacked = new Map(
+        [...coverOf].filter(([n, c]) => stackedOn([n.cx, n.cy], { x: c.cx, y: c.cy, w: c.w, h: c.h })),
     );
+    const edges = edgesAtCovers(scene, stacked);
     const strays = scene.strays.filter(
         (s) =>
             s.kind !== "shape" ||
@@ -2841,6 +2927,7 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
     return {
         ...scene,
         nodes: scene.nodes.filter((n) => !covered.has(n)),
+        edges,
         texts: [
             ...scene.texts,
             ...[...covered].flatMap((n) => (n.label === null ? [] : [{ ...n.label, owner: n.id }])),

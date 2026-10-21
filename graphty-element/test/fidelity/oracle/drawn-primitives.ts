@@ -8,7 +8,7 @@
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
-import { extendToTip, measureArrow, mergeTexts, withinShape } from "./associate";
+import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -378,6 +378,48 @@ function linelessCaps(
 }
 
 /**
+ * Where a reader sees each edge end: an end at a node drawn wholly under another at the same place (`hiddenBy`, a
+ * station drawn over another line's station, json-cyjs-tokyo's 199) is at the node drawn over it, the one the line is
+ * seen to end at, as the oracle's side reads it (`withoutCovered`). Only a node centered on the one over it (within
+ * the node position tolerance, `stackedOn`): one merely inside a bigger node's box is told hidden or not by a half
+ * pixel each side measures alike only by chance (json-cyjs-perf), and moving its ends there would part the sides. An
+ * edge between two nodes drawn one over the other keeps its own ends: it is no loop of the node in front.
+ * @param scene - the scene, its nodes' `drawn.hiddenBy` set
+ * @param drawnIds - the nodes the primitives draw
+ * @returns each edge's ends as seen
+ */
+function shownEnds(
+    scene: Scene,
+    drawnIds: ReadonlySet<string>,
+): (e: { source: string; target: string }) => Pick<PEdge, "source" | "target" | "ownEnds"> {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const hider = new Map<string, string>();
+    for (const n of scene.nodes) {
+        const by = n.drawn?.hiddenBy;
+        const over = typeof by === "string" ? byId.get(by) : undefined;
+        if (over !== undefined && stackedOn([n.x, n.y], over)) {
+            hider.set(n.id, over.id);
+        }
+    }
+    const shownAt = (id: string): string => {
+        const seen = new Set([id]);
+        let at = hider.get(id);
+        while (at !== undefined && !drawnIds.has(at) && !seen.has(at)) {
+            seen.add(at);
+            at = hider.get(at);
+        }
+        return at !== undefined && drawnIds.has(at) ? at : id;
+    };
+    return ({ source, target }) => {
+        const [s, t] = [shownAt(source), shownAt(target)];
+        if ((s === t && source !== target) || (s === source && t === target)) {
+            return { source, target };
+        }
+        return { source: s, target: t, ownEnds: { source, target } };
+    };
+}
+
+/**
  * graphty's drawing as primitives.
  * @param scene - `extractScene` of the drawing
  * @param drawn - `readDrawn` of the same frame
@@ -474,6 +516,7 @@ export function drawnPrimitives(
             ...(faceless === undefined ? {} : { faceless }),
         });
     }
+    const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));
     const edges = scene.edges.flatMap((e) => {
         const d = drawn.edges.get(e.id);
         if (d === undefined || !d.shown || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
@@ -524,8 +567,7 @@ export function drawnPrimitives(
         return [
             {
                 id: e.id,
-                source: e.source,
-                target: e.target,
+                ...ends(e),
                 points,
                 stroke: {
                     // a line painted in a gradient shows its first stop's color, as the oracle's does

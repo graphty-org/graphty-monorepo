@@ -85,7 +85,8 @@ opens as above. Any other file -- CSV, GraphML, GML, GEXF, DOT, Pajek, JSON grap
 into a [load draft](./load-preview), as `session.data.prepare` reads it, and the report says
 `opened: "graph"` and carries the `draft`. Nothing is in the graph until you load it, so the
 reader can check the columns first, and the unsaved-changes check does not apply.
-For a graph file, `draft.load()` loads exactly what `session.data.import` of the same file loads.
+For a graph file, `draft.load()` loads what `session.data.import` of the same file loads, and
+also labels the nodes with the file's `label` field ([load draft](./load-preview)).
 
 ```typescript
 const report = await project.open(file, { discard: true });

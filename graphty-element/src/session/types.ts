@@ -1156,8 +1156,9 @@ export interface LoadDraft {
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     /**
      * Load the held rows as one undoable step, without reading the source again. For a graph
-     * file (every table `fixed`), a load with no `mapping` loads exactly what `data.import` of the
-     * same source loads.
+     * file (every table `fixed`), a load with no `mapping` loads what `data.import` of the same
+     * source loads, and also sets `data.knownFields.nodeLabelPath` to the file's `label` field
+     * when no label path is configured.
      * @param choices - The column roles, how to treat the graph already there, and the rest.
      * @returns Settles once the rows are in the graph.
      */

@@ -105,6 +105,9 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 /** The header names that make a single CSV file a node list, and name its key. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
 
+/** The record key every graph file format's reader gives a node's label. */
+const FORMAT_LABEL = "label";
+
 /** The id a row-numbered node is given, as the CSV reader numbers them. */
 const ROW_ID = "id";
 
@@ -365,8 +368,8 @@ function guessFixed(held: HeldTable, config: SessionDataConfig): TableMappingRea
         return {
             rowsAre: "nodes",
             key: knownFields.nodeIdPath,
-            // The configured label path, as `data.import` reads the same file.
-            label: present(knownFields.nodeLabelPath),
+            // Every graph format's reader names a node's label `label`; a configured path wins.
+            label: present(knownFields.nodeLabelPath ?? FORMAT_LABEL),
             time: present(knownFields.nodeTimePath),
         };
     }
@@ -675,9 +678,14 @@ export class Draft implements LoadDraft {
             });
         }
 
-        // Only the roles the reader named are written beside the rows: with none, the load
-        // configures nothing, as `data.import` of the same source does.
-        const knownFields = knownFieldsOf(mapping, choices.mapping, read);
+        const named = knownFieldsOf(mapping, choices.mapping, read);
+        // A graph file's label column, which the element reads by itself, labels the nodes as the
+        // draft's mapping says it will, unless a label path is configured already.
+        const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
+        const knownFields =
+            label === null || this.host.config().knownFields.nodeLabelPath !== null
+                ? named
+                : { ...named, nodeLabelPath: label };
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             const held: HeldRows = {

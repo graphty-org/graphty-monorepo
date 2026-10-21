@@ -58,7 +58,9 @@ function stateOf(session: GraphSession): unknown {
  */
 async function loaded(name: string, text: string, via: "import" | "open"): Promise<unknown> {
     const { session } = makeSession();
-    await session.config.set({ data: { knownFields: { edgeWeightPath: "value" } } });
+    // A label path configured first: with none, the draft also labels the nodes with the file's
+    // `label` field and import does not (the one known difference, load-preview.md).
+    await session.config.set({ data: { knownFields: { edgeWeightPath: "value", nodeLabelPath: "label" } } });
     const file = new File([text], name);
     if (via === "import") {
         await session.data.import({ config: { file }, name }, { styles: "file" });

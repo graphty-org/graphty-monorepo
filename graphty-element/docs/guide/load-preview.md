@@ -94,13 +94,15 @@ the source's `delimiter` option.
 
 `fixed: true` means the format, not the reader, decides each column's role: a GraphML, GEXF, GML,
 DOT, Pajek or JSON file says which fields are node ids and edge endpoints, so a mapping for its
-tables is refused. Only CSV tables have `fixed: false`. A graph file's label column is the one
-`data.knownFields.nodeLabelPath` names, as `import` reads it; set that to `"label"` to label the
-nodes with the file's `label` field.
+tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` field is its label
+column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
+`data.knownFields.nodeLabelPath` names another column already.
 
-For a graph file, `draft.load()` loads exactly what `session.data.import` of the same source
-loads: the same nodes, edges, columns and settings. A CSV table is read from its cells as written,
-so the reader can map them, and its ids keep the type the cells hold.
+For a graph file, `draft.load()` loads what `session.data.import` of the same source loads -- the
+same nodes, edges, columns and graph values -- except that the draft also sets
+`data.knownFields.nodeLabelPath` to the file's `label` field, as above, where `import` leaves it
+unset. A CSV table is read from its cells as written, so the reader can map them, and its ids
+keep the type the cells hold, where `import` reads them as text.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and

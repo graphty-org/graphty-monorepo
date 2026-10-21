@@ -481,19 +481,15 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
-    it("reads a graph file's label column as import does: the configured one (#911)", async () => {
+    it("names a graph file's label column, and the load labels the nodes with it (#911)", async () => {
         const session = createGraphSession();
         const gml = 'graph [ node [ id 1 label "Ann" ] node [ id 2 label "Bo" ] edge [ source 1 target 2 ] ]';
         const draft = await session.data.prepare({ type: "gml", config: { data: gml } });
 
-        assert.isNull(draft.mapping.tables.nodes.label);
+        assert.strictEqual(draft.mapping.tables.nodes.label, "label");
+        assert.strictEqual(draft.tables[0].columns.find((column) => column.name === "label")?.suggested, "label");
         await draft.load();
-        assert.isNull(session.config.data.knownFields.nodeLabelPath, "the load configures nothing, as import does");
-
-        await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
-        const labelled = await session.data.prepare({ type: "gml", config: { data: gml } });
-        assert.strictEqual(labelled.mapping.tables.nodes.label, "label");
-        assert.strictEqual(labelled.tables[0].columns.find((column) => column.name === "label")?.suggested, "label");
+        assert.strictEqual(session.config.data.knownFields.nodeLabelPath, "label");
         session.dispose();
     });
 

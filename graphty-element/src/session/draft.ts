@@ -636,6 +636,8 @@ interface Plan {
     readonly mapping: LoadMappingRead;
     readonly held: HeldRows;
     readonly knownFields: NonNullable<NonNullable<ProjectConfigPatch["data"]>["knownFields"]>;
+    /** How many of `held.nodes` were made for an edge table's ends, not read from a node row. */
+    readonly endpointNodes: number;
 }
 
 /** A source read and held: the {@link LoadDraft} `session.data.prepare()` returns. */
@@ -735,7 +737,7 @@ export class Draft implements LoadDraft {
         const plan = this.plan(read, choices);
         const merging = choices.mode === "merge";
         const config = this.host.config();
-        return this.host.measure(
+        const report = await this.host.measure(
             {
                 op: "data.import",
                 source: read.source,
@@ -751,6 +753,16 @@ export class Draft implements LoadDraft {
                 knownFields: { ...config.knownFields, ...plan.knownFields },
             },
         );
+        // The node rows made for an edge table's ends are not rows the source held.
+        return plan.endpointNodes === 0
+            ? report
+            : {
+                  ...report,
+                  counts: {
+                      ...report.counts,
+                      nodeRecords: Math.max(0, report.counts.nodeRecords - plan.endpointNodes),
+                  },
+              };
     }
 
     /**
@@ -1068,7 +1080,7 @@ export class Draft implements LoadDraft {
             };
             // The file's styles are read from the source that read these rows, when a load asks.
             HELD_READERS.set(held, read.reader);
-            return { mapping, knownFields, held };
+            return { mapping, knownFields, held, endpointNodes: 0 };
         }
 
         const of = (rowsAre: "nodes" | "edges"): HeldTable | undefined => {
@@ -1101,12 +1113,13 @@ export class Draft implements LoadDraft {
             },
         );
         const { edges } = kinds;
+        // A merge keeps the ends the graph does not hold as unknown ends, for data.issues().
+        const nodes =
+            nodeTable === undefined && choices.mode !== "merge"
+                ? withEndpointNodes(kinds.nodes, edges, [edgeRoles?.source?.column, edgeRoles?.target?.column])
+                : kinds.nodes;
         const held: HeldRows = {
-            nodes:
-                // A merge keeps the ends the graph does not hold as unknown ends, for data.issues().
-                nodeTable === undefined && choices.mode !== "merge"
-                    ? withEndpointNodes(kinds.nodes, edges, [edgeRoles?.source?.column, edgeRoles?.target?.column])
-                    : kinds.nodes,
+            nodes,
             edges,
             edgeLines: edgeTable?.lines ?? null,
             declaredDirection: readGephiTypeColumn(edges),
@@ -1121,7 +1134,7 @@ export class Draft implements LoadDraft {
             HELD_KINDS.set(held, kinds.report);
         }
 
-        return { mapping, knownFields, held };
+        return { mapping, knownFields, held, endpointNodes: nodes.length - kinds.nodes.length };
     }
 
     /**

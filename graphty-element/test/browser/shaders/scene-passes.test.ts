@@ -206,7 +206,7 @@ describe("a background shader", () => {
             ],
         );
         const renderManager = renderManagerOf(element);
-        element.background = { backgroundType: "shader", shader: "e6/sky", color: "#000000" };
+        element.background = { backgroundType: "color", color: "#000000", shader: { id: "e6/sky" } };
         await until(
             element,
             "the background shader draws",
@@ -247,7 +247,7 @@ describe("a background shader", () => {
 
     it("is drawn again only when it moves or the camera does", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], []);
-        element.background = { backgroundType: "shader", shader: "e6/drift", params: { drift: 0 } };
+        element.background = { backgroundType: "color", shader: { id: "e6/drift", params: { drift: 0 } } };
         const renderManager = renderManagerOf(element);
         const scene = element.graph.getScene();
         await until(element, "the background draws", () => (renderManager.shaderPasses().background?.draws ?? 0) > 0);

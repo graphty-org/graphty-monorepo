@@ -8,6 +8,7 @@ import { AbstractEngine } from '@babylonjs/core';
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BaseTexture } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -67,6 +68,7 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { PhotoDome } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
@@ -2522,15 +2524,19 @@ export interface GraphAccelerator {
 // @public
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
-    color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
-}, z.core.$strict>, z.ZodObject<{
-    backgroundType: z.ZodLiteral<"shader">;
-    shader: z.ZodString;
-    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>], "backgroundType">;
 
 // @public

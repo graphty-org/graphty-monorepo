@@ -60,18 +60,21 @@ interface BackgroundShaderProps {
      * transaction, so the add and the write are one undo step).
      */
     readonly onWrite: (shader: string, params: Params, scope?: GraphSession) => Promise<void> | void;
+    /** Whether the gallery is open when the row appears: the row was just added by a "+". */
+    readonly startOpen?: boolean;
 }
 
 /**
  * The Background's Shader paint (shader-styles design, section 6.1): the shader's still picture
  * and name, which opens the gallery of background shaders (Paste shader... last), and its settings
- * pop-out, drawn from the catalog's parameters, which opens after a pick. Nothing opens by itself:
- * moving onto the Shader paint only shows the row (WCAG 3.2.2). Each write is one undo step.
+ * pop-out, drawn from the catalog's parameters, which opens after a pick. The gallery opens by
+ * itself only when the reader added the row with the Background "+". Each write is one undo step.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.shader - the shader in force
  * @param props.params - its parameters
  * @param props.onWrite - writes the background
+ * @param props.startOpen - whether the gallery is open when the row appears
  * @returns The row
  */
 export function BackgroundShader({
@@ -79,8 +82,9 @@ export function BackgroundShader({
     shader,
     params,
     onWrite,
+    startOpen = false,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
-    const [picking, setPicking] = useState(false);
+    const [picking, setPicking] = useState(startOpen);
     const [settings, setSettings] = useState(false);
     const [paste, setPaste] = useState<PasteInit | null>(null);
     const descriptor = session.catalog.shaders().find((each) => each.id === shader);

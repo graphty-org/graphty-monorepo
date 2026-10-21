@@ -260,7 +260,7 @@ export const Background: Story = {
                 encode: { "node.label": { by: "data.sub", scale: "passthrough" } },
             },
         ]);
-        element.background = { backgroundType: "shader", shader: "demo/nebula", color: "#0b0614" };
+        element.background = { backgroundType: "color", color: "#0b0614", shader: { id: "demo/nebula" } };
         return element;
     },
     play: async ({ canvasElement }) => {

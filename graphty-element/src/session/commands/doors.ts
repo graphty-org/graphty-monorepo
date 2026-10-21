@@ -2445,6 +2445,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             data: READ,
             runAlgorithmsOnLoad: READ,
             background: READ,
+            backgroundColor: READ,
             selectionStyle: READ,
             startingRows: READ,
             editableBase: READ,

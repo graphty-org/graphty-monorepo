@@ -33,12 +33,12 @@ parameters. Every other parameter keeps its default.
 
 A shader draws on one **target**, read from its entry function:
 
-| Entry function                  | Target       | Where a layer sets it                                               |
-| ------------------------------- | ------------ | ------------------------------------------------------------------- |
-| `vec4 shade(NodeInput n)`       | `node`       | `node.shader` (a look) or `node.effects` (an effect)                |
-| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shader` (a look) or `edge.effects` (an effect)                |
-| `vec4 shade(GroupInput g)`      | `group`      | a layer's `boundary: { shader: "<id>" }`                            |
-| `vec4 shade(BackgroundInput b)` | `background` | `element.background = { backgroundType: "shader", shader: "<id>" }` |
+| Entry function                  | Target       | Where a layer sets it                                                      |
+| ------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| `vec4 shade(NodeInput n)`       | `node`       | `node.shader` (a look) or `node.effects` (an effect)                       |
+| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shader` (a look) or `edge.effects` (an effect)                       |
+| `vec4 shade(GroupInput g)`      | `group`      | a layer's `boundary: { shader: "<id>" }`                                   |
+| `vec4 shade(BackgroundInput b)` | `background` | `element.background = { backgroundType: "color", shader: { id: "<id>" } }` |
 
 Each shader also has a **role**:
 
@@ -113,8 +113,10 @@ vec4 shade(GroupInput g) {
 ```
 
 A background: a gradient from the canvas color, set with
-`element.background = { backgroundType: "shader", shader: "acme/sky", color: "#ffffff" }`. The color
-shows until the shader draws, and whenever it cannot.
+`element.background = { backgroundType: "color", color: "#ffffff", shader: { id: "acme/sky" } }`. The
+background is drawn bottom to top: the color, the image of a skybox background
+(`{ backgroundType: "skybox", data, shader }`), then the shader. Where the shader's alpha is below 1,
+what is beneath it shows; the color also shows until the shader draws, and whenever it cannot.
 
 ```glsl
 /* graphty-shader 1

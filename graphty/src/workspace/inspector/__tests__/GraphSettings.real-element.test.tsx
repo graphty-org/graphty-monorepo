@@ -98,6 +98,49 @@ describe("Graph settings", () => {
         assert.isNull(screen.queryByRole("textbox", { name: /^Highlight color/ }));
     });
 
+    it("Background + adds a Shader over the Color, offers each kind once, and removing Color draws the default", async () => {
+        const element = await openGraphSettings();
+        const add = screen.getByRole("button", { name: "Add to background" });
+        await userEvent.click(add);
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.shader?.id, "nebula");
+        });
+        // The color the project had is still there, beneath the shader.
+        assert.isDefined(element.session.config.background.color);
+        assert.isNotNull(screen.queryByRole("textbox", { name: /^Background color(,|$)/ }), "the Color row stays");
+        await userEvent.keyboard("{Escape}");
+
+        // Each kind once: Shader is there, so the menu shows it disabled, with its reason.
+        await userEvent.click(add);
+        const shader = await screen.findByRole("menuitem", { name: /^Shader/ });
+        assert.isTrue(
+            shader.hasAttribute("data-disabled") || shader.getAttribute("aria-disabled") === "true",
+            "Shader is disabled",
+        );
+        assert.include(shader.textContent ?? "", "Shader is already in the background");
+        // The "+" again closes its menu.
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menuitem", { name: /^Shader/ }));
+        });
+
+        // Removing Color leaves the element to draw its default color, which the section names.
+        await userEvent.click(screen.getByRole("button", { name: "Remove background color" }));
+        await waitFor(() => {
+            assert.isUndefined(element.session.config.background.color);
+        });
+        const drawn = element.session.config.backgroundColor;
+        assert.strictEqual(drawn, "#F5F5F5", "the element draws its default");
+        assert.strictEqual(element.session.config.background.shader?.id, "nebula", "the shader stays");
+        assert.isNull(screen.queryByRole("textbox", { name: /^Background color(,|$)/ }), "no Color row");
+        await waitFor(() => {
+            assert.include(document.querySelector("[data-background-caption]")?.textContent ?? "", drawn);
+        });
+    });
+
     it("writes Outline width to the element's layout behavior", async () => {
         const element = await openGraphSettings();
         const width = screen.getByRole("spinbutton", { name: /^Outline width/ });

@@ -2765,12 +2765,15 @@ export class Graphty extends LitElement {
      * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
      * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
      * from an image, given as a URL or a base64 PNG, and the element emits
-     * `graphty-skybox-loaded` once its texture has arrived.
+     * `graphty-skybox-loaded` once its texture has arrived. Either may carry a background
+     * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
+     * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
      * @example JavaScript property
      * ```typescript
      * element.background = { backgroundType: 'color', color: '#101014' };
      * element.background = { backgroundType: 'skybox', data: 'https://example.com/sky.jpg' };
+     * element.background = { backgroundType: 'color', color: '#000000', shader: { id: 'nebula' } };
      * ```
      * @example HTML attribute (JSON string)
      * ```html

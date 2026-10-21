@@ -7,7 +7,6 @@ import React, { useEffect, useRef, useState } from "react";
 import type { SourceRowCommand } from "../commands/registry";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { loadOf } from "./commands";
 import { joinMatch, serverCount, sourceName } from "./words";
 
 const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
@@ -84,7 +83,7 @@ function RenameInput({
 
 /**
  * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips (none for
- * a count of 0); a joined table's link and matched rows; a server load's "500 of 40,000". On hover
+ * a count of 0); a joined table's link and matched rows; a server load's node chip "500 of 40,000". On hover
  * or focus, Load more, Refresh and "..." take the chips' place, and a running one stays drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
  * that applies, and Rename.
  * @param props - Component props
@@ -132,7 +131,6 @@ export function SourceRow({
             store.set({ notice: { message: "Not renamed" } });
         });
     };
-    const load = loadOf(session, source);
     const match = joinMatch(source);
     const menuItems = items.map((item) => (
         <Menu.Item key={item.id} onClick={item.run}>
@@ -162,12 +160,12 @@ export function SourceRow({
                                     {match}
                                 </span>
                             )}
-                            {load === undefined ? null : (
-                                <span className="dp-quiet">{serverCount(source.counts.nodes, load.total)}</span>
-                            )}
                             <span className="dp-source-chips">
                                 {source.counts.nodes === 0 ? null : (
-                                    <EntityChip kind="node">{formatNumber(source.counts.nodes)}</EntityChip>
+                                    // A server load's chip reads "100 of 171" when its source says how many it holds.
+                                    <EntityChip kind="node">
+                                        {serverCount(source.counts.nodes, source.total)}
+                                    </EntityChip>
                                 )}
                                 {source.counts.edges === 0 ? null : (
                                     <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>

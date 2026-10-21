@@ -290,6 +290,7 @@ function ServerForm({ titleId, onClose }: Readonly<{ titleId: string; onClose: (
     const { descriptor } = entry;
     const auth = descriptor.auth ?? [];
     const signIn = descriptor.authRequired !== "none" && (auth.includes("basic") || auth.includes("bearer"));
+    const keyed = descriptor.authRequired !== "none" && auth.includes("api-key") && descriptor.apiKey !== undefined;
     const modes = descriptor.params.find((p) => p.name === "mode")?.values ?? [];
     const samples = descriptor.samples ?? [];
     const change = (next: Partial<ServerFormState>): void => {
@@ -441,6 +442,20 @@ function ServerForm({ titleId, onClose }: Readonly<{ titleId: string; onClose: (
                             }}
                         />
                     </div>
+                </Row>
+            ) : null}
+            {keyed ? (
+                <Row label="API key">
+                    <PasswordInput
+                        size="xs"
+                        aria-label="API key"
+                        placeholder={descriptor.authRequired === "optional" ? "optional" : "key"}
+                        autoComplete="off"
+                        value={form.apiKey}
+                        onChange={(event) => {
+                            change({ apiKey: event.currentTarget.value });
+                        }}
+                    />
                 </Row>
             ) : null}
             {modes.length === 0 ? null : (

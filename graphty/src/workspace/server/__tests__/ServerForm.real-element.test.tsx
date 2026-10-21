@@ -1,7 +1,8 @@
 /**
  * Server sources on the REAL graphty-element (spec section 3.9, acceptance flows 11 and 12): the
  * Sources "+" > Server... pop-over, Test showing preview rows, Load with a limit, the row's Load
- * more, the canvas node menu's Expand... and Collapse, Refresh, and NDEx with no Load more. The
+ * more, the canvas node menu's Expand... and Collapse, Refresh, NDEx with no Load more, an API key
+ * and a counted load's "10 of 171". The
  * server is a source registered in this test, read in memory, so nothing reaches the network.
  * Every step is real input; every assertion reads the element or what is drawn.
  */
@@ -100,6 +101,40 @@ registerSource(
         records: async () => {
             await released;
             return { nodes: [{ id: "s0" }], edges: [] };
+        },
+    }),
+);
+
+/** A server that takes an API key in its query, as OpenAlex does, and reads nothing from the network. */
+const KEYED = "test-keyed-server";
+
+registerSource(
+    defineSource({
+        id: KEYED,
+        descriptor: {
+            plainName: "Keyed server",
+            defaultEndpoint: "https://keyed.example",
+            auth: ["api-key"],
+            authRequired: "optional",
+            apiKey: { query: "key" },
+            params: [],
+        },
+        records: () => Promise.resolve({ nodes: [{ id: "k0" }, { id: "k1" }], edges: [] }),
+    }),
+);
+
+/** A server that counts what it holds, as Neo4j's count store does: 10 of its 171 nodes a page. */
+const COUNTED = "test-counted-server";
+
+registerSource(
+    defineSource({
+        id: COUNTED,
+        descriptor: { plainName: "Counted server", params: [], features: ["page"] },
+        import: (_params, sink, ctx) => {
+            for (let i = 0; i < 10; i++) {
+                sink.addNodeRecord(`c${String(i)}`, {});
+            }
+            return Promise.resolve(ctx.finish({ next: { page: 1 }, total: { nodes: 171 } }));
         },
     }),
 );
@@ -252,6 +287,34 @@ describe("server sources on the real element", () => {
         assert.isNull(within(row).queryByRole("button", { name: "Load more" }));
     });
 
+    it("sends a typed API key, remembers it on this machine and saves only its slot", async () => {
+        const { element, session } = await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Keyed server");
+        assert.isNull(within(form).queryByLabelText("Password"), "a key, not a sign-in");
+        await userEvent.type(within(form).getByLabelText("API key"), "sekret-key");
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.nodes(), 2);
+        });
+
+        assert.strictEqual(session.data.loads()[0]?.credential?.kind, "api-key");
+        const remembered = await element.credentials.lookup(KEYED, "https://keyed.example");
+        assert.strictEqual(remembered?.kind, "api-key");
+        const { text } = await session.project.save();
+        assert.match(text, /"credentialSlot":\s*"default"/);
+        assert.notInclude(text, "sekret-key", "the key is never in the project");
+    });
+
+    it("shows a counted server load as 10 of 171 on its row's node chip", async () => {
+        const { session } = await openDataPlace();
+        await session.data.import({ source: COUNTED, config: {}, name: "Counted" });
+        const row = await screen.findByRole("listitem", { name: "Counted" }, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            assert.strictEqual(row.querySelector('.dp-source-chips [data-kind="node"]')?.textContent, "Node 10 of 171");
+        });
+    });
+
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
@@ -260,6 +323,7 @@ describe("server sources on the real element", () => {
         await pick(form, "Kind", "OpenAlex");
         assert.isNull(within(form).queryByRole("radio", { name: "Query" }), "OpenAlex has no Start");
         assert.isNull(within(form).queryByLabelText("Password"));
+        assert.isNotNull(within(form).getByLabelText("API key"), "OpenAlex takes an optional API key");
         assert.isNotNull(within(form).getByRole("textbox", { name: "Work" }));
 
         await pick(form, "Kind", "Neo4j");

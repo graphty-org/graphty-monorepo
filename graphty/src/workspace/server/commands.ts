@@ -62,6 +62,8 @@ export interface ServerFormState {
     readonly user: string;
     /** A basic sign-in's password, or a bearer token. Never saved. */
     readonly secret: string;
+    /** An API key, for a source that says where its key goes. Never saved. */
+    readonly apiKey: string;
     /** The source's params, as typed. */
     readonly params: Readonly<Record<string, unknown>>;
     /** At most this many nodes; 0 for no cap. */
@@ -95,6 +97,7 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
         endpoint: "",
         user: "",
         secret: "",
+        apiKey: "",
         params: {
             ...(mode === undefined ? {} : { mode }),
             ...(query === undefined || starter === undefined ? {} : { [query.name]: starter }),
@@ -220,8 +223,8 @@ function paramValue(type: string, value: unknown): unknown {
 }
 
 /**
- * The credential the form's Sign in rows make, or undefined when they are blank or the source
- * takes no basic or bearer sign-in.
+ * The credential the form's Sign in or API key rows make, or undefined when they are blank or the
+ * source takes none of basic, bearer or an API key it says where to send.
  * @param entry - the source.
  * @param form - the form.
  * @returns the credential.
@@ -233,6 +236,10 @@ export function formCredential(entry: SourceCatalogEntry, form: ServerFormState)
     }
     if (auth.includes("bearer") && form.secret !== "") {
         return credentials.bearer(form.secret);
+    }
+    const where = entry.descriptor.apiKey;
+    if (auth.includes("api-key") && where !== undefined && form.apiKey !== "") {
+        return credentials.apiKey(where, form.apiKey);
     }
     return undefined;
 }

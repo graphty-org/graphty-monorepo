@@ -431,7 +431,7 @@ describe("shader rows on the real element", () => {
         const { session, element } = await mountElement();
         const text = [
             "/* graphty-shader 1",
-            '{ "id": "user/ring", "name": "Ring", "role": "effect", "reach": 2 }',
+            '{ "id": "user/ring", "name": "Ring", "place": "around", "reach": 2 }',
             "*/",
             "vec4 shade(NodeInput n) { float r = step(abs(length(n.uv) - 0.8), 0.05); return vec4(r, r, r, r); }",
         ].join("\n");
@@ -557,7 +557,7 @@ describe("shader rows on the real element", () => {
         assert.strictEqual(plus.getAttribute("aria-description"), "Sticker is set in Shape");
     });
 
-    it("an effect row names its trigger, its eye keeps one name with its state pressed, and Copy effect then Paste replaces a sprite's", async () => {
+    it("an effect row names its shader, its eye keeps one name with its state pressed, and Copy effect then Paste replaces a sprite's", async () => {
         const { session, element } = await mountElement();
         const layer = await session.styles.add({
             name: "Top",
@@ -568,7 +568,7 @@ describe("shader rows on the real element", () => {
         renderPanel(session, element, [layer.id]);
         await showKind("node");
 
-        const pick = await within(section("effects")).findByRole("button", { name: "Effect: Change flash, On change" });
+        const pick = await within(section("effects")).findByRole("button", { name: "Effect: Change flash" });
         assert.include(pick.textContent ?? "", "Change flash");
         const eye = within(section("effects")).getByRole("button", { name: "Hide change flash" });
         assert.strictEqual(eye.getAttribute("aria-pressed"), "false");

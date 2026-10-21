@@ -27,7 +27,7 @@ const CRASH_MARKER_KEY = "graphty-shader-crash-marker";
 
 /** A pasted sprite that does not move. */
 const PLATE = `/* graphty-shader 1
-{ "id": "user/plate", "name": "Plate", "geometry": "card" }
+{ "id": "user/plate", "name": "Plate", "place": "replace" }
 */
 vec4 shade(NodeInput n) {
     return vec4(n.color.rgb, 1.0);

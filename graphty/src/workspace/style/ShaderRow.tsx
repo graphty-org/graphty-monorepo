@@ -1,7 +1,7 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Badge, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -28,15 +28,7 @@ import {
     writeShown,
 } from "./shaderSlots";
 import { focusSectionNext, headerBottom } from "./useFocusLine";
-import {
-    copyNameWords,
-    effectOffWords,
-    failureWords,
-    MATERIAL_WORDS,
-    shaderProblemWords,
-    TRIGGER_TIPS,
-    triggerWord,
-} from "./words";
+import { copyNameWords, effectOffWords, failureWords, MATERIAL_WORDS, shaderProblemWords } from "./words";
 
 /** The width of a shader row's pop-outs: the gallery and the settings, as every field's. */
 const POPOUT_WIDTH = 240;
@@ -136,7 +128,6 @@ interface SwapPopoutProps {
     readonly slot: ShaderSlot;
     readonly entry: ShaderEntry;
     readonly name: string;
-    readonly trigger: string | undefined;
     readonly swapping: boolean;
     readonly setSwapping: (opened: boolean) => void;
     readonly onPaste?: (init: PasteInit) => void;
@@ -150,7 +141,6 @@ interface SwapPopoutProps {
  * @param props.slot - the slot
  * @param props.entry - the row's shader
  * @param props.name - the row's name
- * @param props.trigger - the trigger word, or undefined
  * @param props.swapping - whether the gallery is open
  * @param props.setSwapping - opens or closes the gallery
  * @param props.onPaste - opens Paste shader
@@ -162,7 +152,6 @@ function SwapPopout({
     slot,
     entry,
     name,
-    trigger,
     swapping,
     setSwapping,
     onPaste,
@@ -176,7 +165,7 @@ function SwapPopout({
             <Popout.Trigger>
                 <UnstyledButton
                     className="ws-shader-pick"
-                    aria-label={trigger === undefined ? `${slot.word}: ${name}` : `${slot.word}: ${name}, ${trigger}`}
+                    aria-label={`${slot.word}: ${name}`}
                     aria-haspopup="dialog"
                     aria-expanded={swapping}
                 >
@@ -392,9 +381,8 @@ function EyeSlot({
 
 /**
  * One shader row (shader-styles design, section 6.1, after Figma's effect row): the slot's word,
- * then the shader's still picture and name (a click opens the gallery to swap it), the trigger
- * chip for a shader that plays on enter or change, the settings button (its parameters), on an
- * effect the eye, and the minus. A right-click opens Copy, Paste, Hide and Remove. Every write is
+ * then the shader's still picture and name (a click opens the gallery to swap it), the settings
+ * button (its parameters), on an effect the eye, and the minus. A right-click opens Copy, Paste, Hide and Remove. Every write is
  * one undo step.
  * @param props - Component props
  * @param props.ctx - the row
@@ -433,7 +421,6 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             .catch(fail("copied"));
     };
     const duplicate = duplicateAction(ctx, slot, entry, name, onPaste, fail);
-    const trigger = descriptor === undefined ? undefined : triggerWord(descriptor);
     const effect = slot.role === "effect";
     const removeName = `Remove ${name.toLowerCase()}`;
     const hideName = `Hide ${name.toLowerCase()}`;
@@ -473,19 +460,11 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                             slot={slot}
                             entry={entry}
                             name={name}
-                            trigger={trigger}
                             swapping={swapping}
                             setSwapping={setSwapping}
                             onPaste={onPaste}
                             fail={fail}
                         />
-                    )}
-                    {trigger === undefined ? null : (
-                        <Tooltip label={TRIGGER_TIPS[trigger]}>
-                            <Badge size="xs" variant="light" radius="sm" className="ws-shader-trigger" aria-hidden>
-                                {trigger}
-                            </Badge>
-                        </Tooltip>
                     )}
                 </div>
                 <span className="ws-slot">

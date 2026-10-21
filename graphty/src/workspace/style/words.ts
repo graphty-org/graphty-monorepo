@@ -15,8 +15,8 @@ import {
     NODE_SHAPE_DESCRIPTORS,
     type ShaderDescriptor,
     type ShaderInput,
-    type ShaderPlace,
     type ShaderProblem,
+    type ShaderTextOptions,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
@@ -1125,66 +1125,77 @@ export function firstStyleWords(nodes: number, edges: number): string {
 }
 
 /**
- * The panel's own names for the places a shader goes, by the element's target, role and (for a
- * node look) geometry: the keys of the word tables below.
+ * The panel's own names for the places a shader goes, by the element's target and place: the keys
+ * of the word tables below.
  */
 export type ShaderSlotKind =
     "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
 
 /**
  * The panel's name for where a shader goes.
- * @param descriptor - the shader's target, role and geometry.
+ * @param descriptor - the shader's target and place.
  * @returns the slot kind.
  */
-export function shaderSlotKindOf(descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry">): ShaderSlotKind {
+export function shaderSlotKindOf(descriptor: Pick<ShaderDescriptor, "target" | "place">): ShaderSlotKind {
     switch (descriptor.target) {
         case "group":
             return "boundary";
         case "background":
             return "background";
         case "edge":
-            return descriptor.role === "effect" ? "edge-effect" : "edge-surface";
+            return descriptor.place === "along" ? "edge-effect" : "edge-surface";
         default:
-            if (descriptor.role === "effect") {
-                return "node-effect";
+            if (descriptor.place === "replace") {
+                return "node-sprite";
             }
-            return descriptor.geometry === "card" ? "node-sprite" : "node-surface";
+            return descriptor.place === "paint" || descriptor.place === undefined ? "node-surface" : "node-effect";
     }
 }
 
 /**
  * The element's place for one of the panel's slot kinds.
  * @param kind - the slot kind.
- * @returns its target and role.
+ * @returns its target and place, as the element's shader text options take them.
  */
-export function shaderPlaceOf(kind: ShaderSlotKind): ShaderPlace {
+export function shaderPlaceOf(kind: ShaderSlotKind): ShaderTextOptions {
     switch (kind) {
         case "boundary":
-            return { target: "group", role: "look" };
+            return { target: "group", place: "group" };
         case "background":
-            return { target: "background", role: "look" };
+            return { target: "background" };
         case "edge-surface":
-            return { target: "edge", role: "look" };
+            return { target: "edge", place: "paint" };
         case "edge-effect":
-            return { target: "edge", role: "effect" };
+            return { target: "edge", place: "along" };
         case "node-effect":
-            return { target: "node", role: "effect" };
+            return { target: "node", place: "around" };
+        case "node-sprite":
+            return { target: "node", place: "replace" };
         default:
-            return { target: "node", role: "look" };
+            return { target: "node", place: "paint" };
     }
 }
 
 /**
- * The slot kinds a channel's shader place takes: a node look is a material or a sprite.
- * @param place - the channel's place, if it names shaders.
+ * The slot kinds a channel's shader slot takes: a node look is a material or a sprite.
+ * @param slot - the channel's slot, if it names shaders.
  * @returns the slot kinds.
  */
-export function slotKindsOf(place: ShaderPlace | undefined): readonly ShaderSlotKind[] | undefined {
-    if (place === undefined) {
+export function slotKindsOf(slot: ChannelDescriptor["shaderSlot"]): readonly ShaderSlotKind[] | undefined {
+    if (slot === undefined) {
         return undefined;
     }
-    const kind = shaderSlotKindOf(place);
-    return kind === "node-surface" ? ["node-surface", "node-sprite"] : [kind];
+    const effect = slot.role === "effect";
+    switch (slot.target) {
+        case "group":
+            return ["boundary"];
+        case "background":
+            return ["background"];
+        case "edge":
+            return [effect ? "edge-effect" : "edge-surface"];
+        default:
+            return effect ? ["node-effect"] : ["node-surface", "node-sprite"];
+    }
 }
 
 /** What a shader row is called in its label column and its "+" item, by the kind it holds. */
@@ -1270,6 +1281,7 @@ const INPUT_WORDS: Readonly<Record<ShaderInput, string>> = {
     pinned: "pin",
     times: "changes",
     members: "group members",
+    light: "light",
 };
 
 /**
@@ -1284,36 +1296,13 @@ export function usesWords(reads: readonly ShaderInput[]): string {
 }
 
 /**
- * The trigger chip a row draws when the shader plays on an event: "On enter" or "On change", else
- * nothing.
- * @param descriptor - the catalog's entry.
- * @returns the chip's words, or undefined.
- */
-export function triggerWord(descriptor: Pick<ShaderDescriptor, "motion">): string | undefined {
-    if (descriptor.motion.enter !== undefined) {
-        return "On enter";
-    }
-    return descriptor.motion.change === undefined ? undefined : "On change";
-}
-
-/** The trigger chip's tooltip, by its words. */
-export const TRIGGER_TIPS: Readonly<Record<string, string>> = {
-    "On enter": "Plays as an element joins this layer",
-    "On change": "Plays as a value changes",
-};
-
-/**
  * The Motion row of a shader whose speed is no parameter (a speed parameter is the row's field):
- * "Moves", "On enter", "On change" or "Still".
+ * "Moves" or "Still".
  * @param descriptor - the catalog's entry.
  * @returns the words.
  */
 export function motionWords(descriptor: Pick<ShaderDescriptor, "motion">): string {
-    const { motion } = descriptor;
-    if (motion.loop !== undefined) {
-        return "Moves";
-    }
-    return triggerWord(descriptor) ?? "Still";
+    return descriptor.motion.loop === undefined ? "Still" : "Moves";
 }
 
 /** The second line of a heavy tile, and its tooltip. */

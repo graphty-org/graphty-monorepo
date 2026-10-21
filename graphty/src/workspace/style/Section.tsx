@@ -123,7 +123,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 (d) =>
                     d.channel === channel &&
                     d.renderable &&
-                    d.shaderPlace === undefined &&
+                    d.shaderSlot === undefined &&
                     !(slot?.role === "material" && d.channel === "node.wireframe"),
             ) ?? [],
     );

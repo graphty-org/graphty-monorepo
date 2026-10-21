@@ -475,7 +475,7 @@ function FactRow({
  * one row per parameter the catalog declares, the name in the label column (it scrubs a number),
  * the field bounded by the parameter's range and step, the vary glyph, and one minus as the only
  * reset. An integer that picks one of a set shows its pictures. Motion is the speed parameter's
- * field when the shader has one, else what the shader does: Still, Moves, On enter or On change.
+ * field when the shader has one, else what the shader does: Still or Moves.
  * Focus starts in the first field.
  * @param props - Component props
  * @param props.ctx - the row; left out, no parameter varies

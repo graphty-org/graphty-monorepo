@@ -32,7 +32,7 @@ const TIMEOUT_MS = 60_000;
 
 /** A node effect whose body has a `while` loop, on line 7, column 5. */
 const WHILE_TEXT = `/* graphty-shader 1
-{ "id": "user/pulse-ring", "name": "Pulse ring", "role": "effect", "reach": 2,
+{ "id": "user/pulse-ring", "name": "Pulse ring", "place": "around", "reach": 2,
   "params": [ { "name": "tint", "type": "color", "default": "#FFAA00" } ] }
 */
 vec4 shade(NodeInput n) {
@@ -47,7 +47,7 @@ const DIALOG = /^(Paste|Edit) shader$/;
 
 /** A node effect that passes the static checks and fails to compile: a vec3 stored in a float. */
 const COMPILE_TEXT = `/* graphty-shader 1
-{ "id": "user/bad-cast", "name": "Bad cast", "role": "effect" }
+{ "id": "user/bad-cast", "name": "Bad cast", "place": "around" }
 */
 vec4 shade(NodeInput n) {
     float x = vec3(1.0);
@@ -57,7 +57,7 @@ vec4 shade(NodeInput n) {
 
 /** A header with a key the format does not know: a problem with no line. */
 const KEY_TEXT = `/* graphty-shader 1
-{ "id": "user/odd", "name": "Odd", "role": "effect", "bogus": 1 }
+{ "id": "user/odd", "name": "Odd", "place": "around", "bogus": 1 }
 */
 vec4 shade(NodeInput n) {
     return n.color;

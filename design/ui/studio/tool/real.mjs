@@ -3,7 +3,8 @@
 // participant does: one live browser per session, a step at a time, a numbered PNG after each.
 //
 //   node real.mjs --start <session dir> [empty | setup:<setup file>] [--sr]
-//       opens the app with clean storage in a browser held for the whole session, runs the setup
+//       opens the app with clean storage (a new browser profile on disk, as a person's browser
+//       keeps it, not an incognito one) in a browser held for the whole session, runs the setup
 //       steps (never shown to the participant), saves 01.png and writes session.json (the commit
 //       under study, the URL). A setup file holds one step per line, "--click Open the ... sample";
 //       a blank line or one starting with # is skipped. A setup step that misses fails the start.
@@ -50,7 +51,8 @@
 //   --wait <ms>            lets the app run on its own for a moment
 //   --read                 reads the open dialog, or else the region around focus, as a screen
 //                          reader's browse mode would: text, headings and controls in order
-//   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N, described=<text>)
+//   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N, described=<text>);
+//                          text and roles are waited for up to 2 s
 // A file is a path, or a bare name from files/ beside this tool.
 //
 // Headless Chromium cancels the File System Access pickers at once, so the tool answers them: the

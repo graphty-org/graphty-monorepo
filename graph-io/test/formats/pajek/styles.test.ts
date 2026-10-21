@@ -281,6 +281,25 @@ describe("Pajek styles: Pajek's rules", () => {
     });
 });
 
+describe("Pajek styles: where an arc's arrowhead stops", () => {
+    it("stops an arc's arrowhead 1 px short of its target's outline, whatever its size", async () => {
+        // pajek-synth-lines: every arc's tip 1.25 from a vertex 20 across with a border 0.5 wide, `s` 1 to 5; `s`
+        // carries to the next line, and a loop and an edge draw no arrowhead
+        const { snapshot, styles } = await load(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.2 0.1\n3 c 0.3 0.1\n*Arcs\n1 2\n2 3 s 5\n3 1\n3 3\n*Edges\n1 3\n",
+        );
+        // an edge is kept as a pair of directed edges
+        expect(drawn(styles, snapshot, "edge", "targetArrowGap")).toEqual([
+            0.166667,
+            0.0333333,
+            0.0333333,
+            null,
+            null,
+            null,
+        ]);
+    });
+});
+
 describe("Pajek styles: sizes, label placement and line labels", () => {
     const doc = [
         "*Vertices 4",

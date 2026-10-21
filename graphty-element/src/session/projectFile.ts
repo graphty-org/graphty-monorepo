@@ -20,8 +20,8 @@ import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinition
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
-import { ISSUES_VALUE, type IssueState } from "./issues";
 import type { SessionData } from "./data";
+import { ISSUES_VALUE, type IssueState } from "./issues";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";

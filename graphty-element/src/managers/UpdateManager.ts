@@ -193,6 +193,17 @@ const NOMINAL_FRAME_MS = 1000 / 60;
  */
 const MAX_CATCH_UP_ROUNDS = 12;
 
+/**
+ * The most time one frame spends on layout catch-up rounds, however slow the frame before it was.
+ *
+ * Half the previous frame was the only bound before, and it feeds itself on a slow CPU: a frame of
+ * 1 s owes 12 rounds and may spend 500 ms on them, which keeps the next frame at 1 s. An iPad
+ * running a 3,000 node force layout drew a frame a second that way. With an absolute budget the
+ * page keeps drawing and answering input, and the layout takes longer in wall time to settle --
+ * at the same step and in the same place, because whole rounds are only ever deferred.
+ */
+const LAYOUT_FRAME_BUDGET_MS = 40;
+
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
 
@@ -1289,9 +1300,11 @@ export class UpdateManager implements Manager {
      * frames it stood in for would have taken, `frameMs` / 16.7 of them, and moves the meshes once.
      * The steps and where the layout ends are the same; only the number of drawn frames changes.
      *
-     * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
-     * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
-     * `frameMs`. An accelerated simulation layout keeps its one batch a frame (see below).
+     * Bounded three times, so a frame that is slow BECAUSE of stepping cannot feed itself: never
+     * more than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round that would take stepping past
+     * half of `frameMs` or past {@link LAYOUT_FRAME_BUDGET_MS}, judged by what the rounds so far
+     * cost. The first round always runs. An accelerated simulation layout keeps its one batch a
+     * frame (see below).
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
@@ -1312,11 +1325,12 @@ export class UpdateManager implements Manager {
             ? 1
             : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
+        const budget = Math.min(frameMs / 2, LAYOUT_FRAME_BUDGET_MS);
 
         for (let round = 0; round < rounds; round++) {
             // A settled engine has nothing left to catch up on.
             const engine = this.layoutManager.layoutEngine;
-            if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+            if (round > 0 && (!engine || engine.isSettled || this.roundWouldOverrun(started, round, budget))) {
                 break;
             }
 
@@ -1339,6 +1353,20 @@ export class UpdateManager implements Manager {
         }
 
         this.statsManager.graphStep.endMonitoring();
+    }
+
+    /**
+     * Whether one more catch-up round would take this frame's stepping past its budget, guessing
+     * the next round costs what the rounds so far cost on average.
+     * @param started - When the frame's first round began.
+     * @param done - How many rounds have run; at least one.
+     * @param budget - The most stepping time this frame may take.
+     * @returns True when the next round should wait for the next frame.
+     */
+    private roundWouldOverrun(started: number, done: number, budget: number): boolean {
+        const spent = performance.now() - started;
+
+        return spent + spent / done > budget;
     }
 
     /**

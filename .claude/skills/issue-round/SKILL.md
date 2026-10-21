@@ -44,7 +44,8 @@ enhancements only on such an order.
 
 **Skip** an issue whose fix is already in flight: its number with `Fixes`, `Closes`, `Resolves` or `Refs` in
 `git log origin/master..origin/golden` (landed, not shipped -- it stays open until ship), or in a branch not yet on
-golden (`git log --all --not origin/golden --grep='#<n>\b' --oneline | head`) whose issue has a live `taken` marker or
+golden (`git log --all --not origin/golden --grep='#<n>\b' --oneline | head`, or a row of the open-work table of
+`node tools/land.mjs status` naming #<n>) whose issue has a live `taken` marker, a live owner in its progress note, or
 an open pull request. A hit on an abandoned branch is pipeline-round's stranded-branch material, not in flight. An
 issue master or golden already names gets a verify-and-close subagent instead of a new fix. Skip breaking changes,
 anything under `design/brand`, the held major (#676, #702, #843, #1370), `Release held:` issues and master-guard's
@@ -68,7 +69,9 @@ a missed one costs only a later job. A group counts as one job against the cap.
 
 Create the label if it is missing (see "Markers" in the shared file). For every issue in the job: `gh issue edit <n> --add-label in-progress` and the comment
 `pipeline-round: taken by session $CLAUDE_CODE_SESSION_ID, branch <branch>, worktree .worktrees/<name>, group #a #b -- <one-line reason naming the rule that picked it and why each issue belongs>`
-(leave out `group` for a single issue). Branch name: `fix/<top issue>-<short-topic>`.
+(leave out `group` for a single issue). Branch name: `fix/<top issue>-<short-topic>`: the number in it is the
+branch's issue, so `./tools/worktree-new.sh` pushes the branch and writes its progress note on that issue. Other issues
+of a group get only the `taken` marker.
 
 Then start one background subagent with this prompt, filled in, followed by the "Subagent rules" paragraph from the
 shared file verbatim:

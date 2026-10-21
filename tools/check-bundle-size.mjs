@@ -96,7 +96,9 @@ async function lazyChunkBytes({ source, external }) {
             minify: true,
             lib: { entry: path.join(pkgDir, source), formats: ["es"], fileName: () => "chunk.js" },
             rollupOptions: {
-                external: external.map((name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}(/.*)?$`)),
+                external: external.map(
+                    (name) => new RegExp(`^${name.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`)}(/.*)?$`),
+                ),
                 output: { inlineDynamicImports: true },
             },
         },

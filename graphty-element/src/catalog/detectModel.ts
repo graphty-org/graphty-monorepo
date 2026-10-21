@@ -9,7 +9,7 @@
  */
 
 /** A loader id. The element's own are {@link BuiltInModelFormat}; extensions may add more. */
-export type ModelFormat = string;
+export type ModelFormat = string; // NOSONAR(S6564): published, documented name for the open union of model format ids
 
 /** The model formats graphty-element reads itself. */
 export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
@@ -95,7 +95,7 @@ export function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): bo
     }
 
     for (let i = 0; i < text.length; i++) {
-        if (bytes[offset + i] !== text.charCodeAt(i)) {
+        if (bytes[offset + i] !== text.codePointAt(i)) {
             return false;
         }
     }
@@ -121,58 +121,82 @@ function headText(bytes: Uint8Array): string {
     const end = Math.min(bytes.length, 4096);
     let text = "";
     for (let i = 0; i < end; i++) {
-        text += String.fromCharCode(bytes[i]);
+        text += String.fromCodePoint(bytes[i]);
     }
 
     return text;
 }
 
+/** Binary magic numbers of recognized formats graphty-element does not load. */
+const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [
+    ["Kaydara FBX Binary", "fbx"],
+    ["BLENDER", "blend"],
+    ["PXR-USDC", "usd"],
+];
+
 /**
- * The format the bytes alone say, or undefined.
- * @param head - The first bytes (or the whole file).
- * @param ext - The lower-cased extension, which allows the binary STL length rule.
- * @returns The format, or undefined when the bytes say nothing.
+ * The answer for a file that starts `glTF`: a GLB, supported when it is version 2.
+ * @param head - The first bytes.
+ * @returns The detection.
  */
-function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefined {
-    if (startsWithAscii(head, "glTF")) {
-        const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
-        return { format: "glb", supported: version === 2 };
+function glbDetection(head: Uint8Array): ModelDetection {
+    const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
+    return { format: "glb", supported: version === 2 };
+}
+
+/**
+ * The answer for a zip archive, by its extension.
+ * @param ext - The lower-cased extension.
+ * @returns The detection, or undefined for a zip that is not a model kit.
+ */
+function zipDetection(ext: string): ModelDetection | undefined {
+    if (ext === "usdz" || ext === "3mf") {
+        return { format: ext, supported: false };
     }
 
-    if (startsWithAscii(head, "Kaydara FBX Binary")) {
-        return { format: "fbx", supported: false };
+    // A zip with another extension (a Cytoscape session, an office file) is not a model kit.
+    return ext === "" || ext === "zip" ? { format: "zip", supported: true } : undefined;
+}
+
+/**
+ * The binary STL length rule: 80 header bytes, a triangle count, 50 bytes per triangle. Only for a
+ * file that could be STL, since a glTF .bin can have that length by chance.
+ * @param head - The first bytes (or the whole file).
+ * @param ext - The lower-cased extension.
+ * @returns True when the length matches.
+ */
+function isBinaryStl(head: Uint8Array, ext: string): boolean {
+    if ((ext !== "" && ext !== "stl") || head.length < 84) {
+        return false;
     }
 
-    if (startsWithAscii(head, "BLENDER")) {
-        return { format: "blend", supported: false };
+    const count = new DataView(head.buffer, head.byteOffset, 84).getUint32(80, true);
+    return head.length === 84 + 50 * count;
+}
+
+/**
+ * The answer for text that starts `{`: a glTF, a .babylon, or nothing.
+ * @param text - The head as text.
+ * @param ext - The lower-cased extension.
+ * @returns The detection, or undefined.
+ */
+function jsonDetection(text: string, ext: string): ModelDetection | undefined {
+    if (/"asset"\s*:/.test(text)) {
+        return { format: "gltf", supported: true };
     }
 
-    if (startsWithAscii(head, "PXR-USDC")) {
-        return { format: "usd", supported: false };
-    }
+    return /"producer"\s*:|"meshes"\s*:/.test(text) && ext === "babylon"
+        ? { format: "babylon", supported: false }
+        : undefined;
+}
 
-    if (isZip(head)) {
-        if (ext === "usdz" || ext === "3mf") {
-            return { format: ext, supported: false };
-        }
-
-        // A zip with another extension (a Cytoscape session, an office file) is not a model kit.
-        return ext === "" || ext === "zip" ? { format: "zip", supported: true } : undefined;
-    }
-
-    if (startsWithAscii(head, "ply\n") || startsWithAscii(head, "ply\r\n")) {
-        return { format: "ply", supported: true };
-    }
-
-    // The binary STL length rule: 80 header bytes, a triangle count, 50 bytes per triangle. Only
-    // for a file that could be STL, since a glTF .bin can have that length by chance.
-    if ((ext === "" || ext === "stl") && head.length >= 84) {
-        const count = new DataView(head.buffer, head.byteOffset, 84).getUint32(80, true);
-        if (head.length === 84 + 50 * count) {
-            return { format: "stl", supported: true };
-        }
-    }
-
+/**
+ * The format the head's text says, or undefined.
+ * @param head - The first bytes (or the whole file).
+ * @param ext - The lower-cased extension.
+ * @returns The format, or undefined when the text says nothing.
+ */
+function formatFromText(head: Uint8Array, ext: string): ModelDetection | undefined {
     const text = headText(head);
     const trimmed = text.replace(/^\uFEFF?\s*/, "");
     if (/^solid\b/.test(trimmed) && /\bfacet\b/.test(text)) {
@@ -180,13 +204,7 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
     }
 
     if (trimmed.startsWith("{")) {
-        if (/"asset"\s*:/.test(text)) {
-            return { format: "gltf", supported: true };
-        }
-
-        return /"producer"\s*:|"meshes"\s*:/.test(text) && ext === "babylon"
-            ? { format: "babylon", supported: false }
-            : undefined;
+        return jsonDetection(text, ext);
     }
 
     if (/^(?:<\?xml[^>]*>\s*)?<COLLADA\b/.test(trimmed)) {
@@ -206,6 +224,38 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
     }
 
     return undefined;
+}
+
+/**
+ * The format the bytes alone say, or undefined.
+ * @param head - The first bytes (or the whole file).
+ * @param ext - The lower-cased extension, which allows the binary STL length rule.
+ * @returns The format, or undefined when the bytes say nothing.
+ */
+function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefined {
+    if (startsWithAscii(head, "glTF")) {
+        return glbDetection(head);
+    }
+
+    for (const [magic, format] of UNSUPPORTED_MAGIC) {
+        if (startsWithAscii(head, magic)) {
+            return { format, supported: false };
+        }
+    }
+
+    if (isZip(head)) {
+        return zipDetection(ext);
+    }
+
+    if (startsWithAscii(head, "ply\n") || startsWithAscii(head, "ply\r\n")) {
+        return { format: "ply", supported: true };
+    }
+
+    if (isBinaryStl(head, ext)) {
+        return { format: "stl", supported: true };
+    }
+
+    return formatFromText(head, ext);
 }
 
 /**

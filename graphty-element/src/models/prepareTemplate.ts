@@ -162,28 +162,22 @@ async function light(
     }
 }
 
-/**
- * Build the template for one model and one set of geometry options.
- * @param scene - The scene the template draws in.
- * @param container - The loaded model; its meshes are disposed, its materials and textures move
- *   into the scene and belong to the template.
- * @param name - A name for the template's meshes.
- * @param options - The geometry options.
- * @param environment - The bundled neutral environment, for a scene with none.
- * @returns The template, compiled and frozen.
- */
-export async function prepareTemplate(
-    scene: Scene,
-    container: AssetContainer,
-    name: string,
-    options: TemplateOptions,
-    environment: () => PBRMaterial["reflectionTexture"],
-): Promise<ModelTemplate> {
-    const parts = bakeParts(container, orientation(options.up, options.turn));
-    if (parts.length === 0) {
-        throw new Error("graphty-element: the model has no triangles to draw");
-    }
+/** How the baked parts are moved into the unit box. */
+interface Fit {
+    readonly min: Vector3;
+    readonly extent: Vector3;
+    readonly center: Vector3;
+    readonly scale: Vector3;
+    readonly matrix: Matrix;
+}
 
+/**
+ * Work out how to center the parts and scale them into the unit box.
+ * @param parts - The baked parts.
+ * @param options - The geometry options.
+ * @returns The fit.
+ */
+function fitOf(parts: readonly Part[], options: TemplateOptions): Fit {
     const { min, max } = boundsOf(parts);
     const extent = max.subtract(min);
     const center = options.center === "bounds" ? min.add(max).scale(0.5) : Vector3.Zero();
@@ -192,8 +186,22 @@ export async function prepareTemplate(
         options.fit === "stretch"
             ? new Vector3(1 / Math.max(extent.x, 1e-9), 1 / Math.max(extent.y, 1e-9), 1 / Math.max(extent.z, 1e-9))
             : new Vector3(1 / largest, 1 / largest, 1 / largest);
-    const fit = Matrix.Translation(-center.x, -center.y, -center.z).multiply(Matrix.Scaling(scale.x, scale.y, scale.z));
+    const matrix = Matrix.Translation(-center.x, -center.y, -center.z).multiply(
+        Matrix.Scaling(scale.x, scale.y, scale.z),
+    );
+    return { min, extent, center, scale, matrix };
+}
 
+/**
+ * Move every part into the unit box and group the parts by key.
+ * @param parts - The baked parts, transformed in place.
+ * @param fit - The fit matrix.
+ * @returns The groups by key, the fitted bounding radius and the triangle count.
+ */
+function fitAndGroup(
+    parts: readonly Part[],
+    fit: Matrix,
+): { groups: Map<string, Part[]>; radius: number; triangles: number } {
     let radius = 0;
     let triangles = 0;
     const groups = new Map<string, Part[]>();
@@ -210,15 +218,25 @@ export async function prepareTemplate(
         groups.set(part.key, list);
     }
 
-    let flat: PBRMaterial | null = null;
-    if (options.replace) {
-        flat = new PBRMaterial(`${name}-replace`, scene);
-        flat.albedoColor = Color3.White();
-        flat.metallic = 0;
-        flat.roughness = 1;
-    }
+    return { groups, radius, triangles };
+}
 
-    const used = new Set<Material>();
+/**
+ * Merge each group into one hidden source mesh.
+ * @param scene - The scene the template draws in.
+ * @param name - A name for the template's meshes.
+ * @param groups - The parts by group key.
+ * @param flat - The material every group takes under `replace`, else null.
+ * @param used - The materials the meshes draw with, written into.
+ * @returns The meshes, one per group.
+ */
+function mergeGroups(
+    scene: Scene,
+    name: string,
+    groups: ReadonlyMap<string, Part[]>,
+    flat: PBRMaterial | null,
+    used: Set<Material>,
+): Mesh[] {
     const meshes: Mesh[] = [];
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
@@ -249,41 +267,63 @@ export async function prepareTemplate(
         meshes.push(mesh);
     }
 
+    return meshes;
+}
+
+/**
+ * Move the used materials and the container's textures into the scene, giving every material
+ * `node.texture` when one is set.
+ * @param scene - The scene.
+ * @param used - The materials the template draws with.
+ * @param textures - The container's textures.
+ * @param image - `node.texture`, if any.
+ */
+function adoptMaterials(
+    scene: Scene,
+    used: ReadonlySet<Material>,
+    textures: readonly BaseTexture[],
+    image: BaseTexture | null | undefined,
+): void {
     for (const material of used) {
         if (!scene.materials.includes(material)) {
             scene.addMaterial(material);
         }
 
         // `node.texture` replaces the base color texture; the node's tint still multiplies it.
-        if (options.image !== undefined && options.image !== null) {
-            if (material instanceof PBRMaterial) {
-                material.albedoTexture = options.image;
-                material.albedoColor = Color3.White();
-            } else if ("diffuseTexture" in material) {
-                (material as { diffuseTexture: unknown }).diffuseTexture = options.image;
-            }
+        if (image !== undefined && image !== null) {
+            applyImage(material, image);
         }
     }
 
-    for (const texture of container.textures) {
+    for (const texture of textures) {
         if (!scene.textures.includes(texture)) {
             scene.addTexture(texture);
         }
     }
+}
 
-    await light(scene, used, environment);
-    await Promise.all(
-        meshes.map(async (mesh) => {
-            await mesh.material?.forceCompilationAsync(mesh, { useInstances: true });
-        }),
-    );
-    for (const material of used) {
-        material.freeze();
+/**
+ * Make a picture a material's base color texture.
+ * @param material - The material.
+ * @param image - The picture.
+ */
+function applyImage(material: Material, image: BaseTexture): void {
+    if (material instanceof PBRMaterial) {
+        material.albedoTexture = image;
+        material.albedoColor = Color3.White();
+    } else if ("diffuseTexture" in material) {
+        (material as { diffuseTexture: unknown }).diffuseTexture = image;
     }
+}
 
-    const transparent = meshes.some((mesh) => mesh.material?.needAlphaBlendingForMesh(mesh) === true);
-    // Every group answers for the whole model's box: a node is picked by that box and never by
-    // the model's triangles (section 3.8), and a group is culled only when the whole model is.
+/**
+ * Give every mesh the whole model's bounding box, locked.
+ * @param meshes - The template's meshes.
+ * @param fit - The fit.
+ * @returns The fitted extents.
+ */
+function lockBounds(meshes: readonly Mesh[], fit: Fit): ModelTemplate["size"] {
+    const { extent, scale, center, min } = fit;
     const size = { x: extent.x * scale.x, y: extent.y * scale.y, z: extent.z * scale.z };
     const low = center.subtract(min).multiply(scale).scale(-1);
     const box = new BoundingInfo(low, low.add(new Vector3(size.x, size.y, size.z)));
@@ -293,7 +333,16 @@ export async function prepareTemplate(
         mesh.getBoundingInfo().isLocked = true;
     }
 
-    // What the template does not keep: the file's own meshes, skeletons, morph targets and clips.
+    return size;
+}
+
+/**
+ * Dispose what the template does not keep: the file's own meshes, skeletons, morph targets and
+ * clips, and the materials no group draws with.
+ * @param container - The loaded model.
+ * @param used - The materials the template keeps.
+ */
+function disposeLeftovers(container: AssetContainer, used: ReadonlySet<Material>): void {
     for (const mesh of container.meshes) {
         mesh.dispose(false, false);
     }
@@ -318,6 +367,88 @@ export async function prepareTemplate(
     for (const material of unusedMaterials) {
         material.dispose();
     }
+}
+
+/**
+ * Dispose a template: its meshes, its materials and the container's textures.
+ * @param meshes - The template's meshes.
+ * @param used - The template's materials.
+ * @param container - The loaded model the template was built from.
+ */
+function disposeTemplate(meshes: readonly Mesh[], used: ReadonlySet<Material>, container: AssetContainer): void {
+    for (const mesh of meshes) {
+        mesh.dispose(false, false);
+    }
+
+    for (const material of used) {
+        material.unfreeze();
+        // The neutral environment is the scene's, shared by every template.
+        const reflection = material instanceof PBRMaterial ? material.reflectionTexture : null;
+        if (material instanceof PBRMaterial && reflection !== null && !container.textures.includes(reflection)) {
+            material.reflectionTexture = null;
+        }
+
+        material.dispose(true, false);
+    }
+
+    for (const texture of container.textures) {
+        texture.dispose();
+    }
+}
+
+/**
+ * Build the template for one model and one set of geometry options.
+ * @param scene - The scene the template draws in.
+ * @param container - The loaded model; its meshes are disposed, its materials and textures move
+ *   into the scene and belong to the template.
+ * @param name - A name for the template's meshes.
+ * @param options - The geometry options.
+ * @param environment - The bundled neutral environment, for a scene with none.
+ * @returns The template, compiled and frozen.
+ */
+export async function prepareTemplate(
+    scene: Scene,
+    container: AssetContainer,
+    name: string,
+    options: TemplateOptions,
+    environment: () => PBRMaterial["reflectionTexture"],
+): Promise<ModelTemplate> {
+    const parts = bakeParts(container, orientation(options.up, options.turn));
+    if (parts.length === 0) {
+        throw new Error("graphty-element: the model has no triangles to draw");
+    }
+
+    const fit = fitOf(parts, options);
+    const { groups, radius, triangles } = fitAndGroup(parts, fit.matrix);
+
+    let flat: PBRMaterial | null = null;
+    if (options.replace) {
+        flat = new PBRMaterial(`${name}-replace`, scene);
+        flat.albedoColor = Color3.White();
+        flat.metallic = 0;
+        flat.roughness = 1;
+    }
+
+    const used = new Set<Material>();
+    const meshes = mergeGroups(scene, name, groups, flat, used);
+    adoptMaterials(scene, used, container.textures, options.image);
+
+    await light(scene, used, environment);
+    await Promise.all(
+        meshes.map(async (mesh) => {
+            await mesh.material?.forceCompilationAsync(mesh, { useInstances: true });
+        }),
+    );
+    for (const material of used) {
+        material.freeze();
+    }
+
+    const transparent = meshes.some((mesh) => mesh.material?.needAlphaBlendingForMesh(mesh) === true);
+    // Every group answers for the whole model's box: a node is picked by that box and never by
+    // the model's triangles (section 3.8), and a group is culled only when the whole model is.
+    const size = lockBounds(meshes, fit);
+
+    disposeLeftovers(container, used);
 
     return {
         groups: meshes,
@@ -327,28 +458,7 @@ export async function prepareTemplate(
         materials: used.size,
         transparent,
         dispose: () => {
-            for (const mesh of meshes) {
-                mesh.dispose(false, false);
-            }
-
-            for (const material of used) {
-                material.unfreeze();
-                // The neutral environment is the scene's, shared by every template.
-                const reflection = material instanceof PBRMaterial ? material.reflectionTexture : null;
-                if (
-                    material instanceof PBRMaterial &&
-                    reflection !== null &&
-                    !container.textures.includes(reflection)
-                ) {
-                    material.reflectionTexture = null;
-                }
-
-                material.dispose(true, false);
-            }
-
-            for (const texture of container.textures) {
-                texture.dispose();
-            }
+            disposeTemplate(meshes, used, container);
         },
     };
 }

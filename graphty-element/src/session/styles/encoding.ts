@@ -900,6 +900,55 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * Check a number a layer wrote against the channel's range; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts a number.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @param wrongKind - Builds the refusal for a value that is not a number.
+ * @returns The number.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
+ */
+function authoredNumber(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    what: string,
+    wrongKind: (expected: string) => GraphtyError,
+): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw wrongKind("a number");
+    }
+
+    const { max, min } = descriptor;
+    if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
+ * Check a choice a layer wrote against the channel's values; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts one of a list of values.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE`.
+ */
+function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    const values = descriptor.values ?? [];
+    // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
+    if (typeof value === "boolean" && values.includes(String(value))) {
+        return value;
+    }
+
+    if (typeof value !== "string" || !values.includes(value)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
  * Check one value a LAYER wrote against the channel it is written to.
  *
  * A literal, a per-value override and what a missing value paints are all authored, so all three
@@ -918,25 +967,15 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
  * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
  */
 function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
-    const { accepts, values } = descriptor;
+    const { accepts } = descriptor;
     const wrongKind = (expected: string): GraphtyError =>
         badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
 
     switch (accepts) {
         case "color":
             return requireColor(value, what);
-        case "number": {
-            if (typeof value !== "number" || !Number.isFinite(value)) {
-                throw wrongKind("a number");
-            }
-
-            const { max, min } = descriptor;
-            if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
-        }
+        case "number":
+            return authoredNumber(descriptor, value, what, wrongKind);
         case "text":
             if (typeof value !== "string") {
                 throw wrongKind("text");
@@ -952,16 +991,7 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             return read;
         }
         case "enum":
-            // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
-            if (typeof value === "boolean" && (values ?? []).includes(String(value))) {
-                return value;
-            }
-
-            if (typeof value !== "string" || !(values ?? []).includes(value)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
+            return authoredEnum(descriptor, value, what);
         case "labelStyle":
             if (typeof value !== "object" || isRgba(value)) {
                 throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');

@@ -52,6 +52,9 @@ const OPTION_ARGS: Readonly<Record<string, number>> = {
     "-t": 3,
 };
 
+/** A number an MTL option takes; the same matches as `^-?\d*\.?\d+(e[-+]?\d+)?$`, without backtracking. */
+const NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[-+]?\d+)?$/i;
+
 /**
  * The file name in an MTL texture statement, after its option flags.
  * @param tokens - The statement's tokens after the keyword.
@@ -64,11 +67,7 @@ export function mapFileName(tokens: readonly string[]): string {
         i++;
         // Numeric options take up to `most` numbers; the others exactly one value.
         let taken = 0;
-        while (
-            taken < most &&
-            i < tokens.length - 1 &&
-            (most === 1 || /^-?\d*\.?\d+(?:e[-+]?\d+)?$/i.test(tokens[i]))
-        ) {
+        while (taken < most && i < tokens.length - 1 && (most === 1 || NUMBER.test(tokens[i]))) {
             i++;
             taken++;
         }
@@ -189,6 +188,191 @@ export function findObjParts(
 }
 
 /**
+ * Whether an OBJ face corner's vertex index can name a vertex: not zero, and a negative one no
+ * further back than the vertices read so far.
+ * @param v - The index.
+ * @param vertices - The vertices read so far.
+ * @returns True when it can.
+ */
+function isValidCorner(v: number, vertices: number): boolean {
+    if (!Number.isInteger(v) || v === 0) {
+        return false;
+    }
+
+    return v > 0 ? v <= Number.MAX_SAFE_INTEGER : -v <= vertices;
+}
+
+/**
+ * Whether a trimmed OBJ line starts with a keyword followed by a space or a tab.
+ * @param line - The line.
+ * @param keyword - The keyword.
+ * @returns True on a match.
+ */
+function isStatement(line: string, keyword: string): boolean {
+    return line.startsWith(`${keyword} `) || line.startsWith(`${keyword}\t`);
+}
+
+/**
+ * Check an OBJ `f` line's corners and add its triangles to the running count.
+ * @param line - The trimmed line.
+ * @param vertices - The vertices read so far.
+ * @param triangles - The triangles counted so far.
+ * @param limits - The limits in force.
+ * @returns The new triangle count.
+ */
+function addFace(line: string, vertices: number, triangles: number, limits: ModelLimits): number {
+    const corners = line.split(/\s+/).slice(1);
+    for (const corner of corners) {
+        if (!isValidCorner(Number(corner.split("/")[0]), vertices)) {
+            refuse("E_MODEL_STRUCTURE", { rule: "index", where: "obj.f" });
+        }
+    }
+
+    const total = triangles + Math.max(0, corners.length - 2);
+    if (total > limits.maxTriangles) {
+        refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: total, limit: limits.maxTriangles });
+    }
+
+    return total;
+}
+
+/** What one pass over an OBJ's lines finds. */
+interface ObjGeometry {
+    vertices: number;
+    triangles: number;
+    groups: number;
+    readonly mtlFiles: string[];
+    readonly box: Box;
+}
+
+/**
+ * Read an OBJ's vertices, faces, groups and `mtllib` names, checking each face as it comes.
+ * @param text - The OBJ.
+ * @param limits - The limits in force.
+ * @returns What it holds.
+ */
+function readObjGeometry(text: string, limits: ModelLimits): ObjGeometry {
+    const found: ObjGeometry = { vertices: 0, triangles: 0, groups: 0, mtlFiles: [], box: new Box() };
+    for (const raw of text.split("\n")) {
+        const line = raw.trim();
+        if (isStatement(line, "v")) {
+            found.vertices++;
+            const [, x, y, z] = line.split(/\s+/);
+            found.box.add(Number(x), Number(y), Number(z));
+        } else if (isStatement(line, "f")) {
+            found.triangles = addFace(line, found.vertices, found.triangles, limits);
+        } else if (line.startsWith("o ") || line.startsWith("g ")) {
+            found.groups++;
+        } else if (line.startsWith("mtllib")) {
+            found.mtlFiles.push(line.slice(6).trim());
+        }
+    }
+
+    return found;
+}
+
+/**
+ * Refuse a positive face index past the last vertex the file has.
+ * @param text - The OBJ.
+ * @param vertices - How many vertices it has.
+ */
+function checkPositiveIndices(text: string, vertices: number): void {
+    for (const raw of text.split("\n")) {
+        const line = raw.trim();
+        if (!isStatement(line, "f")) {
+            continue;
+        }
+
+        for (const corner of line.split(/\s+/).slice(1)) {
+            if (Number(corner.split("/")[0]) > vertices) {
+                refuse("E_MODEL_STRUCTURE", { rule: "index", where: "obj.f" });
+            }
+        }
+    }
+}
+
+/** What the MTL files of an OBJ hold. */
+interface MtlTally {
+    readonly materials: string[];
+    readonly textures: Set<string>;
+    textureBytes: number;
+    transparent: boolean;
+}
+
+/**
+ * Whether an MTL statement makes its material see-through (`d` under 1, `Tr` over 0).
+ * @param tokens - The statement's tokens.
+ * @returns True when it does.
+ */
+function isTransparency(tokens: readonly string[]): boolean {
+    return (tokens[0] === "d" && Number(tokens[1]) < 1) || (tokens[0] === "Tr" && Number(tokens[1]) > 0);
+}
+
+/**
+ * Count a picture an MTL names, once per file, against the texture byte limit.
+ * @param name - The name in the statement.
+ * @param mtlPath - The MTL's path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param tally - Where it is counted.
+ */
+function addTexture(
+    name: string,
+    mtlPath: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    tally: MtlTally,
+): void {
+    const image = resolveReference(name, mtlPath, files);
+    if (tally.textures.has(image.path)) {
+        return;
+    }
+
+    tally.textures.add(image.path);
+    tally.textureBytes += textureBytesOf(image.bytes, image.path);
+    if (tally.textureBytes > limits.maxTextureBytes) {
+        refuse("E_MODEL_TOO_LARGE", {
+            what: "textureBytes",
+            found: tally.textureBytes,
+            limit: limits.maxTextureBytes,
+        });
+    }
+}
+
+/**
+ * Read the materials, transparency and pictures of every MTL an OBJ names.
+ * @param mtlFiles - The `mtllib` names, in order.
+ * @param path - The OBJ's path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @returns What they hold.
+ */
+function readMtls(
+    mtlFiles: readonly string[],
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+): MtlTally {
+    const tally: MtlTally = { materials: [], textures: new Set(), textureBytes: 0, transparent: false };
+    for (const name of mtlFiles) {
+        const mtl = resolveReference(name, path, files);
+        for (const raw of textOf(mtl.bytes, limits).split("\n")) {
+            const tokens = raw.trim().split(/\s+/);
+            const keyword = tokens[0] ?? "";
+            if (keyword === "newmtl") {
+                tally.materials.push(cut(tokens.slice(1).join(" ")));
+            } else if (isTransparency(tokens)) {
+                tally.transparent = true;
+            } else if (MAP_STATEMENT.test(keyword)) {
+                addTexture(mapFileName(tokens.slice(1)), mtl.path, files, limits, tally);
+            }
+        }
+    }
+
+    return tally;
+}
+
+/**
  * Scan an OBJ and the MTL files it names.
  * @param path - The OBJ's path in the set.
  * @param files - The set.
@@ -197,81 +381,12 @@ export function findObjParts(
  */
 export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): Scanned {
     const text = textOf(files.get(path) as Uint8Array, limits);
-    let vertices = 0;
-    let triangles = 0;
-    let groups = 0;
-    const mtlFiles: string[] = [];
-    const box = new Box();
-
-    for (const raw of text.split("\n")) {
-        const line = raw.trim();
-        if (line.startsWith("v ") || line.startsWith("v\t")) {
-            vertices++;
-            const [, x, y, z] = line.split(/\s+/);
-            box.add(Number(x), Number(y), Number(z));
-        } else if (line.startsWith("f ") || line.startsWith("f\t")) {
-            const corners = line.split(/\s+/).slice(1);
-            for (const corner of corners) {
-                const v = Number(corner.split("/")[0]);
-                const valid = Number.isInteger(v) && v !== 0 && (v > 0 ? v <= Number.MAX_SAFE_INTEGER : -v <= vertices);
-                if (!valid) {
-                    refuse("E_MODEL_STRUCTURE", { rule: "index", where: "obj.f" });
-                }
-            }
-
-            triangles += Math.max(0, corners.length - 2);
-            if (triangles > limits.maxTriangles) {
-                refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
-            }
-        } else if (line.startsWith("o ") || line.startsWith("g ")) {
-            groups++;
-        } else if (line.startsWith("mtllib")) {
-            mtlFiles.push(line.slice(6).trim());
-        }
-    }
+    const { vertices, triangles, groups, mtlFiles, box } = readObjGeometry(text, limits);
 
     // A positive index may only name a vertex the file has.
-    for (const raw of text.split("\n")) {
-        const line = raw.trim();
-        if (line.startsWith("f ") || line.startsWith("f\t")) {
-            for (const corner of line.split(/\s+/).slice(1)) {
-                if (Number(corner.split("/")[0]) > vertices) {
-                    refuse("E_MODEL_STRUCTURE", { rule: "index", where: "obj.f" });
-                }
-            }
-        }
-    }
+    checkPositiveIndices(text, vertices);
 
-    const materials: string[] = [];
-    const textures = new Set<string>();
-    let textureBytes = 0;
-    let transparent = false;
-    for (const name of mtlFiles) {
-        const mtl = resolveReference(name, path, files);
-        for (const raw of textOf(mtl.bytes, limits).split("\n")) {
-            const tokens = raw.trim().split(/\s+/);
-            const keyword = tokens[0] ?? "";
-            if (keyword === "newmtl") {
-                materials.push(cut(tokens.slice(1).join(" ")));
-            } else if ((keyword === "d" && Number(tokens[1]) < 1) || (keyword === "Tr" && Number(tokens[1]) > 0)) {
-                transparent = true;
-            } else if (MAP_STATEMENT.test(keyword)) {
-                const image = resolveReference(mapFileName(tokens.slice(1)), mtl.path, files);
-                if (!textures.has(image.path)) {
-                    textures.add(image.path);
-                    textureBytes += textureBytesOf(image.bytes, image.path);
-                    if (textureBytes > limits.maxTextureBytes) {
-                        refuse("E_MODEL_TOO_LARGE", {
-                            what: "textureBytes",
-                            found: textureBytes,
-                            limit: limits.maxTextureBytes,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
+    const { materials, textures, textureBytes, transparent } = readMtls(mtlFiles, path, files, limits);
     const bounds = box.value;
     return {
         summary: Object.freeze({
@@ -289,6 +404,72 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
 }
 
 /**
+ * An ASCII STL `facet` or `vertex` statement at a line start. Only spaces and tabs (never a line
+ * end) before the keyword, so no two line starts share a whitespace run and the scan stays linear;
+ * the matches are those of `^\s*(facet|vertex)...`.
+ */
+const STL_STATEMENT = /^[^\S\n\r\u2028\u2029]*(facet|vertex)\s+(\S+)\s+(\S+)\s+(\S+)/gm;
+
+/**
+ * Refuse an STL with more triangles than the limit.
+ * @param triangles - Its triangles.
+ * @param limits - The limits in force.
+ */
+function checkStlTriangles(triangles: number, limits: ModelLimits): void {
+    if (triangles > limits.maxTriangles) {
+        refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
+    }
+}
+
+/**
+ * Count a binary STL's triangles and bound its vertices.
+ * @param view - The file.
+ * @param limits - The limits in force.
+ * @param box - Where the vertices go.
+ * @returns The triangles.
+ */
+function readBinaryStl(view: DataView, limits: ModelLimits, box: Box): number {
+    const triangles = view.getUint32(80, true);
+    checkStlTriangles(triangles, limits);
+    for (let t = 0; t < triangles; t++) {
+        for (let v = 0; v < 3; v++) {
+            const at = 84 + t * 50 + 12 + v * 12;
+            box.add(view.getFloat32(at, true), view.getFloat32(at + 4, true), view.getFloat32(at + 8, true));
+        }
+    }
+
+    return triangles;
+}
+
+/**
+ * Count an ASCII STL's facets and bound its vertices.
+ * @param bytes - The file.
+ * @param limits - The limits in force.
+ * @param box - Where the vertices go.
+ * @returns The triangles.
+ */
+function readAsciiStl(bytes: Uint8Array, limits: ModelLimits, box: Box): number {
+    const head = new TextDecoder("latin1").decode(bytes.subarray(0, 5));
+    if (head !== "solid") {
+        // Neither ASCII nor a binary file whose length matches its triangle count.
+        refuse("E_MODEL_STRUCTURE", { rule: "length" });
+    }
+
+    const text = textOf(bytes, limits);
+    let triangles = 0;
+    for (const match of text.matchAll(STL_STATEMENT)) {
+        if (match[1] === "facet") {
+            triangles++;
+        } else {
+            box.add(Number(match[2]), Number(match[3]), Number(match[4]));
+        }
+    }
+
+    checkStlTriangles(triangles, limits);
+    return triangles;
+}
+
+/**
  * Scan an STL, binary or ASCII.
  * @param bytes - The file.
  * @param limits - The limits in force.
@@ -297,41 +478,8 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
 export function scanStl(bytes: Uint8Array, limits: ModelLimits): Scanned {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const box = new Box();
-    let triangles: number;
     const isBinary = bytes.length >= 84 && bytes.length === 84 + 50 * view.getUint32(80, true);
-    if (isBinary) {
-        triangles = view.getUint32(80, true);
-        if (triangles > limits.maxTriangles) {
-            refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
-        }
-
-        for (let t = 0; t < triangles; t++) {
-            for (let v = 0; v < 3; v++) {
-                const at = 84 + t * 50 + 12 + v * 12;
-                box.add(view.getFloat32(at, true), view.getFloat32(at + 4, true), view.getFloat32(at + 8, true));
-            }
-        }
-    } else {
-        const head = new TextDecoder("latin1").decode(bytes.subarray(0, 5));
-        if (head !== "solid") {
-            // Neither ASCII nor a binary file whose length matches its triangle count.
-            refuse("E_MODEL_STRUCTURE", { rule: "length" });
-        }
-
-        const text = textOf(bytes, limits);
-        triangles = 0;
-        for (const match of text.matchAll(/^\s*(facet|vertex)\s+(\S+)\s+(\S+)\s+(\S+)/gm)) {
-            if (match[1] === "facet") {
-                triangles++;
-            } else {
-                box.add(Number(match[2]), Number(match[3]), Number(match[4]));
-            }
-        }
-
-        if (triangles > limits.maxTriangles) {
-            refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: triangles, limit: limits.maxTriangles });
-        }
-    }
+    const triangles = isBinary ? readBinaryStl(view, limits, box) : readAsciiStl(bytes, limits, box);
 
     const bounds = box.value;
     return {
@@ -368,6 +516,99 @@ const PLY_TYPES: Readonly<Record<string, number>> = {
     float64: 8,
 };
 
+/** One `element` of a PLY header. */
+interface PlyElement {
+    readonly name: string;
+    readonly count: number;
+    size: number;
+    listMin: number;
+    readonly properties: string[];
+}
+
+/**
+ * Add a `property` line to its element: a scalar's bytes, or a list's least bytes.
+ * @param element - The element it belongs to.
+ * @param tokens - The line's tokens.
+ */
+function addPlyProperty(element: PlyElement, tokens: readonly string[]): void {
+    if (tokens[1] === "list") {
+        // A list holds its length, then at least three entries for a face.
+        element.listMin += (PLY_TYPES[tokens[2]] ?? 1) + 3 * (PLY_TYPES[tokens[3]] ?? 1);
+    } else {
+        element.size += PLY_TYPES[tokens[1]] ?? 4;
+    }
+
+    element.properties.push(tokens.at(-1) ?? "");
+}
+
+/**
+ * Read a PLY header's format and elements.
+ * @param header - The header text before `end_header`.
+ * @returns The format and the elements, in order.
+ */
+function readPlyHeader(header: string): { format: string; elements: PlyElement[] } {
+    let format = "";
+    const elements: PlyElement[] = [];
+    for (const line of header.split(/\r?\n/)) {
+        const tokens = line.trim().split(/\s+/);
+        if (tokens[0] === "format") {
+            format = tokens[1] ?? "";
+        } else if (tokens[0] === "element") {
+            const count = Number(tokens[2]);
+            if (!Number.isSafeInteger(count) || count < 0) {
+                refuse("E_MODEL_STRUCTURE", { rule: "header" });
+            }
+
+            elements.push({ name: tokens[1] ?? "", count, size: 0, listMin: 0, properties: [] });
+        } else if (tokens[0] === "property") {
+            const element = elements.at(-1);
+            if (element !== undefined) {
+                addPlyProperty(element, tokens);
+            }
+        }
+    }
+
+    return { format, elements };
+}
+
+/**
+ * Refuse a PLY body too short for the elements its header declares.
+ * @param bytes - The file.
+ * @param headerLength - Where the body starts.
+ * @param format - The header's format.
+ * @param elements - The header's elements.
+ * @param limits - The limits in force.
+ */
+function checkPlyBody(
+    bytes: Uint8Array,
+    headerLength: number,
+    format: string,
+    elements: readonly PlyElement[],
+    limits: ModelLimits,
+): void {
+    if (format === "ascii") {
+        textOf(bytes, limits);
+        let lines = 0;
+        for (let i = headerLength; i < bytes.length; i++) {
+            if (bytes[i] === 0x0a) {
+                lines++;
+            }
+        }
+
+        const needed = elements.reduce((sum, e) => sum + e.count, 0);
+        if (needed > lines + 1) {
+            refuse("E_MODEL_STRUCTURE", { rule: "length" });
+        }
+    } else if (format === "binary_little_endian" || format === "binary_big_endian") {
+        const needed = elements.reduce((sum, e) => sum + e.count * (e.size + e.listMin), 0);
+        if (needed > bytes.length - headerLength) {
+            refuse("E_MODEL_STRUCTURE", { rule: "length" });
+        }
+    } else {
+        refuse("E_MODEL_STRUCTURE", { rule: "header" });
+    }
+}
+
 /**
  * Scan a PLY header against the file's length.
  * @param bytes - The file.
@@ -386,32 +627,7 @@ export function scanPly(bytes: Uint8Array, limits: ModelLimits): Scanned {
         refuse("E_MODEL_STRUCTURE", { rule: "header" });
     }
 
-    let format = "";
-    const elements: { name: string; count: number; size: number; listMin: number; properties: string[] }[] = [];
-    for (const line of headText.slice(0, end).split(/\r?\n/)) {
-        const tokens = line.trim().split(/\s+/);
-        if (tokens[0] === "format") {
-            format = tokens[1] ?? "";
-        } else if (tokens[0] === "element") {
-            const count = Number(tokens[2]);
-            if (!Number.isSafeInteger(count) || count < 0) {
-                refuse("E_MODEL_STRUCTURE", { rule: "header" });
-            }
-
-            elements.push({ name: tokens[1] ?? "", count, size: 0, listMin: 0, properties: [] });
-        } else if (tokens[0] === "property" && elements.length > 0) {
-            const element = elements[elements.length - 1];
-            if (tokens[1] === "list") {
-                // A list holds its length, then at least three entries for a face.
-                element.listMin += (PLY_TYPES[tokens[2]] ?? 1) + 3 * (PLY_TYPES[tokens[3]] ?? 1);
-            } else {
-                element.size += PLY_TYPES[tokens[1]] ?? 4;
-            }
-
-            element.properties.push(tokens.at(-1) ?? "");
-        }
-    }
-
+    const { format, elements } = readPlyHeader(headText.slice(0, end));
     const vertex = elements.find((e) => e.name === "vertex");
     const face = elements.find((e) => e.name === "face");
     if (vertex?.properties.some((p) => p.startsWith("f_dc_") || p.startsWith("scale_")) === true) {
@@ -422,29 +638,7 @@ export function scanPly(bytes: Uint8Array, limits: ModelLimits): Scanned {
         refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: "points" });
     }
 
-    const body = bytes.length - headerLength;
-    if (format === "ascii") {
-        textOf(bytes, limits);
-        let lines = 0;
-        for (let i = headerLength; i < bytes.length; i++) {
-            if (bytes[i] === 0x0a) {
-                lines++;
-            }
-        }
-
-        const needed = elements.reduce((sum, e) => sum + e.count, 0);
-        if (needed > lines + 1) {
-            refuse("E_MODEL_STRUCTURE", { rule: "length" });
-        }
-    } else if (format === "binary_little_endian" || format === "binary_big_endian") {
-        const needed = elements.reduce((sum, e) => sum + e.count * (e.size + e.listMin), 0);
-        if (needed > body) {
-            refuse("E_MODEL_STRUCTURE", { rule: "length" });
-        }
-    } else {
-        refuse("E_MODEL_STRUCTURE", { rule: "header" });
-    }
-
+    checkPlyBody(bytes, headerLength, format, elements, limits);
     if (face.count > limits.maxTriangles) {
         refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: face.count, limit: limits.maxTriangles });
     }
@@ -465,7 +659,7 @@ export function scanPly(bytes: Uint8Array, limits: ModelLimits): Scanned {
 /** A 1 x 1 white PNG: what a skipped picture is drawn as, so a material's own color still applies. */
 export const WHITE_PNG = Uint8Array.from(
     atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg=="),
-    (c) => c.charCodeAt(0),
+    (c) => c.codePointAt(0) ?? 0,
 );
 
 /**

@@ -166,7 +166,7 @@ const environments = new WeakMap<Scene, BaseTexture>();
  */
 export function neutralEnvironment(scene: Scene): BaseTexture {
     let texture = environments.get(scene);
-    if (texture === undefined || texture.getScene() !== scene) {
+    if (texture?.getScene() !== scene) {
         texture = CubeTexture.CreateFromPrefilteredData(NEUTRAL_ENVIRONMENT_URL, scene, ".env");
         texture.name = "graphty-neutral-environment";
         environments.set(scene, texture);

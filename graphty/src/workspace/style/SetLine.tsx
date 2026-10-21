@@ -275,6 +275,54 @@ function BoundValue({
 }
 
 /**
+ * The editor for a channel that takes one of a list of values: the shape grid for `node.shape`,
+ * else a select.
+ * @param props - Component props
+ * @param props.descriptor - the property
+ * @param props.value - the value
+ * @param props.write - writes the line
+ * @param props.writeOther - writes another line of the row
+ * @returns The editor
+ */
+function EnumValue({
+    descriptor,
+    value,
+    write,
+    writeOther,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    value: ChannelValue | undefined;
+    write: (next: { value: ChannelValue }) => void;
+    writeOther: (channel: Channel, value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const label = channelWord(descriptor.channel);
+    return descriptor.channel === "node.shape" ? (
+        <ShapeValue
+            descriptor={descriptor}
+            value={value}
+            write={write}
+            pickModel={(id) => {
+                writeOther("node.model", id);
+            }}
+        />
+    ) : (
+        <Select
+            size="xs"
+            aria-label={label}
+            value={typeof value === "string" ? value : null}
+            data={(descriptor.values ?? []).map((v) => ({ value: v, label: enumWords(v) }))}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: false }}
+            onChange={(next) => {
+                if (next !== null) {
+                    write({ value: next });
+                }
+            }}
+        />
+    );
+}
+
+/**
  * A literal value, edited in a light popover (color, shape) or in place (number, choice, switch,
  * text).
  * @param props - Component props
@@ -312,30 +360,7 @@ function ValueEditor({
         case "color":
             return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
         case "enum":
-            return descriptor.channel === "node.shape" ? (
-                <ShapeValue
-                    descriptor={descriptor}
-                    value={value}
-                    write={write}
-                    pickModel={(id) => {
-                        writeOther("node.model", id);
-                    }}
-                />
-            ) : (
-                <Select
-                    size="xs"
-                    aria-label={label}
-                    value={typeof value === "string" ? value : null}
-                    data={(descriptor.values ?? []).map((v) => ({ value: v, label: enumWords(v) }))}
-                    allowDeselect={false}
-                    comboboxProps={{ withinPortal: false }}
-                    onChange={(next) => {
-                        if (next !== null) {
-                            write({ value: next });
-                        }
-                    }}
-                />
-            );
+            return <EnumValue descriptor={descriptor} value={value} write={write} writeOther={writeOther} />;
         case "number":
             return (
                 <ComboInput

@@ -65,8 +65,7 @@ function frustum(cx, cz, y0, y1, r0, r1, segments) {
         const j = (i + 1) % segments;
         tris.push([bottom[i], bottom[j], top[j]]);
         if (r1 > 0) {
-            tris.push([bottom[i], top[j], top[i]]);
-            tris.push([[cx, y1, cz], top[i], top[j]]);
+            tris.push([bottom[i], top[j], top[i]], [[cx, y1, cz], top[i], top[j]]);
         }
         tris.push([[cx, y0, cz], bottom[j], bottom[i]]);
     }
@@ -256,6 +255,111 @@ const SS = 3;
 const LIGHT = normalize([-0.5, 0.8, 0.6]);
 const OUTLINE = [0x6b, 0x72, 0x80];
 
+/**
+ * Draw one screen-space triangle into the depth and color buffers.
+ * @param {number[][]} tri - The triangle's corners, [x, y, depth] in pixels.
+ * @param {number[]} rgb - Its lit color.
+ * @param {Float32Array} depth - The depth buffer, W x W.
+ * @param {Float32Array} color - The color buffer, W x W x 3.
+ * @param {number} W - The buffers' width.
+ */
+function rasterize([a, b, c], rgb, depth, color, W) {
+    const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (area >= 0) {
+        return; // Facing away (screen y points down, so front faces wind clockwise here).
+    }
+    const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0])));
+    const maxX = Math.min(W - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
+    const minY = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1])));
+    const maxY = Math.min(W - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
+    for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+            const [px, py] = [x + 0.5, y + 0.5];
+            const w0 = ((b[0] - px) * (c[1] - py) - (b[1] - py) * (c[0] - px)) / area;
+            const w1 = ((c[0] - px) * (a[1] - py) - (c[1] - py) * (a[0] - px)) / area;
+            const w2 = 1 - w0 - w1;
+            if (w0 < 0 || w1 < 0 || w2 < 0) {
+                continue;
+            }
+            const z = w0 * a[2] + w1 * b[2] + w2 * c[2];
+            const i = y * W + x;
+            if (z > depth[i]) {
+                depth[i] = z;
+                color.set(rgb, i * 3);
+            }
+        }
+    }
+}
+
+/**
+ * Average the SS x SS supersamples behind one output pixel.
+ * @param {Float32Array} depth - The depth buffer.
+ * @param {Float32Array} color - The color buffer.
+ * @param {number} W - The buffers' width.
+ * @param {number} x - The output pixel's column.
+ * @param {number} y - The output pixel's row.
+ * @returns {{ sum: number[], covered: number }} The summed color and how many samples hit the model.
+ */
+function samplesAt(depth, color, W, x, y) {
+    const sum = [0, 0, 0];
+    let covered = 0;
+    for (let dy = 0; dy < SS; dy++) {
+        for (let dx = 0; dx < SS; dx++) {
+            const i = (y * SS + dy) * W + x * SS + dx;
+            if (depth[i] > -Infinity) {
+                covered++;
+                for (let k = 0; k < 3; k++) {
+                    sum[k] += color[i * 3 + k];
+                }
+            }
+        }
+    }
+    return { sum, covered };
+}
+
+/**
+ * Downsample the supersampled buffers to SIZE x SIZE RGBA.
+ * @param {Float32Array} depth - The depth buffer.
+ * @param {Float32Array} color - The color buffer.
+ * @param {number} W - The buffers' width.
+ * @returns {Uint8Array} The pixels.
+ */
+function downsample(depth, color, W) {
+    const rgba = new Uint8Array(SIZE * SIZE * 4);
+    for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+            const { sum, covered } = samplesAt(depth, color, W, x, y);
+            const o = (y * SIZE + x) * 4;
+            if (covered > 0) {
+                for (let k = 0; k < 3; k++) {
+                    rgba[o + k] = Math.round((255 * sum[k]) / covered);
+                }
+                rgba[o + 3] = Math.round((255 * covered) / (SS * SS));
+            }
+        }
+    }
+    return rgba;
+}
+
+/**
+ * Outline every transparent pixel that touches the model.
+ * @param {Uint8Array} rgba - The pixels, outlined in place.
+ */
+function outline(rgba) {
+    const solid = (x, y) => x >= 0 && y >= 0 && x < SIZE && y < SIZE && rgba[(y * SIZE + x) * 4 + 3] > 127;
+    const edge = [];
+    for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+            if (!solid(x, y) && (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1))) {
+                edge.push((y * SIZE + x) * 4);
+            }
+        }
+    }
+    for (const o of edge) {
+        rgba.set([...OUTLINE, 255], o);
+    }
+}
+
 function render(sample) {
     const groups = trianglesByMaterial(sample);
     // Turn the model so its front (+Z) and right side show, then tip it toward the viewer.
@@ -282,76 +386,18 @@ function render(sample) {
         tris.forEach((tri, t) => {
             const n = faceNormal(groups[m][t]);
             const lit = 0.3 + 0.7 * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-            const [a, b, c] = tri.map(toScreen);
-            const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-            if (area >= 0) {
-                return; // Facing away (screen y points down, so front faces wind clockwise here).
-            }
-            const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0])));
-            const maxX = Math.min(W - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
-            const minY = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1])));
-            const maxY = Math.min(W - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
-            for (let y = minY; y <= maxY; y++) {
-                for (let x = minX; x <= maxX; x++) {
-                    const [px, py] = [x + 0.5, y + 0.5];
-                    const w0 = ((b[0] - px) * (c[1] - py) - (b[1] - py) * (c[0] - px)) / area;
-                    const w1 = ((c[0] - px) * (a[1] - py) - (c[1] - py) * (a[0] - px)) / area;
-                    const w2 = 1 - w0 - w1;
-                    if (w0 < 0 || w1 < 0 || w2 < 0) {
-                        continue;
-                    }
-                    const z = w0 * a[2] + w1 * b[2] + w2 * c[2];
-                    const i = y * W + x;
-                    if (z > depth[i]) {
-                        depth[i] = z;
-                        color.set(
-                            base.map((channel) => channel * lit),
-                            i * 3,
-                        );
-                    }
-                }
-            }
+            rasterize(
+                tri.map(toScreen),
+                base.map((channel) => channel * lit),
+                depth,
+                color,
+                W,
+            );
         });
     });
 
-    // Downsample, then outline every transparent pixel that touches the model.
-    const rgba = new Uint8Array(SIZE * SIZE * 4);
-    for (let y = 0; y < SIZE; y++) {
-        for (let x = 0; x < SIZE; x++) {
-            const sum = [0, 0, 0];
-            let covered = 0;
-            for (let dy = 0; dy < SS; dy++) {
-                for (let dx = 0; dx < SS; dx++) {
-                    const i = (y * SS + dy) * W + x * SS + dx;
-                    if (depth[i] > -Infinity) {
-                        covered++;
-                        for (let k = 0; k < 3; k++) {
-                            sum[k] += color[i * 3 + k];
-                        }
-                    }
-                }
-            }
-            const o = (y * SIZE + x) * 4;
-            if (covered > 0) {
-                for (let k = 0; k < 3; k++) {
-                    rgba[o + k] = Math.round((255 * sum[k]) / covered);
-                }
-                rgba[o + 3] = Math.round((255 * covered) / (SS * SS));
-            }
-        }
-    }
-    const solid = (x, y) => x >= 0 && y >= 0 && x < SIZE && y < SIZE && rgba[(y * SIZE + x) * 4 + 3] > 127;
-    const edge = [];
-    for (let y = 0; y < SIZE; y++) {
-        for (let x = 0; x < SIZE; x++) {
-            if (!solid(x, y) && (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1))) {
-                edge.push((y * SIZE + x) * 4);
-            }
-        }
-    }
-    for (const o of edge) {
-        rgba.set([...OUTLINE, 255], o);
-    }
+    const rgba = downsample(depth, color, W);
+    outline(rgba);
     return png(rgba);
 }
 

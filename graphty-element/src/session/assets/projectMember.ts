@@ -188,6 +188,128 @@ export function withAcceptedAssetIds<T extends { readonly layers: readonly unkno
 /** How to keep a model or picture a layer names by URL: its bytes in the file, or only its URL and digest. */
 export type AssetStorage = "embed" | "url";
 
+/** The member as it is built: where entries and problems go, and what is already written. */
+interface MemberBuild {
+    readonly assets: AssetsApiInternal;
+    readonly storage: Readonly<Record<string, AssetStorage>>;
+    readonly leftOut: Problem[];
+    readonly entries: Record<string, unknown>[];
+    /** Record id and URL of every entry written. */
+    readonly written: Set<string>;
+    /** Digests whose files are embedded. */
+    readonly digests: Set<string>;
+    /** File bytes embedded so far. */
+    bytes: number;
+}
+
+/**
+ * An asset's files as the member embeds them.
+ * @param assets - The assets API.
+ * @param id - The asset's id.
+ * @returns Every file, with its media type and its bytes as base64.
+ */
+function savedFiles(assets: AssetsApiInternal, id: AssetId): SavedFile[] {
+    return [...assets.files(id)].map(([path, data]): SavedFile => {
+        const ending = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+        return {
+            path,
+            mediaType: MEDIA_TYPES[ending] ?? "application/octet-stream",
+            byteLength: data.length,
+            data: toBase64(data),
+        };
+    });
+}
+
+/**
+ * Write an entry that embeds an asset's files, or shares those of an earlier entry with the same
+ * digest, unless the document cap would be passed.
+ * @param build - The member as it is built.
+ * @param record - The accepted asset.
+ * @param key - The entry's key in `written`.
+ * @param source - The URL a layer names it by, if any.
+ */
+function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source: string | undefined): void {
+    const first = !build.digests.has(record.digest);
+    if (first && build.bytes + record.byteLength > MAX_DOCUMENT_ASSET_BYTES) {
+        build.leftOut.push({
+            code: "E_MODEL_TOO_LARGE",
+            params: {
+                what: "documentBytes",
+                found: build.bytes + record.byteLength,
+                limit: MAX_DOCUMENT_ASSET_BYTES,
+                id: record.id,
+            },
+        });
+        return;
+    }
+
+    build.written.add(key);
+    build.digests.add(record.digest);
+    if (first) {
+        build.bytes += record.byteLength;
+    }
+
+    build.entries.push({
+        id: record.id,
+        sha256: record.digest,
+        format: record.format,
+        main: record.path ?? "",
+        ...(source === undefined ? {} : { source }),
+        ...(record.skipped === undefined ? {} : { skipped: [...record.skipped] }),
+        // Later entries with the same digest share the first one's files.
+        ...(first ? { files: savedFiles(build.assets, record.id) } : {}),
+    });
+}
+
+/**
+ * Write the entry for one model or picture a layer names, or record why it is left out.
+ * @param build - The member as it is built.
+ * @param ref - The asset id or URL a layer names.
+ * @param layerIds - The layers naming it.
+ */
+function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
+    if (ref.startsWith(SAMPLE_PREFIX)) {
+        return; // Every reader ships the samples.
+    }
+
+    const url = !isAssetId(ref);
+    const record: AssetRecord | undefined = url ? build.assets.urlRecord(ref) : build.assets.get(ref);
+    if (record?.state !== "accepted") {
+        build.leftOut.push({ code: "W_MODEL_NOT_EMBEDDED", params: { ref, layerIds } });
+        return;
+    }
+
+    const key = `${record.id}\n${url ? ref : ""}`;
+    if (build.written.has(key)) {
+        return;
+    }
+
+    // A model whose parts came from several places has no one URL that brings it back.
+    const byUrl = url && build.storage[ref] === "url";
+    const pieced = byUrl && build.assets.assembled(record.id);
+    if (pieced) {
+        build.leftOut.push({
+            code: "W_MODEL_NOT_KEPT_BY_URL",
+            params: { url: ref.split(/[?#]/)[0].slice(0, 256), reason: "parts" },
+        });
+    }
+
+    if (byUrl && !pieced) {
+        build.written.add(key);
+        build.entries.push({
+            id: record.id,
+            sha256: record.digest,
+            format: record.format,
+            main: record.path ?? "",
+            source: ref,
+            stored: "url",
+        });
+        return;
+    }
+
+    embedEntry(build, record, key, url ? ref : undefined);
+}
+
 /**
  * The `graphty-assets` member: every model and picture a layer names that the session holds,
  * files as given; one a layer names by URL is kept by its URL and digest alone when `storage`
@@ -203,98 +325,22 @@ export function assetsMember(
     member: Record<string, unknown> | null;
     leftOut: Problem[];
 } {
-    const assets = assetsOf(session);
-    const leftOut: Problem[] = [];
-    const entries: Record<string, unknown>[] = [];
-    const written = new Set<string>();
-    const digests = new Set<string>();
-    let bytes = 0;
+    const build: MemberBuild = {
+        assets: assetsOf(session),
+        storage,
+        leftOut: [],
+        entries: [],
+        written: new Set<string>(),
+        digests: new Set<string>(),
+        bytes: 0,
+    };
     for (const [ref, layerIds] of modelRefs(session)) {
-        if (ref.startsWith(SAMPLE_PREFIX)) {
-            continue; // Every reader ships the samples.
-        }
-
-        const url = !isAssetId(ref);
-        const record: AssetRecord | undefined = url ? assets.urlRecord(ref) : assets.get(ref);
-        if (record?.state !== "accepted") {
-            leftOut.push({ code: "W_MODEL_NOT_EMBEDDED", params: { ref, layerIds } });
-            continue;
-        }
-
-        const key = `${record.id}\n${url ? ref : ""}`;
-        if (written.has(key)) {
-            continue;
-        }
-
-        // A model whose parts came from several places has no one URL that brings it back.
-        const pieced = url && storage[ref] === "url" && assets.assembled(record.id);
-        if (pieced) {
-            leftOut.push({
-                code: "W_MODEL_NOT_KEPT_BY_URL",
-                params: { url: ref.split(/[?#]/)[0].slice(0, 256), reason: "parts" },
-            });
-        }
-
-        if (url && storage[ref] === "url" && !pieced) {
-            written.add(key);
-            entries.push({
-                id: record.id,
-                sha256: record.digest,
-                format: record.format,
-                main: record.path ?? "",
-                source: ref,
-                stored: "url",
-            });
-            continue;
-        }
-
-        const first = !digests.has(record.digest);
-        if (first && bytes + record.byteLength > MAX_DOCUMENT_ASSET_BYTES) {
-            leftOut.push({
-                code: "E_MODEL_TOO_LARGE",
-                params: {
-                    what: "documentBytes",
-                    found: bytes + record.byteLength,
-                    limit: MAX_DOCUMENT_ASSET_BYTES,
-                    id: record.id,
-                },
-            });
-            continue;
-        }
-
-        written.add(key);
-        digests.add(record.digest);
-        if (first) {
-            bytes += record.byteLength;
-        }
-
-        entries.push({
-            id: record.id,
-            sha256: record.digest,
-            format: record.format,
-            main: record.path ?? "",
-            ...(url ? { source: ref } : {}),
-            ...(record.skipped === undefined ? {} : { skipped: [...record.skipped] }),
-            // Later entries with the same digest share the first one's files.
-            ...(first
-                ? {
-                      files: [...assets.files(record.id)].map(([path, data]): SavedFile => {
-                          const ending = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-                          return {
-                              path,
-                              mediaType: MEDIA_TYPES[ending] ?? "application/octet-stream",
-                              byteLength: data.length,
-                              data: toBase64(data),
-                          };
-                      }),
-                  }
-                : {}),
-        });
+        addRef(build, ref, layerIds);
     }
 
     return {
-        member: entries.length === 0 ? null : { kind: ASSETS_MEMBER, version: VERSION, assets: entries },
-        leftOut,
+        member: build.entries.length === 0 ? null : { kind: ASSETS_MEMBER, version: VERSION, assets: build.entries },
+        leftOut: build.leftOut,
     };
 }
 
@@ -397,6 +443,44 @@ function skipsOk(skipped: unknown): boolean {
 }
 
 /**
+ * Check an entry's `files`, or name its first malformed one.
+ * @param files - The member.
+ * @returns The pointer below the entry that is wrong, or undefined when it is absent or well formed.
+ */
+function filesPointer(files: unknown): string | undefined {
+    if (files === undefined) {
+        return undefined;
+    }
+
+    if (!Array.isArray(files)) {
+        return "/files";
+    }
+
+    const bad = (files as unknown[]).findIndex(
+        (file) =>
+            !isObject(file) ||
+            unknownKey(file, FILE_KEYS) !== undefined ||
+            typeof file.path !== "string" ||
+            typeof file.mediaType !== "string" ||
+            typeof file.data !== "string" ||
+            !Number.isInteger(file.byteLength) ||
+            (file.byteLength as number) < 0,
+    );
+    return bad >= 0 ? `/files/${String(bad)}` : undefined;
+}
+
+/**
+ * Whether an entry's `stored` is absent, or `"url"` on an entry with a `source` and no files.
+ * @param stored - The member.
+ * @param source - The entry's `source`.
+ * @param files - The entry's `files`.
+ * @returns True when it may be applied.
+ */
+function storedOk(stored: unknown, source: unknown, files: unknown): boolean {
+    return stored === undefined || (stored === "url" && typeof source === "string" && files === undefined);
+}
+
+/**
  * Check an entry's shape, or name its first unknown or malformed member.
  * @param entry - The entry.
  * @returns The entry, or the pointer below the entry that is wrong.
@@ -432,31 +516,11 @@ function checkEntry(entry: unknown): Entry | string {
         return "/skipped";
     }
 
-    if (entry.stored !== undefined && (entry.stored !== "url" || typeof source !== "string" || files !== undefined)) {
+    if (!storedOk(entry.stored, source, files)) {
         return "/stored";
     }
 
-    if (files !== undefined) {
-        if (!Array.isArray(files)) {
-            return "/files";
-        }
-
-        const bad = (files as unknown[]).findIndex(
-            (file) =>
-                !isObject(file) ||
-                unknownKey(file, FILE_KEYS) !== undefined ||
-                typeof file.path !== "string" ||
-                typeof file.mediaType !== "string" ||
-                typeof file.data !== "string" ||
-                !Number.isInteger(file.byteLength) ||
-                (file.byteLength as number) < 0,
-        );
-        if (bad >= 0) {
-            return `/files/${String(bad)}`;
-        }
-    }
-
-    return entry as unknown as Entry;
+    return filesPointer(files) ?? (entry as unknown as Entry);
 }
 
 /**
@@ -511,6 +575,77 @@ function decodeFiles(
 }
 
 /**
+ * Put one checked entry's model back into the session: checked against its digest, then added
+ * through `session.assets.add` as a dropped file is.
+ * @param assets - The assets API.
+ * @param entry - The checked entry.
+ * @param at - The entry's pointer in the member.
+ * @param decoded - Files already decoded, by digest; this entry's are added.
+ * @returns The problem when the asset did not come back, else undefined.
+ */
+async function restoreEntry(
+    assets: AssetsApiInternal,
+    entry: Entry,
+    at: string,
+    decoded: Map<string, Map<string, Uint8Array>>,
+): Promise<Problem | undefined> {
+    const fail = (fact: CodedFact): Problem => ({
+        code: fact.code as GraphtyErrorCode,
+        params: { ...fact.params, kind: ASSETS_MEMBER, id: entry.id },
+    });
+    if (entry.id.startsWith(SAMPLE_PREFIX)) {
+        return fail({ code: "E_MODEL_NAME_TAKEN", params: {} });
+    }
+
+    if (entry.stored === "url") {
+        // Kept by URL: it loads from there, as the reader allows, and is checked against this.
+        assets.expectDigest(entry.source as string, entry.sha256);
+        return undefined;
+    }
+
+    // An unnamed asset's id is its digest: a file cannot claim one id for other bytes.
+    if (/^asset:[0-9a-f]{64}$/.test(entry.id) && entry.id !== `asset:${entry.sha256}`) {
+        return fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
+    }
+
+    const given =
+        entry.files === undefined ? decoded.get(entry.sha256) : decodeFiles(entry.files, assets.limits().maxBytes);
+    if (given === undefined) {
+        return { code: "E_BAD_DOCUMENT", params: { kind: ASSETS_MEMBER, pointer: `${at}/files` } };
+    }
+
+    if (!(given instanceof Map)) {
+        return fail(given);
+    }
+
+    if ((await digestFileSet(given)) !== entry.sha256) {
+        return fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
+    }
+
+    const record = await assets.add(
+        { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
+        {
+            name: entry.id,
+            ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
+        },
+    );
+    if (record.state !== "accepted") {
+        return fail(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
+    }
+
+    if (record.digest !== entry.sha256) {
+        return fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
+    }
+
+    decoded.set(entry.sha256, given);
+    if (entry.source !== undefined) {
+        assets.bindUrl(entry.source, record.id);
+    }
+
+    return undefined;
+}
+
+/**
  * Put a `graphty-assets` member's models back into the session: each checked against its digest,
  * then added through `session.assets.add` as a dropped file is, one at a time. A URL entry's
  * `source` resolves to its embedded copy, so naming it fetches nothing.
@@ -528,72 +663,12 @@ export async function restoreAssets(session: GraphSession, member: Record<string
     for (const [index, raw] of entries.entries()) {
         const entry = checkEntry(raw);
         const at = `/assets/${String(index)}`;
-        if (typeof entry === "string") {
-            problems.push({ code: "E_BAD_DOCUMENT", params: { kind: ASSETS_MEMBER, pointer: `${at}${entry}` } });
-            continue;
-        }
-
-        const fail = (fact: CodedFact): void => {
-            problems.push({
-                code: fact.code as GraphtyErrorCode,
-                params: { ...fact.params, kind: ASSETS_MEMBER, id: entry.id },
-            });
-        };
-        if (entry.id.startsWith(SAMPLE_PREFIX)) {
-            fail({ code: "E_MODEL_NAME_TAKEN", params: {} });
-            continue;
-        }
-
-        if (entry.stored === "url") {
-            // Kept by URL: it loads from there, as the reader allows, and is checked against this.
-            assets.expectDigest(entry.source as string, entry.sha256);
-            continue;
-        }
-
-        // An unnamed asset's id is its digest: a file cannot claim one id for other bytes.
-        if (/^asset:[0-9a-f]{64}$/.test(entry.id) && entry.id !== `asset:${entry.sha256}`) {
-            fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
-            continue;
-        }
-
-        let given: Map<string, Uint8Array> | CodedFact<GraphtyErrorCode> | undefined = decoded.get(entry.sha256);
-        if (entry.files !== undefined) {
-            given = decodeFiles(entry.files, assets.limits().maxBytes);
-        } else if (given === undefined) {
-            problems.push({ code: "E_BAD_DOCUMENT", params: { kind: ASSETS_MEMBER, pointer: `${at}/files` } });
-            continue;
-        }
-
-        if (!(given instanceof Map)) {
-            fail(given);
-            continue;
-        }
-
-        if ((await digestFileSet(given)) !== entry.sha256) {
-            fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
-            continue;
-        }
-
-        const record = await assets.add(
-            { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
-            {
-                name: entry.id,
-                ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
-            },
-        );
-        if (record.state !== "accepted") {
-            fail(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
-            continue;
-        }
-
-        if (record.digest !== entry.sha256) {
-            fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
-            continue;
-        }
-
-        decoded.set(entry.sha256, given);
-        if (entry.source !== undefined) {
-            assets.bindUrl(entry.source, record.id);
+        const problem: Problem | undefined =
+            typeof entry === "string"
+                ? { code: "E_BAD_DOCUMENT", params: { kind: ASSETS_MEMBER, pointer: `${at}${entry}` } }
+                : await restoreEntry(assets, entry, at, decoded);
+        if (problem !== undefined) {
+            problems.push(problem);
         }
     }
 

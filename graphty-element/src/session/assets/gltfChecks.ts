@@ -67,51 +67,93 @@ const TYPE_COMPONENTS: Readonly<Record<string, number>> = {
     MAT4: 16,
 };
 
+/** An open object or array while {@link checkJsonText} walks the text. */
+interface JsonFrame {
+    /** The keys an object has so far; undefined for an array. */
+    readonly keys: Set<string> | undefined;
+    /** Whether the next string is a key. */
+    expectKey: boolean;
+}
+
+/**
+ * Where a JSON string ends.
+ * @param text - The JSON text.
+ * @param start - The index of its opening quote.
+ * @returns The index of its closing quote (or the text's length when unterminated).
+ */
+function stringEnd(text: string, start: number): number {
+    let end = start + 1;
+    while (end < text.length && text[end] !== '"') {
+        end += text[end] === "\\" ? 2 : 1;
+    }
+
+    return end;
+}
+
+/**
+ * Refuse a `__proto__` or duplicate key, when the string is a key.
+ * @param text - The JSON text.
+ * @param start - The index of the string's opening quote.
+ * @param end - The index of its closing quote.
+ * @param top - The innermost open object or array.
+ */
+function checkKey(text: string, start: number, end: number, top: JsonFrame | undefined): void {
+    if (top?.keys === undefined || !top.expectKey) {
+        return;
+    }
+
+    let key: string;
+    try {
+        key = JSON.parse(text.slice(start, end + 1)) as string;
+    } catch {
+        refuse("E_MODEL_STRUCTURE", { rule: "json" });
+    }
+
+    if (key === "__proto__" || top.keys.has(key)) {
+        refuse("E_MODEL_STRUCTURE", { rule: "json", key: cut(key) });
+    }
+
+    top.keys.add(key);
+    top.expectKey = false;
+}
+
+/**
+ * Follow one structural character outside a string: open, close, or a comma.
+ * @param c - The character.
+ * @param stack - The open objects and arrays.
+ */
+function stepStructure(c: string, stack: JsonFrame[]): void {
+    if (c === "{" || c === "[") {
+        stack.push({ keys: c === "{" ? new Set() : undefined, expectKey: c === "{" });
+        if (stack.length > GLTF_CAPS.depth) {
+            refuse("E_MODEL_STRUCTURE", { rule: "depth" });
+        }
+    } else if (c === "}" || c === "]") {
+        stack.pop();
+    } else if (c === ",") {
+        const top = stack.at(-1);
+        if (top?.keys !== undefined) {
+            top.expectKey = true;
+        }
+    }
+}
+
 /**
  * Refuse JSON text holding a `__proto__` key, a duplicate key, or more than 64 levels of nesting.
  * Syntax is left to `JSON.parse`, which runs after.
  * @param text - The JSON text.
  */
 export function checkJsonText(text: string): void {
-    const stack: { keys: Set<string> | undefined; expectKey: boolean }[] = [];
-    for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        if (c === "{" || c === "[") {
-            stack.push({ keys: c === "{" ? new Set() : undefined, expectKey: c === "{" });
-            if (stack.length > GLTF_CAPS.depth) {
-                refuse("E_MODEL_STRUCTURE", { rule: "depth" });
-            }
-        } else if (c === "}" || c === "]") {
-            stack.pop();
-        } else if (c === ",") {
-            const top = stack.at(-1);
-            if (top?.keys !== undefined) {
-                top.expectKey = true;
-            }
-        } else if (c === '"') {
-            let end = i + 1;
-            while (end < text.length && text[end] !== '"') {
-                end += text[end] === "\\" ? 2 : 1;
-            }
-
-            const top = stack.at(-1);
-            if (top?.keys !== undefined && top.expectKey) {
-                let key: string;
-                try {
-                    key = JSON.parse(text.slice(i, end + 1)) as string;
-                } catch {
-                    refuse("E_MODEL_STRUCTURE", { rule: "json" });
-                }
-
-                if (key === "__proto__" || top.keys.has(key)) {
-                    refuse("E_MODEL_STRUCTURE", { rule: "json", key: cut(key) });
-                }
-
-                top.keys.add(key);
-                top.expectKey = false;
-            }
-
-            i = end;
+    const stack: JsonFrame[] = [];
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '"') {
+            const end = stringEnd(text, i);
+            checkKey(text, i, end, stack.at(-1));
+            i = end + 1;
+        } else {
+            stepStructure(text[i], stack);
+            i++;
         }
     }
 }
@@ -307,12 +349,11 @@ function checkExtensions(json: Record<string, unknown>): string[] {
 }
 
 /**
- * Check that the nodes form a forest at most 64 deep, and return the nodes the scene reaches.
- * @param json - The glTF.
- * @param nodes - Its nodes.
- * @returns The scene's nodes, each once.
+ * Each node's parent, refusing a node that is its own child or has two parents.
+ * @param nodes - The glTF's nodes.
+ * @returns The parent of each node, or -1 for a root.
  */
-function checkTree(json: Record<string, unknown>, nodes: readonly Record<string, unknown>[]): number[] {
+function parentsOf(nodes: readonly Record<string, unknown>[]): Int32Array {
     const parent = new Int32Array(nodes.length).fill(-1);
     for (let i = 0; i < nodes.length; i++) {
         const children = nodes[i].children ?? [];
@@ -334,7 +375,16 @@ function checkTree(json: Record<string, unknown>, nodes: readonly Record<string,
         }
     }
 
-    // Walk down from the roots, iteratively; a node a root never reaches sits on a cycle.
+    return parent;
+}
+
+/**
+ * Walk down from the roots, iteratively, refusing a tree over 64 deep; a node a root never reaches
+ * sits on a cycle.
+ * @param nodes - The glTF's nodes.
+ * @param parent - Each node's parent.
+ */
+function checkDepth(nodes: readonly Record<string, unknown>[], parent: Int32Array): void {
     const depth = new Int32Array(nodes.length).fill(-1);
     const stack: number[] = [];
     for (let i = 0; i < nodes.length; i++) {
@@ -359,8 +409,21 @@ function checkTree(json: Record<string, unknown>, nodes: readonly Record<string,
     if (depth.includes(-1)) {
         refuse("E_MODEL_STRUCTURE", { rule: "cycle" });
     }
+}
 
-    // The scene that is drawn: `scene`, else the first, else every root.
+/**
+ * The roots of the scene that is drawn: `scene`, else the first, else every root. Checks every
+ * scene's node indices too.
+ * @param json - The glTF.
+ * @param nodes - Its nodes.
+ * @param parent - Each node's parent.
+ * @returns The root nodes.
+ */
+function sceneRoots(
+    json: Record<string, unknown>,
+    nodes: readonly Record<string, unknown>[],
+    parent: Int32Array,
+): number[] {
     const scenes = list(json, "scenes");
     const sceneIndex = index(json.scene, scenes.length, "scene") ?? (scenes.length > 0 ? 0 : undefined);
     let roots: number[];
@@ -376,11 +439,22 @@ function checkTree(json: Record<string, unknown>, nodes: readonly Record<string,
     }
 
     for (const scene of scenes) {
-        for (const n of Array.isArray(scene.nodes) ? scene.nodes : []) {
+        const each = Array.isArray(scene.nodes) ? scene.nodes : [];
+        for (const n of each) {
             index(n, nodes.length, "scene.nodes");
         }
     }
 
+    return roots;
+}
+
+/**
+ * The nodes reached from the roots, each once.
+ * @param nodes - The glTF's nodes.
+ * @param roots - Where to start.
+ * @returns The nodes, in walk order.
+ */
+function reachedFrom(nodes: readonly Record<string, unknown>[], roots: readonly number[]): number[] {
     const reached: number[] = [];
     const seen = new Uint8Array(nodes.length);
     const walk = [...roots];
@@ -396,6 +470,18 @@ function checkTree(json: Record<string, unknown>, nodes: readonly Record<string,
     }
 
     return reached;
+}
+
+/**
+ * Check that the nodes form a forest at most 64 deep, and return the nodes the scene reaches.
+ * @param json - The glTF.
+ * @param nodes - Its nodes.
+ * @returns The scene's nodes, each once.
+ */
+function checkTree(json: Record<string, unknown>, nodes: readonly Record<string, unknown>[]): number[] {
+    const parent = parentsOf(nodes);
+    checkDepth(nodes, parent);
+    return reachedFrom(nodes, sceneRoots(json, nodes, parent));
 }
 
 /**
@@ -511,6 +597,329 @@ function checkAccessors(
     return { accessors, views };
 }
 
+/** A box around a model's positions. */
+interface Bounds {
+    min: [number, number, number];
+    max: [number, number, number];
+}
+
+/** What the meshes of a glTF add up to. */
+interface MeshTally {
+    /** Triangles per mesh, for one use of it. */
+    readonly triangles: Float64Array;
+    morphTargets: number;
+    bounds: Bounds | undefined;
+}
+
+/**
+ * Refuse a node whose mesh, skin or camera index is out of range, or that asks for instancing.
+ * @param nodes - The glTF's nodes.
+ * @param meshes - How many meshes it has.
+ * @param skins - How many skins.
+ * @param cameras - How many cameras.
+ */
+function checkNodes(nodes: readonly Record<string, unknown>[], meshes: number, skins: number, cameras: number): void {
+    for (const node of nodes) {
+        index(node.mesh, meshes, "node.mesh");
+        index(node.skin, skins, "node.skin");
+        index(node.camera, cameras, "node.camera");
+        if (isObject(node.extensions) && "EXT_mesh_gpu_instancing" in node.extensions) {
+            refuse("E_MODEL_STRUCTURE", { rule: "instancing" });
+        }
+    }
+}
+
+/**
+ * Grow a box by a POSITION accessor's `min` and `max`, when it has both.
+ * @param bounds - The box so far.
+ * @param accessor - The accessor.
+ * @returns The grown box.
+ */
+function mergeBounds(bounds: Bounds | undefined, accessor: Record<string, unknown>): Bounds | undefined {
+    const { min, max } = accessor;
+    if (!Array.isArray(min) || !Array.isArray(max) || min.length !== 3 || max.length !== 3) {
+        return bounds;
+    }
+
+    const lo = min as [number, number, number];
+    const hi = max as [number, number, number];
+    if (bounds === undefined) {
+        return { min: [...lo], max: [...hi] };
+    }
+
+    return {
+        min: [Math.min(bounds.min[0], lo[0]), Math.min(bounds.min[1], lo[1]), Math.min(bounds.min[2], lo[2])],
+        max: [Math.max(bounds.max[0], hi[0]), Math.max(bounds.max[1], hi[1]), Math.max(bounds.max[2], hi[2])],
+    };
+}
+
+/**
+ * Check a primitive's morph targets: within the cap, every accessor index in range.
+ * @param targets - The targets.
+ * @param accessors - How many accessors the glTF has.
+ */
+function checkTargets(targets: readonly unknown[], accessors: number): void {
+    cap("morphTargets", targets.length, GLTF_CAPS.morphTargets);
+    for (const target of targets) {
+        for (const a of Object.values(isObject(target) ? target : {})) {
+            index(a, accessors, "primitive.targets");
+        }
+    }
+}
+
+/**
+ * Check one primitive and add its triangles, morph targets and bounds to the tally.
+ * @param primitive - The primitive.
+ * @param m - The mesh it belongs to.
+ * @param accessors - The glTF's accessors.
+ * @param materials - How many materials it has.
+ * @param tally - Where it is counted.
+ */
+function tallyPrimitive(
+    primitive: unknown,
+    m: number,
+    accessors: readonly Record<string, unknown>[],
+    materials: number,
+    tally: MeshTally,
+): void {
+    if (!isObject(primitive) || !isObject(primitive.attributes)) {
+        refuse("E_MODEL_STRUCTURE", { rule: "json", key: "mesh.primitives" });
+    }
+
+    for (const a of Object.values(primitive.attributes)) {
+        index(a, accessors.length, "primitive.attributes");
+    }
+
+    const position = index(primitive.attributes.POSITION, accessors.length, "primitive.attributes");
+    const indices = index(primitive.indices, accessors.length, "primitive.indices");
+    index(primitive.material, materials, "primitive.material");
+    const targets = Array.isArray(primitive.targets) ? primitive.targets : [];
+    checkTargets(targets, accessors.length);
+    tally.morphTargets += targets.length;
+
+    const counted = indices ?? position;
+    const count = counted === undefined ? 0 : (accessors[counted].count as number);
+    tally.triangles[m] += trianglesOf(primitive.mode ?? 4, count);
+
+    if (position !== undefined) {
+        tally.bounds = mergeBounds(tally.bounds, accessors[position]);
+    }
+}
+
+/**
+ * Check every mesh's primitives, and count their triangles, morph targets and bounds.
+ * @param meshes - The glTF's meshes.
+ * @param accessors - Its accessors.
+ * @param materials - How many materials it has.
+ * @returns The tally.
+ */
+function tallyMeshes(
+    meshes: readonly Record<string, unknown>[],
+    accessors: readonly Record<string, unknown>[],
+    materials: number,
+): MeshTally {
+    const tally: MeshTally = { triangles: new Float64Array(meshes.length), morphTargets: 0, bounds: undefined };
+    meshes.forEach((mesh, m) => {
+        const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
+        for (const primitive of primitives) {
+            tallyPrimitive(primitive, m, accessors, materials, tally);
+        }
+    });
+
+    return tally;
+}
+
+/**
+ * Triangles per use: each scene node that draws a mesh adds that mesh's triangles.
+ * @param reached - The scene's nodes.
+ * @param nodes - The glTF's nodes.
+ * @param triangles - Triangles per mesh.
+ * @param limits - The limits in force.
+ * @returns The triangles drawn.
+ */
+function drawnTriangles(
+    reached: readonly number[],
+    nodes: readonly Record<string, unknown>[],
+    triangles: Float64Array,
+    limits: ModelLimits,
+): number {
+    let drawn = 0;
+    for (const n of reached) {
+        const m = nodes[n].mesh;
+        if (typeof m === "number") {
+            drawn += triangles[m];
+            if (drawn > limits.maxTriangles) {
+                refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: drawn, limit: limits.maxTriangles });
+            }
+        }
+    }
+
+    return drawn;
+}
+
+/**
+ * Check every skin: joints within the cap, every index in range.
+ * @param skins - The glTF's skins.
+ * @param nodes - How many nodes it has.
+ * @param accessors - How many accessors.
+ */
+function checkSkins(skins: readonly Record<string, unknown>[], nodes: number, accessors: number): void {
+    for (const skin of skins) {
+        const joints = Array.isArray(skin.joints) ? skin.joints : [];
+        cap("joints", joints.length, GLTF_CAPS.joints);
+        joints.forEach((j) => index(j, nodes, "skin.joints"));
+        index(skin.inverseBindMatrices, accessors, "skin.inverseBindMatrices");
+        index(skin.skeleton, nodes, "skin.skeleton");
+    }
+}
+
+/**
+ * Check every texture's image and sampler, and every material's texture slots.
+ * @param textures - The glTF's textures.
+ * @param materials - Its materials.
+ * @param images - How many images it has.
+ * @param samplers - How many samplers.
+ */
+function checkTextureIndices(
+    textures: readonly Record<string, unknown>[],
+    materials: readonly Record<string, unknown>[],
+    images: number,
+    samplers: number,
+): void {
+    for (const texture of textures) {
+        index(texture.source, images, "texture.source");
+        index(texture.sampler, samplers, "texture.sampler");
+    }
+
+    for (const material of materials) {
+        const pbr = isObject(material.pbrMetallicRoughness) ? material.pbrMetallicRoughness : {};
+        for (const slot of [
+            pbr.baseColorTexture,
+            pbr.metallicRoughnessTexture,
+            material.normalTexture,
+            material.occlusionTexture,
+            material.emissiveTexture,
+        ]) {
+            if (isObject(slot)) {
+                index(slot.index, textures.length, "material.texture");
+            }
+        }
+    }
+}
+
+/**
+ * The bytes of an image, wherever it lives: a buffer view, a file in the set, or a `data:` URL.
+ * @param image - The image.
+ * @param i - Its index, for the refusal.
+ * @param input - The glTF input.
+ * @param views - Its buffer views.
+ * @param buffers - Each buffer's bytes.
+ * @returns The bytes.
+ */
+function imageBytes(
+    image: Record<string, unknown>,
+    i: number,
+    input: GltfInput,
+    views: readonly Record<string, unknown>[],
+    buffers: readonly Uint8Array[],
+): Uint8Array {
+    if (image.bufferView !== undefined) {
+        const v = index(image.bufferView, views.length, "image.bufferView") as number;
+        const view = views[v];
+        const offset = integer(view.byteOffset, "bufferView.byteOffset", 0);
+        return buffers[view.buffer as number].subarray(offset, offset + (view.byteLength as number));
+    }
+
+    if (typeof image.uri === "string") {
+        return resolveReference(image.uri, input.path, input.files).bytes;
+    }
+
+    return refuse("E_MODEL_STRUCTURE", { rule: "image", name: `image ${i}` });
+}
+
+/**
+ * Image sizes from their headers, against the texture byte limit.
+ * @param images - The glTF's images.
+ * @param input - The glTF input.
+ * @param views - Its buffer views.
+ * @param buffers - Each buffer's bytes.
+ * @returns The decoded bytes of every image.
+ */
+function imageTextureBytes(
+    images: readonly Record<string, unknown>[],
+    input: GltfInput,
+    views: readonly Record<string, unknown>[],
+    buffers: readonly Uint8Array[],
+): number {
+    const { limits } = input;
+    let textureBytes = 0;
+    images.forEach((image, i) => {
+        const bytes = imageBytes(image, i, input, views, buffers);
+        textureBytes += textureBytesOf(bytes, typeof image.name === "string" ? image.name : `image ${i}`);
+        if (textureBytes > limits.maxTextureBytes) {
+            refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
+        }
+    });
+
+    return textureBytes;
+}
+
+/**
+ * Check an animation's samplers, and how long it runs: the greatest first `max` of their inputs.
+ * @param samplers - The animation's samplers.
+ * @param accessors - The glTF's accessors.
+ * @returns The seconds.
+ */
+function clipSeconds(samplers: readonly unknown[], accessors: readonly Record<string, unknown>[]): number {
+    let seconds = 0;
+    for (const sampler of samplers) {
+        const input = isObject(sampler) ? index(sampler.input, accessors.length, "animation.sampler") : undefined;
+        index(isObject(sampler) ? sampler.output : undefined, accessors.length, "animation.sampler");
+        const max = input === undefined ? undefined : accessors[input].max;
+        if (Array.isArray(max) && typeof max[0] === "number") {
+            seconds = Math.max(seconds, max[0]);
+        }
+    }
+
+    return seconds;
+}
+
+/**
+ * Check an animation's channels: sampler and target node in range.
+ * @param animation - The animation.
+ * @param samplers - How many samplers it has.
+ * @param nodes - How many nodes the glTF has.
+ */
+function checkChannels(animation: Record<string, unknown>, samplers: number, nodes: number): void {
+    const channels = Array.isArray(animation.channels) ? (animation.channels as unknown[]) : [];
+    for (const channel of channels) {
+        if (isObject(channel)) {
+            index(channel.sampler, samplers, "animation.channel");
+            index(isObject(channel.target) ? channel.target.node : undefined, nodes, "animation.channel");
+        }
+    }
+}
+
+/**
+ * Check every animation and name and time it.
+ * @param animations - The glTF's animations.
+ * @param accessors - Its accessors.
+ * @param nodes - How many nodes it has.
+ * @returns One clip per animation.
+ */
+function animationClips(
+    animations: readonly Record<string, unknown>[],
+    accessors: readonly Record<string, unknown>[],
+    nodes: number,
+): { readonly name: string; readonly seconds: number }[] {
+    return animations.map((animation) => {
+        const animSamplers = Array.isArray(animation.samplers) ? (animation.samplers as unknown[]) : [];
+        const seconds = clipSeconds(animSamplers, accessors);
+        checkChannels(animation, animSamplers.length, nodes);
+        return Object.freeze({ name: cut(typeof animation.name === "string" ? animation.name : ""), seconds });
+    });
+}
+
 /**
  * Check a glTF and summarize it.
  * @param input - The parsed glTF and its files.
@@ -540,83 +949,9 @@ export function checkGltf(input: GltfInput): GltfChecked {
     const { accessors, views } = checkAccessors(json, buffers, limits);
 
     // Every index the loader follows.
-    for (const node of nodes) {
-        index(node.mesh, meshes.length, "node.mesh");
-        index(node.skin, skins.length, "node.skin");
-        index(node.camera, cameras.length, "node.camera");
-        if (isObject(node.extensions) && "EXT_mesh_gpu_instancing" in node.extensions) {
-            refuse("E_MODEL_STRUCTURE", { rule: "instancing" });
-        }
-    }
-
-    const triangles = new Float64Array(meshes.length);
-    let morphTargets = 0;
-    let bounds: { min: [number, number, number]; max: [number, number, number] } | undefined;
-    meshes.forEach((mesh, m) => {
-        const primitives = Array.isArray(mesh.primitives) ? (mesh.primitives as unknown[]) : [];
-        for (const primitive of primitives) {
-            if (!isObject(primitive) || !isObject(primitive.attributes)) {
-                refuse("E_MODEL_STRUCTURE", { rule: "json", key: "mesh.primitives" });
-            }
-
-            for (const a of Object.values(primitive.attributes)) {
-                index(a, accessors.length, "primitive.attributes");
-            }
-
-            const position = index(primitive.attributes.POSITION, accessors.length, "primitive.attributes");
-            const indices = index(primitive.indices, accessors.length, "primitive.indices");
-            index(primitive.material, materials.length, "primitive.material");
-            const targets = Array.isArray(primitive.targets) ? primitive.targets : [];
-            cap("morphTargets", targets.length, GLTF_CAPS.morphTargets);
-            morphTargets += targets.length;
-            for (const target of targets) {
-                for (const a of Object.values(isObject(target) ? target : {})) {
-                    index(a, accessors.length, "primitive.targets");
-                }
-            }
-
-            const counted = indices ?? position;
-            const count = counted === undefined ? 0 : (accessors[counted].count as number);
-            const mode = primitive.mode ?? 4;
-            triangles[m] += trianglesOf(mode, count);
-
-            if (position !== undefined) {
-                const { min } = accessors[position];
-                const { max } = accessors[position];
-                if (Array.isArray(min) && Array.isArray(max) && min.length === 3 && max.length === 3) {
-                    const lo = min as [number, number, number];
-                    const hi = max as [number, number, number];
-                    bounds =
-                        bounds === undefined
-                            ? { min: [...lo], max: [...hi] }
-                            : {
-                                  min: [
-                                      Math.min(bounds.min[0], lo[0]),
-                                      Math.min(bounds.min[1], lo[1]),
-                                      Math.min(bounds.min[2], lo[2]),
-                                  ],
-                                  max: [
-                                      Math.max(bounds.max[0], hi[0]),
-                                      Math.max(bounds.max[1], hi[1]),
-                                      Math.max(bounds.max[2], hi[2]),
-                                  ],
-                              };
-                }
-            }
-        }
-    });
-
-    // Triangles per use: each scene node that draws a mesh adds that mesh's triangles.
-    let drawn = 0;
-    for (const n of reached) {
-        const m = nodes[n].mesh;
-        if (typeof m === "number") {
-            drawn += triangles[m];
-            if (drawn > limits.maxTriangles) {
-                refuse("E_MODEL_TOO_LARGE", { what: "triangles", found: drawn, limit: limits.maxTriangles });
-            }
-        }
-    }
+    checkNodes(nodes, meshes.length, skins.length, cameras.length);
+    const { triangles, morphTargets, bounds } = tallyMeshes(meshes, accessors, materials.length);
+    const drawn = drawnTriangles(reached, nodes, triangles, limits);
 
     cap("nodes", nodes.length, GLTF_CAPS.nodes);
     cap("meshes", meshes.length, GLTF_CAPS.meshes);
@@ -624,76 +959,10 @@ export function checkGltf(input: GltfInput): GltfChecked {
     cap("textures", textures.length, GLTF_CAPS.textures);
     cap("animations", animations.length, GLTF_CAPS.animations);
 
-    for (const skin of skins) {
-        const joints = Array.isArray(skin.joints) ? skin.joints : [];
-        cap("joints", joints.length, GLTF_CAPS.joints);
-        joints.forEach((j) => index(j, nodes.length, "skin.joints"));
-        index(skin.inverseBindMatrices, accessors.length, "skin.inverseBindMatrices");
-        index(skin.skeleton, nodes.length, "skin.skeleton");
-    }
-
-    for (const texture of textures) {
-        index(texture.source, images.length, "texture.source");
-        index(texture.sampler, samplers.length, "texture.sampler");
-    }
-
-    for (const material of materials) {
-        const pbr = isObject(material.pbrMetallicRoughness) ? material.pbrMetallicRoughness : {};
-        for (const slot of [
-            pbr.baseColorTexture,
-            pbr.metallicRoughnessTexture,
-            material.normalTexture,
-            material.occlusionTexture,
-            material.emissiveTexture,
-        ]) {
-            if (isObject(slot)) {
-                index(slot.index, textures.length, "material.texture");
-            }
-        }
-    }
-
-    // Image sizes from their headers, wherever the image lives.
-    let textureBytes = 0;
-    images.forEach((image, i) => {
-        let bytes: Uint8Array;
-        if (image.bufferView !== undefined) {
-            const v = index(image.bufferView, views.length, "image.bufferView") as number;
-            const view = views[v];
-            const offset = integer(view.byteOffset, "bufferView.byteOffset", 0);
-            bytes = buffers[view.buffer as number].subarray(offset, offset + (view.byteLength as number));
-        } else if (typeof image.uri === "string") {
-            ({ bytes } = resolveReference(image.uri, input.path, input.files));
-        } else {
-            refuse("E_MODEL_STRUCTURE", { rule: "image", name: `image ${i}` });
-        }
-
-        textureBytes += textureBytesOf(bytes, typeof image.name === "string" ? image.name : `image ${i}`);
-        if (textureBytes > limits.maxTextureBytes) {
-            refuse("E_MODEL_TOO_LARGE", { what: "textureBytes", found: textureBytes, limit: limits.maxTextureBytes });
-        }
-    });
-
-    const clips = animations.map((animation) => {
-        let seconds = 0;
-        const animSamplers = Array.isArray(animation.samplers) ? (animation.samplers as unknown[]) : [];
-        for (const sampler of animSamplers) {
-            const input = isObject(sampler) ? index(sampler.input, accessors.length, "animation.sampler") : undefined;
-            index(isObject(sampler) ? sampler.output : undefined, accessors.length, "animation.sampler");
-            const max = input === undefined ? undefined : accessors[input].max;
-            if (Array.isArray(max) && typeof max[0] === "number") {
-                seconds = Math.max(seconds, max[0]);
-            }
-        }
-
-        for (const channel of Array.isArray(animation.channels) ? (animation.channels as unknown[]) : []) {
-            if (isObject(channel)) {
-                index(channel.sampler, animSamplers.length, "animation.channel");
-                index(isObject(channel.target) ? channel.target.node : undefined, nodes.length, "animation.channel");
-            }
-        }
-
-        return Object.freeze({ name: cut(typeof animation.name === "string" ? animation.name : ""), seconds });
-    });
+    checkSkins(skins, nodes.length, accessors.length);
+    checkTextureIndices(textures, materials, images.length, samplers.length);
+    const textureBytes = imageTextureBytes(images, input, views, buffers);
+    const clips = animationClips(animations, accessors, nodes.length);
 
     const summary: ModelSummary = Object.freeze({
         format: input.format,

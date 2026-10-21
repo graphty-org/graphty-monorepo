@@ -1029,28 +1029,67 @@ export class NodeMesh {
         const unlit = is2D || createOptions.effect?.unlit === true;
 
         if (createOptions.picture !== undefined && createOptions.picture !== null) {
-            // `node.texture` is the surface: white underneath, so the picture keeps its colors, and
-            // its transparent pixels are stored white (TextureCache). A flat node is the picture
-            // itself, an icon: its transparent pixels are cut out (alpha test, so instanced nodes
-            // need no sorting). A solid keeps its surface whole, white where the picture is clear,
-            // so a box never turns into six loose cut-outs.
-            mat.diffuseTexture = createOptions.picture;
-            mat.diffuseColor = Color3.White();
-            const { shape } = createOptions;
-            if (is2D || shape?.planar === true || isFlatShape(shape?.type ?? "")) {
-                mat.opacityTexture = createOptions.picture;
-                mat.transparencyMode = Material.MATERIAL_ALPHATEST;
-            }
-            if (unlit) {
-                mat.disableLighting = true;
-                mat.emissiveTexture = createOptions.picture;
-            } else {
-                mat.emissiveColor = new Color3(0.2, 0.2, 0.2);
-            }
-
+            this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
             return;
         }
 
+        this.setUpColorMaterial(mat, gradientTexture, color3, unlit);
+
+        mat.wireframe = createOptions.effect?.wireframe ?? false;
+
+        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
+        // submeshes drawn with this material -- of which a new material has none.
+        mat.checkReadyOnlyOnce = true;
+    }
+
+    /**
+     * Write a node material that draws a picture; see {@link NodeMesh.setUpMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param createOptions - Creation options carrying the shape
+     * @param picture - The picture the node draws
+     * @param is2D - Whether the scene is rendering in 2D mode
+     * @param unlit - Whether the node draws its own colour with no light
+     */
+    private static setUpPictureMaterial(
+        mat: StandardMaterial,
+        createOptions: NodeMeshCreateOptions,
+        picture: BaseTexture,
+        is2D: boolean,
+        unlit: boolean,
+    ): void {
+        // `node.texture` is the surface: white underneath, so the picture keeps its colors, and
+        // its transparent pixels are stored white (TextureCache). A flat node is the picture
+        // itself, an icon: its transparent pixels are cut out (alpha test, so instanced nodes
+        // need no sorting). A solid keeps its surface whole, white where the picture is clear,
+        // so a box never turns into six loose cut-outs.
+        mat.diffuseTexture = picture;
+        mat.diffuseColor = Color3.White();
+        const { shape } = createOptions;
+        if (is2D || shape?.planar === true || isFlatShape(shape?.type ?? "")) {
+            mat.opacityTexture = picture;
+            mat.transparencyMode = Material.MATERIAL_ALPHATEST;
+        }
+        if (unlit) {
+            mat.disableLighting = true;
+            mat.emissiveTexture = picture;
+        } else {
+            mat.emissiveColor = new Color3(0.2, 0.2, 0.2);
+        }
+    }
+
+    /**
+     * Write a node material's gradient or flat colour; see {@link NodeMesh.setUpMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param gradientTexture - The gradient ramp, when the style has one that could be allocated
+     * @param color3 - The flat colour, when the style has one
+     * @param unlit - Whether the node draws its own colour with no light
+     */
+    private static setUpColorMaterial(
+        mat: StandardMaterial,
+        gradientTexture: DynamicTexture | undefined,
+        color3: Color3 | undefined,
+        unlit: boolean,
+    ): void {
         if (gradientTexture) {
             if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
@@ -1082,12 +1121,6 @@ export class NodeMesh {
                 shadeInstanceColors(mat);
             }
         }
-
-        mat.wireframe = createOptions.effect?.wireframe ?? false;
-
-        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
-        // submeshes drawn with this material -- of which a new material has none.
-        mat.checkReadyOnlyOnce = true;
     }
 
     private static extractColor(color: unknown): Color3 | undefined {

@@ -73,47 +73,42 @@ export function stripCommonFolder(files: Map<string, Uint8Array>): Map<string, U
     }
 }
 
+/** A file of a source before it is read: its name and its bytes or blob. */
+type SourceEntry = [string, BlobLike | Uint8Array];
+
 /**
- * Read every shape of {@link AssetSource} except a URL into path to bytes, checking the byte
- * limit before reading anything.
+ * The files a source holds, unread, and the main file it named.
  * @param source - The source.
- * @param limits - The limits in force.
- * @returns The file set as given, and the main file the source named.
+ * @returns The entries and the main file, if any.
  */
-export async function readSource(
-    source: Exclude<AssetSource, string>,
-    limits: ModelLimits,
-): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
-    let entries: [string, BlobLike | Uint8Array][];
-    let main: string | undefined;
+function entriesOfSource(source: Exclude<AssetSource, string>): { entries: SourceEntry[]; main?: string } {
     if (source instanceof Uint8Array) {
-        entries = [[BYTES_KEY, source]];
-    } else if (source instanceof ArrayBuffer) {
-        entries = [[BYTES_KEY, new Uint8Array(source)]];
-    } else if ("files" in source && source.files instanceof Map) {
-        entries = [...source.files.entries()];
-        ({ main } = source);
-    } else if (isBlobLike(source) && typeof source.name === "string") {
-        const blob = source;
-        entries = [[blob.webkitRelativePath || blob.name, blob]];
-    } else {
-        const many = source as Iterable<NamedBlob> | ArrayLike<NamedBlob>;
-        const blobs = Symbol.iterator in many ? [...many] : Array.from(many);
-        entries = blobs.map((blob) => [blob.webkitRelativePath || blob.name, blob]);
+        return { entries: [[BYTES_KEY, source]] };
     }
 
-    if (entries.length === 0) {
-        refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: null });
+    if (source instanceof ArrayBuffer) {
+        return { entries: [[BYTES_KEY, new Uint8Array(source)]] };
     }
 
-    const total = entries.reduce(
-        (sum, [, value]) => sum + (value instanceof Uint8Array ? value.length : value.size),
-        0,
-    );
-    if (total > limits.maxBytes) {
-        refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: total, limit: limits.maxBytes });
+    if ("files" in source && source.files instanceof Map) {
+        return { entries: [...source.files.entries()], main: source.main };
     }
 
+    if (isBlobLike(source) && typeof source.name === "string") {
+        return { entries: [[source.webkitRelativePath || source.name, source]] };
+    }
+
+    const many = source as Iterable<NamedBlob> | ArrayLike<NamedBlob>;
+    const blobs = Symbol.iterator in many ? [...many] : Array.from(many);
+    return { entries: blobs.map((blob) => [blob.webkitRelativePath || blob.name, blob]) };
+}
+
+/**
+ * Read entries into path to bytes, refusing a bad path and two paths that differ only by case.
+ * @param entries - The entries.
+ * @returns Normalized path to a copy of the bytes.
+ */
+async function readEntries(entries: readonly SourceEntry[]): Promise<Map<string, Uint8Array>> {
     const given = new Map<string, Uint8Array>();
     const lower = new Map<string, string>();
     for (const [name, value] of entries) {
@@ -132,6 +127,36 @@ export async function readSource(
         given.set(path, value instanceof Uint8Array ? value.slice() : new Uint8Array(await value.arrayBuffer()));
     }
 
+    return given;
+}
+
+/**
+ * Read every shape of {@link AssetSource} except a URL into path to bytes, checking the byte
+ * limit before reading anything.
+ * @param source - The source.
+ * @param limits - The limits in force.
+ * @returns The file set as given, and the main file the source named.
+ */
+export async function readSource(
+    source: Exclude<AssetSource, string>,
+    limits: ModelLimits,
+): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
+    const read = entriesOfSource(source);
+    const { entries } = read;
+    let { main } = read;
+    if (entries.length === 0) {
+        refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: null });
+    }
+
+    const total = entries.reduce(
+        (sum, [, value]) => sum + (value instanceof Uint8Array ? value.length : value.size),
+        0,
+    );
+    if (total > limits.maxBytes) {
+        refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: total, limit: limits.maxBytes });
+    }
+
+    const given = await readEntries(entries);
     const stripped = stripCommonFolder(given);
     if (main !== undefined && stripped !== given) {
         const prefix = [...given.keys()][0].slice(0, [...given.keys()][0].length - [...stripped.keys()][0].length);
@@ -225,6 +250,211 @@ function redirectRefusal(from: URL, to: URL): CodedFact | undefined {
     return undefined;
 }
 
+/** What the fetch this module calls answers. */
+type FetchResponse = Awaited<ReturnType<FetchLike>>;
+
+/** What a fetch carries into the redirect it follows. */
+interface FetchContext {
+    readonly limits: ModelLimits;
+    readonly signal: AbortSignal | undefined;
+    readonly gate: RedirectGate | undefined;
+    readonly hops: number;
+    readonly shown: string;
+}
+
+/**
+ * Whether the browser says it is offline.
+ * @returns True only when `navigator.onLine` is false.
+ */
+function isOffline(): boolean {
+    return (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+}
+
+/**
+ * Refuse an address a model is never fetched from: not a web address, or one with credentials.
+ * @param url - The URL.
+ */
+function checkFetchable(url: URL): void {
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+        refuse("E_MODEL_URL_BLOCKED", { hosts: [cut(url.host)], scheme: url.protocol });
+    }
+
+    if (url.username !== "" || url.password !== "") {
+        refuse("E_MODEL_URL_BLOCKED", { hosts: [cut(url.host)], credentials: true });
+    }
+}
+
+/**
+ * Send the request: no credentials, no referrer, redirects followed.
+ * @param url - The URL.
+ * @param abort - The signal that ends the request.
+ * @param signal - The caller's signal.
+ * @param shown - The URL as a fact shows it.
+ * @returns The answer.
+ */
+async function send(
+    url: URL,
+    abort: AbortSignal,
+    signal: AbortSignal | undefined,
+    shown: string,
+): Promise<FetchResponse> {
+    const fetchFn = (globalThis as unknown as { fetch: FetchLike }).fetch;
+    try {
+        return await fetchFn(url.href, {
+            mode: "cors",
+            credentials: "omit",
+            referrerPolicy: "no-referrer",
+            redirect: "follow",
+            signal: abort,
+        });
+    } catch {
+        signal?.throwIfAborted();
+        return refuse("E_MODEL_FETCH", { url: shown, status: null, offline: isOffline() });
+    }
+}
+
+/**
+ * Parse an address.
+ * @param text - The address.
+ * @returns The URL, or undefined when it does not parse.
+ */
+function parseUrl(text: string): URL | undefined {
+    try {
+        return new URL(text);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Handle an answer from another address than the one asked for (design 2.6): never a private one
+ * from a public one, and another host only as `gate` says.
+ * @param response - The answer.
+ * @param url - The address asked for.
+ * @param context - The fetch's limits, signal, gate, hops and shown URL.
+ * @returns The file set fetched from the address the reader allowed, or undefined to read this answer.
+ */
+async function followRedirect(
+    response: FetchResponse,
+    url: URL,
+    context: FetchContext,
+): Promise<Map<string, Uint8Array> | undefined> {
+    if (response.redirected !== true || typeof response.url !== "string" || response.url === url.href) {
+        return undefined;
+    }
+
+    // ponytail: the redirected request has already been sent; redirect "manual" would stop it
+    // but breaks every host that hands its files to a CDN.
+    const to = parseUrl(response.url);
+    const refusal = to === undefined ? undefined : redirectRefusal(url, to);
+    const asking = to === undefined || to.host === url.host ? undefined : context.gate?.(url, to);
+    if (to !== undefined && refusal === undefined && asking === undefined) {
+        return undefined;
+    }
+
+    await response.body?.cancel?.().catch(() => undefined);
+    const why = refusal ?? (await asking);
+    if (why !== undefined) {
+        refuse(why.code, why.params);
+    }
+
+    if (to === undefined || context.hops >= MAX_REDIRECT_HOPS) {
+        refuse("E_MODEL_FETCH", { url: context.shown, status: "redirect", offline: false });
+    }
+
+    // The reader allowed the host it was sent to: fetch that address.
+    return await fetchModel(to, context.limits, context.signal, context.gate, context.hops + 1);
+}
+
+/**
+ * Read a stream until it ends or passes the byte cap, cancelling it then.
+ * @param reader - The stream's reader.
+ * @param maxBytes - The byte cap.
+ * @returns The chunks kept, and the bytes counted (past the cap when it was passed).
+ */
+async function readChunks(
+    reader: ReturnType<NonNullable<FetchResponse["body"]>["getReader"]>,
+    maxBytes: number,
+): Promise<{ chunks: Uint8Array[]; total: number }> {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) {
+            break;
+        }
+
+        total += value?.length ?? 0;
+        if (total > maxBytes) {
+            await reader.cancel();
+            break;
+        }
+
+        if (value !== undefined) {
+            chunks.push(value);
+        }
+    }
+
+    return { chunks, total };
+}
+
+/**
+ * Read an answer's body, holding it to the byte cap while it streams.
+ * @param response - The answer.
+ * @param limits - The limits in force.
+ * @param signal - The caller's signal.
+ * @param shown - The URL as a fact shows it.
+ * @returns The bytes.
+ */
+async function readBody(
+    response: FetchResponse,
+    limits: ModelLimits,
+    signal: AbortSignal | undefined,
+    shown: string,
+): Promise<Uint8Array> {
+    let read: { chunks: Uint8Array[]; total: number };
+    try {
+        if (response.body === null) {
+            const whole = new Uint8Array(await response.arrayBuffer());
+            read = { chunks: [whole], total: whole.length };
+        } else {
+            read = await readChunks(response.body.getReader(), limits.maxBytes);
+        }
+    } catch {
+        signal?.throwIfAborted();
+        refuse("E_MODEL_FETCH", { url: shown, status: null, offline: isOffline() });
+    }
+
+    if (read.total > limits.maxBytes) {
+        refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: read.total, limit: limits.maxBytes });
+    }
+
+    const bytes = new Uint8Array(read.total);
+    let at = 0;
+    for (const chunk of read.chunks) {
+        bytes.set(chunk, at);
+        at += chunk.length;
+    }
+
+    return bytes;
+}
+
+/**
+ * The name a fetched file is stored under: the URL's last path segment, decoded.
+ * @param url - The URL.
+ * @returns The normalized name, or {@link BYTES_KEY} when there is none.
+ */
+function fetchedName(url: URL): string {
+    let name = BYTES_KEY;
+    try {
+        name = decodeURIComponent(url.pathname.slice(url.pathname.lastIndexOf("/") + 1)) || BYTES_KEY;
+    } catch {
+        // A malformed escape in the path: keep the plain key.
+    }
+
+    return normalizePath(name) || BYTES_KEY;
+}
+
 /**
  * Fetch a model with no credentials, no referrer, a time limit and a byte cap enforced while the
  * body streams.
@@ -242,14 +472,7 @@ export async function fetchModel(
     gate?: RedirectGate,
     hops = 0,
 ): Promise<Map<string, Uint8Array>> {
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-        refuse("E_MODEL_URL_BLOCKED", { hosts: [cut(url.host)], scheme: url.protocol });
-    }
-
-    if (url.username !== "" || url.password !== "") {
-        refuse("E_MODEL_URL_BLOCKED", { hosts: [cut(url.host)], credentials: true });
-    }
-
+    checkFetchable(url);
     const shown = shownUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -259,51 +482,11 @@ export async function fetchModel(
         controller.abort();
     };
     signal?.addEventListener("abort", onAbort);
-    const offline = (): boolean => (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
     try {
-        const fetchFn = (globalThis as unknown as { fetch: FetchLike }).fetch;
-        let response: Awaited<ReturnType<FetchLike>>;
-        try {
-            response = await fetchFn(url.href, {
-                mode: "cors",
-                credentials: "omit",
-                referrerPolicy: "no-referrer",
-                redirect: "follow",
-                signal: controller.signal,
-            });
-        } catch {
-            signal?.throwIfAborted();
-            refuse("E_MODEL_FETCH", { url: shown, status: null, offline: offline() });
-        }
-
-        // An answer from another address is read only once that address may be reached (design
-        // 2.6): never a private one from a public one, and another host only as `gate` says.
-        // ponytail: the redirected request has already been sent; redirect "manual" would stop it
-        // but breaks every host that hands its files to a CDN.
-        if (response.redirected === true && typeof response.url === "string" && response.url !== url.href) {
-            let to: URL | undefined;
-            try {
-                to = new URL(response.url);
-            } catch {
-                to = undefined;
-            }
-
-            const refusal = to === undefined ? undefined : redirectRefusal(url, to);
-            const asking = to === undefined || to.host === url.host ? undefined : gate?.(url, to);
-            if (to === undefined || refusal !== undefined || asking !== undefined) {
-                await response.body?.cancel?.().catch(() => undefined);
-                const why = refusal ?? (await asking);
-                if (why !== undefined) {
-                    refuse(why.code, why.params);
-                }
-
-                if (to === undefined || hops >= MAX_REDIRECT_HOPS) {
-                    refuse("E_MODEL_FETCH", { url: shown, status: "redirect", offline: false });
-                }
-
-                // The reader allowed the host it was sent to: fetch that address.
-                return await fetchModel(to, limits, signal, gate, hops + 1);
-            }
+        const response = await send(url, controller.signal, signal, shown);
+        const redirected = await followRedirect(response, url, { limits, signal, gate, hops, shown });
+        if (redirected !== undefined) {
+            return redirected;
         }
 
         if (!response.ok) {
@@ -315,55 +498,8 @@ export async function fetchModel(
             refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: declared, limit: limits.maxBytes });
         }
 
-        const chunks: Uint8Array[] = [];
-        let total = 0;
-        try {
-            if (response.body === null) {
-                chunks.push(new Uint8Array(await response.arrayBuffer()));
-                total = chunks[0].length;
-            } else {
-                const reader = response.body.getReader();
-                for (;;) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                        break;
-                    }
-
-                    total += value?.length ?? 0;
-                    if (total > limits.maxBytes) {
-                        await reader.cancel();
-                        break;
-                    }
-
-                    if (value !== undefined) {
-                        chunks.push(value);
-                    }
-                }
-            }
-        } catch {
-            signal?.throwIfAborted();
-            refuse("E_MODEL_FETCH", { url: shown, status: null, offline: offline() });
-        }
-
-        if (total > limits.maxBytes) {
-            refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: total, limit: limits.maxBytes });
-        }
-
-        const bytes = new Uint8Array(total);
-        let at = 0;
-        for (const chunk of chunks) {
-            bytes.set(chunk, at);
-            at += chunk.length;
-        }
-
-        let name = BYTES_KEY;
-        try {
-            name = decodeURIComponent(url.pathname.slice(url.pathname.lastIndexOf("/") + 1)) || BYTES_KEY;
-        } catch {
-            // A malformed escape in the path: keep the plain key.
-        }
-
-        return new Map([[normalizePath(name) || BYTES_KEY, bytes]]);
+        const bytes = await readBody(response, limits, signal, shown);
+        return new Map([[fetchedName(url), bytes]]);
     } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
@@ -400,7 +536,7 @@ export function isWebPage(bytes: Uint8Array): boolean {
         return false;
     }
 
-    const head = String.fromCharCode(...bytes.subarray(at, at + 14)).toLowerCase();
+    const head = String.fromCodePoint(...bytes.subarray(at, at + 14)).toLowerCase();
     return /^(?:<!doctype html|<html|<head|<body)/.test(head);
 }
 
@@ -460,6 +596,181 @@ function triesFor(name: string, role: unknown): string[] {
     return [...new Set(paths)];
 }
 
+/** What fetching a model's parts shares: the main URL, the limits, and the set as it grows. */
+interface PartFetch {
+    readonly url: URL;
+    readonly limits: ModelLimits;
+    readonly signal: AbortSignal | undefined;
+    readonly gate: RedirectGate | undefined;
+    readonly given: Map<string, Uint8Array>;
+    /** The bytes fetched so far, misses included. */
+    total: number;
+}
+
+/**
+ * The problems the checks find in a set.
+ * @param given - The set.
+ * @param main - Its main file.
+ * @param limits - The limits in force.
+ * @returns The facts, or undefined when the set passes.
+ */
+async function problemsOf(
+    given: ReadonlyMap<string, Uint8Array>,
+    main: string,
+    limits: ModelLimits,
+): Promise<readonly CodedFact[] | undefined> {
+    try {
+        await checkFileSet(given, { main }, limits);
+        return undefined;
+    } catch (error) {
+        if (!(error instanceof Refusal)) {
+            throw error;
+        }
+
+        return error.facts;
+    }
+}
+
+/**
+ * Whether a fact is about a part: one missing, or one several files match.
+ * @param fact - The fact.
+ * @returns True for `E_MODEL_MISSING_FILE` and `E_MODEL_PART_AMBIGUOUS`.
+ */
+function isPartProblem(fact: CodedFact): boolean {
+    return fact.code === "E_MODEL_MISSING_FILE" || fact.code === "E_MODEL_PART_AMBIGUOUS";
+}
+
+/**
+ * The refusal reported once the tries are over: every fact, a missing part's with the addresses
+ * tried, and the set held when only parts are missing.
+ * @param facts - The facts the checks found.
+ * @param tried - The addresses tried, by part name.
+ * @param parts - Whether only parts are missing.
+ * @param held - The set fetched so far and its main file.
+ * @param held.given - The set.
+ * @param held.main - Its main file.
+ * @returns The refusal.
+ */
+function finalRefusal(
+    facts: readonly CodedFact[],
+    tried: ReadonlyMap<string, string[]>,
+    parts: boolean,
+    held: { readonly given: Map<string, Uint8Array>; readonly main: string },
+): Refusal {
+    const [lead, ...more] = facts.map((f) => {
+        const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
+        return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
+    });
+    const refusal = new Refusal(lead.code, { ...lead.params }, more);
+    // Only parts are missing: the session holds what was fetched, for supply (design 12.4).
+    if (parts) {
+        refusal.held = held;
+    }
+
+    return refusal;
+}
+
+/**
+ * Fetch one address of a part.
+ * @param attempt - The address.
+ * @param fetching - The shared state.
+ * @returns The bytes, "retry" when the host refused it (401 or 403), or "stop" for another miss.
+ */
+async function fetchAttempt(attempt: URL, fetching: PartFetch): Promise<Uint8Array | "retry" | "stop"> {
+    const { limits } = fetching;
+    try {
+        const [bytes] = (
+            await fetchModel(
+                attempt,
+                { ...limits, maxBytes: Math.max(0, limits.maxBytes - fetching.total) },
+                fetching.signal,
+                fetching.gate,
+            )
+        ).values();
+        return bytes;
+    } catch (error) {
+        if (!(error instanceof Refusal) || error.fact.code !== "E_MODEL_FETCH") {
+            throw error;
+        }
+
+        const { status } = error.fact.params;
+        return status === 401 || status === 403 ? "retry" : "stop";
+    }
+}
+
+/**
+ * Fetch a part at one address: as written, then with the main URL's query once, when a signed
+ * URL's companion is refused without it.
+ * @param address - The address.
+ * @param fetching - The shared state.
+ * @param budget - The requests made for this part so far.
+ * @param budget.requests - The count, raised by each request.
+ * @returns The bytes, or undefined when none came.
+ */
+async function fetchAt(
+    address: URL,
+    fetching: PartFetch,
+    budget: { requests: number },
+): Promise<Uint8Array | undefined> {
+    const signed = new URL(address);
+    signed.search = fetching.url.search;
+    const attempts = fetching.url.search === "" ? [address] : [address, signed];
+    for (const attempt of attempts) {
+        if (budget.requests > MAX_EXTRA_REQUESTS) {
+            return undefined;
+        }
+
+        budget.requests++;
+        const outcome = await fetchAttempt(attempt, fetching);
+        if (outcome === "stop") {
+            return undefined;
+        }
+
+        if (outcome !== "retry") {
+            return outcome;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Try a missing part at every address of design 12.2, adding the first that holds it to the set.
+ * @param fact - The part's `E_MODEL_MISSING_FILE`.
+ * @param fetching - The shared state.
+ * @param tried - The addresses tried, by part name; this part's are recorded.
+ */
+async function fetchPart(fact: CodedFact, fetching: PartFetch, tried: Map<string, string[]>): Promise<void> {
+    const name = String(fact.params.name);
+    const shown: string[] = [];
+    tried.set(name, shown);
+    const budget = { requests: 0 };
+    for (const path of triesFor(name, fact.params.role)) {
+        if (fetching.given.size > MAX_COMPANION_FILES) {
+            refuse("E_MODEL_TOO_LARGE", { what: "count", found: fetching.given.size, limit: MAX_COMPANION_FILES });
+        }
+
+        // The path is normalized with no ".." left: the URL it resolves to is on the same
+        // origin and inside the main file's folder.
+        const address = new URL(path.split("/").map(encodeURIComponent).join("/"), fetching.url);
+        if (shown.length < MAX_TRIED_SHOWN) {
+            shown.push(shownUrl(address));
+        }
+
+        const bytes = await fetchAt(address, fetching, budget);
+        if (bytes === undefined) {
+            continue;
+        }
+
+        fetching.total += bytes.length;
+        // A host that answers every miss with its own page has not got the file.
+        if (!isWebPage(bytes)) {
+            fetching.given.set(path, bytes);
+            return;
+        }
+    }
+}
+
 /**
  * Fetch a model by URL with the files it references: a .gltf's .bin and images, an .obj's .mtl
  * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
@@ -499,98 +810,22 @@ export async function fetchModelSet(
         return { given, main };
     }
 
-    let total = first.length;
+    const fetching: PartFetch = { url, limits, signal, gate, given, total: first.length };
     const tried = new Map<string, string[]>();
     for (;;) {
-        let facts: readonly CodedFact[];
-        try {
-            await checkFileSet(given, { main }, limits);
+        const facts = await problemsOf(given, main, limits);
+        if (facts === undefined) {
             return { given, main };
-        } catch (error) {
-            if (!(error instanceof Refusal)) {
-                throw error;
-            }
-
-            ({ facts } = error);
         }
 
-        const parts = facts.every((f) => f.code === "E_MODEL_MISSING_FILE" || f.code === "E_MODEL_PART_AMBIGUOUS");
+        const parts = facts.every(isPartProblem);
         const fresh = facts.filter((f) => f.code === "E_MODEL_MISSING_FILE" && !tried.has(String(f.params.name)));
         if (!parts || fresh.length === 0) {
-            const [first, ...more] = facts.map((f) => {
-                const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
-                return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
-            });
-            const refusal = new Refusal(first.code, { ...first.params }, more);
-            // Only parts are missing: the session holds what was fetched, for supply (design 12.4).
-            if (parts) {
-                refusal.held = { given, main };
-            }
-
-            throw refusal;
+            throw finalRefusal(facts, tried, parts, { given, main });
         }
 
         for (const fact of fresh) {
-            const name = String(fact.params.name);
-            const shown: string[] = [];
-            tried.set(name, shown);
-            let requests = 0;
-            for (const path of triesFor(name, fact.params.role)) {
-                if (given.size > MAX_COMPANION_FILES) {
-                    refuse("E_MODEL_TOO_LARGE", { what: "count", found: given.size, limit: MAX_COMPANION_FILES });
-                }
-
-                // The path is normalized with no ".." left: the URL it resolves to is on the same
-                // origin and inside the main file's folder.
-                const address = new URL(path.split("/").map(encodeURIComponent).join("/"), url);
-                if (shown.length < MAX_TRIED_SHOWN) {
-                    shown.push(shownUrl(address));
-                }
-
-                // Beside the address as written, the same one with the main URL's query once, when
-                // a signed URL's companion is refused without it.
-                const signed = new URL(address);
-                signed.search = url.search;
-                const attempts = url.search === "" ? [address] : [address, signed];
-                let bytes: Uint8Array | undefined;
-                for (const attempt of attempts) {
-                    if (requests > MAX_EXTRA_REQUESTS) {
-                        break;
-                    }
-
-                    requests++;
-                    try {
-                        [bytes] = (
-                            await fetchModel(
-                                attempt,
-                                { ...limits, maxBytes: Math.max(0, limits.maxBytes - total) },
-                                signal,
-                                gate,
-                            )
-                        ).values();
-                        break;
-                    } catch (error) {
-                        if (!(error instanceof Refusal) || error.fact.code !== "E_MODEL_FETCH") {
-                            throw error;
-                        }
-
-                        if (error.fact.params.status !== 401 && error.fact.params.status !== 403) {
-                            break;
-                        }
-                    }
-                }
-
-                if (bytes === undefined) {
-                    continue;
-                }
-
-                total += bytes.length;
-                // A host that answers every miss with its own page has not got the file.
-                if (!isWebPage(bytes)) {
-                    given.set(path, bytes);
-                    break;
-                }
-            }
+            await fetchPart(fact, fetching, tried);
         }
     }
 }
@@ -704,19 +939,29 @@ const MAX_CANDIDATES = 64;
 /** Ranks of formats graphty-element recognizes but does not load: after every built-in one. */
 const UNSUPPORTED_RANK = BUILT_IN_MODEL_FORMATS.length;
 
+/** A main file chosen: its path, its format, and whether the element loads that format. */
+type MainFile = { path: string; format: ModelFormat; supported: boolean };
+
+/** A file that could be the main one, with its rank (lower is better). */
+type Candidate = MainFile & { rank: number };
+
 /**
- * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, then formats the
- * element does not load; of files sharing a base name only the best ranked counts; two different
- * candidates of the best rank are ambiguous.
- * @param files - The set.
- * @param forced - A format the caller forced.
- * @returns The main path and its format.
+ * Order two strings by UTF-16 code units, as the default `sort` does.
+ * @param a - One string.
+ * @param b - The other.
+ * @returns Negative, zero or positive.
  */
-function chooseMain(
-    files: ReadonlyMap<string, Uint8Array>,
-    forced?: ModelFormat,
-): { path: string; format: ModelFormat; supported: boolean } {
-    const candidates: { path: string; format: ModelFormat; supported: boolean; rank: number }[] = [];
+function byCodeUnits(a: string, b: string): number {
+    return a < b ? -1 : Number(a > b);
+}
+
+/**
+ * Every file of a set whose bytes or name tell a model format other than zip, ranked.
+ * @param files - The set.
+ * @returns The candidates.
+ */
+function rankedCandidates(files: ReadonlyMap<string, Uint8Array>): Candidate[] {
+    const candidates: Candidate[] = [];
     for (const [path, bytes] of files) {
         const found = detectModelFormat({ filename: path, head: bytes });
         if (found === undefined || found.format === "zip") {
@@ -729,6 +974,37 @@ function chooseMain(
         candidates.push({ path, ...found, rank: rank < 0 ? UNSUPPORTED_RANK : rank });
     }
 
+    return candidates;
+}
+
+/**
+ * Of candidates with the same base name (rack.glb, rack.obj, rack.fbx), the best ranked.
+ * @param candidates - The candidates.
+ * @returns One per base name, the first best ranked.
+ */
+function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
+    const byBase = new Map<string, Candidate>();
+    for (const candidate of candidates) {
+        const base = candidate.path.replace(/\.[^./]*$/, "").toLowerCase();
+        const held = byBase.get(base);
+        if (held === undefined || candidate.rank < held.rank) {
+            byBase.set(base, candidate);
+        }
+    }
+
+    return [...byBase.values()];
+}
+
+/**
+ * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, then formats the
+ * element does not load; of files sharing a base name only the best ranked counts; two different
+ * candidates of the best rank are ambiguous.
+ * @param files - The set.
+ * @param forced - A format the caller forced.
+ * @returns The main path and its format.
+ */
+function chooseMain(files: ReadonlyMap<string, Uint8Array>, forced?: ModelFormat): MainFile {
+    const candidates = rankedCandidates(files);
     if (candidates.length === 0) {
         if (forced !== undefined && files.size === 1) {
             const [path] = files.keys();
@@ -738,28 +1014,110 @@ function chooseMain(
         refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut([...files.keys()][0] ?? "") });
     }
 
-    // Of files with the same base name (rack.glb, rack.obj, rack.fbx), keep the best ranked.
-    const byBase = new Map<string, (typeof candidates)[number]>();
-    for (const candidate of candidates) {
-        const base = candidate.path.replace(/\.[^./]*$/, "").toLowerCase();
-        const held = byBase.get(base);
-        if (held === undefined || candidate.rank < held.rank) {
-            byBase.set(base, candidate);
-        }
-    }
-
-    const kept = [...byBase.values()];
+    const kept = bestOfEachBase(candidates);
     const best = Math.min(...kept.map((c) => c.rank));
     const top = kept.filter((c) => c.rank === best);
     if (top.length > 1) {
-        const candidates = top.map((c) => cut(c.path)).sort();
+        const names = top.map((c) => cut(c.path)).sort(byCodeUnits);
         refuse("E_MODEL_AMBIGUOUS", {
-            candidates: candidates.slice(0, MAX_CANDIDATES),
-            ...(candidates.length > MAX_CANDIDATES ? { more: candidates.length - MAX_CANDIDATES } : {}),
+            candidates: names.slice(0, MAX_CANDIDATES),
+            ...(names.length > MAX_CANDIDATES ? { more: names.length - MAX_CANDIDATES } : {}),
         });
     }
 
     return { ...top[0], ...(forced === undefined ? {} : { format: forced, supported: true }) };
+}
+
+/**
+ * The main file the caller named, refused when the set does not hold it.
+ * @param files - The set.
+ * @param named - The caller's main file.
+ * @param format - A format the caller forced.
+ * @returns The main file.
+ */
+function namedMain(files: ReadonlyMap<string, Uint8Array>, named: string, format?: ModelFormat): MainFile {
+    const path = normalizePath(named);
+    if (path === undefined || !files.has(path)) {
+        refuse("E_MODEL_MISSING_FILE", { name: cut(named), referencedBy: null });
+    }
+
+    if (format !== undefined) {
+        return { path, format, supported: true };
+    }
+
+    const found = detectModelFormat({ filename: path, head: files.get(path) });
+    return { path, format: found?.format ?? "", supported: found?.supported ?? false };
+}
+
+/**
+ * Refuse every part found missing, at once.
+ * @param findings - What the lookups found.
+ */
+function refuseMissing(findings: Findings): void {
+    if (findings.missing.length > 0) {
+        refuseAll(findings.missing);
+    }
+}
+
+/**
+ * Decode a .gltf's JSON text.
+ * @param bytes - The file.
+ * @returns The text.
+ */
+function gltfText(bytes: Uint8Array): string {
+    try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+        return refuse("E_MODEL_STRUCTURE", { rule: "json" });
+    }
+}
+
+/**
+ * Run the checks of the main file's format. Every part the model names is looked up first, so
+ * every missing one is reported at once.
+ * @param main - The main file, of a format the element loads.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param findings - Where lookups record substitutions and missing parts.
+ * @returns The summary and the format's warnings.
+ */
+function checkByFormat(
+    main: MainFile,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    findings: Findings,
+): { summary: ModelSummary; warnings: readonly CodedFact[] } {
+    const bytes = files.get(main.path) as Uint8Array;
+    switch (main.format) {
+        case "glb": {
+            const { text, bin } = readGlb(bytes);
+            const json = parseGltfJson(text);
+            findGltfParts(json, main.path, files, findings);
+            refuseMissing(findings);
+            return checkGltf({
+                json,
+                ...(bin === undefined ? {} : { bin }),
+                path: main.path,
+                files,
+                limits,
+                format: "glb",
+            });
+        }
+        case "gltf": {
+            const json = parseGltfJson(gltfText(bytes));
+            findGltfParts(json, main.path, files, findings);
+            refuseMissing(findings);
+            return checkGltf({ json, path: main.path, files, limits, format: "gltf" });
+        }
+        case "obj":
+            findObjParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanObj(main.path, files, limits);
+        case "stl":
+            return scanStl(bytes, limits);
+        default:
+            return scanPly(bytes, limits);
+    }
 }
 
 /**
@@ -775,30 +1133,9 @@ export async function checkFileSet(
     options: Pick<AddAssetOptions, "main" | "format">,
     limits: ModelLimits,
 ): Promise<CheckedModel> {
-    let files = given;
-    if (given.size === 1) {
-        const [only] = given.values();
-        if (isZip(only) && detectModelFormat({ filename: [...given.keys()][0], head: only })?.format === "zip") {
-            files = stripCommonFolder(await unzipModel(only, limits.maxBytes));
-        }
-    }
-
-    let main: { path: string; format: ModelFormat; supported: boolean };
-    if (options.main !== undefined) {
-        const path = normalizePath(options.main);
-        if (path === undefined || !files.has(path)) {
-            refuse("E_MODEL_MISSING_FILE", { name: cut(options.main), referencedBy: null });
-        }
-
-        const found = detectModelFormat({ filename: path, head: files.get(path) });
-        main =
-            options.format === undefined
-                ? { path, format: found?.format ?? "", supported: found?.supported ?? false }
-                : { path, format: options.format, supported: true };
-    } else {
-        main = chooseMain(files, options.format);
-    }
-
+    const files = await unpackZip(given, limits);
+    const main =
+        options.main === undefined ? chooseMain(files, options.format) : namedMain(files, options.main, options.format);
     if (!main.supported || !(BUILT_IN_MODEL_FORMATS as readonly string[]).includes(main.format)) {
         if (main.format === "") {
             refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut(main.path) });
@@ -807,57 +1144,8 @@ export async function checkFileSet(
         refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }
 
-    const bytes = files.get(main.path) as Uint8Array;
-    // Every part the model names is looked up first, so every missing one is reported at once.
     const findings: Findings = { warnings: [], missing: [] };
-    const found = (): void => {
-        if (findings.missing.length > 0) {
-            refuseAll(findings.missing);
-        }
-    };
-    let checked: { summary: ModelSummary; warnings: readonly CodedFact[] };
-    switch (main.format) {
-        case "glb": {
-            const { text, bin } = readGlb(bytes);
-            const json = parseGltfJson(text);
-            findGltfParts(json, main.path, files, findings);
-            found();
-            checked = checkGltf({
-                json,
-                ...(bin === undefined ? {} : { bin }),
-                path: main.path,
-                files,
-                limits,
-                format: "glb",
-            });
-            break;
-        }
-        case "gltf": {
-            let text: string;
-            try {
-                text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-            } catch {
-                refuse("E_MODEL_STRUCTURE", { rule: "json" });
-            }
-
-            const json = parseGltfJson(text);
-            findGltfParts(json, main.path, files, findings);
-            found();
-            checked = checkGltf({ json, path: main.path, files, limits, format: "gltf" });
-            break;
-        }
-        case "obj":
-            findObjParts(main.path, files, limits, findings);
-            found();
-            checked = scanObj(main.path, files, limits);
-            break;
-        case "stl":
-            checked = scanStl(bytes, limits);
-            break;
-        default:
-            checked = scanPly(bytes, limits);
-    }
-
+    const checked = checkByFormat(main, files, limits, findings);
     return {
         files,
         main: main.path,

@@ -1138,6 +1138,24 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
 }
 
 /**
+ * Report a binding `node.model` or `node.texture` cannot take.
+ * @param descriptor - The channel's descriptor.
+ * @param binding - The binding.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkModelBinding(descriptor: ChannelDescriptor, binding: Binding, path: string, log: ProblemLog): void {
+    if (descriptor.channel !== "node.model" && descriptor.channel !== "node.texture") {
+        return;
+    }
+
+    const blocked = modelBindingProblem(binding, path);
+    if (blocked !== null) {
+        report(log, blocked);
+    }
+}
+
+/**
  * Check every channel the specification writes.
  * @param spec - The specification.
  * @param target - The layer's target, or null when it could not be settled.
@@ -1171,13 +1189,7 @@ function checkChannels(
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
-            const blocked =
-                descriptor.channel === "node.model" || descriptor.channel === "node.texture"
-                    ? modelBindingProblem(binding, path)
-                    : null;
-            if (blocked !== null) {
-                report(log, blocked);
-            }
+            checkModelBinding(descriptor, binding, path, log);
         }
     }
 }

@@ -151,8 +151,13 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         const badge =
             problem === undefined ? null : (
                 <Tooltip key="model" label={problem}>
-                    <span data-pinned="" role="img" aria-label={`Model not drawn: ${problem}`}>
-                        <TriangleAlert size={14} color="var(--cm-text-warning, var(--mantine-color-yellow-7))" />
+                    <span data-pinned="">
+                        <TriangleAlert
+                            size={14}
+                            color="var(--cm-text-warning, var(--mantine-color-yellow-7))"
+                            role="img"
+                            aria-label={`Model not drawn: ${problem}`}
+                        />
                     </span>
                 </Tooltip>
             );

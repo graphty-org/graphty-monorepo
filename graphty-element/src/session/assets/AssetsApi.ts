@@ -11,7 +11,7 @@
  * page's code and are never saved.
  */
 
-import type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
+import type { ModelFormat } from "../../catalog/detectModel";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact } from "../shared";
@@ -34,9 +34,8 @@ const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
  */
 const loadSamples = (): Promise<typeof import("./samples")> => import("./samples");
 
-export type { BuiltInModelFormat, ModelFormat };
-
-export { type AssetId, isAssetId, SAMPLE_PREFIX };
+export type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
+export { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
@@ -1722,7 +1721,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 if (
                     !(key in DEFAULT_MODEL_LIMITS) ||
                     typeof value !== "number" ||
-                    !(value > 0) ||
+                    value <= 0 ||
                     !Number.isFinite(value)
                 ) {
                     throw new GraphtyError({

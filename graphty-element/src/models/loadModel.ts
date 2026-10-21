@@ -53,7 +53,9 @@ const EXTENSIONS: Readonly<Record<string, ".glb" | ".gltf" | ".obj" | ".stl">> =
  * @returns What to show.
  */
 function shown(url: string): string {
-    return url.replace(/[?#].*$/, "").slice(0, 256);
+    // An index search, not a `[?#].*$` regex: that one backtracks polynomially on many `?`s.
+    const cut = url.search(/[?#]/);
+    return (cut === -1 ? url : url.slice(0, cut)).slice(0, 256);
 }
 
 /**

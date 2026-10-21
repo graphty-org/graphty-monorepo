@@ -1097,18 +1097,7 @@ export class Node implements ModelUser {
      */
     private applyInstanceColor(color: Rgba | null): void {
         if (this.drawnModel !== null) {
-            // A model keeps its own colours unless `node.modelTint` asks for the node's: every
-            // template registers the colour buffer white, so this is one write per part.
-            const tint =
-                color !== null && modelTinted(this.drawnStyle?.shape)
-                    ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
-                    : UNTINTED;
-            for (const part of [this.mesh, ...this.mesh.getChildMeshes(true)]) {
-                if (part instanceof InstancedMesh && this.drawnModel.groups.includes(part.sourceMesh)) {
-                    part.instancedBuffers.color = tint;
-                }
-            }
-
+            this.applyModelTint(this.drawnModel, color);
             return;
         }
 
@@ -1138,6 +1127,26 @@ export class Node implements ModelUser {
         // SOURCE mesh, so it is part of the key rather than of this buffer. An alpha here would
         // be inert without a VERTEXALPHA define and would read as opacity that does nothing.
         this.mesh.instancedBuffers.color = new Color4(color.r / 255, color.g / 255, color.b / 255, 1);
+    }
+
+    /**
+     * Write the tint of a drawn model into each of its instanced parts.
+     *
+     * A model keeps its own colours unless `node.modelTint` asks for the node's: every template
+     * registers the colour buffer white, so this is one write per part.
+     * @param model - The model this node draws.
+     * @param color - The colour, or null when no layer painted one.
+     */
+    private applyModelTint(model: ModelTemplate, color: Rgba | null): void {
+        const tint =
+            color !== null && modelTinted(this.drawnStyle?.shape)
+                ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
+                : UNTINTED;
+        for (const part of [this.mesh, ...this.mesh.getChildMeshes(true)]) {
+            if (part instanceof InstancedMesh && model.groups.includes(part.sourceMesh)) {
+                part.instancedBuffers.color = tint;
+            }
+        }
     }
 
     /**

@@ -55,6 +55,6 @@ export function quadGlb(): Uint8Array<ArrayBuffer> {
 export function dotPng(): Uint8Array<ArrayBuffer> {
     return Uint8Array.from(
         atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
-        (c) => c.charCodeAt(0),
+        (c) => c.codePointAt(0) ?? 0,
     );
 }

@@ -93,7 +93,7 @@ export function dirOf(path: string): string {
  */
 export function normalizePath(path: string): string | undefined {
     const out: string[] = [];
-    for (const part of path.replace(/\\/g, "/").split("/")) {
+    for (const part of path.replaceAll("\\", "/").split("/")) {
         if (part === "" || part === ".") {
             continue;
         }
@@ -146,6 +146,16 @@ export type SetMatch =
     { readonly path: string; readonly substituted: boolean } | { readonly candidates: readonly string[] } | undefined;
 
 /**
+ * Order two strings by UTF-16 code units, as the default `sort` does.
+ * @param a - One string.
+ * @param b - The other.
+ * @returns Negative, zero or positive.
+ */
+function byCodeUnits(a: string, b: string): number {
+    return a < b ? -1 : Number(a > b);
+}
+
+/**
  * Find a path in a file set (design 12.5): as written, then in any case, then by base name in any
  * case anywhere in the set. The last two count only when exactly one file matches.
  * @param path - A normalized path.
@@ -170,7 +180,8 @@ export function matchInSet(path: string, files: ReadonlyMap<string, unknown>, ba
         }
 
         if (found.length > 1) {
-            return { candidates: found.sort() };
+            found.sort(byCodeUnits);
+            return { candidates: found };
         }
     }
 
@@ -195,7 +206,7 @@ function decodeDataUrl(ref: string): Uint8Array | undefined {
             const binary = atob(payload);
             const bytes = new Uint8Array(binary.length);
             for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
+                bytes[i] = binary.codePointAt(i) ?? 0;
             }
 
             return bytes;
@@ -340,56 +351,80 @@ export function resolveReference(ref: string, from: string, files: ReadonlyMap<s
     };
 }
 
+/** An image's size in pixels. */
+type ImageSize = { width: number; height: number };
+
+/**
+ * A JPEG's size: walk the segments to the first start-of-frame.
+ * @param bytes - The image file, known to start with the JPEG marker.
+ * @param view - A view of the same bytes.
+ * @returns The size, or undefined when no frame header is found.
+ */
+function jpegSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    let at = 2;
+    while (at + 9 < bytes.length) {
+        if (bytes[at] !== 0xff) {
+            return undefined;
+        }
+
+        const marker = bytes[at + 1];
+        const length = view.getUint16(at + 2);
+        const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+        if (isFrame) {
+            return { width: view.getUint16(at + 7), height: view.getUint16(at + 5) };
+        }
+
+        at += 2 + length;
+    }
+
+    return undefined;
+}
+
+/**
+ * A WebP's size from its VP8, VP8L or VP8X chunk.
+ * @param bytes - The image file, known to be RIFF....WEBP of at least 30 bytes.
+ * @param view - A view of the same bytes.
+ * @returns The size, or undefined for another chunk.
+ */
+function webpSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const chunk = String.fromCodePoint(bytes[12], bytes[13], bytes[14], bytes[15]);
+    if (chunk === "VP8 ") {
+        return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+    }
+
+    if (chunk === "VP8L") {
+        const bits = view.getUint32(21, true);
+        return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+
+    if (chunk === "VP8X") {
+        const width = 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16));
+        const height = 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16));
+        return { width, height };
+    }
+
+    return undefined;
+}
+
 /**
  * An image's width and height from its PNG, JPEG or WebP header, without decoding it.
  * @param bytes - The image file.
  * @returns The size, or undefined when the header is not one of those three.
  */
-export function imageSize(bytes: Uint8Array): { width: number; height: number } | undefined {
+export function imageSize(bytes: Uint8Array): ImageSize | undefined {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     // PNG: the signature, then IHDR with width and height.
     if (bytes.length >= 24 && view.getUint32(0) === 0x89504e47 && view.getUint32(12) === 0x49484452) {
         return { width: view.getUint32(16), height: view.getUint32(20) };
     }
 
-    // JPEG: walk the segments to the first start-of-frame.
     if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-        let at = 2;
-        while (at + 9 < bytes.length) {
-            if (bytes[at] !== 0xff) {
-                return undefined;
-            }
-
-            const marker = bytes[at + 1];
-            const length = view.getUint16(at + 2);
-            const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
-            if (isFrame) {
-                return { width: view.getUint16(at + 7), height: view.getUint16(at + 5) };
-            }
-
-            at += 2 + length;
-        }
-
-        return undefined;
+        return jpegSize(bytes, view);
     }
 
     // WebP: RIFF....WEBP, then VP8, VP8L or VP8X.
     if (bytes.length >= 30 && view.getUint32(0) === 0x52494646 && view.getUint32(8) === 0x57454250) {
-        const chunk = String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]);
-        if (chunk === "VP8 ") {
-            return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
-        }
-
-        if (chunk === "VP8L") {
-            const bits = view.getUint32(21, true);
-            return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
-        }
-
-        if (chunk === "VP8X") {
-            const width = 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16));
-            const height = 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16));
-            return { width, height };
-        }
+        return webpSize(bytes, view);
     }
 
     return undefined;

@@ -112,7 +112,7 @@ export function ModelPicker({ onPick, kind = "model" }: Readonly<ModelPickerProp
                     ))}
                 </>
             ) : null}
-            <div
+            <div // NOSONAR(S6848): a drop target only; the Choose file... button is its keyboard path
                 data-testid="model-drop-zone"
                 data-over={over || undefined}
                 style={{

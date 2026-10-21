@@ -56,7 +56,7 @@ import {
     splatProgram,
 } from "../shaders/runtime/scenePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
-import { SCENE_BLOCK, uniformValueOf } from "../shaders/runtime/wrap";
+import { uniformValueOf } from "../shaders/runtime/wrap";
 import { BACKGROUND_LAYER } from "./BackgroundPass";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
@@ -773,7 +773,7 @@ export class BoundaryPass {
                     this.renderer.applyEffectWrapper(effect.wrapper);
                     engine.setAlphaMode(Constants.ALPHA_PREMULTIPLIED);
                     const program = effect.wrapper.effect;
-                    this.runtime.uniforms.buffer.bindToEffect(program, SCENE_BLOCK);
+                    this.runtime.uniforms.bindTo(program);
                     program.setFloat4("graphty_resolution", size.width, size.height, 1 / toTarget, 0);
                     program.setFloat4(
                         "graphty_fieldTexel",

@@ -1935,6 +1935,8 @@ class Node_2 {
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     // @internal
+    shaderStateBits(): number;
+    // @internal
     shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;

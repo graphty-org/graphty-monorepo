@@ -42,7 +42,7 @@ import type { ShaderParamDescriptor, ShaderParams, ShaderProblem } from "../../c
 import type { HostShader } from "../../session/shaders";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
-import { compileProblem, sampleProgram, SCENE_BLOCK, uniformValueOf } from "./wrap";
+import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
 
 /** The longest one frame of a shader may be estimated at before the test frame refuses it. */
 export const FRAME_LIMIT_MS = 250;
@@ -368,7 +368,7 @@ export class ShaderRuntime {
         this.engine.setAlphaMode(Constants.ALPHA_DISABLE);
         renderer.bindBuffers(effect);
         this.uniforms.write(time);
-        this.uniforms.buffer.bindToEffect(effect, SCENE_BLOCK);
+        this.uniforms.bindTo(effect);
         effect.setFloat4("graphty_sampleColor", 0.33, 0.55, 0.85, 1);
         effect.setFloat4("graphty_sampleSize", size, size, 0, 0);
         effect.setFloat("graphty_sampleReach", descriptor.reach ?? 1);

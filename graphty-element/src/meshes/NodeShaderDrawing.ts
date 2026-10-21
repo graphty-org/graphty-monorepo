@@ -121,6 +121,8 @@ export interface ShadedNode {
     readonly mesh: AbstractMesh;
     /** Draw the node again from the paint it holds, because a shader it names became drawable. */
     refreshShaderPaint(): void;
+    /** Its selected, hovered and pinned states now, as the state bits; read when it first draws a shader. */
+    shaderStateBits?(): number;
 }
 
 /** The lazily loaded renderer. */
@@ -884,7 +886,7 @@ export class NodeShaderDrawing {
             node,
             seed: seedOf(node.id),
             row: data.takeStateRow(),
-            bits: 0,
+            bits: node.shaderStateBits?.() ?? 0,
             causedAt: Number.NEGATIVE_INFINITY,
             look: null,
             surface: null,
@@ -924,10 +926,18 @@ export class NodeShaderDrawing {
         const renderer = this.renderer as Renderer;
         const data = this.data as NodeShaderData;
         if (look.path === null || known === null || known === undefined || id === undefined) {
-            this.releaseSlot(entry.surface);
-            entry.surface = null;
+            if (!this.keepSurfaceForExit(entry, look)) {
+                this.releaseSlot(entry.surface);
+                entry.surface = null;
+            }
+
             this.setMeshShader(entry, null);
             return;
+        }
+
+        if (entry.surface !== null && entry.surface.exitEnds > 0) {
+            // Back on the surface while its exit plays: a fresh slot, so its entrance plays again.
+            this.endSurfaceExit(entry);
         }
 
         const { descriptor } = known.registration;
@@ -972,6 +982,47 @@ export class NodeShaderDrawing {
             this.slotValues(entry, look, params, meta, entry.surface),
             this.speedOf(descriptor, values, params),
         );
+    }
+
+    /**
+     * Keep a node's surface or sprite drawing while its exit plays, once the node stops carrying
+     * it: a frost layer on pinned nodes thaws for its exit's seconds after an unpin. The node's
+     * own mesh draws its plain look beneath meanwhile.
+     * @param entry - The node's entry.
+     * @param look - Its look now, which names no batch-drawn shader.
+     * @returns True when the slot is kept: its exit plays, or already was.
+     */
+    private keepSurfaceForExit(entry: Entry, look: NodeShaderLook): boolean {
+        const slot = entry.surface;
+        if (slot === null || slot.batch.disposed) {
+            return false;
+        }
+
+        if (slot.exitEnds > 0) {
+            return true;
+        }
+
+        const exit = motionOf(this.known.get(slot.id)?.shader?.registration.descriptor.motion).exit ?? 0;
+        if (exit <= 0 || !look.drawn || this.runtime === null || this.data === null) {
+            return false;
+        }
+
+        slot.exited = this.runtime.uniforms.now();
+        slot.exitEnds = performance.now() + exit * 1000;
+        this.data.stamp(entry.row, "exited", slot.exited);
+        slot.batch.playUntil(slot.index, slot.exitEnds);
+        this.updateFrames();
+        return true;
+    }
+
+    /**
+     * Drop a surface or sprite whose exit played, or was cut short.
+     * @param entry - The node's entry.
+     */
+    private endSurfaceExit(entry: Entry): void {
+        this.releaseSlot(entry.surface);
+        entry.surface = null;
+        this.data?.stamp(entry.row, "exited", NEVER);
     }
 
     /**
@@ -1257,7 +1308,10 @@ export class NodeShaderDrawing {
      */
     private updateFrames(): void {
         const needed = [...this.entries.values()].some(
-            (entry) => entry.meshShader !== null || [...entry.effects.values()].some((slot) => slot.exitEnds > 0),
+            (entry) =>
+                entry.meshShader !== null ||
+                (entry.surface?.exitEnds ?? 0) > 0 ||
+                [...entry.effects.values()].some((slot) => slot.exitEnds > 0),
         );
         if (needed && this.stopFrames === null) {
             this.stopFrames = batchUploadFrames.join(this.scene, () => {
@@ -1276,6 +1330,12 @@ export class NodeShaderDrawing {
         const now = performance.now();
         let dropped = false;
         for (const entry of this.entries.values()) {
+            const { surface } = entry;
+            if (surface !== null && surface.exitEnds > 0 && surface.exitEnds <= now) {
+                this.endSurfaceExit(entry);
+                dropped = true;
+            }
+
             for (const [id, slot] of entry.effects) {
                 if (slot.exitEnds > 0 && slot.exitEnds <= now) {
                     this.releaseSlot(slot);

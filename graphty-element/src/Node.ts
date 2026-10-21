@@ -979,8 +979,10 @@ export class Node {
         }
 
         this.shaderDrawing = drawing;
-        drawing.paint(this, this.shaderLook(style, shader));
+        // States first: a state that brought this shader (a pin onto a pinned-state layer) is
+        // then the cause the new slot's entrance plays for.
         this.syncShaderStates();
+        drawing.paint(this, this.shaderLook(style, shader));
     }
 
     /**
@@ -1034,6 +1036,16 @@ export class Node {
 
     /** The states the shader drawing has stamped, brought up to date: selected, hovered, pinned. */
     private readonly shaderStates = { selected: false, hovered: false, pinned: false };
+
+    /**
+     * The selected, hovered and pinned states the shader drawing has heard, as its state bits.
+     * @returns 1 selected, 2 hovered, 4 pinned, summed.
+     * @internal
+     */
+    shaderStateBits(): number {
+        const { selected, hovered, pinned } = this.shaderStates;
+        return (selected ? 1 : 0) + (hovered ? 2 : 0) + (pinned ? 4 : 0);
+    }
 
     /** Tell the shader drawing which states changed since it last heard. */
     private syncShaderStates(): void {

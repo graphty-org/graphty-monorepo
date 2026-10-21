@@ -29,7 +29,7 @@ import type { RenderTargetBudget, ShaderGuard } from "../managers/ShaderGuard";
 import type { HostShader } from "../session/shaders";
 import { backgroundProgram } from "../shaders/runtime/scenePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
-import { SCENE_BLOCK, uniformValueOf } from "../shaders/runtime/wrap";
+import { uniformValueOf } from "../shaders/runtime/wrap";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
 /** The background layer's name; the boundary layer is kept after it. */
@@ -299,7 +299,7 @@ export class BackgroundPass {
         const apply = wrapper.onApplyObservable.addOnce(() => {
             const program = wrapper.effect;
             engine.setAlphaMode(Constants.ALPHA_DISABLE);
-            this.runtime.uniforms.buffer.bindToEffect(program, SCENE_BLOCK);
+            this.runtime.uniforms.bindTo(program);
             program.setMatrix("graphty_invViewProj", inverseViewProjection);
             program.setVector3("graphty_eye", eyeOf(this.scene.activeCamera, inverseViewProjection));
             program.setVector2("graphty_resolution", new Vector2(size.width, size.height));

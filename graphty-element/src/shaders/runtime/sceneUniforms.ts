@@ -11,7 +11,7 @@
  * With only still shaders nothing is claimed, no frame observer is added and the loop rests.
  */
 
-import { type AbstractEngine, type Observer, type Scene, UniformBuffer, Vector3 } from "@babylonjs/core";
+import { type AbstractEngine, type Effect, type Observer, type Scene, UniformBuffer, Vector3 } from "@babylonjs/core";
 
 import { animatesEveryFrame } from "../../managers/everyFrameAnimations";
 import { SCENE_BLOCK, SCENE_MEMBERS } from "./wrap";
@@ -139,6 +139,18 @@ export class SceneUniforms {
             this.quality = level;
             this.write();
         }
+    }
+
+    /**
+     * Bind the buffer to a program about to draw. Babylon's `bindToEffect` only records the
+     * program, and the binding is made by the buffer's next `update()`; a program drawn before
+     * that (the first test frame or thumbnail on an engine) would read no block and its draw would
+     * fail, so this binds it at once.
+     * @param effect - The program.
+     */
+    bindTo(effect: Effect): void {
+        this.buffer.bindToEffect(effect, SCENE_BLOCK);
+        this.buffer.bindUniformBuffer();
     }
 
     /**

@@ -1676,12 +1676,16 @@ export function compareOracle(
         if (framed && !passes(0) && passes(best)) {
             return best;
         }
-        // among the edges whose routes pass as well as the first's, the one with the same words
+        // among the edges whose routes pass as well as the first's, the one with the same words; of a mutual pair, the
+        // one that runs the oracle edge's way: two arcs bowed apart are each other's route run backwards, within the
+        // tolerance on a long chord (pajek-synth-lines 6 -> 26 and 26 -> 6, each judged with the other's arrowhead)
         const alike = list.map((_, k) => k).filter((k) => passes(k) === passes(0));
-        return alike[
+        const sameWay = alike.filter((k) => !flips(o, list[k]));
+        const pool = sameWay.length > 0 ? sameWay : alike;
+        return pool[
             sameWords(
                 o,
-                alike.map((k) => list[k]),
+                pool.map((k) => list[k]),
             )
         ];
     };

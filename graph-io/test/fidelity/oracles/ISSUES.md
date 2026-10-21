@@ -587,8 +587,22 @@ Still open, each judged against Pajek's drawing:
 - FIXED (2026-10-19) Arrowheads: Pajek draws an arrow 6 x its `s` long (tip to back corners) and 5 x `s` wide,
   `s` carried like the other line parameters; graph-io reads `s` as the arrow size and the Pajek tool arrowhead
   draws it so (football arrow length 49/118 -> 118/118, graphstream-b 0/192 -> 193/193).
-- Bidirected arcs and loops: Pajek draws the two arcs of a mutual pair as curves and a loop as a
-  Bezier loop (synth-lines edge route 54/88, c 122/125, graphstream-b 23/193 routes).
+- FIXED (2026-10-21) Arcs, their arrowheads and their routes (synth-lines edge.route 53/88 -> 87/88, edge.arrow
+  238/264 -> 264/264, edge.dash 85/88 -> 88/88; iliad edge.route 278/292 -> 292/292, edge.arrowShape 3 misses -> none;
+  the arrows and edges-lines sheets' Bezier arcs edge.route and edge.curve -> all):
+    - Pajek bows apart the arcs that share their two vertices, a mutual pair or two the same way, as
+      `a1 15 k1 0.25 a2 15 k2 0.25` (the first of two the same way at `a1 -15 a2 -15`), and draws them straight under
+      Straight Lines; graph-io reads them so.
+    - An arc's arrowhead stops 1 px outside its target's outline, border and all, whatever its size; a Bezier arc's
+      route ends at its arrowhead's tip (a target port), so its curve runs through Pajek's control points (arrow-bezier
+      bowed 0.135 of its chord where Pajek's bows 0.196).
+    - `ap` is not carried to the next line, and an `ap` above 1 is a distance from the target's center (arc 3 4 `ap 20`).
+    - A short arc under a large arrowhead: Pajek runs the line from the source back to the head's back, behind the
+      source's center, so the head covers its whole line. The comparator gave such heads to the source end (13 heads of
+      synth-lines, one classed inverted); it now gives a head that covers its line to the end at its back, and routes the
+      edge from there to the tip.
+    - graphty-element drew a dash or dot line too short for two elements and a gap (or laid out longer, then shortened)
+      as touching or overlapping elements, a solid line (synth-lines arcs 2 3, 22 23, 27 28); it now draws one element.
 - FIXED (2026-10-19) Line labels: Pajek's default drawing hides them, and graph-io now draws them only under the
   `pajekDraw` ini flag `Form8.withLabels1` (Mark Lines / with Labels), writing the file's own `l` back on export
   (synth-lines edge.label 0/28 -> none drawn, as Pajek).

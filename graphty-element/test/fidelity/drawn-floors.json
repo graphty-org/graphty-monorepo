@@ -457,8 +457,8 @@
             "edgeOpacity": 1,
             "edgeWidth": 1,
             "lineStyle": 0.8024691358024691,
-            "arrows": 0.9753086419753086,
-            "edgePath": 0.8888888888888888,
+            "arrows": 0.9506172839506173,
+            "edgePath": 0.7160493827160493,
             "selfLoops": 1,
             "edgeLabel": 0.654320987654321,
             "fill": 1
@@ -998,16 +998,16 @@
             "date": "2026-10-20"
         },
         "pajek-synth-lines/arrows": {
-            "from": 1,
-            "to": 0.9753,
-            "reason": "the same reference correction the Node scorecard accepts (requested-floors.json allowedDrops pajek-synth-lines/arrows): measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9753, 2026-10-20)",
-            "date": "2026-10-20"
+            "from": 0.9753,
+            "to": 0.9506,
+            "reason": "reference is not Pajek's drawing: the JSON reference scene (pajek_file.py) draws every arrowhead at its line's end and ignores `ap` above 1, while Pajek 6.02's own SVG export (pajek-synth-lines.svg) draws arcs 3 4 and 24 25 (`ap 20`) with the arrowhead's back 20 px from the target's center, past the middle of their short lines, where graph-io now puts it; the oracle scorecard (oracle-floors.json) judges them against Pajek's drawing and passes them (edge.arrow 0.902 -> 1); earlier (1 -> 0.9753, 2026-10-20): the same reference correction the Node scorecard accepts (requested-floors.json allowedDrops pajek-synth-lines/arrows): measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.9753, 2026-10-20)",
+            "date": "2026-10-21"
         },
         "pajek-synth-lines/edgePath": {
-            "from": 0.9136,
-            "to": 0.8889,
-            "reason": "reference corrected: Pajek 6.02 draws loops and the lines of mutual pairs as Bezier curves; graph-io reads them so (60af474bc, 4220f580e); the JSON reference scene is graph-io's earlier reading of the file, and the oracle scorecard (oracle-floors.json, oracle-known-failures.json) judges these elements against the program's own drawing",
-            "date": "2026-10-20"
+            "from": 0.8889,
+            "to": 0.716,
+            "reason": "reference is not Pajek's drawing: the JSON reference scene (pajek_file.py) draws every line between two vertices straight, while Pajek 6.02's own SVG export (pajek-synth-lines.svg) bows apart the arcs that share their two vertices (20 30 / 30 20, 22 32 / 32 22, 24 34 / 34 24 and relation 2's 1 21 / 21 1, 6 26 / 26 6, 11 31 / 31 11, 16 36 / 36 16) and ends a Bezier arc at its arrowhead's tip, which graph-io now reads; the oracle scorecard judges them against Pajek's drawing (edge.route 0.602 -> 0.989); earlier (0.9136 -> 0.8889, 2026-10-20): reference corrected: Pajek 6.02 draws loops and the lines of mutual pairs as Bezier curves; graph-io reads them so (60af474bc, 4220f580e); the JSON reference scene is graph-io's earlier reading of the file, and the oracle scorecard (oracle-floors.json, oracle-known-failures.json) judges these elements against the program's own drawing",
+            "date": "2026-10-21"
         },
         "pajek-synth-lines/edgeLabel": {
             "from": 1,

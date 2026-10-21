@@ -705,6 +705,35 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     return end === "target" ? pts : pts.reverse();
 }
 
+/** How far outside an arrowhead's outline a point of its line may lie and still be under it: a coordinate's rounding. */
+const COVER_SLACK = 0.5;
+
+/**
+ * A line wholly under its one arrowhead: the end the arrowhead caps and the edge's route, source end first. Pajek 6.02
+ * runs an arc from its source to its arrowhead's back, the tip 1 px off the target's outline, so under a large
+ * arrowhead a short arc is a stub that runs from the source back to the arrowhead's back, behind the source's center
+ * or inside its outline (`pajek-synth-lines` 25 -> 26 under `s 5`, 14 -> 15 with `h1 -1 h2 -1`), and the arrowhead's
+ * middle is nearer the line's source end than its target end. The line's end at the arrowhead's back is the farther
+ * from the tip, and the arrowhead caps it; what a reader sees of the edge is the arrowhead, from its back to its tip.
+ * @param outline - the arrowhead's points
+ * @param line - the line, source end first
+ * @returns the end and the route, or null for a line that shows beyond its arrowhead
+ */
+function coveredLine(outline: readonly Pt[], line: readonly Pt[]): { end: "source" | "target"; points: Pt[] } | null {
+    const gap = (a: Pt, b: Pt): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    // inside it, or on one of its corners (the line's end on the arrowhead's notch)
+    const under = (q: Pt): boolean => inPolygon(q, outline) || outline.some((c) => gap(q, c) <= COVER_SLACK);
+    const mid = areaCentroid(outline);
+    if (line.length < 2 || outline.length < 3 || mid === null || !line.every(under)) {
+        return null;
+    }
+    const tip = outline.reduce((best, q) => (gap(q, mid) > gap(best, mid) ? q : best));
+    const [first, last] = [line[0], line.at(-1) ?? line[0]];
+    return gap(last, tip) >= gap(first, tip)
+        ? { end: "target", points: [last, tip] }
+        : { end: "source", points: [tip, first] };
+}
+
 /**
  * Whether a primitive is an open stroke bent like part of a circle (bulging from its chord by a fifth of it up to
  * all of it): an arrowhead drawn as a stroke, where it caps a line's end.
@@ -1438,6 +1467,11 @@ export function associate(
                         : "target";
                 };
                 const arrows = heads.map((h) => {
+                    const covered = heads.length === 1 ? coveredLine(h.points, line.points) : null;
+                    if (covered !== null) {
+                        ({ points } = covered);
+                        return arrowFrom(h, points, covered.end, canvas);
+                    }
                     const end = endOf(h);
                     points = extendToTip(points, h.points, end);
                     return arrowFrom(h, line.points, end, canvas);

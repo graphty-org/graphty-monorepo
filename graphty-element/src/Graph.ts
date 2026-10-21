@@ -1065,6 +1065,9 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        this.layoutManager.drawArrivedPaint = () => {
+            this.updateManager.drawArrivedPaint();
+        };
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);

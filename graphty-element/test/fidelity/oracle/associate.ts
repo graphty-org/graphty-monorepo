@@ -2207,7 +2207,10 @@ export function associate(
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
     // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
     // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
-    // outline drawn as two primitives over one box are one group
+    // outline drawn as two primitives over one box are one group. Around one node is enough where graphty draws a
+    // group over the same box: a node drawn over a smaller one (json-cyjs-perf's 60 px nodes over 10 px ones,
+    // SIGNOR's complexes) is read as a group on graphty's side, and the program drew that box too.
+    const guideBoxes = guideGroupBoxes(guide, nodeList);
     for (const p of free()) {
         if (p.kind !== "shape") {
             continue;
@@ -2225,7 +2228,12 @@ export function associate(
         const members = nodeList.filter(
             (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
-        if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
+        // each of graphty's boxes stands for one box of the program's
+        const guided = members.length === 1 ? guideBoxes.findIndex((b) => boxIoU(b, p.box) >= 0.5) : -1;
+        if ((members.length >= 2 || guided >= 0) && polygonArea(p.points) >= 0.5 * area(p.box)) {
+            if (guided >= 0) {
+                guideBoxes.splice(guided, 1);
+            }
             take(p);
             groups.push({
                 id: `box-${String(p.index)}`,
@@ -2385,32 +2393,11 @@ function guideTwins(groups: readonly PGroup[], guide: PScene, nodes: readonly PN
             out.set(g, left.splice(k, 1)[0]);
         }
     }
-    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
-    const pairs = nodes.flatMap((n) => {
-        const at = byId.get(n.id);
-        return at === undefined ? [] : [{ from: [at.cx, at.cy] as Pt, to: [n.cx, n.cy] as Pt }];
-    });
-    const t =
-        pairs.length >= 2
-            ? fitSimilarity(
-                  pairs.map((q) => q.from),
-                  pairs.map((q) => q.to),
-              )
-            : null;
+    const t = guideFit(guide, nodes);
     if (t === null) {
         return out;
     }
-    const framed = left.map((x) => {
-        const a = apply(t, [x.box.x0, x.box.y0]);
-        const b = apply(t, [x.box.x1, x.box.y1]);
-        const box = {
-            x0: Math.min(a[0], b[0]),
-            y0: Math.min(a[1], b[1]),
-            x1: Math.max(a[0], b[0]),
-            y1: Math.max(a[1], b[1]),
-        };
-        return { x, box };
-    });
+    const framed = left.map((x) => ({ x, box: framedBox(t, x.box) }));
     const cand = groups
         .filter((g) => !out.has(g))
         .flatMap((g) => framed.map((f) => ({ g, f, v: boxIoU(g.box, f.box) })))
@@ -2424,6 +2411,42 @@ function guideTwins(groups: readonly PGroup[], guide: PScene, nodes: readonly PN
         }
     }
     return out;
+}
+
+/**
+ * graphty's drawing carried into the oracle's frame by the nodes both sides drew.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes, by graphty's ids
+ * @returns the fit, or null with under two nodes in common
+ */
+function guideFit(guide: PScene, nodes: readonly PNode[]): Similarity | null {
+    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
+    const pairs = nodes.flatMap((n) => {
+        const at = byId.get(n.id);
+        return at === undefined ? [] : [{ from: [at.cx, at.cy] as Pt, to: [n.cx, n.cy] as Pt }];
+    });
+    return pairs.length >= 2
+        ? fitSimilarity(
+              pairs.map((q) => q.from),
+              pairs.map((q) => q.to),
+          )
+        : null;
+}
+
+/**
+ * graphty's group boxes in the oracle's frame.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes, by graphty's ids
+ * @returns the boxes; none when the drawings share under two nodes
+ */
+function guideGroupBoxes(guide: PScene, nodes: readonly PNode[]): PBox[] {
+    const t = guide.groups.length === 0 ? null : guideFit(guide, nodes);
+    return t === null ? [] : guide.groups.map((g) => framedBox(t, g.box));
+}
+
+/** A box of graphty's drawing carried through a fit, by two opposite corners. */
+function framedBox(t: Similarity, box: PBox): PBox {
+    return boxOfPoints([apply(t, [box.x0, box.y0]), apply(t, [box.x1, box.y1])]);
 }
 
 /**

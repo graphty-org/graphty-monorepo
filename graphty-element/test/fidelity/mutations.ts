@@ -6,6 +6,7 @@ import {
     browserFace,
     browserFontClass,
     lineAlign,
+    ORACLE_TOLERANCES,
     type OracleProperty,
     type OracleReport,
     programFace,
@@ -779,6 +780,15 @@ const DEFECTS = {
         });
         return s;
     },
+    // a group box as large as the program's outline is out to its border's middle, where graphty's border ring lies
+    // outside its fill: too large by half the border all round (cx2-signor-aml's 8 px borders)
+    "group box grown by half its outline width": (s) => {
+        s.groups.forEach((g) => {
+            const grow = (g.stroke?.width ?? 0) / 2;
+            g.box = { x0: g.box.x0 - grow, y0: g.box.y0 - grow, x1: g.box.x1 + grow, y1: g.box.y1 + grow };
+        });
+        return s;
+    },
     "one extra group box": (s) => {
         const g = s.groups[0];
         if (g !== undefined) {
@@ -940,6 +950,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "group outline width x3": ["group.strokeWidth", "group.stroke"],
     "group outline dashed (or dashed->solid)": ["group.strokeDash", "group.stroke"],
     "group opacity 0.5": ["group.fillOpacity", "group.fill"],
+    "group box grown by half its outline width": ["group.box"],
     "one extra group box": ["group.extra"],
     "annotations removed": ["stray.present"],
     "one extra annotation added": ["stray.extra"],
@@ -952,6 +963,18 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
  * out itself (a file with no positions), its drawing mirrored is another layout as unrelated as the first.
  */
 const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle: PScene) => boolean>> = {
+    // only where half a group's outline is more than a box's side may be off: wider than a tenth of its smaller side
+    "group box grown by half its outline width": (base, oracle) =>
+        oracle.groups.some(
+            (g) =>
+                g.stroke !== null &&
+                Number.isFinite(g.stroke.width) &&
+                g.stroke.width / 2 >
+                    Math.max(
+                        ORACLE_TOLERANCES.groupSideOfSize * Math.min(g.box.x1 - g.box.x0, g.box.y1 - g.box.y0),
+                        ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
+                    ),
+        ),
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
     "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
     // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is

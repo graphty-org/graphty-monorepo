@@ -23,6 +23,7 @@ import {
     type PEdge,
     type PFill,
     type PGradient,
+    type PGroup,
     type PNode,
     type PScene,
     type PStray,
@@ -1940,6 +1941,17 @@ export function compareOracle(
         );
         return Math.max(0, T.groupIoU - iou(toBox(gBox), toBox(oBox))) + Math.max(0, sides / sideNear - 1);
     };
+    /**
+     * A group's box out to the outer edge of its outline, as a node's size is judged (`outerOf`): an SVG stroke runs
+     * along the program's box, half of it outside, where graphty's border ring lies wholly outside its fill (SIGNOR's
+     * complexes, 8 px borders, read as boxes 9 px too small all round).
+     */
+    const outerBox = (g: PGroup, side: "oracle" | "graphty"): PBox => {
+        const s = g.stroke;
+        const reach =
+            s === null || s.painted === true || !Number.isFinite(s.width) ? 0 : s.width / (side === "oracle" ? 2 : 1);
+        return { x0: g.box.x0 - reach, y0: g.box.y0 - reach, x1: g.box.x1 + reach, y1: g.box.y1 + reach };
+    };
     const gGroups = [...graphty.groups];
     const pairedGroups: Record<string, string> = {};
     /** graphty's annotations the oracle draws as a group box. */
@@ -1994,14 +2006,15 @@ export function compareOracle(
             continue;
         }
         pairedGroups[g.id] = o.id;
-        const gBox = toO(g.box);
-        const v = iou(toBox(gBox), toBox(o.box));
+        const gBox = toO(outerBox(g, "graphty"));
+        const oBox = outerBox(o, "oracle");
+        const v = iou(toBox(gBox), toBox(oBox));
         j.add(
             "group.box",
             "group",
             o.id,
-            boxMiss(gBox, o.box),
-            [o.box.x0, o.box.y0, o.box.x1, o.box.y1],
+            boxMiss(gBox, oBox),
+            [R(oBox.x0), R(oBox.y0), R(oBox.x1), R(oBox.y1)],
             [R(gBox.x0), R(gBox.y0), R(gBox.x1), R(gBox.y1), R(v)],
         );
         judgeFill(j, "group.fill", "group", o.id, o.fill, g.fill);

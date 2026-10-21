@@ -636,6 +636,60 @@ describe("oracle comparison", () => {
         assert.strictEqual(r.properties["group.label"].passRate, 1);
     });
 
+    it("reads a box round one node as a group where graphty draws a group over it, judged out to its border", () => {
+        // a node drawn over a smaller one (SIGNOR's complexes, json-cyjs-perf's 60 px nodes): graphty's drawing reads it
+        // as a group of one member, and the program drew that box too, its 10 px border centered on the box
+        const prims = oraclePrims({ named: false });
+        prims.push(
+            prim({
+                tag: "path",
+                corners: 4,
+                points: [
+                    [50, 50],
+                    [150, 50],
+                    [150, 150],
+                    [50, 150],
+                    [50, 50],
+                ],
+                fill: fill("#eeeeee"),
+                stroke: stroke("#0099ff", 10),
+            }),
+        );
+        // graphty's border ring lies outside its fill: the fill 180 px (90 of the program's) inside a 20 px ring
+        const g = graphtyScene();
+        g.groups = [
+            {
+                id: "complex",
+                box: { x0: 160, y0: 140, x1: 340, y1: 320 },
+                fill: fill("#eeeeee"),
+                stroke: stroke("#0099ff", 20),
+                label: null,
+                members: ["a"],
+            },
+        ];
+        const a = associate(prims, 400, 300, g);
+        assert.deepEqual(
+            a.scene.groups.map((x) => x.members),
+            [["a"]],
+        );
+        const r = compareOracle("t", a.scene, g, a.method);
+        for (const p of ["group.present", "group.extra", "group.box", "group.fill", "group.stroke"] as const) {
+            assert.strictEqual(r.properties[p].passRate, 1, p);
+        }
+        assert.isNull(r.properties["stray.present"].passRate, "the box is the group's, no stray");
+        // where graphty draws no group there, a box round one node is no group: it is a stray graphty does not draw
+        const none = associate(prims, 400, 300, graphtyScene());
+        assert.deepEqual(none.scene.groups, []);
+        assert.strictEqual(
+            compareOracle("t", none.scene, graphtyScene(), none.method).properties["stray.present"].passRate,
+            0,
+        );
+        // a group box graphty draws a border's width too wide all round is still caught
+        g.groups[0].box = { x0: 140, y0: 120, x1: 360, y1: 340 };
+        const wide = associate(prims, 400, 300, g);
+        assert.strictEqual(compareOracle("t", wide.scene, g, wide.method).properties["group.box"].passRate, 0);
+    });
+
     it("takes graphty's annotation over a box around nodes as that box drawn, its words as free words", () => {
         const prims = oraclePrims({ named: false });
         const note = text("Note", 200, 70);

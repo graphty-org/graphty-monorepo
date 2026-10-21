@@ -67,9 +67,15 @@ const DEFAULT_IDS = [
     // edges drawn on one another between one pair in different widths, each an edge, not an outline of another
     "cyjs-genemania",
     "cytoscapejs-specimen-groups",
+    // group boxes with 8 px borders (SIGNOR's complexes, nodes drawn over smaller ones): a box judged against the
+    // program's out to its border's outer edge, which thin borders cannot show
+    "cx2-signor-aml",
     "cytoscapejs-specimen-labels-p2",
     "vis-network-specimen-arrows",
     "gml-specimen-groups",
+    // an edge at a node drawn wholly under another, which Pajek's drawing shows nothing of: paired only by the end the
+    // association names after graphty's node
+    "pajek-1crn",
     // no ids, no positions and no legible labels: only vis-network's own account of where it drew each node tells its
     // bodies apart, and a defect that swaps two nodes' looks is caught only through it
     "json-vis-siblings",

@@ -5,7 +5,7 @@ import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
-import { GROUPS_VALUE, groupsOf, type NodeGroup } from "../data/groups";
+import { GROUPS_VALUE, groupsOf, type NodeGroup, RANK_SETS_VALUE, type RankSet, rankSetsOf } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -668,6 +668,15 @@ export class DataManager implements Manager {
      */
     get groups(): readonly NodeGroup[] {
         return groupsOf(this.graph.slice.values.get(GROUPS_VALUE));
+    }
+
+    /**
+     * The rank subgraphs of the loaded files (`rank=same` and the like), which a Graphviz layout
+     * hands back to Graphviz.
+     * @returns The rank sets; empty when the files have none.
+     */
+    get rankSets(): readonly RankSet[] {
+        return rankSetsOf(this.graph.slice.values.get(RANK_SETS_VALUE));
     }
 
     /**

@@ -4,7 +4,8 @@
  * Nodes are named by row (`n0`, `n1`, ...) so no id ever needs quoting and the answer maps back
  * to rows without a lookup table. Every node is a fixed-size circle as wide as the element draws
  * it, with no label: Graphviz spaces what the element draws, not text the element does not draw
- * that way.
+ * that way. What else decides where dot puts a node is handed over as the file gave it (see
+ * {@link DotStructure}): edge weights, lengths and labels, cluster labels and rank subgraphs.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -14,6 +15,23 @@ export const POINTS_PER_UNIT = 72;
 
 /** The node size used for a row the element reports no size for. */
 const DEFAULT_NODE_SIZE = 1;
+
+/** One edge as handed to Graphviz: its end rows and the Graphviz attributes it carries. */
+export interface DotEdge {
+    readonly src: number;
+    readonly dst: number;
+    readonly attributes?: Readonly<Record<string, string>>;
+}
+
+/** The structure of the graph besides its nodes' sizes, as Graphviz attributes. */
+export interface DotStructure {
+    /** The edges, in the order to write them; the stored graph's own edges, plain, when absent. */
+    readonly edges?: readonly DotEdge[];
+    /** The attributes each group's cluster carries (its label and font take room), by group row. */
+    readonly groupAttributes?: ReadonlyMap<number, Readonly<Record<string, string>>>;
+    /** Node rows dot puts on one rank (`same`) or on the first or last (`min`, `max`, `source`, `sink`). */
+    readonly ranks?: readonly { readonly rank: string; readonly rows: readonly number[] }[];
+}
 
 /**
  * Quote a DOT attribute value.
@@ -56,6 +74,7 @@ function isLength(value: number | undefined): value is number {
  * @param groups - the groups the element draws round their members, by row, each with its member
  *     rows: each is handed over as a `cluster` subgraph of its members, not as a node, so Graphviz
  *     keeps a group's members together and the other nodes out of its box
+ * @param structure - the edges with their attributes, the clusters' attributes and the rank subgraphs
  * @returns the DOT text
  */
 export function toDot(
@@ -64,6 +83,7 @@ export function toDot(
     sizes?: ArrayLike<number>,
     extents?: ArrayLike<number>,
     groups: ReadonlyMap<number, readonly number[]> = new Map(),
+    structure: DotStructure = {},
 ): string {
     const skip = (row: number): boolean => groups.has(row);
     const lines: string[] = [];
@@ -92,15 +112,20 @@ export function toDot(
         lines.push(`n${row} [width=${inches}];`);
     }
 
-    writeClusters(groups, lines);
+    writeClusters(groups, lines, structure.groupAttributes);
 
-    const { src, dst } = stored.edgeList();
-    for (let e = 0; e < src.length; e++) {
-        if (skip(src[e]) || skip(dst[e])) {
-            continue;
+    for (const { rank, rows } of structure.ranks ?? []) {
+        const members = rows.filter((row) => !skip(row) && row < stored.nodeCount);
+        if (members.length > 0 && isPlainName(rank)) {
+            lines.push(`{ rank=${rank}; ${members.map((row) => `n${row};`).join(" ")} }`);
         }
-        // each edge is named by its row, so the route Graphviz lays it maps back to it
-        lines.push(`n${src[e]} ${arrow} n${dst[e]} [id="e${e}"];`);
+    }
+
+    // each edge is named by its place in the list, so the route Graphviz lays it maps back to it
+    for (const [k, { src, dst, attributes: own }] of (structure.edges ?? edgesOf(stored)).entries()) {
+        if (!skip(src) && !skip(dst)) {
+            lines.push(`n${src} ${arrow} n${dst}${attributeList({ ...own, id: `e${k}` })};`);
+        }
     }
 
     lines.push("}");
@@ -108,17 +133,48 @@ export function toDot(
 }
 
 /**
+ * A stored graph's edges, plain.
+ * @param stored - the graph
+ * @returns its edges
+ */
+function edgesOf(stored: GraphSnapshot): DotEdge[] {
+    const { src, dst } = stored.edgeList();
+    return Array.from(src, (s, e) => ({ src: s, dst: dst[e] }));
+}
+
+/**
+ * An attribute list, ` [name="value", ...]`, of the plain-named attributes; empty when there are none.
+ * @param attributes - the attributes
+ * @returns the list
+ */
+function attributeList(attributes: Readonly<Record<string, string>> | undefined): string {
+    const written = Object.entries(attributes ?? {})
+        .filter(([name]) => isPlainName(name))
+        .map(([name, value]) => `${name}=${quote(value)}`);
+    return written.length > 0 ? ` [${written.join(", ")}]` : "";
+}
+
+/**
  * Write each group as a `cluster` subgraph of its members, a group inside a group nested in it.
  * A group or node held by two groups is written in the first only: Graphviz clusters do not overlap.
  * @param groups - the groups, by row, each with its member rows
  * @param lines - the DOT lines, appended to
+ * @param own - each group's own cluster attributes, by row
  */
-function writeClusters(groups: ReadonlyMap<number, readonly number[]>, lines: string[]): void {
+function writeClusters(
+    groups: ReadonlyMap<number, readonly number[]>,
+    lines: string[],
+    own?: ReadonlyMap<number, Readonly<Record<string, string>>>,
+): void {
     const nested = new Set([...groups.values()].flat().filter((row) => groups.has(row)));
     const written = new Set<number>();
     const write = (group: number): void => {
         written.add(group);
         lines.push(`subgraph cluster_n${group} {`);
+        const clusterAttributes = attributeList(own?.get(group));
+        if (clusterAttributes !== "") {
+            lines.push(`graph${clusterAttributes};`);
+        }
         for (const member of groups.get(group) ?? []) {
             if (written.has(member)) {
                 continue;

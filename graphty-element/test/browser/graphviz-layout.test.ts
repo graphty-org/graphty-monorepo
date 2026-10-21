@@ -193,6 +193,26 @@ describe("Graphviz layouts in the element", () => {
         );
     });
 
+    it("lays a DOT file's rank subgraph and edge lengths out as Graphviz does", async () => {
+        // Without the rank subgraph c is a rank below a; without minlen y is one rank below x, as z is.
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "dot",
+                config: {
+                    data: "digraph { r -> a; r -> b; b -> c; { rank=same; a; c } x -> y [minlen=3]; x -> z }",
+                },
+            },
+            { layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        assert.closeTo(at("a").y, at("c").y, 1e-4, "a and c on one rank");
+        const drop = (id: string): number => at("x").y - at(id).y;
+        assert.closeTo(drop("y") / drop("z"), 3, 0.01, "y three ranks below x, z one");
+    });
+
     it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
         // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
         // 0.5 inch ranksep): each box is twice as wide as the step between their centres.

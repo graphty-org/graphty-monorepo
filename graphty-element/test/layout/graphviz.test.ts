@@ -84,7 +84,7 @@ describe("the DOT the element hands Graphviz", () => {
         assert.include(dot, "n1 [width=1];", "an unknown size takes the default");
         assert.include(dot, "n2 [width=1];", "a zero size takes the default");
         assert.strictEqual(dot.match(/n0 -> n1 \[id="e\d+"\];/g)?.length, 2, "the parallel edge is kept");
-        assert.match(dot, /n2 -> n0 \[id="e\d+"\];/, "each edge named by its row");
+        assert.match(dot, /n2 -> n0 \[id="e\d+"\];/, "each edge named by its place in the list");
     });
 
     it("writes a node with two different sides as a box that size, and leaves a group's row out as a node", () => {
@@ -139,6 +139,68 @@ describe("the DOT the element hands Graphviz", () => {
         assert.isFalse(await between([a, b]), "with the cluster, x stays out of the group's box");
     });
 
+    it("writes the edges in the order given with their attributes, each cluster's own attributes and the rank subgraphs", () => {
+        // rows: a0 b1 c2 g3
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["b", "c"],
+            ["g", "g"],
+        ]);
+        const dot = toDot(snapshot, {}, undefined, undefined, new Map([[3, [0, 1]]]), {
+            edges: [
+                { src: 1, dst: 2, attributes: { minlen: "2", weight: "5", 'x"y': "dropped" } },
+                { src: 0, dst: 1 },
+                { src: 3, dst: 2, attributes: { minlen: "9" } },
+            ],
+            groupAttributes: new Map([[3, { label: "the group", fontsize: "20" }]]),
+            ranks: [
+                { rank: "same", rows: [0, 2, 3] },
+                { rank: "bad rank", rows: [1] },
+            ],
+        });
+
+        assert.include(dot, 'subgraph cluster_n3 {\ngraph [label="the group", fontsize="20"];\nn0;\nn1;\n}');
+        assert.include(dot, "{ rank=same; n0; n2; }", "a group's row is no node to rank");
+        assert.notInclude(dot, "bad rank");
+        assert.include(dot, 'n1 -> n2 [minlen="2", weight="5", id="e0"];\nn0 -> n1 [id="e1"];', "in the order given");
+        assert.notInclude(dot, "n3 ->", "an edge of a group is not handed over");
+        assert.notInclude(dot, "dropped");
+    });
+
+    it("has dot put a rank subgraph's nodes on one rank and stretch an edge over its minlen", async () => {
+        // rows: r0 a1 b2 c3 x4 y5 z6
+        const snapshot = graph(true, [
+            ["r", "a"],
+            ["r", "b"],
+            ["b", "c"],
+            ["x", "y"],
+            ["x", "z"],
+        ]);
+        const plain = await layout(toDot(snapshot, {}), "dot");
+        const ranked = await layout(
+            toDot(snapshot, {}, undefined, undefined, undefined, {
+                edges: [
+                    { src: 0, dst: 1 },
+                    { src: 0, dst: 2 },
+                    { src: 2, dst: 3 },
+                    { src: 4, dst: 5, attributes: { minlen: "3" } },
+                    { src: 4, dst: 6 },
+                ],
+                ranks: [{ rank: "same", rows: [1, 3] }],
+            }),
+            "dot",
+        );
+
+        assert.isTrue(plain.ok && ranked.ok);
+        const [before, after] = [plain, ranked].map((reply) =>
+            reply.ok ? fromJson(reply.json, 7) : new Float32Array(14),
+        );
+        const y = (positions: Float32Array, row: number): number => positions[2 * row + 1];
+        assert.notStrictEqual(y(before, 1), y(before, 3), "the case this guards: c is a rank below a");
+        assert.strictEqual(y(after, 1), y(after, 3), "a and c on one rank");
+        assert.closeTo((y(after, 4) - y(after, 5)) / (y(after, 4) - y(after, 6)), 3, 1e-6, "y three ranks below x");
+    });
+
     it("writes an undirected graph with undirected edges, and escapes attribute values", () => {
         const dot = toDot(graph(false, [["a", "b"]]), { label: 'say "hi"\nthere' });
 
@@ -183,42 +245,43 @@ describe("Graphviz's json read back", () => {
 });
 
 describe("the routes Graphviz lays read back", () => {
-    /**
-     * Each edge row's ends.
-     * @param snapshot - the graph
-     * @returns the rows' ends
-     */
-    function rows(snapshot: GraphSnapshot): { src: number; dst: number }[] {
-        const { src, dst } = snapshot.edgeList();
-        return Array.from(src, (s, e) => ({ src: s, dst: dst[e] }));
-    }
-
-    // a -> c has to go round b, which dot puts on the rank between them
-    const ROUND_B: readonly (readonly [string, string])[] = [
-        ["a", "b"],
-        ["b", "c"],
-        ["a", "c"],
-    ];
-
     it("reads each edge's spline as bends between its nodes, and none for an edge dot draws straight", async () => {
-        const snapshot = graph(true, ROUND_B);
-        const edges = rows(snapshot);
-        const reply = await layout(toDot(snapshot, {}), "dot");
+        // a -> c has to go round b, which dot puts on the rank between them
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["b", "c"],
+            ["a", "c"],
+        ]);
+        const edges = [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+            { src: 0, dst: 2 },
+        ];
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), { edges }), "dot");
 
         assert.isTrue(reply.ok);
         const bends = reply.ok ? edgeBends(reply.json, edges, graphvizPosBends) : new Map<number, string>();
-        const roundB = edges.findIndex(({ src, dst }) => src === 0 && dst === 2);
-        assert.deepEqual([...bends.keys()], [roundB], "only the edge round b is routed");
-        const pairs = (bends.get(roundB) ?? "").split(" ").map((pair) => pair.split(",").map(Number));
+        assert.deepEqual([...bends.keys()], [2], "only the edge round b is routed");
+        const pairs = (bends.get(2) ?? "").split(" ").map((pair) => pair.split(",").map(Number));
         assert.isAbove(Math.max(...pairs.map(([, across]) => Math.abs(across))), 0.05, "it bows off the line");
     });
 
     it("reads no route when the graph asks for straight lines (splines=false)", async () => {
-        const snapshot = graph(true, ROUND_B);
-        const reply = await layout(toDot(snapshot, { splines: "false" }), "dot");
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["b", "c"],
+            ["a", "c"],
+        ]);
+        const edges = [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+            { src: 0, dst: 2 },
+        ];
+        const dot = toDot(snapshot, { splines: "false" }, undefined, undefined, new Map(), { edges });
+        const reply = await layout(dot, "dot");
 
         assert.isTrue(reply.ok);
-        assert.deepEqual([...(reply.ok ? edgeBends(reply.json, rows(snapshot), graphvizPosBends) : [])], []);
+        assert.deepEqual([...(reply.ok ? edgeBends(reply.json, edges, graphvizPosBends) : [])], []);
     });
 
     it("maps a route back by the edge's name, never by Graphviz's own order", () => {

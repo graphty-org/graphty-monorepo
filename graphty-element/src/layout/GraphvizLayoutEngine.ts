@@ -2,6 +2,7 @@ import type { F32 } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema, parseOptions } from "../config";
+import type { RankSet } from "../data/groups";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyErrorCode } from "../errors/codes";
@@ -15,7 +16,8 @@ import {
 } from "./graphviz/engines";
 import { edgeBends, fromJson } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
-import { toDot } from "./graphviz/toDot";
+import { graphvizStructure } from "./graphviz/structure";
+import { type DotStructure, toDot } from "./graphviz/toDot";
 import type { EdgePosition } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -183,14 +185,16 @@ export function graphvizAttributes(
  * @param options - the parsed options
  * @param groups - the groups the element draws round their members, each with its member rows:
  *     handed over as clusters, not as nodes
+ * @param structure - the edges with their attributes, the clusters' attributes and the rank subgraphs
  * @returns the coordinates, two per row (NaN for a skipped row), and the bends of each edge Graphviz
- *     routed off the straight line, by its row in the stored graph
+ *     routed off the straight line, by its place in `structure.edges`
  */
 async function computeWith(
     engine: GraphvizEngine,
     input: SnapshotLayoutInput,
     options: Readonly<Record<string, unknown>>,
     groups: ReadonlyMap<number, readonly number[]>,
+    structure: DotStructure,
 ): Promise<{ positions: F32; bends: ReadonlyMap<number, string> }> {
     const n = input.graph.nodeCount;
     if (n === 0) {
@@ -215,7 +219,7 @@ async function computeWith(
     const scale = options.scale as number;
     const sizes = input.nodeSizes?.().map((size) => size / scale);
     const extents = input.nodeExtents?.().map((size) => size / scale);
-    const dot = toDot(input.stored, attributes, sizes, extents, groups);
+    const dot = toDot(input.stored, attributes, sizes, extents, groups, structure);
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });
@@ -232,35 +236,10 @@ async function computeWith(
 
     // graph-io reads a spline into bends as it does for a file that stores its routes
     const { graphvizPosBends } = await import("@graphty/graph-io/dot");
-    const { src, dst } = input.stored.edgeList();
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
-        bends: edgeBends(
-            reply.json,
-            Array.from(src, (s, e) => ({ src: s, dst: dst[e] })),
-            graphvizPosBends,
-        ),
+        bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
     };
-}
-
-/**
- * Which edge each row of the stored graph is: the edges with those ends, taken in the order they
- * arrived (the stored graph keeps every parallel edge).
- * @param input - the run's input
- * @param edges - the edges
- * @returns the edge of each row, or undefined for a row no edge matches
- */
-function edgesByRow(input: SnapshotLayoutInput, edges: readonly Edge[]): (Edge | undefined)[] {
-    const { ids } = input.stored;
-    const byEnds = new Map<string, Edge[]>();
-    for (const edge of edges) {
-        const key = `${ids.indexOf(edge.srcId)},${ids.indexOf(edge.dstId)}`;
-        byEnds.set(key, [...(byEnds.get(key) ?? []), edge]);
-    }
-
-    const { src, dst } = input.stored.edgeList();
-    // an undirected graph may store an edge either way round
-    return Array.from(src, (s, e) => byEnds.get(`${s},${dst[e]}`)?.shift() ?? byEnds.get(`${dst[e]},${s}`)?.shift());
 }
 
 /** One engine's layout class: a single-pass snapshot layout, two-dimensional. */
@@ -310,15 +289,15 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected async compute(input: SnapshotLayoutInput): Promise<F32> {
             // A group drawn round its members is placed by the element, not by Graphviz: it is
             // handed over as a cluster of its members, not as a node with room of its own.
-            const { positions, bends } = await computeWith(engine, input, this.options, this.followerGroups);
+            const structure = this.structure(input);
+            const { positions, bends } = await computeWith(engine, input, this.options, this.followerGroups, structure);
             // an answer called off for a newer one leaves the newer one's routes
             if (!input.signal.aborted) {
-                const byRow = edgesByRow(input, this._edges);
                 this.routes = new Map();
-                for (const [row, text] of bends) {
-                    const [edge, pairs] = [byRow[row], parseBends(text)];
-                    if (edge !== undefined && pairs !== null) {
-                        this.routes.set(edge, pairs);
+                for (const [k, text] of bends) {
+                    const pairs = parseBends(text);
+                    if (pairs !== null) {
+                        this.routes.set(structure.edgeOf[k], pairs);
                     }
                 }
             }
@@ -334,6 +313,30 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
             return bends === undefined ? ends : { ...ends, bends };
+        }
+
+        /**
+         * What the graph's data says about the layout besides node sizes: the edges in the order
+         * they arrived with their Graphviz attributes, each group's cluster attributes, and the
+         * file's rank subgraphs.
+         * @param input - the run's input
+         * @returns the structure
+         */
+        private structure(input: SnapshotLayoutInput): DotStructure & { readonly edgeOf: readonly Edge[] } {
+            const { ids } = input.stored;
+            const groups = new Map<number, Readonly<Record<string, unknown>>>();
+            for (const node of this._nodes) {
+                const row = ids.indexOf(node.id);
+                if (this.followerGroups.has(row)) {
+                    groups.set(row, node.data);
+                }
+            }
+
+            // An engine driven without an element has nodes whose parent holds no data manager.
+            const host: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
+                this._nodes[0]?.parentGraph;
+            const ranks = host?.getDataManager?.().rankSets ?? [];
+            return graphvizStructure((id) => ids.indexOf(id), this._edges, groups, ranks);
         }
     };
 }

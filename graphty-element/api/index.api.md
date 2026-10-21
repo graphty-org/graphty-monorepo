@@ -790,6 +790,7 @@ export class DataManager implements Manager {
     // @internal
     notePainted(dirty: ReadonlySet<string> | null): void;
     get positions(): ReadonlyElementPositions;
+    get rankSets(): readonly RankSet[];
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
         removed: number;

@@ -221,9 +221,10 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    // A halo's size and opacity have nothing to change until a color draws one,
-                    // and a border to recolour and restyle: its colour and style draw nothing alone.
-                    set: { "node.label": "WORDS", "node.haloColor": "#FFD700", "node.borderWidth": 0.3 },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    // No halo: any halo channel switches the halo on alone, so one drawn here
+                    // would leave node.halo nothing to change.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",

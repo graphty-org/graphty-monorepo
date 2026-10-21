@@ -268,8 +268,9 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelTextAlign",
+    "edge.labelLocation",
     "node.visible",
-    "node.labelBackground",
     "node.tooltipSize",
     "node.tooltipColor",
     "node.tooltipBackground",
@@ -277,18 +278,12 @@ const DECLARED = [
     "edge.labelSize",
     "edge.labelColor",
     "edge.labelBackground",
-    "edge.arrowHeadTextSize",
-    "edge.arrowHeadTextColor",
     "edge.arrowHeadTextBackground",
-    "edge.arrowTailTextSize",
-    "edge.arrowTailTextColor",
     "edge.arrowTailTextBackground",
+    "edge.labelLetterSize",
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
-    "edge.labelTextAlign",
-    "edge.labelLocation",
-    "edge.labelLetterSize",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
     "edge.labelWrapEllipsis",
@@ -339,9 +334,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-four node channels and one hundred and nineteen edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 144);
-        assert.strictEqual(channelsFor("edge").length, 119);
+    it("splits into one hundred and fifty-one node channels and one hundred and thirty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 151);
+        assert.strictEqual(channelsFor("edge").length, 130);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -650,10 +645,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.gradientStops",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
-        "edge.arrowHeadTextSize",
         "edge.arrowHeadTextLetterSize",
         "edge.arrowHeadTextFont",
-        "edge.arrowHeadTextColor",
         "edge.arrowHeadTextWeight",
         "edge.arrowHeadTextOpacity",
         "edge.arrowHeadTextDistance",
@@ -662,10 +655,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextOffsetY",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
-        "edge.arrowTailTextSize",
         "edge.arrowTailTextLetterSize",
         "edge.arrowTailTextFont",
-        "edge.arrowTailTextColor",
         "edge.arrowTailTextWeight",
         "edge.arrowTailTextOpacity",
         "edge.arrowTailTextDistance",
@@ -688,8 +679,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
-        "node.labelColor",
-        "node.labelSize",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -718,8 +707,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
-        "edge.labelColor",
-        "edge.labelSize",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -832,7 +819,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the twenty-nine that carry a colour, and the type says the same twenty-nine", () => {
+    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -857,17 +844,15 @@ describe("colour channels", () => {
             "edge.arrowHeadColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
-            "node.labelBackground",
+            "edge.arrowTailTextColor",
+            "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleTailColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",
             "edge.labelBackground",
-            "edge.arrowHeadTextColor",
             "edge.arrowHeadTextBackground",
-            "edge.arrowTailTextColor",
             "edge.arrowTailTextBackground",
-            "edge.arrowMiddleHeadColor",
-            "edge.arrowMiddleTailColor",
             "edge.labelOutline",
             "edge.labelBorder",
         ];

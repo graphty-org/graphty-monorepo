@@ -59,4 +59,18 @@ describe("a mutual pair of arcs bowed apart", () => {
         assert.strictEqual(report.properties["edge.arrow"].passRate, 1);
         assert.strictEqual(report.properties["edge.route"].passRate, 1);
     });
+
+    it("pairs them by their arrowheads where the markup names an edge's two nodes in no order (Gephi)", () => {
+        const [a, c]: [Pt, Pt] = [
+            [110, 100],
+            [490, 100],
+        ];
+        // the oracle's names run a -> c for both, each line's own arrowhead telling its way
+        const reversed = { ...arc("a->c#1", "a", "c", a, c, 8), arrows: [] as PEdge["arrows"] };
+        reversed.arrows = [{ end: "source", length: 12, width: 10, filled: true, shape: "triangle", color: "#ff00ff" }];
+        reversed.points = arc("x", "c", "a", c, a, -8).points.reverse();
+        const o = scene("oracle", [arc("a->c#0", "a", "c", a, c, 8), reversed]);
+        const g = scene("graphty", [arc("2", "c", "a", c, a, -8), arc("1", "a", "c", a, c, 8)]);
+        assert.strictEqual(compareOracle("t", o, g).properties["edge.arrow"].passRate, 1);
+    });
 });

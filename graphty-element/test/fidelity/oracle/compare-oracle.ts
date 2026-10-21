@@ -1676,18 +1676,20 @@ export function compareOracle(
         if (framed && !passes(0) && passes(best)) {
             return best;
         }
-        // among the edges whose routes pass as well as the first's, the one with the same words; of a mutual pair, the
-        // one that runs the oracle edge's way: two arcs bowed apart are each other's route run backwards, within the
-        // tolerance on a long chord (pajek-synth-lines 6 -> 26 and 26 -> 6, each judged with the other's arrowhead)
+        // among the edges whose routes pass as well as the first's, the one with the same words; of a mutual pair, one
+        // with its arrowheads at the same ends: two arcs bowed apart are each other's route run backwards, within the
+        // tolerance on a long chord (pajek-synth-lines 6 -> 26 and 26 -> 6, each judged with the other's arrowhead).
+        // Not by the ends the markup names: Gephi names an edge by its two nodes in no order (gexf-graphology-rio)
         const alike = list.map((_, k) => k).filter((k) => passes(k) === passes(0));
-        const sameWay = alike.filter((k) => !flips(o, list[k]));
-        const pool = sameWay.length > 0 ? sameWay : alike;
-        return pool[
-            sameWords(
-                o,
-                pool.map((k) => list[k]),
-            )
-        ];
+        const candidates = alike.map((k) => list[k]);
+        const worded = alike[sameWords(o, candidates)];
+        const words = norm(list[worded].label?.content ?? "");
+        const headed = alike.filter(
+            (k) =>
+                norm(list[k].label?.content ?? "") === words &&
+                arrowEnds(o, false) === arrowEnds(list[k], flips(o, list[k])),
+        );
+        return headed.includes(worded) || headed.length === 0 ? worded : headed[0];
     };
     /** Pairs each oracle edge with a graphty edge between the same nodes, by `key`; returns the oracle's left over. */
     const pairBy = (os: readonly PEdge[], key: EndsKey): PEdge[] => {

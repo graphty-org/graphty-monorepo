@@ -10,10 +10,12 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-21) Round 1 plan is `tier3/rounds/round-1/plan.md`: 56 rows generated from roster.md's
-  allocation (core T39, T40, T47, T48 first; A/B alternating), Sam `empty --keys`, everyone else
-  `empty`, T49 rows carry the follow-up. All 56 rows brief. Before a round, grep every briefing's
-  `REAL_DIST=` line for the frozen build: --brief had been sending participants to an old build.
+- (2026-10-21) Round 1 plan is `tier3/rounds/round-1/plan.md` (committed, with the entry check's
+  gate evidence under it): 56 rows from roster.md's allocation (core T39, T40, T47, T48 first; A/B
+  alternating), Sam `empty --keys`, everyone else `empty`, T49 rows carry the follow-up. Rechecked
+  after the 04:33 prompt rewording: roster and T49 follow-up unchanged, all 56 brief onto
+  758b8e8081, no briefing holds the follow-up. Re-plan = re-run `tmp/researcher/brief-all-r1.sh`,
+  never regenerate the file (it would drop the gate evidence).
 - (2026-10-21) Round 1 is frozen on 758b8e8081; the key reads it from 15 halves' targeted
   re-pilots (rounds/r1d2/pilot/). T44 B's spoiler is fixed (Undo across Replace redraws), so its
   grade-from-screenshot line is withdrawn. New grading risk: with a find-box selection held, the
@@ -89,6 +91,12 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-21 (round 1 plan, recheck):** Kept the committed plan rather than rewriting it. The
+  prompts were reworded after the plan was written, so I re-checked the two things a plan row
+  carries from tasks.md and roster.md: the allocation (all 24 halves match roster.md's table) and
+  T49's follow-up (word for word). Rewriting would also drop the "Gate evidence" section the entry
+  check appended, which is the record that the pilots ran on the frozen build.
+
 - **2026-10-21 (round 1 plan):** Generated the plan from roster.md's "Who takes which task in
   round 1" table with a script that asserts 56 rows, each half's count equal to its names, and no
   persona on both halves, so the plan cannot drift from the roster. Order: the core tasks first
@@ -150,21 +158,11 @@ logged). Their reasons, in short:
   meets" block where the build changed; kept every target; T50 B read from the card graded S;
   settled rules moved to the key's top instead of stale "for the Director" text.
 
-- **2026-10-19 (fourth read of the criteria, build 1fa51e2b0b):** Proposed, not applied (the
-  Director freezes): (1) a method whose two frozen-build runs differ is graded against the
-  participant's own run (target count read from their `styles.json`), not a fixed number --
-  answers.md has Louvain values only; (2) bar 2's text carves out T49's tree-only difference, as
-  answers.md already does, so a grader reading the criteria alone cannot score a false done; (3)
-  bar 6's typing-lands check adds "after picking a match kind in a text card" (T40 B pass-5
-  evidence); (4) a docs-only commit does not refreeze: the first line names the app commit, and a
-  walk counts on any build whose graphty, graphty-element, compact-mantine and lockfile diff is
-  empty, recorded in the gate evidence; (5) the dry run walks round-1 halves only, core first;
-  (6) the walk records notices, live-region text and accessible names into a second vocabulary
-  that wording.mjs and the experts read -- closes the "at rest only" hole, and bar 5 lists it;
-  (7) "draw" in T43, T47, T50, T51 listed as kept with its reason, or T50 reworded ("made them
-  orange"), since the unset line's spoken name says "drawn"; (8) question 2 reports each card
-  type with its domain count, and a type seen on one domain only is labeled so (number on ties:
-  Les Mis only; category on ties: neighbors only). Did not re-propose the schema twins.
+- **2026-10-19 (fourth read of the criteria, folded):** Proposed to the Director: grade a
+  method with differing runs against the participant's own `styles.json`; carve T49's tree-only
+  difference out of bar 2; typing-lands after picking a match kind; docs-only commits do not
+  refreeze; dry run walks round-1 halves core first; walks record notices and accessible names
+  for wording checks; keep or reword "draw"; report each card type with its domain count.
 
 - **2026-10-18 (third read of the criteria, build 52cb47a85a):** Proposed, not applied: the
   criteria are frozen and the Director's. Chose to grade T49 by the drawing because the prompt's
@@ -208,6 +206,11 @@ logged). Their reasons, in short:
   section plus scoped edits per build; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-21 (round 1 plan, recheck) -- Worked: `tmp/researcher/brief-all-r1.sh` briefs all 56
+  rows and tallies the `^REAL_DIST=` line (56 on the frozen build, 0 failures in one run);
+  grepping the briefings for the follow-up's words to prove none leaks. --brief writes under
+  `tmp/studio-sessions/...`, not under the round folder.
 
 - 2026-10-21 (round 1 plan) -- Worked: briefing all 56 rows and tallying each briefing's
   `REAL_DIST=` and start word (caught the wrong build; one --brief success line proves nothing

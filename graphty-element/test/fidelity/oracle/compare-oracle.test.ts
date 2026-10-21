@@ -780,6 +780,21 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("keeps a raster oracle's node whose box, not its disc, lies inside a later disc", () => {
+        // json-graphology-synth n66 under n77: the small disc sits in the big disc's box corner and shows there
+        const drawing = {
+            nodes: [
+                { id: "corner", x: 740, y: 310, r: 28, label: null, fill: "#984ea3", alpha: 1 },
+                { id: "tangent", x: 833, y: 245, r: 28, label: null, fill: "#984ea3", alpha: 1 },
+                { id: "big", x: 833, y: 217, r: 130.7, label: null, fill: "#a65628", alpha: 1 },
+            ],
+        };
+        assert.deepEqual(
+            rasterScene(drawing, 1200, 900, () => null).nodes.map((n) => n.id),
+            ["big", "corner"],
+        );
+    });
+
     it("takes a raster oracle's recorded paint over its pixels, and judges its recorded edges", () => {
         // sigma.js's record: "half" drawn at alpha 0.5 (its pixels show the color blended with white), "gone" fully
         // transparent, "under" wholly inside the opaque "b" drawn after it, and two edges, one fully transparent

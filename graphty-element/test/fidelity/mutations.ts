@@ -188,11 +188,37 @@ const DEFECTS = {
         }
         return s;
     },
+    // a disc drawn in a corner of a later, larger disc's box but outside the disc shows there (json-graphology-synth n66
+    // by n77): the comparison must not read it as painted over by the later one
+    "disc in a later disc's box corner removed": (s) => {
+        const round = (n: PNode): boolean => n.shape === "ellipse";
+        // under an opaque one, which would paint over a disc it held
+        const inCorner = (n: PNode, m: PNode): boolean =>
+            (m.fill?.opacity ?? 0) >= 0.99 &&
+            Math.abs(n.cx - m.cx) + n.w / 2 <= m.w / 2 &&
+            Math.abs(n.cy - m.cy) + n.h / 2 <= m.h / 2 &&
+            Math.hypot(n.cx - m.cx, n.cy - m.cy) + n.w / 2 > m.w / 2 + 1;
+        const gone = new Set(
+            s.nodes
+                .filter((n, i) => round(n) && s.nodes.slice(i + 1).some((m) => round(m) && inCorner(n, m)))
+                .map((n) => n.id),
+        );
+        s.nodes = s.nodes.filter((n) => !gone.has(n.id));
+        return s;
+    },
     "node fill removed (outline only)": eachNode((n) => {
         if (n.fill !== null && n.stroke === null) {
             n.stroke = { color: n.fill.color, opacity: 1, width: 1, dash: null, dashClass: "solid" };
         }
         n.fill = null;
+    }),
+    // every label shown whatever its node's size on screen: the node-size rule (sigma's labelRenderedSizeThreshold,
+    // its label grid) lost
+    "node-size label rule ignored": eachNode((n) => {
+        if (n.sizedLabel !== undefined) {
+            n.sizedLabel.min = 0;
+            n.label = n.sizedLabel.label;
+        }
     }),
     "node outline black": eachNode((n) => {
         if (n.stroke !== null) {
@@ -816,6 +842,8 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node fill removed (outline only)": ["node.fill", "node.fillOpacity", "node.gradient", "node.stroke"],
     "node outline black": ["node.stroke"],
     "node outline width x2": ["node.strokeWidth", "node.width", "node.height"],
+    "disc in a later disc's box corner removed": ["node.present"],
+    "node-size label rule ignored": ["label.present"],
     "node outline removed": ["node.stroke", "node.strokeWidth", "node.strokeDash"],
     "node shape ellipse<->rect": ["node.shape"],
     "node outline dashed->solid": ["node.strokeDash", "node.stroke"],

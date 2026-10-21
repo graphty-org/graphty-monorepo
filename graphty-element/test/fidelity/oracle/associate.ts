@@ -2994,7 +2994,7 @@ export function rasterScene(
     fillAt: (x: number, y: number, r: number) => string | null,
 ): PScene {
     const colors = drawing.nodes.map((n) => fillAt(n.x, n.y, 0.5 * n.r));
-    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose box
+    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose disc
     // lies inside a later one's, which shows its color over the node, is painted over: by the rule graphty's side
     // counts a node an opaque node in front holds as not drawn. Where the program recorded its paint, the later node
     // covers it when that paint is opaque; else when the pixels show the same color over both (one see-through node
@@ -3005,7 +3005,8 @@ export function rasterScene(
     };
     const seen = drawing.nodes.filter((n, i) =>
         drawing.nodes.slice(i + 1).every((m, k) => {
-            const inside = Math.abs(m.x - n.x) + n.r <= m.r + 1 && Math.abs(m.y - n.y) + n.r <= m.r + 1;
+            // the disc, not its box: one in a corner of a later disc's box shows there (json-graphology-synth n66)
+            const inside = Math.hypot(m.x - n.x, m.y - n.y) + n.r <= m.r + 1;
             return !(inside && covers(i, i + 1 + k));
         }),
     );

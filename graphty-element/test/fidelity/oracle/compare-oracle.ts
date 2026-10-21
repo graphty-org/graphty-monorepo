@@ -143,6 +143,11 @@ export const ORACLE_TOLERANCES = {
     fontSizeRatio: [0.9, 1.11],
     /** A label whose font is under this many render pixels is not shown (extract-scene.ts drops graphty's alike). */
     legibleFontPx: 1,
+    /**
+     * A node within this share of its label's node-size rule at the oracle's scale may show the label or not: the
+     * fitted scale is good to about this, and sigma's grid puts a label's rule exactly at its first framing.
+     */
+    labelRuleShare: 0.01,
     /** CSS weight difference; 400 against 700 fails. */
     fontWeight: 150,
     rotationDeg: 5,
@@ -1513,7 +1518,7 @@ export function compareOracle(
             "node",
             id,
             o.label,
-            g.label,
+            labelAtScale(g, lengthScale, o.label),
             lengthScale,
             angleToOracle,
             fit === null
@@ -2426,6 +2431,33 @@ export function lineAngleAt(pts: readonly Pt[], q: Pt): number {
         }
     }
     return best.angle;
+}
+
+/**
+ * graphty's node label as the oracle's framing would show it. A label under a node-size rule (sigma's
+ * labelRenderedSizeThreshold, `node.labelMinNodeScreenSize`) shows while its node is drawn at least so many px
+ * across, which depends on how large each side frames the graph, a camera choice judged apart (frame.zoom): it is
+ * shown here where its node, at the oracle's scale, meets the rule (json-gephi-worldcup: 8 labels sigma shows on
+ * nodes 12.22 px across, which graphty's framing draws 11.02 px across and hides). ponytail: only the node's own
+ * label; a node with further texts under such a rule would lose them here, and no format draws one yet.
+ * @param g - graphty's node
+ * @param scale - oracle px per graphty px
+ * @param oracle - the oracle's label, which decides a node on the rule's edge
+ * @returns the label to judge, or null for none
+ */
+function labelAtScale(g: PNode, scale: number, oracle: PText | null): PText | null {
+    const r = g.sizedLabel;
+    if (r === undefined) {
+        return g.label;
+    }
+    // the label graphty draws where it shows one, else the one its framing hides
+    const label = g.label ?? r.label;
+    const share = (r.acrossPx * scale) / r.min - 1;
+    // on the rule's edge either is right (json-gephi-worldcup's grid labels ranked second in their cell)
+    if (Math.abs(share) <= ORACLE_TOLERANCES.labelRuleShare) {
+        return oracle === null ? null : label;
+    }
+    return share > 0 ? label : null;
 }
 
 /**

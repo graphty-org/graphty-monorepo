@@ -442,6 +442,11 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        const rule = d?.label?.nodeSizeRule;
+        const sized =
+            rule !== undefined && d?.label && (n.label?.visible === true || n.drawn?.labelHiddenBySize === true)
+                ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
+                : {};
         // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
         // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
         const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
@@ -512,6 +517,7 @@ export function drawnPrimitives(
                       }
                     : null,
             label,
+            ...sized,
             inset: inset > 0,
             ...(faceless === undefined ? {} : { faceless }),
         });

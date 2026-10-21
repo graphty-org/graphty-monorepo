@@ -12,7 +12,7 @@
  * centers.
  */
 import {
-    type AbstractMesh,
+    AbstractMesh,
     type Camera,
     Color3,
     InstancedMesh,
@@ -36,6 +36,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
 
@@ -423,6 +424,11 @@ export interface DrawnLabel {
     textBox: { x0: number; y0: number; x1: number; y1: number } | null;
     /** The words' opacity: their color's alpha times the plane's. */
     opacity: number;
+    /**
+     * A label shown only while its node is drawn at least `min` px across (`minNodeScreenSize`, sigma's
+     * labelRenderedSizeThreshold): the node's size across on screen now, and whether that rule alone hides it.
+     */
+    nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
     /** How many lines the words are drawn on. */
     lineCount: number;
     /** How the lines are aligned. */
@@ -459,6 +465,27 @@ export function cssWeight(weight: string | undefined): number {
     }
     const n = Number(weight);
     return Number.isFinite(n) ? n : 400;
+}
+
+/**
+ * A label's node-size rule as drawn (`RichTextLabel.tooSmall`'s second half): its node's size across on screen, the
+ * least that shows the label, and whether the rule alone hides it now (the mesh otherwise shown).
+ * @param label - the label
+ * @returns `{ nodeSizeRule }`, or nothing for a label under no such rule
+ */
+function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> {
+    const { minNodeScreenSize: min, attachTo } = (
+        label as unknown as { options: { minNodeScreenSize?: number; attachTo?: unknown } }
+    ).options;
+    const mesh = label.labelMesh;
+    const camera = mesh?.getScene().activeCamera;
+    if (min === undefined || min <= 0 || !(attachTo instanceof AbstractMesh) || !mesh || !camera) {
+        return {};
+    }
+    const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
+    const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
+    const hidden = acrossPx < min && mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
+    return { nodeSizeRule: { acrossPx, min, hidden } };
 }
 
 /**
@@ -550,6 +577,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
         textBox,
         opacity: textColor.alpha * planeAlpha,
+        ...nodeSizeRuleOf(label),
         lineCount,
         align,
         outline:

@@ -205,6 +205,12 @@ export interface PNode {
     pictures?: PBox[];
     label: PText | null;
     /**
+     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
+     * graphty's framing, with its node's size across in render px and the least that shows it. The comparison shows it
+     * where the oracle's framing would (`labelAtScale`).
+     */
+    sizedLabel?: { label: PText; acrossPx: number; min: number };
+    /**
      * graphty's side only: whether its border was drawn in from the node's size (a border inside the size or centered
      * on it), so its fill lies inside the outline the program strokes, not on it.
      */

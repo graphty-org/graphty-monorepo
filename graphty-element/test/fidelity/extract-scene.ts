@@ -429,6 +429,9 @@ export function sceneNode(
     const place = label ? labelPlace(label.box, d) : "other";
     const occluded =
         label !== null && place === "inside" && !label.onTop && (label.box.near + label.box.far) / 2 > d.box.near;
+    // a label a reader could see, whether or not it is enabled now
+    const labelShown =
+        label !== null && d.shown && (hiddenBy === null || label.onTop) && !occluded && label.fontPx >= 1;
     const requestedFill = colorOf(channel(merged, "node.color"));
     const opacity = channel(merged, "node.opacity");
     const labelStyle = (merged["node.labelStyle"] ?? {}) as Readonly<Record<string, unknown>>;
@@ -455,12 +458,7 @@ export function sceneNode(
                       position: place,
                       // a label is drawn whatever its node's fill: an unfilled group still shows it, and one drawn on
                       // top of everything shows over the node that hides its own (Gephi's, gexf-cns-wos n5)
-                      visible:
-                          d.shown &&
-                          (hiddenBy === null || label.onTop) &&
-                          label.enabled &&
-                          !occluded &&
-                          label.fontPx >= 1,
+                      visible: labelShown && label.enabled,
                   },
         visible,
         z: -d.box.near,
@@ -485,6 +483,8 @@ export function sceneNode(
             border: d.border ? { ...d.border, widthPx: round(d.border.widthPx) } : null,
             labelFontPx: label ? round(label.fontPx) : null,
             labelOccluded: occluded,
+            // shown but for its node-size rule (`DrawnLabel.nodeSizeRule`), which another framing may meet
+            labelHiddenBySize: labelShown && label?.nodeSizeRule?.hidden === true,
             hiddenBy,
         },
     };

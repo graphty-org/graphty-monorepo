@@ -73,6 +73,10 @@ const DEFAULT_IDS = [
     // no ids, no positions and no legible labels: only vis-network's own account of where it drew each node tells its
     // bodies apart, and a defect that swaps two nodes' looks is caught only through it
     "json-vis-siblings",
+    // sigma.js's raster drawing: discs in a later disc's box corner, which show, and labels under sigma's node-size
+    // rule (labelRenderedSizeThreshold), judged at sigma's framing
+    "json-graphology-synth",
+    "graphology-specimen-labels",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");

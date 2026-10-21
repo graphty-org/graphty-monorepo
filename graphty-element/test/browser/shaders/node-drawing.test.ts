@@ -471,40 +471,74 @@ describe("loops and the active-mesh freeze", () => {
         assert.isTrue(scene._activeMeshesFrozen, "and the active meshes stayed frozen");
     });
 
-    it("with 10,000 nodes and a loop shader the active meshes stay frozen across 30 frames", async () => {
-        const nodes = Array.from({ length: 10_000 }, (_, i) => ({
-            id: `n${String(i)}`,
-            position: { x: (i % 100) - 50, y: Math.floor(i / 100) - 50, z: 0 },
-        }));
-        // One node first, so the shader has loaded and compiled before the rest arrive: they are
-        // then drawn on the batch from their first paint, never as 10,000 plain spheres first.
-        const element = await mounted(
-            [{ id: "n0", x: -50, y: -50 }],
-            [{ name: "Pulse", target: "node", selector: { match: "everything" }, set: { "node.shader": "e3/pulse" } }],
-        );
-        await until(element, "the first node draws on the impostor batch", () => batchHolds(element, 1));
-        // The loop must keep running for this to measure anything. A software GPU drawing 10,000
-        // impostors falls behind, and the frame guard would (rightly) step down to half rate and
-        // then pause shader motion, which releases the claim this test watches.
-        element.shaderSettings = { guard: false };
-        await element.session.data.addNodes(nodes.slice(1));
-        await operationQueueOf(element.graph).waitForCompletion();
-        const scene = element.graph.getScene();
-        await until(element, "every node draws on the impostor batch", () => batchHolds(element, 10_000));
-        await until(element, "the active meshes freeze", () => scene._activeMeshesFrozen);
-        let unfrozen = 0;
-        const observer = scene.onAfterRenderObservable.add(() => {
-            unfrozen += scene._activeMeshesFrozen ? 0 : 1;
-        });
-        try {
-            // 30 frames: a software GPU (SwiftShader, as in CI) draws 10,000 impostors at about 10
-            // frames a second, so 120 frames alone outran the test's time limit.
-            await drawnFrames(scene, 30);
-        } finally {
-            scene.onAfterRenderObservable.remove(observer);
-        }
+    // One element for both tests below, split so neither waits on the other's half: filling the
+    // batch with 10,000 nodes is one long paint, and 30 frames of 10,000 impostors on a software
+    // GPU (SwiftShader, as in CI) are as long again. The second test reads the element the first
+    // one filled, so they run in this order.
+    describe("with 10,000 nodes and a loop shader", () => {
+        let element: Graphty | undefined;
+        let remove: (() => void) | undefined;
 
-        assert.strictEqual(unfrozen, 0, "no frame of the loop unfroze the active meshes");
-        assert.isAbove(everyFrameAnimationsOn(scene), 0, "the loop holds its frame claim the whole time");
+        beforeAll(async () => {
+            // One node first, so the shader has loaded and compiled before the rest arrive: they
+            // are then drawn on the batch from their first paint, never as 10,000 plain spheres
+            // first.
+            element = await mounted(
+                [{ id: "n0", x: -50, y: -50 }],
+                [
+                    {
+                        name: "Pulse",
+                        target: "node",
+                        selector: { match: "everything" },
+                        set: { "node.shader": "e3/pulse" },
+                    },
+                ],
+            );
+            // This element outlives one test: it is removed after the last of them, not after each.
+            remove = cleanups.pop();
+        });
+
+        afterAll(() => {
+            remove?.();
+        });
+
+        it("draws every node on the impostor batch", async () => {
+            const filled = element;
+            assert.isDefined(filled);
+            await until(filled, "the first node draws on the impostor batch", () => batchHolds(filled, 1));
+            // The loop must keep running for the next test to measure anything. A software GPU
+            // drawing 10,000 impostors falls behind, and the frame guard would (rightly) step down
+            // to half rate and then pause shader motion, which releases the claim it watches.
+            filled.shaderSettings = { guard: false };
+            const nodes = Array.from({ length: 10_000 }, (_, i) => ({
+                id: `n${String(i)}`,
+                position: { x: (i % 100) - 50, y: Math.floor(i / 100) - 50, z: 0 },
+            }));
+            await filled.session.data.addNodes(nodes.slice(1));
+            await operationQueueOf(filled.graph).waitForCompletion();
+            await until(filled, "every node draws on the impostor batch", () => batchHolds(filled, 10_000));
+        });
+
+        it("keeps the active meshes frozen across 30 frames", async () => {
+            const filled = element;
+            assert.isDefined(filled);
+            assert.isTrue(batchHolds(filled, 10_000), "the test before filled the batch");
+            const scene = filled.graph.getScene();
+            await until(filled, "the active meshes freeze", () => scene._activeMeshesFrozen);
+            let unfrozen = 0;
+            const observer = scene.onAfterRenderObservable.add(() => {
+                unfrozen += scene._activeMeshesFrozen ? 0 : 1;
+            });
+            try {
+                // 30 frames: a software GPU (SwiftShader, as in CI) draws 10,000 impostors at about
+                // 10 frames a second, so 120 frames alone outran the test's time limit.
+                await drawnFrames(scene, 30);
+            } finally {
+                scene.onAfterRenderObservable.remove(observer);
+            }
+
+            assert.strictEqual(unfrozen, 0, "no frame of the loop unfroze the active meshes");
+            assert.isAbove(everyFrameAnimationsOn(scene), 0, "the loop holds its frame claim the whole time");
+        });
     });
 });

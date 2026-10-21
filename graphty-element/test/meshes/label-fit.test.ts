@@ -69,6 +69,29 @@ describe("labelFitExtent", () => {
         assert.closeTo(reaching?.height ?? 0, 36 * 2, 1e-9);
     });
 
+    it("does not grow the box of a polygon whose corners are drawn where they say, past it", () => {
+        // the corners reach 1.5 and 2 times past the box they are fractions of when they are drawn,
+        // so the box stays at its own size and the drawn polygon is 81 by 72, as Graphviz draws it
+        const drawnAsTheySay = labelFitExtent(
+            {
+                type: "polygon",
+                points: "1.5,0 0,2 -1,0 0,-1",
+                stretchPoints: false,
+                labelFit: "inside",
+                width: 54,
+                height: 36,
+            },
+            box,
+        );
+        assert.deepEqual(drawnAsTheySay, { width: 54, height: 36 });
+        // corners falling short of the box still draw it in, as before
+        const short = labelFitExtent(
+            { type: "polygon", points: "0.5,0 0,0.5 -0.5,0 0,-0.5", stretchPoints: false, labelFit: "bounds", size: 0 },
+            { width: 100, height: 40 },
+        );
+        assert.deepEqual(short, { width: 50, height: 20 });
+    });
+
     it("never shrinks a node below its own size for a short label", () => {
         assert.deepEqual(labelFitExtent({ type: "ellipse", labelFit: "inside", width: 54, height: 36 }, box), {
             width: 54,

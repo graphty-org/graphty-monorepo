@@ -265,6 +265,40 @@ function shownParams(entry: SourceCatalogEntry, mode: unknown, rare: boolean): r
 }
 
 /**
+ * The API key row, for a source that takes a key and says where it goes; nothing for any other.
+ * The key is never saved: the load remembers it in the element's credential store.
+ * @param props - Component props
+ * @param props.entry - the source.
+ * @param props.value - the key typed.
+ * @param props.onChange - takes a new key.
+ * @returns the row, or nothing.
+ */
+function ApiKeyRow({
+    entry,
+    value,
+    onChange,
+}: Readonly<{ entry: SourceCatalogEntry; value: string; onChange: (key: string) => void }>): React.JSX.Element | null {
+    const { auth = [], authRequired, apiKey } = entry.descriptor;
+    if (authRequired === "none" || !auth.includes("api-key") || apiKey === undefined) {
+        return null;
+    }
+    return (
+        <Row label="API key">
+            <PasswordInput
+                size="xs"
+                aria-label="API key"
+                placeholder={authRequired === "optional" ? "optional" : "key"}
+                autoComplete="off"
+                value={value}
+                onChange={(event) => {
+                    onChange(event.currentTarget.value);
+                }}
+            />
+        </Row>
+    );
+}
+
+/**
  * The server form (spec section 3.9): Kind, Example, Endpoint, Sign in, Start, the query or the
  * source's own params, Limit and Expand on double-click; Test reads a preview, Load loads. Rows a
  * source cannot use are absent.
@@ -290,7 +324,6 @@ function ServerForm({ titleId, onClose }: Readonly<{ titleId: string; onClose: (
     const { descriptor } = entry;
     const auth = descriptor.auth ?? [];
     const signIn = descriptor.authRequired !== "none" && (auth.includes("basic") || auth.includes("bearer"));
-    const keyed = descriptor.authRequired !== "none" && auth.includes("api-key") && descriptor.apiKey !== undefined;
     const modes = descriptor.params.find((p) => p.name === "mode")?.values ?? [];
     const samples = descriptor.samples ?? [];
     const change = (next: Partial<ServerFormState>): void => {
@@ -444,20 +477,13 @@ function ServerForm({ titleId, onClose }: Readonly<{ titleId: string; onClose: (
                     </div>
                 </Row>
             ) : null}
-            {keyed ? (
-                <Row label="API key">
-                    <PasswordInput
-                        size="xs"
-                        aria-label="API key"
-                        placeholder={descriptor.authRequired === "optional" ? "optional" : "key"}
-                        autoComplete="off"
-                        value={form.apiKey}
-                        onChange={(event) => {
-                            change({ apiKey: event.currentTarget.value });
-                        }}
-                    />
-                </Row>
-            ) : null}
+            <ApiKeyRow
+                entry={entry}
+                value={form.apiKey}
+                onChange={(apiKey) => {
+                    change({ apiKey });
+                }}
+            />
             {modes.length === 0 ? null : (
                 <Row label="Start">
                     <SegmentedControl

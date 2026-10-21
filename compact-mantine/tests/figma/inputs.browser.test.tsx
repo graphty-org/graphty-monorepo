@@ -557,12 +557,15 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         expectMeasured(field(container), { borderTopColor: "#000000a6", outlineColor: "#00000000" });
     });
 
-    it("AA option: a disabled trigger keeps its border and paints no outline over it", async () => {
+    it("AA option: a disabled trigger draws its edge in the disabled ink and paints no outline over it", async () => {
         const { container } = await renderFigma(
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" disabled />,
             { highContrast: true },
         );
-        expectMeasured(field(container), { borderTopColor: "#00000073", outlineColor: "#00000000" });
+        // A select that cannot change reads as a fixed value, not a box to open: no caret and a
+        // disabled edge (3650da1d89), even in the AA option; a disabled control is exempt from the
+        // 3:1 edge (WCAG 1.4.11).
+        expectMeasured(field(container), { borderTopColor: "#e6e6e6", outlineColor: "#00000000" });
     });
 
     it("Figma look: hovering an outlined field changes nothing", async () => {

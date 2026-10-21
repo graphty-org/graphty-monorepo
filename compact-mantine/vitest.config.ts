@@ -98,8 +98,10 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
     if (!box) {
         throw new Error(`${selector} is not on screen`);
     }
+    // No Emulation.setTouchEmulationEnabled: once it has been on, Chromium answers `(hover: none)`
+    // for the rest of the run, and nothing over CDP turns that back, so every later test of a
+    // hover-only control read a touch screen. A dispatched touch arrives as a touch without it.
     const cdp = await ctx.page.context().newCDPSession(ctx.page);
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
@@ -111,10 +113,6 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
         });
     }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    // Touch emulation outlives this session, so it is turned off again. Chromium still answers
-    // `(hover: none)` for the rest of the run once a touch has been dispatched, and nothing over
-    // CDP turns that back: a later test that measures a hover-only control reads the media query.
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await cdp.detach();
 };
 
@@ -129,12 +127,11 @@ const touchTap: BrowserCommand<[selector: string]> = async (ctx, selector) => {
     if (!box) {
         throw new Error(`${selector} is not on screen`);
     }
+    // No touch emulation, as in touchDrag: it would leave `(hover: none)` on for the run.
     const cdp = await ctx.page.context().newCDPSession(ctx.page);
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await cdp.detach();
 };
 

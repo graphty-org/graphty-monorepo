@@ -174,15 +174,17 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const { session, runId } = await openScene();
         await userEvent.click(await row("Louvain"));
 
-        // Fill > Vary > the run's group, with a palette to pick; closing hands focus to the receipt.
+        // Fill > Vary > the run's group, with a palette to pick; Escape hands focus back to the
+        // field's pill that opened the popover, never to the page.
         const fill = await line("node.color");
         const popover = await varyByGroup(fill, "Node color");
         assert.isNotNull(within(popover).getByText("Palette"), "a palette to pick");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNotNull(
-                document.activeElement?.closest("[data-receipt]"),
-                "focus goes to the receipt, not the field's chip",
+            assert.strictEqual(
+                document.activeElement,
+                fill.querySelector(".ws-varied button"),
+                "focus goes back to the field's pill",
             );
         });
 
@@ -338,7 +340,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await userEvent.click(await row(groups[2].name), { modifiers: ["Shift"] });
         await userEvent.click(await row("Top 10 labels"), { modifiers: ["Control"] });
         const size = await line("node.size");
-        assert.equal(within(size).getByRole<HTMLInputElement>("combobox", { name: /^Node size/ }).value, "2");
+        assert.equal(within(size).getByRole<HTMLInputElement>("spinbutton", { name: /^Node size/ }).value, "2");
         assert.match(within(size).getByText(/not set: Top 10 labels/).textContent ?? "", /3 layers set size/);
 
         // The folder: Fill shows each group's color; "One value for all", then a color typed by
@@ -394,9 +396,17 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         });
 
         // Shape, set by none: Vary copies the rule into every layer, the one holding every group too.
+        // A "+" with one thing left adds it at once; with more, it opens a menu.
         const tab = await screen.findByTestId("style-tab");
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
+        const shapeItem = await waitFor(() => {
+            const found = screen.queryByRole("menuitem", { name: "Shape" });
+            assert.isTrue(found !== null || tab.querySelector('.ws-row[data-line="node.shape"]') !== null);
+            return found;
+        });
+        if (shapeItem !== null) {
+            await userEvent.click(shapeItem);
+        }
         await varyByGroup(await line("node.shape"), "Node shape");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

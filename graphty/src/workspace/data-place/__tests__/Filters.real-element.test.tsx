@@ -325,7 +325,9 @@ describe("Filters on the real element", () => {
             });
             assert.equal(session.visibility.steps.length, 0);
             assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
-            // With no list open, Escape closes the editor.
+            // Escape in a box holding text keeps the text and the editor; from the editor's other
+            // controls, with no list open, Escape closes the editor.
+            screen.getByRole("combobox", { name: "Keep" }).focus();
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(store.get().inspected);

@@ -4,7 +4,6 @@
  */
 import { MantineProvider } from "@mantine/core";
 import { render } from "@testing-library/react";
-import React from "react";
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -21,6 +20,7 @@ async function openPicker(): Promise<HTMLInputElement> {
                 <CompactColorInput
                     label="Fill"
                     color="#6366F1"
+                    defaultColor="#6366F1"
                     showOpacity={false}
                     swatches={["#6366F1", "#AAAAAA", "#111111"]}
                 />

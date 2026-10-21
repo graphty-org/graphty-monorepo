@@ -159,16 +159,16 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
 }
 
 /**
- * Dispose what a node's rebuild replaces -- its mesh, the label parented to it and its drag
- * handler -- ahead of the rebuild. A repaint of many nodes disposes every one of them first, inside
- * the bulk teardown, and only then builds the new meshes: built in between, the new meshes would
- * fill the scene lists the teardown emptied, and each later dispose would search them (#2749).
+ * Dispose what a node's rebuild replaces -- its mesh and the label parented to it -- ahead of the
+ * rebuild. The drag handler is kept: it lives as long as the node, reads `node.mesh` whenever it
+ * acts, and holds the hover, which a dispose would end while the pointer is still on the node.
+ * A repaint of many nodes disposes every one of them first, inside the bulk teardown, and only
+ * then builds the new meshes: built in between, the new meshes would fill the scene lists the
+ * teardown emptied, and each later dispose would search them (#2749).
  * The rebuild then finds the mesh disposed and builds a new one, as it does after a 2D/3D switch.
  * @param node - A node {@link nodeRebuildsFor} said is rebuilt.
  */
 export function releaseNodeMesh(node: Node): void {
-    node.dragHandler?.dispose();
-    node.dragHandler = undefined;
     node.label?.dispose();
     node.label = undefined;
     if (!node.mesh.isDisposed()) {

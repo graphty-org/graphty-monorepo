@@ -118,7 +118,21 @@ describe("Notes, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
             await userEvent.click(await screen.findByRole("gridcell", { name: /^With a note/ }));
-            const reopened = await elementSession(session);
+            // The reopened project's element: Back to start can put up an element of its own first,
+            // whose session is not the reopened project's.
+            let reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    const current = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                        "graphty-element:not([data-start-page])",
+                    )?.session;
+                    assert.equal(current?.project.name, "With a note");
+                    if (current !== undefined) {
+                        reopened = current;
+                    }
+                },
+                { timeout: TIMEOUT_MS },
+            );
             await waitFor(
                 () => {
                     assert.deepEqual(

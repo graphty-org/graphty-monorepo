@@ -122,6 +122,9 @@ async function lesMis(labels: { declutter: boolean; avoidNodesAndEdges?: boolean
     await framed(graph, () => {
         graph.zoomToFit();
     });
+    // waitForSettled waits for the queue and the styles, not the layout: the names are measured on
+    // the finished picture, once the layout has converged and the declutter has run on it.
+    await graph.waitForStableFrame();
     return graph;
 }
 
@@ -288,6 +291,8 @@ async function frameOn(graph: Graph, id: string): Promise<void> {
     assert.isTrue(graph.selectNode(id));
     await operationQueueOf(graph).waitForCompletion();
     await graph.applyCameraView("fitToGraph", { scope: "selection", params: { keepAngle: true } });
+    // The layout may still be converging, and a label is decluttered on the picture it settles on.
+    await graph.waitForStableFrame();
     await draw(graph);
 }
 

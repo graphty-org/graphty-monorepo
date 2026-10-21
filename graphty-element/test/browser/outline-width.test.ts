@@ -1,11 +1,11 @@
 /**
  * @file `layoutBehavior.node.outlineWidth`: one width for every outline, set on the graph, which
- * widens the one outline pass whether it exists already or is made later.
+ * widens every outline ring whether it is drawn already or is made later.
  */
 
 import "../../src/graphty-element";
 
-import type { HighlightLayer } from "@babylonjs/core";
+import { Mesh, VertexBuffer } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -39,14 +39,24 @@ async function outlined(): Promise<Graphty> {
 }
 
 /**
- * The outline pass's stroke size, as the scene holds it.
+ * How far the outline ring reaches, as the scene holds its geometry: the largest radius of the
+ * ring source mesh's vertices. The outline is a ring mesh around the node (e8546ecf5f), and its
+ * width is the band between the ring's inner and outer radius.
  * @param element - The element.
- * @returns Its horizontal and vertical blur sizes.
+ * @returns The ring's inner and outer radius.
  */
-function stroke(element: Graphty): [number, number] {
-    const layer = element.graph.scene.metadata?.highlightLayer as HighlightLayer | undefined;
-    assert.isDefined(layer, "an outlined node made the outline pass");
-    return [layer?.blurHorizontalSize ?? Number.NaN, layer?.blurVerticalSize ?? Number.NaN];
+function ring(element: Graphty): [number, number] {
+    const source = element.graph.scene.meshes.find(
+        (mesh): mesh is Mesh => mesh instanceof Mesh && mesh.name.startsWith("graphty-node-outline-"),
+    );
+    assert.isDefined(source, "an outlined node drew an outline ring");
+    const positions = source?.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const radii: number[] = [];
+    for (let at = 0; at < positions.length; at += 3) {
+        radii.push(Math.hypot(positions[at], positions[at + 1]));
+    }
+
+    return [Math.min(...radii), Math.max(...radii)];
 }
 
 describe("the graph's outline width", () => {
@@ -59,12 +69,16 @@ describe("the graph's outline width", () => {
 
     it("widens every outline when it is set, and returns to the renderer's own when cleared", async () => {
         element = await outlined();
-        const own = stroke(element);
+        const [inner, outer] = ring(element);
 
         element.layoutBehavior = { node: { outlineWidth: 2 } };
-        assert.deepStrictEqual(stroke(element), [own[0] * 2, own[1] * 2]);
+        const [wideInner, wideOuter] = ring(element);
+        assert.closeTo(wideInner, inner, 1e-6, "the ring still starts at the node");
+        assert.closeTo(wideOuter - wideInner, (outer - inner) * 2, 1e-6, "the band is twice as wide");
 
         element.layoutBehavior = { node: { outlineWidth: undefined } };
-        assert.deepStrictEqual(stroke(element), own);
+        const [backInner, backOuter] = ring(element);
+        assert.closeTo(backInner, inner, 1e-6);
+        assert.closeTo(backOuter, outer, 1e-6, "and back to the renderer's own width");
     });
 });

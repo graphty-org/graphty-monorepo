@@ -590,17 +590,26 @@ export class UpdateManager implements Manager {
             }
         });
 
+        let changed = false;
         for (const edge of this.drawnSelectedEdges) {
-            if (!next.has(edge)) {
-                edge.setSelected(false);
+            if (!next.has(edge) && edge.setSelected(false)) {
+                changed = true;
             }
         }
 
         for (const edge of next) {
-            edge.setSelected(true);
+            if (edge.setSelected(true)) {
+                changed = true;
+            }
         }
 
         this.drawnSelectedEdges = next;
+
+        // Selecting redraws the edge marked, from a band batch of its own, and only the walk places
+        // that band: with nothing moving, the walk is skipped and the band was never drawn.
+        if (changed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**

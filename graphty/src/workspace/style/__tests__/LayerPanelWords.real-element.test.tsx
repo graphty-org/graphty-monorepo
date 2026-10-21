@@ -66,7 +66,8 @@ describe("the layer panel's words", () => {
         // A "+" with one thing to add: its tooltip is its name.
         const fill = await screen.findByRole("button", { name: "Add to node fill" });
         await userEvent.hover(fill);
-        const tip = await screen.findByRole("tooltip");
+        // The theme opens a tooltip after 1000 ms, the whole of findByRole's default wait.
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
         assert.strictEqual(tip.textContent, "Add to node fill", "the tooltip is the button's name");
         await userEvent.unhover(fill);
         await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));

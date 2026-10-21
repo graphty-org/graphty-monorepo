@@ -691,6 +691,11 @@ export function keyNames(session: GraphSession): KeyNames {
             // a layer painting what the reader points at (Selected, Hovered) is no cover.
             const shares = new Map<string, number>();
             for (const id of block.layers ?? [block.layerId]) {
+                // The blocks were read before this render: a layer removed since (a new project
+                // clears the stack) covers nothing, and the element refuses to count it.
+                if (session.styles.get(id) === undefined) {
+                    continue;
+                }
                 for (const { layerId, count: n } of session.styles.counts(id).covers[block.channel]?.layers ?? []) {
                     const above = session.styles.get(layerId);
                     if (above !== undefined && above.selector.match !== "state") {

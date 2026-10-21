@@ -78,6 +78,18 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
 }
 
 /**
+ * The Color line's box as drawn now: the line's first write redraws the tab, with a new box.
+ * @returns the box.
+ */
+function hexBox(): HTMLInputElement {
+    const box = document.querySelector<HTMLInputElement>(
+        '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',
+    );
+    assert.isNotNull(box, "the Color line has a color box");
+    return box;
+}
+
+/**
  * The colors the layers write, upper case (the reader's layer among them).
  * @param session - the session.
  * @returns the colors.
@@ -93,20 +105,21 @@ function painted(session: GraphSession): string[] {
 
 describe("a style line's color box", () => {
     it("replaces its value after Enter and after a click, undoes with Control+Z, and says the color", async () => {
-        const { session, box } = await openColorLine();
+        const { session } = await openColorLine();
         await userEvent.keyboard("blue{Enter}");
         await waitFor(() => {
             assert.include(painted(session), "#0000FF");
-            assert.equal(box.value, "0000FF");
+            assert.equal(hexBox().value, "0000FF");
+            assert.strictEqual(document.activeElement, hexBox(), "focus is in the box drawn now");
         });
-        assert.match(box.getAttribute("aria-label") ?? "", /, blue$/, "read with its color word");
+        assert.match(hexBox().getAttribute("aria-label") ?? "", /, blue$/, "read with its color word");
 
         await userEvent.keyboard("red{Enter}");
         await waitFor(() => {
             assert.include(painted(session), "#FF0000", "the color typed after Enter replaced the value");
         });
 
-        await userEvent.click(box);
+        await userEvent.click(hexBox());
         await userEvent.keyboard("green{Enter}");
         await waitFor(() => {
             assert.include(painted(session), "#008000", "a click into the focused box selected its value");

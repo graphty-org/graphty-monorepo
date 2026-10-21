@@ -78,19 +78,14 @@ async function whichRow(): Promise<HTMLElement> {
 }
 
 /**
- * Opens the cards from the Which row and waits for focus to land in them, or in the attribute
- * search a row with no card opens on.
+ * Opens the cards from the Which row and waits for focus to land in them.
  * @returns The open cards.
  */
 async function openCards(): Promise<HTMLElement> {
     await userEvent.click(await whichRow());
     const region = await screen.findByRole("group", { name: "Which nodes" });
     await waitFor(() => {
-        const search = screen.queryByRole("combobox", { name: "Find an attribute" });
-        assert.isTrue(
-            region.contains(document.activeElement) || (search !== null && document.activeElement === search),
-            "focus is in the cards",
-        );
+        assert.isTrue(region.contains(document.activeElement), "focus is in the cards");
     });
     return region;
 }
@@ -178,8 +173,11 @@ describe("keys in the condition cards, on the real element", () => {
 
     it("letters typed and Tab take the attribute they highlight", async () => {
         await openLayer("Plain", { match: "everything" });
-        // A layer with no card opens on Add a condition's list, its search focused.
         const region = await openCards();
+        const add = within(region).getByRole("button", { name: "Add a condition" });
+        assert.strictEqual(document.activeElement, add, "a layer with no card opens on Add a condition");
+        assert.isNull(screen.queryByRole("listbox"), "its list waits for a press");
+        await userEvent.keyboard("{Enter}");
         await screen.findByRole("listbox");
         await userEvent.keyboard("nam{Tab}");
         const card = await waitFor(() => within(region).getByRole("group", { name: /^name(,|$)/ }));

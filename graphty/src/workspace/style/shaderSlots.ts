@@ -14,7 +14,7 @@ import type {
     ShaderParamSets,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
-import type { Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
@@ -505,4 +505,21 @@ export function canPaste(slot: ShaderSlot): boolean {
 export function unbindParam(ctx: RowContext, slot: ShaderSlot, id: string, param: string): Promise<void> {
     const key = `${slot.params}.${id}.${param}`;
     return writeRow(ctx, {}, (each) => each === key);
+}
+
+/**
+ * Puts a shader's text on the clipboard. The text is handed over as a promise, so Safari keeps the
+ * click's permission while the element reads it.
+ * @param session - the element's session.
+ * @param id - the shader.
+ * @returns when it is copied.
+ */
+export async function copyShaderText(session: GraphSession, id: string): Promise<void> {
+    const text = session.shaders.source(id);
+    if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard.write === "function") {
+        const blob = text.then((each) => new Blob([each], { type: "text/plain" }));
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+        return;
+    }
+    await navigator.clipboard.writeText(await text);
 }

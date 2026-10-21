@@ -1,0 +1,320 @@
+import { ControlSection, DataRow, Popout, PopoutButton } from "@graphty/compact-mantine";
+import type { ShaderParams } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import React, { useEffect, useState } from "react";
+
+import { GLYPHS } from "../glyphs";
+import { OptionsForm } from "../options/OptionsForm";
+import { useWorkspace } from "../state/WorkspaceContext";
+import { ShaderGallery } from "../style/ShaderGallery";
+import { copyShaderText } from "../style/shaderSlots";
+import {
+    enumWords,
+    renderQualityWords,
+    SHADER_KIND_WORDS,
+    SHADER_MOTION_WORDS,
+    SHADER_QUALITY_WORDS,
+    usedByWords,
+} from "../style/words";
+import { heldShaders, runHeld } from "./heldShaders";
+import { SHADER_MOTION, SHADER_QUALITY, useShaderSettings, writeShaderPreference } from "./shaderPreferences";
+
+/** The width of the pop-outs beside the panel, as a shader row's. */
+const POPOUT_WIDTH = 240;
+
+/**
+ * Draws again when a project shader's status or the render quality changes.
+ * @param session - the element's session.
+ */
+function useShaderVersion(session: GraphSession | null): void {
+    const [, setVersion] = useState(0);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+        const bump = (): void => {
+            setVersion((v) => v + 1);
+        };
+        const offs = [session.on("shader:status", bump), session.on("render:quality", bump)];
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session]);
+}
+
+/** Props for BackgroundShader. */
+interface BackgroundShaderProps {
+    readonly session: GraphSession;
+    /** The background shader in force, if the background is one. */
+    readonly shader: string | undefined;
+    /** Its parameters. */
+    readonly params: ShaderParams;
+    /** Writes a shader and its parameters as the background. */
+    readonly onWrite: (shader: string, params: ShaderParams) => void;
+}
+
+/**
+ * The Background's Shader paint (shader-styles design, section 6.1): the shader's still picture
+ * and name, which opens the gallery of background shaders, and its settings pop-out, drawn from
+ * the catalog's parameters. Each write is one undo step.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.shader - the shader in force
+ * @param props.params - its parameters
+ * @param props.onWrite - writes the background
+ * @returns The row
+ */
+export function BackgroundShader({
+    session,
+    shader,
+    params,
+    onWrite,
+}: Readonly<BackgroundShaderProps>): React.JSX.Element {
+    const [picking, setPicking] = useState(shader === undefined);
+    const [settings, setSettings] = useState(false);
+    const descriptor = session.catalog.shaders().find((each) => each.id === shader);
+    const name = descriptor?.plainName ?? shader ?? "None";
+    return (
+        <Group gap={4} wrap="nowrap" className="ws-shader-control">
+            <Popout opened={picking} onOpenChange={setPicking}>
+                <Popout.Trigger>
+                    <UnstyledButton
+                        className="ws-shader-pick"
+                        aria-label={`Background shader: ${name}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={picking}
+                    >
+                        {descriptor?.thumbnail === undefined ? (
+                            <span className="ws-shader-thumb" aria-hidden />
+                        ) : (
+                            <img className="ws-shader-thumb" src={descriptor.thumbnail} alt="" />
+                        )}
+                        <Text size="xs" truncate>
+                            {name}
+                        </Text>
+                    </UnstyledButton>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: "Background" }}
+                >
+                    <Popout.Content>
+                        <ShaderGallery
+                            session={session}
+                            kinds={["background"]}
+                            label="Find background"
+                            marked={shader === undefined ? [] : [shader]}
+                            onPick={(id) => {
+                                setPicking(false);
+                                if (id !== shader) {
+                                    onWrite(id, {});
+                                }
+                            }}
+                        />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+            {descriptor !== undefined && descriptor.params.length > 0 && (
+                <Popout opened={settings} onOpenChange={setSettings}>
+                    <Popout.Trigger>
+                        <Tooltip label={`${name} settings`}>
+                            <PopoutButton
+                                icon={<GLYPHS.settings size={14} aria-hidden />}
+                                aria-label={`${name} settings`}
+                                aria-haspopup="dialog"
+                                aria-expanded={settings}
+                            />
+                        </Tooltip>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={POPOUT_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: `${name} settings` }}
+                    >
+                        <Popout.Content>
+                            <Stack gap={8}>
+                                <OptionsForm
+                                    session={session}
+                                    options={descriptor.params}
+                                    values={params}
+                                    onChange={(param, value) => {
+                                        if (
+                                            typeof value === "number" ||
+                                            typeof value === "string" ||
+                                            typeof value === "boolean"
+                                        ) {
+                                            onWrite(descriptor.id, { ...params, [param]: value });
+                                        }
+                                    }}
+                                    words={(option) => ({ label: option.plainName, choice: enumWords })}
+                                />
+                            </Stack>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            )}
+        </Group>
+    );
+}
+
+/**
+ * The Held shaders row: how many shaders from a file wait to run, and a pop-out listing each
+ * (name, kind, how many layers use it) with Run and Copy shader, then Run all. Drawn only while
+ * one is held.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @returns The row, or nothing
+ */
+function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const [open, setOpen] = useState(false);
+    const held = heldShaders(session);
+    if (held.length === 0) {
+        return null;
+    }
+    const run = (ids?: readonly string[]): void => {
+        void runHeld(session, ids).then((failed) => {
+            if (failed > 0) {
+                const shaders = failed === 1 ? "1 shader" : `${String(failed)} shaders`;
+                store.set({ notice: { message: `${shaders} did not pass the checks`, error: true } });
+            }
+        });
+    };
+    return (
+        <Group gap={4} wrap="nowrap" justify="space-between" data-testid="held-shaders">
+            <Text size="xs">Held shaders</Text>
+            <Popout opened={open} onOpenChange={setOpen}>
+                <Popout.Trigger>
+                    <Button size="compact-xs" variant="default" aria-haspopup="dialog" aria-expanded={open}>
+                        {String(held.length)}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: "Held shaders" }}
+                >
+                    <Popout.Content>
+                        <Stack gap={6} role="list" aria-label="Held shaders">
+                            {held.map((shader) => (
+                                <Group key={shader.id} gap={4} wrap="nowrap" role="listitem" data-shader={shader.id}>
+                                    <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                                        <Text size="xs" truncate>
+                                            {shader.plainName}
+                                        </Text>
+                                        <Text size="xs" c="dimmed" truncate>
+                                            {`${SHADER_KIND_WORDS[shader.kind]}, ${usedByWords(shader.usedBy)}`}
+                                        </Text>
+                                    </Stack>
+                                    <Button
+                                        size="compact-xs"
+                                        variant="subtle"
+                                        aria-label={`Copy ${shader.plainName}`}
+                                        onClick={() => {
+                                            void copyShaderText(session, shader.id).then(() => {
+                                                store.set({ announcement: `${shader.plainName} copied` });
+                                            });
+                                        }}
+                                    >
+                                        Copy shader
+                                    </Button>
+                                    <Button
+                                        size="compact-xs"
+                                        variant="light"
+                                        aria-label={`Run ${shader.plainName}`}
+                                        onClick={() => {
+                                            run([shader.id]);
+                                        }}
+                                    >
+                                        Run
+                                    </Button>
+                                </Group>
+                            ))}
+                        </Stack>
+                        {held.length > 1 && (
+                            <Button
+                                size="compact-xs"
+                                mt={8}
+                                onClick={() => {
+                                    run();
+                                }}
+                            >
+                                Run all
+                            </Button>
+                        )}
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </Group>
+    );
+}
+
+/**
+ * Graph settings > Shaders (shader-styles design, section 6.5): Quality and Motion, the reader's
+ * preferences, kept in this browser and handed to the element's `shaderSettings`; and the Held
+ * shaders row while a file's shaders wait to run.
+ * @returns The section
+ */
+export function ShaderSection(): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const settings = useShaderSettings();
+    useShaderVersion(session);
+    if (session === null) {
+        return null;
+    }
+    return (
+        <ControlSection label="Shaders" collapsible={false} headingLevel={3}>
+            <Stack gap={6}>
+                <Select
+                    label="Quality"
+                    size="xs"
+                    allowDeselect={false}
+                    value={settings.quality ?? SHADER_QUALITY.fallback}
+                    data={SHADER_QUALITY.values.map((value) => ({ value, label: SHADER_QUALITY_WORDS[value] }))}
+                    onChange={(picked) => {
+                        const quality = SHADER_QUALITY.values.find((value) => value === picked);
+                        if (quality !== undefined) {
+                            writeShaderPreference({ quality });
+                        }
+                    }}
+                />
+                <Select
+                    label="Motion"
+                    size="xs"
+                    allowDeselect={false}
+                    value={settings.motion ?? SHADER_MOTION.fallback}
+                    data={SHADER_MOTION.values.map((value) => ({ value, label: SHADER_MOTION_WORDS[value] }))}
+                    onChange={(picked) => {
+                        const motion = SHADER_MOTION.values.find((value) => value === picked);
+                        if (motion !== undefined) {
+                            writeShaderPreference({ motion });
+                        }
+                    }}
+                />
+                <HeldShadersRow session={session} />
+            </Stack>
+        </ControlSection>
+    );
+}
+
+/**
+ * The graph's Values tab row for the shader quality, while the frame guard has it differ from the
+ * reader's setting: the level and what it slowed or turned off. Nothing otherwise.
+ * @returns The row, or nothing
+ */
+export function RenderQualityRow(): React.JSX.Element | null {
+    const { session, element } = useWorkspace();
+    useShaderVersion(session);
+    const quality = element?.renderQuality;
+    if (quality?.code === undefined) {
+        return null;
+    }
+    return <DataRow stat name="Shader quality" value={renderQualityWords(quality)} />;
+}

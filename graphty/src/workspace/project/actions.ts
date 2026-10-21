@@ -13,7 +13,8 @@ import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraph } from "../frame/focus";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import { runHeld, withHeldShaders } from "../settings/heldShaders";
+import { newProjectId, type Notice, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
@@ -352,6 +353,25 @@ function withoutExtension(fileName: string): string {
 }
 
 /**
+ * A load's notice, naming the shaders the element held from the file, with Run, which runs each
+ * through its checks and says how many did not pass.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param notice - the load's notice.
+ * @returns the notice.
+ */
+function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: Notice): Notice {
+    return withHeldShaders(session, notice, () => {
+        void runHeld(session).then((failed) => {
+            if (failed > 0) {
+                const shaders = failed === 1 ? "1 shader" : `${String(failed)} shaders`;
+                workspace.set({ notice: { message: `${shaders} did not pass the checks`, error: true } });
+            }
+        });
+    });
+}
+
+/**
  * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
  * project file replaces the project (refused over unsaved changes until the reader says Discard);
  * the header takes the project's name, and Save writes the browser-kept project it came from
@@ -390,7 +410,9 @@ async function openInSession(
                 session.history.clear();
                 focusOpenedGraph();
             } else {
-                workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+                workspace.set({
+                    notice: heldNotice(workspace, session, { message: `Added ${file.name} to this project` }),
+                });
             }
             return true;
         }
@@ -406,9 +428,9 @@ async function openInSession(
         const lost = report.problems.length;
         const parts = lost === 1 ? "part" : "parts";
         workspace.set({
-            notice: {
+            notice: heldNotice(workspace, session, {
                 message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
-            },
+            }),
         });
     } catch (error) {
         if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {

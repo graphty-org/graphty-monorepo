@@ -8,6 +8,8 @@ import { Sections } from "../frame/menus";
 import { useSessionVersion } from "../inspector/hooks";
 import { resolveInspected } from "../inspector/inspected";
 import { MENUS } from "../inspector/kindMenus";
+import { motionCommandId } from "../settings/commands";
+import { useShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What a press on empty canvas offers. */
@@ -35,6 +37,8 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     const { session, element } = useWorkspace();
     // The menu's rows read the selection, which the press changes after the menu opens.
     useSessionVersion(session);
+    // The Motion row follows the reader's preference, which another door may change.
+    useShaderSettings();
     // The node the menu opened over, or null for empty canvas.
     const [overNode, setOverNode] = useState<NodeId | null>(null);
     // The edge the menu opened over, when it opened over an edge.
@@ -95,7 +99,7 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
                 </div>
             }
         >
-            <Sections sections={[ids]} />
+            <Sections sections={[ids, [motionCommandId()]]} />
         </ContextMenu>
     );
 }

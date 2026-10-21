@@ -1163,3 +1163,59 @@ export function pasteProblemsWord(count: number): string {
 export function layersWord(count: number): string {
     return count === 1 ? "1 layer" : `${String(count)} layers`;
 }
+
+/** The Background row's paint types, as Figma's fill. */
+export const BACKGROUND_WORDS = { color: "Color", image: "Image", shader: "Shader" } as const;
+
+/** The Quality row's choices: the reader's `shaderSettings.quality`. */
+export const SHADER_QUALITY_WORDS = { auto: "Auto", low: "Low", medium: "Medium", high: "High" } as const;
+
+/** The Motion row's choices: the reader's `shaderSettings.motion`. */
+export const SHADER_MOTION_WORDS = { system: "System", on: "On", off: "Off" } as const;
+
+/** The canvas menu's two Motion commands: the one shown is the one that changes something. */
+export const MOTION_COMMAND_WORDS = { off: "Motion off", on: "Motion on" } as const;
+
+/**
+ * The graph's Values tab row when the frame guard changed the quality: the level and, after a
+ * dash, what the motion and pasted shaders do when they differ from full.
+ * @param quality - the element's `renderQuality`.
+ * @param quality.level - its level.
+ * @param quality.motion - its motion.
+ * @param quality.pasted - whether pasted shaders draw.
+ * @returns the words, such as "Medium" or "Low, motion paused".
+ */
+export function renderQualityWords(quality: {
+    readonly level: "low" | "medium" | "high";
+    readonly motion: string;
+    readonly pasted: string;
+}): string {
+    const parts: string[] = [SHADER_QUALITY_WORDS[quality.level]];
+    if (quality.motion === "half") {
+        parts.push("motion at half speed");
+    } else if (quality.motion === "paused") {
+        parts.push("motion paused");
+    }
+    if (quality.pasted === "off") {
+        parts.push("pasted shaders off");
+    }
+    return parts.join(", ");
+}
+
+/**
+ * The load report's words for the shaders it held: "Held: Plate" or "Held: 3 shaders".
+ * @param names - the held shaders' names.
+ * @returns the words.
+ */
+export function heldShadersWords(names: readonly string[]): string {
+    return names.length <= 2 ? `Held: ${names.join(", ")}` : `Held: ${String(names.length)} shaders`;
+}
+
+/**
+ * How many layers use a held shader, in the Held shaders list: "Used by 2".
+ * @param count - the layers and settings that name it.
+ * @returns the words.
+ */
+export function usedByWords(count: number): string {
+    return `Used by ${String(count)}`;
+}

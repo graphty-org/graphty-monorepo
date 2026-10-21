@@ -14,8 +14,10 @@ import { Input, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
+import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { BACKGROUND_WORDS } from "../style/words";
 import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
 
 const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
@@ -82,16 +84,23 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
-    // Image is chosen before its address is typed: an empty skybox is refused, so the choice
-    // waits here until the address is written.
-    const [imagePicked, setImagePicked] = useState(false);
+    // Image is chosen before its address is typed (an empty skybox is refused), and Shader
+    // before its shader is picked, so the choice waits here until it is written.
+    const [picked, setPicked] = useState<"image" | "shader" | null>(null);
     const hidden = session === null ? [] : settingsNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
         return null;
     }
     const { background } = session.config;
-    const showsImage = background.backgroundType === "skybox" || imagePicked;
+    let paint: "color" | "image" | "shader" = "color";
+    if (picked !== null) {
+        paint = picked;
+    } else if (background.backgroundType === "skybox") {
+        paint = "image";
+    } else if (background.backgroundType === "shader") {
+        paint = "shader";
+    }
     const shows = (key: GraphSettingKey): boolean => !hidden.includes(key);
 
     return (
@@ -102,14 +111,14 @@ export function GraphSettings(): React.JSX.Element | null {
                     <Input.Wrapper size="xs" label="Background">
                         <SegmentedControl
                             fullWidth
-                            value={showsImage ? "image" : "color"}
-                            data={[
-                                { value: "color", label: "Color" },
-                                { value: "image", label: "Image" },
-                            ]}
-                            onChange={(picked) => {
-                                setImagePicked(picked === "image");
-                                if (picked === "color" && background.backgroundType !== "color") {
+                            value={paint}
+                            data={(["color", "image", "shader"] as const).map((value) => ({
+                                value,
+                                label: BACKGROUND_WORDS[value],
+                            }))}
+                            onChange={(chosen) => {
+                                setPicked(chosen === "image" || chosen === "shader" ? chosen : null);
+                                if (chosen === "color" && background.backgroundType !== "color") {
                                     void session.config.set({
                                         background: { backgroundType: "color", color: DEFAULT_BACKGROUND_COLOR },
                                     });
@@ -117,14 +126,37 @@ export function GraphSettings(): React.JSX.Element | null {
                             }}
                         />
                     </Input.Wrapper>
-                    {showsImage ? (
+                    {paint === "shader" && (
+                        <BackgroundShader
+                            session={session}
+                            shader={background.backgroundType === "shader" ? background.shader : undefined}
+                            params={background.backgroundType === "shader" ? (background.params ?? {}) : {}}
+                            onWrite={(shader, params) => {
+                                // The color in force is drawn until the shader draws.
+                                const color = background.backgroundType === "color" ? background.color : undefined;
+                                const kept = background.backgroundType === "shader" ? background.color : color;
+                                setPicked(null);
+                                void session.config.set({
+                                    background: {
+                                        backgroundType: "shader",
+                                        shader,
+                                        params,
+                                        ...(kept === undefined ? {} : { color: kept }),
+                                    },
+                                });
+                            }}
+                        />
+                    )}
+                    {paint === "image" && (
                         <BackgroundImage
                             value={background.backgroundType === "skybox" ? background.data : ""}
                             onCommit={(data) => {
+                                setPicked(null);
                                 void session.config.set({ background: { backgroundType: "skybox", data } });
                             }}
                         />
-                    ) : (
+                    )}
+                    {paint === "color" && (
                         <CompactColorInput
                             label="Background color"
                             valueText={colorWord(
@@ -235,6 +267,7 @@ export function GraphSettings(): React.JSX.Element | null {
                     />
                 </Stack>
             </ControlSection>
+            <ShaderSection />
         </>
     );
 }

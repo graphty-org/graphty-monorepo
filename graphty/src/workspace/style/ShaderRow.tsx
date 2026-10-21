@@ -1,6 +1,5 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Badge, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -14,6 +13,7 @@ import {
     bindingsOf,
     canPaste,
     copyShader,
+    copyShaderText,
     paramsOf,
     pickShader,
     removeShader,
@@ -39,23 +39,6 @@ const MATERIAL_CHOICES: readonly GalleryChoice[] = [
     { value: "plain", label: MATERIAL_WORDS.plain },
     { value: "wireframe", label: MATERIAL_WORDS.wireframe },
 ];
-
-/**
- * Puts a shader's text on the clipboard. The text is handed over as a promise, so Safari keeps the
- * click's permission while the element reads it.
- * @param session - the element's session.
- * @param id - the shader.
- * @returns when it is copied.
- */
-async function copyShaderText(session: GraphSession, id: string): Promise<void> {
-    const text = session.shaders.source(id);
-    if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard.write === "function") {
-        const blob = text.then((each) => new Blob([each], { type: "text/plain" }));
-        await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
-        return;
-    }
-    await navigator.clipboard.writeText(await text);
-}
 
 /**
  * The gallery a slot opens, in a pop-out beside the panel: its search box takes focus. Paste

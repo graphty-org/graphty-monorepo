@@ -7,6 +7,7 @@ import { loadGraphtyElement } from "../../elementLoader";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { LAYOUT_SEED } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
+import { bindShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspaceState } from "../state/WorkspaceContext";
 import { useSizeBound } from "./useSizeBound";
 
@@ -76,6 +77,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
 
     useEffect(() => {
         let disposed = false;
+        let unbindShaders: (() => void) | null = null;
         const bind = (): void => {
             const element = ref.current;
             // Undefined until the tag has upgraded to the element.
@@ -83,6 +85,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             if (!disposed && element !== null && session !== undefined) {
                 // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
                 session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+                // The reader's shader preferences and remembered approvals (Graph settings).
+                unbindShaders = bindShaderSettings(element);
                 setHosted(session);
                 onReady(element, session);
             }
@@ -95,6 +99,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }
         return () => {
             disposed = true;
+            unbindShaders?.();
             onReady(null, null);
         };
     }, [onReady]);

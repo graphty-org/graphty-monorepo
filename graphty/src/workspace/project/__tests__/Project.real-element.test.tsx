@@ -465,3 +465,68 @@ describe("T14: save and reopen, on the real element", () => {
         assert.isNull(store.get().project);
     });
 });
+
+describe("a saved sample opened again with Open a file, on the real element", () => {
+    it("brings back every node and edge of Books about US politics", async () => {
+        vi.stubGlobal("showSaveFilePicker", undefined);
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        const downloads: Blob[] = [];
+        const blobs = new Map<string, Blob>();
+        const create = URL.createObjectURL.bind(URL);
+        vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
+            const url = create(object);
+            if (object instanceof Blob) {
+                blobs.set(url, object);
+            }
+            return url;
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            const blob = blobs.get(this.href);
+            if (this.download !== "" && blob !== undefined) {
+                downloads.push(blob);
+            }
+        });
+        try {
+            const store = createWorkspaceStore();
+            render(<Workspace store={store} />);
+            await userEvent.click(screen.getByRole("button", { name: "Open the Books about US politics sample" }));
+            const session = await elementSession();
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 105);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            const counts = { nodes: session.data.nodes().length, edges: session.data.edges().length };
+            assert.deepEqual(counts, { nodes: 105, edges: 441 });
+
+            // Save as downloads the project file.
+            await userEvent.keyboard("{Control>}s{/Control}");
+            const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
+            await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+            await waitFor(() => {
+                assert.lengthOf(downloads, 1);
+            });
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog"));
+            });
+            const text = await downloads[0].text();
+
+            // Back to the start screen, then Open a file with the saved project.
+            await userEvent.click(screen.getByRole("button", { name: /^Project: / }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
+            await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
+            await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", /^Opened /);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual({ nodes: reopened.data.nodes().length, edges: reopened.data.edges().length }, counts);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+});

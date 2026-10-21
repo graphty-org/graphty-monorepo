@@ -1,9 +1,10 @@
+import { ContextMenu } from "@graphty/compact-mantine";
 import type { ShaderDescriptor, ShaderKind } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Text, TextInput, UnstyledButton } from "@mantine/core";
+import { Menu, Text, TextInput, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { HEAVY_WORD, shaderMatches, shaderProblemWords } from "./words";
+import { HEAVY_WORD, layersWord, shaderMatches, shaderProblemWords } from "./words";
 
 /** A gallery choice that is not a shader: the Material row's Plain and Wireframe. */
 export interface GalleryChoice {
@@ -24,6 +25,10 @@ interface ShaderGalleryProps {
     readonly marked?: readonly string[];
     /** Picks a shader by id, or a choice by its value. */
     readonly onPick: (id: string) => void;
+    /** Opens Paste shader; absent: no Paste shader item. */
+    readonly onPaste?: () => void;
+    /** Deletes a pasted shader from the project; absent: no Delete from project. */
+    readonly onDelete?: (id: string) => void;
 }
 
 /**
@@ -39,6 +44,8 @@ interface ShaderGalleryProps {
  * @param props.choices - choices before the shaders
  * @param props.marked - ids already on the layer
  * @param props.onPick - picks one
+ * @param props.onPaste - opens Paste shader, the last item
+ * @param props.onDelete - deletes a pasted shader, from its tile's context menu
  * @returns The gallery
  */
 export function ShaderGallery({
@@ -48,6 +55,8 @@ export function ShaderGallery({
     choices = [],
     marked = [],
     onPick,
+    onPaste,
+    onDelete,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
     const shaders = session.catalog
@@ -102,7 +111,25 @@ export function ShaderGallery({
                         In this project
                     </Text>
                     <div className="ws-gallery-grid" role="list" aria-label="In this project">
-                        {pasted.map(tile)}
+                        {pasted.map((descriptor) =>
+                            onDelete === undefined ? (
+                                tile(descriptor)
+                            ) : (
+                                <ContextMenu key={descriptor.id} target={tile(descriptor)}>
+                                    <Menu.Item
+                                        rightSection={layersWord(
+                                            session.shaders.list().find((each) => each.id === descriptor.id)?.usedBy ??
+                                                0,
+                                        )}
+                                        onClick={() => {
+                                            onDelete(descriptor.id);
+                                        }}
+                                    >
+                                        Delete from project
+                                    </Menu.Item>
+                                </ContextMenu>
+                            ),
+                        )}
                     </div>
                 </>
             )}
@@ -110,6 +137,11 @@ export function ShaderGallery({
                 <Text size="xs" c="dimmed">
                     No match
                 </Text>
+            )}
+            {onPaste !== undefined && (
+                <UnstyledButton className="ws-gallery-paste" onClick={onPaste}>
+                    <Text size="xs">Paste shader...</Text>
+                </UnstyledButton>
             )}
         </div>
     );
@@ -135,17 +167,21 @@ function GalleryTile({
     disabled = false,
     marked,
     onPick,
-}: Readonly<{
-    id: string;
-    name: string;
-    picture?: string;
-    second?: string;
-    disabled?: boolean;
-    marked: boolean;
-    onPick: (id: string) => void;
-}>): React.JSX.Element {
+    ...handlers
+}: Readonly<
+    // A context menu's handlers, on the tile's list item.
+    Omit<React.HTMLAttributes<HTMLDivElement>, "id"> & {
+        id: string;
+        name: string;
+        picture?: string;
+        second?: string;
+        disabled?: boolean;
+        marked: boolean;
+        onPick: (id: string) => void;
+    }
+>): React.JSX.Element {
     return (
-        <div role="listitem">
+        <div role="listitem" {...handlers}>
             <UnstyledButton
                 className="ws-gallery-tile"
                 data-shader={id}

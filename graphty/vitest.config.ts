@@ -33,6 +33,16 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 };
 
 /**
+ * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
+ * Control+V and Copy against the real clipboard.
+ * @param ctx - the browser command context.
+ * @returns when the permissions are granted.
+ */
+const grantClipboard: BrowserCommand<[]> = async (ctx) => {
+    await ctx.context.grantPermissions(["clipboard-read", "clipboard-write"]);
+};
+
+/**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
  * @returns the browser config.
@@ -42,7 +52,7 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile },
+    commands: { chooseNextFile, grantClipboard },
 });
 
 export default defineConfig({

@@ -1059,3 +1059,107 @@ export function shaderProblemWords(problem: ShaderProblem): string {
 export function effectOffWords(name: string): string {
     return `${name} off`;
 }
+
+/** The paste dialog's Kind select: each kind of shader a style layer draws, by name. */
+export const SHADER_KIND_WORDS: Readonly<Record<ShaderKind, string>> = {
+    "node-surface": "Node surface",
+    "node-sprite": "Node sprite",
+    "node-effect": "Node effect",
+    "edge-surface": "Edge surface",
+    "edge-effect": "Edge effect",
+    background: "Background",
+    boundary: "Group outline",
+};
+
+/**
+ * Where a problem in pasted shader text is: "Line 12:8", or undefined when it has no place.
+ * @param problem - the element's problem.
+ * @returns the words, or undefined.
+ */
+export function shaderPlaceWords(problem: ShaderProblem): string | undefined {
+    const { line, column } = problem.params;
+    if (typeof line !== "number") {
+        return undefined;
+    }
+    return typeof column === "number" ? `Line ${String(line)}:${String(column)}` : `Line ${String(line)}`;
+}
+
+/**
+ * What is wrong with pasted shader text, from the element's code: a short phrase, the parser's or
+ * the driver's own message shown as data after it.
+ * @param problem - the element's problem.
+ * @returns the words.
+ */
+export function pasteProblemWords(problem: ShaderProblem): string {
+    const p = problem.params;
+    const said = typeof p.message === "string" && p.message !== "" ? `: ${p.message}` : "";
+    switch (problem.code) {
+        case "shader.header-missing":
+            return "No shade function";
+        case "shader.header-json":
+            return `Header is not JSON${said}`;
+        case "shader.header-key":
+            return `Header key "${String(p.key)}"`;
+        case "shader.kind-unknown":
+            return `Unknown kind "${String(p.kind)}"`;
+        case "shader.id-invalid":
+            return `Bad id "${String(p.id)}"`;
+        case "shader.id-taken":
+            return `Id "${String(p.id)}" is taken`;
+        case "shader.param-invalid":
+            return `Parameter ${String(p.param)}: bad ${String(p.field)}`;
+        case "shader.too-many-params":
+            return `Over ${String(p.limit)} parameters`;
+        case "shader.too-large":
+            return "Too long";
+        case "shader.too-many":
+            return `Over ${String(p.limit)} shaders in this project`;
+        case "shader.not-ascii":
+            return "Not plain ASCII";
+        case "shader.preprocessor":
+            return "No # lines";
+        case "shader.reserved":
+            return `"${String(p.name)}" is reserved`;
+        case "shader.loop-unbounded":
+            return "Loop without a fixed count";
+        case "shader.loop-too-long":
+            return `Loop over ${String(p.limit)} steps`;
+        case "shader.too-costly":
+            return "Too costly";
+        case "shader.too-deep":
+            return "Nested too deep";
+        case "shader.texture-unsupported":
+            return "No textures";
+        case "shader.entry-missing":
+            return "No shade function";
+        case "shader.entry-signature":
+            return `shade needs ${String(p.expected)}`;
+        case "shader.compile":
+            return `Does not compile${said}`;
+        case "shader.over-budget":
+            return "Too slow to draw";
+        default:
+            return shaderProblemWords(problem);
+    }
+}
+
+/** Why the paste dialog's Add cannot be pressed yet. */
+export const PASTE_WAIT_WORDS = { empty: "Nothing to add", checking: "Checking" } as const;
+
+/**
+ * Why Add cannot be pressed: how many problems the text has.
+ * @param count - the problems.
+ * @returns the words.
+ */
+export function pasteProblemsWord(count: number): string {
+    return count === 1 ? "1 problem" : `${String(count)} problems`;
+}
+
+/**
+ * How many layers use a shader, beside Delete from project: "2 layers".
+ * @param count - the layers.
+ * @returns the words.
+ */
+export function layersWord(count: number): string {
+    return count === 1 ? "1 layer" : `${String(count)} layers`;
+}

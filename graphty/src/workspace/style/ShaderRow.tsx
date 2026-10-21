@@ -1,10 +1,12 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Badge, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { ActionIcon, Badge, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import type { PasteInit } from "./PasteShaderDialog";
 import type { RowContext } from "./PropertyRow";
 import { type GalleryChoice, ShaderGallery } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
@@ -39,12 +41,31 @@ const MATERIAL_CHOICES: readonly GalleryChoice[] = [
 ];
 
 /**
- * The gallery a slot opens, in a pop-out beside the panel: its search box takes focus.
+ * Puts a shader's text on the clipboard. The text is handed over as a promise, so Safari keeps the
+ * click's permission while the element reads it.
+ * @param session - the element's session.
+ * @param id - the shader.
+ * @returns when it is copied.
+ */
+async function copyShaderText(session: GraphSession, id: string): Promise<void> {
+    const text = session.shaders.source(id);
+    if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard.write === "function") {
+        const blob = text.then((each) => new Blob([each], { type: "text/plain" }));
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+        return;
+    }
+    await navigator.clipboard.writeText(await text);
+}
+
+/**
+ * The gallery a slot opens, in a pop-out beside the panel: its search box takes focus. Paste
+ * shader is its last item; a pasted shader's tile has Delete from project in its context menu.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.slot - the slot
  * @param props.title - the pop-out's title
  * @param props.onPick - picks one
+ * @param props.onPaste - opens Paste shader
  * @returns The gallery
  */
 export function SlotGallery({
@@ -52,7 +73,15 @@ export function SlotGallery({
     slot,
     title,
     onPick,
-}: Readonly<{ ctx: RowContext; slot: ShaderSlot; title: string; onPick: (id: string) => void }>): React.JSX.Element {
+    onPaste,
+}: Readonly<{
+    ctx: RowContext;
+    slot: ShaderSlot;
+    title: string;
+    onPick: (id: string) => void;
+    onPaste?: () => void;
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
     return (
         <ShaderGallery
             session={ctx.session}
@@ -61,6 +90,18 @@ export function SlotGallery({
             choices={slot.role === "material" ? MATERIAL_CHOICES : undefined}
             marked={shaderEntries(ctx, slot).map((entry) => entry.id)}
             onPick={onPick}
+            onPaste={onPaste}
+            onDelete={(id) => {
+                const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
+                ctx.session.shaders
+                    .remove(id)
+                    .then(() => {
+                        store.set({ announcement: `${name} deleted` });
+                    })
+                    .catch((error: unknown) => {
+                        store.set({ notice: { message: failureWords(name, "deleted", error), error: true } });
+                    });
+            }}
         />
     );
 }
@@ -70,6 +111,8 @@ interface ShaderRowProps {
     readonly ctx: RowContext;
     readonly slot: ShaderSlot;
     readonly entry: ShaderEntry;
+    /** Opens Paste shader with what it starts from. */
+    readonly onPaste?: (init: PasteInit) => void;
 }
 
 /**
@@ -82,9 +125,10 @@ interface ShaderRowProps {
  * @param props.ctx - the row
  * @param props.slot - the slot
  * @param props.entry - the row's shader
+ * @param props.onPaste - opens Paste shader (the gallery's Paste shader, Duplicate and edit)
  * @returns The row
  */
-export function ShaderRow({ ctx, slot, entry }: Readonly<ShaderRowProps>): React.JSX.Element {
+export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
     const [swapping, setSwapping] = useState(false);
@@ -105,6 +149,24 @@ export function ShaderRow({ ctx, slot, entry }: Readonly<ShaderRowProps>): React
     const toggleShown = (): void => {
         writeShown(ctx, slot, entry.id, !shown).catch(fail("changed"));
     };
+    const copyText = (): void => {
+        copyShaderText(ctx.session, entry.id)
+            .then(() => {
+                store.set({ announcement: `${name} copied` });
+            })
+            .catch(fail("copied"));
+    };
+    const duplicate =
+        onPaste === undefined || descriptor === undefined || descriptor.origin === "pasted"
+            ? undefined
+            : (): void => {
+                  ctx.session.shaders
+                      .source(entry.id)
+                      .then((text) => {
+                          onPaste({ text, duplicateOf: entry.id });
+                      })
+                      .catch(fail("copied"));
+              };
     const trigger = descriptor === undefined ? undefined : triggerWord(descriptor);
     const effect = slot.role === "effect";
     const swap = (
@@ -137,6 +199,14 @@ export function ShaderRow({ ctx, slot, entry }: Readonly<ShaderRowProps>): React
                         ctx={ctx}
                         slot={slot}
                         title={slot.word}
+                        onPaste={
+                            onPaste === undefined
+                                ? undefined
+                                : () => {
+                                      setSwapping(false);
+                                      onPaste({});
+                                  }
+                        }
                         onPick={(id) => {
                             setSwapping(false);
                             if (id !== entry.id) {
@@ -181,6 +251,9 @@ export function ShaderRow({ ctx, slot, entry }: Readonly<ShaderRowProps>): React
                                 unbindParam(ctx, slot, entry.id, param).catch(fail("changed"));
                             }}
                         />
+                        <Button size="compact-xs" variant="subtle" onClick={copyText}>
+                            Copy shader
+                        </Button>
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
@@ -266,6 +339,8 @@ export function ShaderRow({ ctx, slot, entry }: Readonly<ShaderRowProps>): React
             >
                 Copy
             </Menu.Item>
+            {descriptor !== undefined && <Menu.Item onClick={copyText}>Copy shader</Menu.Item>}
+            {duplicate !== undefined && <Menu.Item onClick={duplicate}>Duplicate and edit</Menu.Item>}
             {canPaste(slot) && (
                 <Menu.Item
                     onClick={() => {

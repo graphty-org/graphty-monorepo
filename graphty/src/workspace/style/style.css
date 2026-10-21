@@ -385,3 +385,39 @@
     flex: 1 1 auto;
     min-width: 0;
 }
+
+/* The gallery's last item, Paste shader... */
+.ws-gallery-paste {
+    padding: 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-gallery-paste:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* Paste shader's problems: one row each, its place first. */
+.ws-paste-problems {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-paste-problem {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+    font-size: var(--mantine-font-size-xs);
+    color: var(--mantine-color-error);
+}
+
+.ws-paste-problem:hover:not(:disabled) {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-paste-problem b {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}

@@ -7,6 +7,7 @@ import { GLYPHS } from "../glyphs";
 import { arrowheadNote } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
+import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, partlySet, startingAdds, writeIn } from "./row";
 import { ShaderRow, SlotGallery } from "./ShaderRow";
@@ -80,6 +81,8 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const [waiting, setWaiting] = useState<readonly string[]>([]);
     // The section's shader gallery, opened by its "+".
     const [gallery, setGallery] = useState(false);
+    // The Paste shader dialog, open with what it starts from.
+    const [paste, setPaste] = useState<PasteInit | null>(null);
     const sectionBox = useRef<HTMLDivElement>(null);
     // The section's shaders: a sprite, a surface (the Material row, which also holds Wireframe), an
     // edge surface, or effects. Their channels are drawn as shader rows, never as fields.
@@ -145,7 +148,18 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     return (
         // The section is the group, named by its title, a heading so a screen reader moves from
         // section to section; a wrapper group named "Node shape" read the name twice.
-        <div ref={sectionBox} data-section={`${ctx.side}-${spec.id}`} className="ws-section">
+        <div
+            ref={sectionBox}
+            data-section={`${ctx.side}-${spec.id}`}
+            className="ws-section"
+            onKeyDown={
+                slot === undefined
+                    ? undefined
+                    : (event) => {
+                          pasteKey(event, setPaste);
+                      }
+            }
+        >
             <ControlSection
                 label={spec.title}
                 headingLevel={3}
@@ -194,7 +208,9 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 ))}
                 {slot === undefined
                     ? null
-                    : shaders.map((entry) => <ShaderRow key={entry.key} ctx={ctx} slot={slot} entry={entry} />)}
+                    : shaders.map((entry) => (
+                          <ShaderRow key={entry.key} ctx={ctx} slot={slot} entry={entry} onPaste={setPaste} />
+                      ))}
             </ControlSection>
             {slot === undefined ? null : (
                 <Popout
@@ -219,6 +235,10 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                                 ctx={ctx}
                                 slot={slot}
                                 title={slot.word}
+                                onPaste={() => {
+                                    setGallery(false);
+                                    setPaste({});
+                                }}
                                 onPick={(id) => {
                                     setGallery(false);
                                     pickShader(ctx, slot, id).catch((error: unknown) => {
@@ -235,6 +255,16 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     </Popout.Panel>
                 </Popout>
             )}
+            {slot !== undefined && paste !== null && (
+                <PasteShaderDialog
+                    ctx={ctx}
+                    slot={slot}
+                    init={paste}
+                    onClose={() => {
+                        setPaste(null);
+                    }}
+                />
+            )}
             {/* Outside the section's body, so it shows while the section sets nothing yet. */}
             {note !== null && (
                 <Text size="xs" c="dimmed" px={16} pb={4} data-testid={`${ctx.side}-${spec.id}-note`}>
@@ -242,6 +272,35 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 </Text>
             )}
         </div>
+    );
+}
+
+/**
+ * Control+V (Command+V) with focus on a control of a shader section, not in a text field: opens
+ * Paste shader with the clipboard's text, or with the unsent draft when the browser will not read
+ * the clipboard.
+ * @param event - the key.
+ * @param open - opens the dialog.
+ */
+function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): void {
+    const target = event.target as HTMLElement;
+    const typing = target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+    if (typing || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "v") {
+        return;
+    }
+    event.preventDefault();
+    const read = navigator.clipboard?.readText?.();
+    if (read === undefined) {
+        open({});
+        return;
+    }
+    read.then(
+        (text) => {
+            open(text.trim() === "" ? {} : { text });
+        },
+        () => {
+            open({});
+        },
     );
 }
 

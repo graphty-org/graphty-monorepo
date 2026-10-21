@@ -153,6 +153,24 @@ export function slotIsSet(ctx: RowContext, slot: ShaderSlot): boolean {
 }
 
 /**
+ * The layer a row's shader writes go to: its topmost unlocked layer (on the Everything row, the
+ * one with the Everything selector). None for several rows edited together, or a row with no
+ * layer yet.
+ * @param ctx - the row.
+ * @returns the layer, or undefined.
+ */
+export function ownLayer(ctx: RowContext): Layer | undefined {
+    if (ctx.many !== undefined) {
+        return undefined;
+    }
+    const everything = ctx.fresh?.selector.match === "everything";
+    const home = JSON.stringify(ctx.fresh?.selector);
+    return [...ctx.layers]
+        .reverse()
+        .find((layer) => !layer.locked && (!everything || JSON.stringify(layer.selector) === home));
+}
+
+/**
  * Writes several channels of the row's own layer as one undoable step: the layer the row writes,
  * else (a row not written yet) its first layer. Encode keys `drop` names go in the same step.
  * @param ctx - the row.
@@ -170,11 +188,7 @@ async function writeRow(ctx: RowContext, writes: Writes, drop: (key: string) => 
         }
         return;
     }
-    const everything = ctx.fresh?.selector.match === "everything";
-    const home = JSON.stringify(ctx.fresh?.selector);
-    const own: Layer | undefined = [...ctx.layers]
-        .reverse()
-        .find((layer) => !layer.locked && (!everything || JSON.stringify(layer.selector) === home));
+    const own = ownLayer(ctx);
     if (own === undefined) {
         const values = entries.filter((entry): entry is [Channel, ChannelValue] => entry[1] !== undefined);
         const [first, ...rest] = values;
@@ -226,6 +240,14 @@ function bindsOf(channel: Channel, id: string | undefined): (key: string) => boo
 let settingsNext: string | null = null;
 
 /**
+ * Asks a row's settings to open when it is next drawn.
+ * @param key - the row's key (`<channel>:<shader id>`).
+ */
+export function openSettingsNext(key: string): void {
+    settingsNext = key;
+}
+
+/**
  * Whether a row's settings are the ones asked to open, taking the ask.
  * @param key - the row's key.
  * @returns true once, for the row asked.
@@ -247,12 +269,21 @@ export function takeSettingsNext(key: string): boolean {
  * @param slot - the slot.
  * @param id - the picked id, or Plain's or Wireframe's value.
  * @param was - the row's id it replaces, on a swap.
+ * @param params - parameter values to write with it (a pasted shader that equals a known one).
  * @returns when it is written.
  */
-export async function pickShader(ctx: RowContext, slot: ShaderSlot, id: string, was?: string): Promise<void> {
+export async function pickShader(
+    ctx: RowContext,
+    slot: ShaderSlot,
+    id: string,
+    was?: string,
+    params: Params = {},
+): Promise<void> {
+    const given = Object.keys(params).length > 0;
     if (slot.role === "effect") {
         const kept = Object.entries(effectsOf(ctx, slot.channel)).filter(([key]) => key !== was);
-        const map: ShaderEffects = { ...Object.fromEntries(kept), [id]: Object.fromEntries(kept)[id] ?? true };
+        const value = given ? params : (Object.fromEntries(kept)[id] ?? true);
+        const map: ShaderEffects = { ...Object.fromEntries(kept), [id]: value };
         settingsNext = `${slot.channel}:${id}`;
         await writeRow(ctx, { [slot.channel]: map }, bindsOf(slot.params, was === id ? undefined : was));
         return;
@@ -260,7 +291,8 @@ export async function pickShader(ctx: RowContext, slot: ShaderSlot, id: string, 
     const sets = paramSetsOf(ctx, slot.params);
     const drawn = lineIn(ctx, slot.channel)?.value;
     const prev = typeof drawn === "string" && drawn !== id ? drawn : undefined;
-    const writes: Writes = { [slot.params]: withoutSet(sets, prev) };
+    const rest = withoutSet(sets, prev);
+    const writes: Writes = { [slot.params]: given ? { ...rest, [id]: params } : rest };
     if (slot.role === "material" && (id === "plain" || id === "wireframe")) {
         const beneath = ctx.beneath(slot.channel).value;
         const covers = typeof beneath === "string" && beneath !== "none";

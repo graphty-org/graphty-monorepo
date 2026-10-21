@@ -322,5 +322,6 @@ export function counts(filters: QueryFilters): readonly [string, string] {
  * @returns the statement
  */
 export function storeCount(label: string | undefined): string {
-    return `MATCH (n${label === undefined ? "" : `:${label}`}) RETURN count(n) AS c`;
+    const pattern = label === undefined ? "n" : `n:${label}`;
+    return `MATCH (${pattern}) RETURN count(n) AS c`;
 }

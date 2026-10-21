@@ -414,6 +414,25 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
+        const prepush = code(tool("prepush.sh"));
+        const start = prepush.indexOf("for DOCS_PACKAGE in");
+        assert.ok(start > prepush.indexOf('run_step "Build"'), "after the build");
+        const loop = prepush.slice(start, prepush.indexOf("\ndone\n", start) + 6);
+        const run = (list) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$2"; }\n${loop}`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            ).stdout;
+        assert.equal(run("graph-io,graph-format,layout"), "pnpm run docs:api:layout\npnpm run docs:api:graph-io\n");
+        assert.equal(run("graph-format"), "");
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(

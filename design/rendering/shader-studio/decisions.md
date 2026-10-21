@@ -72,19 +72,29 @@ Group outline                 [+]   one gallery
     - "Plain" means the layer has no Shader row.
     - Wireframe is a real built-in shader, a tile in the node look gallery (section 5.3).
     - The element's `node.wireframe` channel is released, so it stays, unchanged. The app just stops
-      writing it.
+      offering it.
+    - **Saved values stay visible.** A layer that already holds `node.wireframe` or a material entry
+      (projects and autosaves on graphty.app have them) shows that entry as an ordinary row with a
+      minus, because the panel lists every entry a layer has. Nothing converts it.
 - **One row for one decision (owner item 4).** Choosing a shader whose descriptor says
   `geometry: "card"` does two things in one undo step: it writes `node.shader`, and it removes this
   layer's own Shape entry, if it has one. While the card is set, the + menu's Shape item is
   disabled, and its reason reads "Sticker draws its own shape". The Shader row's minus is named
   "Remove Sticker". Undo brings the Shape entry back.
-    - A layer lists only its own entries (a decided rule), so a card set on a lower layer shows no
-      Shape row here at all. The "Covered by ..." caption is deleted for this case.
+- **A card and a shape follow "the topmost layer wins".** The element resolves a card
+  `node.shader` against `node.shape` by layer order: whichever is set on the higher layer is drawn.
+  So a Shape set on a layer above a Sticker layer brings the shape back for those nodes.
+    - A Shape row on a layer below a card keeps the existing "Covered by Sticker" caption, written
+      by the app from the element's coverage fact, because that row is really hidden.
 - **A look that paints the shape** (`geometry: "shape"`, such as Pearl or Glass) keeps the Shape
   and Fill rows. When the shader reads the color, the Fill row is its tint. When it does not read
   the color, the Fill row carries the existing covered caption.
 - **Effects + is one gallery.** Outline, Glow and Halo appear as tiles beside the shader effects.
   The "Effect..." second level is deleted.
+    - **Outline, Glow and Halo are one per layer; shader effects stack.** These three are style
+      channels (`node.outline`, `node.glow`, `node.halo`), so a layer holds at most one of each. When
+      one is already on the layer, its tile is checked and choosing it opens that row instead of
+      adding a second. The tiles keep their existing pictures.
     - Glow strength, Halo size and Halo opacity stop being menu items. They become fields in the
       Glow or Halo row's settings popover.
     - The app builds this grid from two element catalogs: its channel catalog and its shader catalog.
@@ -95,7 +105,8 @@ Group outline                 [+]   one gallery
 
 - **Line section.** + adds Shader alongside the existing rows. The Pattern row lists patterns only;
   Fiber leaves the tail of that list.
-- **Effects +** is one gallery: Band beside the edge shader effects.
+- **Effects +** is one gallery: Band beside the edge shader effects. Band is a channel, so like
+  Glow it is one per layer (1.1).
 
 ### 1.3 Galleries (one component everywhere)
 
@@ -181,8 +192,16 @@ interface ShaderDescriptor {
 
 No header key names the target, so the code cannot disagree with itself.
 
-**How the role is decided.** It defaults to `"look"`. An effect says `role: "effect"`; the starter
-template for an Effects gallery already says so (section 4).
+**How the role is decided.** In this order:
+
+1. A declared `role` always wins.
+2. A header that declares `reach` is an effect (only effects reach past the node).
+3. Otherwise the place supplies it: text added from an Effects gallery is an effect, text added
+   from a Shape, Line, Group outline or Background gallery is a look.
+4. Registered with no place and none of the above, it is a look.
+
+So pasting text with no `role` over an Effects template still adds an effect. `shader.target-mismatch`
+is reported only when the text names a different role, or its signature names a different target.
 
 **Channels are unchanged:**
 
@@ -234,18 +253,18 @@ trips of the same object:**
 
 ### 3.2 Parity table after this work
 
-|                                                            | Built in                        | Registered             | Pasted                           |
-| ---------------------------------------------------------- | ------------------------------- | ---------------------- | -------------------------------- |
-| Registry and catalog listing                               | same                            | same                   | same (the project's)             |
-| Where it shows in the panel                                | by target and role              | by target and role     | by target and role               |
-| Gallery                                                    | one grid                        | one grid               | one grid, plus the filter        |
-| Parameters and their form                                  | same                            | same                   | same                             |
-| Thumbnail                                                  | generated (stored pre-rendered) | generated, or supplied | generated                        |
-| Low-detail body, motion, minimum size, categories, preview | yes                             | yes                    | yes                              |
-| Saved in the project                                       | n/a                             | its text is embedded   | its text is embedded             |
-| Frame guard, flashing check, GPU-loss quarantine           | yes                             | yes                    | yes                              |
-| Held until approved when it arrives as content             | no                              | no                     | yes: the one intended difference |
-| WGSL                                                       | allowed                         | allowed                | no: the one documented exception |
+|                                                            | Built in                                                | Registered             | Pasted                           |
+| ---------------------------------------------------------- | ------------------------------------------------------- | ---------------------- | -------------------------------- |
+| Registry and catalog listing                               | same                                                    | same                   | same (the project's)             |
+| Where it shows in the panel                                | by target and role                                      | by target and role     | by target and role               |
+| Gallery                                                    | one grid                                                | one grid               | one grid, plus the filter        |
+| Parameters and their form                                  | same                                                    | same                   | same                             |
+| Thumbnail                                                  | supplied (the existing pictures); generated when absent | generated, or supplied | generated                        |
+| Low-detail body, motion, minimum size, categories, preview | yes                                                     | yes                    | yes                              |
+| Saved in the project                                       | n/a                                                     | its text is embedded   | its text is embedded             |
+| Frame guard, flashing check, GPU-loss quarantine           | yes                                                     | yes                    | yes                              |
+| Held until approved when it arrives as content             | no                                                      | no                     | yes: the one intended difference |
+| WGSL                                                       | allowed                                                 | allowed                | no: the one documented exception |
 
 The work behind each row of that table:
 
@@ -263,14 +282,18 @@ The work behind each row of that table:
     - `preview` chooses the parameters and the time of the frame.
     - The app shows the generated thumbnail wherever `descriptor.thumbnail` is absent: gallery tiles,
       Shader rows, effect rows and group outline rows.
-    - A build script redraws every preset's `thumb.webp` with the same call, so built-in and user
-      pictures are made the same way and nobody draws icons by hand.
+    - **The presets keep their existing pictures** (the owner called them "really cool"): each
+      `thumb.webp` stays as a supplied `descriptor.thumbnail`, the same field any registrant may
+      fill. Only a shader with no picture, built in (the new Wireframe) or not, is generated. At the
+      next review the owner sees one generated tile beside an existing one before anything more is
+      decided about the presets' pictures.
     - A held shader shows a neutral "not run yet" tile, because drawing it would run its code. With
       no canvas available, a tile shows its target's glyph.
 - **Low detail in text.** Shader text carries the low-detail body as an optional second entry,
   `vec4 shadeFar(<Input>)`. Copy and "Duplicate and edit" of Glass marble therefore keep its
   far-away body.
-- **Motion is inferred.** When `motion` is left out, a body that reads `time` is reported as
+- **Motion is inferred.** When `motion` is left out, a body that reads its input's `time` field
+  (`n.time`, never a bare name) is reported as
   `"loop"`. A declared value always wins. A pasted shader that animates can no longer show "Motion:
   Still".
 - **Saving.** A project that uses a registered shader embeds the shader's text in
@@ -302,9 +325,11 @@ defineShader({
 await element.session.styles.add({
     target: "node",
     selector: { match: "everything" },
-    set: { "node.shader": "acme/heat" },
+    set: { "node.shader": "acme/heat", "node.shaderParams": { hot: "#ff0000" } },
 });
 ```
+
+It is 16 lines with the layer setting one parameter, which is the case an author meets first.
 
 **The advanced path** adds one line for each of these:
 
@@ -316,8 +341,40 @@ await element.session.styles.add({
 - `registerShader` with `wgsl`, for native WebGPU.
 
 **Before this ships,** an author who sees only the published docs page must write this example and
-compile it against the published types. That is the blind-author check in the project's
-principles.
+an edge look, and compile both against the published types. That is the blind-author check in the
+project's principles.
+
+### 3.4 What the published shader page must state
+
+A blind-author test of these decisions could not write a shader with parameters, or any edge
+shader, without guessing. Most answers already exist in the code; they are simply unpublished. The
+docs page ("How to write a shader") states each of these, checked against the code, and the
+blind-author check above is run against that page:
+
+- **Parameters.** The short form (a `#rrggbb` string is a color, a number a float, a boolean a
+  switch) and the long form (`{ type, default, min, max, step, varies }`, plus a choice of named
+  options). Which GLSL type each becomes (a color is a `vec3`), that parameters are bare
+  identifiers in the body, and that a name clashing with GLSL or a built-in is refused with
+  `shader.reserved`.
+- **`node.shaderParams` / `edge.shaderParams`.** A plain `{ name: value }` object, merged over the
+  defaults; a parameter declared `varies` may take a calculated value per node.
+- **The input structs, every field.** `NodeInput` (including the uv range and the space of
+  `normal`) and `EdgeInput` (`t` along the edge, `side` across it, `lengthPx`, `widthPx`, the three
+  colors, the states and clocks), plus `GroupInput` and `BackgroundInput`.
+- **The globals and helpers** (`lightDir`, `palette()`, the hash helpers), each with its signature.
+- **The return value.** Whether `shade()` returns straight or premultiplied alpha, and its color
+  space.
+- **The name.** `defineShader` and the text header take `name`, which is the descriptor's
+  `plainName`; it is optional and defaults to the id's last segment. This is the one key whose
+  spelling differs between the header and `registerShader`'s descriptor.
+- **Ids.** Bare ids are refused; an id the element ships throws `E_DUPLICATE_PLUGIN`; defining the
+  same id again replaces it (hot reload), unless the option to refuse is passed.
+- **Failure.** `defineShader` is synchronous, throws `E_BAD_COMMAND` naming the member at fault, and
+  reports a body that does not compile through the session's problems with its code. A layer
+  naming an id not yet defined draws nothing until it is, and reports that as a problem.
+- **The clocks.** `sinceEntered` is the time since this look or effect began to apply to this node
+  (section 5.8); `preview.time` is in seconds.
+- **The entry point** `defineShader` is imported from, and whether it is free of the renderer.
 
 ---
 
@@ -326,7 +383,8 @@ principles.
 **Where.** "New shader..." is the last tile of every gallery: node look, node effects, edge look,
 edge effects, group outline and background. It is also the + of the project's Shaders list (below).
 "Paste shader..." stops being a separate command: a user who has text selects all and pastes over
-the template.
+the template. The place still supplies the role when the pasted text omits it (section 2), so
+pasting over an effect template never turns the shader into a look.
 
 **The dialog, opened from a gallery:**
 
@@ -419,8 +477,10 @@ recorded as the known ceiling.
 - **New descriptor fact `minPixels`,** allowed in every spelling. The effect square is drawn at
   `max(reach x node radius in px, minPixels)`.
     - The node's own disc stays at r = 1.
-    - An effect with `minPixels` is drawn even on a node under 3 px. One without keeps today's skip.
-- **The Reticle declares `minPixels: 40`.**
+    - Every effect keeps today's skip for a node under 3 px, `minPixels` or not, so a zoomed-out
+      overview of a large graph is never covered in 40 px squares.
+- **The Reticle declares `minPixels: 40`.** No other preset declares it. Aura, Satellites and the
+  other effects that may sit on every node keep scaling with the node.
 - **Its detail fades in a new order:**
     1. the scan;
     2. the inner circle and the pips;
@@ -431,13 +491,18 @@ recorded as the known ceiling.
 
 ### 5.5 Group outlines enclose the whole group
 
-- **Each group becomes one connected shape that contains every member,** after the Bubble Sets
-  method:
-    - The default `threshold` drops from 1.0 to 0.5. At 1.0, a lone member reached the threshold
-      only at its exact center, so it drew almost nothing.
-    - Each frame, on the CPU, the element builds a minimum spanning tree over the group's members'
-      screen positions and splats a capsule kernel along every tree edge, with the same falloff and
-      a peak of 1.
+- **Each group becomes one connected shape that contains every member,** in two steps, the second
+  only if the first is not enough:
+    1. The default `threshold` drops from 1.0 to 0.5. At 1.0, a lone member reached the threshold
+       only at its exact center, so it drew almost nothing. This ships first and is measured on
+       Karate club and Les Miserables with Louvain: does every member's center lie inside its
+       group's outline, and is each outline one region?
+    2. Only for what step 1 leaves out, the Bubble Sets connector: a minimum spanning tree over the
+       group's members, with a capsule kernel splatted along every tree edge (same falloff, peak 1).
+       The tree is rebuilt only when the layout moves, never every frame.
+- **Outlines that share a shader share a field target.** The element packs every layer's outline
+  of the same shader into one field target, as `groupBy` does inside one layer, so the cap counts
+  groups, not layers. A Louvain folder of 12 communities (12 layers) then draws 12 outlines.
 - **No silent drops.** The group cap (32) and the field-target cap (8 targets x 4 groups) are
   reported with the existing `shader.boundary-cap` problem, never dropped silently.
 - **Rejected: a convex hull as the default.** Communities in a force layout interleave, so convex
@@ -473,18 +538,25 @@ section:
 - **Its + offers Color, Image and Shader,** at most one of each. A kind that is already present is
   shown disabled in the menu, with its reason.
 - **Rows are drawn bottom to top** in the fixed order Color, Image, Shader. Each has a minus.
-- **Removing the Color row** writes a transparent color, so the page behind the element shows, as
-  Figma does when a frame's fill is removed. If the element cannot clear to transparent, it gains
-  that support (additive).
-- **With nothing set,** the section shows the color the element reports drawing. It never shows an
-  empty section over a colored canvas.
+- **Removing the Color row** removes the layer's own color, so the element draws its default color
+  again. No transparent canvas: that would be a new capability touching exports, the light canvas
+  kept in dark mode, and label contrast, and nobody asked for it.
+- **With no Color row,** the section shows the color the element reports drawing, as a caption
+  under the heading. It never shows an empty section over a colored canvas.
 - **An animated background** obeys the Motion setting.
 
 ### 5.8 Hover and "On enter" (owner decision: a calculated value)
 
-- **Nothing in the element is specific to hover.** The Hovered starting layer is an ordinary layer
-  whose condition is a state. That condition is the calculated value. The shader also receives
-  `n.hovered` and `n.sinceHovered`.
+- **No trigger in the element is specific to hover.** The Hovered starting layer is an ordinary layer
+  whose condition is a state. That condition is the calculated value.
+- **One neutral clock for entrances.** `sinceEntered` is the time since this look or effect began
+  to apply to this node, that is, since its layer's condition began to match it. Effects already
+  work this way (each effect slot keeps its own entered time); a look gets the same meaning. The
+  Reticle reads `sinceEntered`, so it plays its entrance on a Selected or Search-match layer exactly
+  as on Hovered.
+- **`hovered`, `selected` and `pinned` stay as state facts** in the input structs, beside
+  `sinceHovered`, `sinceSelected` and `sincePinned`. They describe the node, the same for every
+  layer; a shader that wants "since this layer matched" reads `sinceEntered`.
 - **The "On enter" / "On change" trigger chip is removed from shader rows.** It named the shader's
   own entrance animation, but it sat where a reader reads the layer's trigger.
 - **The settings popover's Motion line describes the shader,** for example "Plays in 0.55 s, out
@@ -528,8 +600,18 @@ by itself, and the start screen appears.
 
 **Element** (additive to the released autosave API):
 
-- `AutosaveEntry.own?: boolean`, true for the entry this tab was writing. It is read from the
-  session-storage item the element already keeps, and `listAutosaves` fills it in.
+- `AutosaveEntry.own?: boolean`, true for the entry this tab was writing **and whose Web Lock this
+  tab now holds**. The session-storage item names the candidate; the lock decides it.
+    - Every browser copies sessionStorage into a duplicated tab, so the item alone would let two
+      tabs claim one entry and overwrite each other. Autosave already takes a Web Lock per entry and
+      already copies the entry for a second tab (`copiedFrom`); `own` reuses that path. The tab that
+      cannot take the lock reports `own: false` and works on its copy.
+    - `listAutosaves` fills it in.
+- **Proven on Safari first.** Whether iPad Safari keeps sessionStorage across a discard is the
+  premise of this fix. Before the app half is built, the element half adds a discard-and-return
+  check to the iOS Simulator job of `work-protection-macos.yml`, and that job is dispatched on the
+  branch. If sessionStorage does not survive, the app half stops and the finding goes back to the
+  studio.
 
 **App:**
 
@@ -566,13 +648,13 @@ by itself, and the start screen appears.
 8. **"On enter" on Hovered.** No hover code exists. The chip is removed, and Motion describes the
    shader (5.8).
 9. **A tiny reticle.** `minPixels`, plus brackets as the last detail left (5.4).
-10. **Icons for added shaders.** Generated by the element for every shader, and the presets'
-    pictures are redrawn the same way (3.2).
+10. **Icons for added shaders.** The element generates a picture for any shader that supplies
+    none; the presets keep their existing pictures, supplied through the same field (3.2).
 11. **Clear glass vs dew drop.** Clear glass is removed, Dew drop becomes Glass, and Frosted glass
     becomes translucent (5.2).
 12. **Dense wireframe.** A sparse globe grid shader with lines of constant width (5.3).
-13. **The hull misses members.** A connected shape containing every member, plus reported caps
-    (5.5).
+13. **The hull misses members.** A lower threshold first, measured; a spanning-tree connector only
+    if needed; outlines of one shader share a field target, and caps are reported (5.5).
 14. **Groups under one layer?** One group per layer, through bulk edit (5.6).
 15. **Paste, targets, inputs, surface vs effect.**
     - The place sets the target and the role.
@@ -620,10 +702,72 @@ ships before them, they become breaking.
 - **The Shape picker as an icon grid** (decided in tier 3). It stays tier 3's own item; this work
   only takes the shaders out of the list.
 - **Hover-animated gallery tiles.** Thumbnails are still frames (accessibility rule).
+- **Converting a saved `node.wireframe` to the Wireframe shader.** The released channel still draws
+  correctly, and the panel shows the saved entry as a row (1.1), so nothing is hidden.
+- **A transparent canvas.** Not asked for, and it touches exports and contrast (5.7).
+- **Outline, Glow and Halo as shaders.** They are released channels; the gallery says plainly that
+  they are one per layer (1.1).
 
 ## 10. Watch at the owner's next review
 
+- One generated thumbnail beside one of the existing preset pictures (3.2): does the generated
+  style hold up?
 - Asked to "make these nodes glass", does the user find Shape > + > Shader on the first try?
 - Does "Replaces shape" on the Sticker tile, with the Shape row gone, read as expected?
 - Does "New shader..." plus the template get to a working shader without opening the docs?
 - On the iPad, is Select more in the row menu found without a hint?
+
+---
+
+## 11. Critiques
+
+The Red Team and a blind-author test reviewed the first version of these decisions. Each finding,
+with the verdict and the reason:
+
+**Red Team**
+
+1. **Duplicated tab claims the same autosave entry; iPad sessionStorage unproven.** Accepted: `own`
+   needs the entry's Web Lock, which autosave already takes, and the iOS Simulator job proves the
+   premise before the app half is built (6.3).
+2. **A card on a lower layer beats a Shape on a higher one.** Accepted: "topmost layer wins" is the
+   rule for every style value, so a card and a shape resolve by layer order, and a hidden Shape row
+   keeps its caption (1.1).
+3. **Pasting over the effect template turns it into a look.** Accepted: the place supplies the role
+   when the text omits it, `reach` implies an effect, and a mismatch needs an explicit conflict (2).
+4. **`hovered` and `sinceHovered` are hover code.** Partly accepted: the neutral clock already
+   exists as `sinceEntered` on effects and is now defined for looks too; the state facts stay,
+   because removing them costs every shader that reads them and adds no new mechanism (5.8).
+5. **Redrawing the presets' pictures discards icons the owner praised.** Accepted: the pictures
+   stay as supplied thumbnails, only shaders without one are generated, and the redraw script is
+   dropped (3.2).
+6. **One outline per layer hits the field-target cap on a Louvain folder.** Accepted: outlines that
+   share a shader share one field target, tested with 12 communities (5.5).
+7. **`minPixels` floods a zoomed-out large graph.** Accepted in part: the under-3 px skip stays for
+   every effect and only the Reticle declares `minPixels`; the proposed `k x r` cap is rejected
+   because it shrinks the Reticle back to the size the owner complained about (5.4).
+8. **Deleting the Rendering section hides saved values.** Accepted in part: saved entries show as
+   ordinary rows with a minus; an element conversion is rejected, because the released channel
+   still draws correctly (1.1, 9).
+9. **Outline, Glow and Halo do not stack, unlike the tiles beside them.** Accepted, second option:
+   the gallery treats them as one per layer and says so; making them shaders is a change to
+   released channels with no reader benefit (1.1).
+10. **Per-frame spanning tree and a transparent canvas are more than needed.** Accepted: the
+    threshold change ships and is measured first, a tree is built only if needed and only when the
+    layout moves; removing Color returns to the element's default color instead of transparency.
+    The part asking for a fixed Color row with no minus is rejected: the owner decided that +
+    adds Color, so Color must be addable and removable (5.5, 5.7).
+
+**Blind-author test**
+
+- **The canonical example never sets a parameter on a layer.** Accepted: it now does (16 lines),
+  and the blind-author check covers an edge look too (3.3).
+- **Parameters, `shaderParams`, the input structs, globals, return value, `name` vs `plainName`,
+  ids, failure, scope and entry point are unpublished.** Accepted: most answers exist in the code;
+  section 3.4 lists what the published page must state, and the blind-author check is run against
+  that page. `name` is the header and `defineShader` spelling of `plainName`, optional, defaulting
+  to the id's last segment.
+- **What `reach` means on an edge, and whether Band is a look.** Accepted: the page states it; Band
+  is a released edge channel shown as one-per-layer, like Glow (1.1).
+- **`motion` inference trips on a parameter named `time`.** Accepted as a precision: inference looks
+  for the input struct's field (`n.time`, `e.time`, `g.time`, `b.time`), never a bare name, so a
+  parameter cannot trigger it (3.2).

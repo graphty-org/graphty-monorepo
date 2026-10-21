@@ -167,28 +167,32 @@ function repulsionOn(root: Cell, self: number, x: number, y: number, forces: Sup
         if (c.mass === 0 || c.body === self) {
             continue;
         }
-        let dx = c.mx - x;
-        let dy = c.my - y;
-        let d = Math.hypot(dx, dy);
+        const d = Math.hypot(c.mx - x, c.my - y);
         if (c.kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
-            for (const kid of c.kids) {
-                if (kid !== null) {
-                    stack.push(kid);
-                }
-            }
+            stack.push(...c.kids.filter((kid): kid is Cell => kid !== null));
             continue;
         }
-        if (d === 0) {
-            // vis-network: two bodies at one place are taken as 0.1 apart along x
-            d = 0.1;
-            dx = d;
-            dy = 0;
-        }
-        const g = (forces.repulsion * c.mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
-        fx -= dx * g;
-        fy -= dy * g;
+        const [px, py] = pushFrom(c, x, y, d, forces);
+        fx += px;
+        fy += py;
     }
     return [fx, fy];
+}
+
+/**
+ * The push one cell, taken as its center of mass, gives the body at (x, y).
+ * @param c - The cell.
+ * @param x - The body's x.
+ * @param y - Its y.
+ * @param distance - How far the cell's center of mass is.
+ * @param forces - The body's force law.
+ * @returns The push, x and y.
+ */
+function pushFrom(c: Cell, x: number, y: number, distance: number, forces: SupportForces): [number, number] {
+    // vis-network: two bodies at one place are taken as 0.1 apart along x
+    const [d, dx, dy] = distance === 0 ? [0.1, 0.1, 0] : [distance, c.mx - x, c.my - y];
+    const g = (forces.repulsion * c.mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
+    return [-dx * g, -dy * g];
 }
 
 /**
@@ -282,12 +286,8 @@ export function stepSupportPoints(
             const [sx, sy] = springsAndGravity(x, y, ends[j], center, forces);
             const damping = DAMPING[forces.model];
             for (let k = 0; k < 2; k++) {
-                const f = k === 0 ? px + sx : py + sy;
-                const v = velocities[2 * j + k];
-                const next = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, v + (f - damping * v) * TIMESTEP));
-                velocities[2 * j + k] = next;
-                points[2 * j + k] += next * TIMESTEP * unit;
-                fastest = Math.max(fastest, Math.abs(next));
+                const speed = integrate(velocities, points, 2 * j + k, k === 0 ? px + sx : py + sy, damping, unit);
+                fastest = Math.max(fastest, speed);
             }
         }
         moving = fastest > REST_SPEED;
@@ -296,6 +296,32 @@ export function stepSupportPoints(
         }
     }
     return moving;
+}
+
+/**
+ * One step of one coordinate of a support point under its force, as vis-network integrates a body (its damping,
+ * timestep and maximum speed).
+ * @param velocities - Every velocity; updated.
+ * @param points - Every point, in scene units; updated.
+ * @param at - Which coordinate.
+ * @param force - The force on it.
+ * @param damping - The damping.
+ * @param unit - Scene units per force unit.
+ * @returns Its new speed.
+ */
+function integrate(
+    velocities: Float64Array,
+    points: Float64Array,
+    at: number,
+    force: number,
+    damping: number,
+    unit: number,
+): number {
+    const v = velocities[at];
+    const next = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, v + (force - damping * v) * TIMESTEP));
+    velocities[at] = next;
+    points[at] += next * TIMESTEP * unit;
+    return Math.abs(next);
 }
 
 /**

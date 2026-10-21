@@ -15,6 +15,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
+import { SupportPoints } from "../meshes/supportPoints";
 import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
@@ -2030,6 +2031,13 @@ export class DataManager implements Manager {
 
     /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */
     private bundles: { version: number; byEdge: Map<Edge, EdgeBundle> } | null = null;
+
+    /**
+     * The support points of the edges drawn through one (`line.supportModel`): stepped by the update
+     * loop before the edges are placed, read by each edge as it is placed.
+     * @internal
+     */
+    readonly supportPoints = new SupportPoints<Edge>();
 
     /**
      * Every edge running from one node to another.

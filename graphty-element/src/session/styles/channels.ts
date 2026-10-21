@@ -276,6 +276,8 @@ export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["
 export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+/** The force law an edge's support point settles under (`edge.supportModel`). */
+export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 /** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
 export type NodeGradientKindValue = "linear" | "radial";
@@ -485,6 +487,12 @@ export interface ChannelValues {
     "edge.fanned": boolean;
     "edge.bendCurve": EdgeBendCurveValue;
     "edge.arcRadius": number;
+    "edge.supportModel": EdgeSupportModelValue;
+    "edge.supportSpringLength": number;
+    "edge.supportSpringConstant": number;
+    "edge.supportRepulsion": number;
+    "edge.supportCentralGravity": number;
+    "edge.supportUnit": number;
     "edge.nodeGap": number;
     "edge.sourceNodeGap": number;
     "edge.targetNodeGap": number;
@@ -774,6 +782,8 @@ const NODE_GRADIENT_CAVEAT =
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
+const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
+const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -3305,6 +3315,85 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node centers, with this many times the distance between them as its radius (0.5 is a half " +
             "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
             "edge ignores it.",
+    },
+    "edge.supportModel": {
+        channel: "edge.supportModel",
+        target: "edge",
+        plainName: "Edge Support Model",
+        shortName: "Support model",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_SUPPORT_MODEL_VALUES,
+        stylePath: "line.supportModel",
+        renderable: true,
+        caveat:
+            "Draws a curved edge as one quadratic curve through a support point a force simulation " +
+            "places: tied to the two nodes by springs, pushed away by every node and every other " +
+            'support point, pulled toward the middle of the nodes. "barnesHut" pushes by repulsion over ' +
+            'the distance squared and pulls with a constant force; "forceAtlas2" pushes by repulsion over ' +
+            "the distance and pulls in proportion to it. The nodes stay where the layout puts them, so " +
+            "an edge bows away from crowding and edges between the same two nodes bow apart. Left unset, " +
+            "no support point. A straight edge ignores it.",
+    },
+    "edge.supportSpringLength": {
+        channel: "edge.supportSpringLength",
+        target: "edge",
+        plainName: "Edge Support Spring Length",
+        shortName: "Spring length",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringLength",
+        renderable: true,
+        caveat: `The length the two springs of the support point rest at together, in support units (95 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportSpringConstant": {
+        channel: "edge.supportSpringConstant",
+        target: "edge",
+        plainName: "Edge Support Spring Constant",
+        shortName: "Spring constant",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringConstant",
+        renderable: true,
+        caveat: `How hard the springs of the support point pull per unit they are stretched (0.04 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportRepulsion": {
+        channel: "edge.supportRepulsion",
+        target: "edge",
+        plainName: "Edge Support Repulsion",
+        shortName: "Repulsion",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportRepulsion",
+        renderable: true,
+        caveat: `How hard every node and every other support point push the support point away (2000 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportCentralGravity": {
+        channel: "edge.supportCentralGravity",
+        target: "edge",
+        plainName: "Edge Support Central Gravity",
+        shortName: "Central gravity",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportCentralGravity",
+        renderable: true,
+        caveat: `How hard the support point is pulled toward the middle of the nodes (0.3 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportUnit": {
+        channel: "edge.supportUnit",
+        target: "edge",
+        plainName: "Edge Support Unit",
+        shortName: "Support unit",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportUnit",
+        renderable: true,
+        caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
     },
     "edge.nodeGap": {
         channel: "edge.nodeGap",

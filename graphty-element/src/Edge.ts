@@ -39,6 +39,7 @@ import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
+import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 
@@ -452,6 +453,8 @@ export class Edge {
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
     private _lastDstPos: Vector3 | null = null;
+    /** Where the line's support point was when the line was last placed (`line.supportModel`). */
+    private _lastVia: Xyz | null = null;
 
     /**
      * Set once {@link Edge.dispose} has run. Guards the two methods that would otherwise rebuild
@@ -801,9 +804,15 @@ export class Edge {
         // An edge added beside this one, or taken away, fans this one out or back in.
         const { edgeVersion } = this.context.getDataManager();
 
-        if (!srcMoved && !dstMoved && edgeVersion === this.bundleVersion) {
+        // A line through a support point moves when the point does, its nodes still or not.
+        const via = this.drawnStyle?.line?.supportModel === undefined ? null : this.supportVia();
+        const viaMoved = via !== this._lastVia;
+
+        if (!srcMoved && !dstMoved && !viaMoved && edgeVersion === this.bundleVersion) {
             return;
         }
+
+        this._lastVia = via;
 
         this.bundleVersion = edgeVersion;
 
@@ -1698,6 +1707,12 @@ export class Edge {
             return null;
         }
 
+        // a support point is placed apart from its bundle's others by the forces themselves
+        const via = this.supportVia();
+        if (via !== null) {
+            return bezierThroughControls([src.x, src.y, src.z, via.x, via.y, via.z, dst.x, dst.y, dst.z]);
+        }
+
         if (count < 2 || !this.fans) {
             const arc = this.drawnStyle?.line?.arcRadius;
             return arc === undefined ? EdgeMesh.createBezierLine(src, dst) : centerArc(src, dst, arc);
@@ -1718,6 +1733,40 @@ export class Edge {
 
         const forward = first.srcNode === this.srcNode;
         return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * What this edge's support point settles under, for the update loop: its two nodes' centers and its style's
+     * forces. Null for an edge without one: not curved, no `line.supportModel`, a self-loop, or not drawn.
+     * @returns The edge's ends and forces, or null.
+     * @internal
+     */
+    supportEdge(): SupportEdge | null {
+        const line = this.drawnStyle?.line;
+        const model = line?.supportModel;
+        if (model === undefined || !this.curved || this.srcNode === this.dstNode || !this.renderVisible) {
+            return null;
+        }
+        return {
+            src: this.srcNode.mesh.position,
+            dst: this.dstNode.mesh.position,
+            forces: {
+                model,
+                springLength: line?.supportSpringLength ?? SUPPORT_DEFAULTS.springLength,
+                springConstant: line?.supportSpringConstant ?? SUPPORT_DEFAULTS.springConstant,
+                repulsion: line?.supportRepulsion ?? SUPPORT_DEFAULTS.repulsion,
+                centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
+                unit: line?.supportUnit ?? 1,
+            },
+        };
+    }
+
+    /**
+     * Where this edge's support point is now, or null when it has none.
+     * @returns The point.
+     */
+    private supportVia(): Xyz | null {
+        return this.context.getDataManager().supportPoints.pointOf(this);
     }
 
     /**

@@ -818,6 +818,22 @@ function channelPlans(
         ["bendCurve", [table("edge.bendCurve", BEND_CURVES)]],
         // a multiple of the distance between the nodes: no unit to convert
         ["arcRadius", [id("edge.arcRadius")]],
+        // A support point's numbers are the file's, in its own units; the unit says how long one is in the scene.
+        [
+            "supportModel",
+            [
+                table("edge.supportModel", SUPPORT_MODELS),
+                {
+                    channel: "edge.supportUnit",
+                    convert: (value) => (typeof value === "string" ? round(factors.scene ?? 1) : null),
+                    identity: false,
+                },
+            ],
+        ],
+        ["supportSpringLength", [id("edge.supportSpringLength")]],
+        ["supportSpringConstant", [id("edge.supportSpringConstant")]],
+        ["supportRepulsion", [id("edge.supportRepulsion")]],
+        ["supportCentralGravity", [id("edge.supportCentralGravity")]],
         ["nodeGap", [length("edge.nodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceNodeGap", [length("edge.sourceNodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["targetNodeGap", [length("edge.targetNodeGap", factors.node * SCENE_PER_UNIT.node)]],
@@ -916,6 +932,12 @@ const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["midpoints", "midpoints"],
     ["bezier", "bezier"],
     ["arc", "arc"],
+]);
+
+/** The element's support force law for each neutral one. */
+const SUPPORT_MODELS: ReadonlyMap<string, string> = new Map([
+    ["barnesHut", "barnesHut"],
+    ["forceAtlas2", "forceAtlas2"],
 ]);
 
 /** The element's node gradient kind for each neutral one. */

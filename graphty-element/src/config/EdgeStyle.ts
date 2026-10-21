@@ -282,6 +282,32 @@ const LineStyle = z.strictObject({
      */
     arcRadius: z.number().min(0.5).optional(),
     /**
+     * Draws a curved line (`bezier`) as one quadratic curve through a support point that a force
+     * simulation places, under this force law: `"barnesHut"`, every node and every other support
+     * point pushes it away by `supportRepulsion / d^2` and it is pulled toward the middle of the
+     * nodes by a constant `supportCentralGravity`; `"forceAtlas2"`, pushed by `supportRepulsion / d`
+     * and pulled by `supportCentralGravity * d`. Two springs of half `supportSpringLength`, of
+     * stiffness `supportSpringConstant`, tie it to the edge's two nodes. The nodes stay where the
+     * layout puts them and only the support points move, so an edge bows away from crowding and
+     * edges between the same two nodes bow apart (as vis-network draws its "dynamic" smooth
+     * edges: barnesHut and forceAtlas2Based are its solvers of those names). Unset, no support
+     * point. A file's setting arrives here through its style layer.
+     */
+    supportModel: z.enum(["barnesHut", "forceAtlas2"]).optional(),
+    /** The support point's springs, together, rest at this length (in `supportUnit`s; 95 when unset). */
+    supportSpringLength: z.number().nonnegative().optional(),
+    /** How hard the support point's springs pull per unit they are stretched (0.04 when unset). */
+    supportSpringConstant: z.number().nonnegative().optional(),
+    /** How hard nodes and other support points push the support point away (2000 when unset). */
+    supportRepulsion: z.number().nonnegative().optional(),
+    /** How hard the support point is pulled toward the middle of the nodes (0.3 when unset). */
+    supportCentralGravity: z.number().nonnegative().optional(),
+    /**
+     * How many scene units one unit of the support's lengths and forces is (1 when unset): a
+     * file's constants keep their meaning however its lengths are scaled into the scene.
+     */
+    supportUnit: z.number().positive().optional(),
+    /**
      * How far from each of its nodes' outlines the line stops, in the scene's units, leaving that much empty between
      * the node and the line's end (and the arrow cap there, which moves out with it). Unset or 0, the line meets the
      * outline. A self-loop ignores it. A file's setting (Gephi's `edge.radius`) arrives here through its style layer.

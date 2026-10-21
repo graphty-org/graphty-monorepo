@@ -779,6 +779,8 @@ export class Edge {
     readonly srcId: NodeIdType;
     // (undocumented)
     srcNode: Node_2;
+    // @internal
+    supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;

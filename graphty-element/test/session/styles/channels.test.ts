@@ -199,6 +199,12 @@ const DECLARED = [
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.supportModel",
+    "edge.supportSpringLength",
+    "edge.supportSpringConstant",
+    "edge.supportRepulsion",
+    "edge.supportCentralGravity",
+    "edge.supportUnit",
     "edge.nodeGap",
     "edge.sourceNodeGap",
     "edge.targetNodeGap",
@@ -324,9 +330,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-seven node channels and one hundred and twenty-six edge channels", () => {
+    it("splits into one hundred and forty-seven node channels and one hundred and thirty-two edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 147);
-        assert.strictEqual(channelsFor("edge").length, 126);
+        assert.strictEqual(channelsFor("edge").length, 132);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -621,6 +627,13 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
+        // Unset, a curved edge has no support point, and the support's numbers have nothing to place.
+        "edge.supportModel",
+        "edge.supportSpringLength",
+        "edge.supportSpringConstant",
+        "edge.supportRepulsion",
+        "edge.supportCentralGravity",
+        "edge.supportUnit",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.

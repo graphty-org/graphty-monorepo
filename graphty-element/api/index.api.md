@@ -806,6 +806,8 @@ export class DataManager implements Manager {
     startLabelAnimations(): void;
     supersedeLoads(): void;
     // @internal
+    readonly supportPoints: SupportPoints<Edge>;
+    // @internal
     takeLateEdgeRows(): number[];
     throwIfSuperseded(generation: number, type: string): void;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
@@ -970,6 +972,8 @@ export class Edge {
     readonly srcId: NodeIdType;
     // (undocumented)
     srcNode: Node_2;
+    // @internal
+    supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
@@ -1690,6 +1694,15 @@ export const EdgeStyle: z.ZodObject<{
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
+        supportModel: z.ZodOptional<z.ZodEnum<{
+            barnesHut: "barnesHut";
+            forceAtlas2: "forceAtlas2";
+        }>>;
+        supportSpringLength: z.ZodOptional<z.ZodNumber>;
+        supportSpringConstant: z.ZodOptional<z.ZodNumber>;
+        supportRepulsion: z.ZodOptional<z.ZodNumber>;
+        supportCentralGravity: z.ZodOptional<z.ZodNumber>;
+        supportUnit: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
         sourceNodeGap: z.ZodOptional<z.ZodNumber>;
         targetNodeGap: z.ZodOptional<z.ZodNumber>;

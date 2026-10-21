@@ -1,5 +1,5 @@
 import { ControlSection, Popout } from "@graphty/compact-mantine";
-import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelsFor, type ShaderDescriptor } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -11,7 +11,16 @@ import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, partlySet, startingAdds, writeIn } from "./row";
 import { ShaderRow, SlotGallery } from "./ShaderRow";
-import { pickShader, shaderEntries, slotAdd, slotAddOptions, slotIsSet, slotOf, spriteOn } from "./shaderSlots";
+import {
+    pickShader,
+    shaderEntries,
+    type ShaderSlot,
+    slotAdd,
+    slotAddOptions,
+    slotIsSet,
+    slotOf,
+    spriteOn,
+} from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
 import { channelWord, failureWords, fieldName, materialBlockedWords, type SectionSpec } from "./words";
 
@@ -41,6 +50,27 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
         ];
     }
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
+}
+
+/**
+ * What a section's "+" offers: its properties not set yet, then its shader slot's adds (none while
+ * the layer draws a sprite, which Material would replace).
+ * @param ctx - the row.
+ * @param unset - the section's properties not set yet.
+ * @param slot - the section's shader slot, or undefined.
+ * @param sprite - the sprite the layer draws, or undefined.
+ * @returns the menu items.
+ */
+function addOptions(
+    ctx: RowContext,
+    unset: readonly ChannelDescriptor[],
+    slot: ShaderSlot | undefined,
+    sprite: ShaderDescriptor | undefined,
+): AddOption[] {
+    return [
+        ...unset.flatMap(optionsFor),
+        ...(slot === undefined || sprite !== undefined ? [] : slotAddOptions(ctx, slot)),
+    ];
 }
 
 /**
@@ -151,7 +181,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     return (
         // The section is the group, named by its title, a heading so a screen reader moves from
         // section to section; a wrapper group named "Node shape" read the name twice.
-        <div
+        <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"
@@ -172,10 +202,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     <AddButton
                         kind={ctx.side}
                         title={spec.title}
-                        options={[
-                            ...unset.flatMap(optionsFor),
-                            ...(slot === undefined || sprite !== undefined ? [] : slotAddOptions(ctx, slot)),
-                        ]}
+                        options={addOptions(ctx, unset, slot, sprite)}
                         blocked={sprite === undefined ? undefined : materialBlockedWords(sprite.plainName)}
                         expanded={gallery}
                         onAdd={(key) => {

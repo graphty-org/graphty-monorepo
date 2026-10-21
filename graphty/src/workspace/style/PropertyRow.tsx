@@ -451,6 +451,33 @@ interface FieldProps {
 }
 
 /**
+ * What a layer above covers of the row's value, on a shown row that sets it.
+ * @param ctx - the row.
+ * @param own - the row's own line, or undefined.
+ * @param channel - the property.
+ * @returns what covers it, or undefined.
+ */
+function coveredOn(ctx: RowContext, own: Line | undefined, channel: Channel): PaintedOver | undefined {
+    return own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
+}
+
+/**
+ * Whether a field offers Vary: a property that takes a binding, on a line the row sets to a plain
+ * value, or not set yet on several rows or just added with "+".
+ * @param ctx - the row.
+ * @param descriptor - the property.
+ * @param own - the row's own line, or undefined.
+ * @param pending - just added with "+", waiting for a value.
+ * @returns true when the field offers Vary.
+ */
+function canVary(ctx: RowContext, descriptor: ChannelDescriptor, own: Line | undefined, pending: boolean): boolean {
+    return (
+        takesBinding(descriptor) &&
+        ((own !== undefined && own.binding === undefined) || (own === undefined && (ctx.many !== undefined || pending)))
+    );
+}
+
+/**
  * One property this layer sets (the owner's style panel design, 2026-10-13): its name, its value,
  * the vary glyph, and a minus that removes it so the layers beneath show through. A property the
  * layer does not set has no row at all, so nothing here ever shows a value from beneath. Several
@@ -501,7 +528,7 @@ export function Field({
     const name = fieldName(channel);
     const receipt = ctx.many?.receipt?.(channel);
     // A layer above covers this row's value on some of its elements (a shown row only).
-    const over = own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
+    const over = coveredOn(ctx, own, channel);
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
@@ -608,10 +635,7 @@ export function Field({
             setPendingVary(choice);
         }
     };
-    const varies =
-        takesBinding(descriptor) &&
-        ((own !== undefined && own.binding === undefined) ||
-            (own === undefined && (ctx.many !== undefined || pending)));
+    const varies = canVary(ctx, descriptor, own, pending);
     // The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a
     // closed select or a color chit.
     const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {

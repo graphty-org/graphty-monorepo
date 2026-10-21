@@ -171,6 +171,47 @@ export function LoadingCard({
 }
 
 /**
+ * The empty state card: no nodes to draw, with Add data... and Open a sample.
+ * @param props - the component props.
+ * @param props.addData - the Add data... command, or null when it is not offered.
+ * @returns The card
+ */
+function EmptyCard({ addData }: Readonly<{ addData: ReturnType<typeof useCommand> }>): React.JSX.Element {
+    return (
+        <StateCard
+            icon={<GLYPHS.empty size={20} />}
+            title="No nodes to draw"
+            actions={
+                <>
+                    {addData === null ? null : (
+                        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
+                            <Button
+                                size="xs"
+                                aria-disabled={addData.disabledReason !== null}
+                                data-disabled={addData.disabledReason === null ? undefined : true}
+                                onClick={addData.disabledReason === null ? addData.run : undefined}
+                            >
+                                {addData.command.label}
+                            </Button>
+                        </Tooltip>
+                    )}
+                    <Menu position="bottom" withinPortal>
+                        <Menu.Target>
+                            <Button size="xs" variant="default">
+                                Open a sample
+                            </Button>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                            <SampleItems />
+                        </Menu.Dropdown>
+                    </Menu>
+                </>
+            }
+        />
+    );
+}
+
+/**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
  * while it holds no node, with Add data... and Open a sample. The canvas has no other buttons.
@@ -206,38 +247,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
             />
         );
     } else if (nodeCount === 0) {
-        card = (
-            <StateCard
-                icon={<GLYPHS.empty size={20} />}
-                title="No nodes to draw"
-                actions={
-                    <>
-                        {addData === null ? null : (
-                            <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                                <Button
-                                    size="xs"
-                                    aria-disabled={addData.disabledReason !== null}
-                                    data-disabled={addData.disabledReason === null ? undefined : true}
-                                    onClick={addData.disabledReason === null ? addData.run : undefined}
-                                >
-                                    {addData.command.label}
-                                </Button>
-                            </Tooltip>
-                        )}
-                        <Menu position="bottom" withinPortal>
-                            <Menu.Target>
-                                <Button size="xs" variant="default">
-                                    Open a sample
-                                </Button>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                <SampleItems />
-                            </Menu.Dropdown>
-                        </Menu>
-                    </>
-                }
-            />
-        );
+        card = <EmptyCard addData={addData} />;
     }
 
     return (

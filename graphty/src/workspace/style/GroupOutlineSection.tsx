@@ -1,5 +1,5 @@
 import { ControlSection, Popout, PopoutButton } from "@graphty/compact-mantine";
-import type { LayerBoundary, ShaderParams as Params } from "@graphty/graphty-element/catalog";
+import type { LayerBoundary, ShaderDescriptor, ShaderParams as Params } from "@graphty/graphty-element/catalog";
 import type { Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { type DataChoice, sourceName, topmostRow } from "./row";
 import { AddButton } from "./Section";
 import { ShaderGallery } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
+import { ShaderThumb } from "./ShaderRow";
 import { copyShaderText, ownLayer } from "./shaderSlots";
 import { ValuePicker } from "./ValuePicker";
 import { failureWords, GROUP_OUTLINE_WORDS as WORDS } from "./words";
@@ -61,6 +62,45 @@ function pathOf(ctx: RowContext, choice: DataChoice): string | undefined {
     return ctx.session.data
         .attributes()
         .find((attribute) => attribute.kind === choice.column.kind && attribute.name === choice.column.name)?.path;
+}
+
+/** What the section shows: see outlineOf. */
+interface Outline {
+    readonly shared: LayerBoundary | undefined | "mixed";
+    readonly boundary: LayerBoundary | undefined;
+    readonly shownShader: string | undefined;
+    readonly descriptor: ShaderDescriptor | undefined;
+    readonly name: string;
+}
+
+/**
+ * The outline the section shows: the layers' shared boundary, and the shader drawn (or picked and
+ * waiting for a grouping) with its descriptor and name.
+ * @param ctx - the row.
+ * @param targets - the layers a write reaches.
+ * @param pending - an outline picked before the row groups by anything, or null.
+ * @returns what the section shows.
+ */
+function outlineOf(ctx: RowContext, targets: readonly Layer[], pending: string | null): Outline {
+    const shared = sharedOf(targets);
+    const boundary = shared === "mixed" ? undefined : shared;
+    const shownShader = pending ?? boundary?.shader;
+    const descriptor =
+        shownShader === undefined ? undefined : ctx.session.catalog.shaders().find((each) => each.id === shownShader);
+    const name = descriptor?.plainName ?? shownShader ?? WORDS.mixed;
+    return { shared, boundary, shownShader, descriptor, name };
+}
+
+/**
+ * The words for what the outline groups by: None, or the value's name.
+ * @param ctx - the row.
+ * @param boundary - the boundary, or undefined.
+ * @returns the words.
+ */
+function groupWordOf(ctx: RowContext, boundary: LayerBoundary | undefined): string {
+    return boundary?.groupBy === undefined
+        ? WORDS.none
+        : (sourceName(ctx.session, { by: boundary.groupBy }) ?? boundary.groupBy);
 }
 
 /**
@@ -119,12 +159,7 @@ export function GroupOutlineSection({ ctx }: Readonly<{ ctx: RowContext }>): Rea
     // picked. With no grouping it would be one outline around every node of the layer.
     const [pending, setPending] = useState<string | null>(null);
     const targets = targetsOf(ctx);
-    const shared = sharedOf(targets);
-    const boundary = shared === "mixed" ? undefined : shared;
-    const shownShader = pending ?? boundary?.shader;
-    const descriptor =
-        shownShader === undefined ? undefined : ctx.session.catalog.shaders().find((each) => each.id === shownShader);
-    const name = descriptor?.plainName ?? shownShader ?? WORDS.mixed;
+    const { shared, boundary, shownShader, descriptor, name } = outlineOf(ctx, targets, pending);
     const empty = shared === undefined && pending === null;
     const canWrite = targets.length > 0 || ctx.fresh !== undefined;
     const fail =
@@ -193,10 +228,7 @@ export function GroupOutlineSection({ ctx }: Readonly<{ ctx: RowContext }>): Rea
         }
         writeBoundary(ctx, () => undefined).catch(fail("removed"));
     };
-    const groupWord =
-        boundary?.groupBy === undefined
-            ? WORDS.none
-            : (sourceName(ctx.session, { by: boundary.groupBy }) ?? boundary.groupBy);
+    const groupWord = groupWordOf(ctx, boundary);
 
     const gallery = (
         <Popout.Panel
@@ -303,15 +335,7 @@ export function GroupOutlineSection({ ctx }: Readonly<{ ctx: RowContext }>): Rea
                                                 aria-haspopup="dialog"
                                                 aria-expanded={open === "gallery"}
                                             >
-                                                {descriptor?.thumbnail === undefined ? (
-                                                    <span className="ws-shader-thumb" aria-hidden />
-                                                ) : (
-                                                    <img
-                                                        className="ws-shader-thumb"
-                                                        src={descriptor.thumbnail}
-                                                        alt=""
-                                                    />
-                                                )}
+                                                <ShaderThumb src={descriptor?.thumbnail} />
                                                 <Text size="xs" truncate>
                                                     {name}
                                                 </Text>

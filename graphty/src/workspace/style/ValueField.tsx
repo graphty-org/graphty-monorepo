@@ -166,7 +166,10 @@ export function ValueField({
             GLYPH_TABLES[descriptor.channel] === undefined
                 ? undefined
                 : Object.fromEntries([
-                      ...options.map((o) => [o.value, <CatalogGlyph channel={descriptor.channel} value={o.value} />]),
+                      ...options.map((o) => [
+                          o.value,
+                          <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
+                      ]),
                       ...extraChoices.map((o) => [
                           o.value,
                           o.picture === undefined ? null : (

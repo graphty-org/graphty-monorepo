@@ -137,7 +137,7 @@ export function ShaderGallery({
         );
     };
     return (
-        <div
+        <div // NOSONAR(S6848): catches arrow keys and focus bubbling from its own tiles to rove the tab stop
             ref={root}
             className="ws-gallery"
             data-testid="shader-gallery"
@@ -167,7 +167,11 @@ export function ShaderGallery({
                     }
                 }}
             />
-            <div className="ws-gallery-grid" role="list" aria-label={label}>
+            <div // NOSONAR(S6819): a CSS grid of tiles; a ul would bring its own margin, padding and bullets
+                className="ws-gallery-grid"
+                role="list"
+                aria-label={label}
+            >
                 {shown.map((choice) => (
                     <GalleryTile
                         key={choice.value}
@@ -186,7 +190,11 @@ export function ShaderGallery({
                     <Text size="xs" c="dimmed" mt={4}>
                         In this project
                     </Text>
-                    <div className="ws-gallery-grid" role="list" aria-label="In this project">
+                    <div // NOSONAR(S6819): a CSS grid of tiles; a ul would bring its own margin, padding and bullets
+                        className="ws-gallery-grid"
+                        role="list"
+                        aria-label="In this project"
+                    >
                         {pasted.map((descriptor) =>
                             onDelete === undefined ? (
                                 tile(descriptor)
@@ -297,7 +305,10 @@ function GalleryTile({
         </UnstyledButton>
     );
     return (
-        <div role="listitem" {...handlers}>
+        <div // NOSONAR(S6819): an item of the gallery's ARIA list, a div for the same reason as the list
+            role="listitem"
+            {...handlers}
+        >
             {tip === undefined ? button : <Tooltip label={tip}>{button}</Tooltip>}
         </div>
     );

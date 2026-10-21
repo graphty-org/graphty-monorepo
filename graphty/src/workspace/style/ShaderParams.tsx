@@ -176,7 +176,11 @@ function ChoiceGrid({
     onPick: (value: number) => void;
 }>): React.JSX.Element {
     return (
-        <div className="ws-param-choices" role="group" aria-label={label}>
+        <div // NOSONAR(S6819): an ARIA group naming a row of toggle buttons; a fieldset would draw its own border and legend
+            className="ws-param-choices"
+            role="group"
+            aria-label={label}
+        >
             {(option.choices ?? []).map((choice) => (
                 <Tooltip key={choice.value} label={choice.plainName}>
                     <ActionIcon
@@ -352,51 +356,7 @@ function ParamRow({
             </NumberParam>
         );
     } else {
-        let control: React.ReactNode;
-        if (option.choices !== undefined) {
-            control = <ChoiceGrid option={option} label={label} value={shown} onPick={write} />;
-        } else if (option.type === "color") {
-            const hex = typeof shown === "string" ? shown.toUpperCase() : "#000000";
-            control = (
-                <CompactColorInput
-                    aria-label={label}
-                    valueText={colorName(hex)}
-                    width="100%"
-                    color={hex}
-                    defaultColor={hex}
-                    showOpacity={false}
-                    showReset={false}
-                    swatches={ctx?.documentColors}
-                    onChangeEnd={(next) => {
-                        if (next !== undefined && next.toUpperCase() !== hex) {
-                            write(next.toUpperCase());
-                        }
-                    }}
-                />
-            );
-        } else {
-            const data =
-                option.type === "boolean"
-                    ? [
-                          { value: "on", label: "On" },
-                          { value: "off", label: "Off" },
-                      ]
-                    : (option.values ?? []).map(({ value: v }) => ({ value: v, label: enumWords(v) }));
-            control = (
-                <PanelField
-                    label={label}
-                    kind="select"
-                    width="fill"
-                    value={listValue(option, shown)}
-                    data={data}
-                    onChange={(picked) => {
-                        if (typeof picked === "string") {
-                            write(option.type === "boolean" ? picked === "on" : picked);
-                        }
-                    }}
-                />
-            );
-        }
+        const control = paramControl(ctx, option, label, shown, write);
         body = (
             <>
                 {name()}
@@ -413,6 +373,71 @@ function ParamRow({
             </div>
         </div>
     );
+}
+
+/**
+ * A parameter's control, for one that is not a number: its choices as a grid of glyphs, a color
+ * chip, or a select of its values (On and Off for a boolean).
+ * @param ctx - the row, for its document colors
+ * @param option - the parameter
+ * @param label - its name
+ * @param shown - the value shown
+ * @param write - sets it
+ * @returns The control
+ */
+function paramControl(
+    ctx: RowContext | undefined,
+    option: ShaderParamDescriptor,
+    label: string,
+    shown: Value | undefined,
+    write: (next: Value) => void,
+): React.ReactNode {
+    let control: React.ReactNode;
+    if (option.choices !== undefined) {
+        control = <ChoiceGrid option={option} label={label} value={shown} onPick={write} />;
+    } else if (option.type === "color") {
+        const hex = typeof shown === "string" ? shown.toUpperCase() : "#000000";
+        control = (
+            <CompactColorInput
+                aria-label={label}
+                valueText={colorName(hex)}
+                width="100%"
+                color={hex}
+                defaultColor={hex}
+                showOpacity={false}
+                showReset={false}
+                swatches={ctx?.documentColors}
+                onChangeEnd={(next) => {
+                    if (next !== undefined && next.toUpperCase() !== hex) {
+                        write(next.toUpperCase());
+                    }
+                }}
+            />
+        );
+    } else {
+        const data =
+            option.type === "boolean"
+                ? [
+                      { value: "on", label: "On" },
+                      { value: "off", label: "Off" },
+                  ]
+                : (option.values ?? []).map(({ value: v }) => ({ value: v, label: enumWords(v) }));
+        control = (
+            <PanelField
+                label={label}
+                kind="select"
+                width="fill"
+                value={listValue(option, shown)}
+                data={data}
+                onChange={(picked) => {
+                    if (typeof picked === "string") {
+                        write(option.type === "boolean" ? picked === "on" : picked);
+                    }
+                }}
+            />
+        );
+    }
+    return control;
 }
 
 /**

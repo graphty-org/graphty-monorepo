@@ -318,16 +318,7 @@ export async function pickShader(
 ): Promise<void> {
     const given = Object.keys(params).length > 0;
     if (slot.role === "effect") {
-        const kept = Object.entries(effectsOf(ctx, slot.channel)).filter(([key]) => key !== was);
-        const value = given ? params : (Object.fromEntries(kept)[id] ?? true);
-        const map: ShaderEffects = { ...Object.fromEntries(kept), [id]: value };
-        settingsNext = `${slot.channel}:${id}`;
-        await writeRow(
-            ctx,
-            { [slot.channel]: map },
-            bindsOf(slot.params, was === id ? undefined : was),
-            pickWords(ctx, id, was),
-        );
+        await pickEffect(ctx, slot, id, was, given ? params : undefined);
         return;
     }
     const sets = paramSetsOf(ctx, slot.params);
@@ -348,6 +339,35 @@ export async function pickShader(
         settingsNext = `${slot.channel}:${id}`;
     }
     await writeRow(ctx, writes, bindsOf(slot.params, prev), pickWords(ctx, id, was ?? prev));
+}
+
+/**
+ * An effect pick, as one step: the effect added, or in place of the one it swaps. Its row's
+ * settings open next.
+ * @param ctx - the row.
+ * @param slot - the effect slot.
+ * @param id - the picked effect.
+ * @param was - the row's id it replaces, on a swap.
+ * @param params - parameter values to write with it, or undefined for none given.
+ * @returns when it is written.
+ */
+async function pickEffect(
+    ctx: RowContext,
+    slot: ShaderSlot,
+    id: string,
+    was: string | undefined,
+    params: Params | undefined,
+): Promise<void> {
+    const kept = Object.entries(effectsOf(ctx, slot.channel)).filter(([key]) => key !== was);
+    const value = params ?? Object.fromEntries(kept)[id] ?? true;
+    const map: ShaderEffects = { ...Object.fromEntries(kept), [id]: value };
+    settingsNext = `${slot.channel}:${id}`;
+    await writeRow(
+        ctx,
+        { [slot.channel]: map },
+        bindsOf(slot.params, was === id ? undefined : was),
+        pickWords(ctx, id, was),
+    );
 }
 
 /**
@@ -588,7 +608,7 @@ export function copyShader(ctx: RowContext, slot: ShaderSlot, id: string): void 
  * @returns true when Paste is offered.
  */
 export function canPaste(slot: ShaderSlot): boolean {
-    return copied !== null && copied.kinds.some((kind) => slot.kinds.includes(kind));
+    return copied?.kinds.some((kind) => slot.kinds.includes(kind)) === true;
 }
 
 /** The value a property picker's shader choice carries, so it never meets a shape's or pattern's. */

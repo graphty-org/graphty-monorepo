@@ -264,13 +264,21 @@ export function PasteShaderDialog({
                     }}
                 />
                 {problems.length > 0 && (
-                    <div role="list" aria-label="Problems" className="ws-paste-problems" id={problemsId}>
+                    <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+                        role="list"
+                        aria-label="Problems"
+                        className="ws-paste-problems"
+                        id={problemsId}
+                    >
                         {problems.map((problem, index) => {
                             const place = shaderPlaceWords(problem);
                             const words = pasteProblemWords(problem);
                             const { line, column } = problem.params;
                             return (
-                                <div role="listitem" key={`${problem.code}:${String(index)}`}>
+                                <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                                    role="listitem"
+                                    key={`${problem.code}:${String(index)}`}
+                                >
                                     {typeof line === "number" ? (
                                         <UnstyledButton
                                             className="ws-paste-problem"

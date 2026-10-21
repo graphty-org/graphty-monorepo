@@ -113,6 +113,283 @@ interface ShaderRowProps {
     readonly onPaste?: (init: PasteInit) => void;
 }
 
+/** Posts a failed write's notice, given the verb of what failed. */
+type Fail = (verb: string) => (error: unknown) => void;
+
+/**
+ * A shader's still picture, or an empty box when it has none.
+ * @param props - Component props
+ * @param props.src - the picture's address, or undefined.
+ * @returns The picture
+ */
+export function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Element {
+    return src === undefined ? (
+        <span className="ws-shader-thumb" aria-hidden />
+    ) : (
+        <img className="ws-shader-thumb" src={src} alt="" />
+    );
+}
+
+/** Props for SwapPopout. */
+interface SwapPopoutProps {
+    readonly ctx: RowContext;
+    readonly slot: ShaderSlot;
+    readonly entry: ShaderEntry;
+    readonly name: string;
+    readonly trigger: string | undefined;
+    readonly swapping: boolean;
+    readonly setSwapping: (opened: boolean) => void;
+    readonly onPaste?: (init: PasteInit) => void;
+    readonly fail: Fail;
+}
+
+/**
+ * A shader row's picture and name, which open the slot's gallery to swap the shader.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.slot - the slot
+ * @param props.entry - the row's shader
+ * @param props.name - the row's name
+ * @param props.trigger - the trigger word, or undefined
+ * @param props.swapping - whether the gallery is open
+ * @param props.setSwapping - opens or closes the gallery
+ * @param props.onPaste - opens Paste shader
+ * @param props.fail - posts a failed write's notice
+ * @returns The pick button and its gallery
+ */
+function SwapPopout({
+    ctx,
+    slot,
+    entry,
+    name,
+    trigger,
+    swapping,
+    setSwapping,
+    onPaste,
+    fail,
+}: SwapPopoutProps): React.JSX.Element {
+    const { descriptor } = entry;
+    const picture =
+        entry.id === "plain" || entry.id === "wireframe" ? MATERIAL_PICTURES[entry.id] : descriptor?.thumbnail;
+    return (
+        <Popout opened={swapping} onOpenChange={setSwapping}>
+            <Popout.Trigger>
+                <UnstyledButton
+                    className="ws-shader-pick"
+                    aria-label={trigger === undefined ? `${slot.word}: ${name}` : `${slot.word}: ${name}, ${trigger}`}
+                    aria-haspopup="dialog"
+                    aria-expanded={swapping}
+                >
+                    <ShaderThumb src={picture} />
+                    <Text size="xs" truncate>
+                        {name}
+                    </Text>
+                </UnstyledButton>
+            </Popout.Trigger>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                boundaryTop={swapping ? headerBottom() : 0}
+                header={{ variant: "title", title: slot.word }}
+            >
+                <Popout.Content>
+                    <SlotGallery
+                        ctx={ctx}
+                        slot={slot}
+                        title={slot.word}
+                        onPaste={
+                            onPaste === undefined
+                                ? undefined
+                                : () => {
+                                      setSwapping(false);
+                                      onPaste({});
+                                  }
+                        }
+                        onPick={(id) => {
+                            setSwapping(false);
+                            if (id !== entry.id) {
+                                pickShader(ctx, slot, id, entry.id).catch(fail("changed"));
+                            }
+                        }}
+                    />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/** Props for SettingsPopout. */
+interface SettingsPopoutProps {
+    readonly ctx: RowContext;
+    readonly slot: ShaderSlot;
+    readonly entry: ShaderEntry;
+    readonly name: string;
+    readonly settings: boolean;
+    readonly setSettings: (opened: boolean) => void;
+    readonly copyText: () => void;
+    readonly fail: Fail;
+}
+
+/**
+ * A shader row's settings button and its parameters; nothing for a shader with no parameters, an
+ * unknown one or an effect that is off.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.slot - the slot
+ * @param props.entry - the row's shader
+ * @param props.name - the row's name
+ * @param props.settings - whether the settings are open
+ * @param props.setSettings - opens or closes the settings
+ * @param props.copyText - copies the shader's code
+ * @param props.fail - posts a failed write's notice
+ * @returns The button and its pop-out, or null
+ */
+function SettingsPopout({
+    ctx,
+    slot,
+    entry,
+    name,
+    settings,
+    setSettings,
+    copyText,
+    fail,
+}: SettingsPopoutProps): React.JSX.Element | null {
+    const { descriptor } = entry;
+    if (descriptor === undefined || descriptor.params.length === 0 || entry.off === true) {
+        return null;
+    }
+    return (
+        <Popout opened={settings} onOpenChange={setSettings}>
+            <Popout.Trigger>
+                <Tooltip label={`${name} settings`}>
+                    <PopoutButton
+                        icon={<GLYPHS.settings size={14} aria-hidden />}
+                        aria-label={`${name} settings`}
+                        aria-haspopup="dialog"
+                        aria-expanded={settings}
+                    />
+                </Tooltip>
+            </Popout.Trigger>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: `${name} settings` }}
+            >
+                <Popout.Content>
+                    <ShaderParams
+                        ctx={ctx}
+                        descriptor={descriptor}
+                        channel={slot.params}
+                        values={paramsOf(ctx, slot, entry.id)}
+                        bindings={bindingsOf(ctx, slot, entry.id)}
+                        onChange={(param, value) => {
+                            writeParam(ctx, slot, entry.id, param, value).catch(fail("changed"));
+                        }}
+                        onUnbind={(param) => {
+                            unbindParam(ctx, slot, entry.id, param).catch(fail("changed"));
+                        }}
+                    />
+                    <Button size="compact-xs" variant="subtle" onClick={copyText}>
+                        Copy code
+                    </Button>
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/**
+ * Duplicate and edit: opens Paste shader on a copy of the row's shader, named apart from it
+ * ("Pearl copy"). None for a pasted shader, an unknown one, or with no Paste shader to open.
+ * @param ctx - the row
+ * @param slot - the slot
+ * @param entry - the row's shader
+ * @param name - the row's name
+ * @param onPaste - opens Paste shader
+ * @param fail - posts a failed write's notice
+ * @returns the action, or undefined.
+ */
+function duplicateAction(
+    ctx: RowContext,
+    slot: ShaderSlot,
+    entry: ShaderEntry,
+    name: string,
+    onPaste: ((init: PasteInit) => void) | undefined,
+    fail: Fail,
+): (() => void) | undefined {
+    const { descriptor } = entry;
+    if (onPaste === undefined || descriptor === undefined || descriptor.origin === "pasted") {
+        return undefined;
+    }
+    return (): void => {
+        ctx.session.shaders
+            .source(entry.id, { duplicate: true, params: paramsOf(ctx, slot, entry.id) })
+            .then((text) => {
+                // The copy is named apart from what it copies: "Pearl copy".
+                const read = parseShaderText(text);
+                const named = read.ok
+                    ? formatShaderText({
+                          ...read.registration,
+                          descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
+                      })
+                    : text;
+                onPaste({ text: named, duplicateOf: entry.id });
+            })
+            .catch(fail("copied"));
+    };
+}
+
+/**
+ * Whether a key removes the row: Delete or Backspace on the row's own pick button, as a property
+ * row's closed select does. A key from its pop-outs (a color chip, a tile) reaches the row through
+ * React's portal and is not the row's: the DOM's own containment tells them apart.
+ * @param event - the key event.
+ * @param box - the row.
+ * @returns whether it removes the row.
+ */
+function removesRow(event: React.KeyboardEvent, box: HTMLDivElement | null): boolean {
+    const target = event.target as HTMLElement;
+    const own = box?.contains(target) === true && target.classList.contains("ws-shader-pick");
+    return (event.key === "Delete" || event.key === "Backspace") && own;
+}
+
+/**
+ * An effect row's eye: hides or shows the effect. Nothing for an effect that is off.
+ * @param props - Component props
+ * @param props.entry - the row's shader
+ * @param props.hideName - the button's name
+ * @param props.shown - whether the effect is shown
+ * @param props.toggleShown - hides or shows it
+ * @returns The eye's slot
+ */
+function EyeSlot({
+    entry,
+    hideName,
+    shown,
+    toggleShown,
+}: Readonly<{ entry: ShaderEntry; hideName: string; shown: boolean; toggleShown: () => void }>): React.JSX.Element {
+    return (
+        <span className="ws-slot">
+            {entry.off !== true && (
+                <Tooltip label={hideName}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        // A toggle: one name, its state in aria-pressed (pressed: hidden).
+                        aria-label={hideName}
+                        aria-pressed={!shown}
+                        onClick={toggleShown}
+                    >
+                        {shown ? <GLYPHS.show size={14} aria-hidden /> : <GLYPHS.hide size={14} aria-hidden />}
+                    </ActionIcon>
+                </Tooltip>
+            )}
+        </span>
+    );
+}
+
 /**
  * One shader row (shader-styles design, section 6.1, after Figma's effect row): the slot's word,
  * then the shader's still picture and name (a click opens the gallery to swap it), the trigger
@@ -155,119 +432,9 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             })
             .catch(fail("copied"));
     };
-    const duplicate =
-        onPaste === undefined || descriptor === undefined || descriptor.origin === "pasted"
-            ? undefined
-            : (): void => {
-                  ctx.session.shaders
-                      .source(entry.id, { duplicate: true, params: paramsOf(ctx, slot, entry.id) })
-                      .then((text) => {
-                          // The copy is named apart from what it copies: "Pearl copy".
-                          const read = parseShaderText(text);
-                          const named = read.ok
-                              ? formatShaderText({
-                                    ...read.registration,
-                                    descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
-                                })
-                              : text;
-                          onPaste({ text: named, duplicateOf: entry.id });
-                      })
-                      .catch(fail("copied"));
-              };
+    const duplicate = duplicateAction(ctx, slot, entry, name, onPaste, fail);
     const trigger = descriptor === undefined ? undefined : triggerWord(descriptor);
-    const picture =
-        entry.id === "plain" || entry.id === "wireframe" ? MATERIAL_PICTURES[entry.id] : descriptor?.thumbnail;
     const effect = slot.role === "effect";
-    const swap = (
-        <Popout opened={swapping} onOpenChange={setSwapping}>
-            <Popout.Trigger>
-                <UnstyledButton
-                    className="ws-shader-pick"
-                    aria-label={trigger === undefined ? `${slot.word}: ${name}` : `${slot.word}: ${name}, ${trigger}`}
-                    aria-haspopup="dialog"
-                    aria-expanded={swapping}
-                >
-                    {picture === undefined ? (
-                        <span className="ws-shader-thumb" aria-hidden />
-                    ) : (
-                        <img className="ws-shader-thumb" src={picture} alt="" />
-                    )}
-                    <Text size="xs" truncate>
-                        {name}
-                    </Text>
-                </UnstyledButton>
-            </Popout.Trigger>
-            <Popout.Panel
-                width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
-                boundaryTop={swapping ? headerBottom() : 0}
-                header={{ variant: "title", title: slot.word }}
-            >
-                <Popout.Content>
-                    <SlotGallery
-                        ctx={ctx}
-                        slot={slot}
-                        title={slot.word}
-                        onPaste={
-                            onPaste === undefined
-                                ? undefined
-                                : () => {
-                                      setSwapping(false);
-                                      onPaste({});
-                                  }
-                        }
-                        onPick={(id) => {
-                            setSwapping(false);
-                            if (id !== entry.id) {
-                                pickShader(ctx, slot, id, entry.id).catch(fail("changed"));
-                            }
-                        }}
-                    />
-                </Popout.Content>
-            </Popout.Panel>
-        </Popout>
-    );
-    const settingsButton =
-        descriptor === undefined || descriptor.params.length === 0 || entry.off === true ? null : (
-            <Popout opened={settings} onOpenChange={setSettings}>
-                <Popout.Trigger>
-                    <Tooltip label={`${name} settings`}>
-                        <PopoutButton
-                            icon={<GLYPHS.settings size={14} aria-hidden />}
-                            aria-label={`${name} settings`}
-                            aria-haspopup="dialog"
-                            aria-expanded={settings}
-                        />
-                    </Tooltip>
-                </Popout.Trigger>
-                <Popout.Panel
-                    width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
-                    header={{ variant: "title", title: `${name} settings` }}
-                >
-                    <Popout.Content>
-                        <ShaderParams
-                            ctx={ctx}
-                            descriptor={descriptor}
-                            channel={slot.params}
-                            values={paramsOf(ctx, slot, entry.id)}
-                            bindings={bindingsOf(ctx, slot, entry.id)}
-                            onChange={(param, value) => {
-                                writeParam(ctx, slot, entry.id, param, value).catch(fail("changed"));
-                            }}
-                            onUnbind={(param) => {
-                                unbindParam(ctx, slot, entry.id, param).catch(fail("changed"));
-                            }}
-                        />
-                        <Button size="compact-xs" variant="subtle" onClick={copyText}>
-                            Copy code
-                        </Button>
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>
-        );
     const removeName = `Remove ${name.toLowerCase()}`;
     const hideName = `Hide ${name.toLowerCase()}`;
     const row = (
@@ -279,12 +446,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             data-shader={entry.id}
             data-hidden={entry.hidden === true ? "" : undefined}
             onKeyDownCapture={(event) => {
-                // Only the row's own pick button removes the row, as a property row's closed
-                // select does. A key from its pop-outs (a color chip, a tile) reaches here through
-                // React's portal and is not the row's: the DOM's own containment tells them apart.
-                const target = event.target as HTMLElement;
-                const own = box.current?.contains(target) === true && target.classList.contains("ws-shader-pick");
-                if ((event.key === "Delete" || event.key === "Backspace") && own) {
+                if (removesRow(event, box.current)) {
                     event.preventDefault();
                     event.stopPropagation();
                     remove();
@@ -306,7 +468,17 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                             {name}
                         </Text>
                     ) : (
-                        swap
+                        <SwapPopout
+                            ctx={ctx}
+                            slot={slot}
+                            entry={entry}
+                            name={name}
+                            trigger={trigger}
+                            swapping={swapping}
+                            setSwapping={setSwapping}
+                            onPaste={onPaste}
+                            fail={fail}
+                        />
                     )}
                     {trigger === undefined ? null : (
                         <Tooltip label={TRIGGER_TIPS[trigger]}>
@@ -316,29 +488,19 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                         </Tooltip>
                     )}
                 </div>
-                <span className="ws-slot">{settingsButton}</span>
-                {effect && (
-                    <span className="ws-slot">
-                        {entry.off !== true && (
-                            <Tooltip label={hideName}>
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    // A toggle: one name, its state in aria-pressed (pressed: hidden).
-                                    aria-label={hideName}
-                                    aria-pressed={!shown}
-                                    onClick={toggleShown}
-                                >
-                                    {shown ? (
-                                        <GLYPHS.show size={14} aria-hidden />
-                                    ) : (
-                                        <GLYPHS.hide size={14} aria-hidden />
-                                    )}
-                                </ActionIcon>
-                            </Tooltip>
-                        )}
-                    </span>
-                )}
+                <span className="ws-slot">
+                    <SettingsPopout
+                        ctx={ctx}
+                        slot={slot}
+                        entry={entry}
+                        name={name}
+                        settings={settings}
+                        setSettings={setSettings}
+                        copyText={copyText}
+                        fail={fail}
+                    />
+                </span>
+                {effect && <EyeSlot entry={entry} hideName={hideName} shown={shown} toggleShown={toggleShown} />}
                 <span className="ws-slot">
                     <Tooltip label={removeName} position="top">
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>

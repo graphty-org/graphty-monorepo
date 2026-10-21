@@ -433,21 +433,36 @@ async function openInSession(
             }),
         });
     } catch (error) {
-        if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
-            askToDiscard(workspace, async () => {
-                await openInSession(ctx, session, pending, true);
-            });
-            return true;
-        }
-        const verb = fresh ? "opened" : "added";
-        const message =
-            isGraphtyError(error) && error.code === "E_PARSE_FAILED"
-                ? notReadSentence(withoutExtension(file.name), error, verb)
-                : problemSentence(file.name, error);
-        workspace.set({ notice: { message, error: true } });
-        return false;
+        return openFailed(ctx, session, pending, error);
     }
     return true;
+}
+
+/**
+ * What a refused open does: over unsaved changes it asks to discard them and opens again; any
+ * other refusal posts a notice naming the file.
+ * @param ctx - the command context, with the project's session.
+ * @param session - the session.
+ * @param pending - the file and where it came from.
+ * @param error - what the element threw.
+ * @returns false when the element refused the file.
+ */
+function openFailed(ctx: CommandContext, session: GraphSession, pending: PendingFile, error: unknown): boolean {
+    const { workspace } = ctx;
+    const { file, fresh = false } = pending;
+    if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
+        askToDiscard(workspace, async () => {
+            await openInSession(ctx, session, pending, true);
+        });
+        return true;
+    }
+    const verb = fresh ? "opened" : "added";
+    const message =
+        isGraphtyError(error) && error.code === "E_PARSE_FAILED"
+            ? notReadSentence(withoutExtension(file.name), error, verb)
+            : problemSentence(file.name, error);
+    workspace.set({ notice: { message, error: true } });
+    return false;
 }
 
 /**

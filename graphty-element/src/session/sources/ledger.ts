@@ -52,6 +52,8 @@ export interface LoadFacts {
     readonly loadedAt?: string;
     /** How many nodes the source holds for it, when known. */
     readonly total?: number;
+    /** How many edges the source holds for it, when known. */
+    readonly totalEdges?: number;
     /** The load's own expand behavior. */
     readonly expand?: ExpandBehavior;
 }
@@ -150,6 +152,7 @@ export class SourceLedger {
             credential: identityOf(facts.credential, facts.endpoint),
             expansions: [],
             ...(facts.total === undefined ? {} : { total: facts.total }),
+            ...(facts.totalEdges === undefined ? {} : { totalEdges: facts.totalEdges }),
             ...(facts.expand === undefined ? {} : { expand: plain(facts.expand) }),
         };
         this.set([...this.records, record]);
@@ -206,10 +209,11 @@ export class SourceLedger {
      * @param facts.credential - the credential used, for its identity
      * @param facts.endpoint - the endpoint it ran against
      * @param facts.total - how many nodes the source holds for it, when the run found out
+     * @param facts.totalEdges - how many edges, when the run found out
      */
     refreshLoad(
         loadKey: string,
-        facts: Pick<LoadFacts, "next" | "validators" | "credential" | "endpoint" | "total"> & {
+        facts: Pick<LoadFacts, "next" | "validators" | "credential" | "endpoint" | "total" | "totalEdges"> & {
             readonly pages?: number;
         },
     ): void {
@@ -217,6 +221,7 @@ export class SourceLedger {
         this.replace(loadKey, {
             ...load,
             ...(facts.total === undefined ? {} : { total: facts.total }),
+            ...(facts.totalEdges === undefined ? {} : { totalEdges: facts.totalEdges }),
             loadedAt: new Date().toISOString(),
             pages: load.pages + (facts.pages ?? 0),
             next: facts.next ?? null,

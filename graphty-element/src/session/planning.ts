@@ -144,6 +144,17 @@ export type PlanEffect =
           readonly exact: boolean;
           /** How many elements were sampled, when they were estimated. */
           readonly sampled?: number;
+          /**
+           * For a filter-steps change: what it leaves visible step by step. `start` is before the
+           * first step (the filter and the time window alone), then one entry per step that is
+           * on, in order; `nodes` and `edges` above are what the last one leaves.
+           */
+          readonly steps?: {
+              /** What is left before any step. */
+              readonly start: { readonly nodes: number; readonly edges: number };
+              /** What is left after each step that is on. */
+              readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+          };
       }
     | {
           /** What a change to the graph would add, remove and alter. */
@@ -190,18 +201,6 @@ export type PlanEffect =
           readonly legendChannels: number;
           /** Its size in bytes. */
           readonly bytes: number;
-      }
-    | {
-          /**
-           * What a filter-steps change would leave visible: `start` before the first step (the
-           * filter and the time window alone), then one entry per step that is on, in order, with
-           * the nodes and edges left after it.
-           */
-          readonly kind: "steps";
-          /** What is left before any step. */
-          readonly start: { readonly nodes: number; readonly edges: number };
-          /** What is left after each step that is on. */
-          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
       }
     | {
           /** Nothing to preview. */
@@ -470,10 +469,17 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         const cost = unavailableEstimate(undefined, notEstimated(command));
         try {
             const counts = context.previewSteps(command.steps);
+            const last = counts.steps.at(-1) ?? counts.start;
             return Object.freeze({
                 ok: true,
                 cost,
-                effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+                effect: Object.freeze({
+                    kind: "match" as const,
+                    nodes: last.nodes,
+                    edges: last.edges,
+                    exact: true,
+                    steps: { start: counts.start, steps: counts.steps },
+                }),
                 caveats: context.defaultCaveats,
             });
         } catch (error) {

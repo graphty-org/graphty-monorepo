@@ -35,20 +35,27 @@ describe("visibility filter steps", () => {
 
         assert.isTrue(plan.ok);
         assert.deepStrictEqual(plan.effect, {
-            kind: "steps",
-            start: { nodes: 6, edges: 7 },
-            steps: [
-                { id: "popular", nodes: 5, edges: 6 },
-                { id: "near-fay", nodes: 1, edges: 0 },
-            ],
+            kind: "match",
+            nodes: 1,
+            edges: 0,
+            exact: true,
+            steps: {
+                start: { nodes: 6, edges: 7 },
+                steps: [
+                    { id: "popular", nodes: 5, edges: 6 },
+                    { id: "near-fay", nodes: 1, edges: 0 },
+                ],
+            },
         });
 
         // A step that is off is left out, and restores what it took.
         const off = await session.plan({ op: "visibility.steps", steps: [{ ...POPULAR, on: false }, NEAR_FAY] });
         assert.deepStrictEqual(off.effect, {
-            kind: "steps",
-            start: { nodes: 6, edges: 7 },
-            steps: [{ id: "near-fay", nodes: 2, edges: 1 }],
+            kind: "match",
+            nodes: 2,
+            edges: 1,
+            exact: true,
+            steps: { start: { nodes: 6, edges: 7 }, steps: [{ id: "near-fay", nodes: 2, edges: 1 }] },
         });
         // Planning wrote nothing.
         assert.deepStrictEqual(session.visibility.steps, []);

@@ -124,7 +124,6 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
-    SourceEntry,
     StyleProblem,
     TableMapping,
     TableMappingRead,

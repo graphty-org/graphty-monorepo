@@ -943,7 +943,7 @@ export interface SessionDataApi {
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
      * @returns How many nodes and edges went and stayed.
-     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @throws A `GraphtyError` (as a rejection) with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -1163,10 +1163,12 @@ export interface SessionDataApi {
      * const [load] = session.data.loads();
      * if (load.next !== null) await session.data.more({ load: load.key });
      * ```
-     * @param options - The load options; `load` names the load to page (a key from `loads()`),
-     *     else the newest load that has more. The load's own caps apply unless `limits` is given.
+     * @param options - The load options; `load` names the load to page (its `sources()` key, or
+     *     its key in `loads()`), else the newest load that has more and is not waiting to run. The
+     *     load's own caps apply unless `limits` is given.
      * @returns Settles once the page is in the graph, or at once when the load has no more;
-     *     rejects with `E_SOURCE_UNKNOWN` for a `load` that `loads()` does not list.
+     *     rejects with `E_LOAD_UNKNOWN` for a `load` neither lists, and `E_SOURCE_PENDING` for a
+     *     load of an opened project that has not run since it opened.
      */
     more(options?: SourceMoreOptions): Promise<void>;
     /**
@@ -1185,10 +1187,11 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns `{ changed }`; null when the source cannot tell (it has no cheap check, or the
-     *     load recorded nothing to compare). Rejects with `E_SOURCE_UNKNOWN` for an unknown key.
+     *     load recorded nothing to compare). Rejects with `E_LOAD_UNKNOWN` for an unknown key and
+     *     `E_SOURCE_PENDING` for a load of an opened project that has not run since it opened.
      */
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     /**
@@ -1201,10 +1204,11 @@ export interface SessionDataApi {
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
-     *     `E_SOURCE_UNKNOWN` for an unknown key, else with the source's code.
+     *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project
+     *     that has not run since it opened, else with the source's code.
      */
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
@@ -1582,8 +1586,9 @@ export interface LoadedSource extends DataSourceDescriptor {
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
     /**
-     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
-     * `data.refresh` and `data.checkSource` take.
+     * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
+     * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
+     * save and reopen never changes.
      * @since 3.30.0
      */
     readonly loadKey?: string;
@@ -1599,13 +1604,22 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly total?: number;
+    /**
+     * For a network source's load: how many edges the source holds for it, when the source counted
+     * them or a complete read did.
+     * @since 3.30.0
+     */
+    readonly totalEdges?: number;
 }
 
-/** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
-export type LoadedSourceKind = "file" | "server" | "sample" | "join";
-
-/** One entry of `session.data.sources()`: the name the data prototype's design uses for it. */
-export type SourceEntry = LoadedSource;
+/**
+ * Where a load came from, as {@link LoadedSource.kind} says: a file the reader gave (or inline
+ * text), a URL, a network source, a generated or sample graph, or a table joined onto an earlier
+ * load. A saved project's `graphty-sources` entry names the same kinds `file`, `url`, `source`
+ * (for `server`) and `sample`, and a join as a `file` entry with `joinedOnto`. OPEN UNION: kinds
+ * may be added.
+ */
+export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
 /**
  * What `session.data.removeSource(key)` did.

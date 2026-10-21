@@ -34,7 +34,8 @@ import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
 import type { RowUpdate } from "../types";
 import { resolve } from "./credentialLookup";
-import { toGraphtyError } from "./errors";
+import { isLocalNetwork } from "./endpoint";
+import { notYetRun, toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, SOURCE_ATTR, sourceLoadsOf } from "./ids";
@@ -56,6 +57,13 @@ const ERROR_LIMIT = 100;
 
 /** How many nodes a preview shows when the caller names no cap. */
 const PREVIEW_NODES = 25;
+
+/**
+ * The most pages a refresh or a waiting load reads again, whatever the record says it read: a
+ * received file's `pages` must not make one refresh read a whole service.
+ * ponytail: a fixed ceiling; derive it from the saved `limits.maxNodes` if 100 pages ever runs short.
+ */
+const MAX_PAGES = 100;
 
 /**
  * A source's descriptor, read from the registry without loading the source's code.
@@ -282,23 +290,21 @@ function importCommand(
 }
 
 /**
- * How many nodes the source holds for a read: what the source counted, else what it read when the
- * read is complete, else what the caller knew.
+ * How many nodes and edges the source holds for a read: what the source counted, else what it
+ * read when the read is complete, else what the caller knew.
  * @param read - the read
- * @param known - what the caller knew
- * @returns `{ total }`, or nothing when none tells
+ * @param known - what the caller knew of the nodes
+ * @param knownEdges - what the caller knew of the edges
+ * @returns `{ total, totalEdges }`, each left out when nothing tells
  */
-function totalOf(read: Read, known: number | undefined): { total?: number } {
-    const counted = read.info?.total?.nodes;
-    if (counted !== undefined) {
-        return { total: counted };
-    }
-
-    if ((read.info?.next ?? null) === null) {
-        return { total: read.held.nodes.length };
-    }
-
-    return known === undefined ? {} : { total: known };
+function totalOf(read: Read, known: number | undefined, knownEdges?: number): { total?: number; totalEdges?: number } {
+    const complete = (read.info?.next ?? null) === null;
+    const nodes = read.info?.total?.nodes ?? (complete ? read.held.nodes.length : known);
+    const edges = read.info?.total?.edges ?? (complete ? read.held.edges.length : knownEdges);
+    return {
+        ...(nodes === undefined ? {} : { total: nodes }),
+        ...(edges === undefined ? {} : { totalEdges: edges }),
+    };
 }
 
 /**
@@ -436,7 +442,7 @@ export async function listSource(
 
 /**
  * Load the next page after a capped load, merged in: the chosen load, else the newest load that
- * has more. The load's own caps apply again unless the caller gives others.
+ * has more and is not waiting to run. The load's own caps apply again unless the caller gives others.
  * @param host - the session pieces
  * @param options - the load options and the load; `mode` is always "merge"
  * @returns settles once the page is drawn, or at once when the load has no more
@@ -444,23 +450,27 @@ export async function listSource(
 export async function more(host: SourceHost, options: SourceMoreOptions): Promise<void> {
     const { load, ...rest } = options;
     const loads = host.loads();
-    const record = load === undefined ? [...loads].reverse().find((r) => r.next !== null) : requireLoad(host, load);
+    const record =
+        load === undefined
+            ? [...loads].reverse().find((r) => r.next !== null && !host.pending.has(r.key))
+            : requireLoad(host, load);
     if (!record?.next) {
         return;
     }
 
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
+    const config = currentParams(record);
     const access = await accessFor(host, record.source, {
         ...rest,
         endpoint: rest.endpoint ?? record.endpoint ?? undefined,
     });
-    const read = await readRows(record.source, record.config, access, {
+    const read = await readRows(record.source, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...rest,
         cursor: record.next,
     });
     await host.dispatch(
-        importCommand(host, record.key, { source: record.source, config: record.config }, read, {
+        importCommand(host, record.key, { source: record.source, config }, read, {
             ...rest,
             mode: "merge",
             ...sameEntry(host, record.key),
@@ -479,25 +489,32 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
             ? { total: read.held.nodes.length }
             : {}),
         ...(read.info?.total?.nodes === undefined ? {} : { total: read.info.total.nodes }),
+        ...(read.info?.total?.edges === undefined ? {} : { totalEdges: read.info.total.edges }),
     });
 }
 
 /**
- * A load the graph holds, by key.
+ * A load the graph holds that may fetch, by its key in `data.loads()` or its entry's key in
+ * `data.sources()`.
  * @param host - the session pieces
- * @param key - the load's key
+ * @param key - the load's key, or its `sources()` entry's
  * @returns the record
- * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `data.loads()` does not list.
+ * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a key neither lists, and `E_SOURCE_PENDING`
+ *     for a load an opened project holds that has not run since it opened.
  */
 function requireLoad(host: SourceHost, key: string): SourceLoadRecord {
     const loads = host.loads();
-    const record = loads.find((r) => r.key === key);
+    const record = loads.find((r) => r.key === key) ?? loads.find((r) => host.sourceKeyOf(r.key) === key);
+    if (record !== undefined && host.pending.has(record.key)) {
+        throw notYetRun(record.key);
+    }
+
     if (record === undefined) {
         throw new GraphtyError({
-            code: "E_SOURCE_UNKNOWN",
+            code: "E_LOAD_UNKNOWN",
             message: `No source load the graph holds has key ${JSON.stringify(key)}.`,
             source: "data",
-            details: { id: key, known: loads.map((r) => r.key) },
+            details: { key, known: loads.map((r) => r.key) },
         });
     }
 
@@ -531,13 +548,15 @@ export async function previewSource(
         .filter((row) => kept.has(String(row.source)) && kept.has(String(row.target)))
         .map(withoutSourceFacts);
     const facts = { ...read.info?.server };
+    const labelPath = host.labelPath();
     return Object.freeze({
         nodes: Object.freeze(nodes),
-        rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, label: labelOf(row) }))),
+        rows: Object.freeze(
+            nodes.map((row) => Object.freeze({ id: row.id as NodeId, label: labelOf(row, labelPath) })),
+        ),
         edges: Object.freeze(edges),
         columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
         more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,
-        facts: Object.freeze(facts),
         serverFacts: Object.freeze(
             Object.entries(facts).map(([name, value]) => Object.freeze({ code: `source.${name}`, params: { value } })),
         ),
@@ -554,30 +573,29 @@ function withoutSourceFacts(row: Readonly<Record<string, unknown>>): Readonly<Re
     return Object.freeze(Object.fromEntries(Object.entries(row).filter(([name]) => !isSourceFactKey(name))));
 }
 
-/** The columns a preview row's label is read from, first match wins. */
-const LABEL_COLUMNS = ["label", "name", "title", "display_name"];
-
 /**
- * A row's label: its first text value among {@link LABEL_COLUMNS}.
+ * A row's label as `data.name` reads a loaded node's: the value at the label path, as text, else
+ * the id.
  * @param row - the row
- * @returns the label, or null
+ * @param path - `data.knownFields.nodeLabelPath`, or null for none
+ * @returns the label
  */
-function labelOf(row: Readonly<Record<string, unknown>>): string | null {
-    for (const name of LABEL_COLUMNS) {
-        const value = row[name];
-        if (typeof value === "string" && value.trim() !== "") {
-            return value;
-        }
+function labelOf(row: Readonly<Record<string, unknown>>, path: string | null): string {
+    const value = path === null ? undefined : row[path];
+    if (typeof value === "string" && value !== "") {
+        return value;
     }
 
-    return null;
+    return typeof value === "number" || typeof value === "boolean" || typeof value === "bigint"
+        ? String(value)
+        : String(row.id);
 }
 
 /**
  * Ask the source whether a load's data changed, loading nothing. A source that cannot tell (no
  * `validate`, or validators it cannot compare) answers null.
  * @param host - the session pieces
- * @param key - the load's key
+ * @param key - the load's key, or its `sources()` entry's
  * @param options - the credential and the endpoint
  * @returns whether it changed
  */
@@ -604,7 +622,7 @@ export async function checkSource(host: SourceHost, key: string, options: Source
  * ponytail: the load's expansions are not fetched again, so what they brought stays as it is;
  * re-run each expansion here if a refresh must also drop what an expansion's source dropped.
  * @param host - the session pieces
- * @param key - the load's key
+ * @param key - the load's key, or its `sources()` entry's
  * @param options - the credential and the endpoint
  * @returns the counts
  */
@@ -614,6 +632,7 @@ export async function refreshSource(
     options: SourceLoadOptions,
 ): Promise<SourceRefreshReport> {
     const record = requireLoad(host, key);
+    const loadKey = record.key;
     const config = currentParams(record);
     const { write: _write, ...readOnly } = options;
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
@@ -627,9 +646,9 @@ export async function refreshSource(
     });
 
     const directed = host.directed();
-    const own = (row: Readonly<Record<string, unknown>> | undefined): boolean => sourceLoadsOf(row).includes(key);
+    const own = (row: Readonly<Record<string, unknown>> | undefined): boolean => sourceLoadsOf(row).includes(loadKey);
     const elsewhere = (row: Readonly<Record<string, unknown>> | undefined): boolean =>
-        sourceLoadsOf(row).some((k) => k !== key);
+        sourceLoadsOf(row).some((k) => k !== loadKey);
     const nodes = host.nodeIds().flatMap((id) => {
         const row = host.node(id);
         return row !== undefined && own(row) ? [{ id, data: row }] : [];
@@ -672,12 +691,12 @@ export async function refreshSource(
         await host.dispatch(refreshBatch(host, record, config, read, plan, report));
     }
 
-    host.ledger.refreshLoad(key, {
+    host.ledger.refreshLoad(loadKey, {
         next: read.info?.next ?? null,
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
         endpoint: access.endpoint,
-        ...totalOf(read, record.total),
+        ...totalOf(read, record.total, record.totalEdges),
     });
     return report;
 }
@@ -697,7 +716,7 @@ async function readPages(
     options: SourceLoadOptions,
 ): Promise<Read> {
     let read = await readRows(record.source, config, access, options);
-    for (let page = 1; page < record.pages && read.info?.next; page++) {
+    for (let page = 1; page < Math.min(record.pages, MAX_PAGES) && read.info?.next; page++) {
         const next = await readRows(record.source, config, access, { ...options, cursor: read.info.next });
         // ponytail: a capped Cypher query's next page holds every earlier row again; the repeats
         // match by id and pair and change nothing.
@@ -784,25 +803,15 @@ function refreshBatch(
 }
 
 /**
- * Whether an endpoint is on this machine or a local network.
- * @param endpoint - the endpoint, or null
- * @returns true for loopback, RFC 1918 and `.local` hosts
+ * Where a load's requests go: its endpoint, else a REST mapping's own endpoint, else the source's
+ * default.
+ * @param record - the load
+ * @returns the endpoint, or null when none is known
  */
-function isLocalNetwork(endpoint: string | null): boolean {
-    if (endpoint === null) {
-        return false;
-    }
-
-    const host = new URL(endpoint).hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "");
-    return (
-        host === "localhost" ||
-        host === "::1" ||
-        host.endsWith(".local") ||
-        host.startsWith("127.") ||
-        host.startsWith("10.") ||
-        host.startsWith("192.168.") ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-    );
+function targetOf(record: SourceLoadRecord): string | null {
+    const { mapping } = record.config as { mapping?: { endpoint?: unknown } };
+    const mapped = typeof mapping?.endpoint === "string" ? mapping.endpoint : null;
+    return record.endpoint ?? mapped ?? descriptorOf(record.source)?.defaultEndpoint ?? null;
 }
 
 /**
@@ -819,9 +828,10 @@ export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad
             return Object.freeze({
                 id: record.key,
                 source: record.source,
-                endpoint: record.endpoint,
+                endpoint: targetOf(record),
+                params: record.config,
                 hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
-                isLocalNetwork: isLocalNetwork(record.endpoint),
+                isLocalNetwork: isLocalNetwork(targetOf(record)),
                 authRequired: descriptorOf(record.source)?.authRequired ?? "none",
                 ...(slot === undefined ? {} : { credentialSlot: slot }),
             });
@@ -880,7 +890,8 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         ...readOnly,
         endpoint: options.endpoint ?? record.endpoint ?? undefined,
     });
-    const read = await readRows(record.source, config, access, {
+    // As many pages as the load read, as a refresh does, so a later `more` continues past them.
+    const read = await readPages(record, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
     });
@@ -898,5 +909,6 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
         endpoint: access.endpoint,
+        ...totalOf(read, record.total, record.totalEdges),
     });
 }

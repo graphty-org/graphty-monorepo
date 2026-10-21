@@ -147,7 +147,7 @@ export const ServersAsRacks: Story = {
     },
 };
 
-/** The models of {@link ModelByKind}: one per kind; the robot is listed nowhere. */
+/** The models of {@link ModelPerCategory}: one per kind; the robot is listed nowhere. */
 const BY_KIND = {
     server: "asset:sample/server",
     person: "asset:sample/person",
@@ -159,7 +159,7 @@ const BY_KIND = {
  * Model by kind: one encoding of the `kind` column draws each kind as its own sample model. The
  * robot's kind is not in the map, so it keeps its ordinary shape.
  */
-export const ModelByKind: Story = {
+export const ModelPerCategory: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
@@ -198,7 +198,7 @@ export const ModelByKind: Story = {
             await holds(change.state === "drawn", `${ref} ended ${change.state}: ${JSON.stringify(change.problems)}`);
         }
 
-        const scene = await drawn(canvasElement, "Styles/Node Models ModelByKind");
+        const scene = await drawn(canvasElement, "Styles/Node Models ModelPerCategory");
         await assertGraphLoaded(scene, { nodes: 7, edges: 5 });
     },
 };

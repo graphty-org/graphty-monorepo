@@ -221,7 +221,7 @@
         "Styles/Layered::WireframeEffectLayers",
         "Styles/Node Models::FailedModelPlaceholder",
         "Styles/Node Models::ModelAndTextureByUrl",
-        "Styles/Node Models::ModelByKind",
+        "Styles/Node Models::ModelPerCategory",
         "Styles/Node Models::ServersAsRacks",
         "Styles/Node Models::StlTurnedUpright",
         "Styles/Node Models::TintOnAndOff",

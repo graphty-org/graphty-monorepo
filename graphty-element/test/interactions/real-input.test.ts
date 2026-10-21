@@ -243,32 +243,27 @@ describe("the mouse", () => {
             const element = await mounted(viewMode);
             element.zoomToPointer = true;
             const point = at(element, "a");
-            // How far in the view is: in 2D the drawing's scale, the spread; in 3D the camera's
-            // nearness, because a perspective view draws two nodes at another depth than the pivot
-            // growing faster as the camera nears them than they shrink as it backs away.
-            const nearness = (): number =>
-                viewMode === "2d" ? spread(element) : 1 / (element.getCameraState().cameraDistance ?? Number.NaN);
-            const turns = async (deltaY: number): Promise<{ spread: number; nearness: number }> => {
+            // In 3D, nodes a and b are off the plane through the pivot (node c lifts the graph's
+            // center), so their spread on screen is not in proportion to the zoom: read the
+            // camera's distance instead.
+            const zoom = (): number =>
+                viewMode === "3d" ? 1 / (element.getCameraState().cameraDistance ?? Number.NaN) : spread(element);
+            const turns = async (deltaY: number): Promise<number> => {
                 for (let notch = 0; notch < 3; notch++) {
                     await wheel(element, point, deltaY);
                 }
                 await applied(element);
-                return { spread: spread(element), nearness: nearness() };
+                return zoom();
             };
 
-            const start = { spread: spread(element), nearness: nearness() };
+            const start = zoom();
             const zoomedIn = await turns(-100);
             const back = await turns(100);
             const zoomedOut = await turns(100);
 
-            assert.isAbove(zoomedIn.spread, start.spread * 1.2, "three turns in zoomed in");
-            assert.closeTo(back.spread / start.spread, 1, 0.01, "three turns out undid three turns in");
-            assert.closeTo(
-                start.nearness / zoomedOut.nearness,
-                zoomedIn.nearness / start.nearness,
-                0.01,
-                "three turns out zoomed out as far as three turns in zoomed in",
-            );
+            assert.isAbove(zoomedIn, start * 1.2, "three turns in zoomed in");
+            assert.closeTo(back / start, 1, 0.01, "three turns out undid three turns in");
+            assert.closeTo(start / zoomedOut, zoomedIn / start, 0.01, "out shrank the drawing as much as in grew it");
         });
     }
 
@@ -582,30 +577,6 @@ async function hold(
     assert.strictEqual(heldFrames, count, "the key was held for the frames counted");
 }
 
-/**
- * Tap a key on the 3D canvas and wait until the motion it owes is over: a tap moves the camera for
- * a few frames, and the camera is the reader's, so a stable frame does not wait for it.
- * @param element - The element.
- * @param key - The key, as userEvent names it.
- */
-async function tap(element: Graphty, key: string): Promise<void> {
-    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get("orbit");
-    assert.isDefined(input);
-    const update = input.update.bind(input);
-    let updates = 0;
-    input.update = (): void => {
-        updates++;
-        update();
-    };
-    try {
-        await userEvent.keyboard(key);
-        await settled(element, () => updates);
-    } finally {
-        input.update = update;
-    }
-    await applied(element);
-}
-
 describe("the keyboard", () => {
     it("does not take focus from the page when it loads", async () => {
         const input = document.createElement("input");
@@ -644,9 +615,11 @@ describe("the keyboard", () => {
             const gap = spread(element);
 
             // A tap: down and up before the next frame, which a key read once a frame never saw.
-            await tap(element, key);
+            await userEvent.keyboard(key);
+            await applied(element);
             const once = spread(element);
-            await tap(element, key);
+            await userEvent.keyboard(key);
+            await applied(element);
 
             assert.isAbove(once, gap * 1.05, "the first tap zoomed in");
             assert.isAbove(spread(element), once * 1.05, "and so did the second");
@@ -734,29 +707,79 @@ describe("the keyboard", () => {
         assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
     });
 
-    // W and S move the camera by the same fraction of its distance every frame they are held, so
-    // the zoom is as quick far out as close in: 0.985 per frame, tenfold over the 157 frames A or
-    // D take to spin half a turn.
+    // W and S zoom one wheel notch (a factor of 1.1) on the press, and from the 9th frame they are
+    // held on, by the same fraction of the distance every frame, so the zoom is as quick far out
+    // as close in: 0.985 per frame, tenfold over the 157 frames A or D take to spin half a turn.
+    // userEvent holds a key with one keydown and no auto-repeats, as macOS does for a held letter
+    // (press and hold shows the accent menu), so the zoom must come from the frames, not repeats.
     describe.each([
         ["close in", 6],
         ["far out", 600],
     ])("holding W or S, %s", (_where, start) => {
         it.each([
-            ["W", 0.985],
-            ["S", 1 / 0.985],
-        ])("%s changes the 3D camera's distance by a factor of %f per frame", async (key, perFrame) => {
+            ["W", -1, 0.985],
+            ["S", 1, 1 / 0.985],
+        ])("%s zooms a notch, then by a factor of %f per frame while held", async (key, notches, perFrame) => {
             const element = await mounted("3d");
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
+            const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
+            let repeats = 0;
+            const countRepeats = (evt: KeyboardEvent): void => {
+                repeats += evt.repeat ? 1 : 0;
+            };
+            element.graph.canvas.addEventListener("keydown", countRepeats);
+            cleanups.push(() => {
+                element.graph.canvas.removeEventListener("keydown", countRepeats);
+            });
 
-            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+            const before = distance();
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
-            const heldFrames = 10;
-            await hold(element, key.toLowerCase(), "orbit", heldFrames);
+            const heldFrames = 40;
+            const distances: number[] = [];
+            await hold(element, key.toLowerCase(), "orbit", heldFrames, () => distances.push(distance()));
+
+            assert.strictEqual(repeats, 0, "the key was held with no auto-repeat");
+            const after = distance();
+            assert.closeTo(
+                after / before,
+                1.1 ** notches * perFrame ** (heldFrames - 8),
+                1e-9,
+                "a notch, then a factor a frame",
+            );
+            for (let frame = 9; frame < heldFrames; frame++) {
+                assert.closeTo(
+                    distances[frame] / distances[frame - 1],
+                    perFrame,
+                    1e-9,
+                    `zoomed in held frame ${String(frame + 1)}`,
+                );
+            }
+
+            // Let go, the camera stays where it is however many frames follow
+            const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(
+                "orbit",
+            );
+            for (let frame = 0; frame < 20; frame++) {
+                input?.update();
+            }
+            assert.strictEqual(distance(), after, "the zoom stopped when the key was let go");
+        });
+
+        it.each([
+            ["W", -1],
+            ["S", 1],
+        ])("a short press of %s zooms exactly one notch", async (key, notches) => {
+            const element = await mounted("3d");
+            await element.setCameraState({ cameraDistance: start });
+            await click(element, EMPTY);
+            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+
+            await hold(element, key.toLowerCase(), "orbit", 3);
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
+            assert.closeTo(after / before, 1.1 ** notches, 1e-9, "one notch");
         });
     });
 });

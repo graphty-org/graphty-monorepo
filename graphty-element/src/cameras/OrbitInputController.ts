@@ -19,17 +19,14 @@ const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>
     "turn-down": "turn-up",
     "roll-left": "roll-right",
     "roll-right": "roll-left",
-    "zoom-in": "zoom-out",
-    "zoom-out": "zoom-in",
 };
 
 /**
- * The factor one mouse wheel notch (deltaY 100) multiplies the camera distance by: each notch out
- * multiplies it by this and each notch in divides it by the same, so a turn out undoes a turn in.
- * It is its own number, not keyboardZoomSpeed: a zoom key moves the camera every frame it is held,
- * a notch only once.
+ * The factor one wheel notch, or one press of W or S, changes the camera's distance by. About
+ * what the first TAP_FRAMES frames of a held W or S zoom (0.985 ** 8 = 0.886), so a hold carries
+ * on from the press without a jump.
  */
-const WHEEL_NOTCH_FACTOR = 1.1;
+const NOTCH_ZOOM = 1.1;
 
 /**
  * Handles user input for the orbit camera controller.
@@ -95,6 +92,20 @@ export class OrbitInputController {
             return;
         }
 
+        // A zoom key zooms one wheel notch on the press itself, so a tap between two frames is
+        // never lost. Held past TAP_FRAMES frames it keeps zooming every frame (update), and the
+        // auto-repeats add nothing: they start late, follow the OS settings, and on macOS (press
+        // and hold shows the accent menu) a held letter often repeats not at all.
+        if (action === "zoom-in" || action === "zoom-out") {
+            this.held.add(action);
+            if (!evt.repeat) {
+                this.zoomBy(action === "zoom-in" ? -1 : 1);
+                this.owed.set(action, TAP_FRAMES);
+            }
+
+            return;
+        }
+
         this.held.add(action);
         if (!evt.repeat) {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
@@ -122,7 +133,7 @@ export class OrbitInputController {
         }
     };
 
-    // One mouse wheel notch (deltaY 100) moves the camera by about a tenth of its distance;
+    // One mouse wheel notch (deltaY 100) changes the camera's distance by NOTCH_ZOOM;
     // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
     // delta from jumping the camera.
     private readonly wheelHandler = (evt: WheelEvent): void => {
@@ -147,15 +158,15 @@ export class OrbitInputController {
 
     /**
      * How far some wheel notches move the camera: each notch out multiplies its distance by
-     * WHEEL_NOTCH_FACTOR and each notch in divides it by the same, so a turn out undoes a turn in.
-     * Adding the same share of the distance either way zoomed in 1/0.9 a notch and out only 1/1.1,
-     * and three turns out did not undo three turns in.
+     * NOTCH_ZOOM and each notch in divides it by the same, so a turn out undoes a
+     * turn in. Adding the same share of the distance either way zoomed in 1/0.9 a notch and out
+     * only 1/1.1, and three turns out did not undo three turns in.
      * @param notches - Notches; negative zooms in.
      * @returns The distance delta.
      */
     private notchDistance(notches: number): number {
         const distance = this.controller.cameraDistance;
-        return distance * WHEEL_NOTCH_FACTOR ** notches - distance;
+        return distance * NOTCH_ZOOM ** notches - distance;
     }
 
     /**
@@ -303,22 +314,23 @@ export class OrbitInputController {
             cam.rotate(-yaw * turn, -pitch * turn);
         }
 
-        // A zoom key multiplies the distance by the same factor every frame it is held, so the
-        // zoom is as quick far out as close in, and the two keys are exact inverses.
-        if (on("zoom-in")) {
-            cam.zoomBy(1 - this.config.keyboardZoomSpeed);
-        }
-
-        if (on("zoom-out")) {
-            cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
-        }
-
         if (on("roll-left")) {
             cam.spin(this.config.keyboardYawSpeed);
         }
 
         if (on("roll-right")) {
             cam.spin(-this.config.keyboardYawSpeed);
+        }
+
+        // A zoom key held past its tap's frames multiplies the distance by 1 - keyboardZoomSpeed
+        // every frame, so it zooms as fast far out as close in; W and S are exact inverses, and
+        // held together they cancel, as two arrows do.
+        const { held } = this;
+        const zooming = (action: CanvasKeyAction): boolean => held.has(action) && (owed.get(action) ?? 0) === 0;
+        const both = held.has("zoom-in") && held.has("zoom-out");
+        const zoom = both ? 0 : (zooming("zoom-out") ? 1 : 0) - (zooming("zoom-in") ? 1 : 0);
+        if (zoom !== 0) {
+            cam.zoomBy((1 - this.config.keyboardZoomSpeed) ** -zoom);
         }
 
         for (const [action, frames] of owed) {

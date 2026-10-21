@@ -5,44 +5,46 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-21 (dry run pass 3 on build 758b8e8081).
+Last updated: 2026-10-21 (tier 3 report, written with round 1 not yet run).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-21) Dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`): 141 lines, 0 (a), 103 (c)
-  in 41 backlog entries, 6 (b), 32 (n). Pass 2's two fixes held on every crossing walk. The build
-  is session-ready; round 1 runs on 758b8e8081 with no rebuild.
-- (2026-10-21) Backlog first item: the drawing moves ~140 px right when a key arrives while a
-  selection is held (23 rows, 21 halves). Mechanism found in graphty-element: `followSelection`
-  re-pins the pivot to the selection each frame and undoes `setViewInsets`' compensation when the
-  key's inset arrives. Target settled in `decided.md` 2026-10-21 ("a held selection asks for
-  nothing after the pick").
+- (2026-10-21) ROUND 1 HAS NOT RUN. 0 sessions, 0 void, 0 Sonnet. Tool dry run 2
+  (`tier3/rounds/round-1/tool-dry-run-2.md`) failed check 6: `bars.mjs` `walkTier2` does
+  `if (!first) continue;`, so axe, names, focus and typing run only at 1440 x 900 while the walked
+  list claims 900 x 700 too. Fix it (with a planted 900 x 700 case) before the gate.
+- (2026-10-21) The tier 3 report text was returned to the orchestrator: the Write tool refuses a
+  subagent writing `tier3/report.md`, as with tier 2. Re-issue it with round 1's tables once the
+  round runs.
+- (2026-10-21) Also before round 1, tool only: give the session browser a normal storage quota
+  (headless reads as a private window; the notice adds 18 words to the first screen); `bars.mjs`
+  holds an idle slot when wrapped; slot waits not first-come; persona files leak stray markup and
+  a study-team note into briefings.
+- (2026-10-21) Gate queue on 758b8e8081: 13 halves lack accepted walks (detours: T38 A/B, T41 B,
+  T43 B, T46 B, T47 A, T49 A, T51 A; T43 A success and detours; keyboard `--keys`: T39 A, T40 A,
+  T47 B, T48 A). Wording: 44 words, 14 phrases shared; keep dataset names on purpose.
+- (2026-10-21) Bars 6 and 8 measured in preflight would fail: light-theme contrast on every
+  screen after the start; scrollable-region-focusable, target-size; Samples/Docs/GitHub names;
+  four screens over word limits. Decided: no fix before round 1 (it cannot pass anyway; a fix
+  restarts the walks). They lead the fix list after it.
+- (2026-10-21) Backlog first item: the drawing moves ~140 px when a key arrives while a selection
+  is held (23 walks). Cause in graphty-element `followSelection` vs `setViewInsets`; target in
+  `decided.md` 2026-10-21.
 - (2026-10-21) Must fix before T42 runs in round 2: a find-box `>` rule makes a raw, uneditable
-  threshold card (`{"kind":"threshold",...}`); `>=` is fine.
-- (2026-10-20) The session-ready bar is narrow on purpose: crash, block, spoiled grading. Jumps,
-  "Which nodes" without its list, F6, heading ring, node names by id break `decided.md` and stay
-  in the backlog. A node hidden off screen is not a wrong result while the layer is right and Fit
-  recovers it.
-- (2026-10-20) A route seen only on an unjudged task (T37, T42, T44) is (a) only when it also
-  reaches a round 1 route; check it on round 1 data (T46 B's key drop did not reproduce on
-  T48 B's plain-file walk).
-- (2026-10-20) Read `answers.md` before calling a wrong-looking screen a grading spoil; it now
-  records most 758b8e8081 faults and grades around them.
-- (2026-10-20) A backlog row can hide an (a): a refusal followed by a silent drop is a spoil.
+  threshold card; `>=` is fine.
+- (2026-10-20) The session-ready bar is narrow on purpose: crash, block, spoiled grading. Read
+  `answers.md` before calling a screen a grading spoil; a refusal then a silent drop is a spoil.
 - (2026-10-20) ONE round only (owner). Round 1 cannot pass (T37, T42, T44 unjudged); its report
   is held / failed / not scored per bar, never "passed".
-- (2026-10-20) Keyboard walks matter only on Sam's halves (T39 A, T40 A, T47 B, T48 A).
-- (2026-10-20) Owed tool work, now gate refusals: `WALKS3` five screens, "Starts with" typing,
-  `spoken.json`; `wording.mjs` irregular forms, phrase echoes; `gateCheck` keyed by half.
-  Owed values: all six community methods on T46-T48 twice, T51 palette.
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
 - (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
   unit with the owner's leave. No bypass trailer.
-- Owner items open: default label font fallback; the five tier 3 breaking items; whether label
-  decluttering is an undo step (`owner-decisions.md`).
+- Owner items open (nine, all breaking or defaults): unified styles' five pieces, default label
+  size, label font fallback, bare name reads a run, Kelly for 10-19 groups, labels over edges,
+  declutter as undo step, beyond-domain drawing, camera in project file; plus the compact-mantine fold region to confirm (`owner-decisions.md`).
 
 ## Priorities and values
 
@@ -83,6 +85,13 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-21, tier 3 report with round 1 not run.** Reported the state as it is: no bar scored,
+  bars 6 and 8 given as "would fail" from preflight measurements, not as a round's result. Did not
+  fix the bar 6 and 8 items before round 1: the round cannot pass by plan, a fix changes the build
+  and restarts the readiness walks, and the round should measure the build the walks cleared.
+  The tool's 900 x 700 gap does block the round: a bar the instrument claims to read and does not
+  is worse than an unscored one. Owner list counted from `owner-decisions.md` entries with no
+  owner answer: nine.
 - **2026-10-21, dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`).** 141 lines, 0 (a). Not
   (a), with reasons: the selection-held jump (layer graded from `styles.json`, names only as read
   from screen, Fit recovers, T41's success path already needs Fit after the owner's glide); the raw
@@ -105,16 +114,11 @@ history.
   2 S/SD without Alex and Maren; backlog severities; preflight 4 defines grading-spoiling and Sam's
   keyboard blocks; missing screens and `spoken.json` are gate refusals. Not taken: dropping T37 from
   the judged set; SD for T50 B. Which build counts is a rule, not an owner question.
-- **2026-10-19, dry-run triage on e3c5bca8e6 (`tier3/dry-run-r1-5.md`).** Team calls,
-  reversible, all in `tier3/decided.md`: the drawing moves only when the reader asks (reverses the
-  2026-10-18 arrival frame; 16 walks jumped); with no condition, Which nodes opens on the attribute
-  list and "Add a condition" never closes it (settles the r1-4 / 9f8c35c76 flip); a card with no
-  value shows no count, a typed count is spoken once on a pause (settles the r1-1 / r1-2 flip);
-  Escape clears a selection only on a node's or selection's inspector and returns to the layer it
-  came from (settles r1-3 / r1-4); Escape keeps what was typed in a card; any match pick focuses
-  the value box; Tab and remove never pull focus back; F6 cycles five regions, never a separator;
-  a node is called by its element label everywhere; Control+A selects all; "New layer from
-  selection" makes the layer. Kept (b): the list in Top of mind. No API change.
+- **2026-10-19, dry-run triage on e3c5bca8e6 (`tier3/dry-run-r1-5.md`)** (summarized
+  2026-10-21; full text in git history). Settled in `tier3/decided.md`: the drawing moves only when
+  the reader asks; Which nodes with no condition opens on its list; Escape keeps typed text and
+  clears a selection only on its inspector; Tab and remove never pull focus back; F6 cycles five
+  regions; a node is called by its label; Control+A selects all. No API change.
 - **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b** (summarized
   2026-10-20; full text in git history). Bar 2 states T49's exception; bar 5 unscored when a walk
   skipped a success-path screen; bar 6 checks typing after "Starts with"; bar 7 confirmed by a
@@ -161,6 +165,11 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-10-21 (tier 3 report) -- Worked: checking the round folder and the briefing folders before
+  writing (56 briefings, no `01.png` anywhere) so the report did not invent a round. Worked:
+  reading `owner-decisions.md` entries for an owner answer before listing them (the number box
+  one was answered on 2026-10-10; the fold-region one may be covered by it, so it is listed to confirm). Did not work: writing `tier3/report.md` from a subagent; the
+  harness refuses report files from subagents. Return the text instead.
 - 2026-10-21 (dry run pass 3) -- Worked: reading the element's camera code before classing the
   most-walked jump: `followSelection` plus `setViewInsets` explained "only with a selection held"
   and the 140 px (half the key's inset) in ten minutes, so the backlog item and the decided entry
@@ -192,21 +201,11 @@ history.
   miss would have stopped it). Worked: checking the claims I relied on (golden ancestry, the
   token's spoken name in `words.ts`, no 30-hour volunteer). Did not work: "does not pass until"
   sentences in preflights; three reviews found the same tool work unbuilt. Gate refusals instead.
-- 2026-10-19 (r1-5) -- Worked: reading each pass-4 fix commit's message before classing origin.
-  ef2f796ee says in words "an overlay that arrives over a drawn node frames the graph once", and
-  9f8c35c76 "a layer with no condition opens ... with its list closed": two lines named 26 of 37
-  regressions. Worked: grepping `skipWhileDisabled` showed the dimmed-Undo rule of 2026-10-18 was
-  decided and never built (Header.tsx still passes it), so it is "new", not a regression. Worked:
-  reading `owner-decisions.md` before ruling on the tree's Tab entry: the team set Everything as
-  the resting row on 2026-10-18, so ten "against decided" rows were a transcription error.
-  Worked: a script counting classes and origins against the input lines (369 both).
-- 2026-10-19 (criteria review) -- Worked: reading `gateCheck` before taking the red team's gate
-  claim (it was right: `basename(dir)` is the walk folder) and diffing the app paths between
-  52cb47a85a and 1fa51e2b0b (empty) before writing the docs-only rule. Worked: recounting the
-  roster by script after the T51 swap (56; every persona's count held). Did not work: naming a
-  new build for a docs-only commit on 2026-10-18; it reset the dry run's count and spent a night's
-  walks on halves already walked. Did not work: my 2026-10-18 note that the gate "already refuses
-  a half with no pilot": true only for a pilot directly under the half folder.
+- 2026-10-19 (r1-5 and criteria review; summarized 2026-10-21) -- Worked: reading each fix
+  commit's message before classing origin (two lines named 26 of 37 regressions); grepping for a
+  decided rule's code before calling a defect a regression; reading `gateCheck` before taking a
+  red-team claim; recounting the roster by script. Did not work: a new build for a docs-only
+  commit (it reset the dry run's count).
 - 2026-10-18 (summarized 2026-10-20) -- Worked: checking reviewer claims against the tool before
   writing a rule; counting input lines per task against the triage rows; reading `session.json`
   (`commit`, `uncommittedChanges`) before classing; grepping the on-screen string to find the
@@ -225,6 +224,11 @@ history.
 
 ## Thinking
 
+- **2026-10-21, tier 3 report:** a whole tier of work reached the owner with no round run, and
+  the thing holding it back is the instrument again, as at tier 2's end. The tool has now had two
+  readiness checks, and each found a bar it claimed to read and did not. Before the next tier,
+  build the tool's planted cases from the criteria table row by row (each bar x each size x each
+  theme), so a missing cell is a failing test, not a reviewer's find.
 - **2026-10-21, dry run pass 3:** the most-walked defect came from two settled rules meeting (the
   owner's glide to a pick, the drawing staying put when a key arrives). Neither rule was wrong; the
   element had no rule for the moment after the pick. When two decided behaviors both own the

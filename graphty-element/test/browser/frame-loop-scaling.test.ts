@@ -50,7 +50,6 @@ async function mount(size: number): Promise<Graphty> {
     });
     const { graph } = element;
     graph.engine.stopRenderLoop();
-    setPaintBudget(graph, Number.POSITIVE_INFINITY);
     await graph.setLayout("random");
     const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
     await graph.addNodes(ids.map((id) => ({ id })));
@@ -78,17 +77,6 @@ async function settled(graph: Graph): Promise<void> {
  */
 function updateManagerOf(graph: Graph): UpdateManager {
     return (graph as unknown as { updateManager: UpdateManager }).updateManager;
-}
-
-/**
- * Set how long one frame may spend applying a repaint. A frame stops starting paint batches once
- * that time is up, so the counted cases here lift it -- one frame applies a whole repaint, and
- * what is counted is that repaint, never the machine -- and the batching case sets it to zero.
- * @param graph - The graph.
- * @param ms - The budget.
- */
-function setPaintBudget(graph: Graph, ms: number): void {
-    (updateManagerOf(graph) as unknown as { styleFrameBudgetMs: number }).styleFrameBudgetMs = ms;
 }
 
 /** How many times a prototype method was called while a counter was installed. */
@@ -649,14 +637,13 @@ describe("the frame loop and the repaints do work in proportion to the graph", (
 
 // A finished run's layer repaints every node, and applying 3,214 nodes' paint in one frame took
 // 450 ms at a 6x CPU throttle. A frame now paints in batches and stops starting batches once its
-// time is up. With no time at all, each frame paints exactly one batch.
+// time is up. Given no time at all, each frame paints exactly one batch.
 describe("a repaint of every node", () => {
     it("is drawn across several frames, one batch a frame when the frame has no time to spare", async () => {
         const size = 400;
         const element = await mount(size);
         try {
             const { graph } = element;
-            setPaintBudget(graph, 0);
             await graph
                 .getSession()
                 .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
@@ -669,7 +656,7 @@ describe("a repaint of every node", () => {
             while (painter.hasPending && perFrame.length < size) {
                 const counter = countCalls(Node.prototype, "applySessionPaint");
                 try {
-                    manager.syncStyles();
+                    manager.syncStyles(0);
                 } finally {
                     counter.restore();
                 }

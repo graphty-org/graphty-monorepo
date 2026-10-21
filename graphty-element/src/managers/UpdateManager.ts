@@ -275,8 +275,6 @@ export class UpdateManager implements Manager {
     /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
     private explicitZoomToFit = false;
     private readonly config: Required<UpdateManagerConfig>;
-    /** How long one frame may spend applying a repaint; a test that counts work lifts it. */
-    private readonly styleFrameBudgetMs: number = STYLE_FRAME_BUDGET_MS;
     private layoutStepCount = 0;
     private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
@@ -731,8 +729,10 @@ export class UpdateManager implements Manager {
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
      * screen and rebuild only when it differs, so a colour change on a node is one buffer write
      * and no geometry at all.
+     * @param budgetMs - How long this frame may spend applying paint before it leaves the rest
+     *     for the next frame; each kind of element paints at least one batch. Unbounded when absent.
      */
-    syncStyles(): void {
+    syncStyles(budgetMs = Number.POSITIVE_INFINITY): void {
         const painter = this.graphContext.getStylePainter?.();
 
         // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
@@ -749,7 +749,7 @@ export class UpdateManager implements Manager {
         // IN BATCHES, WITHIN A BUDGET: each kind paints at least one batch a frame, and more while
         // the frame has time; what is left stays pending for the next frame. See
         // STYLE_FRAME_BUDGET_MS.
-        const deadline = performance.now() + this.styleFrameBudgetMs;
+        const deadline = performance.now() + budgetMs;
 
         if (painter.hasPendingNodes) {
             this.syncNodeStyles(painter, deadline);
@@ -831,16 +831,18 @@ export class UpdateManager implements Manager {
             }
         } while (painter.hasPendingNodes && performance.now() < deadline);
 
-        // A node whose size, shape or mesh changed moves where its edges stop without moving the
-        // node at all, so the frame visits every edge whatever the positions say, and the edges of
-        // those nodes, found in one walk however many batches ran, measure again. A repaint that
-        // only recolours nodes -- a finished run's layer -- walks no edge: on a graph of 36,906
-        // edges that walk was most of every frame the repaint was spread over.
+        // A repaint can change how a node is drawn in ways that move where its edges stop without
+        // moving the node, so the frame that finishes the repaint visits every edge. So does any
+        // frame that resized a node, and the edges of those nodes, found in one walk however many
+        // batches ran, measure again. The frames in between walk no edge: on a graph of 36,906
+        // edges that walk was most of every frame a repaint was spread over.
+        if (resized.size > 0 || !painter.hasPendingNodes) {
+            this.forceEdgeWalk();
+        }
+
         if (resized.size === 0) {
             return;
         }
-
-        this.forceEdgeWalk();
 
         for (const edge of this.dataManager.edges.values()) {
             if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
@@ -1283,7 +1285,10 @@ export class UpdateManager implements Manager {
         // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
         // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
         disposeLabelsTogether(() => {
-            this.syncStyles();
+            // A pass the render loop runs keeps to the frame budget. One pumped by hand states no
+            // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
+            // applies the whole repaint, as a caller drawing one frame to read the result expects.
+            this.syncStyles(frameMs > 0 ? STYLE_FRAME_BUDGET_MS : Number.POSITIVE_INFINITY);
         });
         // Nothing painted is left to apply: a frame drawn now shows every element's style.
         if (this.graphContext.getStylePainter?.()?.hasPending !== true) {

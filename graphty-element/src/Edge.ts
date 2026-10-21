@@ -382,8 +382,8 @@ export class Edge {
     /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
     private drawnArcRadius?: number;
 
-    /** The `line.nodeGap` the edge's ends were last placed with. See {@link syncContent}. */
-    private drawnNodeGap?: number;
+    /** The node gaps (`line.nodeGap`, `sourceNodeGap`, `targetNodeGap`) the ends were last placed with. */
+    private drawnNodeGap?: string;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -857,12 +857,26 @@ export class Edge {
                     ? this.getInterceptPoints()
                     : null;
             this.transformEdgeMesh(
-                srcPoint ?? surface?.srcPoint ?? this.groupEnd(this.srcNode, src, dst),
-                dstPoint ?? surface?.dstPoint ?? this.groupEnd(this.dstNode, dst, src),
+                srcPoint ?? surface?.srcPoint ?? this.bareEnd("source", src, dst),
+                dstPoint ?? surface?.dstPoint ?? this.bareEnd("target", dst, src),
             );
         }
 
         return bent;
+    }
+
+    /**
+     * Where a line with no cap at an end starts: its node's gap past the outline where the end has one (no node hides
+     * that stretch, Cytoscape.js `source-distance-from-node`), else as {@link groupEnd} says.
+     * @param end - Which end.
+     * @param centre - Its node's center.
+     * @param toward - The other end's center.
+     * @returns The point.
+     */
+    private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        const gap = this.gapAt(end);
+        return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
     }
 
     /**
@@ -1280,8 +1294,9 @@ export class Edge {
             rebuilt = true;
         }
 
-        if (style.line?.nodeGap !== this.drawnNodeGap) {
-            this.drawnNodeGap = style.line?.nodeGap;
+        const gaps = `${String(style.line?.nodeGap)} ${String(style.line?.sourceNodeGap)} ${String(style.line?.targetNodeGap)}`;
+        if (gaps !== this.drawnNodeGap) {
+            this.drawnNodeGap = gaps;
             rebuilt = true;
         }
 
@@ -1763,11 +1778,18 @@ export class Edge {
     }
 
     /**
-     * How far from its nodes' outlines this edge's line stops (`line.nodeGap`); none for a self-loop.
+     * How far from one of its nodes' outlines this edge's line stops: that end's own gap (`line.sourceNodeGap`,
+     * `line.targetNodeGap`), else `line.nodeGap`; none for a self-loop.
+     * @param end - Which end.
      * @returns The gap, in scene units.
      */
-    private get nodeGap(): number {
-        return this.srcNode === this.dstNode ? 0 : (this.drawnStyle?.line?.nodeGap ?? 0);
+    private gapAt(end: "source" | "target"): number {
+        if (this.srcNode === this.dstNode) {
+            return 0;
+        }
+
+        const line = this.drawnStyle?.line;
+        return (end === "source" ? line?.sourceNodeGap : line?.targetNodeGap) ?? line?.nodeGap ?? 0;
     }
 
     /**
@@ -1780,9 +1802,9 @@ export class Edge {
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
     private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
-        const gap = this.nodeGap;
-        const outSrc = Edge.outside(this.srcNode, src, gap);
-        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
+        const outSrc = Edge.outside(this.srcNode, src, srcGap);
+        const outDst = Edge.outside(this.dstNode, dst, dstGap);
         const span = routeOutside(route, outSrc, outDst);
         if (span === null) {
             return false;
@@ -1797,11 +1819,11 @@ export class Edge {
             return new Vector3(c.x, c.y, c.z);
         };
         const start =
-            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, gap);
+            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, srcGap);
         const end =
             span.last < route.length / 3 - 1
                 ? cross(span.last + 1, last, outDst)
-                : this.leaveNode(this.dstNode, dst, last, gap);
+                : this.leaveNode(this.dstNode, dst, last, dstGap);
 
         const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
         const { arrowCap } = this;
@@ -1889,9 +1911,9 @@ export class Edge {
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
-        const gap = this.nodeGap;
-        const outSrc = Edge.outside(this.srcNode, src, gap);
-        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
+        const outSrc = Edge.outside(this.srcNode, src, srcGap);
+        const outDst = Edge.outside(this.dstNode, dst, dstGap);
         const span = routeEnds(route, ports, outSrc, outDst);
         if (span === null) {
             return false;
@@ -1904,10 +1926,16 @@ export class Edge {
             const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
             return new Vector3(c.x, c.y, c.z);
         };
-        const leave = (node: Node, centre: Vector3, i: number, to: Vector3, out: typeof outSrc): Vector3 =>
-            i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap);
-        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc);
-        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst);
+        const leave = (
+            node: Node,
+            centre: Vector3,
+            i: number,
+            to: Vector3,
+            out: typeof outSrc,
+            gap: number,
+        ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
+        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
         const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
         const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
         const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
@@ -2662,8 +2690,8 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach + this.nodeGap;
-        const dstReach = this.dstNode.borderReach + this.nodeGap;
+        const srcReach = this.srcNode.borderReach + this.gapAt("source");
+        const dstReach = this.dstNode.borderReach + this.gapAt("target");
 
         if (srcReach === 0 && dstReach === 0) {
             return;

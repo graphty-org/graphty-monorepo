@@ -538,6 +538,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     // where the ends meet the nodes, read with the routes (`edgePorts`)
     ["source-endpoint", { property: "_sourceEndpoint", type: "text" }],
     ["target-endpoint", { property: "_targetEndpoint", type: "text" }],
+    ["source-distance-from-node", { property: "sourceNodeGap", type: "size" }],
+    ["target-distance-from-node", { property: "targetNodeGap", type: "size" }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],

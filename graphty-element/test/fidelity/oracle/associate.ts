@@ -833,6 +833,20 @@ function parallelEdges(ps: readonly Prim[]): Prim[][] {
     });
 }
 
+/**
+ * Whether a closed shape of an edge's markup is drawn round words of the same edge: a box behind or round its label.
+ * @param p - the shape
+ * @param part - the edge's primitives
+ * @returns true for a label's box
+ */
+function labelDress(p: Prim, part: readonly Prim[]): boolean {
+    return (
+        p.text === null &&
+        p.closed &&
+        part.some((t) => t.text !== null && t.text.content.trim() !== "" && within(t.box, p.box))
+    );
+}
+
 const longestPath = (prims: readonly Prim[]): Prim | undefined =>
     [...prims]
         .filter((p) => p.kind === "path" || (p.closed && p.fill === null))
@@ -1447,7 +1461,12 @@ export function associate(
             if (ends === null) {
                 continue;
             }
-            for (const part of parallelEdges(ps)) {
+            for (const whole of parallelEdges(ps)) {
+                // a box round the label's words (Graphviz's HTML table, its cell borders) is the label's dress, which
+                // the label backgrounds take below: no line and no arrowhead (dot-specimen-edge-labels' TABLE label
+                // was read as the line, its fill and borders as arrowheads)
+                const dress = new Set(whole.filter((p) => labelDress(p, whole)));
+                const part = whole.filter((p) => !dress.has(p));
                 const line = longestPath(part);
                 if (line === undefined) {
                     continue;
@@ -2159,10 +2178,16 @@ export function associate(
     for (const w of wanting) {
         const picked = w.picked.filter((p): p is Prim => p !== undefined);
         if (picked.length === 0) {
-            // a label whose words differ is still this node's when it sits in the node's box
+            // a label whose words differ is still this node's when it sits in the node's box, unless an edge of the
+            // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
+            // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
+            const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
-                .filter((p) => p.text !== null && inside([cx(p.box), cy(p.box)], box))
+                .filter(
+                    (p) =>
+                        p.text !== null && !endWords.has(norm(p.text.content)) && inside([cx(p.box), cy(p.box)], box),
+                )
                 .sort((a, b) => a.index - b.index)[0];
             if (hit !== undefined) {
                 picked.push(take(hit));
@@ -2193,8 +2218,10 @@ export function associate(
         if (e.label !== null || wants === undefined) {
             return [];
         }
-        // the whole label near the edge's middle
-        const mid = e.points[Math.floor(e.points.length / 2)];
+        // the whole label near the edge's middle, halfway along it: a straight line drawn as one segment has two
+        // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
+        // to the edge whose target end it sat next to)
+        const mid = pointAlong(e.points, 0.5);
         return freeTexts
             .filter((p) => wants.has(norm(p.text?.content ?? "")))
             .map((p) => ({ ei, p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }));
@@ -2679,6 +2706,21 @@ function wordsByPair(edges: readonly PEdge[]): Map<string, Map<string, number>> 
         out.set(k, counts);
     }
     return out;
+}
+
+/**
+ * The words of every line of the labels graphty draws on the edges of one node.
+ * @param guide - graphty's scene
+ * @param node - the node's id
+ * @returns the lines, each normalized
+ */
+function endWordsAt(guide: PScene, node: string): Set<string> {
+    return new Set(
+        guide.edges
+            .filter((e) => e.source === node || e.target === node)
+            .flatMap((e) => (e.label?.content ?? "").split("\n").map(norm))
+            .filter((line) => line !== ""),
+    );
 }
 
 /** The lines each stacked run of {@link stackedTexts} is made of. */

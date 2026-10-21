@@ -2826,7 +2826,14 @@ function visFrontArc(cx: number, cy: number, radius: number, angle: number, box:
         const a = start + ((end - start) * k) / steps;
         points.push(`${fraction((x + radius * Math.cos(a)) / hw)},${fraction(-(y + radius * Math.sin(a)) / hh)}`);
     }
-    return { curved: false, bends: points.join(" ") };
+    // the arc's two ends are where vis-network starts and stops it, off the node as often as on it: ports, so no line
+    // is drawn from the node out to them
+    return {
+        curved: false,
+        sourcePort: points[0],
+        bends: points.slice(1, -1).join(" "),
+        targetPort: points.at(-1) ?? points[0],
+    };
 }
 
 /**

@@ -288,6 +288,13 @@ const LineStyle = z.strictObject({
      */
     nodeGap: z.number().nonnegative().optional(),
     /**
+     * How far from its source node's outline the line stops, in place of `nodeGap` at that end (Cytoscape.js
+     * `source-distance-from-node`). Unset, `nodeGap`.
+     */
+    sourceNodeGap: z.number().nonnegative().optional(),
+    /** How far from its target node's outline the line stops, in place of `nodeGap` at that end; see `sourceNodeGap`. */
+    targetNodeGap: z.number().nonnegative().optional(),
+    /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
      * (`"1,0"` is the middle of its right side, `"0,1"` the middle of its top). Relative to the node's

@@ -679,6 +679,8 @@ export type Channel =
     | "edge.bendCurve"
     | "edge.arcRadius"
     | "edge.nodeGap"
+    | "edge.sourceNodeGap"
+    | "edge.targetNodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"

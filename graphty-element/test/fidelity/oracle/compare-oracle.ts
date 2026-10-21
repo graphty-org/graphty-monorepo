@@ -622,8 +622,9 @@ export function curvatureOf(pts: readonly Pt[]): number {
         return 0;
     }
     const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L < 1e-9) {
-        // a loop: every point is off its zero-length chord
+    if (closedRing(pts)) {
+        // a loop: every point is off its zero-length chord, also where the ends miss by a rounding (vis-network's
+        // ring, drawn by an arc from 0 to 2 pi: 2078 chords off its chord of 0.02 px)
         return pts.length > 2 ? 1 : 0;
     }
     let m = 0;
@@ -667,14 +668,24 @@ export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: P
         }
         return [a[0] + (b[0] - a[0]) * hi, a[1] + (b[1] - a[1]) * hi];
     };
+    // A line that starts on its node's outline and runs across the node first (Cytoscape.js `source-endpoint: -50%
+    // 0%`) is cut where it leaves the node again: its start, on the outline, one side rounds inside and the other
+    // outside (cytoscapejs-specimen-edges-lines-p2). A line that starts outside and only later passes a node is kept.
     const trimStart = (path: Pt[], n: PNode | undefined): Pt[] => {
-        if (n === undefined || path.length < 2 || !insideNode(n, path[0])) {
+        if (n === undefined || path.length < 2) {
             return path;
         }
-        const i = path.findIndex((q) => !insideNode(n, q));
-        return i < 1 ? path : [crossing(path[i - 1], path[i], n), ...path.slice(i)];
+        // a straight line is two points: the stretch across the node holds none of them
+        const { dense, of } = finer(path, Math.min(n.w, n.h) / 4);
+        if (!insideNode(n, dense[0]) && !insideNode(n, dense[1])) {
+            return path;
+        }
+        const i = dense.findIndex((q, k) => k > 0 && !insideNode(n, q));
+        return i < 1 ? path : [crossing(dense[i - 1], dense[i], n), ...path.slice(of[i])];
     };
-    const head = trimStart([...pts], start);
+    // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is
+    // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
+    const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
     return out.length >= 2 ? out : [...pts];
 }
@@ -692,6 +703,12 @@ export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: P
 export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; unit: number } {
     const N = ORACLE_TOLERANCES.pathSamples;
     const length = pathLength(o);
+    if (o.length > 2 && g.length > 2 && closedRing(o) && closedRing(g)) {
+        // two rings are the same ring wherever each starts and whichever way it runs (vis-network strokes its loop
+        // from the circle's right, graph-io writes it from the side facing the node)
+        const unit = Math.max(length, 1e-9);
+        return { gap: ringGap(resample(o, N), resample(g, N)) / unit, unit };
+    }
     const chordOf = (pts: readonly Pt[]): number => {
         const b = pts.at(-1) ?? pts[0];
         return Math.hypot(b[0] - pts[0][0], b[1] - pts[0][1]);
@@ -715,6 +732,76 @@ export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; u
         Math.hypot((g.at(-1) ?? g[0])[0] - (o.at(-1) ?? o[0])[0], (g.at(-1) ?? g[0])[1] - (o.at(-1) ?? o[0])[1]),
     );
     return { gap: Math.max(ends / chord, frechet(resample(own(o), N), resample(own(g), N))), unit: chord };
+}
+
+/**
+ * A closed ring started again at its first point inside a node, closed there; any other path, or a ring with no point
+ * inside the node, as it is.
+ * @param pts - the path
+ * @param n - the node
+ * @returns the path
+ */
+function fromInside(pts: readonly Pt[], n: PNode): Pt[] {
+    if (pts.length < 4 || !closedRing(pts) || insideNode(n, pts[0])) {
+        return [...pts];
+    }
+    const round = pts.slice(0, -1);
+    const k = round.findIndex((q) => insideNode(n, q));
+    return k < 0 ? [...pts] : [...round.slice(k), ...round.slice(0, k), round[k]];
+}
+
+/**
+ * A path with points added along each segment longer than a step, so no stretch of it longer than the step goes
+ * unsampled.
+ * @param pts - the path
+ * @param step - the longest segment kept, at least a hundredth of a pixel
+ * @returns the points, and for each the index of the path's point that ends the segment it lies on
+ */
+function finer(pts: readonly Pt[], step: number): { dense: Pt[]; of: number[] } {
+    const dense: Pt[] = pts.slice(0, 1);
+    const of = [0];
+    const at = Math.max(step, 0.01);
+    for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        const k = Math.max(1, Math.min(1000, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / at)));
+        for (let j = 1; j <= k; j++) {
+            dense.push(j === k ? b : [a[0] + ((b[0] - a[0]) * j) / k, a[1] + ((b[1] - a[1]) * j) / k]);
+            of.push(i);
+        }
+    }
+    return { dense, of };
+}
+
+/**
+ * Whether a path closes on itself: its ends within a thousandth of its length of each other.
+ * @param pts - the path
+ * @returns true for a ring
+ */
+function closedRing(pts: readonly Pt[]): boolean {
+    const [a, b] = [pts[0], pts.at(-1)];
+    if (a === undefined || b === undefined) {
+        return false;
+    }
+    const gap = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return gap < 1e-9 || gap < 1e-3 * pathLength(pts);
+}
+
+/**
+ * The Frechet distance between two closed rings, at the start and the way round that brings them closest.
+ * @param o - one ring, its last point its first
+ * @param g - the other, as many points
+ * @returns the distance
+ */
+function ringGap(o: readonly Pt[], g: readonly Pt[]): number {
+    const round = g.slice(0, -1);
+    let best = Infinity;
+    for (const way of [round, [...round].reverse()]) {
+        for (let k = 0; k < way.length; k++) {
+            const turned = [...way.slice(k), ...way.slice(0, k)];
+            best = Math.min(best, frechet(o, [...turned, turned[0]]));
+        }
+    }
+    return best;
 }
 
 /**
@@ -920,7 +1007,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
     "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop; at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's`,
+    "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
@@ -1763,7 +1850,15 @@ export function compareOracle(
         // how far each route bends between its own nodes, a ratio no frame changes
         const oc = curvatureOf(vo);
         const gc = curvatureOf(vg);
-        const bend = Math.max(T.curvature, T.curveShare * oc);
+        // and no difference under a pixel deep over the shorter of the two chords, which no reader sees: a line
+        // between two nodes that nearly touch (gexf-sigma-ediaspora's 63 -> 66, 9 px long, bent under a pixel off
+        // straight; 141 -> 112, a squiggle under a pixel long). A loop's chord is next to nothing: judged as it is.
+        const chord = (pts: readonly Pt[]): number =>
+            closedRing(pts)
+                ? Infinity
+                : Math.hypot((pts.at(-1) ?? pts[0])[0] - pts[0][0], (pts.at(-1) ?? pts[0])[1] - pts[0][1]);
+        const seen = Math.min(chord(vo), chord(vg));
+        const bend = Math.max(T.curvature, T.curveShare * oc, pixel / Math.max(seen, 1e-9));
         if (routed) {
             j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
         }

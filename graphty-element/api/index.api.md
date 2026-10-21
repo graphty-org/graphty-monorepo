@@ -1691,6 +1691,8 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
+        sourceNodeGap: z.ZodOptional<z.ZodNumber>;
+        targetNodeGap: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;

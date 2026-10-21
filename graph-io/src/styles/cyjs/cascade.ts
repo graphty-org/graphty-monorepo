@@ -1787,6 +1787,8 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "target-text-margin-y",
     "source-text-rotation",
     "target-text-rotation",
+    "source-distance-from-node",
+    "target-distance-from-node",
 ]);
 
 /**

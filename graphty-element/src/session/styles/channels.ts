@@ -486,6 +486,8 @@ export interface ChannelValues {
     "edge.bendCurve": EdgeBendCurveValue;
     "edge.arcRadius": number;
     "edge.nodeGap": number;
+    "edge.sourceNodeGap": number;
+    "edge.targetNodeGap": number;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -3319,6 +3321,36 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far from each of its nodes' outlines the line stops, in the scene's units, leaving that " +
             "much empty between the node and the line's end; an arrow cap there moves out with it. A " +
             "self-loop ignores it.",
+    },
+    "edge.sourceNodeGap": {
+        channel: "edge.sourceNodeGap",
+        target: "edge",
+        plainName: "Edge Source Node Gap",
+        shortName: "Source gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.sourceNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its source node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
+    },
+    "edge.targetNodeGap": {
+        channel: "edge.targetNodeGap",
+        target: "edge",
+        plainName: "Edge Target Node Gap",
+        shortName: "Target gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.targetNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its target node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",

@@ -191,6 +191,9 @@ const EDGE_ATTRIBUTES: readonly string[] = [
     "fillcolor",
     "headlabel",
     "taillabel",
+    "labelfontsize",
+    "labelfontcolor",
+    "labelfontname",
     "xlabel",
 ];
 
@@ -1667,6 +1670,34 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
+    readEndLabelFace(get, scheme, put, at);
+}
+
+/**
+ * Reads the face of an edge's head and tail labels where it is not the label's: `labelfontsize`, `labelfontcolor` and
+ * `labelfontname` (https://graphviz.org/docs/attrs/labelfontsize/), each the edge's `fontsize`, `fontcolor` and
+ * `fontname` when unset, which the end labels then take from the label.
+ * @param get - the edge's attributes
+ * @param scheme - its color scheme
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): void {
+    const ends = (["target", "source"] as const).filter(
+        (end) => get(end === "target" ? "headlabel" : "taillabel") !== null,
+    );
+    const size = get("labelfontsize");
+    const font = get("labelfontname");
+    for (const end of ends) {
+        readColor(nonEmpty(get("labelfontcolor")), scheme, "text", `${end}LabelColor`, null, put, at);
+        if (size !== null) {
+            put(`${end}LabelSize`, canonNumber(size, at(`${end}LabelSize`)));
+        }
+        // ponytail: the family only; a bold or italic end-label face is drawn in the label's weight and slant
+        if (font !== null && font.length <= MAX_STYLE_VALUE_LENGTH) {
+            put(`${end}LabelFont`, graphvizFont(font).family);
+        }
+    }
 }
 
 /**
@@ -1712,6 +1743,7 @@ function labelPlaceContext(snapshot: GraphSnapshot): LabelPlaceContext {
             return v === null ? null : [v[0], v[1]];
         },
         node: (i, name) => nonEmpty(cellText(snapshot.nodes, name, i)),
+        external: (cellText(snapshot.graph, "layout", 0)?.trim().toLowerCase() ?? "dot") !== "dot",
     };
 }
 

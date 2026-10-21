@@ -200,6 +200,8 @@ const DECLARED = [
     "edge.bendCurve",
     "edge.arcRadius",
     "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -322,9 +324,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-seven node channels and one hundred and twenty-four edge channels", () => {
+    it("splits into one hundred and forty-seven node channels and one hundred and twenty-six edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 147);
-        assert.strictEqual(channelsFor("edge").length, 124);
+        assert.strictEqual(channelsFor("edge").length, 126);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

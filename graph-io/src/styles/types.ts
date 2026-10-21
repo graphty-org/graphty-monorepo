@@ -706,6 +706,10 @@ export interface EdgeStyleValues {
      * (a length; Gephi's `edge.radius`).
      */
     readonly nodeGap: number;
+    /** How far from its source node's outline the edge's line stops, over `nodeGap` at that end (a length). */
+    readonly sourceNodeGap: number;
+    /** How far from its target node's outline the line (and its arrowhead) stops; see `sourceNodeGap`. */
+    readonly targetNodeGap: number;
     /**
      * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
      * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the
@@ -813,6 +817,18 @@ export interface EdgeStyleValues {
     readonly sourceLabelRotation: number;
     /** How far the target end's label is turned, in degrees clockwise about its middle; unset, level. */
     readonly targetLabelRotation: number;
+    /** The source end's label's font size, in the units of `labelSize`; unset, the label's (`labelSize`). */
+    readonly sourceLabelSize: number;
+    /** The target end's label's font size; see `sourceLabelSize`. */
+    readonly targetLabelSize: number;
+    /** The color of the source end's label's words; unset, the label's (`labelColor`). */
+    readonly sourceLabelColor: StyleColor;
+    /** The color of the target end's label's words; see `sourceLabelColor`. */
+    readonly targetLabelColor: StyleColor;
+    /** The source end's label's font family, as the file names it; unset, the label's (`labelFont`). */
+    readonly sourceLabelFont: string;
+    /** The target end's label's font family; see `sourceLabelFont`. */
+    readonly targetLabelFont: string;
     /** The label is not drawn while its letters are drawn smaller than this many screen pixels; see the node's. */
     readonly labelMinScreenSize: number;
     /** Whether the label is drawn over every node and edge; see the node's. */

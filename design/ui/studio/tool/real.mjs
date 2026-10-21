@@ -2281,6 +2281,14 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             await page.waitForTimeout(+v);
         } else if (a === "--read") {
             await srRead(s, out);
+        } else if (a === "--key" && v === "Escape" && (s.chooser || s.picker)) {
+            // Escape goes to an open file chooser, as in a real browser, and closes it with no file;
+            // before 2026-10-21 a chooser nobody answered stayed "open" for the rest of the session
+            s.picker?.answer(null);
+            await s.chooser?.setFiles([]).catch(() => {});
+            [s.picker, s.chooser] = [null, null];
+            out.push("closed the file chooser without choosing a file");
+            await appIdle(page);
         } else if (a === "--key") {
             await page.keyboard.press(v);
             await appIdle(page);

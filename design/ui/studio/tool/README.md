@@ -164,7 +164,7 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
   different kinds. In round 2 `weight#2` took the Data panel's row instead of the open list's
   option the participant meant, and threw away a half-made filter step.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
-- `a file chooser is open` when a click opened one.
+- `a file chooser is open` when a click opened one; `--upload <file>` answers it and `--key Escape` closes it with no file.
 - `a file was saved: florentine_current-view.png, 1806 x 1720 (path)` for every download.
 - `the save picker chose <name>` and `a project file was written: <name>, N bytes (path)` for a save.
 - `the drawing is still moving` when the layout had not settled 15 seconds after the step, or when

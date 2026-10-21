@@ -1,80 +1,78 @@
 # Nodes as 3D models: the prototype
 
-graphty-element can now draw a node as a loaded 3D model (a server rack, a person, a tree, your
-own `.glb`) instead of a sphere or a box. A style layer names the model; the element fetches or
-receives the file, checks it, sizes and centers it to the node, lights it and draws every matching
-node from one shared copy. The full design is `design/rendering/node-models.md`; the reader's guide
-is `graphty-element/docs/guide/node-models.md`. Everything is on branch `feat/node-models`, not
-landed.
+graphty-element can draw a node as a loaded 3D model (a server rack, a car, your own `.glb`)
+instead of a sphere or a box, and can draw a picture on a node (`node.texture`). The element
+loads, checks, sizes, centers and lights the model and finds its missing parts; the graphty app
+only presents it. The full design is `design/rendering/node-models.md`; the reader's guide is
+`graphty-element/docs/guide/node-models.md`. Everything is on branch `feat/node-models-tier3`,
+built on the tier 3 Style panel, not landed.
 
-## Try it
+## Try it in the app
 
-Storybook (this branch): http://dev.ato.ms:9818/?path=/story/styles-node-models--servers-as-racks
+Start the app from `.worktrees/node-models-tier3/graphty` through servherd (server name
+`node-models-tier3-app`, HTTPS). Open the Florentine families sample, click the Everything layer,
+and use the Style tab on the right.
 
-| Story                    | What to look at                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Servers As Racks         | The guide's first example: one layer turns the three server nodes into racks; the two people stay spheres                            |
-| Model By Kind            | One encoding of the `kind` column: server, person, tree and crate each get their own sample model; the unlisted robot keeps a sphere |
-| Tint On And Off          | `node.modelTint` on (left, orange with shading kept) and off (right, the model's own gray, reported as `W_MODEL_COLOR_IGNORED`)      |
-| Stl Turned Upright       | An STL made with Y up: drawn as guessed it lies on its side (`W_MODEL_UP_GUESSED`); with `node.modelSourceUp: "y"` it stands         |
-| Failed Model Placeholder | A truncated GLB is refused (`E_MODEL_STRUCTURE`) and its nodes keep their box; the racks beside it draw normally                     |
+### A model
 
-To try your own file in the graphty app on this branch: Style tab, the shape line, "Model...", then
-a sample, "Choose file..." or a drop; or drop a model file on the canvas or the start screen.
+1. In the Shape section, click the Shape field (it shows "Icosphere"). A grid of shape pictures
+   opens; the last tile is **Model...**.
+2. Model... opens the **Models** pop-over:
+    - **Samples**: Box, Server, Person, Tree. One click draws every node in the layer as that model.
+    - **Paste URL** and the arrow: a `.glb`, `.gltf`, `.obj`, `.stl` or `.zip` on the web.
+    - **Choose files**: one or more files, or a `.zip`.
+    - **Folder**: a whole folder (for a model that keeps its pictures in a `Textures/` folder).
+    - Dropping files on the pop-over does the same as Choose files.
+3. The Shape field then shows the model's name, and a gear beside it opens **Model settings**
+   (Up, Turn, Color, Fit, Center). Choosing a built-in shape in the grid takes the model off.
+4. If the model needs a part it did not get, a **1 missing** chip appears under the Shape field and
+   the **Parts** pop-over opens on its own: one row per missing part, named as the model names it
+   (`Textures/colormap.png`), with **Paste URL**, **Choose** and **Load without it** (a picture
+   only). A picture dropped on that pop-over, chosen in the Models pop-over, or dropped on the
+   canvas goes to the model waiting for it. A part URL on another site asks first ("Open a web
+   address?"), the same per-host approval as the project's other web loads.
 
-## What works (checked in the Storybook and by the tests)
+### A picture
 
-- **Formats:** `.glb`; `.gltf` with its `.bin` and pictures; `.obj` with its `.mtl`; `.stl`; any of
-  these in a `.zip`. Loaded by URL (the stories) and as dropped `File`s through
-  `session.assets.add` (an OBJ with its MTL and a glTF with its BIN, both drawn).
-- **Models and pictures by URL:** a `.gltf` or `.obj` URL brings its `.bin`, `.mtl` and pictures
-  from beside it (same site, same folder or below). A URL a project file, an AI command or the data
-  names waits for the reader in `session.network` (the app asks "This project wants to open <url>.
-  Continue?"), the same gate a reopened project's network-source loads wait in. `node.texture`
-  draws a picture on a model or a shape. A save offers Embed or Use URL for each model and picture
-  from the web.
-- **Refusals with codes:** a glTF missing its `.bin` is `E_MODEL_MISSING_FILE`, an `.fbx` is
-  `E_MODEL_FORMAT_UNSUPPORTED`, a text file is `E_MODEL_FORMAT_UNKNOWN`, a cut-short GLB is
-  `E_MODEL_STRUCTURE`. The node keeps its ordinary shape; nothing goes missing from the picture.
-- **Fit:** each model is scaled so its largest side matches the node size, centered on the node,
-  stood upright from the file's up axis, and turned so its front faces the starting camera.
-- **Lighting, picking, labels:** shaded under the scene's light; a click picks the node (by its
-  box); labels sit above the model; edges stop at its edge.
-- **Sharing:** three racks are three instances of one template (one load, one set of meshes).
-- **Tests:** lint, build, the `graphty-element-default` shard, the model browser tests (23) and the
-  five stories as tests pass, and the public API report matches.
+In the Fill section, click "+" and choose **Picture**. The Picture row opens the **Picture**
+pop-over: the project's pictures, **Paste URL**, **Choose picture** and a drop zone. The picture is
+drawn on the built-in shape or on the model. A picture chosen where a model was expected shows
+"Picture" with **Use as picture**, which puts it in Fill, never in Shape. A picture dropped on the
+canvas with no model waiting is drawn on the selected nodes (or every node) as a new layer.
 
-## Fixed during this check
+## Checked on 2026-10-20 (real input in Chromium, swiftshader)
 
-- Light gray models washed out to flat white: the bundled environment added too much light on top
-  of the scene's own. Now about a quarter as bright; the racks show their bays and faces shade.
-- Every model showed its back to the starting camera. A turn of 0 now shows its front.
-- The guide called the element `graph`, which failed the guide-name test; it is `element` now.
+Kenney's Car Kit `police.glb`, which names `Textures/colormap.png` outside the file:
+
+| Route                                                         | Result                                |
+| ------------------------------------------------------------- | ------------------------------------- |
+| Folder (police.glb plus Textures/colormap.png)                | Drawn with its colors                 |
+| `.zip` of the same folder, by Choose files                    | Drawn with its colors                 |
+| police.glb alone, then colormap.png by the part row's Choose  | 1 missing, Parts pop-over, then drawn |
+| police.glb alone, then colormap.png chosen in Models pop-over | Drawn (the picture goes to the model) |
+| police.glb alone, then colormap.png by part URL on a 2nd host | Approval asked, then drawn            |
+| URL of police.glb next to its Textures folder                 | Drawn with its colors                 |
+| police.glb dropped on the canvas, then colormap.png dropped   | New "police" layer, then drawn        |
+
+Other models: Khronos `Duck.gltf` by URL (from raw.githubusercontent.com, with its `.bin` and
+picture) and Kenney's `police.obj` with its `.mtl` and texture by Folder are both drawn. A PNG on
+the Box shape through Fill's Picture is drawn.
 
 ## Not yet
 
-- **Animations** do not play: a model with clips draws its rest pose and reports
-  `W_MODEL_HAS_ANIMATIONS`. Skeletons and morph targets are baked into that pose.
-- **Compressed models** (Draco, meshopt, KTX2 pictures) are refused with
-  `E_MODEL_DECODER_UNAVAILABLE`; PLY is recognized but not drawn; FBX, USDZ, DAE, BLEND and 3MF are
-  refused with a hint to export `.glb`.
-- **No story drops a file:** dropping is checked by hand and by the graphty app's tests, not by a
-  graphty-element story.
-- **WebKit** request-guard tests could not run on this machine (missing system libraries); CI's
-  lifecycle shard runs them.
-- The sample stories warn `W_MODEL_COLOR_IGNORED` because the stories color every node; that is
-  correct, but noisy.
-- No level of detail, no 2D impostors, no `registerModelLoader` extension point yet.
+- **Canvas drop shows its state only in a toast.** A model dropped on the canvas makes a new layer
+  while the panel stays on the layer you had open, so the "1 missing" chip is not in view; the
+  legend card names the model by its asset id ("police Asset:6a92...").
+- **The Shape field shows a generic cube icon** for a loaded model, not its thumbnail.
+- **A picture on a box** also stretches across the box's narrow sides (thin dark slivers).
+- **Animations** do not play (`W_MODEL_HAS_ANIMATIONS`); compressed models (Draco, meshopt, KTX2)
+  are refused with `E_MODEL_DECODER_UNAVAILABLE`; FBX, USDZ, DAE, BLEND and 3MF are refused with a
+  hint to export `.glb`.
+- No level of detail, no 2D impostors, no `registerModelLoader` extension point.
 
 ## Decided: a project file embeds its models
 
-The owner chose (2026-10-20) to embed each model's files in the project file, in a new
-`graphty-assets` member (`design/documents/assets.md`): as given, base64, one copy per digest, at
-most 64 MB per document, checked against the digest and then by the same checks as a dropped file
-when the file opens. Saving, autosave and reopening with the network blocked all draw the models
-again.
-
-## Next steps
-
-1. Owner review of the five new stories' screenshots when the branch lands.
-2. Draco and meshopt decoders as lazily loaded chunks; then animation on a capped number of nodes.
+The owner chose (2026-10-20) to embed each model's files in the project file, in a
+`graphty-assets` member (`design/documents/assets.md`): one copy per digest, at most 64 MB per
+document, checked again when the file opens. Saving, autosave and reopening with the network
+blocked all draw the models again.

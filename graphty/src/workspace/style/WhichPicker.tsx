@@ -883,6 +883,11 @@ function Cards({
                 if (!(event.relatedTarget instanceof HTMLElement)) {
                     return;
                 }
+                // Nor is a move to the style tree, where the layer itself is: a new layer opens its
+                // cards, and then the tree takes focus to its row and its name box.
+                if (event.relatedTarget.closest('[role="tree"][aria-label="Style layers"]') !== null) {
+                    return;
+                }
                 cancelAnimationFrame(leaving.current);
                 leaving.current = requestAnimationFrame(onLeave);
             }}

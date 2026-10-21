@@ -127,6 +127,9 @@ describe("folders, several rows and the draft on the real element", () => {
 
     it("two rows of different sizes show each one; the minus takes it off both in one Undo; a locked row is counted and left out", async () => {
         const { session, key, degree, ring } = await openProject();
+        // The line shows what each layer paints now, and Degree over every node would paint over
+        // all of Key people's size: on the other two nodes, each row's size is drawn somewhere.
+        await session.styles.update(degree, { selector: { match: "ids", nodes: [3, 4] } });
         await session.styles.lockRow(ring, true);
         await session.styles.settled();
 
@@ -217,7 +220,7 @@ describe("folders, several rows and the draft on the real element", () => {
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const size = await screen.findByRole("combobox", { name: /^Node size/ }, { timeout: TIMEOUT_MS });
+        const size = await screen.findByRole("spinbutton", { name: /^Node size/ }, { timeout: TIMEOUT_MS });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {

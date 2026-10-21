@@ -104,10 +104,11 @@ describe("Filters focus and keys on the real element", () => {
             assert.strictEqual(document.activeElement, saved);
         });
 
-        // Escape closes the editor and returns focus to the step's row; the selection stays.
+        // Escape closes the editor and returns focus to the step's row; the selection stays. (Escape
+        // in a number box holding text keeps the text and the editor, so it is pressed on Keep.)
         await userEvent.click(saved);
         await screen.findByRole("textbox", { name: FROM });
-        screen.getByRole("textbox", { name: FROM }).focus();
+        screen.getByRole("combobox", { name: "Keep" }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.strictEqual(document.activeElement, saved);
@@ -149,13 +150,16 @@ describe("Filters focus and keys on the real element", () => {
         });
         assert.equal(store.get().announcement, 'Saved "value is at least 9". The step is on.');
 
-        // Escape after another change leaves the step as it was, and the status line says so: the
-        // first puts the box back, as in every card, the second closes the editor.
+        // Escape after another change leaves the step as it was, and the status line says so. In
+        // the box, Escape keeps what was typed and the editor open, as in every card; from the
+        // editor's Keep menu it closes the editor, saving nothing.
         const again = screen.getByRole("textbox", { name: FROM });
         await userEvent.clear(again);
         await userEvent.type(again, "10");
         await userEvent.keyboard("{Escape}");
-        assert.equal((again as HTMLInputElement).value, "9");
+        assert.equal((again as HTMLInputElement).value, "10");
+        assert.isNotNull(store.get().inspected);
+        screen.getByRole("combobox", { name: "Keep" }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.equal(store.get().announcement, 'Not saved: "value is at least 9" is as it was.');

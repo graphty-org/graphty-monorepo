@@ -206,7 +206,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, folder, / }));
             assert.lengthOf(session.runs.bindings(louvain), 0);
         });
-        await screen.findByText("Deleted Louvain. Its results are kept.");
+        // The toast; the workspace's status line speaks the same words.
+        await screen.findByText("Deleted Louvain. Its results are kept.", { selector: ".cm-toast-message" });
         const computedAt = session.runs.get(louvain)?.startedAt;
 
         await userEvent.click(analyzeTool());

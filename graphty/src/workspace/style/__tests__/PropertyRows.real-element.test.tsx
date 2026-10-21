@@ -141,7 +141,7 @@ describe("the Style tab's property rows", () => {
         });
         const sizeBox = (): string => box(field(tab, "node.size").querySelector(".ws-field-control") ?? tab);
         const rest = sizeBox();
-        const size = within(field(tab, "node.size")).getByRole("combobox");
+        const size = within(field(tab, "node.size")).getByRole("spinbutton", { name: "Node size" });
         await userEvent.click(size);
         assert.equal(sizeBox(), rest, "focus does not move the field");
         await userEvent.keyboard("3{Enter}");
@@ -159,7 +159,8 @@ describe("the Style tab's property rows", () => {
         let tab = await openStyle("Key people");
         await add(tab, "Add to node effects", "Glow");
         await add(tab, "Add to node shape", "Shape");
-        await add(tab, "Add to node shape", "Size");
+        // Size is the one property Shape has left, so its "+" adds it with no menu.
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await waitFor(() => {
             field(tab, "node.glow");
             field(tab, "node.shape");
@@ -178,7 +179,7 @@ describe("the Style tab's property rows", () => {
             atRest(tab, name);
         }
 
-        await userEvent.click(within(field(tab, "node.size")).getByRole("combobox"));
+        await userEvent.click(within(field(tab, "node.size")).getByRole("spinbutton", { name: "Node size" }));
         await userEvent.keyboard("=");
         await screen.findByRole("dialog", { name: "Node size by attribute" });
         await userEvent.keyboard("{Escape}");
@@ -279,7 +280,7 @@ describe("the Style tab's property rows", () => {
 
     it("keeps a locked layer's controls in the Tab order, each aria-disabled and described by the reason", async () => {
         const { session } = await openScene();
-        const tab = await openStyle("Key people");
+        await openStyle("Key people");
         const tree = screen.getByRole("tree", { name: "Style layers" });
         const keyRow = within(tree).getByRole("treeitem", { name: /^Key people, / });
         await userEvent.hover(keyRow);
@@ -287,7 +288,10 @@ describe("the Style tab's property rows", () => {
         await screen.findByText("This layer is locked");
         const before = JSON.stringify(session.styles.list());
 
-        await userEvent.click(within(tab).getByTestId("which-picker"));
+        // A click on a locked control is stopped before it can focus anything, so the walk starts
+        // from the inspector's Style tab, just before the panel.
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
         let reached: HTMLElement | null = null;
         for (let i = 0; i < 4 && reached === null; i++) {
             await userEvent.keyboard("{Tab}");

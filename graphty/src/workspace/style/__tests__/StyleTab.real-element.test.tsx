@@ -43,7 +43,7 @@ interface Opened {
 /**
  * Renders the workspace with a project open on the Everything row, as a click on it in the
  * Graph place opens it, waits for the element and loads the graph.
- * @param stacked - put every node on one spot with the fixed layout, so their labels overlap.
+ * @param stacked - put the nodes on one spot (but the last) with the fixed layout, so their labels overlap.
  * @returns the session, the element and the store.
  */
 async function openWithGraph(stacked = false): Promise<Opened> {
@@ -64,7 +64,15 @@ async function openWithGraph(stacked = false): Promise<Opened> {
     if (stacked) {
         await session.layout.set("fixed");
     }
-    await session.data.addNodes(stacked ? NODES.map((n) => ({ ...n, position: { x: 0, y: 0, z: 0 } })) : NODES);
+    // Stacked, all but the last share one spot; the last stands apart, so the graph has a size to
+    // frame. Four nodes on one point framed the camera at its nearest, the node filling the canvas
+    // and every label above it off the canvas, where the overlap rule rightly counts none.
+    const spot = (i: number): { x: number; y: number; z: number } => ({
+        x: i === NODES.length - 1 ? 8 : 0,
+        y: 0,
+        z: 0,
+    });
+    await session.data.addNodes(stacked ? NODES.map((n, i) => ({ ...n, position: spot(i) })) : NODES);
     await session.data.addEdges(EDGES);
     return { session, element, store };
 }
@@ -92,7 +100,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
     });
 
     it("a Label entry picked from Text's + binds the label and states the counts", async () => {
-        // Every node on one spot, so the overlap rule (on in the workspace) hides all labels but one.
+        // Three nodes on one spot, so the overlap rule (on in the workspace) hides two of their labels.
         // Labels stay in their own places: moved off the nodes, the stack's labels would all fit.
         const { session, element, store } = await openWithGraph(true);
         act(() => {

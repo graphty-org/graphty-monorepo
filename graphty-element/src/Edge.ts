@@ -1219,11 +1219,18 @@ export class Edge {
         this.drawnBends = wanted;
         this.lineBends = this.srcNode === this.dstNode ? null : parseBends(wanted);
         this.lineIsCurve = style.line?.bezier === true || this.lineBends !== null;
-        // A straight line is one slot: hand back the rest of a run.
+        // A straight line is one slot: hand back the rest of a run, the band's as well as the line's
+        // (a selected edge's band followed the bends in a run of its own).
         while (!this.lineIsCurve && this.lineSlots.length > 1) {
             const slot = this.lineSlots.pop();
             if (slot !== undefined) {
                 batch.release(slot);
+            }
+        }
+        while (!this.lineIsCurve && this.haloSlots.length > 1) {
+            const slot = this.haloSlots.pop();
+            if (slot !== undefined) {
+                this.haloBatch?.release(slot);
             }
         }
 

@@ -67,7 +67,7 @@ describe("a tooltip from an attribute on the real element", () => {
         // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
         const list = await findValuePicker({ timeout: TIMEOUT_MS });
         assert.isNotNull(within(list).queryByRole("option", { name: "Fixed text" }), "fixed text is still a choice");
-        assert.isNotNull(within(list).queryByRole("option", { name: /^id(,|$)/ }), "the node id can be picked");
+        assert.isNotNull(within(list).queryByRole("option", { name: /^Node id(,|$)/ }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
         // The entry says which attribute the tooltip reads.
         // The first write adds the Everything layer and redraws the tab, so look in the page.

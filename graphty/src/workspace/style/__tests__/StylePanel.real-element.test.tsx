@@ -435,7 +435,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await varyGlyph("Node size"));
         const sizes = await findValuePicker();
-        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ attributes?, (hidden|shown)$/ }));
+        await userEvent.click(within(sizes).getByRole("option", { name: /^\d+ attributes?, (hidden|shown),/ }));
         const dept = await within(sizes).findByRole("option", { name: /^dept(,|$)/ });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         // The fixture's few rows make every dept its own: the element reads it as text.
@@ -556,7 +556,8 @@ describe("the Style tab's rows on the real element", () => {
         // Named by aria-label, its fact after a comma ("dept, 4 values").
         const firstOption = within(list).getAllByRole("option")[0];
         const first = (firstOption.getAttribute("aria-label") ?? firstOption.textContent).split(", ")[0];
-        await userEvent.keyboard("{Enter}");
+        // The list opens with nothing active, as a select's does: Down reaches the first value.
+        await userEvent.keyboard("{ArrowDown}{Enter}");
         await waitFor(() => {
             const bound = readerLayers(session)[0]?.encode?.["node.color"] as { by?: string } | undefined;
             assert.equal(bound?.by, `data.${first}`);
@@ -645,7 +646,7 @@ describe("the Style tab's rows on the real element", () => {
         await pickStyleTab();
         await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^id(,|$)/ }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Node id(,|$)/ }));
         await waitFor(() => {
             assert.deepEqual(
                 idLayers(session).map((l) => l.name),

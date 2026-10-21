@@ -115,6 +115,19 @@ const rowButtons = (section: HTMLElement): HTMLElement[] =>
 const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
+ * The run's status bar: the inspector's one status line drawn on screen. The others are spoken
+ * only (a table's count, a discarded edit's note).
+ * @returns the bar.
+ */
+function runBar(): HTMLElement {
+    const bars = inspector()
+        .getAllByRole("status")
+        .filter((status: HTMLElement) => !status.classList.contains("mantine-VisuallyHidden-root"));
+    assert.lengthOf(bars, 1, "one run status bar");
+    return bars[0];
+}
+
+/**
  * Every reachable control's accessible name in the inspector, so a test can check that no two
  * share one.
  * @returns the names.
@@ -337,7 +350,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         // Revert drops the change: the bar goes and the field shows the run's value again.
         await userEvent.click(await inspector().findByRole("button", { name: "Revert" }));
         await waitFor(() => {
-            assert.equal(inspector().getByRole("status").textContent, "");
+            assert.equal(runBar().textContent, "");
         });
         assert.equal(
             within(inspector().getByRole("group", { name: "Made with" }))
@@ -351,8 +364,9 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         await userEvent.clear(again);
         await userEvent.type(again, "0.5{Enter}");
-        const bar = await inspector().findByRole("status");
-        assert.include(bar.textContent, "Settings changed since the run");
+        await waitFor(() => {
+            assert.include(runBar().textContent, "Settings changed since the run");
+        });
         await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
 
         await waitFor(
@@ -364,7 +378,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.equal(inspector().getByRole("status").textContent, "");
+        assert.equal(runBar().textContent, "");
         // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
         assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
     });
@@ -392,9 +406,11 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         // The line's name opens the layer that paints n3, then Louvain's row shows its groups.
         await userEvent.click(within(louvain).getByRole("button"));
         const painter = session.styles.explain({ node: "n3" }).channels.find((c) => c.channel === "node.color");
+        // On its Style tab: the line is about the layer's look.
         assert.deepEqual(store.get().inspected, {
             kind: "layer-row",
             id: session.styles.get(painter?.layerId ?? "")?.row ?? painter?.layerId,
+            tab: "style",
         });
         act(() => {
             store.set({ inspected: { kind: "run-row", id } });

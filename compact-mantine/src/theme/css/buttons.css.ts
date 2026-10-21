@@ -251,6 +251,10 @@ ${JOINED}${FOCUS} {
 }
 
 /* ---------- ToggleIconButton (4.4): an ActionIcon with aria-pressed; the "on" rules above ---------- */
+/* The glyph swaps on the press (pointerdown), so the node under the pointer is gone by the
+   mousedown and the browser finds nothing to focus: focus fell to the page. The pointer hits the
+   button, which stays, rather than the glyph. */
+.cm-toggle-icon svg { pointer-events: none; }
 .cm-toggle-icon[data-swap][aria-pressed="true"]:not(:disabled, [data-disabled]) {
     background-color: var(--ai-bg);
     color: var(--ai-color);

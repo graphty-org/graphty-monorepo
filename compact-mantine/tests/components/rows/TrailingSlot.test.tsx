@@ -394,7 +394,9 @@ describe("ResetButton", () => {
         const button = screen.getByRole("button", { name: "Reset Size to default" });
         await userEvent.setup().click(button);
         expect(onClick).toHaveBeenCalledTimes(1);
-        expect(button).toHaveAttribute("title", "Reset Size to default");
+        // Said on hover in the shared tooltip, not a native title: the tooltip opening is checked in
+        // a real browser, in ResetTooltip.browser.test.tsx.
+        expect(button).not.toHaveAttribute("title");
     });
 
     it("takes its words from LabelsProvider", () => {

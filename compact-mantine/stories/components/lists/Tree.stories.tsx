@@ -82,8 +82,10 @@ import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
  * - Enter or Space selects; Shift extends a range and Control / Command toggles (turn this off
  *   with `multiselect={false}`). `*` opens every sibling; Alt+L closes everything.
  * - F2 or a double-click renames, while `onRename` is given. Enter commits, Escape cancels.
- * - Alt+ArrowUp / Alt+ArrowDown move the focused item one place among its siblings, while
- *   `onMove` is given. Focus stays on the item. Drag and drop is the pointer equivalent.
+ * - Alt+ArrowUp / Alt+ArrowDown move the focused item one place among its siblings, or into a
+ *   folder it moves onto (first child going down, last going up); Alt+ArrowLeft moves it out to
+ *   just after its folder. While `onMove` is given. Focus stays on the item. Drag and drop is the
+ *   pointer equivalent.
  * - A row's toggles (its `actions`) are out of the Tab order, so the tree stays one Tab stop.
  *   ArrowRight on a row without children, or Alt+ArrowRight on any row, moves focus to the
  *   row's first toggle. There ArrowLeft / ArrowRight walk the toggles, Enter or Space presses
@@ -403,7 +405,15 @@ export const States: Story = {
             </Stack>
         </Group>
     ),
-    play: ({ canvasElement }) => expectStatesApply(canvasElement),
+    // Two states the row draws like its neighbor on purpose: a selected row keeps the selected pill
+    // under the pointer (Figma's ii/layer-row-selected-hover is the plain selected #e5f4ff), and an
+    // open row is told by its caret's glyph (down, not right), which the computed look does not
+    // read, since every caret is drawn at rest (e6e1d16166).
+    play: ({ canvasElement }) =>
+        expectStatesApply(canvasElement, {
+            unchanged: ['.cm-tree-row[aria-selected="true"][data-state="hover"][data-tint="selected"]'],
+            ignore: ["expanded"],
+        }),
 };
 
 /**
@@ -607,12 +617,15 @@ export const Keyboard: Story = {
         const button = canvas.getByRole("treeitem", { name: "Button" });
         await expect(button).toHaveFocus();
         await expect(button).toHaveAttribute("aria-posinset", "1");
-        // Alt+ArrowDown moves Button below Card, inside the same frame, and focus follows it.
+        await expect(button).toHaveAttribute("aria-level", "2");
+        // Alt+ArrowDown onto a folder moves the row into it, as its first child (159bba0f53): Button
+        // goes into Card, one level deeper, and focus follows it.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         await waitFor(
-            () => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "2"),
+            () => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-level", "3"),
             storyWaitOptions(1000),
         );
+        await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "1");
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveFocus();
         await userEvent.keyboard("{F2}");
         await expect(canvas.getByRole("textbox", { name: "Layer name" })).toHaveFocus();

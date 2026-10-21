@@ -66,7 +66,8 @@ async function openStyle(name: string): Promise<void> {
 }
 
 /**
- * Adds a property with a section's "+" and its menu.
+ * Adds a property with a section's "+" and its menu; a "+" with one property left adds it with no
+ * menu.
  * @param kind - nodes or edges.
  * @param title - the section's title.
  * @param item - the property's name in the menu.
@@ -74,13 +75,19 @@ async function openStyle(name: string): Promise<void> {
  * @returns the new line, once it holds focus.
  */
 async function addLine(kind: "node" | "edge", title: string, item: string, channel: Channel): Promise<HTMLElement> {
+    const selector = `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`;
     await userEvent.click(await screen.findByRole("button", { name: `Add to ${kind} ${title}` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    const menu = await waitFor(() => {
+        const found = screen.queryByRole("menuitem", { name: item });
+        assert.isTrue(found !== null || document.querySelector(selector) !== null, "a menu or the line");
+        return found;
+    });
+    if (menu !== null) {
+        await userEvent.click(menu);
+    }
     return waitFor(
         () => {
-            const line = document.querySelector<HTMLElement>(
-                `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`,
-            );
+            const line = document.querySelector<HTMLElement>(selector);
             assert.isNotNull(line, `${channel} added`);
             assert.isTrue(line?.contains(document.activeElement), `focus is in the new ${channel} line`);
             return line;

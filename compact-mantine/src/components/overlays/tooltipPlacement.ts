@@ -52,6 +52,11 @@ function obstacleBox(element: Element): DOMRect {
         return element.getBoundingClientRect();
     }
     const words = document.createRange();
+    // A DOM without layout (jsdom, which consumers test in) has no box for a range: the heading's
+    // own box stands in, rather than the tooltip throwing in the middle of a render.
+    if (typeof words.getBoundingClientRect !== "function") {
+        return element.getBoundingClientRect();
+    }
     words.selectNodeContents(element);
     return words.getBoundingClientRect();
 }

@@ -107,10 +107,10 @@ describe("3D Camera Controls", () => {
 
         assert.isTrue(cameraController.cameraDistance < initialDistance, "W key should zoom in (decrease distance)");
 
-        // Release W, press S, reset and test S key (zoom out)
+        // Release W, reset, and test S key (zoom out): the press itself zooms a notch
         await releaseKey("w");
-        await holdKey("s");
         cameraController.cameraDistance = initialDistance;
+        await holdKey("s");
         inputController.update();
 
         assert.isTrue(cameraController.cameraDistance > initialDistance, "S key should zoom out (increase distance)");
@@ -122,8 +122,8 @@ describe("3D Camera Controls", () => {
         // Test A key registration and spin method call
         await holdKey("a");
 
-        const { keysDown } = inputController as any;
-        assert.isTrue(keysDown.a === true, "A key should be registered as down");
+        // `busy` is the controller's public word for a key held down that moves the camera
+        assert.isTrue(inputController.busy, "A key should be registered as down");
 
         // Spy on the spin method to verify it's called
         const spinSpy = vi.spyOn(cameraController, "spin");
@@ -141,7 +141,7 @@ describe("3D Camera Controls", () => {
         await releaseKey("a");
         await holdKey("d");
 
-        assert.isTrue(keysDown.d === true, "D key should be registered as down");
+        assert.isTrue(inputController.busy, "D key should be registered as down");
 
         spinSpy.mockClear();
         inputController.update();

@@ -458,11 +458,15 @@ function assertScopeSelector(selector: Extract<Selector, { match: "member" | "ru
  */
 function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): void {
     if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
-        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
+        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', {
+            reach: selector.reach,
+        });
     }
 
     if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
-        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', { invert: selector.invert });
+        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', {
+            invert: selector.invert,
+        });
     }
 
     if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {

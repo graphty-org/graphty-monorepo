@@ -166,7 +166,9 @@ export function colorsProblem(stops: unknown): string | null {
 
     const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
 
-    return bad === undefined ? null : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
+    return bad === undefined
+        ? null
+        : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
 /** A colour binding with everything knowable worked out, ready to be asked once per element. */

@@ -1602,7 +1602,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 if (combine !== null && column.kind === "number" && typeof painted === "number") {
                     column.values[index] = combined(combine, column.values[index], painted);
                 } else {
-                    writeColumn(column, index, channel.toColumn === null ? painted : channel.toColumn(painted), channel.plainText);
+                    writeColumn(
+                        column,
+                        index,
+                        channel.toColumn === null ? painted : channel.toColumn(painted),
+                        channel.plainText,
+                    );
                 }
             }
         };

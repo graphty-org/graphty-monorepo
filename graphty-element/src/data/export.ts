@@ -713,7 +713,10 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
-    const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
+    const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {
+        kind: "format",
+        id: format,
+    });
     if (format !== "csv") {
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,

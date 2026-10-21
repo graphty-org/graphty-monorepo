@@ -236,7 +236,8 @@ export function columnWords(session: GraphSession, column: string): string | nul
  */
 export function lossLines(losses: readonly LossFacts[], nameColumn: (column: string) => string | null): string[] {
     const lines = losses.map((loss) => {
-        const styleWords = STYLE_WORDS[loss.code] as ((params: Readonly<Record<string, unknown>>) => string) | undefined;
+        const styleWords = STYLE_WORDS[loss.code] as
+            ((params: Readonly<Record<string, unknown>>) => string) | undefined;
         if (styleWords !== undefined) {
             return styleWords(loss.params ?? { count: loss.count });
         }

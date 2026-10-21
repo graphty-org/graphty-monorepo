@@ -17,76 +17,59 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0z. (2026-10-20) Re-walked the two element fixes (empty layer takes a selector, 4a008f063f; undo
-across Replace redraws, e3baf98a84) on graphty/dist, which already held both (built from the tree
-before e3 was committed; `placeKept` is in the bundle), so no rebuild. No regression, each
-acceptance holds. `design/ui/studio/tmp/r1-dry2-recheck-layer-from-selection-takes-conditions/`:
-t41b 10 (Has no value written, 9), 13 (on_record Yes, 4), 20 (4 red, key "4 of 24"); t41a 10-13
-(phone by ArrowDown+Enter, trained, Done keeps both), 15-18 (undo walks fill, then each condition);
-t41a 26-29 and baseline-plus-frozen 12 ("+" layer path identical on the frozen build);
-t38a-color-replace 19-22 (3 red kept over Replace; undo load keeps them, undo color clears), 26
-(first find pick after Replace draws its ring), 29 (ring after undoing the Replace);
-t44b-replace 13-14 (label gone after undoing it across a Replace), 18 (Everything: 24 labels);
-t45a 13-15 (8 picked ties kept, undo clears their red). Pre-existing, not from these diffs: the
-drawing jumps about 136 px right when the first key arrives after a find-box pick (sources and
-volunteers; same in the earlier walk; mechanism not traced; breaks decided "a key never
-re-frames"); clicking "Which nodes" on a layer with no condition leaves the attribute list closed
-(same on the frozen build; decided 2026-10-19 says it opens with focus in its search). Tool
-lessons: the start page now has "Open a file" (setups with "No thanks" / "Open project or file"
-fail); "Replace <file>" opens a review page and only its "Replace" button replaces -- a walk that
-stops at the first button never replaced anything; a right-click "on empty canvas" after a pick
-can land on an edge because the camera glided, so read the printed target.
-0y. (2026-10-20) Undo across a file opened over itself redraws from the layers. Mechanism: undoing
-a replacing load puts the old graph back as a new builder whose walk from the old rows is all
-INVALID (`GraphStore.takeBack`), so `walkNodeRemap`/`walkEdgeRemap` left every render node and edge
-with no row; `DataManager.reconcile` kept the render objects (same ids in both graphs) and only
-adopted their records. Every later repaint walks nodes by `node.index`, so none was ever drawn
-again: an undone color, label or ring stayed. Fix: `reconcile` puts a kept render object back on
-its store row and queues it on the painter (`placeKept`). Element only, no API change. Test:
-`test/browser/undo-across-replace-redraws.test.ts` (fails without: drawn #00aa00, want #6366f1);
-21 history/undo browser files pass. Walks on a fresh build,
-`design/ui/studio/tmp/r1-dry2-undo-after-replace-redraws/`: color 14 (green after undoing the
-load), 15 (v01 indigo after undoing the fill); label 13 (Lucy Grant label after Replace), 15 (gone
-after two undos), 17 (Everything > Label name: 24 labels, row "24 labels, 0 hidden"), 21 (first
-find pick after a Replace draws its ring). Lesson: when the drawing and the tree disagree after an
-undo, check the render object's row (`node.index`) before the style pass.
-0x. (2026-10-20) A layer made from a selection takes its conditions before it has a look. A
-one-kind row from `styles.addRow` with no look was admitted empty (18f1cae069) but carries no `row`
-id, so its first `update`/`updateMany` that changed only the selector or name was re-checked as a
-lone layer and refused (E_BAD_LAYER "writes no channel"). Fix in `planUpdate` (StylesApi.ts): when
-the layer already writes no channel, the check gets `mayBeEmpty`, so renaming or re-selecting an
-empty layer stays allowed; emptying a layer that had a value still needs `keepEmpty`; `styles.add`
-unchanged. Non-breaking (only throwing calls now succeed); already recorded in owner-decisions.md.
-Test: `test/session/empty-row.test.ts` "of one kind takes a new selector or name..." (fails
-without: E_BAD_LAYER). Node: `tmp/director-r1-2/addrow-absent.mjs` prints ok x3 for sources/email
-and volunteers/phone. Walk, `design/ui/studio/tmp/r1-dry2-layer-from-selection-takes-conditions/t41b/`:
-10 (Made layer, 15), 13 (Has no value: no notice, card 9 = layer 9, name "email: no value"), 15
-(on_record Yes: 4), 16 (Done keeps both chips), 20 (four red nodes, key "4 of 24"). Lesson: when
-an earlier fix admits a state at creation, check every later write path re-admits it too.
-0w. (2026-10-20) Re-walked the table group-name fix (f261bbb157) on a fresh build of it, every
-route that opens the table after a community run: no regression.
-`design/ui/studio/tmp/r1-dry1-recheck-table-group-names/`: t46a 07 (Javert's row "Group 3" =
-Memberships = key's green Group 3), 09 (run tab, sizes 20/17/11/11/10/8), 16 (Enter on the
-Louvain header flips to largest first), 18 (Enter on a cell picks Mlle Baptistine, inspector
-Group 1), 19 (Escape -> Table button); t46b 05 (Nebraska row Group 4 = inspector), 07 (10
-groups, "Group 10" reads fine); t48a 11-13 (volunteers: Louvain left-aligned, hours right;
-Hannah Weiss Group 2 = blue key row), 17 (PageRank still right-aligned numbers beside it).
-Entry 2's Escape-on-header regression no longer reproduces (t46a-header-escape 04-05: focus to
-the Table button, Javert stays selected). Tool quirk: a football setup printed "SETUP FAILED"
-with no reason while the layout still moved, but every step had applied and the session lived.
-Lesson: the `selected=N` expect counts drawn table rows, not the graph selection.
-0v. (2026-10-20) The table names a community run's groups as the key does. The Nodes tab drew a
-partition column's raw group ids (Javert 2) while the key, the layer tree, the Memberships row and
-the run tab said "Group 3". graphty-element already puts each cell's size rank on the page column
-(`PageColumn.ranks`), so `RecordTable.tsx` `resultValue` words a ranked cell with `groupName`
-(columns.ts) and draws any other cell as is; a grouping column is left-aligned like other words.
-The element still sorts by the run's values, so the sort and its caption are unchanged. No element
-change, no API change. Test: `TableDock.real-element.test.tsx` asserts the top row's Louvain cell
-reads its summary group's rank name (fails without: "1" for "Group 2"). Walk on a fresh build,
-`design/ui/studio/tmp/r1-dry1-table-group-names/walk2/`: 05 (Javert's Memberships: Group 3, green
-swatch = key's Group 3), 08 (Javert's row: Group 3; Napoleon Group 6 in row and inspector), 09
-(sorted by Louvain, smallest group first, groups contiguous). Lesson: before adding app code that
-words an element value, look for a neutral fact the element already returns beside it.
+0. (2026-10-21) The study tool now walks the frozen build 758b8e8081 and checks what the criteria
+   ask. `bars.mjs --tier 3`: WALKS3 starts at the start page ("Open a file", Samples link, "Open the
+   <name> sample"), walks the five screens added 2026-10-18 and the "Starts with" typing check, and
+   writes `spoken.json` (each screen's accessible names, focus and live-region text from real.mjs's
+   `measure`, and notices the step printed). `BAR6` in `measure.mjs` is bar 6's list; every screen,
+   focus action or typing check a run did not reach is a MISS line, and `bars.json` records `walked`.
+   A step real.mjs refuses (exit 2) is now a MISS: the first try used `--sr`, which refuses every
+   click, and the walk printed "ok" for 20 screens it never reached. `real.mjs --gate` keys walks by
+   `pilot/<half>/<walk>/`, needs success + detours (+ keyboard with keyboardOnlyMode on a --keys
+   half), accepts a commit whose app code equals the frozen build's (`git diff --quiet`), and refuses
+   a bars run with MISS lines, bar 6 gaps, no light run or no spoken.json. `wording.mjs` joins
+   irregular and -ed/-ing forms, reads spoken.json (fails without it) and reports shared phrases.
+   `score.mjs` bar 4 limit is the fixed 10 (`BAR4_LIMIT`). New `keydraw.mjs` compares `key.json`
+   (written by `--end`: key rows' chip colors, drawn colors per node and edge) with styles.json.
+   Briefings drop paragraphs naming a `study/` or `hypotheses/` path. Build facts learned: Fill "+"
+   on a layer adds Color at once (no menu); Shape "+" opens a menu (Size, Shape) until one is left;
+   a run's groups land in a closed folder named for the run (no "Group 1" text until opened); the
+   text card's name list covers Done (Tab closes it); the start page has nothing focused (Tab first).
+   Bar 8 on 758b8e8081: "a sample just opened" 75 (private-window notice, 18 words, and the degree
+   histogram's "nodes" x17), "Everything, Node tab" 53 > 47, "a layer with a condition" 45 > 39;
+   limits only fall, so these fail bar 8 honestly. The notice shows because Playwright's
+   `newContext()` has a memory-sized storage quota, which the element reads as a private window.
+   Full runs on the frozen build (`design/ui/studio/tmp/r1-tool-r1-tool/final-dark`, `final-light`):
+   no MISS line, every planted case caught, every bar 6 item reached at both sizes; both pass the
+   gate's bars checks; `--record-limits` lowered "a folder of groups" to 56 and "two layers picked
+   together" to 69 and gave the folder's open picker its first count, 99. Those finals ran before
+   the category card got a ticked value (the "four conditions" screen showed a dropped card); the
+   fixed own-file walk passed at both sizes in both themes (`bars-it6`, `-it9`, `-it11`, `-it12`).
+   Real bar 8 findings for the round: light theme "Autosave: saved" badge 2.17:1 on every screen;
+   target-size on number, has-no-value and node Style tab; scrollable-region-focusable on the
+   shape list and find results; start page shares Samples, Docs, GitHub names.
+   0z. (2026-10-20) Re-walked the two element fixes (empty layer takes a selector, 4a008f063f; undo
+   across Replace redraws, e3baf98a84) on graphty/dist, which already held both (built from the tree
+   before e3 was committed; `placeKept` is in the bundle), so no rebuild. No regression, each
+   acceptance holds. `design/ui/studio/tmp/r1-dry2-recheck-layer-from-selection-takes-conditions/`:
+   t41b 10 (Has no value written, 9), 13 (on_record Yes, 4), 20 (4 red, key "4 of 24"); t41a 10-13
+   (phone by ArrowDown+Enter, trained, Done keeps both), 15-18 (undo walks fill, then each condition);
+   t41a 26-29 and baseline-plus-frozen 12 ("+" layer path identical on the frozen build);
+   t38a-color-replace 19-22 (3 red kept over Replace; undo load keeps them, undo color clears), 26
+   (first find pick after Replace draws its ring), 29 (ring after undoing the Replace);
+   t44b-replace 13-14 (label gone after undoing it across a Replace), 18 (Everything: 24 labels);
+   t45a 13-15 (8 picked ties kept, undo clears their red). Pre-existing, not from these diffs: the
+   drawing jumps about 136 px right when the first key arrives after a find-box pick (sources and
+   volunteers; same in the earlier walk; mechanism not traced; breaks decided "a key never
+   re-frames"); clicking "Which nodes" on a layer with no condition leaves the attribute list closed
+   (same on the frozen build; decided 2026-10-19 says it opens with focus in its search). Tool
+   lessons: the start page now has "Open a file" (setups with "No thanks" / "Open project or file"
+   fail); "Replace <file>" opens a review page and only its "Replace" button replaces -- a walk that
+   stops at the first button never replaced anything; a right-click "on empty canvas" after a pick
+   can land on an edge because the camera glided, so read the printed target.
+   0y-0v. (2026-10-20) Undo across a replacing load redraws (`placeKept`), an empty layer takes its
+   conditions (`planUpdate` `mayBeEmpty`), the table names a run's groups as the key does, and their
+   re-walks: in full in `git show 17cc5def74:design/ui/studio/notes/engineer.md`, Top of mind.
 
 1. Older Top-of-mind entries, in full: 2026-10-20 0s-0u (renamed channel in a saved document, replace keeps
    hand-picked edge layers, their re-walk; `git show 4a008f063f:design/ui/studio/notes/engineer.md`); 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
@@ -142,6 +125,19 @@ words an element value, look for a neutral fact the element already returns besi
 
 ## Decisions and reasons
 
+- (2026-10-21) **Bar 6's list lives in `measure.mjs` (`BAR6`), read by both bars.mjs and the gate.**
+  The gate must not trust a bars run's own idea of what it should have walked; one list both sides
+  import cannot drift. Names are the walk's screen names, not the criteria's sentences.
+- (2026-10-21) **The gate tells walks apart by folder name** (keys/keyboard, detour, else success).
+  session.json holds no task or walk kind; the dry runs already name folders that way. Stricter
+  than preflight 4 in one place: a walk on an earlier build "on routes no fix touched" does not
+  count; it must be re-walked on the frozen build or one with the same app code.
+- (2026-10-21) **spoken.json is read in `measure`, not with `--sr`.** `--sr` is the screen-reader
+  participant's mode and refuses pointer steps; the walk clicks.
+- (2026-10-21) **A phrase echo needs one word that is not common, and fails even when each word is
+  kept.** All-common runs ("of the") would fail every prompt; kept words are kept one at a time.
+- (2026-10-21) **Bar 4's limit is a constant, not `2 * --key-steps`.** The criteria fix the number;
+  a flag let a documented default of 6 hold a median of 12.
 - (2026-10-20) **A replacing load remaps hand-picked edge layers in the import command, not in the
   app or in the store.** The command already sweeps file layers in the same step
   (`applyFileStyles`), so the remap undoes with the load; the app holding old ids and rewriting
@@ -197,6 +193,14 @@ words an element value, look for a neutral fact the element already returns besi
 
 ## Tried: worked / did not work
 
+- (2026-10-21) Did not work: starting the bars walk with `--sr` to collect spoken text; every click
+  was refused with exit 2 and the walk's MISS regex did not match the refusal, so it printed "ok".
+  Worked: exit 2 counts as a miss, and `measure` reads focus and live regions itself.
+- (2026-10-21) Worked: `--only <walk> --size 1440x900` runs of one walk while writing it (about 5
+  minutes instead of 30), two in parallel. Did not work: a key row's `textContent` ("Layer 18 of
+  331"); `innerText` keeps the line break.
+- (2026-10-21) Worked: previewing the gate on round 1's plan with a symlinked `pilot` to r1d2's
+  walks (in a throwaway `tier3/rounds/zz-*` folder): it lists each half's missing walks and why.
 - (2026-10-20) Worked: a scratch copy of the failing browser test that logs `node.index`, the
   snapshot index, `painter.nodePaint(index)` and `node.drawnFill` found the stale row in one run
   (index 4294967295 while the paint was right). `node.drawnFill` is the drawn color for tests.

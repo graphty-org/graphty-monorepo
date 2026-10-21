@@ -123,7 +123,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         assert.strictEqual(picked?.selector?.match, "rule", "the condition was kept");
     });
 
-    it("Tab from a card's value reaches the card's remove button", async () => {
+    it("Shift+Tab from a card's value reaches the card's remove button, drawn at the card's top", async () => {
         await openGraph();
         await openRow("Picked");
         await userEvent.click(await whichRow());
@@ -131,8 +131,9 @@ describe("keys that close what they leave and land focus in the right place", ()
         const card = within(region).getByRole("group", { name: /^name/ });
         const remove = within(card).getByRole("button", { name: /^Remove / });
         card.querySelector<HTMLElement>("input:not([type=hidden])")?.focus();
+        // The remove button comes before the card's own controls in the Tab order, as it is drawn.
         for (let press = 0; press < 3 && document.activeElement !== remove; press++) {
-            await userEvent.keyboard("{Tab}");
+            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
         }
         assert.strictEqual(document.activeElement, remove, focused());
     });

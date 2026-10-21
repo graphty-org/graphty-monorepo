@@ -821,7 +821,8 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([STAFF], "staff.csv"));
         const grid = await screen.findByRole("grid", { name: "Rows of staff.csv" }, { timeout: TIMEOUT_MS });
-        await screen.findByText("All 12 rows");
+        // The count drawn above the table, not the status line that says it out loud.
+        await screen.findByText("All 12 rows", { selector: "p" });
         await waitFor(() => {
             // The header and all 12 rows, with no scroll inside the table.
             assert.lengthOf(within(grid).getAllByRole("row"), 13);

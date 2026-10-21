@@ -532,14 +532,15 @@ describe("the combined Style panel", () => {
         const session = await openSample();
         await layerOf(session, "Menu");
         await clickRow("Menu");
-        // A click on a row with no card opens Add a condition's list, its search focused.
+        // A row with no card opens on Add a condition; Enter there opens its list.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const add = within(region).getByRole("button", { name: "Add a condition" });
-        await screen.findByRole("listbox");
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, screen.getByRole("combobox", { name: "Find an attribute" }));
+            assert.strictEqual(document.activeElement, add);
         });
+        await userEvent.keyboard("{Enter}");
+        await screen.findByRole("listbox");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("listbox"), "the menu closed");

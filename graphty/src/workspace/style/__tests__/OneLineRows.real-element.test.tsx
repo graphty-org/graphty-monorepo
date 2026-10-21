@@ -126,9 +126,19 @@ describe("one line per property", () => {
     it("starts every field of the tab at one left edge, its name in one column, 16 px in", async () => {
         await openScene();
         const tab = await openStyle("Key people");
+        // A control drawn with `display: contents` (a color box, so its refusal can run under the
+        // row) has no box of its own: its first child draws where it starts.
+        const drawn = (el: Element): Element => {
+            let at = el;
+            while (getComputedStyle(at).display === "contents" && at.firstElementChild !== null) {
+                at = at.firstElementChild;
+            }
+            return at;
+        };
         const lefts = (selector: string): number[] => [
             ...new Set(
                 [...tab.querySelectorAll<HTMLElement>(selector)]
+                    .map(drawn)
                     .filter((el) => el.checkVisibility())
                     .map((el) => Math.round(el.getBoundingClientRect().left)),
             ),

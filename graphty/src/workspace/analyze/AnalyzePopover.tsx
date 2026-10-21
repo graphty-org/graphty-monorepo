@@ -67,8 +67,12 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
     }
     const layers = session.runs.layers(latest.id);
     const gone = layers !== undefined && layers.present.length === 0 && layers.missing.length > 0;
-    // A run that made a folder of layers (one per group) names them in the plural.
-    const noun = layers !== undefined && layers.present.length + layers.missing.length > 1 ? "layers" : "layer";
+    // A run that made a folder of layers (one per group) names them in the plural. Once the folder
+    // is deleted the element lists it as the one suggestion that makes it, so a run with groups
+    // is plural whatever the count.
+    const grouped = latest.result?.summary().groups !== undefined;
+    const noun =
+        grouped || (layers !== undefined && layers.present.length + layers.missing.length > 1) ? "layers" : "layer";
     return gone
         ? { label: `Add ${name} ${noun}`, restoreLayer: true, current: false }
         : {

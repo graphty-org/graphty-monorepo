@@ -854,13 +854,19 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
-     * Find a known shader with the same body.
+     * Find a known shader with the same body: a preset, a registered shader or another project
+     * shader.
      * @param shader - The new shader.
      * @returns Its id and the defaults the new one differs by, or undefined.
      */
-    const sameAsOf = (shader: ReadText): { readonly id: string; readonly params: ShaderParams } | undefined => {
+    const sameAsOf = async (
+        shader: ReadText,
+    ): Promise<{ readonly id: string; readonly params: ShaderParams } | undefined> => {
         for (const descriptor of shaderDescriptors()) {
-            if (registeredShaderSource(descriptor.id)?.glsl === shader.registration.glsl) {
+            const body =
+                registeredShaderSource(descriptor.id)?.glsl ??
+                (descriptor.origin === "element" ? await presetBody(descriptor.id) : undefined);
+            if (body !== undefined && body.trim() === shader.registration.glsl.trim()) {
                 return { id: descriptor.id, params: differingDefaults(shader.descriptor, descriptor) };
             }
         }
@@ -884,8 +890,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @param shader - The shader.
      * @returns The result, with `sameAs` when a known shader has its body.
      */
-    const passed = (shader: ReadText): ShaderAddResult => {
-        const sameAs = sameAsOf(shader);
+    const passed = async (shader: ReadText): Promise<ShaderAddResult> => {
+        const sameAs = await sameAsOf(shader);
         return { ok: true, descriptor: shader.descriptor, ...(sameAs === undefined ? {} : { sameAs }) };
     };
 

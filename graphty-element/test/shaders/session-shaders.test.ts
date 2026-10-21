@@ -205,6 +205,16 @@ describe("session.shaders", () => {
         assert.include(await s.shaders.source("user/tint-2"), '"id": "user/tint-2"');
     });
 
+    it("says a preset's copied text is that preset, with no parameter that differs", async () => {
+        const { session: s } = await session();
+        const text = await s.shaders.source("uncertainty-aura");
+        const checked = await s.shaders.check(text);
+        assert.isTrue(checked.ok);
+        assert.deepEqual(checked.ok ? checked.sameAs : undefined, { id: "uncertainty-aura", params: {} });
+        const edited = await s.shaders.check(text.replace("return", "return 0.5 *"));
+        assert.isUndefined(edited.ok ? edited.sameAs : "refused");
+    });
+
     it("undoes an add with apply, the shader and the layer write together, in one step", async () => {
         const { session: s, layer } = await session();
         const steps = s.history.steps.length;

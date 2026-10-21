@@ -2138,6 +2138,8 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             await page.close();
             page = await newTab(s);
             await opening(s, out);
+            // the start page's remote pictures failing to load is logged, as at a start, but does not fail the step
+            requestsFail = false;
             out.push("closed the tab and opened the app again in a new tab (the same browser storage)");
         } else if (a === "--drop") {
             // A real drag from outside the window, through the browser's own input path (trusted
@@ -2637,16 +2639,18 @@ async function prove() {
         );
         check("labels are turned on as a participant would", x.code === 0 && !/nothing on screen/.test(x.out), x.out);
         x = step(A, "--click", "Tornabuoni");
-        const at = x.out.match(/clicked node "Tornabuoni" on the canvas, at (\d+),(\d+)/);
-        check("a click by a node's drawn label lands on that node", x.code === 0 && !!at, x.out);
-        if (at) {
-            x = step(A, "--click-at", `${at[1]},${at[2]}`);
-            check(
-                "a click-at reports the node under the point",
-                x.code === 0 && new RegExp(`^at ${at[1]},${at[2]}: node "Tornabuoni"`, "m").test(x.out),
-                x.out,
-            );
-        }
+        const clicked = x.out.match(/clicked node "Tornabuoni" on the canvas, at (\d+),(\d+)/);
+        check("a click by a node's drawn label lands on that node", x.code === 0 && !!clicked, x.out);
+        // selecting a node moves the camera, so the point is read from where a node is drawn now (one
+        // the inspector does not name, so the name resolves to the canvas)
+        x = step(A, "--hover", "Medici");
+        const at = x.out.match(/hovered node "Medici" on the canvas, at (\d+),(\d+)/);
+        if (at) x = step(A, "--click-at", `${at[1]},${at[2]}`);
+        check(
+            "a click-at reports the node under the point",
+            !!at && x.code === 0 && new RegExp(`^at ${at[1]},${at[2]}: node "Medici"`, "m").test(x.out),
+            x.out,
+        );
         x = step(A, "--click-at", "1430,890");
         check(
             "a click-at off the canvas names what is there",

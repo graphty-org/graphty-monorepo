@@ -368,7 +368,7 @@ export interface FindValueRow {
     /** The attribute's literal column key, such as `"data.group"`. */
     readonly path: Path;
     /** The value. */
-    readonly value: string | number | boolean;
+    readonly value: FindMatchValue;
     /** How many elements `target` selects: every one in scope carrying exactly this value. */
     readonly count: number;
     /** A selection target naming exactly those elements, for `selection.apply`. */

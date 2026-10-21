@@ -2170,7 +2170,7 @@ export interface FindValueRow {
         kind: "text";
     }>;
     readonly target: SelectionTarget;
-    readonly value: string | number | boolean;
+    readonly value: FindMatchValue;
 }
 
 // @public

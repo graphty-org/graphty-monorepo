@@ -453,9 +453,12 @@ function hitName(session: GraphSession, hit: FindHit): string {
 }
 
 /** What the element said of a typed rule: "ok", "empty", or null while unchecked. */
+type RuleVerdict = "ok" | "empty" | null;
+
+/** A typed rule and what the element said of it. */
 interface RuleAnswer {
     readonly text: string;
-    readonly verdict: "ok" | "empty" | null;
+    readonly verdict: RuleVerdict;
 }
 
 /** The rule plain text that found nothing reads as once "=" leads it, null when it reads as none. */
@@ -553,7 +556,7 @@ function isNothingFound(found: FindResult | null, valueOptions: readonly Option[
  * @param text - the typed text.
  * @returns the verdict, or null while unchecked.
  */
-function ruleCheckOf(isRule: boolean, answer: RuleAnswer | null, text: string): "ok" | "empty" | null {
+function ruleCheckOf(isRule: boolean, answer: RuleAnswer | null, text: string): RuleVerdict {
     return isRule && answer?.text === text ? answer.verdict : null;
 }
 
@@ -893,7 +896,7 @@ interface FindLine {
  * @param example - an example rule, or null.
  * @returns the line.
  */
-function ruleLine(ruleCheck: "ok" | "empty" | null, example: string | null): FindLine {
+function ruleLine(ruleCheck: RuleVerdict, example: string | null): FindLine {
     if (ruleCheck === null) {
         return { emptyLine: null, lineWords: null };
     }
@@ -921,7 +924,7 @@ interface LineFacts {
     readonly text: string;
     readonly ran: boolean;
     readonly isRule: boolean;
-    readonly ruleCheck: "ok" | "empty" | null;
+    readonly ruleCheck: RuleVerdict;
     readonly example: string | null;
     readonly textAsRule: string | null | undefined;
     readonly listOpen: boolean;
@@ -1226,7 +1229,7 @@ function useSpokenRefusal(
     session: GraphSession | null,
     refusal: Refusal | null,
     isRule: boolean,
-    ruleCheck: "ok" | "empty" | null,
+    ruleCheck: RuleVerdict,
     ran: boolean,
 ): string {
     const [spoken, setSpoken] = useState("");
@@ -1787,7 +1790,7 @@ export function FindBox(): React.JSX.Element {
     const example = session === null ? null : exampleRule(session);
     const line = findLine({ session, text, ran, isRule, ruleCheck, example, textAsRule, listOpen, keptWords, found });
     const refusalLine = refusalLineOf(refusal, session, example, keptWords);
-    const suggestion = refusal === null || refusal.rule === null ? null : refusal.words;
+    const suggestion = typeof refusal?.rule === "string" ? refusal.words : null;
     const { showLine, spokenLine } = lineSpeech({
         session,
         found,

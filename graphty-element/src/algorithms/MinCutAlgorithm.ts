@@ -291,7 +291,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             sourceOption === null ? nodeIds[0] : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
         const sink =
             sinkOption === null
-                ? nodeIds[nodeIds.length - 1]
+                ? (nodeIds.at(-1) ?? nodeIds[0])
                 : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
         requireDistinctEnds("min-cut", source, sink);
         const autoEndNote =

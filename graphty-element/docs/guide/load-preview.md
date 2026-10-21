@@ -94,9 +94,13 @@ the source's `delimiter` option.
 
 `fixed: true` means the format, not the reader, decides each column's role: a GraphML, GEXF, GML,
 DOT, Pajek or JSON file says which fields are node ids and edge endpoints, so a mapping for its
-tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` field is its label
-column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
-`data.knownFields.nodeLabelPath` names another column already.
+tables is refused. Only CSV tables have `fixed: false`. A graph file's label column is the one
+`data.knownFields.nodeLabelPath` names, as `import` reads it; set that to `"label"` to label the
+nodes with the file's `label` field.
+
+For a graph file, `draft.load()` loads exactly what `session.data.import` of the same source
+loads: the same nodes, edges, columns and settings. A CSV table is read from its cells as written,
+so the reader can map them, and its ids keep the type the cells hold.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
@@ -303,6 +307,7 @@ try {
 | `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table      |
 | `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target`    |
 | `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`     |
+| `E_PROJECT_FILE_AS_DATA`      | The file is a graphty project or document; open it with `project.open`      |
 | `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)       |
 | `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`           |
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |

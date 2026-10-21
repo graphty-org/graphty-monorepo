@@ -1,8 +1,10 @@
 // node --test design/ui/studio/tool/tier3.test.mjs
 // The study tool's tier wiring and the style-tree dump, checked with no browser: a folder under tier3/
 // is briefed from tier 3's tasks and roster (a tier 2 folder still from tier 2's), a first-time
-// persona's briefing says so, a keyboard-only start reaches the command, and the dump's comparison
-// catches a planted removal.
+// persona's briefing says so, a keyboard-only start reaches the command, a briefing points at no
+// study file, the dump's comparison catches a planted removal, the gate (real.mjs --gate) refuses
+// each planted gap preflight 3 names, and the bars walk's list of bar 6 gives a MISS line for each
+// screen and typing check a run leaves out.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -11,7 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { styleChanges, styleContent } from "./measure.mjs";
+import { BAR6, bar6Gaps, styleChanges, styleContent } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, "..");
@@ -92,4 +94,168 @@ test("the style-tree comparison catches a planted removal and a changed color, n
         layers: [layer("a_9", "#111111", "r_9"), { ...layer("b_9", "#222222"), counts: { matched: 9 } }],
     };
     assert.equal(styleContent(start), styleContent(renumbered));
+});
+
+test("a briefing points the participant at no study file (the persona's hypotheses line)", () => {
+    const dir = join(studio, "tier3/rounds/zz-tool-test/sessions/t2");
+    const r = brief(dir, "--task", "T39A", "--persona", "Elena");
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
+    assert.match(text, /What would delight her/i, "Elena's persona is not in her briefing");
+    assert.match(text, /When she gives up she does not announce it/, "a playing rule was dropped with the pointer");
+    assert.doesNotMatch(text, /study\/hypotheses|hypotheses file/, "the briefing points at team files");
+});
+
+test("the bars walk's bar 6 list gives a MISS line for each of the five screens and Starts with", () => {
+    const sizes = ["1440x900", "900x700"];
+    const all = {
+        screens: Object.fromEntries(sizes.map((z) => [z, [...BAR6.screens]])),
+        focus: [...BAR6.focus],
+        typed: [...BAR6.typed],
+    };
+    assert.deepEqual(bar6Gaps(all, sizes), [], "a walk that reached everything has gaps");
+    const added = [
+        "the find box, a name typed, its results",
+        "a node's inspector, its Memberships",
+        "a node's own Style tab, its Fill + and Why this look",
+        "the open shape list",
+        "a sample just opened, the key switched on",
+    ];
+    for (const screen of added) {
+        const gaps = bar6Gaps(
+            { ...all, screens: { ...all.screens, "900x700": all.screens["900x700"].filter((x) => x !== screen) } },
+            sizes,
+        );
+        assert.deepEqual(gaps, [`MISS ${screen} at 900x700: not walked (bar 6 lists it)`]);
+    }
+    const noStarts = bar6Gaps({ ...all, typed: all.typed.filter((t) => t !== "a text card after Starts with") }, sizes);
+    assert.deepEqual(noStarts, ["MISS typing into a text card after Starts with: not checked (bar 6 lists it)"]);
+    assert.equal(bar6Gaps({}, sizes).length, 2 * BAR6.screens.length + BAR6.focus.length + BAR6.typed.length);
+});
+
+// The gate on a planted tier 3 round: a frozen-build walk is any commit whose app code is the
+// frozen build's (22cb4d4365 holds 758b8e8081's), never one whose app code differs (31e8c23878)
+test("the gate holds a half only with its walks by half folder, and a bars run that covers bar 6", async () => {
+    const rd = join(studio, "tier3/rounds/zz-gate-test");
+    const frozen = "758b8e8081dc3a8daa2eaf3a8996e989fa2b2a58";
+    const walk = async (half, name, json = {}) => {
+        const d = join(rd, "pilot", half, name);
+        await mkdir(d, { recursive: true });
+        await writeFile(join(d, "session.json"), JSON.stringify({ commit: frozen, keyboardOnlyMode: false, ...json }));
+        await writeFile(join(d, "01.png"), "");
+    };
+    const bars = async (name, over = {}, spoken = { "the start screen": { names: ["Open a file"] } }) => {
+        const d = join(rd, name);
+        await mkdir(d, { recursive: true });
+        const sizes = ["1440x900", "900x700"];
+        const walked = {
+            screens: Object.fromEntries(sizes.map((z) => [z, [...BAR6.screens]])),
+            focus: [...BAR6.focus],
+            typed: [...BAR6.typed],
+        };
+        await writeFile(
+            join(d, "bars.json"),
+            JSON.stringify({
+                build: "758b8e8081dc graphty@0.8.91",
+                tier: "3",
+                untrusted: [],
+                log: ["ok   x"],
+                walked,
+                ...over,
+            }),
+        );
+        if (spoken) await writeFile(join(d, "spoken.json"), JSON.stringify(spoken));
+    };
+    const plan = [
+        "| r9-s01 | T39 | A: Les Miserables | Elena | `empty` |",
+        "| r9-s02 | T39 | A: Les Miserables | Sam | `empty --keys` |",
+        "| r9-s03 | T40 | B: yeast genes | Ruth | `empty` |",
+    ].join("\n");
+    const gate = () =>
+        spawnSync(process.execPath, [real, "--gate", rd], { encoding: "utf8", env: { ...process.env, REAL_TIER: "" } });
+    const good = async () => {
+        await rm(rd, { recursive: true, force: true });
+        await mkdir(rd, { recursive: true });
+        await writeFile(join(rd, "plan.md"), plan + "\n");
+        await walk("T39A", "m-pointer");
+        await walk("T39A", "j-detours", { commit: "22cb4d4365" });
+        await walk("T39A", "s3-keys", { keyboardOnlyMode: true });
+        await walk("T40B", "success");
+        await walk("T40B", "detours");
+        await bars("bars");
+        await bars("bars-light");
+    };
+    try {
+        await good();
+        let r = gate();
+        assert.equal(r.status, 0, `the planted good round was refused: ${r.stdout}${r.stderr}`);
+        assert.match(readFileSync(join(rd, "plan.md"), "utf8"), /^## Gate evidence$/m);
+        const refused = async (what, plant, why) => {
+            await good();
+            await plant();
+            r = gate();
+            assert.equal(r.status, 1, `the gate passed ${what}: ${r.stdout}`);
+            assert.match(r.stdout, why, `the gate refused ${what} for another reason: ${r.stdout}`);
+            assert.doesNotMatch(readFileSync(join(rd, "plan.md"), "utf8"), /Gate evidence/);
+        };
+        await refused(
+            "a pilot keyed by its walk's own folder, not its half's",
+            async () => {
+                await rm(join(rd, "pilot"), { recursive: true });
+                await walk("T39A", ".");
+                await walk("x", "T40B");
+            },
+            /T39A: no success, no detours, no keyboard walk[\s\S]*T40B: no success, no detours walk/,
+        );
+        await refused(
+            "a half with no detours walk",
+            () => rm(join(rd, "pilot/T40B/detours"), { recursive: true }),
+            /FAIL: T40B: no detours walk/,
+        );
+        await refused(
+            "a keyboard-only half with no keyboard walk",
+            () => rm(join(rd, "pilot/T39A/s3-keys"), { recursive: true }),
+            /FAIL: T39A: no keyboard walk/,
+        );
+        await refused(
+            "a keyboard walk not started --keys",
+            () => walk("T39A", "s3-keys", { keyboardOnlyMode: false }),
+            /T39A: no keyboard walk .*s3-keys: not started --keys/,
+        );
+        await refused(
+            "a walk on a build whose app code differs",
+            () => walk("T40B", "success", { commit: "31e8c23878" }),
+            /T40B: no success walk .*success: build 31e8c23878 has app code other than 758b8e8081/,
+        );
+        await refused(
+            "a bars run missing a bar 6 screen",
+            () =>
+                bars("bars-light", {
+                    walked: {
+                        screens: { "1440x900": BAR6.screens.slice(1), "900x700": [...BAR6.screens] },
+                        focus: [...BAR6.focus],
+                        typed: [...BAR6.typed],
+                    },
+                }),
+            /bars-light\/bars\.json leaves out 1 of bar 6's checks, the first: MISS the start screen at 1440x900/,
+        );
+        await refused(
+            "a bars run with a MISS line",
+            () => bars("bars", { log: ["ok   a", "MISS a text card at 900x700: an earlier move missed"] }),
+            /bars\.json has 1 MISS lines/,
+        );
+        await refused("a bars run that wrote no spoken.json", () => rm(join(rd, "bars/spoken.json")), /no spoken text/);
+        await refused(
+            "the stub bars run the tool dry run planted",
+            () => writeFile(join(rd, "bars/bars.json"), JSON.stringify({ build: "758b8e8081x", untrusted: [] })),
+            /bars\/bars\.json is not a --tier 3 run/,
+        );
+        await refused(
+            "a round with no light-theme bars run",
+            () => rm(join(rd, "bars-light"), { recursive: true }),
+            /no bars run: \S+bars-light\/bars\.json is missing/,
+        );
+    } finally {
+        await rm(rd, { recursive: true, force: true });
+    }
 });

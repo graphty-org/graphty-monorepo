@@ -75,6 +75,70 @@ export function nodeColors() {
     }
     return [...seen].sort();
 }
+// The key as the reader sees it: each section's title and text, and each row's text and the color
+// its chip is painted (#rrggbb); null when no key is shown. Self-contained: it runs in the page.
+export function keyShown() {
+    const card = document.querySelector("section[aria-label=Legend]");
+    if (!card || !card.checkVisibility()) return null;
+    // innerText keeps the line breaks between a row's parts ("Layer 1" and "8 of 331 nodes")
+    const flat = (e) => e.innerText.replace(/\s+/g, " ").trim();
+    const hex = (c) => {
+        const m = String(c).match(/[\d.]+/g);
+        if (!m || m.length < 3 || (m.length > 3 && Number(m[3]) === 0)) return null;
+        return `#${m
+            .slice(0, 3)
+            .map((x) => Math.round(Number(x)).toString(16).padStart(2, "0"))
+            .join("")}`;
+    };
+    return [...card.querySelectorAll(".ws-legend-section")].map((sec) => ({
+        title: sec.getAttribute("aria-label"),
+        text: flat(sec),
+        rows: [...sec.querySelectorAll(".cm-data-row")].map((r) => {
+            const chit = r.querySelector(".ws-legend-chit");
+            const painted = chit
+                ? [chit, ...chit.querySelectorAll("*")]
+                      .map((e) => hex(getComputedStyle(e).backgroundColor))
+                      .find(Boolean)
+                : null;
+            return { text: flat(r), color: painted ?? null };
+        }),
+    }));
+}
+// How many nodes and edges are drawn in each color now (#rrggbb), read through graphty-element's
+// public explain; null when no graph is open. Self-contained: it runs in the page.
+export function drawnColors() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    const ctx = document.createElement("canvas").getContext("2d");
+    const hex = (c) => {
+        if (c === undefined || c === null) return "none";
+        const v = String(c?.hex ?? c);
+        ctx.fillStyle = "#000000";
+        ctx.fillStyle = v;
+        return String(ctx.fillStyle).toLowerCase();
+    };
+    const tally = (items, key, channel) => {
+        const out = {};
+        for (const it of items) {
+            let c = "unreadable";
+            try {
+                c = hex(s.styles.explain({ [key]: it.id }).merged[channel]);
+            } catch {
+                // counted as unreadable
+            }
+            out[c] = (out[c] ?? 0) + 1;
+        }
+        return out;
+    };
+    const edges = (() => {
+        try {
+            return [...s.data.edges()];
+        } catch {
+            return [];
+        }
+    })();
+    return { nodes: tally(s.data.nodes(), "node", "node.color"), edges: tally(edges, "edge", "edge.color") };
+}
 // What the layers look like, with nothing that names or counts them: every "id" and "row" key (a
 // layer's place in the tree, by id) and the counts left out, so the same looks under new ids (a sample opened again) read the same
 export function styleContent(tree) {
@@ -388,4 +452,90 @@ export async function sameNames(cdp) {
         by.set(k, [...(by.get(k) ?? []), `${role} "${name}"`]);
     }
     return { controls, all, shared: [...by.values()].filter((v) => v.length > 1) };
+}
+
+// Bar 6 of ../tier3/criteria.md, the list bars.mjs --tier 3 must cover and real.mjs --gate checks a
+// bars run against: every screen (measured at every size), every action after which focus is
+// checked, and every typing check. A name here is the name the walk measures it under.
+export const BAR6 = {
+    screens: [
+        "the start screen",
+        "a sample just opened",
+        "a sample just opened, the key switched on",
+        "Everything, Node tab",
+        "the open shape list",
+        "Everything, Edge tab",
+        "the line menu",
+        "a new layer, its picker open",
+        "the add-a-condition menu",
+        "a text card",
+        "a layer with a condition, at rest",
+        "a color just added",
+        "the text menu",
+        "the analysis list, filtered to groups",
+        "a groups analysis before it runs",
+        "a folder of groups",
+        "a folder of groups, Edge tab",
+        "the find box, a name typed, its results",
+        "a node's inspector, its Memberships",
+        "a node's own Style tab, its Fill + and Why this look",
+        "two layers picked together",
+        "a layer with an Edge tab condition, at rest",
+        "a colleague's project just opened",
+        "a colleague's layer selected",
+        "a file read, before loading",
+        "a category card",
+        "a yes/no card",
+        "a number card",
+        "a has-no-value card",
+        "a layer with four conditions, at rest",
+        "a color bound to a category column, with its key",
+        "the color popover of a category column",
+        "the size popover, before a column is picked",
+        "the size popover of a number column",
+        "a run's folder, its picker open, a card added to every layer",
+        "the color from each layer dialog",
+    ],
+    focus: [
+        "adding a layer",
+        "adding a card",
+        "choosing a text card's match kind",
+        "Done in the picker",
+        "adding a color",
+        "Undo",
+        "Escape from the line menu",
+        "Escape from the text menu",
+        "running a groups analysis",
+        "Done in an Edge tab picker",
+        "Load",
+        "adding a yes/no card",
+        "Escape from a card's menu",
+        "Done after four cards",
+        "picking a column for a color",
+        "Escape from the color popover",
+        "adding a size",
+        "Escape from the size popover",
+        "Escape from a bound size's popover",
+        "adding a shape",
+        "adding a card on a folder",
+        "Done in a folder's picker",
+        "Escape from the color from each layer dialog",
+        "selecting a colleague's layer",
+    ],
+    typed: ["a new text card", "a text card after Starts with", "a new Color line", "a new Shape line"],
+};
+
+// What a bars run left out of bar 6, one MISS line each: a screen not measured at one of the sizes,
+// a focus action not checked, a typing check not made. seen: { screens: { <size>: [names] }, focus:
+// [names], typed: [names] }
+export function bar6Gaps(seen, sizes) {
+    const out = [];
+    for (const size of sizes)
+        for (const s of BAR6.screens)
+            if (!seen.screens?.[size]?.includes(s)) out.push(`MISS ${s} at ${size}: not walked (bar 6 lists it)`);
+    for (const f of BAR6.focus)
+        if (!seen.focus?.includes(f)) out.push(`MISS focus after ${f}: not checked (bar 6 lists it)`);
+    for (const t of BAR6.typed)
+        if (!seen.typed?.includes(t)) out.push(`MISS typing into ${t}: not checked (bar 6 lists it)`);
+    return out;
 }

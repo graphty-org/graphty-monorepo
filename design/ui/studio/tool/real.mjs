@@ -80,8 +80,11 @@ import { PNG } from "pngjs";
 import {
     activeInView,
     axeViolations,
+    bar6Gaps,
     bar10,
+    drawnColors,
     focusOnPage,
+    keyShown,
     LAUNCH,
     NAME_CHARS,
     nodeColors,
@@ -217,6 +220,8 @@ function facilitatorFiles(dir) {
 }
 // Persona sections written for the study team, never for the agent playing the persona
 const TEAM_ONLY = /facilitator|study team|for the real study|hypothes/i;
+// a path into the study's files, or a pointer to the team's hypotheses file
+const STUDY_PATH = /`[^`\s]*\b(?:study|hypotheses)\/[^`\s]*`|\bhypotheses file\b/i;
 function personaText(text) {
     return (
         text
@@ -227,6 +232,10 @@ function personaText(text) {
             // moderator", Dana's intro) is itself for the team, and the briefing check would refuse it
             .split(/\n[ \t]*\n/)
             .filter((p) => !FACILITATOR_WORDS.test(p))
+            // a paragraph that points at the study's own files ("See `study/hypotheses/x.md` for the
+            // design hypotheses", "the design team's guesses ... live in a separate hypotheses file")
+            // sends a participant to team material
+            .filter((p) => !STUDY_PATH.test(p))
             .join("\n\n")
             .trim()
     );
@@ -519,9 +528,26 @@ async function roundLeaks(rd) {
     if (unread.length) lines.push(`FAIL: no participant log read for ${unread.length} sessions: ${unread.join(", ")}`);
     return { lines, failed: unread.length > 0 || lines.some((x) => x.includes("VOID")) };
 }
-// Before a round's first session: a pilot on the frozen build of every task half the plan runs
-// (<round>/pilot/**/<T20A>/session.json and its screenshots) and bars.mjs run on that build
-// (<round>/bars/bars.json, every planted case caught). Round 3 started without either.
+// Before a round's first session (criteria.md, preflights 4, 6 and 9): every task half the plan runs
+// has its walks under <round>/pilot/<half>/<walk>/ (pilot/T40B/success/session.json), each with its
+// screenshots, on a build that counts as the frozen one, and the bars runs on that build caught every
+// planted case, reached every screen and wrote spoken.json. A walk is the success walk, the detours
+// walk or the keyboard walk by its folder's name (keys or keyboard: the keyboard walk; detour: the
+// detours walk; any other: the success walk); a half with a keyboard-only session in the plan (a
+// start with --keys) also needs the keyboard walk, started --keys (keyboardOnlyMode: true). A build
+// counts as the frozen one when its commit's app code (graphty, graphty-element, compact-mantine,
+// pnpm-lock.yaml) is the frozen build's (preflight 1). Round 3 started without any of this.
+const APP_CODE = ["graphty", "graphty-element", "compact-mantine", "pnpm-lock.yaml"];
+const sameApp = new Map();
+function sameAppCode(sha, commit) {
+    if (!commit) return false;
+    if (commit.startsWith(sha) || sha.startsWith(commit)) return true;
+    const k = `${sha} ${commit}`;
+    if (!sameApp.has(k))
+        sameApp.set(k, spawnSync("git", ["-C", repo, "diff", "--quiet", sha, commit, "--", ...APP_CODE]).status === 0);
+    return sameApp.get(k);
+}
+const walkKind = (name) => (/keys|keyboard/i.test(name) ? "keyboard" : /detour/i.test(name) ? "detours" : "success");
 function gateCheck(rd) {
     const sha = frozenSha(rd);
     if (!sha)
@@ -531,43 +557,81 @@ function gateCheck(rd) {
         };
     const problems = [];
     const evidence = [];
-    const halves = [
-        ...new Set(
-            planRows(rd)
-                .map((c) => sessionTask(join(rd, "sessions", c[1])))
-                .filter(Boolean)
-                .map((t) => t.task + t.half),
-        ),
-    ].sort();
-    if (!halves.length) problems.push(`${join(rd, "plan.md")} lists no session`);
+    // each half the plan runs, and whether a keyboard-only session is among its sessions
+    const halves = new Map();
+    for (const c of planRows(rd)) {
+        const t = sessionTask(join(rd, "sessions", c[1]));
+        if (!t) continue;
+        const h = t.task + t.half;
+        halves.set(h, halves.get(h) || /--keys\b/.test(t.start ?? ""));
+    }
+    if (!halves.size) problems.push(`${join(rd, "plan.md")} lists no session`);
     const pd = join(rd, "pilot");
-    const piloted = new Map();
-    for (const f of existsSync(pd) ? readdirSync(pd, { recursive: true }).map(String) : []) {
-        if (basename(f) !== "session.json") continue;
-        const dir = join(pd, dirname(f));
-        let stamp = "";
-        try {
-            stamp = JSON.parse(readFileSync(join(pd, f), "utf8")).buildStamp ?? "";
-        } catch {
-            // an unreadable session.json is no pilot result
+    for (const [h, keys] of [...halves].sort()) {
+        const hd = join(pd, h);
+        const walks = { success: [], detours: [], keyboard: [] };
+        const why = [];
+        for (const w of existsSync(hd) ? readdirSync(hd) : []) {
+            const wd = join(hd, w);
+            const sj = join(wd, "session.json");
+            if (!existsSync(sj)) continue;
+            let sess = null;
+            try {
+                sess = JSON.parse(readFileSync(sj, "utf8"));
+            } catch {
+                // an unreadable session.json is no walk
+            }
+            const kind = walkKind(w);
+            if (!sess) why.push(`${w}: unreadable session.json`);
+            else if (!readdirSync(wd).some((x) => /^\d+\.png$/.test(x))) why.push(`${w}: no screenshots`);
+            else if (!sameAppCode(sha, sess.commit ?? sess.buildStamp?.split(" ")[0]))
+                why.push(`${w}: build ${sess.commit ?? sess.buildStamp} has app code other than ${sha}'s`);
+            else if (kind === "keyboard" && sess.keyboardOnlyMode !== true)
+                why.push(`${w}: not started --keys (keyboardOnlyMode is not true)`);
+            else walks[kind].push(w);
         }
-        if (stamp.startsWith(sha) && readdirSync(dir).some((x) => /^\d+\.png$/.test(x)))
-            piloted.set(basename(dir), dir);
+        const needs = ["success", "detours", ...(keys ? ["keyboard"] : [])];
+        const missing = needs.filter((k) => !walks[k].length);
+        if (missing.length)
+            problems.push(
+                `${h}: no ${missing.join(", no ")} walk on build ${sha} under ${hd}/${why.length ? ` (${why.join("; ")})` : ""}`,
+            );
+        else evidence.push(`pilot ${h}: ${needs.map((k) => `${k} ${join(hd, walks[k][0])}/`).join(", ")}`);
     }
-    for (const h of halves)
-        if (piloted.has(h)) evidence.push(`pilot ${h}: ${piloted.get(h)}/`);
-        else problems.push(`no pilot of ${h} on build ${sha} under ${pd}/`);
-    const bj = join(rd, "bars/bars.json");
-    let bars = null;
-    try {
-        bars = JSON.parse(readFileSync(bj, "utf8"));
-    } catch {
-        // missing or unreadable: no bars run
+    const tier3 = tierOf(rd) === "3";
+    for (const name of tier3 ? ["bars", "bars-light"] : ["bars"]) {
+        const bj = join(rd, name, "bars.json");
+        let bars = null;
+        try {
+            bars = JSON.parse(readFileSync(bj, "utf8"));
+        } catch {
+            // missing or unreadable: no bars run
+        }
+        const bp = [];
+        if (!bars) bp.push(`no bars run: ${bj} is missing (node bars.mjs ${join(rd, name)} --dist <frozen build>)`);
+        else {
+            if (!sameAppCode(sha, String(bars.build).split(" ")[0]))
+                bp.push(`${bj} measured build ${bars.build}, whose app code is not ${sha}'s`);
+            if (bars.untrusted?.length) bp.push(`${bj} missed planted cases: ${bars.untrusted.join("; ")}`);
+            const miss = (bars.log ?? []).filter((l) => l.startsWith("MISS"));
+            if (miss.length) bp.push(`${bj} has ${miss.length} MISS lines, the first: ${miss[0]}`);
+            if (tier3) {
+                if (bars.tier !== "3") bp.push(`${bj} is not a --tier 3 run`);
+                const gaps = bar6Gaps(bars.walked ?? {}, ["1440x900", "900x700"]);
+                if (gaps.length) bp.push(`${bj} leaves out ${gaps.length} of bar 6's checks, the first: ${gaps[0]}`);
+                const sp = join(rd, name, "spoken.json");
+                let spoken = {};
+                try {
+                    spoken = JSON.parse(readFileSync(sp, "utf8"));
+                } catch {
+                    // missing: checked below
+                }
+                if (!Object.keys(spoken).length) bp.push(`no spoken text: ${sp} is missing or empty`);
+            }
+        }
+        problems.push(...bp);
+        if (!bp.length) evidence.push(`${name} on ${bars.build}: ${bj}`);
     }
-    if (!bars) problems.push(`no bars run: ${bj} is missing (node bars.mjs ${join(rd, "bars")} --dist <frozen build>)`);
-    else if (!String(bars.build).startsWith(sha)) problems.push(`${bj} measured build ${bars.build}, not ${sha}`);
-    else if (bars.untrusted?.length) problems.push(`${bj} missed planted cases: ${bars.untrusted.join("; ")}`);
-    else evidence.push(`bars on ${bars.build}: ${bj}`);
     return { sha, problems, evidence };
 }
 
@@ -1380,6 +1444,11 @@ async function opEnd(s) {
         JSON.stringify({ changes: styleChanges(stylesStart, stylesEnd), start: stylesStart, end: stylesEnd }, null, 1) +
             "\n",
     );
+    // the key the reader saw last and the colors the drawing shows, for the key-and-drawing check
+    // (keydraw.mjs)
+    const key = await s.page.evaluate(keyShown).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const drawn = await s.page.evaluate(drawnColors).catch((e) => ({ error: e.message.split("\n")[0] }));
+    await writeFile(join(s.dir, "key.json"), JSON.stringify({ key, drawn }, null, 1) + "\n");
     return { out: [`session ended: ${s.dir}`], code: 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
@@ -1400,12 +1469,37 @@ async function measure(s, planted) {
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),
+                spoken: await spokenNow(s),
                 ...(await bar10Counts(page)),
             },
         };
     } finally {
         if (planted) await page.evaluate(unplant);
     }
+}
+// What the screen says out loud now, as screen-reader mode reports it ("focus: ..." for the focused
+// control, "live: ..." for each live region's text), read whether or not the session is in that
+// mode: bars.mjs writes it to spoken.json for the wording check
+async function spokenNow(s) {
+    const out = [];
+    await srReport(s, out);
+    const shown = await s.page
+        .evaluate(() =>
+            [...document.querySelectorAll("[aria-live]:not([aria-live=off]), [role=status], [role=alert], [role=log]")]
+                .filter(
+                    (r) =>
+                        r.checkVisibility() &&
+                        !r.parentElement?.closest("[aria-live], [role=status], [role=alert], [role=log]"),
+                )
+                .map(
+                    (r) =>
+                        `${r.getAttribute("role") || "region"}: ${JSON.stringify(r.textContent.replace(/\s+/g, " ").trim())}`,
+                )
+                .filter((l) => !l.endsWith(': ""')),
+        )
+        .catch(() => []);
+    for (const l of shown) if (!out.some((o) => o.includes(l.slice(l.indexOf(": ") + 2)))) out.push(`live: ${l}`);
+    return out;
 }
 // Bar 10's counts (measure.mjs bar10); a cut text with no title or name is hovered, and a tooltip
 // holding its whole text makes it readable. The pointer goes back off the page, as after a setup.
@@ -2456,20 +2550,27 @@ async function prove() {
         r = node(["--gate", R]);
         check(
             "the gate refuses a round folder with no pilot results and no bars run",
-            r.status === 1 && /FAIL: no pilot of T20A on build/.test(r.stdout) && /FAIL: no bars run/.test(r.stdout),
+            r.status === 1 &&
+                /FAIL: T20A: no success, no detours walk on build/.test(r.stdout) &&
+                /FAIL: no bars run/.test(r.stdout),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
-        const pilot = join(R, "pilot/r9/T20A");
-        await mkdir(pilot, { recursive: true });
-        await writeFile(join(pilot, "session.json"), JSON.stringify({ buildStamp: `${sha} graphty@0` }));
-        await writeFile(join(pilot, "01.png"), "");
+        // a half's walks, each in its own folder under the half's (pilot/T20A/success/)
+        const pilot = join(R, "pilot/T20A/success");
+        for (const w of [pilot, join(R, "pilot/T20A/detours")]) {
+            await mkdir(w, { recursive: true });
+            await writeFile(join(w, "session.json"), JSON.stringify({ buildStamp: `${sha} graphty@0` }));
+            await writeFile(join(w, "01.png"), "");
+        }
         await mkdir(join(R, "bars"), { recursive: true });
         await writeFile(join(R, "bars/bars.json"), JSON.stringify({ build: `${sha} graphty@0`, untrusted: [] }));
         r = node(["--gate", R]);
         const plan = readFileSync(join(R, "plan.md"), "utf8");
         check(
             "the gate passes with both, and the plan lists the evidence by file",
-            r.status === 0 && plan.includes(`pilot T20A: ${pilot}/`) && plan.includes(join(R, "bars/bars.json")),
+            r.status === 0 &&
+                plan.includes(`pilot T20A: success ${pilot}/`) &&
+                plan.includes(join(R, "bars/bars.json")),
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
         // with the gate passed, a session of the round starts, even when every browser slot is

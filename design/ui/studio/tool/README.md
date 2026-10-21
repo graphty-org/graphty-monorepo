@@ -17,8 +17,7 @@ variables unset. To study a build that others' rebuilds must not replace mid-ses
 ```bash
 T=design/ui/studio/tool
 node $T/real.mjs --start rounds/r1/p03-t2 empty                  # 01.png: the empty app, clean storage
-node $T/real.mjs --step  rounds/r1/p03-t2 --click "No thanks"    # 02.png
-node $T/real.mjs --step  rounds/r1/p03-t2 --click "Open project or file" --upload friends.csv
+node $T/real.mjs --step  rounds/r1/p03-t2 --click "Open a file" --upload friends.csv  # 02.png
 node $T/real.mjs --step  rounds/r1/p03-t2 --click-at 702,380     # point at the last screenshot
 node $T/real.mjs --end   rounds/r1/p03-t2                        # always end: it frees the browser
 ```
@@ -336,14 +335,23 @@ check that read nothing never reports "no leaks".
 node $T/real.mjs --gate <round folder>
 ```
 
-A round may not start until its folder holds, for the frozen build named on the first line of
-`../tier2/criteria.md`:
+A round may not start until its folder holds, for the frozen build named on the first line of its
+tier's `criteria.md`:
 
-- a pilot of every task half its `plan.md` runs: a session folder named for the half (`T20A`,
-  `T12RB`) anywhere under `<round folder>/pilot/`, with its screenshots and a `session.json` whose
-  build stamp is that build;
+- the walks of every task half its `plan.md` runs, each in a folder of its own under the half's:
+  `<round folder>/pilot/<half>/<walk>/` (`pilot/T40B/s3-pointer/`), with its screenshots and its
+  `session.json`. A half needs a success walk and a detours walk, and a keyboard walk when the plan
+  gives the half a keyboard-only session (a start with `--keys`). The walk's folder name says which
+  it is: one holding `keys` or `keyboard` is the keyboard walk, and counts only when its
+  `session.json` records `keyboardOnlyMode: true` (started `--keys`); one holding `detour` is the
+  detours walk; any other is the success walk. A walk counts when its commit is the frozen build or
+  holds the same app code (no difference in `graphty`, `graphty-element`, `compact-mantine` or
+  `pnpm-lock.yaml`, by `git diff`); a walk on other app code is named and does not count;
 - the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
---dist <frozen build>`, with every planted case caught (a failing bar does not stop the gate).
+--dist <frozen build>`, with every planted case caught and no `MISS` line (a failing bar does not
+  stop the gate). For tier 3 also the light run, `<round folder>/bars-light/`, each a `--tier 3`
+  run that reached every screen, focus action and typing check bar 6 lists (`BAR6` in
+  `measure.mjs`) and wrote a `spoken.json` that is not empty.
 
 It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
 evidence" section at the end of `plan.md` listing each file, and exits 0.
@@ -432,28 +440,41 @@ Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears fi
 node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 ```
 
-For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]` measures only
-tier 3's screens, walked from an empty app by clicking as a first-time user would: the start
-screen, a sample opened, Everything's Node and Edge tabs, a new layer with its picker and the add
-menu, a text card, a layer with a condition at rest, a color added and undone, the text and line
-menus, the analysis list and a run's settings, a run's folder of groups on both tabs, two layers
-picked together, a file read before loading, a category, a yes/no, a number and a has-no-value
-card, and the size popover; at 1440 x 900 and 900 x 700. It checks bar 8 (axe, shared names, focus
-kept after each action), bar 9 (words at rest against the `tier3` counts in `bars-limits.json`,
-which `--record-limits` writes from the run) and bar 10, with the same planted cases, and writes
-`vocabulary.json`: every measured screen's words and control names, for the wording check.
+For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--scheme dark|light]
+[--record-limits]` measures only tier 3's screens, walked from the empty start page by clicking as
+a first-time user would ("Open a file", Samples): every screen, focus action and typing check
+bar 6 of `../tier3/criteria.md` lists, at 1440 x 900 and 900 x 700. That list is `BAR6` in
+`measure.mjs`; whatever of it the walks did not reach is a `MISS` line ("not walked (bar 6 lists
+it)"), as is every step that missed or was refused. It checks bar 8 (axe, shared names, focus kept
+after each action, a value typed with no click written after adding a text card, choosing "Starts
+with", adding a Color line and a Shape line), bar 9 (words at rest against the `tier3` counts in
+`bars-limits.json`, which `--record-limits` writes from the run, keeping the lower count) and bar
+10, with the same planted cases, and writes `vocabulary.json` (every measured screen's words and
+control names) and `spoken.json` (what each screen says out loud: its controls' accessible names,
+what has focus, the live regions' text and the notices shown during the move), both for the
+wording check. `--only <walk>[,<walk>]` and `--size <WxH>` run part of it, for writing a walk.
 
 ```bash
 node design/ui/studio/tool/wording.mjs <tasks.md> <out dir>/vocabulary.json   # prompt words on screen
-node design/ui/studio/tool/wording.mjs --self-test                             # a planted echo is caught
-node design/ui/studio/tool/score.mjs <round folder> [--key-steps 6] [--task T39] # bars 1 to 4
+node design/ui/studio/tool/wording.mjs --self-test                             # each planted echo caught
+node design/ui/studio/tool/keydraw.mjs <round folder | session folder> ...     # key and drawing agree
+node design/ui/studio/tool/keydraw.mjs --self-test                             # planted disagreements
+node design/ui/studio/tool/score.mjs <round folder> [--task T39]                # bars 1 to 4 (bar 4 limit: 10)
 node design/ui/studio/tool/score.mjs --self-test                               # planted failures caught
 node --test design/ui/studio/tool/tier3.test.mjs                               # tier wiring, style dump
 ```
 
-`wording.mjs` lists every word a prompt shares with the screens, except common English words and
-the words `tasks.md` keeps on purpose ("Kept in every task", each task's "Kept on purpose"); exit 1
-on any. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
+`wording.mjs` lists every word a prompt shares with the screens or with `spoken.json` beside
+`vocabulary.json` (it fails without it), except common English words and the words `tasks.md` keeps
+on purpose ("Kept in every task", each task's "Kept on purpose"), and every phrase of two or more
+words (not only common ones) a prompt shares with one screen's words, one control's name or one
+spoken line, even when each word is kept; a phrase kept on purpose is listed in backticks like a
+word. A word's forms count as one: plurals, -ed, -ing and irregular forms (draw, drawn; keep,
+kept). Exit 1 on any. `keydraw.mjs` reads each session's `key.json` (written by `--end`: the key's
+sections, each row's chip color, and how many nodes and edges are drawn in each color) and
+`styles.json`, and reports a key row in a color nothing is drawn in, two rows of one section in one
+color, and a "N of M nodes" the layer of that name or the drawing does not bear out; it fails on a
+session with no `key.json` and on a run that read no key row. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
 `Grade:`, `False done:`, `Wrong turns:`, plus `Route:` on a T47 success and `Scripted exit: yes`
 on a scripted give-up) and `styles-steps.jsonl`, and writes `score.json`.
 

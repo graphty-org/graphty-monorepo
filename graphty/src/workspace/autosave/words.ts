@@ -203,3 +203,12 @@ export function recoveredSentence(entry: AutosaveEntry, now = Date.now()): strin
 export function reopenedSentence(entry: AutosaveEntry, now = Date.now()): string {
     return `Restored your work from ${ago(entry.savedAt, now)}.`;
 }
+
+/**
+ * What the status line says once this tab's own work reopened after a reload.
+ * @param name - the project's name.
+ * @returns the sentence.
+ */
+export function reopenedTabSentence(name: string): string {
+    return `Reopened ${name}`;
+}

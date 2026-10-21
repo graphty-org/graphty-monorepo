@@ -3,7 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { findRecovered } from "./autosave/autosave";
+import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
 import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
@@ -16,7 +16,13 @@ import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { StartScreen } from "./start/StartScreen";
-import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
+import {
+    createWorkspaceStore,
+    keepPlace,
+    useStoreValue,
+    type WorkspaceState,
+    type WorkspaceStore,
+} from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 
 /** Props for Workspace. */
@@ -94,7 +100,7 @@ export function Workspace({
             .then(() => {
                 session.history.clear();
                 if (store.get().page === "panels") {
-                    focusOpenedGraph();
+                    (opening.focus ?? focusOpenedGraph)();
                 }
             })
             .catch((error: unknown) => {
@@ -106,24 +112,38 @@ export function Workspace({
                 );
             });
     }, [element, store, startProjectId]);
-    // Work graphty-element kept from an earlier visit is offered on the start screen, once per load.
+    // This tab's own work (a reload, or a tab the browser discarded and loaded again) reopens
+    // straight into the workspace; other work graphty-element kept is offered on the start screen.
+    // Asked once per load; the start screen waits for the answer, so it never flashes before a reopen.
+    const [checking, setChecking] = useState(() => store.get().autosave && store.get().project === null);
     useEffect(() => {
-        const { autosave, project } = store.get();
-        if (!autosave || project !== null) {
+        if (!checking) {
             return undefined;
         }
         let live = true;
-        findRecovered()
-            .then((recovered) => {
-                if (live && store.get().project === null) {
+        findKept()
+            .then(({ own, recovered }) => {
+                if (!live || store.get().project !== null) {
+                    return;
+                }
+                if (own === null) {
                     store.set({ recovered });
+                } else {
+                    reopenOwn(store, own);
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (live) {
+                    setChecking(false);
+                }
+            });
         return () => {
             live = false;
         };
-    }, [store]);
+    }, [store, checking]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work.
+    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
     // loaded shows once it has.
@@ -190,7 +210,7 @@ export function Workspace({
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
-            {projectOpen ? null : <StartScreen openRef={startDoor} lastDoor={lastDoor} />}
+            {projectOpen || checking ? null : <StartScreen openRef={startDoor} lastDoor={lastDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

@@ -121,6 +121,7 @@ export {
     credentials,
     credentialSlots,
     fromStorableCredential,
+    type SlotValue,
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";

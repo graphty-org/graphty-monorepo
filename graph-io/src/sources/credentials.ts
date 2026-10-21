@@ -151,8 +151,18 @@ function base64(text: string): string {
     return btoa(binary);
 }
 
-/** The plain value a slot's credential is made from: a key or a token, or a user name and password. */
-type SlotValue = string | { readonly username: string; readonly password: string };
+/**
+ * The plain value a slot's credential is made from: a key or a token, or a user name and password.
+ * @category Network sources
+ */
+export type SlotValue =
+    | string
+    | {
+          /** A basic slot's user name. */
+          readonly username: string;
+          /** A basic slot's password. */
+          readonly password: string;
+      };
 
 /**
  * The credential a slot describes, from its plain value.

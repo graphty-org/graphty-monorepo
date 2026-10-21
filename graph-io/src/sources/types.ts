@@ -394,7 +394,16 @@ export interface SourceCredentialSlot {
     /** Its default name; catalog data an application may replace by name. */
     readonly plainName?: string | undefined;
     /** For an API key: the query parameter or request header it is sent in. */
-    readonly send?: { readonly query: string } | { readonly header: string } | undefined;
+    readonly send?:
+        | {
+              /** The query parameter the key is sent in. */
+              readonly query: string;
+          }
+        | {
+              /** The request header the key is sent in. */
+              readonly header: string;
+          }
+        | undefined;
 }
 
 /**

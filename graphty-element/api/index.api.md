@@ -4532,6 +4532,7 @@ export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 // @public
 export interface NodeThumbnailOptions {
     readonly color?: string;
+    readonly model?: string;
     readonly shape: string;
     readonly size?: number;
 }

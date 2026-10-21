@@ -278,6 +278,16 @@ export class ModelCache {
     }
 
     /**
+     * A template the scene already draws for what a layer names, whatever the options it was
+     * built with; for a picture of the model.
+     * @param ref - What the layer names.
+     * @returns The template, or null while none is drawable.
+     */
+    drawnTemplate(ref: string): ModelTemplate | null {
+        return [...this.entries.values()].find((entry) => entry.ref === ref && entry.template !== null)?.template ?? null;
+    }
+
+    /**
      * How many templates the scene holds now.
      * @returns The count.
      * @internal

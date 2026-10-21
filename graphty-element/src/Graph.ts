@@ -183,6 +183,7 @@ import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { ModelCache } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
@@ -5181,13 +5182,18 @@ export class Graph implements GraphContext {
 
     /**
      * One node of a shape and color drawn alone, as the graph draws its nodes, for a key or a
-     * picker. See {@link NodeThumbnailOptions}. Drawn once per shape, color, size, 2D and lighting.
-     * @param options - The shape, color and size.
+     * picker. See {@link NodeThumbnailOptions}. Drawn once per shape (or drawn model), color, size,
+     * 2D and lighting.
+     * @param options - The shape, color and size, and a model to draw in the shape's place.
      * @returns The picture as a PNG data URL, on a transparent background.
      */
     async nodeThumbnail(options: NodeThumbnailOptions): Promise<string> {
+        // A model the graph does not draw yet is pictured as the shape, and that picture is kept
+        // under the shape's key, so the model's own is drawn once it is ready.
+        const model = options.model === undefined ? null : (ModelCache.of(this)?.drawnTemplate(options.model) ?? null);
         const key = JSON.stringify([
             options.shape,
+            model === null ? null : options.model,
             options.color,
             options.size,
             this.getViewMode() === "2d",
@@ -5197,7 +5203,11 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             // One at a time: every thumbnail is drawn at the same place, seen by the same mask.
             const is2D = this.getViewMode() === "2d";
-            shot = this.#thumbnailQueue.then(async () => nodeThumbnail(this.engine, this.scene, is2D, options));
+            shot = this.#thumbnailQueue.then(async () =>
+                // ponytail: a template disposed while this waited in line draws the shape, kept under
+                // the model's key until the page reloads.
+                nodeThumbnail(this.engine, this.scene, is2D, options, model?.groups[0]?.isDisposed() ? null : model),
+            );
             this.#thumbnailQueue = shot.catch(() => undefined);
             this.#thumbnails.set(key, shot);
             // A failed picture is not kept: the next call tries again.

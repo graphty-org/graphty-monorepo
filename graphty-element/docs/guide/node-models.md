@@ -111,6 +111,13 @@ its picker before any graph exists. The samples are light gray, so they color we
 [Color](#color)), and they are free to use for anything (CC0). They are read from the package when
 a layer first names them; they are never copied into a saved project.
 
+A model you added yourself has no catalog thumbnail. `element.nodeThumbnail` draws it as the graph
+does, once the graph draws it (the shape you name until then):
+
+```ts
+img.src = await element.nodeThumbnail({ shape: "box", model: record.id });
+```
+
 ## A model for each kind of node
 
 Most graphs have a column that says what each node is: hosts, users and processes; suppliers,
@@ -376,7 +383,9 @@ await element.session.styles.add({
 ```
 
 The picture shows its own colors. To color it by the node's color as well, add
-`"node.modelTint": true`, which multiplies the node's color in. A picture by address is fetched
+`"node.modelTint": true`, which multiplies the node's color in. Where a picture is transparent, a
+flat node (a 2D drawing, or a flat shape such as `ellipse`) is cut out, so an icon draws as just the
+icon; a solid shape shows white there. A picture by address is fetched
 like a model's (your code's own addresses at once; anyone else's after the reader agrees), and a
 project saves it like a model.
 

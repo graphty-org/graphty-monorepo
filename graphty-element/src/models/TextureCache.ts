@@ -5,11 +5,14 @@
  * A picture is an image asset of `session.assets` (a PNG, JPEG or WebP added as a file or by URL),
  * fetched through the same gate as a model: at once from the page's code, else once the reader
  * allows its host (`session.network`). Its state is published as `model:changed` under the ref the
- * layer named, like a model's. Nothing here decodes bytes itself: Babylon reads the image from a
- * `blob:` URL made for it and revoked once it is read.
+ * layer named, like a model's. The browser decodes the bytes (no URL is fetched, so a model load
+ * that guards every URL Babylon asks for never refuses a picture), and a transparent pixel keeps
+ * its alpha but is stored white, the node's surface under the picture, never the hidden color it
+ * held: a flat node cuts it out, a solid one shows white there.
  */
 
 import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import type { Scene } from "@babylonjs/core/scene";
 
@@ -56,33 +59,43 @@ export function texturesLoading(scene: Scene): boolean {
 }
 
 /**
- * Read a picture's bytes into a texture.
+ * Read a picture's bytes into a texture: its pixels, each transparent one stored over white with
+ * its alpha kept.
  * @param scene - The scene.
  * @param bytes - The PNG, JPEG or WebP.
  * @param name - A name for the texture.
- * @returns The texture, once it is ready.
+ * @returns The texture.
  */
-function textureOf(scene: Scene, bytes: Uint8Array, name: string): Promise<BaseTexture> {
-    const url = URL.createObjectURL(new Blob([bytes.slice()]));
-    return new Promise<BaseTexture>((resolve, reject) => {
-        const texture: Texture = new Texture(
-            url,
-            scene,
-            false,
-            false,
-            Texture.TRILINEAR_SAMPLINGMODE,
-            () => {
-                resolve(texture);
-            },
-            (message) => {
-                texture.dispose();
-                reject(new Error(message ?? "the picture could not be read"));
-            },
-        );
-        texture.name = name;
-    }).finally(() => {
-        URL.revokeObjectURL(url);
-    });
+async function textureOf(scene: Scene, bytes: Uint8Array, name: string): Promise<BaseTexture> {
+    const bitmap = await createImageBitmap(new Blob([bytes.slice()]), { premultiplyAlpha: "none" });
+    const { width, height } = bitmap;
+    const context = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true });
+    if (context === null) {
+        bitmap.close();
+        throw new Error("the picture could not be read");
+    }
+
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const { data } = context.getImageData(0, 0, width, height);
+    for (let at = 0; at < data.length; at += 4) {
+        const alpha = data[at + 3] / 255;
+        for (let channel = at; channel < at + 3; channel++) {
+            data[channel] = Math.round(data[channel] * alpha + 255 * (1 - alpha));
+        }
+    }
+
+    const texture = RawTexture.CreateRGBATexture(
+        new Uint8Array(data.buffer),
+        width,
+        height,
+        scene,
+        true,
+        true,
+        Texture.TRILINEAR_SAMPLINGMODE,
+    );
+    texture.name = name;
+    return texture;
 }
 
 /** The pictures one scene draws. */

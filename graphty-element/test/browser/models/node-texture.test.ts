@@ -50,6 +50,45 @@ describe("node.texture", () => {
         assert.isNull(surfaceOf(element, "b"));
     });
 
+    it("stores a transparent pixel white, cuts it out of a flat node and keeps a solid one whole", async () => {
+        const element = await mount();
+        await element.graph.addNodes([{ id: "solid" }, { id: "flat" }]);
+        // A green pixel with no alpha (hidden color, as Kenney's previews hold) beside an opaque red.
+        const canvas = new OffscreenCanvas(2, 1);
+        const context = canvas.getContext("2d");
+        assert.isNotNull(context);
+        context?.putImageData(new ImageData(Uint8ClampedArray.from([71, 112, 76, 0, 255, 0, 0, 255]), 2, 1), 0, 0);
+        const png = new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
+        const picture = await element.session.assets.add({ files: new Map([["clear.png", png]]) });
+        const drawn = nextModelEvent(element, (change) => change.ref === picture.id && change.state === "drawn");
+        await element.session.styles.add({
+            name: "picture",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.texture": picture.id },
+        });
+        await element.session.styles.add({
+            name: "flat",
+            target: "node",
+            selector: { match: "ids", nodes: ["flat"] },
+            set: { "node.shape": "ellipse" },
+        });
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const materialOf = (id: string): StandardMaterial => {
+            const mesh = element.graph.getNodeMesh(id);
+            return (mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh)?.material as StandardMaterial;
+        };
+        const pixels = await materialOf("solid").diffuseTexture?.readPixels();
+        assert.deepEqual([...new Uint8Array((pixels as Uint8Array).buffer)].slice(0, 8), [255, 255, 255, 0, 255, 0, 0, 255]);
+        assert.isNull(materialOf("solid").opacityTexture, "a solid keeps its surface whole");
+        assert.isFalse(materialOf("solid").needAlphaTesting());
+        assert.strictEqual(materialOf("flat").opacityTexture?.name, materialOf("flat").diffuseTexture?.name);
+        assert.isTrue(materialOf("flat").needAlphaTesting(), "a flat node cuts the clear pixels out");
+        assert.isFalse(materialOf("flat").needAlphaBlending(), "not sorted as a see-through material");
+    });
+
     it("replaces a model's base color texture with a picture fetched by URL from code", async () => {
         const picture = "https://pictures.example.com/dots.png";
         const model = "https://models.example.com/ball.glb";

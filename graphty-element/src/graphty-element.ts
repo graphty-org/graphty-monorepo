@@ -3120,13 +3120,16 @@ export class Graphty extends LitElement {
      * mesh, material and lighting), on a transparent background: a picture of a 3D shape for a
      * key, a legend or a picker. Each picture is drawn once and kept, by shape, color, size, 2D or
      * 3D and lighting.
-     * @param options - The shape (`node.shape`'s values), its color (a mid gray when left out) and
-     *     the picture's size in pixels (32 when left out).
+     * @param options - The shape (`node.shape`'s values), its color (a mid gray when left out),
+     *     the picture's size in pixels (32 when left out), and a model (`node.model`'s value) drawn
+     *     in the shape's place once the graph draws it.
      * @returns The picture as a PNG data URL.
      * @example
      * ```typescript
      * const img = document.createElement("img");
      * img.src = await element.nodeThumbnail({ shape: "icosahedron", color: "#0072B2" });
+     * // A model a layer names, pictured once it is drawn (the shape until then):
+     * img.src = await element.nodeThumbnail({ shape: "box", model: "asset:sample/server" });
      * ```
      */
     async nodeThumbnail(options: NodeThumbnailOptions): Promise<string> {

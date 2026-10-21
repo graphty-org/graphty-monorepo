@@ -1,6 +1,15 @@
-import { ArcRotateCamera, Color4, type Engine, type Scene, Vector3, type WebGPUEngine } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    ArcRotateCamera,
+    Color4,
+    type Engine,
+    type Scene,
+    Vector3,
+    type WebGPUEngine,
+} from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import type { ModelTemplate } from "../models/ModelCache";
 import { renderTargetCapture } from "../screenshot/ScreenshotCapture.js";
 import { MeshCache } from "./MeshCache.js";
 import { NodeMesh } from "./NodeMesh.js";
@@ -25,6 +34,11 @@ export interface NodeThumbnailOptions {
     readonly color?: string;
     /** The picture's width and height, in pixels. Defaults to 32. */
     readonly size?: number;
+    /**
+     * A model, as `node.model` names it (an asset id, a URL or a sample's id): drawn in the shape's
+     * place, in its own colors, once the graph draws it. Until then the shape is drawn.
+     */
+    readonly model?: string;
 }
 
 /**
@@ -35,6 +49,7 @@ export interface NodeThumbnailOptions {
  * @param scene - The graph's scene.
  * @param is2D - Whether the graph is drawn in 2D (a flat node).
  * @param options - The shape, color and size.
+ * @param model - The template of `options.model`, when the graph draws it.
  * @returns The picture as a PNG data URL.
  */
 export async function nodeThumbnail(
@@ -42,19 +57,26 @@ export async function nodeThumbnail(
     scene: Scene,
     is2D: boolean,
     options: NodeThumbnailOptions,
+    model?: ModelTemplate | null,
 ): Promise<string> {
     const color = options.color ?? "#9E9E9E";
     const size = Math.max(8, Math.round(options.size ?? 32));
     const cache = new MeshCache();
-    const mesh = NodeMesh.create(
-        cache,
-        { styleId: `thumbnail-${options.shape}-${color}`, is2D, size: 1 },
-        // Shapes are an open list (NodeMesh.registerShapeCreator); an unknown one throws there.
-        { shape: { type: options.shape as ShapeType, size: 1 }, texture: { color } },
-        scene,
-    );
+    // A model is an instance of the graph's own template, which stays; a shape is built here.
+    const mesh: AbstractMesh =
+        model === undefined || model === null
+            ? NodeMesh.create(
+                  cache,
+                  { styleId: `thumbnail-${options.shape}-${color}`, is2D, size: 1 },
+                  // Shapes are an open list (NodeMesh.registerShapeCreator); an unknown one throws there.
+                  { shape: { type: options.shape as ShapeType, size: 1 }, texture: { color } },
+                  scene,
+              )
+            : NodeMesh.createModelInstance(model, { size: 1 }, "graphty-node-thumbnail-model");
     mesh.position.copyFrom(THUMBNAIL_AT);
-    mesh.layerMask = THUMBNAIL_MASK;
+    for (const each of [mesh, ...mesh.getChildMeshes()]) {
+        each.layerMask = THUMBNAIL_MASK;
+    }
     const source = [...cache.meshCacheMap.values()];
     for (const each of source) {
         each.layerMask = THUMBNAIL_MASK;
@@ -72,9 +94,12 @@ export async function nodeThumbnail(
     camera.layerMask = THUMBNAIL_MASK;
     camera.minZ = 0.01;
     // Framed by the shape's own bounds, so a wide polyhedron and a small sphere both fill it.
+    // A model's instance is scaled to a node's extent, so its bounds are read in the world.
+    mesh.computeWorldMatrix(true);
     const bounds = mesh.getBoundingInfo().boundingSphere;
-    camera.setTarget(THUMBNAIL_AT.add(bounds.center));
-    camera.radius = (bounds.radius / Math.sin(camera.fov / 2)) * FRAME_MARGIN;
+    const scaled = model !== undefined && model !== null;
+    camera.setTarget(scaled ? bounds.centerWorld : THUMBNAIL_AT.add(bounds.center));
+    camera.radius = ((scaled ? bounds.radiusWorld : bounds.radius) / Math.sin(camera.fov / 2)) * FRAME_MARGIN;
     try {
         return await renderTargetCapture(engine, camera, { width: size, height: size }, 4, (texture) => {
             texture.clearColor = new Color4(0, 0, 0, 0);

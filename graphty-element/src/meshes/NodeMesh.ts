@@ -10,6 +10,7 @@ import {
     type ICanvasGradient,
     type ICanvasRenderingContext,
     type InstancedMesh,
+    Material,
     Matrix,
     Mesh,
     MeshBuilder,
@@ -684,9 +685,18 @@ export class NodeMesh {
         const unlit = is2D || createOptions.effect?.unlit === true;
 
         if (createOptions.image !== undefined && createOptions.image !== null) {
-            // `node.texture` is the surface: white underneath, so the picture keeps its colors.
+            // `node.texture` is the surface: white underneath, so the picture keeps its colors, and
+            // its transparent pixels are stored white (TextureCache). A flat node is the picture
+            // itself, an icon: its transparent pixels are cut out (alpha test, so instanced nodes
+            // need no sorting). A solid keeps its surface whole, white where the picture is clear,
+            // so a box never turns into six loose cut-outs.
             mat.diffuseTexture = createOptions.image;
             mat.diffuseColor = Color3.White();
+            const { shape } = createOptions;
+            if (is2D || shape?.planar === true || isFlatShape(shape?.type ?? "")) {
+                mat.opacityTexture = createOptions.image;
+                mat.transparencyMode = Material.MATERIAL_ALPHATEST;
+            }
             if (unlit) {
                 mat.disableLighting = true;
                 mat.emissiveTexture = createOptions.image;

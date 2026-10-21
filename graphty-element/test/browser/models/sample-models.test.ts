@@ -37,6 +37,39 @@ describe("the sample models", () => {
         }
     });
 
+    it("are pictured by nodeThumbnail once drawn, and as the shape before", async () => {
+        const element = await mount();
+        await element.graph.addNodes([{ id: "web" }]);
+        const ref = "asset:sample/server";
+        const box = await element.nodeThumbnail({ shape: "box" });
+        assert.strictEqual(await element.nodeThumbnail({ shape: "box", model: ref }), box, "not drawn yet");
+        const drawn = nextModelEvent(element, (change) => change.ref === ref && change.state === "drawn");
+        await element.session.styles.add({
+            name: "server",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": ref },
+        });
+        await drawn;
+        const server = await element.nodeThumbnail({ shape: "box", model: ref });
+        assert.notStrictEqual(server, box);
+        const image = new Image();
+        image.src = server;
+        await image.decode();
+        const canvas = new OffscreenCanvas(image.naturalWidth, image.naturalHeight);
+        const context = canvas.getContext("2d");
+        context?.drawImage(image, 0, 0);
+        const alpha = [...(context?.getImageData(0, 0, canvas.width, canvas.height).data ?? [])].filter(
+            (_, at) => at % 4 === 3,
+        );
+        assert.isAbove(
+            alpha.filter((a) => a > 0).length,
+            alpha.length / 10,
+            "the model fills the picture, nothing of the graph",
+        );
+        assert.isTrue(drawnAsModel(element.graph, "web"), "the graph's own node still draws the model");
+    });
+
     it("draw each kind as its sample from one encoding, with no file added", async () => {
         const element = await mount();
         element.nodeData = NODES;

@@ -305,7 +305,7 @@ The work behind each row of that table:
   every shader, decided by its cost and its motion, not by where it came from. Approval (hold and
   run, trusted hashes) stays specific to arriving text.
 
-### 3.3 The canonical example (simple path, 15 lines)
+### 3.3 The canonical example (simple path, about 15 lines)
 
 It names no kind, no target, no struct beyond its own signature, and no internal concept. The same
 body pastes into the app's "New shader...".

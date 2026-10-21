@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { acquireLock, context, issueRefs, landedBranches, main, prBody, readLock, sync } from "./land.mjs";
+import { acquireLock, context, handOff, issueRefs, landedBranches, main, prBody, readLock, sync } from "./land.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "land-"));
 const repo = join(dir, "main");
@@ -671,6 +671,12 @@ describe("the live copy", () => {
         assert.match(lines[0], /^land: no live copy at .*no-live-here.*; running .*land\.mjs instead$/);
         assert.match(lines[1], /usage: node tools\/land\.mjs/);
         assert.equal(lines.length, 2);
+    });
+
+    it("the live copy runs itself and drops the hand-off mark, so the gate it pushes through starts clean", async () => {
+        const handed = { ...env, LAND_LIVE: live, LAND_LIVE_COPY: join(live, "tools/land.mjs") };
+        assert.equal(await handOff(["status"], handed), null);
+        assert.equal("LAND_LIVE_COPY" in handed, false);
     });
 
     it("never loops: a live copy that is this tool itself runs once", () => {

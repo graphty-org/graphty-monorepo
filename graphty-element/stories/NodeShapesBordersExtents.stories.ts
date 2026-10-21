@@ -87,6 +87,18 @@ export const ShapesIn2D: Story = {
                 "node.shape": { by: "data.shape", scale: "passthrough" },
                 "node.label": { by: "data.id", scale: "passthrough" },
             },
+            // WITHOUT CORNERS A "polygon" IS A RECTANGLE, by the element's contract
+            // (`node.shapePoints` unset falls back to the rectangle's outline), so the polygon
+            // would draw the rectangle's exact geometry and the grid would show one shape twice.
+            // An irregular four-cornered outline is what makes it a shape of its own.
+            layers: [
+                {
+                    name: "Polygon corners",
+                    target: "node",
+                    selector: { match: "expression", where: "data.id == 'polygon'" },
+                    set: { "node.shapePoints": "-1,-1 1,-0.6 0.6,1 -0.6,0.6" },
+                },
+            ],
         }),
         nodeData: SHAPE_NODES,
         edgeData: SHAPE_EDGES,

@@ -344,7 +344,21 @@ export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     /** Advisory catalog data from the registrant: the parameter that most changes the look. */
     readonly primary?: boolean;
+    /**
+     * The named values of an "integer" parameter that picks one of a set (Sticker's icon,
+     * Patterns' pattern), each with a picture, so a form offers a grid of pictures instead of a
+     * number box. The stored value stays the number, so the "index" scale still binds it.
+     */
+    readonly choices?: readonly ShaderParamChoice[];
 };
+
+/** One named value: the number, its default name, and SVG path data in a 24 x 24 box (y down),
+ * filled with the even-odd rule, or stroked 2 units wide with `outline`. */
+export interface ShaderParamChoice {
+    readonly value: number;
+    readonly plainName: string;
+    readonly glyph: { readonly path: string; readonly outline?: boolean };
+}
 
 export interface ShaderDescriptor {
     readonly id: string; // presets: "glass-marble"; everyone else: "<namespace>/<name>"
@@ -1157,13 +1171,13 @@ Parameters (id: type, default, range):
 | `gemstone`            | `facets` P: integer, 22, 6..64; `ior`: number, 2.0, 1.2..2.6; `dispersion`: number, 0.06, 0..0.25; `sparkle` V: number, 1, 0..3; `turn`: number, 0.15, 0..2                                                                                             |
 | `disco-ball`          | `facets` P: integer, 22, 6..64; `sparkle` V: number, 1, 0..3; `turn`: number, 0.15, 0..2                                                                                                                                                                |
 | `lantern-glow`        | `intensity` P V: number, 1.1, 0..4; `falloff`: number, 2.2, 0..8; `ribs`: integer, 9, 0..20; `flicker`: number, 0.3, 0..1; `bloom`: number, 0.7, 0..3                                                                                                   |
-| `dew-drop`            | `sparkle` P: number, 1.6, 0..3; `tint`: number, 0.25, 0..1; `bloom`: number, 0.9, 0..2                                                                                                                                                                  |
+| `dew-drop`            | `sparkle` P: number, 1.6, 0..3; `tint`: number, 0.75, 0..1; `bloom`: number, 0.9, 0..2                                                                                                                                                                  |
 | `colorblind-patterns` | `pattern` V: integer, 0, 0..7; `density` P: number, 5, 2..8; `contrast`: number, 0.7, 0..1; `rotate`: number, 0, 0..3.14                                                                                                                                |
 | `foil-shimmer`        | `foil` P: number, 0.9, 0..1; `sweepSpeed`: number, 0.35, 0..2; `bandWidth`: number, 0.18, 0.02..1; `sparkle`: number, 1.2, 0..3                                                                                                                         |
 | `hologram`            | `holoColor` P: color, `#38e8ff`; `scanDensity`: number, 9, 1..30; `flicker`: number, 0.6, 0..1; `glitch`: number, 0.04, 0..0.3; `gridLines`: integer, 8, 2..16                                                                                          |
 | `frost`               | `frostColor` P: color, `#d8f2ff`; `crystalScale`: number, 5, 3..24; `sparkle`: number, 0.8, 0..1                                                                                                                                                        |
 | `frosted-glass`       | `frost` P: number, 0.6, 0..1; `rim`: number, 0.5, 0..1; `tint`: number, 0.5, 0..1                                                                                                                                                                       |
-| `liquid-metal`        | `speed`: number, 0.3, 0..2; `ripple` P: number, 0.5, 0..1; `tint`: number, 0.3, 0..1                                                                                                                                                                    |
+| `liquid-metal`        | `speed`: number, 0.3, 0..2; `ripple` P: number, 0.5, 0..1; `tint`: number, 0.5, 0..1                                                                                                                                                                    |
 | `anodized-steel`      | `film` P: number, 500, 100..1200 (thin-film thickness, nm); `brush`: number, 0.5, 0..1; `tint`: number, 0.2, 0..1                                                                                                                                       |
 
 ### 7.2 Node sprites, and the pie renderer
@@ -1217,13 +1231,13 @@ to land.
 | `edge-glow`     | edge-effect  | Edge glow     | from bezier glow, generalized: core, halo and a glint toward the target on any route         | color, width | loop, `glintSpeed`       | medium |
 | `edge-change`   | edge-effect  | Edge change   | the edge half of change flash: draws in from the source when added, shrinks out when removed | color, times | change 0.5 s, exit 0.5 s | light  |
 
-| Id              | Parameters                                                                                                                                                                                                                                                  |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fiber-optic`   | `glass` P: number, 1, 0..3; `hueSpread`: number, 0.6, 0..1                                                                                                                                                                                                  |
-| `fiber-packets` | `packets` P: integer, 3, 1..6; `speed` V: number, 1.2, 0..4; `tail`: number, 14, 2..150; `glint`: number, 0.8, 0..4; `bloom`: number, 0.8, 0..3                                                                                                             |
-| `comet-tracers` | `speed` V: number, 1, -3..3; `spacing`: number, 180, 30..800 (px); `tail`: number, 55, 4..200 (px); `headColor` P: color, `#fff6e0`; `tailColor`: color, `#ff7a2a`; `useEdgeColor`: boolean, true; `intensity`: number, 1.2, 0..3; `bloom`: number, 1, 0..3 |
-| `edge-glow`     | `glow` P: number, 0.4, 0..2; `glowWidth`: number, 3, 0.5..10; `glintSpeed`: number, 0.35, 0..2; `bloom`: number, 0.6, 0..2                                                                                                                                  |
-| `edge-change`   | `flashColor` P: color, `#e8f4ff`                                                                                                                                                                                                                            |
+| Id              | Parameters                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fiber-optic`   | `glass` P: number, 1, 0..3; `hueSpread`: number, 0.6, 0..1                                                                                                                                                                                                   |
+| `fiber-packets` | `packets` P: integer, 3, 1..6; `speed` V: number, 1.2, 0..4; `tail`: number, 14, 2..150; `glint`: number, 0.8, 0..4; `bloom`: number, 0.8, 0..3                                                                                                              |
+| `comet-tracers` | `speed` V: number, 1, -3..3; `spacing`: number, 180, 30..800 (px); `tail`: number, 55, 4..200 (px); `headColor` P: color, `#fff6e0`; `tailColor`: color, `#ff7a2a`; `useEdgeColor`: boolean, false; `intensity`: number, 1.2, 0..3; `bloom`: number, 1, 0..3 |
+| `edge-glow`     | `glow` P: number, 0.4, 0..2; `glowWidth`: number, 3, 0.5..10; `glintSpeed`: number, 0.35, 0..2; `bloom`: number, 0.6, 0..2                                                                                                                                   |
+| `edge-change`   | `flashColor` P: color, `#e8f4ff`                                                                                                                                                                                                                             |
 
 The edge channels that replace three picks: `edge.taper` (the lab's tapered edges; the sliding ring
 is dropped), `edge.lift` (weight arcs: bind it with
@@ -1243,18 +1257,18 @@ accepting `source` and `target` (gradient edges:
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nebula`        | `gasA`: color, `#2a0f4a`; `gasB` P: color, `#d0407a`; `gasC`: color, `#1f6fa8`; `density`: number, 0.8, 0..2; `warp`: number, 1, 0..2; `drift`: number, 1, 0..5; `stars`: number, 0.6, 0..1; `twinkle`: number, 0.6, 0..1; `tintBy`: enum, `none`, {`none`, `boundaries`} (the 4 largest groups of the layers' boundaries) |
 | `soap-bubble`   | `thickness` P: number, 520, 100..1200; `turbulence`: number, 0.6, 0..1.5; `swirl`: number, 1, 0..4; `clarity`: number, 0.75, 0..1; `shine`: number, 1.2, 0.2..3                                                                                                                                                            |
-| `metaball-hull` | `look` P: enum, `membrane`, {`goo`, `membrane`, `outline`}; `blobRadius`: number, 7, 2..25; `threshold`: number, 1, 0.05..1.5; `breathe`: number, 0, 0..1; `fillOpacity`: number, 0.55, 0..1; `outline`: number, 2.5, 0..8                                                                                                 |
+| `metaball-hull` | `look` P: enum, `goo`, {`goo`, `membrane`, `outline`}; `blobRadius`: number, 7, 2..25; `threshold`: number, 1, 0.05..1.5; `breathe`: number, 0, 0..1; `fillOpacity`: number, 0.55, 0..1; `outline`: number, 2.5, 0..8                                                                                                      |
 
 ### 7.6 Transitions (registry, section 3.7)
 
-| Id                | Name               | Parameters                                                                                                |
-| ----------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
-| `glide`           | Glide              | `easing`: enum, `ease-in-out`, {`linear`, `ease-in-out`, `spring`}                                        |
-| `staggered-glide` | Staggered glide    | `from`: enum, `center`, {`center`, `selection`}; `stagger`: number, 0.5, 0..1                             |
-| `arc-move`        | Arc move           | `height`: number, 0.3, 0..1 (of the move's length)                                                        |
-| `swirl`           | Swirl              | `turns`: number, 0.5, -2..2                                                                               |
-| `fade-through`    | Fade through       | none                                                                                                      |
-| `collapse-bloom`  | Collapse and bloom | `hold`: number, 0.1, 0..0.5 (of the duration)                                                             |
+| Id                | Name               | Parameters                                                                                                 |
+| ----------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `glide`           | Glide              | `easing`: enum, `ease-in-out`, {`linear`, `ease-in-out`, `spring`}                                         |
+| `staggered-glide` | Staggered glide    | `from`: enum, `center`, {`center`, `selection`}; `stagger`: number, 0.5, 0..1                              |
+| `arc-move`        | Arc move           | `height`: number, 0.3, 0..1 (of the move's length)                                                         |
+| `swirl`           | Swirl              | `turns`: number, 0.5, -2..2                                                                                |
+| `fade-through`    | Fade through       | none                                                                                                       |
+| `collapse-bloom`  | Collapse and bloom | `hold`: number, 0.1, 0..0.5 (of the duration)                                                              |
 | `particle-morph`  | Particle morph     | `particles`: integer, 24, 1..32 per node (capped at 60,000 in all and by quality); `curl`: number, 1, 0..3 |
 
 Every transition's duration is `layoutTransition.seconds` (default 0.8).

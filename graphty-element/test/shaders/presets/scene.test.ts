@@ -59,7 +59,7 @@ const TABLE: Readonly<
         speed: "breathe",
         cost: "medium",
         params: [
-            ["look", "enum", "membrane", undefined, undefined, true],
+            ["look", "enum", "goo", undefined, undefined, true],
             ["blobRadius", "number", 7, 2, 25],
             ["threshold", "number", 1, 0.05, 1.5],
             ["breathe", "number", 0, 0, 1],

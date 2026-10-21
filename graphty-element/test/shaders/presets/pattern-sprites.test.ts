@@ -176,6 +176,28 @@ describe("the pattern, state and sprite presets", () => {
         );
     });
 
+    it.each([
+        ["colorblind-patterns", "pattern"],
+        ["icon-sticker", "icon"],
+    ])("%s names every value of %s with a picture, keeping the number", (id, name) => {
+        const param = PATTERN_SPRITE_PRESETS.find((preset) => preset.descriptor.id === id)?.descriptor.params.find(
+            (each) => each.name === name,
+        );
+        assert.isDefined(param);
+        assert.strictEqual(param.type, "integer");
+        const values = Array.from({ length: (param.max as number) - (param.min as number) + 1 }, (_, i) => i);
+        assert.deepEqual(
+            param.choices?.map((choice) => choice.value),
+            values,
+        );
+        for (const choice of param.choices ?? []) {
+            assert.match(choice.glyph.path, /^M[\d.]/, choice.plainName);
+            assert.isAbove(choice.plainName.length, 0);
+        }
+
+        assert.strictEqual(new Set(param.choices?.map((choice) => choice.plainName)).size, values.length);
+    });
+
     it.each(PATTERN_SPRITE_PRESETS.map((preset) => [preset.descriptor.id, preset] as const))(
         "%s: its catalog facts and its body pass the checks a registered shader meets",
         (_id, { descriptor, body }) => {

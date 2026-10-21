@@ -28,7 +28,9 @@ vec3 studio(vec3 d) {
     vec3 c = mix(ground, sky, smoothstep(-0.03, 0.03, d.y));
     c += vec3(5.0, 4.8, 4.5) * softbox(d, normalize(vec3(0.55, 0.65, -0.5)), vec2(0.35, 0.22), 0.04);
     c += vec3(2.2, 2.6, 3.4) * softbox(d, normalize(vec3(-0.7, 0.35, -0.6)), vec2(0.18, 0.5), 0.05);
-    c += vec3(0.6, 0.65, 0.75) * exp(-abs(d.y) * 5.0) + vec3(0.07);
+    // A light room: a broad horizon and a lifted floor and sky, so the chrome is not near black
+    // on a light canvas.
+    c += vec3(0.6, 0.65, 0.75) * exp(-abs(d.y) * 2.5) + vec3(0.3);
     return c;
 }
 vec4 shade(NodeInput n) {

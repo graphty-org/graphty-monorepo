@@ -2091,6 +2091,14 @@ export interface ShaderDescriptor {
 export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
 
 // @public
+export interface ShaderGlyph {
+    // (undocumented)
+    readonly outline?: boolean;
+    // (undocumented)
+    readonly path: string;
+}
+
+// @public
 export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members";
 
 // @public
@@ -2119,9 +2127,17 @@ export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects
 export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor;
 
 // @public
+export interface ShaderParamChoice {
+    readonly glyph: ShaderGlyph;
+    readonly plainName: string;
+    readonly value: number;
+}
+
+// @public
 export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     readonly primary?: boolean;
+    readonly choices?: readonly ShaderParamChoice[];
 };
 
 // @public

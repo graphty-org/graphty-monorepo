@@ -23,7 +23,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
             max: 1,
             primary: true,
         }),
-        Object.freeze({ name: "tint", plainName: "Tint", type: "number", default: 0.3, min: 0, max: 1 }),
+        Object.freeze({ name: "tint", plainName: "Tint", type: "number", default: 0.5, min: 0, max: 1 }),
     ]),
     reads: Object.freeze<ShaderInput[]>(["color"]),
     motion: Object.freeze({ loop: { speedParam: "speed" } }),

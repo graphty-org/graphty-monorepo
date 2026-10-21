@@ -20,7 +20,7 @@ export const COMET_TRACERS: ShaderDescriptor = Object.freeze({
         { name: "tail", plainName: "Tail", type: "number", default: 55, min: 4, max: 200 },
         { name: "headColor", plainName: "Head color", type: "color", default: "#fff6e0", primary: true },
         { name: "tailColor", plainName: "Tail color", type: "color", default: "#ff7a2a" },
-        { name: "useEdgeColor", plainName: "Use edge color", type: "boolean", default: true },
+        { name: "useEdgeColor", plainName: "Use edge color", type: "boolean", default: false },
         { name: "intensity", plainName: "Intensity", type: "number", default: 1.2, min: 0, max: 3 },
         { name: "bloom", plainName: "Bloom", type: "number", default: 1, min: 0, max: 3 },
     ]),

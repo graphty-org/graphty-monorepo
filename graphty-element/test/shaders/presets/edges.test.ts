@@ -83,7 +83,7 @@ const TABLE: readonly {
             ["tail", "number", 55, 4, 200],
             ["headColor", "color", "#fff6e0", undefined, undefined, true],
             ["tailColor", "color", "#ff7a2a"],
-            ["useEdgeColor", "boolean", true],
+            ["useEdgeColor", "boolean", false],
             ["intensity", "number", 1.2, 0, 3],
             ["bloom", "number", 1, 0, 3],
         ],

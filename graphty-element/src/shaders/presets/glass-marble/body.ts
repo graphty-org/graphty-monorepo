@@ -55,8 +55,9 @@ vec4 shade(NodeInput n) {
     vec3 e = nv + t * chord;
     vec3 outDir = refract(t, -e, ior);
     if (dot(outDir, outDir) < 1e-4) outDir = reflect(t, -e);
-    // What shows through: a soft gradient, brightest toward the key light.
-    vec3 tint = mix(glassTint, n.color.rgb, 0.3);
+    // What shows through: a soft gradient, brightest toward the key light, in the node's color
+    // more than the glass's, so the marble reads as its node's color.
+    vec3 tint = mix(glassTint, n.color.rgb, 0.6);
     vec3 behind = tint * mix(vec3(0.3, 0.29, 0.32), vec3(0.7, 0.75, 0.85), smoothstep(-0.7, 0.8, outDir.y));
     behind += tint * 0.6 * pow(max(dot(outDir, lightDir), 0.0), 6.0);
     vec3 c = mix(acc + trans * behind, reflC, clamp(fres * reflection, 0.0, 1.0));
@@ -65,19 +66,27 @@ vec4 shade(NodeInput n) {
 }
 `;
 
-/** The small-size program: flat fresnel glass in the ribbons' mean color. */
-export const LOW_DETAIL = `// Glass marble, small: fresnel glass over the ribbons' mean color.
+/**
+ * The small-size program: a miniature that still reads as a marble a few pixels across -- glass in
+ * the node's color with one bright ribbon through it, a bright rim and a broad highlight. (A
+ * fresnel ball in the ribbons' mean color read as a flat gray dot on a light canvas.)
+ */
+export const LOW_DETAIL = `// Glass marble, small: one bright ribbon in the node's color, a bright rim, a broad highlight.
 ${STUDIO}
 vec4 shade(NodeInput n) {
     vec3 nv = n.normal;
     vec3 rd = n.viewDir;
     float ndv = max(dot(nv, -rd), 0.0);
-    float fres = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
+    float fres = 0.04 + 0.96 * pow(1.0 - ndv, 3.0);
     vec3 tint = mix(glassTint, n.color.rgb, 0.3);
-    vec3 core = mix(n.color.rgb * 1.25, secondColor, 0.5) * 0.55;
-    vec3 inside = mix(tint * 0.45, core + tint * 0.25, ndv);
-    vec3 c = mix(inside, studio(reflect(rd, nv)), clamp(fres * reflection, 0.0, 1.0));
-    c += vec3(1.2) * pow(max(dot(reflect(rd, nv), lightDir), 0.0), 300.0);
-    return vec4(studioTone(c), 1.0);
+    // One ribbon across the ball, waved by the twist, turning with the marble's spin.
+    vec2 p = rot2(n.time * spin + n.seed * 6.28318531) * n.uv;
+    float ribbon = 1.0 - smoothstep(thickness, thickness + 0.3, abs(p.y + 0.25 * sin(p.x * twist)));
+    vec3 inside = mix(mix(tint, n.color.rgb, 0.6) * 0.8, n.color.rgb * 1.35 + 0.08, ribbon);
+    inside = mix(inside, secondColor, 0.25 * ribbon * (1.0 - ndv));
+    vec3 c = mix(inside, studio(reflect(rd, nv)), clamp(fres * reflection * 0.6, 0.0, 1.0));
+    c += tint * 0.6 * pow(1.0 - ndv, 2.5);
+    c += vec3(0.9) * pow(max(dot(reflect(rd, nv), lightDir), 0.0), 40.0);
+    return vec4(studioTone(c * 1.2), 1.0);
 }
 `;

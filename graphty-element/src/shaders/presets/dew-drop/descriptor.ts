@@ -14,7 +14,7 @@ export const DEW_DROP: ShaderDescriptor = Object.freeze({
     kind: "node-surface",
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1.6, min: 0, max: 3, primary: true },
-        { name: "tint", plainName: "Tint", type: "number", default: 0.25, min: 0, max: 1 },
+        { name: "tint", plainName: "Tint", type: "number", default: 0.75, min: 0, max: 1 },
         { name: "bloom", plainName: "Bloom", type: "number", default: 0.9, min: 0, max: 2 },
     ]),
     reads: Object.freeze<ShaderInput[]>(["color"]),

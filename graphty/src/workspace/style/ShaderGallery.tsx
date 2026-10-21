@@ -42,6 +42,8 @@ function roveKey(event: React.KeyboardEvent, root: HTMLElement | null): void {
 export interface GalleryChoice {
     readonly value: string;
     readonly label: string;
+    /** Its still picture, as a shader's thumbnail. */
+    readonly picture?: string;
 }
 
 /** Props for ShaderGallery. */
@@ -171,6 +173,7 @@ export function ShaderGallery({
                         key={choice.value}
                         id={choice.value}
                         name={choice.label}
+                        picture={choice.picture}
                         marked={marked.includes(choice.value)}
                         stop={tabStop === choice.value}
                         onPick={onPick}

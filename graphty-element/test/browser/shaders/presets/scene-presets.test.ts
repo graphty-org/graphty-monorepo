@@ -448,6 +448,56 @@ describe("the scene presets on a real element", () => {
         assert.isAbove(pass?.draws ?? 0, still, "a camera move draws it again");
     });
 
+    it("the nebula's stars are faint points, each smaller than a node", async () => {
+        // No gas and no twinkle: what is lit is stars. A node of the scene above is about 8 px
+        // across; each star must be a point well under that, and the stars together a sprinkle.
+        const element = await showing(
+            presetId("nebula"),
+            "background",
+            { density: 0, drift: 0, twinkle: 0 },
+            {
+                nodes: [],
+            },
+        );
+        const { width, height, rgba } = await canvasPixels(element);
+        await commands.writeFile("tmp/scene-presets/nebula-stars.png", await pngOf({ width, height, rgba }), "base64");
+        const lit = new Uint8Array(width * height);
+        for (let i = 0; i < lit.length; i++) {
+            lit[i] = 0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2] > 60 ? 1 : 0;
+        }
+
+        // The largest star: a flood fill over the lit pixels, four-connected.
+        let largest = 0;
+        let total = 0;
+        for (let start = 0; start < lit.length; start++) {
+            if (lit[start] !== 1) {
+                continue;
+            }
+
+            let size = 0;
+            const stack = [start];
+            lit[start] = 2;
+            while (stack.length > 0) {
+                const at = stack.pop() as number;
+                size++;
+                const x = at % width;
+                for (const next of [at - width, at + width, x > 0 ? at - 1 : -1, x < width - 1 ? at + 1 : -1]) {
+                    if (next >= 0 && next < lit.length && lit[next] === 1) {
+                        lit[next] = 2;
+                        stack.push(next);
+                    }
+                }
+            }
+
+            largest = Math.max(largest, size);
+            total += size;
+        }
+
+        assert.isAbove(total, 0, "some stars are drawn");
+        assert.isAtMost(largest, 16, "no star is as large as a node");
+        assert.isBelow(total / (width * height), 0.01, "the stars are a sprinkle, not a blizzard");
+    });
+
     it("the nebula takes the boundaries' colors only with tintBy boundaries", async () => {
         const nebula = presetId("nebula");
         const element = await mounted([boundaryLayer(presetId("metaball-hull"), { look: "outline", fillOpacity: 0 })]);

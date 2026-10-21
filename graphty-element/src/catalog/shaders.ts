@@ -95,7 +95,33 @@ export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     /** Advisory catalog data from the registrant: the parameter that most changes the look. */
     readonly primary?: boolean;
+    /**
+     * The named values of an "integer" parameter that picks one of a set (an icon, a pattern),
+     * each with a picture of what it draws, so a form can offer a grid of pictures instead of a
+     * number. The stored value stays the number, so `encode` with the `"index"` scale still
+     * binds it. @since 3.36.0
+     */
+    readonly choices?: readonly ShaderParamChoice[];
 };
+
+/** One named value of an integer shader parameter, with a picture of what it draws. @since 3.36.0 */
+export interface ShaderParamChoice {
+    /** The parameter's value. */
+    readonly value: number;
+    /** Its default name, catalog data an application may show or replace by value. */
+    readonly plainName: string;
+    /** What it draws, as a picture a form can show at icon size. */
+    readonly glyph: ShaderGlyph;
+}
+
+/**
+ * A small picture: SVG path data in a 24 x 24 box (y down), filled with the even-odd rule, or,
+ * with `outline`, stroked 2 units wide and not filled. @since 3.36.0
+ */
+export interface ShaderGlyph {
+    readonly path: string;
+    readonly outline?: boolean;
+}
 
 /** Where a shader in the catalog came from. @since 3.36.0 */
 export type ShaderOrigin = "element" | "registered" | "pasted";

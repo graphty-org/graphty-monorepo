@@ -288,11 +288,11 @@ export const NebulaTintedByGroups: Story = {
 /** A thin-film bubble around each community, and smaller ones around its subgroups inside it. */
 export const SoapBubble = boundaryStory("soap-bubble", "Soap bubble");
 
-/** The hull as translucent goo with a bright rim. */
-export const HullGoo = boundaryStory("metaball-hull", "Hull goo", { look: "goo" });
+/** The hull as translucent goo with a bright rim (the default look). */
+export const HullGoo = boundaryStory("metaball-hull", "Hull goo");
 
-/** The hull as an iridescent soap-film membrane (the default look). */
-export const HullMembrane = boundaryStory("metaball-hull", "Hull membrane");
+/** The hull as an iridescent soap-film membrane. */
+export const HullMembrane = boundaryStory("metaball-hull", "Hull membrane", { look: "membrane" });
 
 /** The hull as a clean contour, nested like an Euler diagram. */
 export const HullOutline = boundaryStory("metaball-hull", "Hull outline", { look: "outline" });

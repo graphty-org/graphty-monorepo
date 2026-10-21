@@ -25,7 +25,8 @@ vec3 studio(vec3 d) {
     d = normalize(d);
     vec3 sky = mix(vec3(0.62, 0.68, 0.78), vec3(0.10, 0.13, 0.24), smoothstep(0.0, 0.85, d.y));
     vec3 ground = mix(vec3(0.22, 0.20, 0.19), vec3(0.03, 0.03, 0.035), smoothstep(0.0, -0.5, d.y));
-    vec3 c = mix(ground, sky, smoothstep(-0.03, 0.03, d.y));
+    // A wide horizon blend: a ball this small shows a razor line as a hard split.
+    vec3 c = mix(ground, sky, smoothstep(-0.25, 0.25, d.y));
     c += vec3(5.0, 4.8, 4.5) * softbox(d, normalize(vec3(0.55, 0.65, -0.5)), vec2(0.35, 0.22), 0.04);
     c += vec3(2.2, 2.6, 3.4) * softbox(d, normalize(vec3(-0.7, 0.35, 0.6)), vec2(0.18, 0.5), 0.05);
     return c;
@@ -39,7 +40,7 @@ vec4 shade(NodeInput n) {
     float facing = clamp(-n.normal.z, 0.0, 1.0);
     float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
     // Through the body: the room seen upside down through the ball, as through real glass.
-    vec3 through = 0.15 + tone(studio(refract(v, n.normal, 0.66)) * 1.6);
+    vec3 through = 0.25 + tone(studio(refract(v, n.normal, 0.66)) * 1.6 + 0.1);
     vec3 body = through * glass;
     vec3 reflected = tone(studio(reflect(v, n.normal)) + 0.15);
     vec3 c = mix(body, reflected, fresnel);

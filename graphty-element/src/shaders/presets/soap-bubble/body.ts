@@ -34,7 +34,8 @@ vec4 shade(BoundaryInput g) {
     // The thinnest film goes black.
     film *= smoothstep(20.0, 120.0, th);
     vec3 r = reflect(rd, n);
-    vec3 env = studio(r);
+    // A soft horizon: on a thin film a crisp one reads as a hard band across the bubble.
+    vec3 env = studioSoft(r, 0.3);
     float fres = 0.04 + 0.96 * pow(1.0 - ndv, 3.0);
     vec3 c = film * (0.45 + env * 0.9) * (0.6 + 0.8 * fres) * shine;
     float a = clamp((1.0 - clarity) * 0.25 + fres * 0.85 + luminance(env * film) * 0.25, 0.0, 1.0);
@@ -43,6 +44,9 @@ vec4 shade(BoundaryInput g) {
     float spec2 = pow(max(dot(r, normalize(vec3(0.5, -0.4, -0.7))), 0.0), 80.0);
     c += vec3(3.0) * spec + vec3(0.6) * spec2;
     a = clamp(max(a, spec + spec2 * 0.5), 0.0, 1.0);
+    // Anti-alias the rim: the element discards past the sphere's edge, where the film is brightest.
+    float edge = length(n.xy);
+    a *= 1.0 - smoothstep(1.0 - 1.5 * fwidth(edge), 1.0, edge);
     // Premultiplied, over the groups beneath.
     return vec4(min(c, vec3(1.0)) * a, a);
 }

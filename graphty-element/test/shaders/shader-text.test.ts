@@ -247,6 +247,24 @@ describe("the header", () => {
         });
     });
 
+    it("keeps an integer parameter's named values and pictures, and refuses them on any other type", () => {
+        const choices = [
+            { value: 0, plainName: "Dots", glyph: { path: "M4 4h4v4h-4Z" } },
+            { value: 1, plainName: "Rings", glyph: { path: "M3 12a9 9 0 1 0 18 0", outline: true } },
+        ];
+        const header = { params: [{ name: "pattern", type: "integer", default: 0, min: 0, max: 1, choices }] };
+        const result = parseShaderText(text(body.replace("tint", "vec3(float(pattern))"), header));
+        assert.isTrue(result.ok);
+        assert.deepEqual(result.ok && result.registration.descriptor.params[0].choices, choices);
+        const again = result.ok ? parseShaderText(formatShaderText(result.registration)) : result;
+        assert.deepEqual(again.ok && again.registration.descriptor.params[0].choices, choices);
+
+        const onNumber = { params: [{ name: "tint", type: "number", default: 0, choices }] };
+        assert.deepEqual(firstProblem(text(body, onNumber)).params, { param: "tint", field: "choices" });
+        const noPicture = { params: [{ ...header.params[0], choices: [{ value: 0, plainName: "Dots" }] }] };
+        assert.deepEqual(firstProblem(text(body, noPicture)).params, { param: "pattern", field: "choices" });
+    });
+
     it("strips control and bidirectional characters from names", () => {
         // JSON.stringify writes U+202E as the character itself; the header carries it escaped.
         const header = { name: "Ring\u202E\u0007", params: [{ name: "tint", type: "color", default: "#FFAA00" }] };

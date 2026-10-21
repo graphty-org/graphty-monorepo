@@ -14,9 +14,10 @@ import { STUDIO } from "../studio";
 
 /** The mirror's tint from the node's color, and the bright horizon both programs reflect. */
 const MIRROR = `${STUDIO}
-vec3 mirrorTint(vec3 color) { return mix(vec3(0.85, 0.88, 0.95), color * 1.2 + 0.2, 0.35); }
-// A bright horizon band, so the tiles do not mostly mirror the near-black floor.
-vec3 mirrorEnv(vec3 r) { return studio(r) + vec3(0.7, 0.72, 0.8) * exp(-abs(r.y) * 4.0) + vec3(0.08); }
+vec3 mirrorTint(vec3 color) { return mix(vec3(0.85, 0.88, 0.95), color * 1.2 + 0.2, 0.7); }
+// A light room: a broad bright horizon and a lifted floor and sky, so the tiles do not mostly
+// mirror near black, which reads as a black ball on a light canvas.
+vec3 mirrorEnv(vec3 r) { return studio(r) * 0.8 + vec3(0.75, 0.77, 0.85) * exp(-abs(r.y) * 2.5) + vec3(0.4); }
 `;
 
 /** The body: `shade` and its helpers. */
@@ -59,6 +60,6 @@ vec4 shade(NodeInput n) {
     vec3 c = mirrorEnv(r) * mirrorTint(n.color.rgb);
     c *= 0.7 + 0.3 * hash12(floor(n.uv * 4.0) + n.seed);
     c += vec3(4.0) * pow(max(dot(r, lightDir), 0.0), 40.0) * sparkle;
-    return vec4(studioTone(c * 0.85), 1.0);
+    return vec4(studioTone(c), 1.0);
 }
 `;

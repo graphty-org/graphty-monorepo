@@ -22,7 +22,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
             name: "look",
             plainName: "Look",
             type: "enum",
-            default: "membrane",
+            default: "goo",
             values: Object.freeze([
                 Object.freeze({ value: "goo", label: "Goo" }),
                 Object.freeze({ value: "membrane", label: "Membrane" }),

@@ -66,7 +66,7 @@ const TABLE: Readonly<Record<string, { name: string; reads: string[]; speed?: st
             params: [
                 ["speed", "number", 0.3, 0, 2],
                 ["ripple", "number", 0.5, 0, 1, true],
-                ["tint", "number", 0.3, 0, 1],
+                ["tint", "number", 0.5, 0, 1],
             ],
         },
         "anodized-steel": {

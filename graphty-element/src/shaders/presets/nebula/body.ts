@@ -24,10 +24,15 @@ float starLayer(vec3 dir, float cells, float seed, float spin, float t) {
     vec3 h = hash33(id + seed);
     vec3 f = fract(p) - (0.15 + 0.7 * h);
     float present = step(1.0 - 0.35 * stars, h.x);
-    float size = fwidth(p.x) * (0.8 + 1.8 * h.y * h.y);
-    float core = exp(-dot(f, f) / max(size * size, 1e-6));
+    // A star's size is in cell units, so it is a point on the sky whatever the slope of the
+    // screen through the cell. The pixel footprint of the whole cell position is only a floor
+    // for anti-aliasing, and a star spread over it keeps its light, so it dims instead of
+    // swelling: a far star is a faint point, never a streak or a node-sized blob.
+    float star = 0.06 * (0.8 + 1.8 * h.y * h.y);
+    float size = max(star, 0.5 * length(fwidth(p)));
+    float core = exp(-dot(f, f) / (size * size)) * (star * star) / (size * size);
     float tw = 1.0 - twinkle * 0.5 * (1.0 + sin(t * (2.0 + 5.0 * h.z) + h.y * TAU));
-    return present * core * (0.4 + 1.6 * h.y * h.y) * tw;
+    return present * core * (0.25 + 0.75 * h.y * h.y) * tw;
 }
 
 vec4 shade(BackgroundInput b) {
@@ -58,8 +63,8 @@ vec4 shade(BackgroundInput b) {
     c += gas * 0.08 * density;
     // Stars: far, middle and near layers drift at different speeds.
     float s = starLayer(dir, 140.0, 1.0, 0.002, clock)
-        + starLayer(dir, 70.0, 7.0, 0.005, clock) * 1.2
-        + starLayer(dir, 32.0, 13.0, 0.01, clock) * 1.5;
+        + starLayer(dir, 70.0, 7.0, 0.005, clock) * 0.9
+        + starLayer(dir, 32.0, 13.0, 0.01, clock) * 0.7;
     vec3 starColor = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), hash13(floor(dir * 70.0)));
     c += starColor * s * (1.0 - 0.6 * dust * body);
     return vec4(c, 1.0);

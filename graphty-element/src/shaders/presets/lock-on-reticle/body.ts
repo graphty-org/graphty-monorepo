@@ -22,7 +22,11 @@ float easeOutBack(float x) {
 
 vec4 shade(NodeInput n) {
     float px = 1.0 / max(n.pixelSize, 1.0);
-    float lw = lineWidth * px;
+    // On a small node the fine parts crowd into a blob: thicker lines, fewer ticks (at least
+    // 8 px apart round the ring at rest), and the inner circle, pips and scan fade out.
+    float detail = smoothstep(10.0, 24.0, n.pixelSize);
+    float lw = lineWidth * px * mix(1.4, 1.0, detail);
+    float tickCount = max(4.0, min(float(ticks), floor(6.2831853 * 1.914 * n.pixelSize / 32.0) * 4.0));
     vec2 uv = n.uv;
     float r = length(uv);
     float ang = atan(uv.y, uv.x);
@@ -38,13 +42,13 @@ vec4 shade(NodeInput n) {
     // a ticked ring outside them, counter-turning, with four major marks
     float RR = R * 1.32;
     float phase = (ang - turn * 0.6) / 6.2831853;
-    float tickMask = step(0.55, fract(phase * float(ticks)));
+    float tickMask = step(0.55, fract(phase * tickCount));
     float ring = strokeAA(r - RR, lw * 0.6) * tickMask;
     float major = strokeAA(r - RR, lw * 2.2) * step(0.92, fract(phase * 4.0));
     // an inner thin circle and four cardinal pips
-    float inner = strokeAA(r - R * 0.86, lw * 0.4) * 0.6;
+    float inner = strokeAA(r - R * 0.86, lw * 0.4) * 0.6 * detail;
     vec2 c4 = abs(rot2(-turn * 0.3) * uv);
-    float pips = fillAA(min(sdSegment(c4, vec2(R * 1.05, 0.0), vec2(R * 1.2, 0.0)), sdSegment(c4, vec2(0.0, R * 1.05), vec2(0.0, R * 1.2))) - lw);
+    float pips = fillAA(min(sdSegment(c4, vec2(R * 1.05, 0.0), vec2(R * 1.2, 0.0)), sdSegment(c4, vec2(0.0, R * 1.05), vec2(0.0, R * 1.2))) - lw) * detail;
     float fade = mix(0.4, 1.0, t) * (1.0 - leave);
     float lines = max(max(brackets, pips), max(ring, max(major, inner))) * fade;
     // the lock: a flash and a pulse ring that runs out, both over before the entrance ends
@@ -52,7 +56,7 @@ vec4 shade(NodeInput n) {
     float lockOn = lockAge < 0.0 ? 0.0 : 1.0 - smoothstep(0.0, 0.165, lockAge);
     float pulse = strokeAA(r - (R + max(lockAge, 0.0) * 6.0), lw * 1.5) * lockOn * (1.0 - smoothstep(2.4, 2.9, r));
     // a faint scan inside the brackets once locked
-    float scan = 0.12 * t * (1.0 - leave) * (1.0 - smoothstep(R * 0.95, R, max(q.x, q.y))) * step(0.5, fract(uv.y * 0.5 / px / 3.0));
+    float scan = 0.12 * t * detail * (1.0 - leave) * (1.0 - smoothstep(R * 0.95, R, max(q.x, q.y))) * step(0.5, fract(uv.y * 0.5 / px / 3.0));
     float lineA = clamp(max(lines, pulse) + scan, 0.0, 1.0);
     // a dark edge under the brackets and the ring
     float dark = max(fillAA(d - lw - 1.5 * px), strokeAA(r - RR, lw * 0.6 + 1.5 * px) * tickMask) * fade;

@@ -96,6 +96,7 @@ const PARAM_KEYS: ReadonlySet<string> = new Set([
     "description",
     "varies",
     "primary",
+    "choices",
 ]);
 
 /** Every input a shader may read. */
@@ -281,7 +282,7 @@ function readParam(raw: unknown, index: number): ShaderParamDescriptor | ShaderP
         return paramProblem(label, "type");
     }
 
-    const fault = valueFault(raw, type) ?? flagFault(raw, type);
+    const fault = valueFault(raw, type) ?? flagFault(raw, type) ?? choicesFault(raw.choices, type);
     if (fault !== null) {
         return paramProblem(label, fault);
     }
@@ -313,6 +314,28 @@ function flagFault(raw: Record<string, unknown>, type: string): string | null {
 }
 
 /**
+ * Whether an integer parameter's named values are well formed: each a whole number, a name and a
+ * picture (SVG path data, optionally an outline).
+ * @param choices - The `choices` field as written.
+ * @param type - The parameter's type.
+ * @returns "choices" when they are not, or null.
+ */
+function choicesFault(choices: unknown, type: string): string | null {
+    if (choices === undefined) {
+        return null;
+    }
+
+    const good = (choice: unknown): boolean =>
+        isRecord(choice) &&
+        Number.isInteger(choice.value) &&
+        typeof choice.plainName === "string" &&
+        isRecord(choice.glyph) &&
+        typeof choice.glyph.path === "string" &&
+        (choice.glyph.outline === undefined || typeof choice.glyph.outline === "boolean");
+    return type === "integer" && Array.isArray(choices) && choices.every(good) ? null : "choices";
+}
+
+/**
  * Build a parameter's descriptor, its fields in one order.
  * @param raw - The checked parameter.
  * @param name - Its name.
@@ -338,6 +361,7 @@ function paramDescriptor(raw: Record<string, unknown>, name: string, type: strin
         ...(typeof raw.description === "string" ? { description: raw.description } : {}),
         ...(raw.varies === true ? { varies: true } : {}),
         ...(raw.primary === true ? { primary: true } : {}),
+        ...(raw.choices === undefined ? {} : { choices: raw.choices as ShaderParamDescriptor["choices"] }),
     };
 }
 
@@ -722,7 +746,7 @@ export function parseShaderText(text: ShaderText, options?: { readonly kind?: Sh
  */
 function paramEntry(param: ShaderParamDescriptor): Record<string, unknown> {
     const entry: Record<string, unknown> = { name: param.name, type: param.type, default: param.default };
-    for (const key of ["min", "max", "step", "values", "description", "varies", "primary"] as const) {
+    for (const key of ["min", "max", "step", "values", "description", "varies", "primary", "choices"] as const) {
         if (param[key] !== undefined) {
             entry[key] = param[key];
         }

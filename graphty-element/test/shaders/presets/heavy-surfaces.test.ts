@@ -93,7 +93,7 @@ const TABLE: readonly {
         bloom: true,
         params: [
             ["sparkle", "number", 1.6, 0, 3, true],
-            ["tint", "number", 0.25, 0, 1],
+            ["tint", "number", 0.75, 0, 1],
             ["bloom", "number", 0.9, 0, 2],
         ],
     },

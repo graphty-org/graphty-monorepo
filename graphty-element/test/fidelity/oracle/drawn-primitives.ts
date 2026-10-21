@@ -583,6 +583,11 @@ export function drawnPrimitives(
                 },
                 arrows,
                 outline: outlineOf(d.outline),
+                // a band over the line, which graphty draws solid
+                overlay:
+                    d.overlay === null || d.overlay === undefined
+                        ? null
+                        : { color: d.overlay.color, opacity: d.overlay.opacity, width: d.overlay.width },
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]

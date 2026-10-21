@@ -1239,6 +1239,31 @@ Still open after fix round 3:
   class on the oracle side): unchanged, as above; the comparator's edge association and arrow classes
   (`associate.ts`) are being changed by other work.
 
+Round 4 (2026-10-21), lines drawn on one another and lines drawn as a filled shape, in the comparator
+(`graphty-element/test/fidelity/oracle/associate-bands.test.ts`):
+
+- Coincident edges between one pair: Cytoscape.js draws haystack edges between the same two nodes on top of each
+  other. Where the one drawn first was wider, the comparator read it as the outline of the one over it
+  (`cyjs-genemania`: Cytoscape.js drew 255 edges, the comparator read 218, 35 of them with an outline, and left 37 of
+  graphty's edges extra). A band along a line is now read only while more lines run between the two nodes than
+  graphty draws edges there. `cyjs-genemania` now pairs all 255 edges (`edge.extra` 218/255 to 255/255, no
+  `edge.outline` rows); `json-cyjs-perf` gains 2 paired edges the same way.
+- An edge's `overlay-*`, a wider band drawn over its line, was read as a second edge
+  (`edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`). It is now read as the line's overlay and
+  judged as a property of its own, `edge.overlay` (graphty-element draws it as `line.overlay`), beside
+  `edge.outline` for the band under the line.
+- `curve-style: straight-triangle`: Cytoscape.js draws the line as one long filled triangle, as wide as the line at
+  the source and a point at the target. The comparator read it as a shape and attached its point to the next edge
+  as an arrowhead and its route (the haystack edges of `cytoscapejs-specimen-edges-lines`). It is now read as a line
+  of line class `tapered`: the two triangle edges and the two haystack edges pass `edge.route`, `edge.arrow` and
+  `edge.extra`, and the two tapered edges (and `curve-straight-triangle` on `json-cyjs-synth-edges`) now fail
+  `edge.dash`, because graphty draws the line at one width. OPEN, graph-io and graphty-element: a tapering width
+  needs a neutral property and a line of varying width (the same gap as Graphviz's `style=tapered`).
+- The edge to a node with `visibility: hidden` (`target-visibility-hidden` on `-edges-lines-p2`): Cytoscape.js draws
+  the line to the hidden node's outline, graphty draws it to the hidden node's center, and the comparator finds an
+  undrawn end only within 4 px of where graphty's line ends; this line ends 4.4 px short of it, so graphty's edge is
+  still extra. OPEN, comparator: graphty's drawing carries no size for a node it hides.
+
 The annotation, chart color scheme and mapping pages added after the first round (`-images-charts-p6`,
 `-mappings-bypass-p19`, `-p20`):
 

@@ -77,6 +77,7 @@ export const ORACLE_PROPERTIES = [
     "edge.dash",
     "edge.gradient",
     "edge.outline",
+    "edge.overlay",
     "edge.arrow",
     "edge.arrowShape",
     "edge.arrowFill",
@@ -735,6 +736,44 @@ function lineClassAt(s: PStroke, scale: number): DashClass {
         : s.dashClass;
 }
 
+/** A band along an edge's line: its outline under it or its overlay over it. */
+type EdgeBand = { color: string; opacity: number; width: number; dashClass?: DashClass } | null | undefined;
+
+/**
+ * Judges a band along an edge's line (`edge.outline`, `edge.overlay`) wherever either side draws one that shows.
+ * @param j - the judge
+ * @param property - the property it is judged as
+ * @param id - the edge's id
+ * @param bands - the oracle's band and graphty's
+ * @param lengthScale - graphty pixels to oracle pixels
+ */
+function judgeBand(
+    j: Judge,
+    property: "edge.outline" | "edge.overlay",
+    id: string,
+    bands: readonly [EdgeBand, EdgeBand],
+    lengthScale: number,
+): void {
+    const T = ORACLE_TOLERANCES;
+    const [ob, gb] = bands.map((b) => (b !== undefined && b !== null && b.opacity > 0.05 ? b : null));
+    if (ob === null && gb === null) {
+        return;
+    }
+    // its line class shown only where it is not solid, as the band's own dashes (vis-network's background.dashes)
+    const show = (b: EdgeBand, k: number): unknown =>
+        b === null || b === undefined
+            ? null
+            : [b.color, R(b.opacity), R(b.width * k), ...(b.dashClass === undefined ? [] : [b.dashClass])];
+    const miss =
+        ob === null || gb === null
+            ? 1
+            : Math.max(0, deltaE(ob.color, gb.color) - T.colorDeltaE) +
+              ratioMiss((gb.width * lengthScale) / Math.max(ob.width, 1e-9), T.edgeWidthRatio) +
+              opacityMiss(ob.opacity, gb.opacity) +
+              (sameLine(ob.dashClass ?? "solid", gb.dashClass ?? "solid") ? 0 : 1);
+    j.add(property, "edge", id, miss, show(ob, 1), show(gb, lengthScale));
+}
+
 /** The places along a gradient its colors are compared at. */
 const RAMP_AT = [0, 0.25, 0.5, 0.75, 1] as const;
 
@@ -880,9 +919,10 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "edge.dash":
-        "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
+        "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows, a taper to a point from a pattern's geometry); a pattern no class names matches nothing",
     "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "edge.outline": `a band under the line (a line outline, an edge background) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
+    "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
         "the same shape class at each end (triangle, inverted, vee, crow, diamond, circle, box, tee, half); one no class names matches nothing",
@@ -1756,25 +1796,9 @@ export function compareOracle(
             });
             j.add("edge.gradient", "edge", id, grad.miss, grad.oracle, grad.graphty);
         }
-        // a band under the line, judged wherever either side draws one
-        const shownBand = (e: PEdge): PEdge["outline"] =>
-            e.outline !== undefined && e.outline !== null && e.outline.opacity > 0.05 ? e.outline : null;
-        const [ob, gb] = [shownBand(o), shownBand(g)];
-        if (ob !== null || gb !== null) {
-            // its line class shown only where it is not solid, as the band's own dashes (vis-network's background.dashes)
-            const show = (b: PEdge["outline"], k: number): unknown =>
-                b === null || b === undefined
-                    ? null
-                    : [b.color, R(b.opacity), R(b.width * k), ...(b.dashClass === undefined ? [] : [b.dashClass])];
-            const miss =
-                ob === null || gb === null || ob === undefined || gb === undefined
-                    ? 1
-                    : Math.max(0, deltaE(ob.color, gb.color) - T.colorDeltaE) +
-                      ratioMiss((gb.width * lengthScale) / Math.max(ob.width, 1e-9), T.edgeWidthRatio) +
-                      opacityMiss(ob.opacity, gb.opacity) +
-                      (sameLine(ob.dashClass ?? "solid", gb.dashClass ?? "solid") ? 0 : 1);
-            j.add("edge.outline", "edge", id, miss, show(ob, 1), show(gb, lengthScale));
-        }
+        // a band under the line and one over it, each judged wherever either side draws one
+        judgeBand(j, "edge.outline", id, [o.outline, g.outline], lengthScale);
+        judgeBand(j, "edge.overlay", id, [o.overlay, g.overlay], lengthScale);
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);

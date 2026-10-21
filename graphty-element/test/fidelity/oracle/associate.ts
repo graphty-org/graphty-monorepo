@@ -32,6 +32,7 @@ import {
     type PStray,
     type Pt,
     type PText,
+    taperPaintedAsFill,
 } from "./primitives";
 
 type Similarity = NonNullable<ReturnType<typeof fitSimilarity>>;
@@ -1261,6 +1262,73 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
     });
 }
 
+/** The line classes a band along a line is drawn in; a pattern drawn as a shape is a line of its own. */
+const BAND_CLASSES: ReadonlySet<string> = new Set(["solid", "dashed", "dotted", "dash-dot"]);
+
+/**
+ * The lines that are bands along another line between the same nodes, each set on that line: a wider one drawn under a
+ * narrower one along the same route is its outline (Cytoscape.js's line outline, vis-network's edge background, in
+ * dashes of its own with `background.dashes`), and one drawn over it, solid, is its overlay (Cytoscape.js's
+ * `overlay-*`). Only while more lines run between the two nodes than graphty draws edges there: coincident edges of
+ * different widths (Cytoscape.js's haystack edges between one pair, cyjs-genemania) are each an edge.
+ * @param edges - the edges found so far
+ * @param drawnAt - where in the drawing each edge found by geometry was drawn
+ * @param guide - graphty's drawing
+ * @returns the lines taken as bands, to be dropped as edges
+ */
+function bandsAlongLines(edges: readonly PEdge[], drawnAt: ReadonlyMap<PEdge, number>, guide: PScene): PEdge[] {
+    const pairOf = (e: { source: string; target: string }): string =>
+        e.source < e.target ? `${e.source}\u0000${e.target}` : `${e.target}\u0000${e.source}`;
+    const count = (list: readonly { source: string; target: string }[]): Map<string, number> => {
+        const by = new Map<string, number>();
+        list.forEach((e) => by.set(pairOf(e), (by.get(pairOf(e)) ?? 0) + 1));
+        return by;
+    };
+    const [lines, drawn] = [count(edges), count(guide.edges)];
+    const taken: PEdge[] = [];
+    for (const wide of edges) {
+        const band = wide.stroke;
+        const pair = pairOf(wide);
+        if (
+            !wide.id.includes("#g") ||
+            band === null ||
+            !BAND_CLASSES.has(band.dashClass) ||
+            !Number.isFinite(band.width) ||
+            (lines.get(pair) ?? 0) <= (drawn.get(pair) ?? 0)
+        ) {
+            continue;
+        }
+        const tol = Math.max(band.width, 2);
+        const line = edges.find(
+            (e) =>
+                e !== wide &&
+                !taken.includes(e) &&
+                e.id.includes("#g") &&
+                e.stroke !== null &&
+                pairOf(e) === pair &&
+                band.width >= 1.2 * e.stroke.width &&
+                sameRoute(e.points, wide.points, tol),
+        );
+        const over = line !== undefined && (drawnAt.get(line) ?? -1) < (drawnAt.get(wide) ?? -1);
+        if (
+            line === undefined ||
+            (over ? line.overlay : line.outline) !== undefined ||
+            (over && band.dashClass !== "solid")
+        ) {
+            continue;
+        }
+        const paint = { color: band.color, opacity: band.opacity, width: band.width };
+        if (over) {
+            line.overlay = paint;
+        } else {
+            line.outline = { ...paint, ...(band.dashClass === "solid" ? {} : { dashClass: band.dashClass }) };
+        }
+        lines.set(pair, (lines.get(pair) ?? 0) - 1);
+        taken.push(wide);
+    }
+    return taken;
+}
+
 /**
  * Associates an oracle's primitives with graph elements.
  * @param prims - the oracle's primitives (`readSvgPrimitives`)
@@ -1555,10 +1623,10 @@ export function associate(
     // label's background box)
     const painted = new Map<Prim, PaintedBand>();
     for (const p of free()) {
-        const band =
-            p.kind === "shape" && p.fill !== null && p.stroke === null && p.subpaths !== undefined
-                ? bandPaintedAsFill(p.subpaths)
-                : null;
+        const fillOnly = p.kind === "shape" && p.fill !== null && p.stroke === null;
+        // a line tapering to a point (Cytoscape.js's straight-triangle) is one filled triangle along the edge
+        const taper = fillOnly ? taperPaintedAsFill(p.points) : null;
+        const band = taper ?? (fillOnly && p.subpaths !== undefined ? bandPaintedAsFill(p.subpaths) : null);
         if (band !== null && band.dashClass !== "solid") {
             painted.set(p, band);
         }
@@ -1905,42 +1973,10 @@ export function associate(
         drawnAt.set(edge, p.index);
         edges.push(edge);
     }
-    // A line drawn under a narrower one along the same route between the same nodes is that edge's outline
-    // (Cytoscape.js's line outline, vis-network's edge background, in dashes of its own with `background.dashes`): one
-    // edge with a band under its line, not two. A band is solid or dashed; a pattern drawn as a shape is a line.
-    for (const under of [...edges]) {
-        const band = under.stroke;
-        if (
-            !under.id.includes("#g") ||
-            band === null ||
-            !["solid", "dashed", "dotted", "dash-dot"].includes(band.dashClass) ||
-            !Number.isFinite(band.width)
-        ) {
-            continue;
-        }
-        const tol = Math.max(band.width, 2);
-        const over = edges.find(
-            (e) =>
-                e !== under &&
-                e.id.includes("#g") &&
-                e.stroke !== null &&
-                e.outline === undefined &&
-                pairOf(e.source, e.target) === pairOf(under.source, under.target) &&
-                (drawnAt.get(e) ?? -1) > (drawnAt.get(under) ?? -1) &&
-                band.width >= 1.2 * e.stroke.width &&
-                sameRoute(e.points, under.points, tol),
-        );
-        if (over === undefined) {
-            continue;
-        }
-        over.outline = {
-            color: band.color,
-            opacity: band.opacity,
-            width: band.width,
-            ...(band.dashClass === "solid" ? {} : { dashClass: band.dashClass }),
-        };
-        edges.splice(edges.indexOf(under), 1);
-        withPieces.splice(withPieces.indexOf(under), 1);
+    // a band under a line is its outline, one over it its overlay: one edge, not two
+    for (const band of bandsAlongLines(edges, drawnAt, guide)) {
+        edges.splice(edges.indexOf(band), 1);
+        withPieces.splice(withPieces.indexOf(band), 1);
     }
     // a drawing whose lines mostly run on to the nodes' centers draws its arrowheads at the nodes' outlines
     const atCenter = (e: PEdge, end: "source" | "target"): boolean => {

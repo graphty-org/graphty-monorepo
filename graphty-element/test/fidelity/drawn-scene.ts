@@ -942,6 +942,8 @@ export interface DrawnEdge {
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
      */
     outline: { color: string; opacity: number; width: number; pattern?: string } | null;
+    /** The band drawn over the line (`line.overlay`): its color, opacity and whole width in pixels; null for none. */
+    overlay?: { color: string; opacity: number; width: number } | null;
     caps: {
         end: EdgeCapEnd;
         name: string;
@@ -1101,10 +1103,30 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
 function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
     // the band drawn under the line: its outline, else its underlay (Cytoscape.js draws both as a wider stroke beneath)
     const underlay = internal.haloBands.find((band) => band.kind === "underlay");
-    const [batch, slots] =
-        internal.outlineBatch === null
-            ? [underlay?.batch ?? null, underlay?.slots ?? []]
-            : [internal.outlineBatch, internal.outlineSlots];
+    return internal.outlineBatch === null
+        ? readBand(underlay?.batch ?? null, underlay?.slots ?? [], p)
+        : readBand(internal.outlineBatch, internal.outlineSlots, p);
+}
+
+/**
+ * The band drawn over an edge's line (`line.overlay`), as drawn.
+ * @param internal - the edge's internals
+ * @param p - the projector
+ * @returns its color, opacity and whole width in pixels, or null for none
+ */
+function readOverlay(internal: EdgeInternals, p: Projector): DrawnEdge["overlay"] {
+    const overlay = internal.haloBands.find((band) => band.kind === "overlay");
+    return readBand(overlay?.batch ?? null, overlay?.slots ?? [], p);
+}
+
+/**
+ * A band drawn along an edge's line, as drawn.
+ * @param batch - the line batch it is drawn in, or null for none
+ * @param slots - its slots in the batch
+ * @param p - the projector
+ * @returns its color, opacity, whole width in pixels and pattern, or null for none
+ */
+function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Projector): DrawnEdge["outline"] {
     if (batch === null || batch.disposed || slots.length === 0 || !batch.mesh.isEnabled()) {
         return null;
     }
@@ -1258,6 +1280,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         pattern,
         dashPx,
         outline: readOutline(internal, p),
+        overlay: readOverlay(internal, p),
         caps,
         label: readLabel(edge.label, p),
         endLabels: [edge.arrowTailText, edge.arrowHeadText].flatMap((l) => {

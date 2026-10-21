@@ -485,6 +485,32 @@ const DEFECTS = {
             e.outline.width *= 2;
         }
     }),
+    "edge overlay removed": eachEdge((e) => {
+        e.overlay = null;
+    }),
+    "edge overlay added": eachEdge((e) => {
+        if (!e.overlay && e.stroke !== null) {
+            e.overlay = { color: "#ff00ff", opacity: 0.5, width: e.stroke.width * 3 + 4 };
+        }
+    }),
+    // of edges drawn on one another between one pair (Cytoscape.js's haystack edges), the widest, which the program
+    // draws under the others: not an outline of the edge over it (cyjs-genemania)
+    "widest of coincident edges recolored": (s) => {
+        const byPair = new Map<string, PEdge[]>();
+        for (const e of s.edges) {
+            const k = [e.source, e.target].sort().join("\u0000");
+            byPair.set(k, [...(byPair.get(k) ?? []), e]);
+        }
+        for (const group of byPair.values()) {
+            const lined = group.filter((e) => e.stroke !== null);
+            const widest = lined.sort((a, b) => (b.stroke?.width ?? 0) - (a.stroke?.width ?? 0))[0];
+            const narrowest = lined.at(-1);
+            if (widest?.stroke && narrowest?.stroke && widest.stroke.width >= 1.2 * narrowest.stroke.width) {
+                widest.stroke.color = invert(widest.stroke.color);
+            }
+        }
+        return s;
+    },
     "middle arrowheads removed": eachEdge((e) => {
         e.arrows = e.arrows.filter((a) => a.end !== "middle");
     }),
@@ -855,6 +881,9 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "edge outline removed": ["edge.outline"],
     "edge outline added": ["edge.outline"],
     "edge outline width x2": ["edge.outline"],
+    "edge overlay removed": ["edge.overlay"],
+    "edge overlay added": ["edge.overlay"],
+    "widest of coincident edges recolored": ["edge.color", "edge.gradient", "edge.extra"],
     "middle arrowheads removed": ["edge.arrow"],
     "group outline opacity 0.5": ["group.stroke"],
     "label opacity 0.5": ["label.opacity", "label.present", "edge.label", "group.label"],

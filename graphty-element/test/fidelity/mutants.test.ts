@@ -62,6 +62,10 @@ const DEFAULT_IDS = [
     "dot-synth-edges-clusters",
     "cytoscapejs-specimen-edge-labels",
     "cytoscapejs-specimen-edges-lines",
+    // a line's overlay, a wider band drawn over it, beside one drawn under it
+    "cytoscapejs-specimen-edges-lines-p2",
+    // edges drawn on one another between one pair in different widths, each an edge, not an outline of another
+    "cyjs-genemania",
     "cytoscapejs-specimen-groups",
     "cytoscapejs-specimen-labels-p2",
     "vis-network-specimen-arrows",

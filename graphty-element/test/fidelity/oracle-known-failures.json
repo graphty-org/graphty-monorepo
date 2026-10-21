@@ -6979,8 +6979,7 @@
             "background": []
         },
         "cyjs-genemania": {
-            "edge.extra": ["graphty:10", "graphty:111", "graphty:114", "graphty:115", "graphty:117", "graphty:118", "graphty:119", "graphty:124", "graphty:131", "graphty:149", "graphty:150", "graphty:164", "graphty:172", "graphty:184", "graphty:185", "graphty:190", "graphty:207", "graphty:219", "graphty:233", "graphty:243", "graphty:244", "graphty:25", "graphty:26", "graphty:34", "graphty:35", "graphty:36", "graphty:45", "graphty:46", "graphty:47", "graphty:58", "graphty:62", "graphty:88", "graphty:89", "graphty:9", "graphty:96", "graphty:98", "graphty:99"],
-            "edge.outline": ["103->125#g1", "103->142#g1", "125->142#g1", "125->71#g2", "141->62#g1", "141->63#g1", "141->71#g2", "154->141#g1", "154->63#g2", "154->71#g1", "156->125#g1", "156->142#g1", "208->133#g1", "208->62#g1", "62->72#g1", "62->87#g1", "63->71#g1", "65->62#g1", "68->62#g2", "69->62#g1", "71->72#g2", "71->72#g3", "77->87#g1", "81->87#g1", "83->87#g2", "83->87#g3", "86->65#g1", "86->87#g1", "87->128#g2", "87->74#g1", "87->74#g3", "87->94#g2", "97->128#g2", "97->87#g1", "97->94#g2"],
+            "edge.extra": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -7023,8 +7022,7 @@
             "background": []
         },
         "cyjs-genemania@matched": {
-            "edge.extra": ["graphty:10", "graphty:111", "graphty:114", "graphty:115", "graphty:117", "graphty:118", "graphty:119", "graphty:124", "graphty:131", "graphty:149", "graphty:150", "graphty:164", "graphty:172", "graphty:184", "graphty:185", "graphty:190", "graphty:207", "graphty:219", "graphty:233", "graphty:243", "graphty:244", "graphty:25", "graphty:26", "graphty:34", "graphty:35", "graphty:36", "graphty:45", "graphty:46", "graphty:47", "graphty:58", "graphty:62", "graphty:88", "graphty:89", "graphty:9", "graphty:96", "graphty:98", "graphty:99"],
-            "edge.outline": ["103->125#g1", "103->142#g1", "125->142#g1", "125->71#g2", "141->62#g1", "141->63#g1", "141->71#g2", "154->141#g1", "154->63#g2", "154->71#g1", "156->125#g1", "156->142#g1", "208->133#g1", "208->62#g1", "62->72#g1", "62->87#g1", "63->71#g1", "65->62#g1", "68->62#g2", "69->62#g1", "71->72#g2", "71->72#g3", "77->87#g1", "81->87#g1", "83->87#g2", "83->87#g3", "86->65#g1", "86->87#g1", "87->128#g2", "87->74#g1", "87->74#g3", "87->94#g2", "97->128#g2", "97->87#g1", "97->94#g2"],
+            "edge.extra": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -10655,9 +10653,9 @@
             "background": []
         },
         "cytoscapejs-specimen-edges-lines": {
-            "edge.arrow": ["curve-style-haystack-s->curve-style-haystack-t#g0@source", "haystack-radius-0-8-s->haystack-radius-0-8-t#g0@source"],
-            "edge.extra": ["graphty:22", "graphty:30"],
-            "edge.route": ["curve-style-haystack-s->curve-style-haystack-t#g0", "haystack-radius-0-8-s->haystack-radius-0-8-t#g0"],
+            "edge.arrow": [],
+            "edge.extra": [],
+            "edge.route": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -10678,7 +10676,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-style-straight-triangle-s->curve-style-straight-triangle-t#g0", "width-6-straight-triangle-s->width-6-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.outline": [],
             "frame.mirror": [],
@@ -10688,7 +10686,7 @@
         },
         "cytoscapejs-specimen-edges-lines-p2": {
             "edge.extra": ["graphty:43"],
-            "edge.present": ["edge-overlay-opacity-0-5-s->edge-overlay-opacity-0-5-t#g1"],
+            "edge.present": [],
             "edge.route": ["source-distance-from-node-8-s->source-distance-from-node-8-t#g0", "source-endpoint-50pct-0pct-s->source-endpoint-50pct-0pct-t#g0", "target-distance-from-node-8-s->target-distance-from-node-8-t#g0"],
             "stray.present": ["path#0"],
             "node.present": [],
@@ -10717,11 +10715,12 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "edge.overlay": []
         },
         "cytoscapejs-specimen-edges-lines-p2@matched": {
             "edge.extra": ["graphty:43"],
-            "edge.present": ["edge-overlay-opacity-0-5-s->edge-overlay-opacity-0-5-t#g1"],
+            "edge.present": [],
             "edge.route": ["source-distance-from-node-8-s->source-distance-from-node-8-t#g0", "source-endpoint-50pct-0pct-s->source-endpoint-50pct-0pct-t#g0", "target-distance-from-node-8-s->target-distance-from-node-8-t#g0"],
             "stray.present": ["path#0"],
             "node.present": [],
@@ -10750,12 +10749,13 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "edge.overlay": []
         },
         "cytoscapejs-specimen-edges-lines@matched": {
-            "edge.arrow": ["curve-style-haystack-s->curve-style-haystack-t#g0@source", "haystack-radius-0-8-s->haystack-radius-0-8-t#g0@source"],
-            "edge.extra": ["graphty:22", "graphty:30"],
-            "edge.route": ["curve-style-haystack-s->curve-style-haystack-t#g0", "haystack-radius-0-8-s->haystack-radius-0-8-t#g0"],
+            "edge.arrow": [],
+            "edge.extra": [],
+            "edge.route": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -10776,7 +10776,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-style-straight-triangle-s->curve-style-straight-triangle-t#g0", "width-6-straight-triangle-s->width-6-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.outline": [],
             "frame.mirror": [],
@@ -28268,7 +28268,7 @@
         },
         "json-cyjs-synth-edges": {
             "edge.arrowShape": ["arrow-circle-triangle-s->arrow-circle-triangle-t#g0@source", "arrow-circle-triangle-s->arrow-circle-triangle-t#g0@target"],
-            "edge.extra": ["graphty:57", "graphty:7"],
+            "edge.extra": [],
             "group.box": ["box-1", "box-10", "box-4", "box-7"],
             "label.offset": ["group:box-4", "group:box-7"],
             "stray.present": ["path#0", "path#1"],
@@ -28307,7 +28307,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-straight-triangle-s->curve-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowFill": [],
@@ -28331,7 +28331,7 @@
         },
         "json-cyjs-synth-edges-saved": {
             "edge.arrowShape": ["arrow-circle-triangle-s->arrow-circle-triangle-t#g0@source", "arrow-circle-triangle-s->arrow-circle-triangle-t#g0@target"],
-            "edge.extra": ["graphty:57", "graphty:7"],
+            "edge.extra": [],
             "group.box": ["box-1", "box-10", "box-4", "box-7"],
             "label.offset": ["group:box-4", "group:box-7"],
             "stray.present": ["path#0", "path#1"],
@@ -28370,7 +28370,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-straight-triangle-s->curve-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowFill": [],
@@ -28394,7 +28394,7 @@
         },
         "json-cyjs-synth-edges-saved@matched": {
             "edge.arrowShape": ["arrow-circle-triangle-s->arrow-circle-triangle-t#g0@source", "arrow-circle-triangle-s->arrow-circle-triangle-t#g0@target"],
-            "edge.extra": ["graphty:57", "graphty:7"],
+            "edge.extra": [],
             "group.box": ["box-1", "box-10", "box-4", "box-7"],
             "label.offset": ["group:box-4", "group:box-7"],
             "stray.present": ["path#0", "path#1"],
@@ -28433,7 +28433,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-straight-triangle-s->curve-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowFill": [],
@@ -28457,7 +28457,7 @@
         },
         "json-cyjs-synth-edges@matched": {
             "edge.arrowShape": ["arrow-circle-triangle-s->arrow-circle-triangle-t#g0@source", "arrow-circle-triangle-s->arrow-circle-triangle-t#g0@target"],
-            "edge.extra": ["graphty:57", "graphty:7"],
+            "edge.extra": [],
             "group.box": ["box-1", "box-10", "box-4", "box-7"],
             "label.offset": ["group:box-4", "group:box-7"],
             "stray.present": ["path#0", "path#1"],
@@ -28496,7 +28496,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [],
+            "edge.dash": ["curve-straight-triangle-s->curve-straight-triangle-t#g0"],
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowFill": [],

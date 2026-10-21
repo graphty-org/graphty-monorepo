@@ -45,11 +45,21 @@ export interface PFill {
 /**
  * Line style classes: from a dash array and its gaps relative to the line width (solid, dotted, dashed, dash-dot), or
  * from the pattern of an outline a program drew as a fill (`outlinePaintedAsFill`, `bandPaintedAsFill`): a double line,
- * a zigzag, a sine wave, slashes across the line, a row of arrows. "other" is a pattern no class names: it matches
+ * a zigzag, a sine wave, slashes across the line, a row of arrows, a line tapering to a point. "other" is a pattern no class names: it matches
  * nothing, not even another "other".
  */
 export type DashClass =
-    "solid" | "dashed" | "dotted" | "dash-dot" | "double" | "zigzag" | "sinewave" | "slashes" | "arrows" | "other";
+    | "solid"
+    | "dashed"
+    | "dotted"
+    | "dash-dot"
+    | "double"
+    | "zigzag"
+    | "sinewave"
+    | "slashes"
+    | "arrows"
+    | "tapered"
+    | "other";
 
 /** The classes a dash array can name; every other class is a pattern drawn as a shape of its own. */
 const DASH_ARRAY_CLASSES: ReadonlySet<DashClass> = new Set(["solid", "dashed", "dotted", "dash-dot"]);
@@ -268,6 +278,11 @@ export interface PEdge {
      * none.
      */
     outline?: { color: string; opacity: number; width: number; dashClass?: DashClass } | null;
+    /**
+     * A band drawn over the line along its length (Cytoscape.js `overlay-*`): its paint and its whole width across, in
+     * the side's pixels; absent or null for none.
+     */
+    overlay?: { color: string; opacity: number; width: number } | null;
     /**
      * The nodes its file names as its ends, where `source` and `target` are instead the nodes a reader sees it end at:
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
@@ -838,6 +853,49 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
         },
     });
     return { ...patternResult(dashClass, width, box), ends, across: spread };
+}
+
+/** How many times as long as its base a filled triangle must be to be read as a line tapering to a point. */
+const TAPER_ASPECT = 4;
+
+/**
+ * Whether a filled path is an edge's line drawn as a long thin triangle, as wide as the line at one end and narrowing to
+ * a point at the other (Cytoscape.js's `straight-triangle`), and its axis: from the middle of its base to its point.
+ * @param points - the path's points, in drawing order
+ * @returns the band, its width the base's, or null when the path is no such line
+ */
+export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
+    // its three corners: a closed outline repeats its first point at its end
+    const last = points.at(-1);
+    const corners =
+        last !== undefined && points.length > 1 && Math.hypot(last[0] - points[0][0], last[1] - points[0][1]) < 1e-6
+            ? points.slice(0, -1)
+            : [...points];
+    if (corners.length !== 3) {
+        return null;
+    }
+    const side = (i: number): number => {
+        const [a, b] = [corners[(i + 1) % 3], corners[(i + 2) % 3]];
+        return Math.hypot(b[0] - a[0], b[1] - a[1]);
+    };
+    // the base is the shortest side, the point the corner across from it
+    const tip = [0, 1, 2].sort((i, j) => side(i) - side(j))[0];
+    const [a, b] = [corners[(tip + 1) % 3], corners[(tip + 2) % 3]];
+    const base: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const width = side(tip);
+    const length = Math.hypot(corners[tip][0] - base[0], corners[tip][1] - base[1]);
+    // both long sides alike: a line's taper, not an arrowhead's barb leaning off the line
+    if (!(width > 0) || length < TAPER_ASPECT * width || Math.abs(side((tip + 1) % 3) - side((tip + 2) % 3)) > width) {
+        return null;
+    }
+    return {
+        width,
+        dashClass: "tapered",
+        patterned: false,
+        box: boxOfPoints(corners),
+        ends: [base, corners[tip]],
+        across: width,
+    };
 }
 
 /**

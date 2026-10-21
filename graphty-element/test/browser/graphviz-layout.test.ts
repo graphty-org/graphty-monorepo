@@ -182,4 +182,21 @@ describe("Graphviz layouts in the element", () => {
         const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
         assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
     });
+
+    it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {
+        // The file's lengths are kept as points, so Graphviz's half-inch ranksep is 36 scene units:
+        // the boxes' centres are one box height (as drawn) plus 36 apart.
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
+            { styles: "file", layout: "recommended", styleOptions: { lengths: "file" } },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        assert.strictEqual(session.layout.options.scale, 72);
+        const height = 2 * (graph.getNode("a")?.drawnHalfExtents.y ?? Number.NaN);
+        const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
+        assert.closeTo(step - height, 36, 1, `a box ${String(height)} tall, its centres ${String(step)} apart`);
+    });
 });

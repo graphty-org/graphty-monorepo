@@ -149,8 +149,9 @@ function baseValues(stack: readonly CompiledLayer[]): Record<"node" | "edge", Pa
  * @param outcome - What the load left.
  * @param ctx - The import's context.
  * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
- *     positions take too; null when no file styles were drawn, lengths were kept as the file has
- *     them, or the load merged into a graph whose positions are in another unit.
+ *     positions take too (1 when the load keeps file lengths); null when no file styles were drawn,
+ *     the file gives no length to scale by, or the load merged into a graph whose positions are in
+ *     another unit.
  */
 export async function applyFileStyles(
     command: DataImportCommand,
@@ -306,8 +307,11 @@ async function applyRead(
     // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
     // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
     // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
+    // A load that keeps file lengths draws one file unit as one scene unit, which a Graphviz layout
+    // needs to know (a DOT file's point is then a scene unit, 72 to Graphviz's inch).
     const graphtyWrote = read.extracted.styles.source.tool === "graphty";
-    const keptScale = graphtyWrote ? null : (read.positionPxPerUnit ?? null);
+    const fileUnit = options.lengths === "file" ? 1 : null;
+    const keptScale = graphtyWrote ? null : (read.positionPxPerUnit ?? fileUnit);
     const sceneScale =
         translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the

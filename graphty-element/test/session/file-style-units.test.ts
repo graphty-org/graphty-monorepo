@@ -186,7 +186,7 @@ describe("a file's lengths are drawn in one unit", () => {
         const b = { x: 0, y: 0, z: 0 };
         session.positions.read(snapshot.ids.requireIndex("b"), b);
         assert.strictEqual(b.x, FILE.ab);
-        assert.notProperty(session.layout.options, "scale");
+        assert.strictEqual(session.layout.options.scale ?? 1, 1, "one file unit is one scene unit");
         session.dispose();
     });
 
@@ -202,7 +202,7 @@ describe("a file's lengths are drawn in one unit", () => {
 
         assert.strictEqual(session.layout.id, "fixed");
         assert.strictEqual(b.x, FILE.ab);
-        assert.notProperty(session.layout.options, "scale");
+        assert.strictEqual(session.layout.options.scale ?? 1, 1, "one file unit is one scene unit");
         session.dispose();
     });
 });

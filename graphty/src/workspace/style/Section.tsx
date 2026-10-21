@@ -1,7 +1,7 @@
-import { ControlSection } from "@graphty/compact-mantine";
+import { ControlSection, Popout } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { arrowheadNote } from "../inspector/words";
@@ -9,6 +9,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { ShaderRow, SlotGallery } from "./ShaderRow";
+import { pickShader, shaderEntries, slotAdd, slotAddOptions, slotIsSet, slotOf } from "./shaderSlots";
 import { focusLineNext } from "./useFocusLine";
 import { channelWord, failureWords, fieldName, type SectionSpec } from "./words";
 
@@ -76,12 +78,26 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
+    // The section's shader gallery, opened by its "+".
+    const [gallery, setGallery] = useState(false);
+    const sectionBox = useRef<HTMLDivElement>(null);
+    // The section's shaders: a sprite, a surface (the Material row, which also holds Wireframe), an
+    // edge surface, or effects. Their channels are drawn as shader rows, never as fields.
+    const slot = slotOf(ctx.side, spec.shaderKinds);
     const descriptors = spec.channels.flatMap(
-        (channel) => channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable) ?? [],
+        (channel) =>
+            channelsFor(ctx.side).find(
+                (d) =>
+                    d.channel === channel &&
+                    d.renderable &&
+                    d.shaderKinds === undefined &&
+                    !(slot?.role === "material" && d.channel === "node.wireframe"),
+            ) ?? [],
     );
-    if (descriptors.length === 0) {
+    if (descriptors.length === 0 && slot === undefined) {
         return null;
     }
+    const shaders = slot === undefined ? [] : shaderEntries(ctx, slot);
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
@@ -129,18 +145,33 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     return (
         // The section is the group, named by its title, a heading so a screen reader moves from
         // section to section; a wrapper group named "Node shape" read the name twice.
-        <div data-section={`${ctx.side}-${spec.id}`} className="ws-section">
+        <div ref={sectionBox} data-section={`${ctx.side}-${spec.id}`} className="ws-section">
             <ControlSection
                 label={spec.title}
                 headingLevel={3}
-                empty={set.length + pending.length === 0}
+                empty={set.length + pending.length === 0 && (slot === undefined || !slotIsSet(ctx, slot))}
                 collapsible={false}
                 actions={
                     <AddButton
                         kind={ctx.side}
                         title={spec.title}
-                        options={unset.flatMap(optionsFor)}
+                        options={[
+                            ...unset.flatMap(optionsFor),
+                            ...(slot === undefined ? [] : slotAddOptions(ctx, slot)),
+                        ]}
                         onAdd={(key) => {
+                            if (slot !== undefined && key === "shader:gallery") {
+                                setGallery(true);
+                                return;
+                            }
+                            if (slot !== undefined && key.startsWith("shader:")) {
+                                slotAdd(ctx, slot, key).catch((error: unknown) => {
+                                    store.set({
+                                        notice: { message: failureWords(spec.title, "changed", error), error: true },
+                                    });
+                                });
+                                return;
+                            }
                             const [channel, pick] = key.split("=");
                             const descriptor = unset.find((d) => d.channel === channel);
                             if (descriptor !== undefined) {
@@ -161,7 +192,49 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                         }}
                     />
                 ))}
+                {slot === undefined
+                    ? null
+                    : shaders.map((entry) => <ShaderRow key={entry.key} ctx={ctx} slot={slot} entry={entry} />)}
             </ControlSection>
+            {slot === undefined ? null : (
+                <Popout
+                    opened={gallery}
+                    onOpenChange={(open) => {
+                        setGallery(open);
+                        // Closed with nothing picked: focus goes back to the section's "+".
+                        if (!open && (document.activeElement ?? document.body) === document.body) {
+                            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+                        }
+                    }}
+                >
+                    <Popout.Panel
+                        width={240}
+                        placement="left"
+                        alignment="start"
+                        anchorY={sectionBox}
+                        header={{ variant: "title", title: slot.word }}
+                    >
+                        <Popout.Content>
+                            <SlotGallery
+                                ctx={ctx}
+                                slot={slot}
+                                title={slot.word}
+                                onPick={(id) => {
+                                    setGallery(false);
+                                    pickShader(ctx, slot, id).catch((error: unknown) => {
+                                        store.set({
+                                            notice: {
+                                                message: failureWords(slot.word, "added", error),
+                                                error: true,
+                                            },
+                                        });
+                                    });
+                                }}
+                            />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            )}
             {/* Outside the section's body, so it shows while the section sets nothing yet. */}
             {note !== null && (
                 <Text size="xs" c="dimmed" px={16} pb={4} data-testid={`${ctx.side}-${spec.id}-note`}>

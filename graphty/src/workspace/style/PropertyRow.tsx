@@ -287,6 +287,23 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
     return `${words}, on ${count(counts.painted[channel] ?? counts.matched, side)}`;
 }
 
+/** What a field's caption says when the element draws nothing for the value it sets, by the element's code. */
+const UNDRAWN_WORDS: Readonly<Record<string, string>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
+
+/**
+ * The element's code for why a channel a layer sets draws nothing, among the ones a field words.
+ * @param session - the element's session.
+ * @param layer - the layer.
+ * @param channel - the channel.
+ * @returns the code, or undefined when it draws.
+ */
+function undrawnCode(session: GraphSession, layer: LayerId, channel: Channel): string | undefined {
+    if (channel !== "edge.lift") {
+        return undefined;
+    }
+    return session.styles.counts(layer).undrawn.find((fact) => UNDRAWN_WORDS[fact.code] !== undefined)?.code;
+}
+
 /** The most layers a coverage caption names; past it, "and N more", as the line under a field. */
 const COVERED_NAMES = 3;
 
@@ -826,6 +843,8 @@ export function Field({
             : "";
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
+    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
+    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
         <div
             ref={box}
@@ -856,6 +875,11 @@ export function Field({
                 </span>
             </div>
             {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {undrawn === undefined ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
+                    {UNDRAWN_WORDS[undrawn]}
+                </Text>
+            )}
             {/* Just added on a selection with no layer yet: the value drawn is not set, and the
                 first one picked makes the layer. */}
             {pending &&
@@ -911,12 +935,23 @@ export function Field({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.label - the glyph's name, when the property has no channel word
+ * @param props.onFail - says a refused binding
  * @returns The column, empty when the channel takes no binding
  */
 export function VarySlot({
     ctx,
     descriptor,
-}: Readonly<{ ctx: RowContext; descriptor: ChannelDescriptor }>): React.JSX.Element {
+    label,
+    onFail,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    /** The glyph's name, when the property is not a channel of its own (a shader parameter). */
+    label?: string;
+    /** Says a refused binding, when the property has no channel word. */
+    onFail?: (error: unknown) => void;
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
     const bind = (choice: DataChoice): void => {
@@ -925,6 +960,10 @@ export function VarySlot({
             return;
         }
         writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch((error: unknown) => {
+            if (onFail !== undefined) {
+                onFail(error);
+                return;
+            }
             store.set({
                 notice: { message: failureWords(channelWord(descriptor.channel), "changed", error), error: true },
             });
@@ -933,7 +972,14 @@ export function VarySlot({
     return (
         <span className="ws-slot ws-vary">
             {takesBinding(descriptor) && (
-                <VaryButton ctx={ctx} descriptor={descriptor} onPick={bind} open={open} onOpenChange={setOpen} />
+                <VaryButton
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    label={label}
+                    onPick={bind}
+                    open={open}
+                    onOpenChange={setOpen}
+                />
             )}
         </span>
     );
@@ -944,6 +990,7 @@ export function VarySlot({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.label - the button's name, when not the channel's
  * @param props.onPick - binds the property to the picked value
  * @param props.onLayer - several layers: gives each its own value
  * @param props.open - whether the picker is open
@@ -953,6 +1000,7 @@ export function VarySlot({
 function VaryButton({
     ctx,
     descriptor,
+    label: named,
     onPick,
     onLayer,
     open,
@@ -960,6 +1008,8 @@ function VaryButton({
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
+    /** The button's name, when not the channel's ("Spin by attribute"). */
+    label?: string;
     onPick: (choice: DataChoice) => void;
     /** Several layers: gives each its own value ("Layer" in the list). */
     onLayer?: () => void;
@@ -975,7 +1025,7 @@ function VaryButton({
         }
         setOpen(next);
     };
-    const label = bindLabel(descriptor);
+    const label = named ?? bindLabel(descriptor);
     const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
         <Popout opened={open} onOpenChange={openList}>
@@ -1019,7 +1069,9 @@ function VaryButton({
                         openList(false);
                         // The field keeps its value; focus goes to it to change it, and the list
                         // closing is said, not silent.
-                        store.set({ announcement: `${fieldName(channel)} stays a fixed value` });
+                        store.set({
+                            announcement: `${named === undefined ? fieldName(channel) : label} stays a fixed value`,
+                        });
                         focusLineNext(channel);
                     }}
                     onPick={(choice) => {

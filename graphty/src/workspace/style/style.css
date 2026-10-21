@@ -285,3 +285,103 @@
     grid-column: 1 / -1;
     padding-bottom: 4px;
 }
+
+/* A shader row (shader-styles design, section 6.1): its picture and name open the gallery; an
+   effect's row has a third column, its eye, between the settings and the minus. */
+.ws-shader-row .ws-field[data-effect] {
+    grid-template-columns: var(--ws-label, 80px) minmax(0, 1fr) 24px 24px 24px;
+}
+
+.ws-shader-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ws-shader-pick {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-shader-pick:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-shader-thumb {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--mantine-color-default-border);
+    object-fit: cover;
+}
+
+.ws-shader-row[data-hidden] .ws-shader-pick {
+    opacity: 0.5;
+}
+
+.ws-shader-trigger {
+    flex: 0 0 auto;
+}
+
+/* The gallery: search, then two columns of tiles, each its still picture and name. */
+.ws-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ws-gallery-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.ws-gallery-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
+    padding: 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-gallery-tile:hover:not([aria-disabled]) {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-gallery-tile[data-marked] {
+    outline: 1px solid var(--mantine-primary-color-filled);
+}
+
+.ws-gallery-tile[aria-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ws-gallery-picture {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 4px;
+    background: var(--mantine-color-default-border);
+    object-fit: cover;
+}
+
+/* A shader parameter's field, then its vary glyph and minus columns. */
+.ws-option-line {
+    display: flex;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.ws-option-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}

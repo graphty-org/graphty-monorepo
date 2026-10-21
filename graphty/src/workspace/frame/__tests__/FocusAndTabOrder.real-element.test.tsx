@@ -228,10 +228,11 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        const add = await inspector().findByRole("button", { name: "Add to node shape" });
+        // Fill holds one property, Color, which Everything sets (Shape's "+" still offers a sprite).
+        const add = await inspector().findByRole("button", { name: "Add to node fill" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");
-        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node shape is set");
+        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node fill is set");
     });
 
     it("disabled Undo and Redo stay Tab stops; the canvas toolbar is entered at Analyze", async () => {

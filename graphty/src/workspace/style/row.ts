@@ -761,7 +761,11 @@ export function paintedOverOf(
             entry.state === "agree"
                 ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
                 : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
-        const above = shares.filter((share) => !ids.includes(share.layerId) && share.count > 0);
+        const painted = shares.filter((share) => !ids.includes(share.layerId) && share.count > 0);
+        // A shader drawn in place of the channel (a sprite in place of the shape, a mandala in
+        // place of the fill) covers it too: the element names who, per layer, in its counts.
+        const shaded = (entry.covered ?? 0) === 0 ? [] : shaderCovers(session, ids, channel);
+        const above = [...painted, ...shaded.filter((share) => !painted.some((p) => p.layerId === share.layerId))];
         if (above.length === 0) {
             return undefined;
         }
@@ -776,6 +780,31 @@ export function paintedOverOf(
             of,
         };
     };
+}
+
+/**
+ * The layers that draw a shader in place of a channel the row writes, from graphty-element's
+ * counts of the row's own layers (`styles.counts(...).covers`), each with how many elements.
+ * @param session - the element's session.
+ * @param ids - the row's layers.
+ * @param channel - the channel.
+ * @returns the covering layers that are not the row's, most elements first.
+ */
+function shaderCovers(
+    session: GraphSession,
+    ids: readonly LayerId[],
+    channel: Channel,
+): { readonly layerId: LayerId; readonly count: number }[] {
+    const found = new Map<LayerId, number>();
+    for (const id of ids) {
+        const covers = session.styles.get(id) === undefined ? undefined : session.styles.counts(id).covers[channel];
+        for (const share of covers?.layers ?? []) {
+            if (!ids.includes(share.layerId)) {
+                found.set(share.layerId, Math.max(found.get(share.layerId) ?? 0, share.count));
+            }
+        }
+    }
+    return [...found].map(([layerId, count]) => ({ layerId, count })).sort((a, b) => b.count - a.count);
 }
 
 /**

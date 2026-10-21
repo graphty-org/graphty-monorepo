@@ -13,11 +13,15 @@ import {
     locationOfCell,
     madeWords,
     matchesWordStart,
+    motionWords,
     paletteWord,
     positionWord,
     refusalWords,
     SECTIONS,
+    shaderMatches,
     takesBinding,
+    triggerWord,
+    usesWords,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
@@ -158,5 +162,24 @@ describe("the notice after styling a selection", () => {
 
     it("names a layer that has a name of its own", () => {
         assert.equal(madeWords("v09", 1, 0), "Made layer v09 for 1 node");
+    });
+});
+
+describe("shader words", () => {
+    it("finds a shader by a word of its name or an alias", () => {
+        assert.isTrue(shaderMatches({ id: "glass-marble", plainName: "Glass marble" }, "mar"));
+        assert.isTrue(shaderMatches({ id: "liquid-metal", plainName: "Liquid metal" }, "shiny"));
+        assert.isFalse(shaderMatches({ id: "pearl", plainName: "Pearl" }, "metal"));
+    });
+
+    it("says what a shader uses and how it moves, as values", () => {
+        assert.equal(usesWords(["color", "size"]), "Color, size");
+        assert.equal(usesWords([]), "Nothing");
+        const spin = { name: "spin", plainName: "Spin", type: "number" as const };
+        assert.equal(motionWords({ motion: { loop: { speedParam: "spin" } }, params: [spin] }), "Spin");
+        assert.equal(motionWords({ motion: {}, params: [] }), "Still");
+        assert.equal(motionWords({ motion: { enter: 0.4 }, params: [] }), "On enter");
+        assert.equal(triggerWord({ motion: { change: 1 } }), "Change");
+        assert.isUndefined(triggerWord({ motion: { loop: {} } }));
     });
 });

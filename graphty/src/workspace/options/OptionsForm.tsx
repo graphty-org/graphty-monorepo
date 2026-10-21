@@ -1,5 +1,6 @@
 import {
     AdvancedButton,
+    CompactColorInput,
     DataRow,
     FieldRow,
     PanelField,
@@ -54,11 +55,17 @@ interface OptionsFormProps {
      * line with the section chevrons.
      */
     fieldInset?: MantineSpacing;
+    /**
+     * Controls drawn after an option's field, on its line: a shader parameter's vary glyph and its
+     * minus. Left out, the field fills the line.
+     */
+    trailing?: (option: OptionDescriptor) => React.ReactNode;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
 const DRAWN = new Set<OptionDescriptor["type"]>([
     "number",
+    "color",
     "integer",
     "enum",
     "boolean",
@@ -80,7 +87,7 @@ function num(value: unknown): number | undefined {
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
-    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset"
+    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset" | "trailing"
 > {
     option: OptionDescriptor;
     value: unknown;
@@ -461,6 +468,25 @@ function OptionField({
             return (
                 <EnumOption option={option} value={value} label={label} empty={empty} choice={choice} onChange={set} />
             );
+        case "color": {
+            const fallback = typeof option.default === "string" ? option.default.toUpperCase() : "#999999";
+            const shown = typeof value === "string" ? value.toUpperCase() : fallback;
+            return (
+                <CompactColorInput
+                    label={label}
+                    width="100%"
+                    color={shown}
+                    defaultColor={fallback}
+                    showOpacity={false}
+                    showReset={false}
+                    onChangeEnd={(next) => {
+                        if (next !== undefined && next.toUpperCase() !== shown) {
+                            set(next.toUpperCase());
+                        }
+                    }}
+                />
+            );
+        }
         case "boolean":
             return (
                 <Checkbox
@@ -534,6 +560,7 @@ function OptionField({
  * @param props.advanced - More controls at the end of the Advanced pop-out
  * @param props.advancedLabel - The Advanced pop-out's name
  * @param props.fieldInset - Insets the fields, not the fold's toggle
+ * @param props.trailing - Controls after an option's field, on its line
  * @returns The fields
  */
 export function OptionsForm({
@@ -542,13 +569,23 @@ export function OptionsForm({
     advanced: more,
     advancedLabel = "Advanced",
     fieldInset,
+    trailing,
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const drawn = options.filter((o) => o.internal !== true && DRAWN.has(o.type));
-    const field = (option: OptionDescriptor): React.JSX.Element => (
-        <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />
-    );
+    const field = (option: OptionDescriptor): React.JSX.Element => {
+        const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;
+        const after = trailing?.(option);
+        return after === undefined || after === null ? (
+            own
+        ) : (
+            <div key={option.name} className="ws-option-line" data-option={option.name}>
+                <div className="ws-option-field">{own}</div>
+                {after}
+            </div>
+        );
+    };
     const advanced = drawn.filter((o) => o.advanced === true);
     const basic = drawn.filter((o) => o.advanced !== true);
     return (

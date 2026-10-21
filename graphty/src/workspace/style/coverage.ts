@@ -22,7 +22,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
     "node.opacity": at("Nodes, Visibility, Opacity"),
-    "node.wireframe": at("Nodes, Rendering, Wireframe"),
+    "node.wireframe": at("Nodes, Rendering, Material (Wireframe)"),
     "node.visible": at("Nodes, Visibility, Show"),
     "node.label": at("Nodes, Text, Label entry, source (a value, or Fixed text)"),
     "node.labelStyle": at("Nodes, Label entry look, position and Label settings"),
@@ -62,12 +62,14 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelFont": TEXT_FIELD,
     "edge.labelWeight": TEXT_FIELD,
     "edge.labelItalic": TEXT_FIELD,
-    "node.shader": NOT_PLACED,
-    "node.shaderParams": NOT_PLACED,
-    "node.effects": NOT_PLACED,
-    "edge.shader": NOT_PLACED,
-    "edge.shaderParams": NOT_PLACED,
-    "edge.effects": NOT_PLACED,
+    "node.shader": at("Nodes, Shape (a sprite's row) and Rendering, Material (a surface)"),
+    "node.shaderParams": at("Nodes, a surface's or sprite's settings pop-out"),
+    "node.effects": at("Nodes, Effects, one row per shader effect, and the '<effect> off' items of its '+'"),
+    "edge.shader": at("Edges, Line, Pattern (an edge surface's row)"),
+    "edge.shaderParams": at("Edges, an edge surface's settings pop-out"),
+    "edge.effects": at("Edges, Effects, one row per shader effect, and the '<effect> off' items of its '+'"),
+    "edge.taper": at("Edges, Line, Taper"),
+    "edge.lift": at("Edges, Line, Lift"),
     "edge.color": at("Edges, Line, Color"),
     "edge.width": at("Edges, Line, Width"),
     "edge.opacity": at("Edges, Visibility, Opacity"),
@@ -185,6 +187,7 @@ export const VARY_DECISIONS = {
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
     opacity:
         "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Halo and Band settings), shown as a percent",
+    shader: "A shader is picked from the gallery, not varied: what varies per element is its parameters declared 'varies', each bound from the shader's settings pop-out",
 } as const;
 
 /**
@@ -201,6 +204,12 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "edge.labelStyle": VARY_DECISIONS.look,
     "edge.arrowHeadTextStyle": VARY_DECISIONS.look,
     "edge.arrowTailTextStyle": VARY_DECISIONS.look,
+    "node.shader": VARY_DECISIONS.shader,
+    "node.shaderParams": VARY_DECISIONS.shader,
+    "node.effects": VARY_DECISIONS.shader,
+    "edge.shader": VARY_DECISIONS.shader,
+    "edge.shaderParams": VARY_DECISIONS.shader,
+    "edge.effects": VARY_DECISIONS.shader,
 };
 
 /**

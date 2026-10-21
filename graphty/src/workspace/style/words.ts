@@ -13,6 +13,10 @@ import {
     type GlyphDescriptor,
     type KNOWN_PALETTE_IDS,
     NODE_SHAPE_DESCRIPTORS,
+    type ShaderDescriptor,
+    type ShaderInput,
+    type ShaderKind,
+    type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
@@ -46,6 +50,11 @@ export interface SectionSpec {
     readonly title: string;
     /** Its properties, in menu order. */
     readonly channels: readonly Channel[];
+    /**
+     * The kinds of shader the section's shader channel takes here: a sprite in Shape, a surface in
+     * Rendering (its Material row), an edge surface in Line, effects in Effects.
+     */
+    readonly shaderKinds?: readonly ShaderKind[];
 }
 
 /**
@@ -111,7 +120,13 @@ function textChannels(kind: Kind): Channel[] {
  */
 export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     node: [
-        { id: "shape", title: "Shape", channels: ["node.shape", "node.size"] },
+        {
+            id: "shape",
+            title: "Shape",
+            // Its sprite row writes node.shader, whose home is Rendering's list; the slot draws it here.
+            channels: ["node.shape", "node.size"],
+            shaderKinds: ["node-sprite"],
+        },
         { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
         { id: "text", title: "Text", channels: textChannels("node") },
         { id: "fill", title: "Fill", channels: ["node.color"] },
@@ -125,9 +140,16 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.haloColor",
                 "node.haloScale",
                 "node.haloOpacity",
+                "node.effects",
             ],
+            shaderKinds: ["node-effect"],
         },
-        { id: "rendering", title: "Rendering", channels: ["node.wireframe"] },
+        {
+            id: "rendering",
+            title: "Rendering",
+            channels: ["node.wireframe", "node.shader", "node.shaderParams"],
+            shaderKinds: ["node-surface"],
+        },
     ],
     edge: [
         { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
@@ -135,7 +157,18 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "line",
             title: "Line",
-            channels: ["edge.color", "edge.width", "edge.style", "edge.patternCount", "edge.curvature"],
+            channels: [
+                "edge.color",
+                "edge.width",
+                "edge.style",
+                "edge.patternCount",
+                "edge.curvature",
+                "edge.taper",
+                "edge.lift",
+                "edge.shader",
+                "edge.shaderParams",
+            ],
+            shaderKinds: ["edge-surface"],
         },
         {
             id: "ends",
@@ -154,7 +187,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "effects",
             title: "Effects",
-            channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity"],
+            channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity", "edge.effects"],
+            shaderKinds: ["edge-effect"],
         },
     ],
 };
@@ -325,6 +359,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.shader": "Shader",
     "edge.shaderParams": "Shader parameters",
     "edge.effects": "Effects",
+    "edge.taper": "Taper",
+    "edge.lift": "Lift",
 };
 
 /**
@@ -875,4 +911,151 @@ export function firstValueWords(property: string): string {
  */
 export function firstStyleWords(nodes: number, edges: number): string {
     return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
+}
+
+/** What a shader row is called in its label column and its "+" item, by the kind it holds. */
+export const SHADER_ROW_WORDS: Readonly<Record<ShaderKind, string>> = {
+    "node-surface": "Material",
+    "node-sprite": "Sprite",
+    "node-effect": "Effect",
+    "edge-surface": "Surface",
+    "edge-effect": "Effect",
+    background: "Background",
+    boundary: "Outline",
+};
+
+/** The Material row's two choices that are not shaders, before the surfaces. */
+export const MATERIAL_WORDS = { plain: "Plain", wireframe: "Wireframe" } as const;
+
+/**
+ * The words a reader may search the gallery by beside a shader's name, by preset id: glass,
+ * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
+ */
+const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
+    "glass-marble": ["glass", "3D", "shiny"],
+    "clear-glass": ["glass", "3D"],
+    "frosted-glass": ["glass", "3D"],
+    pearl: ["shiny", "3D"],
+    gemstone: ["shiny", "3D", "glass"],
+    "disco-ball": ["shiny", "3D", "metal"],
+    "liquid-metal": ["metal", "shiny", "3D"],
+    "anodized-steel": ["metal", "shiny", "3D"],
+    "matcap-ink": ["3D"],
+    "toon-outline": ["3D"],
+    halftone: ["3D"],
+    "lantern-glow": ["glow", "3D"],
+    "dew-drop": ["bubble", "glass", "3D"],
+    "foil-shimmer": ["shiny"],
+    hologram: ["shiny", "glow"],
+    frost: ["glass"],
+    "soap-bubble": ["bubble"],
+    "uncertainty-aura": ["glow"],
+    "edge-glow": ["glow"],
+    "fiber-optic": ["glow"],
+    "fiber-packets": ["glow"],
+    "comet-tracers": ["glow"],
+};
+
+/**
+ * Whether a gallery search finds a shader: the start of a word of its name or of one of its
+ * aliases.
+ * @param descriptor - the catalog's entry.
+ * @param query - the search text.
+ * @returns true when it matches.
+ */
+export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "plainName">, query: string): boolean {
+    return [descriptor.plainName, ...(SHADER_ALIASES[descriptor.id] ?? [])].some((name) =>
+        matchesWordStart(name, query),
+    );
+}
+
+/** What a shader reads from the layers beneath, as the settings pop-out's Uses row names it. */
+const INPUT_WORDS: Readonly<Record<ShaderInput, string>> = {
+    color: "color",
+    opacity: "opacity",
+    size: "size",
+    shape: "shape",
+    width: "width",
+    selected: "selection",
+    hovered: "hover",
+    pinned: "pin",
+    times: "changes",
+    members: "group members",
+};
+
+/**
+ * The Uses row: what the shader reads from the layers beneath, "Color, size", or "Nothing".
+ * @param reads - the catalog's `reads`.
+ * @returns the words.
+ */
+export function usesWords(reads: readonly ShaderInput[]): string {
+    const words = reads.map((input) => (INPUT_WORDS as Readonly<Record<string, string>>)[input] ?? input);
+    const joined = words.length === 0 ? "nothing" : words.join(", ");
+    return joined.charAt(0).toUpperCase() + joined.slice(1);
+}
+
+/**
+ * The trigger chip a row draws when the shader plays on an event: Enter or Change, else nothing.
+ * @param descriptor - the catalog's entry.
+ * @returns the chip's word, or undefined.
+ */
+export function triggerWord(descriptor: Pick<ShaderDescriptor, "motion">): string | undefined {
+    if (descriptor.motion.enter !== undefined) {
+        return "Enter";
+    }
+    return descriptor.motion.change === undefined ? undefined : "Change";
+}
+
+/**
+ * The Motion row: the parameter that sets its speed ("Spin"), "On enter", "On change" or "Still".
+ * @param descriptor - the catalog's entry.
+ * @returns the words.
+ */
+export function motionWords(descriptor: Pick<ShaderDescriptor, "motion" | "params">): string {
+    const { motion } = descriptor;
+    const speed = descriptor.params.find((param) => param.name === motion.loop?.speedParam);
+    if (speed !== undefined) {
+        return speed.plainName;
+    }
+    if (motion.loop !== undefined) {
+        return "Moves";
+    }
+    const trigger = triggerWord(descriptor);
+    return trigger === undefined ? "Still" : `On ${trigger.toLowerCase()}`;
+}
+
+/** The second line of a heavy tile. */
+export const HEAVY_WORD = "Heavy";
+
+/**
+ * Why a gallery tile cannot be picked here, from the element's coded answer.
+ * @param problem - the element's problem.
+ * @returns a short reason.
+ */
+export function shaderProblemWords(problem: ShaderProblem): string {
+    switch (problem.code) {
+        case "shader.webgpu-unsupported":
+            return "Not drawn with WebGPU";
+        case "shader.held":
+            return "Held until you run it";
+        case "shader.quarantined":
+            return "Turned off after a crash";
+        case "shader.compile":
+            return "Does not compile here";
+        case "shader.guard-off":
+            return "Off: the graphics card is slow";
+        case "shader.unknown":
+            return "Not in this project";
+        default:
+            return "Cannot be drawn here";
+    }
+}
+
+/**
+ * The item a section's "+" gives for an effect a layer beneath adds: "Aura off".
+ * @param name - the effect's name.
+ * @returns the words.
+ */
+export function effectOffWords(name: string): string {
+    return `${name} off`;
 }

@@ -158,6 +158,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.shader": "Shader",
     "edge.shaderParams": "Shader",
     "edge.effects": "Effects",
+    "edge.taper": "Line",
+    "edge.lift": "Line",
 };
 
 /**

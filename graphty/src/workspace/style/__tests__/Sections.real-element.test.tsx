@@ -200,7 +200,11 @@ describe("the Style tab's sections", () => {
 
     it.each(
         (["node", "edge"] as const).flatMap((kind) =>
-            SECTIONS[kind].filter((spec) => spec.id !== "text").map((spec) => [kind, spec.id, spec.title] as const),
+            // Rendering holds only the Material row, whose "+" opens the shader gallery: its add and
+            // remove are ShaderRows.real-element.test.tsx's.
+            SECTIONS[kind]
+                .filter((spec) => spec.id !== "text" && spec.id !== "rendering")
+                .map((spec) => [kind, spec.id, spec.title] as const),
         ),
     )("adds and removes a property in %s %s, with focus and an announcement each way", async (kind, id, title) => {
         const { session, store } = await openScene();

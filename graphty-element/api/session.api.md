@@ -1629,6 +1629,18 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_UNKNOWN"
 /**
+* A load an opened project holds has not been run since it opened, so nothing may fetch for it
+* yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+* once the reader approved. Nothing was fetched. `details.id`. Experimental.
+*/
+| "E_SOURCE_PENDING"
+/**
+* No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+* `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+* `details.key`, `details.known`. Experimental.
+*/
+| "E_LOAD_UNKNOWN"
+/**
 * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
 */
 | "E_SOURCE_UNSUPPORTED"
@@ -1693,7 +1705,11 @@ export type GraphtyWarningCode =
 "W_UNKNOWN_MEMBER"
 /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
 | "W_FUTURE_TIME"
-/** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+/**
+* A member of a kind this reader does not know: skipped, the rest of the file still read
+* (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+* know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+*/
 | "W_UNKNOWN_KIND"
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
@@ -1740,11 +1756,18 @@ export type GraphtyWarningCode =
 */
 | "W_DIMENSION_OVERRIDDEN"
 /**
-* A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-* out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-* `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+* A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+* the `graphty-sources` member: query parameters of a URL load's address, or of a network
+* load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+* names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A `graphty-sources` entry of an opened project names a network source this release has not
+* registered: its elements are there and the entry is written back, but it is not offered to
+* run. `params.id` is the entry's id and `params.source` the source id.
+*/
+| "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
 * data applied. `params.graph` names the graph, null for the file's one graph.
@@ -2174,10 +2197,11 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
     readonly total?: number;
+    readonly totalEdges?: number;
 }
 
 // @public
-export type LoadedSourceKind = "file" | "server" | "sample" | "join";
+export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
 // @public
 export interface LoadError {
@@ -2535,6 +2559,7 @@ export interface PendingSourceLoad {
     readonly hasQuery: boolean;
     readonly id: string;
     readonly isLocalNetwork: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
 }
 
@@ -2570,6 +2595,17 @@ export type PlanEffect = {
     readonly edges: number;
     readonly exact: boolean;
     readonly sampled?: number;
+    readonly steps?: {
+        readonly start: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+        readonly steps: readonly {
+            readonly id: string;
+            readonly nodes: number;
+            readonly edges: number;
+        }[];
+    };
 } | {
     readonly kind: "mutate";
     readonly nodesAdded: number;
@@ -2593,17 +2629,6 @@ export type PlanEffect = {
     readonly nodesInFrame: number;
     readonly legendChannels: number;
     readonly bytes: number;
-} | {
-    readonly kind: "steps";
-    readonly start: {
-        readonly nodes: number;
-        readonly edges: number;
-    };
-    readonly steps: readonly {
-        readonly id: string;
-        readonly nodes: number;
-        readonly edges: number;
-    }[];
 } | {
     readonly kind: "none";
 };
@@ -4182,9 +4207,6 @@ export { SourceDescriptor }
 export { SourceEdgeRecord }
 
 // @public
-export type SourceEntry = LoadedSource;
-
-// @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
 // @public
@@ -4281,6 +4303,7 @@ export interface SourceLoadRecord {
     readonly pages: number;
     readonly source: string;
     readonly total?: number;
+    readonly totalEdges?: number;
     readonly validators: SourceValidators;
     readonly version: number;
 }
@@ -4300,7 +4323,6 @@ export { SourceParamType }
 export interface SourcePreview {
     readonly columns: readonly AttributeDescriptor[];
     readonly edges: readonly Readonly<Record<string, unknown>>[];
-    readonly facts: Readonly<Record<string, string>>;
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];

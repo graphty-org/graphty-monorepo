@@ -10,7 +10,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
@@ -24,16 +24,33 @@ import { noticeFileStyles } from "../styles/noticeFileStyles";
  * element has come up.
  * @param workspace - the workspace store.
  * @param name - the project's name.
- * @param load - what to load into the new element.
+ * @param load - what to load into the new element, as one step with the project's name.
+ * @param after - what to do with the session once it is loaded.
  */
-function openProject(workspace: WorkspaceStore, name: string, load: (session: GraphSession) => Promise<void>): void {
+function openProject(
+    workspace: WorkspaceStore,
+    name: string,
+    load: (tx: TransactionScope) => Promise<void>,
+    after?: (session: GraphSession) => void,
+): void {
     workspace.set((state) => ({
         project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,
         dialog: null,
-        opening: { name, load },
+        // The name is the project's in graphty-element too, so its autosave entry carries it. Set
+        // in the load's own step, so Undo never takes the name back without the graph.
+        opening: {
+            name,
+            load: async (session) => {
+                await session.transaction(`Open ${name}`, async (tx) => {
+                    await load(tx);
+                    await tx.config.set({ name });
+                });
+                after?.(session);
+            },
+        },
     }));
 }
 
@@ -43,10 +60,14 @@ function openProject(workspace: WorkspaceStore, name: string, load: (session: Gr
  * @param sample - the sample.
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
-    openProject(workspace, sample.name, async (session) => {
-        await session.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() });
-        noticeFileStyles(workspace, session);
-    });
+    openProject(
+        workspace,
+        sample.name,
+        (tx) => tx.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() }),
+        (session) => {
+            noticeFileStyles(workspace, session);
+        },
+    );
 }
 
 /**

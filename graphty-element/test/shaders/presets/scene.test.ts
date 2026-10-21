@@ -35,6 +35,7 @@ const TABLE: Readonly<
             ["drift", "number", 1, 0, 5],
             ["stars", "number", 0.6, 0, 1],
             ["twinkle", "number", 0.6, 0, 1],
+            ["sky", "number", 1, 0, 1],
             ["tintBy", "enum", "none"],
         ],
     },
@@ -61,7 +62,7 @@ const TABLE: Readonly<
         params: [
             ["look", "enum", "goo", undefined, undefined, true],
             ["blobRadius", "number", 7, 2, 25],
-            ["threshold", "number", 1, 0.05, 1.5],
+            ["threshold", "number", 0.5, 0.05, 1.5],
             ["breathe", "number", 0, 0, 1],
             ["fillOpacity", "number", 0.55, 0, 1],
             ["outline", "number", 2.5, 0, 8],

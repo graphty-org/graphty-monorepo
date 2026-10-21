@@ -245,10 +245,9 @@ export const Nebula: Story = {
     ...controls("nebula"),
     render: (args) =>
         communities([], {
-            backgroundType: "shader",
-            shader: presetId("nebula"),
-            params: paramsOf("nebula", args),
+            backgroundType: "color",
             color: "#0b0614",
+            shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
         }),
     play: async ({ canvasElement }) => {
         await settled(canvasElement, "Shaders/Scene Presets Nebula");
@@ -274,10 +273,9 @@ export const NebulaTintedByGroups: Story = {
                 },
             ],
             {
-                backgroundType: "shader",
-                shader: presetId("nebula"),
-                params: paramsOf("nebula", args),
+                backgroundType: "color",
                 color: "#0b0614",
+                shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
             },
         ),
     play: async ({ canvasElement }) => {
@@ -296,3 +294,26 @@ export const HullMembrane = boundaryStory("metaball-hull", "Hull membrane", { lo
 
 /** The hull as a clean contour, nested like an Euler diagram. */
 export const HullOutline = boundaryStory("metaball-hull", "Hull outline", { look: "outline" });
+
+/**
+ * One Hull layer per community, as a folder of community layers draws them: sibling layers of one
+ * shader share a level, so each outline is drawn at one size around its whole community, as one
+ * layer grouping by community would draw it.
+ */
+export const HullPerCommunityLayer: Story = {
+    name: "Hull per community layer",
+    ...controls("metaball-hull", { look: "outline" }),
+    render: (args) =>
+        communities(
+            COLORS.map((_, community) => ({
+                name: `Community ${String(community)}`,
+                target: "node" as const,
+                selector: { match: "expression" as const, where: `data.community == \`${String(community)}\`` },
+                boundary: { shader: presetId("metaball-hull"), params: paramsOf("metaball-hull", args) },
+            })),
+            DARK,
+        ),
+    play: async ({ canvasElement }) => {
+        await settled(canvasElement, "Shaders/Scene Presets HullPerCommunityLayer");
+    },
+};

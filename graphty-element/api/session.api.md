@@ -4218,6 +4218,7 @@ export interface SessionConfig extends ProjectConfig {
         readonly policy: AccelerationPolicy;
         readonly minNodes: number;
     };
+    readonly backgroundColor: string;
     inEffect(key: GraphSettingKey): SettingEffect;
     set(values: ProjectConfigPatch): Promise<void>;
 }
@@ -5267,7 +5268,7 @@ export interface UnboundLayer {
 export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
-export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.param-unused" | "shader.effect-cap" | "edge.lift-needs-flat-layout";
+export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.param-unused" | "shader.effect-cap" | "shader.boundary-cap" | "edge.lift-needs-flat-layout";
 
 // @public
 export interface UnknownRulePath {

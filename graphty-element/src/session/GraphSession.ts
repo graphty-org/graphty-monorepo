@@ -44,6 +44,7 @@ import type {
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
+import { backgroundColorOf } from "../config/GraphStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
@@ -1389,6 +1390,9 @@ function configOf(
         },
         get background() {
             return read().background;
+        },
+        get backgroundColor() {
+            return backgroundColorOf(read().background);
         },
         get selectionStyle() {
             return read().selectionStyle;

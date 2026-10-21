@@ -4840,7 +4840,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         counts(id: LayerId): StyleCounts {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
 
-            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+            const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+            // Groups past the outline cap draw nothing; said here, never dropped silently.
+            const left = boundariesOf(api).find((each) => each.layer === id)?.left ?? 0;
+            return left === 0
+                ? counts
+                : {
+                      ...counts,
+                      undrawn: Object.freeze([
+                          ...counts.undrawn,
+                          { code: "shader.boundary-cap" as const, params: { left, limit: BOUNDARY_GROUP_CAP } },
+                      ]),
+                  };
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
@@ -4966,7 +4977,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     return api;
 }
 
-/** The most boundary groups one graph draws, across every layer (`shader.boundary-cap`). */
+/**
+ * The most boundary groups one graph draws, across every layer (`shader.boundary-cap`): the field
+ * targets hold as many (eight targets of four groups), so no group drawn from a field is ever left
+ * out by them.
+ */
 export const BOUNDARY_GROUP_CAP = 32;
 
 /** A group's key: its `groupBy` value, or null for a layer drawing one boundary. */

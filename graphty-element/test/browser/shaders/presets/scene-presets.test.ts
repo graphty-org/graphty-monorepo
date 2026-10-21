@@ -163,7 +163,7 @@ async function showing(
 ): Promise<Graphty> {
     if (kind === "background") {
         const element = await mounted([], options);
-        element.background = { backgroundType: "shader", shader: id, params, color: "#000000" };
+        element.background = { backgroundType: "color", color: "#000000", shader: { id, params } };
         await until(element, `${id} draws`, () => passesOf(element).background?.shown === true);
         return element;
     }
@@ -201,7 +201,7 @@ async function loopChances(element: Graphty, chances: number): Promise<number> {
  */
 async function setParams(element: Graphty, id: string, kind: string, params: ShaderParams): Promise<void> {
     if (kind === "background") {
-        element.background = { backgroundType: "shader", shader: id, params, color: "#000000" };
+        element.background = { backgroundType: "color", color: "#000000", shader: { id, params } };
     } else {
         const layer = element.session.styles.list().find((each) => each.boundary !== undefined);
         assert.isDefined(layer);
@@ -501,16 +501,19 @@ describe("the scene presets on a real element", () => {
     it("the nebula takes the boundaries' colors only with tintBy boundaries", async () => {
         const nebula = presetId("nebula");
         const element = await mounted([boundaryLayer(presetId("metaball-hull"), { look: "outline", fillOpacity: 0 })]);
-        element.background = { backgroundType: "shader", shader: nebula, params: { drift: 0 }, color: "#000000" };
+        element.background = {
+            backgroundType: "color",
+            color: "#000000",
+            shader: { id: nebula, params: { drift: 0 } },
+        };
         await until(element, "the nebula draws", () => passesOf(element).background?.shown === true);
         await until(element, "the hulls draw", () => (passesOf(element).boundary?.tints(4).length ?? 0) === 3);
         const plain = (await canvasPixels(element)).rgba;
 
         element.background = {
-            backgroundType: "shader",
-            shader: nebula,
-            params: { drift: 0, tintBy: "boundaries" },
+            backgroundType: "color",
             color: "#000000",
+            shader: { id: nebula, params: { drift: 0, tintBy: "boundaries" } },
         };
         await drawnFrames(element.graph.getScene(), 3);
         const tinted = await canvasPixels(element);
@@ -576,5 +579,76 @@ describe("the scene presets on a real element", () => {
         // The field costs members x kernel area: each member's kernel is splatted once, and the
         // hull's program reads the field per pixel of its group's box, never the members.
         assert.strictEqual(pass?.splats(), 10_000);
+    });
+});
+
+describe("the background, bottom to top: color, image, shader", () => {
+    /**
+     * The canvas's corner pixel, where no node is drawn.
+     * @param element - The element.
+     * @returns Its red, green and blue.
+     */
+    async function corner(element: Graphty): Promise<[number, number, number]> {
+        const { width, height, rgba } = await canvasPixels(element);
+        const at = ((height - 4) * width + 4) * 4;
+        return [rgba[at], rgba[at + 1], rgba[at + 2]];
+    }
+
+    /** Nebula with no gas and no stars, so its alpha is the sky's. */
+    const CLEAR_SKY = { drift: 0, density: 0, stars: 0, sky: 0 };
+
+    it("shows the color where the shader's alpha is low", async () => {
+        const element = await mounted([]);
+        element.background = { backgroundType: "color", color: "#ff0000", shader: { id: "nebula", params: CLEAR_SKY } };
+        await until(element, "the nebula draws", () => passesOf(element).background?.shown === true);
+        const [r, g, b] = await corner(element);
+        assert.isAbove(r, 240, "the red color shows through");
+        assert.isBelow(g + b, 20, "and nothing else is over it");
+
+        // The same nebula with an opaque sky covers the color.
+        element.background = {
+            backgroundType: "color",
+            color: "#ff0000",
+            shader: { id: "nebula", params: { ...CLEAR_SKY, sky: 1 } },
+        };
+        await element.graph.waitForStableFrame();
+        await drawnFrames(element.graph.getScene(), 3);
+        assert.isBelow((await corner(element))[0], 20, "an opaque sky hides the color");
+    });
+
+    it("shows the skybox image beneath the shader, and the dome hides while the shader draws it", async () => {
+        const image = new OffscreenCanvas(8, 8);
+        const context = image.getContext("2d");
+        assert.isNotNull(context);
+        context.fillStyle = "#0000ff";
+        context.fillRect(0, 0, 8, 8);
+        const blob = await image.convertToBlob({ type: "image/png" });
+        const data = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                resolve(reader.result as string);
+            };
+            reader.readAsDataURL(blob);
+        });
+        const element = await mounted([]);
+        element.background = {
+            backgroundType: "skybox",
+            data,
+            color: "#ff0000",
+            shader: { id: "nebula", params: CLEAR_SKY },
+        };
+        await until(element, "the nebula draws", () => passesOf(element).background?.shown === true);
+        const scene = element.graph.getScene();
+        const dome = scene.meshes.find((mesh) => mesh.name.startsWith("testdome"));
+        await until(element, "the dome hides", () => dome?.isEnabled() === false);
+        // The image arrives after the shader first draws; the pass draws again once it has.
+        let [r, g, b] = await corner(element);
+        for (let i = 0; i < 120 && b < 240; i++) {
+            await drawnFrames(scene, 1);
+            [r, g, b] = await corner(element);
+        }
+
+        assert.isAbove(b, 240, "the blue image shows through the clear sky");
+        assert.isBelow(r + g, 20, "over the red color");
     });
 });

@@ -3,6 +3,10 @@
  * own render target at most 30 times a second (15 at low quality), and shown behind everything the
  * scene draws, so it is behind every node and never over a label.
  *
+ * The background is composited bottom to top: the scene's clear color, the skybox image (sampled
+ * here by view direction, while the photo dome is hidden), then the shader. Where the shader's
+ * alpha is low, what is beneath it shows.
+ *
  * The target is drawn again only when it must be: the shader moves (a loop whose speed is not 0),
  * the camera moved (the shader reads the view direction), the canvas or the quality changed size,
  * or the parameters changed. A still background on a still graph costs one blit a frame.
@@ -11,6 +15,7 @@
  */
 
 import {
+    type BaseTexture,
     Camera,
     Constants,
     EffectRenderer,
@@ -66,6 +71,10 @@ export class BackgroundPass {
     private showing = 0;
     private params: ShaderParams | undefined;
     private fallback: readonly [number, number, number, number] = [0, 0, 0, 1];
+    /** The skybox image drawn beneath the shader, or null. */
+    private image: BaseTexture | null = null;
+    /** Whether {@link image} was ready when the target was last drawn. */
+    private imageWasReady = false;
     private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
     /** The timer that asks for the next background tick while the shader moves. */
     private tickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -134,6 +143,7 @@ export class BackgroundPass {
      * @param shader - The shader, of kind `background`.
      * @param params - Its parameter values over the defaults.
      * @param fallback - The color drawn for a pixel whose result is not a number, 0..1.
+     * @param image - The skybox image drawn beneath the shader, or null for none.
      * @returns Resolves true once it draws; false when it failed to compile (the clear color shows)
      *     or a later call replaced it.
      */
@@ -141,9 +151,11 @@ export class BackgroundPass {
         shader: HostShader,
         params: ShaderParams | undefined,
         fallback: readonly [number, number, number, number],
+        image: BaseTexture | null = null,
     ): Promise<boolean> {
         this.params = params;
         this.fallback = fallback;
+        this.image = image;
         if (this.program?.shader.hash === shader.hash) {
             this.follow();
             return true;
@@ -341,9 +353,19 @@ export class BackgroundPass {
         }
 
         const tintsMoved = program.tinted && this.readTints();
-        if (!this.dirty && !cameraMoved && !due && !tintsMoved) {
+        // The image arrives after the shader may have drawn: draw again once it has loaded.
+        const imageReady = this.image?.isReady() === true;
+        const imageArrived = imageReady !== this.imageWasReady;
+        if (this.image !== null && !imageReady) {
+            // A graph drawn on demand asks for frames until the image has loaded.
+            this.scene.onAfterRenderObservable.addOnce(animatesEveryFrame(this.scene));
+        }
+
+        if (!this.dirty && !cameraMoved && !due && !tintsMoved && !imageArrived) {
             return;
         }
+
+        this.imageWasReady = imageReady;
 
         this.drawnWith.set(view.m, 0);
         this.drawnWith.set(projection.m, 16);
@@ -399,6 +421,9 @@ export class BackgroundPass {
             program.setVector2("graphty_resolution", new Vector2(size.width, size.height));
             program.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(shader.hash));
             program.setFloat4("graphty_fallback", ...this.fallback);
+            const image = this.image?.isReady() === true ? this.image : null;
+            program.setFloat("graphty_hasImage", image === null ? 0 : 1);
+            program.setTexture("graphty_image", image);
             const tints = this.tintsDrawn;
             TINT_UNIFORMS.forEach((name, i) => {
                 program.setFloat4(name, tints[i * 8], tints[i * 8 + 1], tints[i * 8 + 2], tints[i * 8 + 3]);

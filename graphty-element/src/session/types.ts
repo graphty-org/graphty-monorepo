@@ -1781,7 +1781,7 @@ export interface ProjectConfig {
     readonly data: SessionDataConfig;
     /** Whether the algorithms in `data.algorithms` run once data has loaded. */
     readonly runAlgorithmsOnLoad: boolean;
-    /** What the graph is drawn against: a colour or a skybox. */
+    /** What the graph is drawn against: a colour or a skybox, and a shader over either. */
     readonly background: GraphBackgroundConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
@@ -1888,6 +1888,13 @@ export interface SessionConfig extends ProjectConfig {
      *     setting or a value is one its setting refuses; nothing is changed then.
      */
     set(values: ProjectConfigPatch): Promise<void>;
+    /**
+     * The color the element draws the background in, beneath any image or shader, as hex: the
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
+     * the background sets no color of its own.
+     * @since 3.36.0
+     */
+    readonly backgroundColor: string;
     /** What the consumer asked of the hardware. */
     readonly acceleration: {
         /** Use an accelerator when one is available, never look, or refuse to run without one. */

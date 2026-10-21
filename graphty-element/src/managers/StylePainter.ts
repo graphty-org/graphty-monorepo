@@ -701,6 +701,41 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
 }
 
 /**
+ * Take up to `limit` indices out of a pending set, oldest first.
+ * @param pending - The set.
+ * @param limit - The most to take.
+ * @returns The indices taken.
+ */
+function takeFrom(pending: Set<number>, limit: number): readonly number[] {
+    if (pending.size === 0) {
+        return NOTHING;
+    }
+
+    if (pending.size <= limit) {
+        const taken = [...pending];
+        pending.clear();
+
+        return taken;
+    }
+
+    const taken: number[] = [];
+
+    for (const index of pending) {
+        if (taken.length >= limit) {
+            break;
+        }
+
+        taken.push(index);
+    }
+
+    for (const index of taken) {
+        pending.delete(index);
+    }
+
+    return taken;
+}
+
+/**
  * The paint a node or an edge is built from before the session has anything to say about it.
  *
  * WHY THIS EXISTS AT ALL. A Node is constructed, and only then does the store hand it the dense
@@ -912,33 +947,46 @@ export class StylePainter {
     }
 
     /**
-     * Take the nodes waiting to be drawn.
-     * @returns Their dense indices. The set is emptied.
+     * Whether any node is waiting to be drawn.
+     * @returns True when a pass has painted a node the renderer has not applied.
      */
-    takeNodes(): readonly number[] {
-        if (this.pendingNodes.size === 0) {
-            return NOTHING;
-        }
-
-        const taken = [...this.pendingNodes];
-        this.pendingNodes.clear();
-
-        return taken;
+    get hasPendingNodes(): boolean {
+        return this.pendingNodes.size > 0;
     }
 
     /**
-     * Take the edges waiting to be drawn.
-     * @returns Their dense indices. The set is emptied.
+     * Whether any edge is waiting to be drawn.
+     * @returns True when a pass has painted an edge the renderer has not applied.
      */
-    takeEdges(): readonly number[] {
-        if (this.pendingEdges.size === 0) {
-            return NOTHING;
-        }
+    get hasPendingEdges(): boolean {
+        return this.pendingEdges.size > 0;
+    }
 
-        const taken = [...this.pendingEdges];
-        this.pendingEdges.clear();
+    /**
+     * Whether one node is waiting to be drawn.
+     * @param index - Its dense index.
+     * @returns True when its paint has not been applied yet.
+     */
+    isNodePending(index: number): boolean {
+        return this.pendingNodes.has(index);
+    }
 
-        return taken;
+    /**
+     * Take the nodes waiting to be drawn, or as many of them as one batch holds.
+     * @param limit - The most to take; every one when absent.
+     * @returns Their dense indices, which leave the set.
+     */
+    takeNodes(limit = Number.POSITIVE_INFINITY): readonly number[] {
+        return takeFrom(this.pendingNodes, limit);
+    }
+
+    /**
+     * Take the edges waiting to be drawn, or as many of them as one batch holds.
+     * @param limit - The most to take; every one when absent.
+     * @returns Their dense indices, which leave the set.
+     */
+    takeEdges(limit = Number.POSITIVE_INFINITY): readonly number[] {
+        return takeFrom(this.pendingEdges, limit);
     }
 
     /**

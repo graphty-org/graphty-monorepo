@@ -462,6 +462,22 @@ describe("StylePainter dirty set", () => {
         assert.isFalse(held.painter.hasPending);
     });
 
+    // A frame applies a big repaint in batches, so a take may be bounded and leaves the rest queued.
+    it("hands out a bounded batch and keeps the rest queued", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.takeNodes(3);
+        assert.strictEqual(first.length, 3, "one batch of three");
+        assert.isTrue(held.painter.hasPendingNodes, "the fourth node is still queued");
+        const rest = held.painter.takeNodes(3);
+        assert.deepStrictEqual([...first, ...rest].sort(), [0, 1, 2, 3], "every node once, across the batches");
+        assert.isFalse(held.painter.hasPendingNodes);
+        assert.isTrue(held.painter.hasPendingEdges, "the edges were not touched");
+        assert.isFalse(held.painter.isNodePending(0), "a node taken is no longer pending");
+        assert.isTrue(held.painter.hasPending, "while the edges still are");
+    });
+
     it("queues ONLY the elements one edit touched", async () => {
         const held = harness();
         await held.paintAll();

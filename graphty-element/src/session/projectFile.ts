@@ -25,7 +25,7 @@ import {
 } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { ASSETS_MEMBER, assetsMember, restoreAssets } from "./assets/projectMember";
+import { ASSETS_MEMBER, assetsMember, restoreAssets, withAcceptedAssetIds } from "./assets/projectMember";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -704,7 +704,7 @@ export function resultsMember(
  * @returns The member.
  */
 export function styleMember(session: GraphSession): Record<string, unknown> {
-    return { kind: "graphty-style", ...session.styles.toDocument() };
+    return { kind: "graphty-style", ...withAcceptedAssetIds(session, session.styles.toDocument()) };
 }
 
 /**

@@ -128,6 +128,63 @@ function modelRefs(session: GraphSession): Map<string, LayerId[]> {
     return refs;
 }
 
+/**
+ * A style document with every model and picture a node layer names by asset id written as the id
+ * of the accepted asset it resolves to: a model that waited for parts is named by the id it had
+ * then, and the file must name the id its `graphty-assets` member embeds it under.
+ * @param session - The session.
+ * @param document - The style document, as `styles.toDocument()` writes it.
+ * @returns The document, rewritten where a name moved on.
+ */
+export function withAcceptedAssetIds<T extends { readonly layers: readonly unknown[] }>(
+    session: GraphSession,
+    document: T,
+): T {
+    const assets = assetsOf(session);
+    let moved = false;
+    const accepted = (value: unknown): unknown => {
+        if (typeof value === "string") {
+            const record = isAssetId(value) ? assets.get(value) : undefined;
+            if (record?.state === "accepted" && record.id !== value) {
+                moved = true;
+                return record.id;
+            }
+
+            return value;
+        }
+
+        if (Array.isArray(value)) {
+            return value.map(accepted);
+        }
+
+        return typeof value === "object" && value !== null
+            ? Object.fromEntries(Object.entries(value).map(([key, each]) => [key, accepted(each)]))
+            : value;
+    };
+    const layers = document.layers.map((layer) => {
+        const spec = layer as { target?: string; set?: Record<string, unknown>; encode?: Record<string, unknown> };
+        if (spec.target !== "node") {
+            return layer;
+        }
+
+        const channels = (part: Record<string, unknown> | undefined): Record<string, unknown> | undefined =>
+            part === undefined
+                ? undefined
+                : Object.fromEntries(
+                      Object.entries(part).map(([channel, value]) => [
+                          channel,
+                          channel === "node.model" || channel === "node.texture" ? accepted(value) : value,
+                      ]),
+                  );
+        return {
+            ...spec,
+            ...(spec.set === undefined ? {} : { set: channels(spec.set) }),
+            ...(spec.encode === undefined ? {} : { encode: channels(spec.encode) }),
+        };
+    });
+    return moved ? { ...document, layers } : document;
+}
+
 /** How to keep a model or picture a layer names by URL: its bytes in the file, or only its URL and digest. */
 export type AssetStorage = "embed" | "url";
 

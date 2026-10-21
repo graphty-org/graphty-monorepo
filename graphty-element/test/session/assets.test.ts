@@ -733,12 +733,23 @@ describe("session.assets: a URL that is a web page (design 12.6)", () => {
         assertRejected(await createAssetsApi().ready(blob), "E_MODEL_WEB_PAGE", {
             suggested: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Box/Box.gltf",
         });
-        assert.deepStrictEqual(log, [blob]);
+        // Known by its address: nothing is requested, so a page sent with no CORS header (which a
+        // browser fetch fails on) still says "web page", not "not reached".
+        assert.deepStrictEqual(log, []);
         const lab = "https://gitlab.example.com/g/p/-/blob/main/a.glb";
         stubSite({ [lab]: { body: utf8("<!doctype html>") } });
         assertRejected(await createAssetsApi().ready(lab), "E_MODEL_WEB_PAGE", {
             suggested: "https://gitlab.example.com/g/p/-/raw/main/a.glb",
         });
+    });
+
+    it("says a Sketchfab or Poly Pizza model page is a web page without requesting it", async () => {
+        const pages = ["https://sketchfab.com/3d-models/police-car-123abc", "https://poly.pizza/m/7f3k2"];
+        const log = stubSite({});
+        for (const page of pages) {
+            assertRejected(await createAssetsApi().ready(page), "E_MODEL_WEB_PAGE", { host: new URL(page).host });
+        }
+        assert.deepStrictEqual(log, []);
     });
 
     it("decides by bytes: a .gltf sent as text/plain and a GLB sent as gltf-binary load", async () => {

@@ -170,6 +170,7 @@ export interface AssetsApi {
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
     allowHosts(hosts: readonly string[]): void;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
+    find(ref: string): AssetRecord | undefined;
     get(id: AssetId): AssetRecord | undefined;
     inspect(id: AssetId): ModelSummary;
     list(): readonly AssetRecord[];

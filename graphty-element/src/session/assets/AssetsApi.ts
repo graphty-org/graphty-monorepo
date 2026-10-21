@@ -18,6 +18,7 @@ import type { CodedFact } from "../shared";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
+import type { RedirectGate } from "./intake";
 import { baseName, cut, normalizePath, Refusal, roleOfName } from "./references";
 
 /**
@@ -127,7 +128,10 @@ export interface AssetRecord {
     readonly byteLength: number;
     /** The main file's format; empty when it was never detected. */
     readonly format: ModelFormat;
-    /** The main file's path inside the set, cut to 256 characters. */
+    /**
+     * The main file's path inside the set, cut to 256 characters; also on a model waiting for
+     * parts, once its main file is known.
+     */
     readonly path?: string;
     /** `pending` while a URL downloads; `accepted` once checked; `rejected` with its `E_MODEL_*` in `problems`. */
     readonly state: AssetState;
@@ -239,6 +243,19 @@ export interface AssetsApi {
      * @returns The record, or undefined.
      */
     get(id: AssetId): AssetRecord | undefined;
+    /**
+     * The record whatever a layer names resolves to: an asset id, the id a model had while it
+     * waited for parts (the record then carries its accepted id), a URL, or a sample's id. A model
+     * waiting for parts is found too, with its main file in `path` once that is known.
+     * @param ref - What a layer names.
+     * @returns The record, or undefined when the session holds nothing by that name.
+     * @example
+     * ```ts
+     * const record = graph.session.assets.find(layer.set["node.model"]);
+     * const name = record?.path ?? "model";
+     * ```
+     */
+    find(ref: string): AssetRecord | undefined;
     /**
      * Every asset of the session, in the order added.
      * @returns The records.
@@ -522,6 +539,16 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
 }
 
 /**
+ * Whether two files hold the same bytes.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when they are equal.
+ */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+    return a.length === b.length && a.every((byte, at) => byte === b[at]);
+}
+
+/**
  * Thrown by `supply` (and `add`'s `skipped`) for a call it cannot take.
  * @param code - Why.
  * @param details - What names the problem.
@@ -615,6 +642,11 @@ function fileNameOf(answer: BytesAnswer): string {
     }
 
     return answer.file instanceof Uint8Array ? "" : answer.file.name;
+}
+
+/** A part URL's gate, answered before its supply took its turn: why not, or undefined to fetch. */
+interface Decided {
+    readonly refusal: CodedFact | undefined;
 }
 
 /** What one answer does to a held model: a change to check, a part it could not take, or nothing. */
@@ -749,6 +781,12 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             return held.record;
         }
 
+        // The same files again, after the model they made waited for parts and was finished: the
+        // finished model, which the id it had while waiting still names.
+        if (held?.assembled === true && held.record.state === "accepted" && id === `asset:${digest}`) {
+            return held.record;
+        }
+
         const reserved = id.startsWith(SAMPLE_PREFIX) && !sample;
         if (!reserved && (held === undefined || held.record.state === "pending")) {
             return undefined;
@@ -793,8 +831,20 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             }
 
             const problems = error.facts;
+            // A model waiting for parts is named by its main file, as an accepted one is.
+            const main = onlyParts(problems) ? (await loadIntake()).mainPathOf(files, options) : undefined;
+            const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
-                settled: record({ id, digest, byteLength, format: "", state: "rejected", problems, ...at.extra }),
+                settled: record({
+                    id,
+                    digest,
+                    byteLength,
+                    format: "",
+                    state: "rejected",
+                    problems,
+                    ...path,
+                    ...at.extra,
+                }),
             };
         }
 
@@ -882,7 +932,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         }
 
         (sample ? samples : entries).set(id, entry);
-        return settled;
+        return entry.held === undefined ? settled : fillFromProject(entry);
     };
 
     /**
@@ -968,7 +1018,10 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         entry.settled = (async () => {
             let settled: AssetRecord;
             try {
-                const fetched = await (await loadIntake()).fetchModelSet(url, limits);
+                const kind = roleOfName(url.pathname) === "texture" ? "texture" : "model";
+                const fetched = await (
+                    await loadIntake()
+                ).fetchModelSet(url, limits, undefined, redirectGate(kind, "file"));
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
@@ -998,7 +1051,10 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 if (error.held !== undefined) {
                     // Missing parts only: held, so the reader can supply them (design 12.4).
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
-                    settled = record({ ...settled, url: named });
+                    const main = (await loadIntake()).mainPathOf(error.held.given, { main: error.held.main });
+                    settled = record({ ...settled, url: named, ...(main === undefined ? {} : { path: main }) });
+                    entry.record = settled;
+                    settled = await fillFromProject(entry);
                 }
             }
 
@@ -1008,6 +1064,36 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         urls.set(url.href, entry);
         return entry;
     };
+
+    /**
+     * What a fetch does when its answer came from another host (design 2.6): the page's own code
+     * and an unasked fetch go on; a fetch whose host the reader or the project allowed asks again
+     * for the host it was sent to, as the same kind of request.
+     * @param kind - What is fetched.
+     * @param by - Who asked for it.
+     * @returns The gate.
+     */
+    const redirectGate =
+        (kind: "model" | "texture", by: "file" | "supplied"): RedirectGate =>
+        (from, to) => {
+            if (
+                network === undefined ||
+                !network.allowed(from.host) ||
+                network.allowed(to.host) ||
+                api.hostAllowed(to.host)
+            ) {
+                return undefined;
+            }
+
+            return network.ask({ url: to, kind, by, layerIds: [] }).then((allowed) =>
+                allowed
+                    ? undefined
+                    : {
+                          code: "E_MODEL_URL_BLOCKED",
+                          params: { hosts: [cut(to.host)], redirected: true, denied: true },
+                      },
+            );
+        };
 
     /**
      * Parse what a layer named as a URL.
@@ -1109,12 +1195,21 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @returns Why not, or undefined to fetch.
      */
     const refusalFor = async (held: Held, target: URL, part: CodedFact): Promise<CodedFact | undefined> => {
+        const params = { hosts: [cut(target.host)], part: cut(String(part.params.name)) };
+        // Refused before anyone is asked: only a web address is fetched, and never with a login.
+        if (target.protocol !== "https:" && target.protocol !== "http:") {
+            return { code: "E_MODEL_URL_BLOCKED", params: { ...params, scheme: target.protocol } };
+        }
+
+        if (target.username !== "" || target.password !== "") {
+            return { code: "E_MODEL_URL_BLOCKED", params: { ...params, credentials: true } };
+        }
+
         const origin = held.url === undefined ? undefined : parseUrl(held.url)?.origin;
         if (target.origin === origin) {
             return undefined;
         }
 
-        const params = { hosts: [cut(target.host)], part: cut(String(part.params.name)) };
         if (isPrivateHost(target.hostname)) {
             return { code: "E_MODEL_URL_BLOCKED", params };
         }
@@ -1138,6 +1233,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @param address - The URL as given.
      * @param room - Bytes left under `maxBytes`.
      * @param signal - Stops the fetch.
+     * @param decided - The gate's answer, when it was asked before this turn.
      * @returns The bytes, or why not.
      */
     const fetchPart = async (
@@ -1146,6 +1242,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         address: string,
         room: number,
         signal?: AbortSignal,
+        decided?: Decided,
     ): Promise<Uint8Array | CodedFact> => {
         const name = cut(String(part.params.name));
         const target = parseUrl(address, held.url === undefined ? undefined : parseUrl(held.url)?.href);
@@ -1154,15 +1251,20 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             return { code: "E_MODEL_FETCH", params: { url, status: null, offline: false, part: name } };
         }
 
-        const refusal = await refusalFor(held, target, part);
+        const intakeModule = await loadIntake();
+        if (intakeModule.isKnownWebPage(target)) {
+            return { code: "E_MODEL_WEB_PAGE", params: intakeModule.webPageParams(target, name) };
+        }
+
+        const refusal = decided === undefined ? await refusalFor(held, target, part) : decided.refusal;
         if (refusal !== undefined) {
             return refusal;
         }
 
-        const intakeModule = await loadIntake();
         let bytes: Uint8Array;
         try {
-            [bytes] = (await intakeModule.fetchModel(target, { ...limits, maxBytes: room }, signal)).values();
+            const gate = redirectGate(part.params.role === "texture" ? "texture" : "model", "supplied");
+            [bytes] = (await intakeModule.fetchModel(target, { ...limits, maxBytes: room }, signal, gate)).values();
         } catch (error) {
             if (!(error instanceof Refusal)) {
                 throw error;
@@ -1177,11 +1279,41 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     };
 
     /**
+     * Ask about a part's URL before its supply takes its turn.
+     * @param entry - The held model.
+     * @param answer - The part by URL.
+     * @param answer.name - The part's name.
+     * @param answer.url - Its URL.
+     * @returns The answer for the fetch, or undefined when the turn decides it (no such part yet).
+     */
+    const gateFor = async (
+        entry: Entry,
+        answer: { readonly name: string; readonly url: string },
+    ): Promise<Decided | undefined> => {
+        const { held } = entry;
+        if (held === undefined) {
+            return undefined;
+        }
+
+        const missing = entry.record.problems.filter(
+            (fact) => PART_CODES.has(fact.code) && fact.code !== "E_MODEL_AMBIGUOUS",
+        );
+        const part = partFor(missing, answer);
+        const target = parseUrl(answer.url, held.url === undefined ? undefined : parseUrl(held.url)?.href);
+        if (part === undefined || target === undefined || (await loadIntake()).isKnownWebPage(target)) {
+            return undefined;
+        }
+
+        return { refusal: await refusalFor(held, target, part) };
+    };
+
+    /**
      * What one answer does to a held model.
      * @param held - The held model.
      * @param parts - Its missing, ambiguous and unchosen parts.
      * @param answer - The answer.
      * @param signal - Stops a fetch.
+     * @param decided - The gate's answer for a part by URL, when it was asked before this turn.
      * @returns The step.
      */
     const stepFor = async (
@@ -1189,6 +1321,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         parts: readonly CodedFact[],
         answer: PartAnswer,
         signal?: AbortSignal,
+        decided?: Decided,
     ): Promise<Step> => {
         const missing = parts.filter((fact) => fact.code !== "E_MODEL_AMBIGUOUS");
         if ("main" in answer) {
@@ -1211,7 +1344,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         const name = String(part.params.name);
         const room = limits.maxBytes - byteLengthOf(held.given);
         if ("url" in answer) {
-            const fetched = await fetchPart(held, part, answer.url, room, signal);
+            const fetched = await fetchPart(held, part, answer.url, room, signal, decided);
             return fetched instanceof Uint8Array ? { part: [name, fetched] } : { refused: fetched };
         }
 
@@ -1231,9 +1364,15 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @param entry - The held model.
      * @param answer - The part.
      * @param signal - Stops a fetch.
+     * @param decided - The gate's answer for a part by URL, when it was asked before this turn.
      * @returns The new record.
      */
-    const supplyOne = async (entry: Entry, answer: PartAnswer, signal?: AbortSignal): Promise<AssetRecord> => {
+    const supplyOne = async (
+        entry: Entry,
+        answer: PartAnswer,
+        signal?: AbortSignal,
+        decided?: Decided,
+    ): Promise<AssetRecord> => {
         const { held } = entry;
         const parts = entry.record.problems.filter((fact) => PART_CODES.has(fact.code));
         if (entry.record.state !== "rejected" || held === undefined || parts.length === 0) {
@@ -1246,7 +1385,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             entry.settled = Promise.resolve(entry.record);
             return entry.record;
         };
-        const step = await stepFor(held, parts, answer, signal);
+        const step = await stepFor(held, parts, answer, signal, decided);
         if ("unused" in step) {
             const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cut(step.unused) } };
             return record({ ...entry.record, problems: [...entry.record.problems, fact] });
@@ -1266,8 +1405,14 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         const settled = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
         if (settled.state === "rejected" && !onlyParts(settled.problems)) {
             // The part itself was refused (a picture that is not one, a size over a limit): keep
-            // what was held, and say why beside what is still missing.
-            return refused(settled.problems[0]);
+            // what was held, and say why beside what is still missing, naming the part it was for.
+            const [why] = settled.problems;
+            const part = step.part?.[0];
+            return refused(
+                part === undefined || why.params.part !== undefined
+                    ? why
+                    : { code: why.code, params: { ...why.params, part: cut(part) } },
+            );
         }
 
         entry.assembled = true;
@@ -1282,6 +1427,96 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         }
 
         return settled;
+    };
+
+    /**
+     * A picture the session already holds that a missing part names: an image asset, or a picture
+     * inside an accepted model, matched by its path, then by its base name, in any case; only when
+     * exactly one picture (by its bytes) fits.
+     * @param name - The missing part's path.
+     * @param skip - The entry asking, whose own files do not count.
+     * @returns The bytes, and whether only the base name matched; or undefined.
+     */
+    const projectPicture = (
+        name: string,
+        skip: Entry,
+    ): { bytes: Uint8Array; base: boolean; used: string } | undefined => {
+        const pictures: [string, Uint8Array][] = [];
+        for (const entry of new Set(entries.values())) {
+            if (entry === skip || entry.record.state !== "accepted" || entry.given === undefined) {
+                continue;
+            }
+
+            for (const [path, bytes] of entry.given) {
+                if (roleOfName(path) === "texture") {
+                    pictures.push([path, bytes]);
+                }
+            }
+        }
+
+        const wanted = name.toLowerCase();
+        const steps: ((path: string) => boolean)[] = [
+            (path) => path.toLowerCase() === wanted,
+            (path) => baseName(path).toLowerCase() === baseName(wanted),
+        ];
+        for (const [index, step] of steps.entries()) {
+            const hits = pictures.filter(([path]) => step(path));
+            const distinct = hits.filter(([, bytes], at) => hits.findIndex(([, b]) => sameBytes(b, bytes)) === at);
+            if (distinct.length > 0) {
+                return distinct.length === 1
+                    ? { bytes: distinct[0][1], base: index === 1, used: distinct[0][0] }
+                    : undefined;
+            }
+        }
+
+        return undefined;
+    };
+
+    /**
+     * Supply a model that has just started waiting with the pictures the session already holds
+     * (design 12.4): a kit whose models share one picture asks for it once.
+     * @param entry - The held model.
+     * @returns Its record afterwards.
+     */
+    const fillFromProject = async (entry: Entry): Promise<AssetRecord> => {
+        const substituted: CodedFact[] = [];
+        for (const fact of [...entry.record.problems]) {
+            if (fact.code !== "E_MODEL_MISSING_FILE" || fact.params.role !== "texture") {
+                continue;
+            }
+
+            const name = String(fact.params.name);
+            const found = projectPicture(name, entry);
+            if (found === undefined || entry.held === undefined) {
+                continue;
+            }
+
+            const before = entry.record;
+            const after = await supplyOne(entry, { name, file: found.bytes });
+            if (
+                after === before ||
+                after.problems.some((p) => p.params.part === cut(name) && p.code.startsWith("E_"))
+            ) {
+                // The picture would not do: the model waits for the reader as before.
+                entry.record = before;
+                entry.settled = Promise.resolve(before);
+                continue;
+            }
+
+            if (found.base) {
+                substituted.push({
+                    code: "W_MODEL_PART_SUBSTITUTED",
+                    params: { name: cut(name), used: cut(found.used) },
+                });
+            }
+        }
+
+        if (substituted.length > 0) {
+            entry.record = record({ ...entry.record, problems: [...entry.record.problems, ...substituted] });
+            entry.settled = Promise.resolve(entry.record);
+        }
+
+        return entry.record;
     };
 
     const unknownAsset = (id: AssetId): never => {
@@ -1370,6 +1605,10 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             return lookup(id)?.record;
         },
 
+        find(ref) {
+            return (isAssetId(ref) ? lookup(ref) : undefined)?.record ?? findEntry(ref)?.record;
+        },
+
         list() {
             const listed = new Set([
                 ...entries.values(),
@@ -1407,11 +1646,11 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 );
             }
 
-            const run = async (): Promise<AssetRecord> => {
+            const run = async (decided?: Decided): Promise<AssetRecord> => {
                 // A URL still downloading settles first, so its parts are known.
                 await entry.settled;
                 try {
-                    return await supplyOne(entry, answer, options.signal);
+                    return await supplyOne(entry, answer, options.signal, decided);
                 } finally {
                     const names = namesOf(entry);
                     for (const watcher of supplyWatchers) {
@@ -1419,8 +1658,18 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                     }
                 }
             };
-            const result = (entry.chain ?? Promise.resolve()).then(run, run);
-            entry.chain = result.catch(() => undefined);
+            // A part by URL on another host waits for the reader's answer before it takes its turn,
+            // so the files and skips handed over meanwhile are not held up behind the question.
+            const gate =
+                "url" in answer ? entry.settled.then(() => gateFor(entry, answer)) : Promise.resolve(undefined);
+            const result = gate.then((decided) => {
+                const turn = (entry.chain ?? Promise.resolve()).then(
+                    () => run(decided),
+                    () => run(decided),
+                );
+                entry.chain = turn.catch(() => undefined);
+                return turn;
+            });
             return abortable(result, options.signal);
         },
 

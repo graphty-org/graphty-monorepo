@@ -22,6 +22,19 @@ import { baseSession, sessionWithRuns } from "../helpers/project-session";
 const POLICE = new Uint8Array(readFileSync(new URL("../fixtures/models/police.glb", import.meta.url)));
 const COLORMAP = new Uint8Array(readFileSync(new URL("../fixtures/models/Textures/colormap.png", import.meta.url)));
 const PART = "Textures/colormap.png";
+/** Another car of the same kit: its own mesh names, the same one picture. */
+const AMBULANCE = ((): Uint8Array => {
+    const bytes = POLICE.slice();
+    const from = new TextEncoder().encode('"police"');
+    const to = new TextEncoder().encode('"ambula"');
+    for (let at = 0; at + from.length <= bytes.length; at++) {
+        if (from.every((byte, k) => bytes[at + k] === byte)) {
+            bytes.set(to, at);
+        }
+    }
+
+    return bytes;
+})();
 
 /**
  * A File of bytes.
@@ -145,6 +158,7 @@ describe("assets.supply: a picture by file", () => {
         const after = await assets.supply(held.id, { name: PART, file: utf8("not a picture") });
         assert.strictEqual(after.state, "rejected");
         assert.strictEqual(after.problems[0]?.code, "E_MODEL_STRUCTURE", JSON.stringify(after.problems));
+        assert.strictEqual(after.problems[0]?.params.part, PART, "the refusal names the part it was for");
         assert.strictEqual(factOf(after, "E_MODEL_MISSING_FILE")?.name, PART);
         assert.strictEqual((await assets.supply(held.id, { name: PART, file: COLORMAP })).state, "accepted");
     });
@@ -168,6 +182,75 @@ describe("assets.supply: a picture by file", () => {
         ]);
         assert.strictEqual(first.state, "accepted");
         assert.isTrue(isGraphtyError(second) && second.code === "E_BAD_COMMAND", "the second saw it accepted");
+    });
+});
+
+describe("assets.supply: the model's name and ids while it waits and once it is drawn", () => {
+    it("names a waiting model by its main file, and finds it by the id it had while waiting", async () => {
+        const assets = createAssetsApi();
+        const held = await assets.add(file(POLICE, "police.glb"));
+        assert.strictEqual(held.path, "police.glb");
+        assert.strictEqual(assets.find(held.id)?.path, "police.glb");
+        const accepted = await assets.supply(held.id, { file: file(COLORMAP, "colormap.png") });
+        assert.notStrictEqual(accepted.id, held.id);
+        assert.strictEqual(assets.find(held.id)?.id, accepted.id, "the waiting id finds the drawn model");
+        assert.strictEqual(assets.find(held.id)?.path, "police.glb");
+    });
+
+    it("gives the finished model for the same main file added again, not a name taken", async () => {
+        const assets = createAssetsApi();
+        const held = await assets.add(file(POLICE, "police.glb"));
+        const accepted = await assets.supply(held.id, { file: file(COLORMAP, "colormap.png") });
+        const again = await assets.add(file(POLICE, "police.glb"));
+        assert.strictEqual(again.state, "accepted", JSON.stringify(again.problems));
+        assert.strictEqual(again.id, accepted.id);
+    });
+
+    it("draws a second model of a kit with the picture the session already holds, asking nothing", async () => {
+        const assets = createAssetsApi();
+        const police = await assets.add(file(POLICE, "police.glb"));
+        await assets.supply(police.id, { file: file(COLORMAP, "colormap.png") });
+        const ambulance = await assets.add(file(AMBULANCE, "ambulance.glb"));
+        assert.strictEqual(ambulance.state, "accepted", JSON.stringify(ambulance.problems));
+        assert.isUndefined(factOf(ambulance, "W_MODEL_PART_SUBSTITUTED"), "matched by its whole path");
+        assert.lengthOf(assets.waiting(), 0);
+    });
+
+    it("takes a picture added on its own by its base name, and says it was substituted", async () => {
+        const assets = createAssetsApi();
+        await assets.add(file(COLORMAP, "colormap.png"));
+        const police = await assets.add(file(POLICE, "police.glb"));
+        assert.strictEqual(police.state, "accepted", JSON.stringify(police.problems));
+        assert.deepStrictEqual(factOf(police, "W_MODEL_PART_SUBSTITUTED"), { name: PART, used: "colormap.png" });
+    });
+
+    it("guesses nothing when two different pictures in the session could be the part", async () => {
+        const assets = createAssetsApi();
+        await assets.add({ files: new Map([["a/colormap.png", COLORMAP]]) });
+        await assets.add({ files: new Map([["colormap.png", WHITE_PNG]]) });
+        const police = await assets.add(file(POLICE, "police.glb"));
+        assert.strictEqual(police.state, "rejected");
+        assert.strictEqual(factOf(police, "E_MODEL_MISSING_FILE")?.name, PART);
+    });
+
+    it("saves a layer naming the waiting id under the drawn model's id, and the reopened project draws it", async () => {
+        const session = await baseSession();
+        const held = await session.assets.add(file(POLICE, "police.glb"));
+        await session.styles.add({
+            name: "police",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": held.id },
+        });
+        const accepted = await session.assets.supply(held.id, { file: file(COLORMAP, "colormap.png") });
+        const saved = await session.project.save();
+        assert.notInclude(saved.text, held.id, "the file names only the id it embeds");
+
+        const reopened = sessionWithRuns();
+        await reopened.project.open(saved.text);
+        const [layer] = reopened.styles.list().filter((each) => each.name === "police");
+        assert.strictEqual(layer.set?.["node.model"], accepted.id);
+        assert.strictEqual((await reopened.assets.ready(accepted.id)).state, "accepted");
     });
 });
 
@@ -274,6 +357,49 @@ describe("assets.supply: a part by URL", () => {
         assert.notInclude(log, part);
     });
 
+    it("refuses a part address that is not a web address before asking anyone", async () => {
+        stubSite({ [main]: POLICE });
+        const { assets, network, asked } = gated();
+        await assets.ready(main);
+        for (const url of ["file:///etc/passwd", "javascript:alert(1)"]) {
+            const after = await assets.supply(main, { name: PART, url });
+            assert.strictEqual(factOf(after, "E_MODEL_URL_BLOCKED")?.scheme, new URL(url).protocol, url);
+        }
+        assert.lengthOf(asked, 0);
+        assert.isFalse(network.allowed(""));
+        const login = await assets.supply(main, { name: PART, url: "https://me:pw@pictures.example.org/c.png" });
+        assert.isTrue(factOf(login, "E_MODEL_URL_BLOCKED")?.credentials === true);
+        assert.lengthOf(asked, 0);
+    });
+
+    it("does not hold a file back behind a part address waiting for the reader's answer", async () => {
+        const part = "https://pictures.example.org/colormap.png";
+        stubSite({ [main]: POLICE, [part]: COLORMAP });
+        const { assets, network, asked } = gated();
+        await assets.ready(main);
+        const byUrl = assets.supply(main, { name: PART, url: part });
+        await until(() => asked.length === 1);
+        const offered = await assets.offer([file(COLORMAP, "colormap.png")]);
+        assert.lengthOf(offered.supplied, 1, "the file went in while the question waited");
+        assert.strictEqual(assets.urlRecord(main)?.state, "accepted");
+        network.deny(asked[0].params.id);
+        await byUrl.catch(() => undefined);
+    });
+
+    it("says a GitHub blob page given for a part is a web page, asking and fetching nothing", async () => {
+        const page = "https://github.com/kenney/car-kit/blob/main/Textures/colormap.png";
+        const log = stubSite({ [main]: POLICE });
+        const { assets, asked } = gated();
+        await assets.ready(main);
+        const after = await assets.supply(main, { name: PART, url: page });
+        assert.deepInclude(factOf(after, "E_MODEL_WEB_PAGE") ?? {}, {
+            part: PART,
+            suggested: "https://raw.githubusercontent.com/kenney/car-kit/main/Textures/colormap.png",
+        });
+        assert.lengthOf(asked, 0);
+        assert.notInclude(log, page);
+    });
+
     it("names a part URL that answers with a web page", async () => {
         const part = "https://cdn.example.com/kits/car/colormap-page";
         stubSite({ [main]: POLICE, [part]: utf8("<!doctype html><title>x</title>") });
@@ -281,6 +407,89 @@ describe("assets.supply: a part by URL", () => {
         await assets.ready(main);
         const after = await assets.supply(main, { name: PART, url: part });
         assert.deepInclude(factOf(after, "E_MODEL_WEB_PAGE") ?? {}, { part: PART, host: "cdn.example.com" });
+    });
+});
+
+describe("a fetch redirected to another address (design 2.6)", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /**
+     * Stub fetch with one redirect: `from` answers as `to` did, marked redirected.
+     * @param from - The address asked for.
+     * @param to - Where it was sent.
+     * @param bytes - What `to` answers.
+     * @returns The URLs requested, and the bodies read.
+     */
+    function stubRedirect(from: string, to: string, bytes: Uint8Array): { log: string[]; read: string[] } {
+        const log: string[] = [];
+        const read: string[] = [];
+        vi.stubGlobal("fetch", (url: string) => {
+            log.push(url);
+            const sent = url === from ? to : url;
+            return Promise.resolve({
+                ok: sent === to,
+                status: sent === to ? 200 : 404,
+                redirected: url === from,
+                url: sent,
+                headers: { get: () => null },
+                body: null,
+                arrayBuffer: () => {
+                    read.push(sent);
+                    return Promise.resolve(bytes.slice().buffer);
+                },
+            });
+        });
+        return { log, read };
+    }
+
+    it("never reads an answer from a private address a public one was sent on to", async () => {
+        const from = "https://models.example.com/redirect-to?url=http://127.0.0.1:9064/car.glb";
+        const { read } = stubRedirect(from, "http://127.0.0.1:9064/car.glb", POLICE);
+        const { assets, network } = gated();
+        network.setPolicy("allow");
+        const record = await assets.ready(from);
+        assert.deepStrictEqual(factOf(record, "E_MODEL_URL_BLOCKED"), { hosts: ["127.0.0.1:9064"], redirected: true });
+        assert.lengthOf(read, 0, "nothing from the private address was read");
+    });
+
+    it("asks again for the host a reader-approved fetch was sent on to, and reads nothing when denied", async () => {
+        const from = "https://models.example.com/car.glb";
+        const to = "https://elsewhere.example.net/car.glb";
+        const { read } = stubRedirect(from, to, POLICE);
+        const { assets, network, asked } = gated();
+        const first = network.ask({ url: new URL(from), kind: "model", by: "file", layerIds: [] });
+        await until(() => asked.length === 1);
+        await network.allow(asked[0].params.id);
+        assert.isTrue(await first);
+        const record = assets.ready(from);
+        await until(() => asked.length === 2);
+        assert.deepInclude(asked[1].params, { host: "elsewhere.example.net", kind: "model" });
+        network.deny(asked[1].params.id);
+        assert.deepInclude(factOf(await record, "E_MODEL_URL_BLOCKED") ?? {}, { redirected: true, denied: true });
+        assert.lengthOf(read, 0);
+    });
+
+    it("refuses a part's redirect to a private address", async () => {
+        const part = "https://cdn.example.com/redirect?to=lan";
+        const main = "https://cdn.example.com/kits/car/police.glb";
+        vi.stubGlobal("fetch", (url: string) =>
+            Promise.resolve({
+                ok: url === part || url === main,
+                status: url === part || url === main ? 200 : 404,
+                redirected: url === part,
+                url: url === part ? "http://192.168.1.4/colormap.png" : url,
+                headers: { get: () => null },
+                body: null,
+                arrayBuffer: () => Promise.resolve((url === part ? COLORMAP : POLICE).slice().buffer),
+            }),
+        );
+        const { assets } = gated();
+        await assets.ready(main);
+        const after = await assets.supply(main, { name: PART, url: part });
+        assert.deepInclude(factOf(after, "E_MODEL_URL_BLOCKED") ?? {}, { hosts: ["192.168.1.4"], redirected: true });
+        assert.strictEqual(after.state, "rejected");
     });
 });
 

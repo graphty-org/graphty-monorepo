@@ -116,6 +116,48 @@ describe("session.network", () => {
         assert.isFalse(isPrivateHost("pictures.example.org"));
     });
 
+    it("reads private addresses in every spelling the URL parser leaves, and public ones as public", () => {
+        const host = (url: string): string => new URL(url).hostname;
+        const privates = [
+            "http://198.18.0.1/",
+            "http://198.19.255.1/",
+            "http://192.0.0.8/",
+            "http://224.0.0.1/",
+            "http://255.255.255.255/",
+            "http://[::127.0.0.1]/",
+            "http://[::ffff:127.0.0.1]/",
+            "http://[64:ff9b::7f00:1]/",
+            "http://[2002:c0a8:0101::]/",
+            "http://[ff02::1]/",
+            "http://[fec0::1]/",
+            "http://[fe80::1]/",
+            "http://[fd00::1]/",
+        ];
+        for (const url of privates) {
+            assert.isTrue(isPrivateHost(host(url)), url);
+        }
+
+        for (const url of [
+            "http://8.8.8.8/",
+            "http://[2606:4700::1111]/",
+            "http://[64:ff9b::808:808]/",
+            "http://[2002:808:808::]/",
+        ]) {
+            assert.isFalse(isPrivateHost(host(url)), url);
+        }
+    });
+
+    it("never asks about a host-less address, and never lets an empty host through", async () => {
+        const published: NetworkRequest[] = [];
+        const network = createNetworkApi((request) => published.push(request));
+        const question = { kind: "texture", by: "supplied", layerIds: [] } as const;
+        assert.isFalse(await network.ask({ ...question, url: new URL("file:///etc/passwd") }));
+        assert.isFalse(await network.ask({ ...question, url: new URL("javascript:alert(1)") }));
+        assert.lengthOf(published, 0, "nothing was put to the reader");
+        network.allowHosts([""]);
+        assert.isFalse(network.allowed(""));
+    });
+
     it("saves the project's policy and reads it back; a file without it asks", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);

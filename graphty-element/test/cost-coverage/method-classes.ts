@@ -258,6 +258,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.update",
     "UpdateManager.bindViewMasks",
     "UpdateManager.dispose",
+    "UpdateManager.drawArrivedPaint",
     "UpdateManager.forceEdgeWalk",
     "UpdateManager.init",
     "UpdateManager.invalidateViewMasks",

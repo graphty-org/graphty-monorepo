@@ -408,7 +408,7 @@ export function scanObj(path: string, files: ReadonlyMap<string, Uint8Array>, li
  * end) before the keyword, so no two line starts share a whitespace run and the scan stays linear;
  * the matches are those of `^\s*(facet|vertex)...`.
  */
-const STL_STATEMENT = /^[^\S\n\r\u2028\u2029]*(facet|vertex)\s+(\S+)\s+(\S+)\s+(\S+)/gm;
+const STL_STATEMENT = /^[^\S\n\r\u2028\u2029]*(facet|vertex)\s+(\S+)\s+(\S+)\s+(\S+)/gm; // NOSONAR(S5869): \S and the line ends do not overlap
 
 /**
  * Refuse an STL with more triangles than the limit.

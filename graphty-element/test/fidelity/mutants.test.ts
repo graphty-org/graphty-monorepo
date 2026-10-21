@@ -28,7 +28,7 @@ import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../../graph-io/test/fidelity/specimens/index";
 import { mountSample, unmount } from "./mount";
 import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
-import { type OracleReport, withoutCaptions } from "./oracle/compare-oracle";
+import type { OracleReport } from "./oracle/compare-oracle";
 import {
     compareWithOracle,
     isStandIn,
@@ -83,6 +83,9 @@ const DEFAULT_IDS = [
     // rule (labelRenderedSizeThreshold), judged at sigma's framing
     "json-graphology-synth",
     "graphology-specimen-labels",
+    // a specimen labeled as its caption (Graphviz's \N names the `default` node `default`, as its caption reads),
+    // judged only where each side names its caption at its own place
+    "dot-specimen-node-sizes-opacity-p2",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
@@ -106,6 +109,21 @@ const UNTESTABLE: Readonly<Record<string, string>> = {
 const caughtSomewhere = new Set<string>();
 const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT_IDS.join(",");
 const IDS = ASKED === "all" ? ALL_IDS : ASKED.split(",");
+
+/**
+ * Graphty's drawing without a specimen sheet's captions: its `cap-*` nodes, their edges and the texts they own.
+ * @param scene - graphty's drawn primitives
+ * @returns the scene without them
+ */
+const captionsLeftOut = (scene: PScene): PScene => {
+    const cap = (id: string | undefined): boolean => id?.startsWith("cap-") === true;
+    return {
+        ...scene,
+        nodes: scene.nodes.filter((n) => !cap(n.id)),
+        edges: scene.edges.filter((e) => !cap(e.source) && !cap(e.target)),
+        texts: scene.texts.filter((t) => !cap(t.owner)),
+    };
+};
 
 /**
  * Every element failing a property, as "property id".
@@ -183,9 +201,11 @@ describe("comparator mutants", () => {
                 blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
                 continue;
             }
-            // what the comparison judges: a specimen sheet's captions are left out on both sides
-            before = before === null ? null : withoutCaptions(before);
-            after = after === null ? null : withoutCaptions(after);
+            // what the comparison judges: a specimen sheet's captions are left out on both sides. They are known here by
+            // id and owner, never by their words as the comparison knows the program's: a defect on a specimen labeled
+            // as its caption (a DOT sheet's `default`) changes what is judged, and the comparison must catch it
+            before = before === null ? null : captionsLeftOut(before);
+            after = after === null ? null : captionsLeftOut(after);
             if (before === null || after === null || JSON.stringify(before) === JSON.stringify(after)) {
                 out[name] = { outcome: "not exercised" };
                 continue;

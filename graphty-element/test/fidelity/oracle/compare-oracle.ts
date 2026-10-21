@@ -1030,7 +1030,9 @@ export function facelessAsTexts(scene: PScene, other: PScene | null = null): PSc
 export function withoutCaptions(scene: PScene, other: PScene | null = null): PScene {
     const ids = new Set(scene.nodes.filter((n) => n.id.startsWith("cap-")).map((n) => n.id));
     const squash = (w: string): string => w.replace(/\s+/g, "");
-    const words = new Set([...captionWordsOf(scene), ...(other === null ? [] : captionWordsOf(other))].map(squash));
+    const theirs = other === null ? [] : captionWordsOf(other);
+    const own = new Set(captionWordsOf(scene).map(squash));
+    const words = new Set([...own, ...theirs.map(squash)]);
     if (ids.size === 0 && words.size === 0) {
         return facelessAsTexts(scene, other);
     }
@@ -1075,8 +1077,13 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             (t) => inside(s.box, t) && s.box.y1 - s.box.y0 <= 2 * Math.max(t.box.y1 - t.box.y0, t.sizePx),
         );
     // a caption's words the association gave a specimen beside it as its label (a tall node reaching down to its
-    // caption) are the caption's, not the specimen's
-    const captionLabel = (n: PNode): boolean => n.label !== null && words.has(squash(n.label.content));
+    // caption) are the caption's, not the specimen's. A caption this side names (a `cap-*` node, a text it owns) is
+    // left out at its own place, by id, so its words on a specimen are the specimen's own: a DOT sheet's `default`
+    // node, labeled `default` by Graphviz's \N, under its caption `default`.
+    // ponytail: on a side that names no caption (an SVG of free texts) a specimen labeled as a caption is still
+    // dropped; place it by the fitted frame if a sheet needs that judged
+    const captionLabel = (n: PNode): boolean =>
+        n.label !== null && words.has(squash(n.label.content)) && !own.has(squash(n.label.content));
     // a node graphty draws no body for is the texts it draws instead (its label, its glyph), as the program's
     // text-only and icon-only nodes are free texts on its side
     return facelessAsTexts(

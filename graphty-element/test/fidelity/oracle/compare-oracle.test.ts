@@ -1105,6 +1105,32 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("judges a specimen labeled as its caption, whose caption each side names at its own place", () => {
+        // a DOT sheet's `default` node is labeled `default` (Graphviz's \N), and so is its caption node cap-default
+        const relabel = (sc: PScene): PScene => ({
+            ...sc,
+            nodes: sc.nodes.map((n) =>
+                n.id === "a" && n.label !== null ? { ...n, label: { ...n.label, content: "default" } } : n,
+            ),
+        });
+        const g = { ...relabel(graphtyScene()), texts: [text("default", 250, 300, 12, { owner: "cap-default" })] };
+        const o = relabel({ ...graphtyScene(), side: "oracle" as const });
+        o.nodes = [...o.nodes, { ...o.nodes[0], id: "cap-default", cy: 300, label: text("default", 250, 300) }];
+        for (const out of [withoutCaptions(o, g), withoutCaptions(g, o), withoutCaptions(g)]) {
+            assert.deepEqual(
+                out.nodes.map((n) => n.label?.content ?? null),
+                ["default", "B", "C"],
+            );
+        }
+        assert.deepEqual(
+            withoutCaptions(g, o).texts.map((t) => t.content),
+            [],
+        );
+        const r = compareOracle("t", o, g);
+        assert.strictEqual(r.properties["label.text"].n, 3);
+        assert.strictEqual(r.properties["node.present"].pass, r.properties["node.present"].n);
+    });
+
     it("leaves out the box a program draws tight around a caption's words, and keeps other shapes", () => {
         const g = { ...graphtyScene(), texts: [text("fill=red", 50, 50, 12, { owner: "cap-fill-red" })] };
         const t = text("fill=red", 50, 50);

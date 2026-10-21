@@ -10,6 +10,7 @@ import {
     type OracleProperty,
     type OracleReport,
     programFace,
+    withoutCaptions,
 } from "./oracle/compare-oracle";
 import {
     type DashClass,
@@ -977,9 +978,10 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
         ),
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
     "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
-    // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is
+    // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is. A
+    // caption's face is not judged: a DOT sheet's captions are DejaVu Sans, its `default` specimen Graphviz's Times
     "label face swapped within its class (DejaVu<->Liberation)": (_base, oracle) =>
-        allTexts(oracle).some((t) => programFace(t.family) !== null),
+        allTexts(withoutCaptions(oracle)).some((t) => programFace(t.family) !== null),
 };
 
 /** A planted defect: what it does to graphty's drawing, the properties it is for, and where it can be planted. */

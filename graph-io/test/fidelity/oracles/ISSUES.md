@@ -124,9 +124,13 @@ What the merge with master changed (judged against the same run of the branch be
 
 Gaps found while finishing, each open:
 
-- The comparator drops a specimen's label when its words equal a caption's: a DOT sheet's `default` node is
-  labeled `default` (Graphviz's `\N`), and so is its caption, so the label is never judged (label.text n = 0 on
-  every DOT sheet with a `default` specimen). Fix: drop a caption's words only from the caption's own place.
+- Fixed 2026-10-21: the comparator dropped a specimen's label when its words equaled a caption's: a DOT sheet's
+  `default` node is labeled `default` (Graphviz's `\N`), and so is its caption, so the label was never judged
+  (label.text n = 0 on 29 DOT sheets). A caption a side names (a `cap-*` node, a text it owns) is now left out only
+  where it stands; its words on a specimen are the specimen's. All 29 `default` labels are judged and pass but one:
+  `dot-specimen-groups-p12` draws its `default` label too large (label.size), because graphty does not stretch
+  the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
+  On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
 - graph-io's vis writer writes a vis-network node fitted to its label as a sized `dot`, whose label the reader then
   hangs below it (labelOffsetY 4 on reading back): six vis round trips in graph-io's harness, one in its block
   tests and fourteen in graphty-element's export round trips run as expected failures until it is fixed.

@@ -25,7 +25,12 @@ async function local(): Promise<Response> {
     const inNode = typeof process !== "undefined" && typeof process.versions.node === "string";
     if (!inNode) {
         const served = await import("../../../graph-samples/dist/data/v1/les-miserables.gsnp.gz?url");
-        return fetch(served.default);
+        // The test server sends a .gz file with `Content-Encoding: gzip`, so the browser hands back
+        // the unzipped bytes, and the loader's own gunzip failed on them ("Failed to fetch"):
+        // zip them again when they arrive unzipped.
+        const bytes = new Uint8Array(await (await fetch(served.default)).arrayBuffer());
+        const zipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
+        return new Response(zipped ? bytes : new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")));
     }
     const { readFile } = await import("node:fs/promises");
     return new Response(

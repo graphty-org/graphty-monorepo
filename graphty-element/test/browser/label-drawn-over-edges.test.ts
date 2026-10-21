@@ -236,7 +236,10 @@ describe("text is drawn over the edges of the graph", () => {
             await graph.getSession().styles.add({
                 name: "a label over its node",
                 selector: { match: "ids", nodes: ["alpha"] },
-                set: { "node.label": WORDS, "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
+                // One letter, not WORDS: a label keeps clear of its node's ring (e0bf7c63eb), so a
+                // centred label hangs nearer the camera and is drawn larger, and three letters
+                // covered the whole ring. One leaves the ring showing on both sides of it.
+                set: { "node.label": "W", "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
             });
             await graph.select({ nodes: ["alpha"] });
 
@@ -248,8 +251,14 @@ describe("text is drawn over the edges of the graph", () => {
             const a = projected(box.minimumWorld);
             const b = projected(box.maximumWorld);
             const width = graph.engine.getRenderWidth();
+            // The ring is the selection halo, gold at the halo's opacity (0.4 by default) over the
+            // background: 249, 233, 147 on whitesmoke, and solid gold when the halo is opaque.
+            // Neither the label's green and white nor the red edge passes.
             const isGold = (at: number): boolean =>
-                pixels[at] > 180 && pixels[at + 1] > 140 && pixels[at + 2] < 100 && pixels[at] - pixels[at + 2] > 120;
+                pixels[at] > 180 &&
+                pixels[at + 1] > 140 &&
+                pixels[at] - pixels[at + 2] > 60 &&
+                pixels[at + 1] - pixels[at + 2] > 40;
 
             const node = projected(new Vector3(0, -2, 0));
             let ring = 0;

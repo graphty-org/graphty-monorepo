@@ -178,8 +178,10 @@ describe("the start page in the app's frame", () => {
                 const box = bar.getBoundingClientRect();
                 assert.isAtMost(box.bottom, window.innerHeight, "the bar is inside the first view");
                 assert.isAbove(box.top, window.innerHeight / 2, "the bar is at the foot of the view");
+                // The count comes from the hero's session, which the page gets only once the
+                // sample's import has resolved: after the element already holds its 77 nodes.
+                assert.isNotNull(bar.textContent?.match(/\d+ algorithms/), "the bar names the algorithms");
             });
-            assert.isNotNull(bar.textContent?.match(/\d+ algorithms/), "the bar names the algorithms");
         });
     }
 

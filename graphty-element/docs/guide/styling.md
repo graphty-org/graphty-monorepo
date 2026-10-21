@@ -236,42 +236,44 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                                      |
-| ------------------- | -------------------------------------------------------------------------- |
-| `node.color`        | any CSS colour                                                             |
-| `node.size`         | 0 or more; what it measures is `node.sizeMode`'s                           |
-| `node.sizeMode`     | `scale` (the default), `diameter` or `uniform`: what `node.size` measures  |
-| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
-| `node.width`        | 0 or more: the width, in the units of `node.size`                          |
-| `node.height`       | 0 or more: the height, in the units of `node.size`                         |
-| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                     |
-| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D             |
-| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
-| `node.drawOrder`    | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
-| `node.borderColor`  | a colour; black when unset                                                 |
-| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                  |
-| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                    |
-| `node.cornerRadius` | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
-| `node.label`        | the words to draw                                                          |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
-| `node.labelColor`   | any CSS colour: the label's colour                                         |
-| `node.labelSize`    | a number: the label's font size                                            |
-| `node.labelFont`    | a font family                                                              |
-| `node.labelWeight`  | `normal` or `bold`                                                         |
-| `node.labelItalic`  | true or false                                                              |
-| `node.tooltip`      | the words to show on hover                                                 |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                      |
-| `node.opacity`      | 0 to 1                                                                     |
-| `node.outline`      | a colour                                                                   |
-| `node.glow`         | a colour                                                                   |
-| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
-| `node.halo`         | true or false: the selection highlight around the node, in its own shape   |
-| `node.haloColor`    | a colour; the selection highlight's when unset (gold)                      |
-| `node.haloScale`    | above 0: how many times the node's size the halo is drawn at (1.45)        |
-| `node.haloOpacity`  | 0 to 1 (0.4)                                                               |
-| `node.wireframe`    | true or false                                                              |
-| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
-| `node.unlit`        | true or false: drawn in its own color with no light, as a flat dot (3D)    |
+| Node channel             | Takes                                                                      |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `node.color`             | any CSS colour                                                             |
+| `node.size`              | 0 or more; what it measures is `node.sizeMode`'s                           |
+| `node.sizeMode`          | `scale` (the default), `diameter` or `uniform`: what `node.size` measures  |
+| `node.shape`             | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
+| `node.width`             | 0 or more: the width, in the units of `node.size`                          |
+| `node.height`            | 0 or more: the height, in the units of `node.size`                         |
+| `node.depth`             | 0 or more: the depth (3D), in the units of `node.size`                     |
+| `node.planar`            | true or false: draw the node thin, as a flat shape, even in 3D             |
+| `node.zIndex`            | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
+| `node.drawOrder`         | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
+| `node.borderColor`       | a colour; black when unset                                                 |
+| `node.borderWidth`       | 0 or more, in the units of `node.size`; 0 draws no border                  |
+| `node.borderStyle`       | `solid`, `dashed`, `dotted` or `double`                                    |
+| `node.cornerRadius`      | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
+| `node.label`             | the words to draw                                                          |
+| `node.labelStyle`        | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
+| `node.labelColor`        | any CSS colour: the label's colour                                         |
+| `node.labelSize`         | a number: the label's font size                                            |
+| `node.labelFont`         | a font family                                                              |
+| `node.labelWeight`       | `normal` or `bold`                                                         |
+| `node.labelItalic`       | true or false                                                              |
+| `node.labelOutline`      | a colour: an outline around each letter                                    |
+| `node.labelOutlineWidth` | a number: how thick that outline is drawn                                  |
+| `node.tooltip`           | the words to show on hover                                                 |
+| `node.tooltipStyle`      | as `node.labelStyle`, for the tooltip                                      |
+| `node.opacity`           | 0 to 1                                                                     |
+| `node.outline`           | a colour                                                                   |
+| `node.glow`              | a colour                                                                   |
+| `node.glowStrength`      | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
+| `node.halo`              | true or false: the selection highlight around the node, in its own shape   |
+| `node.haloColor`         | a colour; the selection highlight's when unset (gold)                      |
+| `node.haloScale`         | above 0: how many times the node's size the halo is drawn at (1.45)        |
+| `node.haloOpacity`       | 0 to 1 (0.4)                                                               |
+| `node.wireframe`         | true or false                                                              |
+| `node.flat`              | true or false: one normal per face, so a sphere looks faceted (3D)         |
+| `node.unlit`             | true or false: drawn in its own color with no light, as a flat dot (3D)    |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |
@@ -302,6 +304,8 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelFont`          | as `node.labelFont`                                                        |
 | `edge.labelWeight`        | as `node.labelWeight`                                                      |
 | `edge.labelItalic`        | as `node.labelItalic`                                                      |
+| `edge.labelOutline`       | as `node.labelOutline`                                                     |
+| `edge.labelOutlineWidth`  | as `node.labelOutlineWidth`                                                |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -330,7 +334,8 @@ at 24 px, and each field takes the value from the highest layer that set it.
 
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
-`node.labelFont`, `node.labelWeight`, `node.labelItalic`, and the same five on edges). Each lands
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelOutline`,
+`node.labelOutlineWidth`, and the same seven on edges). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
 the code `W_LABEL_STYLE_BOUND`, naming the field channels to bind instead.

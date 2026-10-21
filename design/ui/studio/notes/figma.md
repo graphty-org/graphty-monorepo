@@ -5,107 +5,48 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-13 (tier 3 paused for the owner review).
+Last updated: 2026-10-21 (tier 3 round 1 expert walk; file summarized from 37 KB).
 
 ## Top of mind
 
-- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
-  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
-  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
-  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
-  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
-  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
-  is in the pill's spoken name. Bulk now matches Figma's mixed-value parity: one field drawing for
-  one or many selections, the per-layer source marked rather than a different control.
-
-0. (2026-10-13) Build paused for the owner's approval review. Built and walked: iteration 3
-   (build 617b43b270, served as tier3-i3-617b43b270): one-line property rows, Clear's minus naming
-   what comes back, Undo after Clear, effect and category rows in Figma's chip/name/settings/eye/
-   minus grammar, one name per value, kind change keeps the layer. Decided, not yet built
-   (`tier3/iterations/3/review.md`, "Decided for iteration 4"): the per-row gear leaves the name
-   column for one settings button per Nodes/Edges section title (Figma's Type settings), so names
-   are never cut; painted-over values drawn dimmed in the field with a real tooltip; opacity inline
-   in the color row; a layer lists only its own entries, covering what is beneath via "Hide label
-   from <layer>" in the "+" menu; multi-select shows only shared properties; 240 px icon shape
-   grid; swatch inner border; draggable color popover. Why: every one is a Figma pattern that
-   removes a sev 2-3 finding without adding a column to a 240 px row. Owner's three questions,
-   as answered: unset = the minus (or empty + Enter), covering = an ordinary entry set to nothing,
-   two different acts; no "split parent" kind exists or is planned -- two row kinds, layer and
-   folder, and category rows are reused by any column (conference too); Figma taken where it
-   governs controls, diverged only on the vary glyph at rest and the painted-over mark (Figma does
-   not stack paints). Watch at the owner review: whether one section settings button reads as
-   Type settings or hides rare properties too well; whether a dimmed value reads as "not what is
-   drawn" rather than "disabled"; whether readers look in "+" to cover something beneath. Watch in
-   the study: the first time a reader wants a rare property (do they find the section button?),
-   Clear vs cover confusion, and any reader who expects Figma's "detach"/instance language.
-1. (2026-10-13) Tier 3 iteration 3 walk: `tier3/iterations/3/figma.md`, build 617b43b270eb.
-   21 findings (1 sev 3, 13 sev 2, 7 sev 1); of iteration 2's 24: 15 fixed, 6 partly, 3 open.
-   Iteration 2's sev 4 (kind change destroyed the layer) is fixed. Sev 3: property names cut to
-   "Sh...", "C." because the 56 px label column also holds the gear and painted-over mark
-   (`style.css` `--ws-label`); entry rows already put the gear after the field, so two gear
-   positions. Next to bring: gear at the row's right end (Figma's Stroke), swatch inner border,
-   multi-select shows only shared properties, opacity back inline (the decision said so), own
-   entries only (inherited "Label, from X" rows on every layer above), 240 px icon shape picker.
-2. (2026-10-12) Tier 3 iteration 2 walk: `tier3/iterations/2/figma.md`, build 2faecd941bc0.
-   24 findings (2 sev 3, 13 sev 2, 9 sev 1); of iteration 1's 22: 14 fixed, 5 partly, 3 open.
-   Sev 3: Undo right after a Clear is lost (Clear focuses the field, `keys.ts` `isTypingTarget`
-   hands Ctrl+Z to the empty input; Figma passes it through when no edit is pending); one value
-   has two or three names (Connections/Degree, Communities/Community/Louvain, Bridge
-   edges/Bridging/Edge betweenness). Next to bring: Figma's one-line property row (prefix or
-   section-title label, paired short fields) for panel length; Mixed only for a selection, an
-   unset field over varied values shows the range; effect row = icon, name, eye, minus.
-3. (2026-10-12) Tier 3 iteration 1 walk: `tier3/iterations/1/figma.md`, build cfa6408d84a4.
-   22 findings (4 sev 3, 14 sev 2, 4 sev 1). Sev 3: run-made rows have no Which elements
-   (`StylePanel.tsx` 149 gates on `source.by === "user"`), a route is two rows, category rows
-   lose their names to a full hex field, the key lists six blocks for the empty Selected layer.
-   Next to bring: Figma's 24 px icon column, popovers beside the panel, chip-only color control,
-   no one-item menus. Verify each in iteration 2 by clicking, not by reading.
-4. (2026-10-12) Owner feedback 1 answered in `tier3/decide/feedback-1-figma.md`. Unset: minus
-   always visible on a set field, inherited value in secondary text, Delete/Backspace on non-text
-   controls, the minus's tooltip names the value and layer that come back (element already has it:
-   `styles.agreement(..., { below })`), one word Clear / Clear all. Split: two row kinds only
-   (layer, folder); a split layer is a layer with children (Figma frame vs group; instance rules
-   for children); a child's unset field shows the parent, so "Follow parent" becomes Clear all.
-   Figma pass: adopt Selection colors on folders, remove eye and lock from the panel header (a
-   second control for the row's state), eye per list entry, empty list title opens "+".
-5. (2026-10-12) Tier 3 is unified styles. My answers to the owner's 12 questions:
-   `tier3/decide/figma.md`. Core calls: "+" only where a list grows; a single-value section is
-   one unit added by its title (Figma's stroke grammar), placeholders show the value beneath;
-   unwritten sections fold into one "+" per Nodes/Edges heading; a data gradient
-   (`GradientEditor` over a histogram); split parent drawn as a Figma frame, folder as a group;
-   label text styles as presets; one rule editor shared with Data > Filters. Reason: the panel had
-   11 empty titles and "+" promised a second value where only one can exist.
-6. (2026-10-11) Round 5 walk: 0 severity 3 left. Six new severity 2s, each with a mechanism or a
-   script: Filter to neighbors hidden for Follow Out/In (element rule has no direction), Escape
-   after a Follow click clears the selection, the To list painted under Follow at 1280 x 800,
-   pickers show ids for a name match, missing-column rule says "Nothing matches" and drops the
-   selection, "minutes 10" is "No match" while "10" works.
-7. (2026-10-11) Verified fixed on 8c015b806: New project > Discard, "10" offers "or more", layer
-   named "minutes >= `10`", table "12 of 41 edges", off step stays off, Delete returns the
-   inspector to the graph, note Cancel focuses "+".
-8. (2026-10-11) Bring to round 5's critique: the neighborhood rule gains an optional direction
-   (element, additive) so the command stays for Out/In; `find` reads "<column> <number>".
-9. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element,
-   never guarded in the app. Not "has matches": a valid rule that matches nothing is still a rule.
-10. (2026-10-11) Diff before cutting words; scope words that prevent a wrong reading stay.
-11. (2026-10-11) Delete app copies of element logic by adding the element export. Additive exports
-    are the team's call; record them, do not ask.
-12. (2026-10-11) Label and node overlap stays an element fix on the owner's list. No app font,
-    offset, seed or names-off setup.
-13. (2026-10-11) A source-visible mechanism needs no extra script; a single-source claim does.
-    A keyboard-only claim (Color Escape) did not reproduce by pointer: say which input was tried.
-14. (2026-10-11) Still open, carried: Shift toggle, To = From, weight forgotten, Delete key,
-    step-editor Tab/Escape, focus after pick, empty Filters form, N after run row, Follow arrows,
-    Analyze field moves, note edit, popover covers nodes.
-15. (2026-10-10) Walk Figma's selection grammar on every object kind and every command twice then
-    Undo; when a crash appears, rerun the minimal state in its own folder at once.
-16. (2026-10-10) Do NOT move: Replace, weight role at load, note subject, names-off default,
-    Recent in Analyze, Filters door, Analyze ranking, "Settings" rail label.
-17. (2026-10-09) Deferred divergences, only with clean-run evidence: Save form vs live inspector;
-    checkbox vs eye; two row grammars; add-first for "+".
-18. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+1. (2026-10-21) Tier 3 round 1 walk on the frozen build 758b8e8081:
+   `tier3/rounds/round-1/expert/figma.md`, 27 findings (1 sev 3, 17 sev 2, 9 sev 1). Sev 3: the
+   layer tree's Shift-click range starts from the last layer CLICKED, not the current selection,
+   so after Duplicate it pulled the base layer Everything into a bulk edit (`a-start/41.png`).
+2. (2026-10-21) Biggest consistency debt: one list drawn four ways. Choosing a column is an
+   inline 11 px drop-down (condition), a 14 px side popover half empty (bind), a 14 px side
+   popover that scrolls (label); a value list is a bordered grid with headers in the bind
+   popover. Bring: one picker component, one value-row grammar (swatch, name, count, eye, more).
+3. (2026-10-21) Mixed fields must show every value they mix: the purple "Layer" token's strip
+   showed only the winning color of two. Figma's Selection colors lists all.
+4. (2026-10-21) Canvas feedback is missing where Figma has it: hovering a layer row outlines
+   nothing. The outline belongs to graphty-element (a transient highlight through its layer
+   system); the app only calls it.
+5. (2026-10-21) Doors a Figma user tries first and that lead nowhere: Control+G (no-op), "Move to
+   folder" > "No folders yet". "+" > Folder already wraps the selection: wire the two doors to it.
+6. (2026-10-21) Two row grammars remain in one panel (property: label, field, bind, minus; entry:
+   icon, name, short field, gear, eye, minus) and a third in the label settings popover
+   (label above field, ~30 fields, scrolls). Remove is an X on cards, a minus on rows.
+7. (2026-10-21) Panel sentences are back (base layer, "add a condition to narrow", folder note,
+   arrowhead paragraph, bulk "1 layer sets shape; not set: X"). Owner 2026-10-20: no UI sentences.
+8. (2026-10-21) Element defect found: canvas labels draw serif when the font says Verdana (no
+   generic fallback in the font stack). graphty-element's to fix.
+9. (2026-10-21) Verified Figma-consistent on 758b8e8081: rename on create, Control+D, Shift+Ctrl
+   +H/L, Delete + Undo notice, drag reorder, "+" > Folder wraps selection, color popover beside
+   the panel, arrows step property number fields (not the condition card's: a finding).
+10. (2026-10-16) Bulk iteration 7: a bulk field whose layers differ draws BoundValue with
+    <<Layer>> in component purple, "N layers", the same chit line as data binding. Keep this.
+11. (2026-10-13) Decided at the owner review (iteration 3): one settings button per section title
+    (Figma's Type settings), painted-over values dimmed with a tooltip, opacity inline in the color
+    row (still NOT built on 758b8e8081), own entries only, multi-select shows shared properties.
+12. (2026-10-12) Unset is the minus (or empty + Enter); covering is an ordinary entry set to
+    nothing. Two row kinds only: layer and folder. Departures kept: vary glyph at rest, the
+    painted-over mark (Figma does not stack paints).
+13. (2026-10-11) A suggestion must pass the consumer's own acceptance test, fixed in the element.
+    Additive element exports are the team's call; record, do not ask.
+14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Every control must visibly change canvas, key or popover.
-19. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
+15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
 
 ## Priorities and values
 
@@ -171,229 +112,73 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
-- **2026-10-14, round 6:** Round 6, layers, value-from-data, which-elements, properties, graph clusters: kept the icon as kind only (Figma's rule), Add layer makes a real named layer, one "+" item per drawn part with sub-settings in the part's popover (Figma effects and strokes), number fields scrub on the name with no spinners, popovers keep the edge facing their anchor fixed. Rejected my own "Width (every outline)" inside a layer popover: a graph-wide write in a layer breaks every-layer-equal; it lives in Graph settings.
-
-- 2026-10-13 (me, iteration 3 walk) Rated the cut property names severity 3: it is on every layer
-  at rest, it is the first thing the owner judges ("do one-line rows read as Figma's"), and
-  Figma's rule is that a property name is never truncated. Rated the kind change that empties a
-  layer 2, not 4: the row survives and Undo restores it, but the announcement claims it paints.
-  Flagged opacity leaving the row as a decided change not shipped as decided.
-- 2026-10-12 (me, iteration 2 walk) Rated the lost Undo after Clear severity 3: Clear is the
-  owner's first question and undo is the studio's safety net; it fails silently on the most likely
-  next key. Rated the naming split severity 3 for the same reason the Director rated iteration 1's
-  three community names 3: the rule's attribute list is where a reader looks for "Degree".
-  Departure kept: the vary glyph at rest (decided in iteration 2 on tier 1 evidence).
-- 2026-10-12 (me, owner feedback 1) Recommended: unsetting is one grammar for every field and for
-  split children; split stays but is not a row kind; Figma pass with 10 adopts, 2 adapts, 3
-  rejects (Effects default entry, detach on a derived binding, components and modes). Reason: the
-  owner judges by consistency of interaction, and every in-between row costs a rule to learn;
-  Figma itself tolerates frame/group and instance only because their gestures are identical.
-- 2026-10-12 (me, tier 3 answers, `tier3/decide/figma.md`) Recommended: section-as-unit for
-  single-value sections (changes the owner's 2026-10-01 "+ adds a line" rule there, flagged);
-  add-first effect entries with an icon type select; written sections only, the rest behind one
-  "+" per kind heading; hide a kind the rule cannot match; searchable grouped value picker with
-  disabled misfits; data gradient; split parent as frame; kind control plus Filters' conditions
-  for Which elements; Lighting missing from Graph settings; text styles as presets; selection,
-  conditions and expression as three doors into one rule; vary glyph on every bindable channel.
-  Element additions proposed (all additive): beneath-value, kindsOf, canEncode, custom gradient
-  stops, histogram and position in scale space, label presets, a text rule leaf
-  (contains/starts/ends/matches), bindable label channels. Reason: each fills a gap the panel
-  would otherwise fill by app-side computation, which the architecture forbids.
-- 2026-10-11 (me, round 5 walk, `tier2/rounds/round-5/expert/figma.md`) 39 findings, 0 at
-  severity 3 (round 4: 42, 2). New severity 2s: neighbor filter hidden for Out/In (graphty-element
-  rule direction, then app), Escape after a Follow click (app), To list under Follow (compact-
-  mantine stacking), id-only picker rows (app), missing-column rule (element code, app words),
-  "minutes 10" (element `find`). Reason: each stops or misleads a returning user on a route a
-  task can take, and each is placed in its owning package.
-- 2026-10-11 (Director, round 4 closed, `tier2/rounds/round-4/decisions.md`) Twelve round 5
-  changes: runner gate and slot refusal, file-and-kind-only briefings (sev 4); suggestion only if
-  the selector accepts it, an element `atLeast` row for a number inside a range, off step stays
-  off on leave, New project > Discard crash (sev 3); scripts for three single-source claims;
-  table scope "visible" with "12 of 41", `rulePath` export for the bare column name, note Cancel
-  focus, T17 histories, bar 9 (b) by diff (sev 2). Versus my critique: taken -- table scope,
-  "or more" row, bare column name (as a new export so the app copy is deleted); changed -- my
-  "only if it counts with matches" became "only if the selector accepts it", in the element not
-  `FindBox`; not taken -- dropping ", full graph" (diff first; true scope words stay). Reason:
-  one change per problem, owning package, words at rest do not rise, a single-source claim is
-  scripted first.
-- 2026-10-11 (me, round 4 critique) Proposed for round 5: (1) the data table reads scope
-  "visible", not "graph", and counts "12 of 41 edges" like the top bar (`TableDock.tsx` line
-  349; the element already has the scope); (2) `ruleFromText` in `FindBox.tsx` returns the
-  backtick rewrite only when counting it succeeds with matches, else no row; (3) graphty-element
-  `find` adds an optional "or more" answer for a typed number inside a number column's range but
-  not a value (additive: new optional field); (4) `atLeastOf` writes the bare column name as a
-  typed rule does (breaking if `atLeast` has shipped; else the team's call); (5) the key drops
-  ", full graph" (`legendWords.ts` 336); scope stays in Made with. Not changed: overlap (owner),
-  second path, Replace, Shift toggle, Delete key. Reason: each fixes a confirmed fault at its
-  root, in the owning package, at one line or one field where possible.
-- 2026-10-11 (me, round 4 walk, `tier2/rounds/round-4/expert/figma.md`) Severity 3 to the New
-  project crash and the refused bare-number suggestion, each with a script; severity 2 to Delete
-  doing nothing on a step, the dead "This step is gone" inspector, N swallowed by the run row,
-  Shift-click not toggling, the Width band, To = From via Made with, focus left in Attribute.
-  Reason: each stops or misleads on a path a returning user takes; all in their owning package.
-- 2026-10-07 to 10-11, summarized 2026-10-11. Rounds 1 to 3 of tier 2: each round's list was one
-  change per confirmed failure in its owning package (Director: `tier2/rounds/round-N/decisions.md`).
-  Taken from me: find box runs what it recognizes, Replace in the source "...", duplicate-edge
-  count, 24 px checkbox, Tab commits, "Filter to neighbors" a command, rule-named layers,
-  Shift-click adds (Shift only, not Ctrl), Filters door, name-first ranking, edge counts. Not
-  taken: Value blur commit (contradicts the Escape rule), second-path notice, column-menu
-  "Select where...".
-- 2026-09-25 (owner) Figma studied in depth by capture: components, measurements, styles, dark
-  mode, flows, saved in `design/ui/figma/`. Reason: compact-mantine replicates them and the app
-  borrows their grammar.
-- 2026-09-25 (owner) graphty's "objects" are the results of algorithms and filters (groups, paths,
-  bridges, filtered sets); "creating" is running and filtering, not drawing. Reason: the owner's
-  correction to the first comparison; it is why graphty's toolbar holds analysis verbs, not
-  drawing tools.
-- 2026-09-26 (owner) Figma is the paved path; design for the intermediate user; no persona
-  features. Evidence: v1's novice text and strips cluttered the app.
-- 2026-09-26 (owner, studio) The Figma Product Designer role was added to the studio because no
-  member spoke from inside Figma's design thinking. Mandate: argue for Figma, make the team
-  justify divergences, say where graphty differs.
-- 2026-09-26 (studio, Figma study) Verdicts in `research/figma.md` 5: the frame, selection
-  mechanics, add-first editing, empty "+" sections, tooltips with shortcuts, one home per
-  capability, the app never acts unasked, export as a section of the object: transfer unchanged.
-  Layer tree, components, variable modes, persona modes: do not transfer.
-- 2026-09-28 (owner) Export... belongs in the project-name menu top left, as Figma also has it.
-  No avatar (no accounts).
-- 2026-09-28 (owner) Figma for controls and gestures only; structure from graphty's ontology.
-  Outranks the paved-path rule.
-- 2026-09-30 (owner, overruling my spec) Refined structure B: one paint tree on the left in
-  Figma's Layers slot, runs are rows, inspector has Style and data tabs, Analyze from the toolbar.
-  My Structure B spec had mapped the list to the Layers panel and the inspector to the Design
-  panel, which survived; three of my calls did not (see Tried).
-- 2026-09-30 (owner) A run paints as soon as it finishes; the eye shows and hides.
-- 2026-09-30 (owner) Toolbar icons only, tooltips after a hover delay; legend and camera follow the
-  toolbar pattern; rename by double-click.
-- 2026-10-01 (owner) Unset style values: "+" adds a line, advanced options in popovers, never
-  accordions (Figma's pattern).
-- 2026-10-01 (owner) One color picker, Figma's; deprecate the native Mantine one.
-- 2026-10-04 (me, sent to the owner as a reject reason) QuickActions field chooser: always show the
-  search field and keep focus in it, as Figma's Quick actions and variable picker do; drop the
-  hide-search-under-15-items option that produced a ring around the whole panel. Fix in
-  compact-mantine.
-- 2026-10-06 (studio, tier 1 design) Inspector tabs are Style then Values; a single node opens on
-  Values. Reason: round 8, 12 of 12 wanted a node's data and "Data" named both a rail place and a
-  tab. Figma basis: the most specific content for a selection comes first.
-- 2026-10-06 (me, round 1 critique) Round 2 proposal: unify the Neighborhood command with the
-  Degree row's list; mark clickable rows at rest in compact-mantine; fix the empty Size list, the
-  Selection row and "No crossings" (element refusal code, app words); wheel zoom in the element.
-  Not changed: graph Style tab signpost, toolbar words, run names, bind icon. Reason: smallest
-  fixes for the failed path; the rest is Figma-consistent or severity 1.
-- 2026-10-06 (studio) Tooltip delay left open between 500 ms (studio) and 1000 ms (shipped). My
-  position: 1000 ms is Figma's measured value; change only on study evidence.
+- 2026-10-21 (me, round 1 walk) Rated the Shift-click anchor severity 3, not 2: the wrong layer
+  is the base layer, and a bulk edit then writes to all nodes; the reader sees "2 layers" but not
+  which. Rated the four attribute/value drawings 2 each, one fix. Rated "+" adding a field that
+  shows the value beneath (no canvas change) as by design, not a finding: I recommended
+  placeholders that show the value beneath on 2026-10-12. Opacity missing from the color row
+  rated 2 because it was decided and not built.
+- 2026-10-14 (round 6) Kept the icon as kind only (Figma's rule); Add layer makes a real named
+  layer; one "+" item per drawn part with sub-settings in the part's popover; number fields scrub
+  on the name with no spinners; popovers keep the edge facing their anchor fixed. Rejected my own
+  "Width (every outline)" in a layer popover: a graph-wide write in a layer breaks every layer
+  being equal; it lives in Graph settings.
+- 2026-10-13 (iteration 3 walk) Cut property names severity 3 (a property name is never
+  truncated in Figma, and it is on every layer at rest); kind change emptying a layer 2.
+- 2026-10-12 (iteration 2 walk) Lost Undo after Clear severity 3; one value with two or three
+  names severity 3. Departure kept: the vary glyph at rest.
+- 2026-10-12 (owner feedback 1) Unsetting is one grammar for every field and for split children;
+  split is not a row kind; Figma pass: 10 adopts, 2 adapts, 3 rejects (Effects default entry,
+  detach on a derived binding, components and modes).
+- 2026-10-12 (tier 3 answers, `tier3/decide/figma.md`) Section-as-unit for single-value sections;
+  add-first effect entries; written sections only, the rest behind one "+" per kind heading; data
+  gradient; split parent as frame; kind control plus Filters' conditions for Which elements;
+  text styles as presets; vary glyph on every bindable channel; element additions all additive.
+- 2026-10-06 to 10-11, summarized 2026-10-21. Tier 1 and tier 2: each round's list was one change
+  per confirmed failure in its owning package. Taken from me: find box runs what it recognizes,
+  Replace in the source "...", table scope "visible" with "12 of 41", "or more" row, bare column
+  name as a new element export, Tab commits, "Filter to neighbors" a command, rule-named layers,
+  Shift-click adds (Shift only), Filters door, name-first ranking, inspector tabs Style then
+  Values. Not taken: Value blur commit, second-path notice, cutting ", full graph" before a diff.
+- 2026-09-25 to 10-04 (owner), summarized. Figma is the paved path for controls and gestures only;
+  structure from graphty's ontology (objects are results of algorithms and filters). Design for
+  the intermediate user, no persona features. Export in the project-name menu; no avatar. One
+  paint tree left, inspector right with Style and data tabs, Analyze from the toolbar. A run paints
+  when it finishes; eye shows and hides. Toolbar icons only, rename by double-click. Unset values:
+  "+" adds a line, popovers, never accordions. One color picker, Figma's. Pickers keep the search
+  field shown and focused (fix in compact-mantine). Tooltip delay: 1000 ms is Figma's; change only
+  on study evidence.
 
 ## Tried: worked / did not work
 
-- 2026-10-13 Tier 3 iteration 3 walk. Worked: the iteration 2 driver unchanged except the output
-  folder; a "cut" probe (leaf elements whose scrollWidth exceeds clientWidth, with their title)
-  turned "labels look short" into 26-of-33 px numbers; a "lefts" probe grouped every leaf by its
-  left edge. Four sessions, no slot waits. Did not: Mantine's segmented control hides its radio
-  input off screen, so `check()` failed ("outside of the viewport"); clicking the visible
-  `label` worked. A first guess at the label gear's name missed; it is "Node label settings".
-  A group locator (`role=group` "Color binding") measured an inner box (193 px), not the popover;
-  measure the dialog. Lesson: dump a section's control names before scripting clicks into it.
-- 2026-10-12 Tier 3 iteration 2 walk. Worked: reusing iteration 1's driver with the scene's
-  starting state returned from the page (proved the app now sets startingRows and top placement
-  itself); device scale 2 plus a crop helper made 11 px fields and 4 px labels measurable; reading
-  `aria-label`s and box widths in the page turned "looks cut" into numbers. Two sessions, 62
-  screenshots, both under 10 minutes; no slot wait. Did not: a redo in my own undo probe re-ran
-  the route (my Ctrl+Shift+Z after an extra Undo click), and a guessed selector for "Both" missed,
-  so kind change went unverified. Lesson: probe undo with one key per step and read the label
-  after each; list a control's real role in the page before clicking it.
-- 2026-10-12 Tier 3 iteration 1 walk. Worked: one driver (`tmp/figma-i1/walk.mjs`) that loads
-  the sample, builds the owner-review scene through the session, then runs a steps file with a
-  try per section, so one miss cost one section and not the run; two browser runs covered the
-  whole panel. Measuring in the page (row widths, tab sequence, aria names) turned two "looks
-  wrong" into causes. Did not: all four browser slots were held by visual-preview captures for
-  about 20 minutes; a first run with a 400 s timeout died waiting. Lesson: start the walk in the
-  background with a long timeout and read the design meanwhile; read the source gate behind a
-  missing section before calling it unbuilt.
-- 2026-10-12 Owner feedback 1. Worked: the capture (`design/ui/figma/components.md` 22, 28, 31;
-  `right-sidebar-selection/README.md` 4, 5, 15, 22, 24) answered every Figma question without a
-  browser; checking the element first showed `agreement` already returns the deciding layer.
-  Did not: first draft 1,436 words against 1,200. Lesson (again): cap each list item at two lines
-  while drafting.
-- 2026-10-12 Tier 3 answers. Worked: reading the element's types before proposing (RuleTree,
-  EdgeReading, AttributeDescriptor, Lighting) turned several "element must add" items into
-  "element already has", and found that JMESPath has no arithmetic (odd ids unreachable).
-  Did not: a first draft at 1,737 words against a 1,500 budget. Lesson: draft each answer at
-  about 100 words from the start; options one line each.
-- 2026-10-11 Round 5 walk asked for a second time on the same frozen build (8c015b806). Worked:
-  checking the round folder and git log first; the committed walk (39 findings, 0 at severity 3)
-  was returned as is, with no new browser slots taken. Lesson: before a walk, check whether this
-  build already has one; a repeat on an unchanged build only costs slots other studies need.
-
-- 2026-10-11 Round 5 walk. Worked: re-walking last round's routes with the same scripts
-  confirmed seven fixes and two claims in under 120 steps; opening each control from a second
-  state (Follow then Escape, To at 1280 x 800, a column word plus a number) found all six new
-  severity 2s. Did not: three browser starts waited out the slot bound (exit 4) while other
-  studies held all four slots; ending a session before starting the next did not free a slot for
-  me. Lesson: keep one session per browser and walk several screens in it rather than many
-  short sessions.
-- 2026-10-11 Round 4 closed. Worked: critique items backed by a session plus a source line were
-  all taken (table scope, "or more" row, bare column name). Did not: a word cut chosen before a
-  diff named the added words (", full graph") was held; my suggestion guard was set at "has
-  matches", one rule too strict, and in the app's file. Lesson: put a guard where the defect is
-  and at the consumer's exact acceptance test; measure before choosing words to cut.
-
-- 2026-10-11 Recovery after a token limit. Found my round 4 walk and notes uncommitted and one
-  placeholder left in finding 1; filled it from the repro folders (a plain load shows no
-  dialog, so no crash) and committed. Lesson: commit the walk as soon as it is written, before
-  the notes.
-- 2026-10-11 Round 4 walk. Worked: walking repeat work and off-key routes (New project, Delete
-  key, Made with's pick, a bare number with no matching value) found both severity 3s; every
-  severity 3 got a script in the finding. Did not: a crash met mid-walk needed a second session to
-  pin its trigger (a plain load has no unsaved work, so no dialog and no crash). Lesson: when a
-  crash appears, rerun the minimal state at once in its own folder before writing it up.
-- 2026-10-11 Round 3 decisions. Worked: proposals backed by sessions plus source (Shift-click,
-  bare number, Filters door, ranking) were all taken. Did not: proposals with no session behind
-  them (Value blur, second-path notice) were held. Lesson: bring a change only with a session
-  that met it or a script that reproduces it.
-- 2026-10-10 Round 3 scored. Worked: 54 of 56 succeeded; my walk's edge-step-counts-nodes and
-  Tab-then-Escape findings were confirmed by a second specialist. Did not: both my severity 3s
-  were cut (second path to 2, the Undo restatement to "not shown") because I left no script;
-  my walk never tried a modifier click on a node, which was the round's one app failure.
-  Lesson: write a repro script with every severity 3, and walk Figma's selection grammar on
-  every object kind.
-- 2026-10-10 Round 3 walk on 26f3bb968e43. Worked: 13 decided changes verified by clicking, each
-  with a screenshot. Did not: Tab-commit only half-shipped (Tab stays inside the editor); a
-  second path run was walked by nobody before and held both severity 3s. Lesson: walk repeat
-  work (run twice, undo, reopen) on every command, because tier 2 is repeat work.
-- 2026-10-09 to 10-10, summarized 2026-10-11. Round 2: the study leaked (participants read the
-  facilitator file), the dry run walked one round behind; Tab-commit and the typed-condition row
-  shipped as words without the act. Lesson: a decided change names its key behavior, and the dry
-  run walks where pilots actually go.
-- 2026-10-09 Tier 2 round 1 (55 valid sessions, 52 succeeded). Worked: Data > Filters (7 of 8
-  found it, follow-ups at the key's 4 steps), the path popover once found, the Replace page and
-  load-time "Higher means" read right every time, 0 false done, 0 silent commits. Did not: the
-  find box for conditions (T22 below floor), Replace behind right-click only, weight meaning
-  unreachable after a plain Open. My walkthrough's Enter-commit finding was not met by any
-  session (a pass is weak; keep the fix, it is cheap). Lesson: a dry run on the answer key's
-  route cannot find detour defects; walk the previous round's wrong turns too.
-- 2026-10-06 to 10-07 Tier 1 rounds 1 and 2, summarized 2026-10-09. Worked: Size "+" opening
-  its list at once (the Label "+" pattern transfers), Neighborhood unified with the Degree row
-  (8 of 8), runs named after the algorithm, no false done. Did not: a decided rename that never
-  shipped; a chevron outside its button's hit area; doors that lead somewhere other than the
-  home; controls that do nothing visible. Lessons: check a decided change in the build before the
-  round; one smallest change per failure so a round can attribute it; deletion beats rewording.
-- 2026-10-09 Tier 2 round 2 sessions (55 valid, 55 succeeded). Worked: load-time "Higher means"
-  (7 of 7 S), Replace in the source "...". Did not, by evidence: the find box answering a
-  column word or "chapters 10" with only "No match" (6 of 8); backticks; a selection layer's
-  starting Width 8 (a hairline, `r2-s14/15.png`) and Color A9A9A9 (the gray ties already have);
-  "Add to" offering 82 edges from 41 with Load primary (`r2-s33/05.png`). Caveat: participants
-  read the facilitator's task file, so every pass is weak this round; failures still stand.
-  Lesson: the dry run removes faults only where it walks; it walked styling a run, not a
-  selection, and 12 of 30 build faults sat on that one detour.
-
-- 2026-09-06 to 10-04, summarized 2026-10-09. Worked: Figma popovers and a bottom toolbar
-  (owner liked them), the "+" pattern wherever the result showed at once, file actions in the main
-  menu. Did not: closed panels hiding the common options; first-run modals and suggestion strips
-  (clutter, ruled out); copying Figma's frame or Export slot literally; a measure that adds no row
-  until bound (fatal in a graph tool); icon-only verbs whose glyph did not say the verb (Layout
-  read as "play"); controls that changed state with no visible result ("Show labels",
-  Neighborhood naming no one); app workarounds for compact-mantine limits. Lessons: review by
-  clicking, not reading; fix the shared component first; a result must show.
+- 2026-10-21 Round 1 walk, three `real.mjs` sessions (82 shots). Worked: one long session per
+  dataset walking every screen; `--hover-at` on each icon for tooltip and role; PIL crops at 4x of
+  the tree and inspector made 9 px text and glyph meaning checkable; a PIL difference box proved a
+  hover changed only the row, not the canvas. Did not: `--shift-click-at` does not exist (use
+  `--shift-click "<name>"`); `"X#2"` is refused when only one control has that exact name; every
+  `--hover-at` writes a screenshot, so numbering jumps. Lesson: when a modifier click gives an
+  odd result, write down what the previous command selected: the anchor bug showed only because
+  Duplicate, not a click, had made the selection.
+- 2026-10-12 to 10-13, summarized. Tier 3 iterations 1 to 3. Worked: one driver per walk with a
+  try per section; measuring in the page (scrollWidth vs clientWidth, left edges, aria names)
+  turned "looks cut" into numbers; the Figma capture (`design/ui/figma/`) answered Figma
+  questions without a browser; reading element types first turned "element must add" into
+  "element already has". Did not: Mantine's segmented control hides its radio off screen (click
+  the label); guessed control names miss (dump names first); drafts ran 20 to 40% over word
+  budgets (cap list items at two lines).
+- 2026-10-09 to 10-11, summarized. Tier 2 rounds. Worked: re-walking last round's routes with the
+  same scripts; opening each control from a second state; walking repeat work (run twice, undo,
+  reopen, New project) found every severity 3. Did not: severity 3s without a repro script were
+  cut; a walk on an unchanged build already walked wasted slots; a crash met mid-walk needed its
+  own minimal session. Lessons: a script with every severity 3; check for an existing walk of the
+  build; commit the walk before the notes.
+- 2026-09-06 to 10-07, summarized. Worked: Figma popovers and a bottom toolbar, the "+" pattern
+  where the result shows at once, Size "+" opening its list at once. Did not: closed panels
+  hiding common options; first-run modals; copying Figma's frame or Export slot literally; icon
+  verbs whose glyph did not say the verb; controls with no visible result; app workarounds for
+  compact-mantine limits; decided changes that never shipped. Lessons: review by clicking, not
+  reading; fix the shared component first; a result must show; check a decided change in the
+  build before the round.
 
 ## Thinking
 

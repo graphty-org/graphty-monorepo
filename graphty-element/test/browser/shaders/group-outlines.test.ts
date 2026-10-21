@@ -233,7 +233,7 @@ describe("group outlines enclose the whole group", () => {
         await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
         const pass = passOf(element) as BoundaryPass;
         const built = pass.treesBuilt;
-        const draws = pass.draws;
+        const { draws } = pass;
         assert.strictEqual(pass.connectors(), 1, "the far member is joined by one connector");
 
         for (let frame = 0; frame < 10; frame++) {

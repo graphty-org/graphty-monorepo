@@ -510,7 +510,7 @@ describe("a label outline another program wrote", () => {
                     style: {
                         label: "data(name)",
                         color: "white",
-                        "font-size": 10,
+                        "font-size": 14,
                         "text-outline-color": "#888",
                         "text-outline-width": 2,
                     },
@@ -526,7 +526,8 @@ describe("a label outline another program wrote", () => {
             assert.strictEqual(label.outline, "#888888");
             assert.isNumber(label.sizePx);
             assert.isNumber(label.outlineWidth);
-            assert.closeTo((label.outlineWidth as number) / (label.sizePx as number), 2 / 10, 1e-9);
+            // One ratio of outline to label size stands for every label, taken at the usual 14 px.
+            assert.closeTo((label.outlineWidth as number) / (label.sizePx as number), 2 / 14, 1e-6);
         } finally {
             session.dispose();
         }

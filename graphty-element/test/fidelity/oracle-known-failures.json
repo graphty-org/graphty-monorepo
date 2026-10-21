@@ -28777,7 +28777,7 @@
             "background": []
         },
         "json-gephi-worldcup": {
-            "label.present": ["218", "342", "366", "404", "422", "432", "44", "54"],
+            "label.present": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -28807,7 +28807,7 @@
             "background": []
         },
         "json-gephi-worldcup@matched": {
-            "label.present": ["218", "342", "366", "404", "422", "432", "44", "54"],
+            "label.present": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],

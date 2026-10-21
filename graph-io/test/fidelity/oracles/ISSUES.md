@@ -3825,3 +3825,28 @@ Still open:
   further.
 - Now judged and failing as import gaps: Cytoscape's mapped arrow sizes on the syn-mappings family (49 to 92 px heads
   where graphty draws 13 to 22, e.g. 441->426, 408->414, 345->360), and half arrows drawn as one long barb.
+
+## sigma.js drawings judged by their discs and at their own framing (round 4, 2026-10-21)
+
+The graphology and Gephi JSON samples are judged against sigma.js's own drawing (a PNG with sigma's record of where it
+drew each node and which labels it drew). Two comparator defects there are fixed (`compare-oracle.ts`, `associate.ts`):
+
+- A node sigma paints over was told by its box lying inside a later, opaque node's box (`rasterScene`). A disc in a
+  corner of a bigger disc's box still shows there: `json-graphology-synth` n14, n26 and n66 sit in the corners of n25,
+  n37 and n77 and show 29 px of themselves, but were dropped from sigma's side, so the edges ending at them lost that
+  end (`edge.route` judged them uncut there). Now the disc must lie inside the later disc. Planted defect: "disc in a
+  later disc's box corner removed" (absorbed under the old rule, caught now).
+- A label under sigma's node-size rule (`labelRenderedSizeThreshold`, and its label grid; graphty-element's
+  `node.labelMinNodeScreenSize`) shows while its node is drawn so many px across, and how many px a node is across
+  depends on how large each side frames the graph: a camera choice, judged apart by `frame.zoom`. The drawn scene now
+  records each such label with its node's size on screen (`DrawnLabel.nodeSizeRule`, `PNode.sizedLabel`), and the
+  comparator shows it where sigma's framing would (`labelAtScale`); a node within 1 percent of its rule may go either
+  way, since sigma's grid puts the rule of a cell's second label exactly at its first framing. `json-gephi-worldcup`
+  label.present 728/736 -> 736/736: the 8 labels (218, 342, 366, 404, 422, 432, 44, 54) on nodes sigma draws 12.22 px
+  across and graphty, framing the graph 1.109x smaller, 11.02 px, are judged at sigma's framing; the known failures are
+  cleared and the floor raised to 1. Planted defect: "node-size label rule ignored" (json-graphology-synth,
+  graphology-specimen-labels, both added to the default mutant samples).
+
+Still open: graphty frames a sigma file 1.109x (worldcup) to 1.217x (graphology-synth) smaller than sigma, which fits
+the node positions into the canvas less its 30 px `stagePadding`; graphty-element's own fit is the consumer's choice
+(`fitInsets`, `fitBounds`) and offers no fit by node centers alone (`json-graphology-synth` frame.zoom, recorded).

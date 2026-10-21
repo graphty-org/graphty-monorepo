@@ -414,7 +414,7 @@ function inForce(input: HTMLInputElement, list: HTMLElement): HTMLElement | null
  * @param list - its open list
  * @param target - the enabled option to highlight
  */
-export function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
+function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
     const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
     const goal = items.indexOf(target);
     const enabled = items.filter((item) => item.dataset.comboboxDisabled === undefined);

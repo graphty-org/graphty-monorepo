@@ -66,7 +66,7 @@ function clampPercent(n: number): number {
 }
 
 /** Props for the internal UnitField. */
-export interface UnitFieldProps {
+interface UnitFieldProps {
     value: number;
     format: (value: number) => string;
     /** Snap a committed value into range (and wrap an angle). */

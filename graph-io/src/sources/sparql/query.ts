@@ -63,7 +63,8 @@ function afterPrologue(text: string): string {
  * @returns the text holding only keywords, punctuation and blanks
  */
 function keywordsOnly(text: string): string {
-    return text.replaceAll(/[?$]\w+/g, "?v").replaceAll(/(?:[A-Za-z][\w.-]*)?:[\w.%-]*/g, "_");
+    // one run of name characters at a time: a run holding a colon is a prefixed name
+    return text.replaceAll(/[?$]\w+/g, "?v").replaceAll(/[\w.%:-]+/g, (run) => (run.includes(":") ? "_" : run));
 }
 
 /**

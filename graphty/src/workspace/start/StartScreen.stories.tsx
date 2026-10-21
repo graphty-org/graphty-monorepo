@@ -4,6 +4,7 @@ import { expect, waitFor } from "storybook/test";
 import { realInput } from "../../stories/real-input";
 import { storyWaitOptions } from "../../stories/wait";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
+import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
 import { Workspace } from "../Workspace";
 
@@ -36,9 +37,10 @@ const meta: Meta<typeof Workspace> = {
     parameters: { layout: "fullscreen" },
     // Every story starts from a first launch: the usage data card unanswered, single-key
     // shortcuts on. The answer is the reader's and lives in this browser, so it is reset here.
-    beforeEach: () => {
+    beforeEach: async () => {
         forgetUsageAnswer();
         localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+        await clearRecent();
     },
 };
 
@@ -76,10 +78,43 @@ export const Returning: Story = {
     },
 };
 
+/** A returning reader: Resume, the next three recent projects, Open a file and New project. */
+export const ReturningReader: Story = {
+    beforeEach: async () => {
+        answerUsageData("declined");
+        const day = 86_400_000;
+        const now = Date.UTC(2026, 9, 17, 12);
+        await rememberRecent({ id: "football", name: "College football communities", nodes: 115, at: now - day / 12 });
+        await rememberRecent({ id: "key", name: "Key players, ranked", nodes: 77, at: now - day });
+        await rememberRecent({ id: "karate", name: "Karate club split", nodes: 34, at: now - 8 * day });
+        await rememberRecent({ id: "florentine", name: "Florentine marriages", nodes: 15, at: now - 15 * day });
+        // The page words save times from today ("2 hours ago", "Yesterday"), so the story's today is fixed.
+        const realNow = Date.now;
+        Date.now = () => now;
+        return () => {
+            Date.now = realNow;
+        };
+    },
+};
+
+/** Open network data: the sources on the way, and Open from a link. */
+export const NetworkData: Story = {
+    beforeEach: () => {
+        answerUsageData("declined");
+    },
+    play: async ({ canvasElement, parameters }) => {
+        await click(canvasElement, parameters, "Open network data");
+        await waitFor(
+            () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
+            storyWaitOptions(1000),
+        );
+    },
+};
+
 /** A file dragged over the window (`#/start-screen/drop-target`). */
 export const DropTarget: Story = {
     play: async ({ canvasElement, parameters }) => {
-        const root = canvasElement.querySelector(".ws-start");
+        const root = canvasElement.querySelector(".ws-land");
         if (root === null) {
             throw new Error("no start screen");
         }

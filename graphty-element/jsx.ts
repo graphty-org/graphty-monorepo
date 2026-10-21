@@ -124,6 +124,18 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    autoRotate?: Graphty["autoRotate"];
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    pixelRatio?: Graphty["pixelRatio"];
+    /**
+     * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
+     */
+    fitInsets?: Graphty["fitInsets"];
+    /**
      * Switches drawing on demand on or off.
      */
     renderOnDemand?: Graphty["renderOnDemand"];
@@ -278,6 +290,14 @@ export interface GraphtyElementJSXProps {
      */
     "label-declutter"?: boolean;
     /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    "auto-rotate"?: string;
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    "pixel-ratio"?: string;
+    /**
      * Switches drawing on demand on or off.
      */
     "render-on-demand"?: boolean;
@@ -402,6 +422,9 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
+    "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
+    "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.

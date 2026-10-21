@@ -32,6 +32,8 @@ import { CircularLayout } from "../layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
+import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "../layout/graphviz/engines";
+import { GRAPHVIZ_LAYOUTS } from "../layout/GraphvizLayoutEngine";
 import { GridLayout } from "../layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
 import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
@@ -47,7 +49,7 @@ import { SpringLayout } from "../layout/SpringLayoutEngine";
 import type { CodedFact } from "../session/shared";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
-import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, OptionDescriptor } from "./types";
+import type { KNOWN_LAYOUT_IDS, LayoutDescriptor, LayoutId, LayoutRequirements, OptionDescriptor } from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The shapes this module adds on top of LayoutDescriptor
@@ -98,7 +100,7 @@ export interface LayoutImplementation {
      * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
      * drawn by six engines, five of which need nothing.
      */
-    requires?: { accelerator?: boolean };
+    requires?: LayoutRequirements;
 }
 
 /**
@@ -117,6 +119,7 @@ export interface LayoutImplementation {
  * | `implementation.accelerator-only` | The default arrangement's force model computed on hardware; asked for by name it needs an accelerator at any size |
  * | `implementation.distance-faithful` | Drawn distances match graph distances; solves over every pair of nodes, so it suits small graphs |
  * | `implementation.two-dimensional` | The only force engine that is two-dimensional by nature |
+ * | `implementation.graphviz` | Graphviz's own engine, compiled to WebAssembly and run in a Worker; needs the optional package in `requires.package` |
  *
  * New codes may be added in a minor release: word an unknown one generically.
  * @since 3.20.0
@@ -130,7 +133,8 @@ export type LayoutImplementationCode =
     | "implementation.seed-reproducible"
     | "implementation.accelerator-only"
     | "implementation.distance-faithful"
-    | "implementation.two-dimensional";
+    | "implementation.two-dimensional"
+    | "implementation.graphviz";
 
 /**
  * An implementation as it is authored here. Which one is the default is decided by position, and
@@ -211,6 +215,7 @@ function entry(
             options: primary.options,
             honoursWeights: primary.honoursWeights,
             scoped: primary.scoped,
+            ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },
         implementations: [
             implementation(primary, true),
@@ -490,6 +495,106 @@ const random: LayoutImplementationSpec = {
     scoped: RandomLayout.scoped,
 };
 
+/** What each Graphviz engine is, as the catalogue describes it. */
+const GRAPHVIZ_ENTRIES: Readonly<
+    Record<
+        GraphvizEngine,
+        {
+            readonly technicalName: string;
+            readonly description: string;
+            readonly family: string;
+            readonly sizeRating: LayoutDescriptor["sizeRating"];
+        }
+    >
+> = {
+    dot: {
+        technicalName: "Graphviz dot (layered)",
+        description:
+            "Puts nodes in ranks so edges point one way, and orders each rank to cross as few edges as it can.",
+        family: "hierarchical",
+        sizeRating: 500,
+    },
+    neato: {
+        technicalName: "Graphviz neato (stress majorization)",
+        description: "Places nodes so their drawn distances match their graph distances.",
+        family: "force",
+        sizeRating: 2000,
+    },
+    fdp: {
+        technicalName: "Graphviz fdp (force-directed)",
+        description: "Pulls connected nodes together and pushes the rest apart, with spring forces.",
+        family: "force",
+        sizeRating: 500,
+    },
+    sfdp: {
+        technicalName: "Graphviz sfdp (multiscale force-directed)",
+        description: "The force-directed drawing for large graphs, settled from coarse to fine.",
+        family: "force",
+        sizeRating: 10000,
+    },
+    circo: {
+        technicalName: "Graphviz circo (circular)",
+        description: "Puts each tightly connected part of the graph on its own circle.",
+        family: "geometric",
+        sizeRating: 500,
+    },
+    twopi: {
+        technicalName: "Graphviz twopi (radial)",
+        description: "Puts a root at the center and every other node on a ring by its distance from it.",
+        family: "geometric",
+        sizeRating: 10000,
+    },
+    osage: {
+        technicalName: "Graphviz osage (clustered array)",
+        description: "Packs the nodes into a tight array of rows and columns.",
+        family: "special",
+        sizeRating: 10000,
+    },
+    patchwork: {
+        technicalName: "Graphviz patchwork (squarified treemap)",
+        description: "Tiles the nodes as squares packed into one rectangle.",
+        family: "special",
+        sizeRating: 10000,
+    },
+};
+
+/**
+ * One Graphviz engine as a catalogue entry: the arrangement and its only engine share the id.
+ * @param engine - the engine
+ * @returns the entry
+ */
+function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
+    const cls = GRAPHVIZ_LAYOUTS[engine];
+    const { technicalName, description, family, sizeRating } = GRAPHVIZ_ENTRIES[engine];
+    const plainName = `Graphviz ${engine}`;
+    return entry(
+        {
+            id: cls.type,
+            plainName,
+            technicalName,
+            description,
+            family,
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating,
+            structuralInputs: [],
+        },
+        {
+            engine: cls.type,
+            plainName,
+            technicalName,
+            kind: "batch",
+            maxDimensions: 2,
+            reason: "Graphviz's own engine, compiled to WebAssembly and run in a Worker.",
+            code: "implementation.graphviz",
+            options: engineOptions(cls.zodOptionsSchema, SEED_OVERRIDE),
+            honoursWeights: cls.honoursWeights,
+            scoped: cls.scoped,
+            requires: { package: GRAPHVIZ_PACKAGE },
+        },
+    );
+}
+
 // ---------------------------------------------------------------------------------------------
 // The catalogue
 // ---------------------------------------------------------------------------------------------
@@ -703,6 +808,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
         },
         fixed,
     ),
+    ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];
 
 /** The descriptors alone, which is what `catalog.layouts()` publishes. */

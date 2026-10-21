@@ -23,6 +23,7 @@ import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
 import { GraphtyLogger } from "../logging";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
+import { batchUploadFrames } from "../meshes/FrameRoster";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -50,7 +51,15 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
+    pixelRatio?: PixelRatio;
 }
+
+/**
+ * How many drawing-buffer pixels the canvas has per CSS pixel: a number, or `"device"` for the
+ * screen's own `devicePixelRatio`, followed as it changes.
+ */
+export type PixelRatio = number | "device";
 
 /** Which renderer a graph asks for: WebGL, WebGPU, or WebGPU when the browser has it. */
 export type RendererRequest = "webgl" | "webgpu" | "auto";
@@ -365,6 +374,21 @@ export class RenderManager implements Manager {
         this.drawOwed = true;
     };
     /**
+     * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
+     * the lost context never signals in the restored one, so kept, it held every tick in
+     * {@link gpuBehind} and the graph was never drawn again (iPad Safari takes the context from a
+     * tab in the background). A restore also has the edge and arrow batches upload every slot
+     * again on the next frame, because Babylon gives their buffers back empty.
+     * @param event - The canvas's `webglcontextlost` or `webglcontextrestored` event.
+     */
+    private readonly dropFence = (event: Event): void => {
+        this.lastFrameFence = null;
+        this.drawOwed = true;
+        if (event.type === "webglcontextrestored") {
+            batchUploadFrames.contextRestored(this.scene);
+        }
+    };
+    /**
      * Set when the scene gained or lost something it draws with, and cleared by the first frame
      * drawn with the whole scene ready. A frame skips a mesh whose shader has not compiled yet, so
      * one frame after such a change can leave the new thing off the canvas.
@@ -387,11 +411,23 @@ export class RenderManager implements Manager {
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
      * canvas. This one does the same thing without scrolling.
+     *
+     * NO FOCUS RING FOR A POINTER. Focus given by script is shown with a ring whenever the browser
+     * thinks the reader is on the keyboard -- after a key press, or on a page nothing had focused
+     * yet -- so turning the graph with the mouse outlined the whole canvas in blue. Focus that came
+     * from a pointer hides the outline until the canvas loses focus; focus that comes any other way
+     * (Tab, a key, the page's script) keeps the browser's own `:focus-visible` ring.
      * @param evt - The pointer down or up event on the canvas
      */
     private readonly focusOnPointer = (evt: PointerEvent): void => {
         evt.preventDefault();
+        this.canvas.style.outline = "none";
         this.canvas.focus({ preventScroll: true });
+    };
+
+    /** The canvas lost focus: the next focus, from whatever source, shows the browser's ring. */
+    private readonly restoreFocusRing = (): void => {
+        this.canvas.style.outline = "";
     };
 
     /**
@@ -422,9 +458,12 @@ export class RenderManager implements Manager {
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
         this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        this.canvas.addEventListener("blur", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
+        this.canvas.addEventListener("webglcontextlost", this.dropFence);
+        this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
 
         // Create graph-root transform node for XR gestures
@@ -437,8 +476,13 @@ export class RenderManager implements Manager {
 
         // Setup resize handler
         this.resizeHandler = (): void => {
+            // The device ratio changes with the browser's zoom and the screen the window is on,
+            // and both fire a resize.
+            this.applyPixelRatio();
             this.engine.resize();
         };
+        this.pixelRatio = this.config.pixelRatio ?? 1;
+        this.applyPixelRatio();
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
@@ -493,9 +537,12 @@ export class RenderManager implements Manager {
         window.removeEventListener("resize", this.resizeHandler);
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        this.canvas.removeEventListener("blur", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.removeEventListener(type, this.owe);
         }
+        this.canvas.removeEventListener("webglcontextlost", this.dropFence);
+        this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
 
         // Dispose camera system
@@ -632,6 +679,33 @@ export class RenderManager implements Manager {
      */
     requestFrame(): void {
         this.drawOwed = true;
+    }
+
+    /** See {@link setPixelRatio}. */
+    private pixelRatio: PixelRatio = 1;
+
+    /**
+     * Draws the canvas at this many pixels per CSS pixel. Every size the element measures on
+     * screen (fit insets, label sizes, line widths, `nodeScreenPosition`) stays in CSS pixels;
+     * only the sharpness changes, and the cost of each frame with it.
+     * @param ratio - A positive number, or `"device"`; anything else is read as 1.
+     */
+    setPixelRatio(ratio: PixelRatio): void {
+        this.pixelRatio = ratio;
+        this.applyPixelRatio();
+    }
+
+    /** Sets the engine's hardware scaling level from {@link pixelRatio}, and owes a frame when it changed. */
+    private applyPixelRatio(): void {
+        const device = globalThis.devicePixelRatio;
+        const wanted = this.pixelRatio === "device" ? device : this.pixelRatio;
+        const ratio = typeof wanted === "number" && Number.isFinite(wanted) && wanted > 0 ? wanted : 1;
+        const level = 1 / ratio;
+        if (this.engine.getHardwareScalingLevel() !== level) {
+            // Babylon resizes the drawing buffer to the canvas's CSS size over the level.
+            this.engine.setHardwareScalingLevel(level);
+            this.drawOwed = true;
+        }
     }
 
     /**

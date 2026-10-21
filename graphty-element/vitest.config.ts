@@ -77,8 +77,15 @@ const LODASH_FUNCTIONS = [
  */
 const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
+/**
+ * The optional Graphviz package, which only the Graphviz layouts' Worker imports. Discovered
+ * there mid-run, Vite re-optimizes its dependencies and deletes the chunks the page already
+ * holds, and Babylon's next lazy shader import fails to fetch.
+ */
+const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
+
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
@@ -350,6 +357,8 @@ export default defineConfig({
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
                         "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -573,7 +582,13 @@ export default defineConfig({
                 // property test's reproduction seed and path (test/helpers/fc-params.ts).
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                envPrefix: [
+                    "VITE_",
+                    "GRAPHTY_BROWSER_GPU",
+                    "GRAPHTY_FC_",
+                    "GRAPHTY_UPDATE_RENDER_BUDGET",
+                    "GRAPHTY_FIDELITY_RECORD",
+                ],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
@@ -712,7 +727,11 @@ export default defineConfig({
                 test: {
                     name: "fidelity",
                     setupFiles: ["./test/setup.ts"],
-                    include: ["test/fidelity/fidelity.test.ts"],
+                    include: [
+                        "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
+                    ],
                     testTimeout: 0,
                     fileParallelism: false,
                     browser: {

@@ -31,6 +31,8 @@ export interface JoinedLineOptions {
     opacity?: number;
     /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
     worldWidth?: boolean;
+    /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
+    minScreenWidth?: number;
     /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
 }
@@ -85,7 +87,9 @@ export class CustomLineRenderer {
      */
     private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
         const engine = scene.getEngine();
-        const resolution = new Vector2(engine.getRenderWidth(), engine.getRenderHeight());
+        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`.
+        const css = engine.getHardwareScalingLevel();
+        const resolution = new Vector2(engine.getRenderWidth() * css, engine.getRenderHeight() * css);
         for (const material of materials) {
             material.setVector2("resolution", resolution);
         }
@@ -356,6 +360,7 @@ void main(void) {
                     "projection",
                     "resolution",
                     "width",
+                    "minWidth",
                     "miterLimit",
                     "color",
                     "opacity",
@@ -369,6 +374,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         material.setFloat("width", options.width);
+        material.setFloat("minWidth", options.minScreenWidth ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
@@ -394,7 +400,9 @@ void main(void) {
         this.blendInPlace(mesh);
         mesh.metadata = {
             joinedLine: true,
-            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+            pattern: pattern
+                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+                : undefined,
         };
 
         return mesh;

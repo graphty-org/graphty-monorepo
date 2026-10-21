@@ -39,7 +39,7 @@ const NON_FORMAT_ENTRIES: Readonly<Record<string, string>> = {
 const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
     Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) => [
         k === "." ? "graph-io" : k.slice(2),
-        NON_FORMAT_ENTRIES[k] ?? `src/formats/${k.slice(2)}/index.ts`,
+        NON_FORMAT_ENTRIES[k] ?? `src/${k.startsWith("./sources/") ? "" : "formats/"}${k.slice(2)}/index.ts`,
     ]),
 );
 const docsDir = `${pkg}docs/`;
@@ -1286,6 +1286,7 @@ const KIND_TEXT: Readonly<Record<string, string>> = {
     color: "a color, `#rrggbb`",
     opacity: "a number from 0 (transparent) to 1",
     number: "a number",
+    signed: "a number, negative too",
     text: "text",
     boolean: "true or false",
 };
@@ -1335,11 +1336,7 @@ function toolDefaultsBlock(ctx: Context): string[] {
             case "colorFromSourceNode":
                 return "an edge with no color of its own takes its source node's fill";
             case "colorFromEndNodes":
-                return "an edge with no color of its own takes the mean of its two nodes' fills";
-            case "borderFromFill":
-                return `a node with no border of its own gets a border of its fill times ${code(String(d.darken))}, ${code(String(d.widthFactor))} times its width wide`;
-            case "labelSizeFromWidth":
-                return `a node with no label size of its own gets a label size of its width times ${code(String(d.factor))}`;
+                return "an edge with no color of its own takes the mix of its two nodes' fills and alphas";
             case "widthFromWeight":
                 return "an edge with no width of its own is as thick as its weight (1 without one, and 1 for a weight of 0 or below, so the edge stays visible)";
             case "targetArrowOnDirected":

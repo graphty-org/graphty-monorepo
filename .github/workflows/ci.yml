@@ -429,6 +429,19 @@ jobs:
             - name: Build Storybook (cytoscape-extensions)
               run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
 
+            # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
+            # baselines so a run downloads only the pictures added since the cache was saved. The
+            # package's build-storybook pulls them (a no-op once the cache restored them).
+            - name: Restore the style fidelity reference pictures
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  restore-keys: lfs-fidelity-references-
+
+            - name: Build Storybook (graph-io-fidelity)
+              run: pnpm exec nx run graph-io-fidelity:build-storybook --exclude-task-dependencies
+
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4
               with:
@@ -469,6 +482,13 @@ jobs:
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (graph-io-fidelity)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
                   retention-days: 1
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
@@ -786,6 +806,21 @@ jobs:
                   name: build-packages
                   path: .
 
+            # The style fidelity scorecard (graphty-element/test/browser/oracle-scorecard.test.ts) compares graphty's
+            # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
+            # names (about 3 MB), cached like the visual job's baselines.
+            - name: Restore the style fidelity oracle pictures
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
+                  restore-keys: lfs-oracle-scorecard-
+
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v4
@@ -1034,6 +1069,12 @@ jobs:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
+            - name: Download Storybook build (graph-io-fidelity)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
+
             - name: Download algorithms gh-pages
               uses: actions/download-artifact@v4
               with:
@@ -1236,6 +1277,10 @@ jobs:
                       artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
+                    # Its Storybook is not at <project>/storybook-static, so the row names where it is.
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
         steps:
             # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
             # writes the not-affected marker in place of results.json and uploads it as the capture, so the
@@ -1336,7 +1381,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: ${{ matrix.artifact }}
-                  path: ${{ matrix.project }}/storybook-static/
+                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
 
             # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
             # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
@@ -1432,26 +1477,27 @@ jobs:
             # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
             # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
             # excluded items (so every story without an approved baseline blocks, unseeded included),
-            # or when that capture is missing, unfinished or invalid. It also fails when
-            # a baseline PNG or an excluding settings file differs from the base without a review record
-            # added in the pull request that names its new hash. Once visual-review/passkeys.json on the
-            # base branch holds a key, every record the pull request adds must also carry the owner's
-            # passkey approval (Face ID) over exactly that record and this pull request number, by a key
-            # read from the base branch, never from the pull request; a pull request that would leave no
-            # key fails (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
+            # or when that capture is missing, unfinished or invalid. It also fails when the git tree
+            # of visual-baselines/ differs from the base's without the owner's approval of exactly that
+            # tree (visual-review-approvals/<tree>.json), made at a commit that is an ancestor of this one.
+            # Once visual-review/passkeys.json on the base branch holds a key, that approval must carry
+            # the owner's passkey signature (Face ID), by a key read from the base branch, never from the
+            # pull request; a pull request that would leave no key fails (visual-review/README.md, "What
+            # the gate does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
             # (standard library only), run as the base branch has it, never the pull request's copy, so a
             # pull request cannot loosen the gate that judges it (a change to the gate is first exercised
             # by the pull request after it); it reads visual-review.config.json from the base tip (sparse
-            # checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
-            # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
-            # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
+            # checkout keeps the root's files). Full history, so the approval's commit can be checked as an
+            # ancestor and HEAD^1, the merge ref's first parent, is the base tip the pull request was merged
+            # onto; blob:none fetches only the blobs the gate reads, and the baselines are Git LFS pointer
+            # files naming each image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
               if: github.event_name == 'pull_request'
               uses: actions/checkout@v4
               with:
                   sparse-checkout: visual-review
-                  fetch-depth: 2
+                  fetch-depth: 0
                   filter: blob:none
 
             - name: Download visual captures

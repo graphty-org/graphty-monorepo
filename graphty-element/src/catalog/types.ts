@@ -18,6 +18,8 @@
  * the consumer's preference.
  */
 
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
+
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
@@ -492,7 +494,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight` and `labelItalic` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -510,17 +512,52 @@ export type Channel =
     | "node.labelStyle"
     | "node.labelColor"
     | "node.labelSize"
+    | "node.labelLetterSize"
     | "node.labelFont"
     | "node.labelWeight"
     | "node.labelItalic"
+    | "node.labelWrapWidth"
+    | "node.labelWrapTrailingSpace"
+    | "node.labelWrapEllipsis"
+    | "node.labelWrapAnywhere"
+    | "node.labelWrapSpaceCount"
+    | "node.labelRunAlign"
+    | "node.labelMinScreenSize"
+    | "node.labelOnTop"
+    | "node.labelDeclutter"
+    | "node.labelMinNodeScreenSize"
+    | "node.labelTextAlign"
+    | "node.labelLocation"
+    | "node.labelRotation"
+    | "node.labelBackground"
+    | "node.labelOutline"
+    | "node.labelOutlineWidth"
+    | "node.labelBorder"
+    | "node.labelBorderWidth"
+    | "node.labelOpacity"
+    | "node.labelBackgroundOpacity"
+    | "node.labelOutlineOpacity"
+    | "node.labelBorderOpacity"
+    | "node.labelPadding"
+    | "node.labelCornerRadius"
+    | "node.labelLineHeight"
+    | "node.labelOffsetX"
+    | "node.labelOffsetY"
+    | "node.labelShiftX"
+    | "node.labelShiftY"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
     | "node.glow"
     | "node.glowStrength"
+    | "node.halo"
+    | "node.haloColor"
+    | "node.haloScale"
+    | "node.haloOpacity"
     | "node.wireframe"
     | "node.flat"
+    | "node.unlit"
     | "node.marker"
     | "node.width"
     | "node.height"
@@ -530,35 +567,214 @@ export type Channel =
     | "node.drawOrder"
     | "node.borderColor"
     | "node.borderWidth"
+    | "node.borderScreenWidth"
+    | "node.borderOpacity"
     | "node.borderStyle"
+    | "node.borderPosition"
+    | "node.borderWaveAmplitude"
+    | "node.borderWavePeriod"
+    | "node.outerBorderColor"
+    | "node.outerBorderWidth"
+    | "node.outerBorderOpacity"
+    | "node.outerBorderStyle"
+    | "node.outerBorderOffset"
+    | "node.underlayColor"
+    | "node.underlayOpacity"
+    | "node.underlayPadding"
+    | "node.underlayShape"
+    | "node.underlayCornerRadius"
+    | "node.overlayColor"
+    | "node.overlayOpacity"
+    | "node.overlayPadding"
+    | "node.overlayShape"
+    | "node.overlayCornerRadius"
     | "node.cornerRadius"
+    | "node.exactCornerRadius"
+    | "node.shapePoints"
+    | "node.shapeStretchPoints"
+    | "node.shapeParts"
+    | "node.shapeLines"
+    | "node.shapeTexts"
+    | "node.shapeLineWidth"
+    | "node.labelFit"
+    | "node.labelPaddingX"
+    | "node.labelPaddingY"
+    | "node.labelFitSquare"
+    | "node.gradientColor"
+    | "node.gradientDirection"
+    | "node.gradientColors"
+    | "node.gradientStops"
+    | "node.gradientKind"
+    | "node.image"
+    | "node.imageFallback"
+    | "node.imageFit"
+    | "node.imageWidth"
+    | "node.imageHeight"
+    | "node.imagePixelSize"
+    | "node.imagePositionX"
+    | "node.imagePositionY"
+    | "node.imageOffsetX"
+    | "node.imageOffsetY"
+    | "node.imageRepeat"
+    | "node.imageClip"
+    | "node.imageSmoothing"
+    | "node.imageAutoSize"
+    | "node.imageOpacity"
+    | "node.glyph"
+    | "node.glyphFont"
+    | "node.glyphSize"
+    | "node.glyphWeight"
+    | "node.glyphColor"
+    | "node.pieColors"
+    | "node.pieSizes"
+    | "node.pieOpacities"
+    | "node.pieRadius"
+    | "node.pieHole"
+    | "node.pieRotation"
+    | "node.pieFitBox"
+    | "node.pieOffsetX"
+    | "node.pieOffsetY"
+    | "node.stripeColors"
+    | "node.stripeSizes"
+    | "node.stripeOpacities"
+    | "node.stripeDirection"
+    | "node.stripeSize"
+    | "node.chartKind"
+    | "node.chartValues"
+    | "node.chartColors"
+    | "node.chartMin"
+    | "node.chartMax"
+    | "node.chartHorizontal"
+    | "node.chartSize"
+    | "node.chartMargin"
+    | "node.chartGap"
+    | "node.chartLineWidth"
+    | "node.chartBorderColor"
+    | "node.chartBorderWidth"
     | "edge.color"
     | "edge.width"
+    | "edge.minScreenWidth"
     | "edge.opacity"
+    | "edge.outlineColor"
+    | "edge.outlineWidth"
+    | "edge.outlineOpacity"
+    | "edge.outlineStyle"
+    | "edge.underlayColor"
+    | "edge.underlayOpacity"
+    | "edge.underlayPadding"
+    | "edge.overlayColor"
+    | "edge.overlayOpacity"
+    | "edge.overlayPadding"
+    | "edge.gradientColors"
+    | "edge.gradientStops"
+    | "edge.gradientKind"
     | "edge.style"
     | "edge.patternCount"
+    | "edge.waveAmplitude"
+    | "edge.wavePeriod"
     | "edge.curvature"
     | "edge.bends"
+    | "edge.fanSpacing"
+    | "edge.fanned"
+    | "edge.bendCurve"
+    | "edge.arcRadius"
+    | "edge.nodeGap"
+    | "edge.sourcePort"
+    | "edge.targetPort"
     | "edge.arrowHead"
     | "edge.arrowHeadSize"
+    | "edge.arrowHeadWidth"
+    | "edge.arrowHeadSide"
+    | "edge.arrowHeadPosition"
+    | "edge.arrowHeadGap"
     | "edge.arrowHeadColor"
     | "edge.arrowHeadOpacity"
+    | "edge.arrowHeadImage"
     | "edge.arrowHeadText"
     | "edge.arrowHeadTextStyle"
+    | "edge.arrowHeadTextSize"
+    | "edge.arrowHeadTextLetterSize"
+    | "edge.arrowHeadTextFont"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowHeadTextWeight"
+    | "edge.arrowHeadTextOpacity"
+    | "edge.arrowHeadTextDistance"
+    | "edge.arrowHeadTextRotation"
+    | "edge.arrowHeadTextOffsetX"
+    | "edge.arrowHeadTextOffsetY"
     | "edge.arrowTail"
     | "edge.arrowTailSize"
+    | "edge.arrowTailWidth"
+    | "edge.arrowTailSide"
+    | "edge.arrowTailPosition"
+    | "edge.arrowTailGap"
     | "edge.arrowTailColor"
     | "edge.arrowTailOpacity"
+    | "edge.arrowTailImage"
     | "edge.arrowTailText"
     | "edge.arrowTailTextStyle"
+    | "edge.arrowTailTextSize"
+    | "edge.arrowTailTextLetterSize"
+    | "edge.arrowTailTextFont"
+    | "edge.arrowTailTextColor"
+    | "edge.arrowTailTextWeight"
+    | "edge.arrowTailTextOpacity"
+    | "edge.arrowTailTextDistance"
+    | "edge.arrowTailTextRotation"
+    | "edge.arrowTailTextOffsetX"
+    | "edge.arrowTailTextOffsetY"
+    | "edge.arrowMiddleHead"
+    | "edge.arrowMiddleHeadSize"
+    | "edge.arrowMiddleHeadWidth"
+    | "edge.arrowMiddleHeadSide"
+    | "edge.arrowMiddleHeadPosition"
+    | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleHeadOpacity"
+    | "edge.arrowMiddleHeadImage"
+    | "edge.arrowMiddleTail"
+    | "edge.arrowMiddleTailSize"
+    | "edge.arrowMiddleTailWidth"
+    | "edge.arrowMiddleTailSide"
+    | "edge.arrowMiddleTailPosition"
+    | "edge.arrowMiddleTailColor"
+    | "edge.arrowMiddleTailOpacity"
+    | "edge.arrowMiddleTailImage"
     | "edge.animationSpeed"
     | "edge.label"
     | "edge.labelStyle"
     | "edge.labelColor"
     | "edge.labelSize"
+    | "edge.labelLetterSize"
     | "edge.labelFont"
     | "edge.labelWeight"
-    | "edge.labelItalic";
+    | "edge.labelItalic"
+    | "edge.labelWrapWidth"
+    | "edge.labelWrapTrailingSpace"
+    | "edge.labelWrapEllipsis"
+    | "edge.labelWrapAnywhere"
+    | "edge.labelWrapSpaceCount"
+    | "edge.labelRunAlign"
+    | "edge.labelMinScreenSize"
+    | "edge.labelOnTop"
+    | "edge.labelTextAlign"
+    | "edge.labelLocation"
+    | "edge.labelRotation"
+    | "edge.labelBackground"
+    | "edge.labelOutline"
+    | "edge.labelOutlineWidth"
+    | "edge.labelBorder"
+    | "edge.labelBorderWidth"
+    | "edge.labelOpacity"
+    | "edge.labelBackgroundOpacity"
+    | "edge.labelOutlineOpacity"
+    | "edge.labelBorderOpacity"
+    | "edge.labelPadding"
+    | "edge.labelCornerRadius"
+    | "edge.labelLineHeight"
+    | "edge.labelOffsetX"
+    | "edge.labelOffsetY"
+    | "edge.labelShiftX"
+    | "edge.labelShiftY";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -648,9 +864,20 @@ export interface BindingStop {
     above?: string | number;
 }
 
-/** One channel's binding: a literal, or a declarative mapping from a value in the data. */
+/**
+ * One channel's binding: a literal, a declarative mapping from a value in the data, or text
+ * built from several values.
+ *
+ * The `template` form is accepted only by the text channels (`node.label`, `edge.label`,
+ * `node.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
+ * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
+ * edges, for `edge.label`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
+ * any value missing is left out, and every substituted value is escaped so data cannot inject
+ * label markup. The consumer writes every word: the element adds none.
+ */
 export type Binding =
     | { value: ChannelValue }
+    | { template: readonly string[] }
     | {
           by: Path;
           scale?:
@@ -731,7 +958,24 @@ export type Selector =
      * set paints from its kept record, so removing a set never blanks a layer; a scope that
      * cannot be evaluated paints nothing and never throws.
      */
-    | { match: "member"; of: Scope };
+    | { match: "member"; of: Scope }
+    /**
+     * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
+     * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
+     * `invert: true`, everything else -- but only while a node is hovered, so the layer paints
+     * nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
+     * state: the layer follows the pointer with no undo step. `session.selection.hovered` says
+     * which node it is. With `orSelected: true`, while no node is hovered a lone selected node
+     * stands in for the hovered one, so a look that follows the pointer stays on the node the
+     * reader clicked; several selected nodes, or none, and the layer paints as at rest.
+     *
+     * ```ts
+     * // Fade what the pointed-at node is not linked to.
+     * session.styles.add({ name: "Dim the rest", target: "node",
+     *     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
+     * ```
+     */
+    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =
@@ -855,6 +1099,24 @@ export interface LayoutDescriptor {
      * refuses a scope with `E_UNSUPPORTED`.
      */
     scoped: boolean;
+    /**
+     * What has to be true before the default engine can run at all. `package` names an optional
+     * peer package that must be installed (the Graphviz layouts need `@hpcc-js/wasm-graphviz`);
+     * `accelerator: true` means the engine runs only on hardware. Absent when nothing is needed.
+     * @since 3.29.0
+     */
+    requires?: LayoutRequirements;
+}
+
+/** What has to be true before a layout engine can run. */
+export interface LayoutRequirements {
+    /** The engine runs only on an accelerator. */
+    accelerator?: boolean;
+    /**
+     * An optional peer package that must be installed, such as `@hpcc-js/wasm-graphviz`.
+     * @since 3.29.0
+     */
+    package?: string;
 }
 
 /**
@@ -1400,6 +1662,16 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * Every graph generator `session.data.generate` runs, with a default name, one sentence and
+     * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.
+     */
+    generators(): readonly GeneratorDescriptor[];
+    /**
+     * Every sample dataset `session.data.loadDataset` downloads, with its size, source, citation
+     * and license. Supplied by @graphty/graph-samples.
+     */
+    datasets(): readonly DatasetMeta[];
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

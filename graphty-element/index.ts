@@ -44,7 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export { Edge } from "./src/Edge";
+export { Edge, type EdgeCapEnd } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -75,6 +75,8 @@ export { Node } from "./src/Node";
 export type {
     AdHocData,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
@@ -197,6 +199,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
@@ -393,7 +399,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration
@@ -423,3 +429,10 @@ export {
     CPU_PRECISION,
     isAccelerationPolicy,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export type { CredentialStore, SourceCredentialTarget, StoredCredentialInfo } from "./src/credentials/CredentialStore";
+export * from "./src/session/sources/public";

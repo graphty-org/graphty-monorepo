@@ -13,10 +13,13 @@ import {
     type GraphImporter,
     headBytes,
     ImportError,
+    type ImportGraphResult,
     type ImportInput,
     type ImportReport,
     INPUT_ISSUE,
+    registry,
 } from "@graphty/graph-io";
+import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
@@ -118,6 +121,25 @@ export interface ImportedGraph {
     readonly importer: GraphImporter;
     /** The ids of the nodes the file declared, as opposed to those an edge created. */
     readonly declared: ReadonlySet<NodeId>;
+}
+
+/** A graph read by a network source: no importer when the source returned records rather than a file. */
+export type SourceGraph = Omit<ImportedGraph, "importer"> & { readonly importer?: GraphImporter };
+
+/**
+ * A network source's load as an import: every node declared, and the importer of the format a
+ * file source resolved to, so the file's stored positions are read as a file load reads them.
+ * @param loaded - what `loadFromSource` or `expandFromSource` returned
+ * @returns the graph
+ */
+export function sourceGraph(loaded: ImportGraphResult): SourceGraph {
+    const { format, snapshot, report } = loaded;
+    return {
+        snapshot,
+        report,
+        declared: new Set(snapshot.ids),
+        ...(registry.hasImporter(format) ? { importer: registry.importer(format) } : {}),
+    };
 }
 
 /**
@@ -700,12 +722,13 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * @returns the records, in file order
  */
 export function toRecords(
-    imported: ImportedGraph,
+    imported: SourceGraph,
     mapping: RecordMapping,
     reader?: object,
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
-    if (reader !== undefined) {
-        rememberImport(reader, () => readerImportOf(imported, mapping.path ?? copiedPath));
+    const { importer } = imported;
+    if (reader !== undefined && importer !== undefined) {
+        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
     }
 
     const { snapshot, declared } = imported;
@@ -720,7 +743,9 @@ export function toRecords(
         nodes.push(record);
     }
 
-    applyFilePositions(nodes, filePositionsOf(imported), (record) => ids.indexOf(record.id as NodeId));
+    applyFilePositions(nodes, importer === undefined ? null : filePositionsOf({ ...imported, importer }), (record) =>
+        ids.indexOf(record.id as NodeId),
+    );
 
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");
@@ -750,23 +775,6 @@ export function toRecords(
     return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
 }
 
-/** The origin namespaces of the columns the CX and CX2 importers read a file's bypasses into. */
-const BYPASS_NAMESPACES: ReadonlySet<string> = new Set(["cx.bypass", "cx2.bypass"]);
-
-/**
- * Whether a column holds a format's own style slots rather than data: the bypasses of a CX or
- * CX2 file, and an XGMML (or Cytoscape session) element's `<graphics>` block.
- * @param column - the column
- * @returns true for a style slot
- */
-function isStyleSlot(column: Column): boolean {
-    const { origin } = column.meta;
-    return (
-        (typeof origin?.namespace === "string" && BYPASS_NAMESPACES.has(origin.namespace)) ||
-        (column.dtype === "json" && origin?.type === "graphics" && origin.namespace === "xgmml")
-    );
-}
-
 /**
  * A mapping that leaves a format's own style slots off the records, for a load that draws the
  * file's styles as layers: the layers carry them, and an export with styles writes them again
@@ -777,8 +785,8 @@ function isStyleSlot(column: Column): boolean {
  */
 export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
     const slots = {
-        node: [...snapshot.nodes].filter(isStyleSlot).map((column) => column.meta.name),
-        edge: [...snapshot.edges].filter(isStyleSlot).map((column) => column.meta.name),
+        node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
+        edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
     };
     if (slots.node.length === 0 && slots.edge.length === 0) {
         return mapping;
@@ -799,7 +807,7 @@ export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMappin
             mapping.edge(row, record);
             drop(slots.edge, record);
         },
-        path: (kind, column) => (isStyleSlot(column) ? null : path(kind, column)),
+        path: (kind, column) => (isStyleSlotColumn(column.meta) ? null : path(kind, column)),
     };
 }
 
@@ -818,4 +826,21 @@ export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
             copyColumns(snapshot.edges, row, record);
         },
     };
+}
+
+/**
+ * The graph-level values an import read: the file's own graph attributes (DOT's `rankdir`,
+ * `layout`, ...), without graph-format's reserved `graphty.*` columns.
+ * @param snapshot - the imported graph
+ * @returns the values by name
+ */
+export function graphValuesOf(snapshot: GraphSnapshot): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of snapshot.graph.names()) {
+        if (!name.startsWith(RESERVED_PREFIX) && snapshot.graph.isSet(name, 0)) {
+            out[name] = snapshot.graph.value(name, 0);
+        }
+    }
+
+    return out;
 }

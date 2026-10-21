@@ -11,7 +11,9 @@ export {
     type ArrowAnnotation,
     type FileAnnotations,
     type GraphAnnotation,
+    type ImageAnnotation,
     readAnnotations,
+    readImageAnnotations,
     type ShapeAnnotation,
     type TextAnnotation,
 } from "./annotations.js";
@@ -29,6 +31,7 @@ export {
 } from "./cyjs/index.js";
 export {
     TOOL_DEFAULTS,
+    type ToolArrowhead,
     type ToolDefaults,
     toolDefaults,
     type ToolDefaultValue,
@@ -46,6 +49,7 @@ export {
 } from "./io/index.js";
 export {
     featuresOf,
+    matchPredicate,
     MAX_STYLE_RULES,
     type PlanOptions,
     planStyles,
@@ -53,5 +57,6 @@ export {
     styleFingerprint,
     type StyleValues,
 } from "./plan/index.js";
+export { isStyleSlotColumn } from "./slots.js";
 export type * from "./types.js";
 export { isStyleValue, STYLE_ENUMS, STYLE_PROPERTIES, type StyleValueKind } from "./vocabulary.js";

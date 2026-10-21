@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+    "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" >
+<svg contentScriptType="text/ecmascript" width="1166.0"
+     xmlns:xlink="http://www.w3.org/1999/xlink" zoomAndPan="magnify"
+     contentStyleType="text/css"
+     viewBox="17.000000 -883.000000 1166.000000 866.000000" height="866.0"
+     preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+     version="1.1">
+    <g id="nodes">
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="23.0" cx="152.0"
+                class="id_label-node-size-25" cy="-190.67" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="4.0"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="376.0"
+                class="id_label-text" cy="-737.33" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="600.0"
+                class="id_label-empty" cy="-737.33" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="824.0"
+                class="id_label-words" cy="-737.33" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="1048.0"
+                class="id_label-entity" cy="-737.33" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="152.0"
+                class="id_label-digits" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="376.0"
+                class="id_label-newline" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="600.0"
+                class="id_label-long" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#ff0000" r="16.56" cx="376.0"
+                class="id_label-on-red" cy="-190.67" stroke="#7f0000"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="16.56" cx="600.0"
+                class="id_label-overlap" cy="-190.67" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="152.0"
+                class="id_cap-default" cy="-697.33" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="376.0"
+                class="id_cap-label-text" cy="-697.33" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="600.0"
+                class="id_cap-label-empty" cy="-697.33" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="824.0"
+                class="id_cap-label-words" cy="-697.33" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1048.0"
+                class="id_cap-label-entity" cy="-697.33" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="152.0"
+                class="id_cap-label-digits" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="376.0"
+                class="id_cap-label-newline" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="600.0"
+                class="id_cap-label-long" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="824.0"
+                class="id_cap-label-node-size-5" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1048.0"
+                class="id_cap-label-node-size-10" cy="-424.0" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="152.0"
+                class="id_cap-label-node-size-25" cy="-147.67" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="376.0"
+                class="id_cap-label-on-red" cy="-150.67" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="600.0"
+                class="id_cap-label-overlap" cy="-150.67" stroke="#7f7f7f"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="9.2" cx="1048.0"
+                class="id_label-node-size-10" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="1.5999999"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="7.36" cx="608.0"
+                class="id_label-overlap-small" cy="-184.67" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="1.28"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="4.6" cx="824.0"
+                class="id_label-node-size-5" cy="-464.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.79999995"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
+                class="id_anchor-nw" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="1180.0"
+                class="id_anchor-ne" cy="-880.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
+                class="id_anchor-sw" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="1180.0"
+                class="id_anchor-se" cy="-20.0" stroke="#646464"
+                stroke-opacity="1.0" stroke-width="0.48"/>
+        <circle fill-opacity="1.0" fill="#000000" r="9.2" cx="152.0"
+                class="id_default" cy="-737.33" stroke="#000000"
+                stroke-opacity="1.0" stroke-width="1.5999999"/>
+    </g>
+    <g id="node-labels">
+        <text font-size="15" x="152.0" y="-185.47713" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-node-size-25">
+            Label
+        </text>
+        <text font-size="11" x="376.0" y="-733.5922" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-text">
+            Label
+        </text>
+        <text font-size="11" x="824.0" y="-733.5922" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-words">
+            two words
+        </text>
+        <text font-size="11" x="1048.0" y="-733.5922" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-entity">
+            a &amp; b &lt;c&gt;
+        </text>
+        <text font-size="11" x="152.0" y="-460.2622" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-digits">
+            12345
+        </text>
+        <text font-size="11" x="376.0" y="-460.2622" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-newline">
+            line oneline two
+        </text>
+        <text font-size="11" x="600.0" y="-460.2622" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-long">
+            a label of thirty-three chars ok!
+        </text>
+        <text font-size="11" x="376.0" y="-186.93222" fill-opacity="1.0"
+              fill="#ff0000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-on-red">
+            Label
+        </text>
+        <text font-size="11" x="600.0" y="-186.93222" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-overlap">
+            larger node label
+        </text>
+        <text font-size="8" x="152.0" y="-694.42523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-default">
+            label=unset
+        </text>
+        <text font-size="8" x="376.0" y="-694.42523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-text">
+            label=Label
+        </text>
+        <text font-size="8" x="600.0" y="-694.42523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-empty">
+            label=empty
+        </text>
+        <text font-size="8" x="824.0" y="-694.42523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-words">
+            label=two words
+        </text>
+        <text font-size="8" x="1048.0" y="-694.42523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-entity">
+            label=entities
+        </text>
+        <text font-size="8" x="152.0" y="-421.09525" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-digits">
+            label=12345
+        </text>
+        <text font-size="8" x="376.0" y="-421.09525" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-newline">
+            label=newline
+        </text>
+        <text font-size="8" x="600.0" y="-421.09525" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-long">
+            label=33 chars
+        </text>
+        <text font-size="8" x="824.0" y="-421.09525" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-node-size-5">
+            size=5
+        </text>
+        <text font-size="8" x="1048.0" y="-421.09525" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-node-size-10">
+            size=10
+        </text>
+        <text font-size="8" x="152.0" y="-144.76523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-node-size-25">
+            size=25
+        </text>
+        <text font-size="8" x="376.0" y="-147.76523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-on-red">
+            fill=red
+        </text>
+        <text font-size="8" x="600.0" y="-147.76523" fill-opacity="1.0"
+              fill="#ffffff" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-label-overlap">
+            overlap=two labels
+        </text>
+        <text font-size="6" x="1048.0" y="-461.92285" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-node-size-10">
+            Label
+        </text>
+        <text font-size="5" x="608.0" y="-183.00937" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-overlap-small">
+            smaller node label
+        </text>
+        <text font-size="3" x="824.0" y="-462.96143" fill-opacity="1.0"
+              fill="#c8c8c8" font-family="Dialog" style="text-anchor: middle;"
+              class="id_label-node-size-5">
+            Label
+        </text>
+    </g>
+</svg>

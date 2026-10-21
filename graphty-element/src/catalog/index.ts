@@ -9,11 +9,13 @@
 export type {
     LabelAnimation,
     LabelBadge,
+    LabelDeclutterOrder,
     LabelGradientDirection,
     LabelGradientType,
     LabelIconPosition,
     LabelLocation,
     LabelPointerDirection,
+    LabelSizeMode,
     LabelTextAlign,
 } from "./label-style";
 export { LABEL_STYLE_FIELDS } from "./label-style";
@@ -54,6 +56,7 @@ export type {
     LayerSpec,
     LayoutDescriptor,
     LayoutId,
+    LayoutRequirements,
     LogSinkDescriptor,
     LogSinkId,
     Measurement,

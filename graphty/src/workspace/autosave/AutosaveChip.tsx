@@ -3,18 +3,18 @@ import { Badge } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { atRiskSentence, autosaveProblemSentence, availableSentence, formatAutosaveChip } from "./words";
+import { autosaveProblemSentence, availableSentence, formatAutosaveChip } from "./words";
 
 /** The chip's color for each tone. */
 const TONE_COLOR = { ok: "green", busy: "blue", problem: "red" } as const;
 
-/** The action a warning about the browser's storage offers: a copy in a file. */
+/** The action a failed write's notice offers: a copy in a file. */
 const SAVE_ACTION = "Save";
 
 /**
  * The header's autosave chip: where graphty-element's autosave stands, in the workspace's words.
- * It also turns the element's warnings into notices: work kept only where the browser may delete
- * it, work it found and did not reopen, and a write that failed. Nothing while autosave is off.
+ * It also turns the element's warnings into notices: work it found and did not reopen, and a write
+ * that failed. Nothing while autosave is off.
  * @returns The chip, or nothing
  */
 export function AutosaveChip(): React.JSX.Element | null {
@@ -51,16 +51,11 @@ export function AutosaveChip(): React.JSX.Element | null {
                 store.set({ notice: { message: availableSentence(event.detail) } });
             }
         };
-        const onAtRisk = (event: HTMLElementEventMap["graphty-autosave-at-risk"]): void => {
-            store.set({ notice: { message: atRiskSentence(event.detail), action: save } });
-        };
         element.addEventListener("graphty-autosave-status", onStatus);
         element.addEventListener("graphty-autosave-available", onAvailable);
-        element.addEventListener("graphty-autosave-at-risk", onAtRisk);
         return () => {
             element.removeEventListener("graphty-autosave-status", onStatus);
             element.removeEventListener("graphty-autosave-available", onAvailable);
-            element.removeEventListener("graphty-autosave-at-risk", onAtRisk);
         };
     }, [element, on, run, store]);
 

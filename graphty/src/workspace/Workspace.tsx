@@ -5,8 +5,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { findRecovered } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
+import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
 import { ProjectDialogs } from "./project/ProjectDialogs";
@@ -55,14 +55,20 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
-    // A project opened from the start screen loads its sample or file once its element is up.
+    // Once a project's element is up, a project opened from the start screen loads its sample or
+    // file.
     useEffect(() => {
-        const { opening } = store.get();
         const { session, element: host } = element;
-        if (opening === null || session === null || host === null) {
+        if (session === null || host === null) {
             return;
         }
-        store.set({ opening: null });
+        const { opening } = store.get();
+        if (opening !== null) {
+            store.set({ opening: null });
+        }
+        if (opening === null) {
+            return;
+        }
         opening.load(session, host).catch((error: unknown) => {
             const reason = error instanceof Error ? error.message : String(error);
             store.set({ notice: { message: `${opening.name} could not be opened. ${reason}` } });
@@ -87,10 +93,21 @@ export function Workspace({
         };
     }, [store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
+    // loaded shows once it has.
+    const [Frame, setFrame] = useState(loadedFrame);
+    useEffect(() => {
+        if (projectOpen && Frame === null) {
+            void loadFrame().then((loaded) => {
+                setFrame(() => loaded);
+            });
+        }
+    }, [projectOpen, Frame]);
 
     return (
         <WorkspaceContext.Provider value={value}>
-            {projectOpen ? <Frame onElementReady={onElementReady} /> : <StartScreen />}
+            {projectOpen ? null : <StartScreen />}
+            {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

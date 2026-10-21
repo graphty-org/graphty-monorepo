@@ -122,6 +122,16 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_CAMERA"
     /**
+     * `data.generate` names a generator the catalogue does not list. `details.available` lists
+     * the generator names. The caller picks one from `catalog.generators()`.
+     */
+    | "E_UNKNOWN_GENERATOR"
+    /**
+     * `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+     * the dataset names. The caller picks one from `catalog.datasets()`.
+     */
+    | "E_UNKNOWN_DATASET"
+    /**
      * A logging configuration names a log destination nothing registered. `details.available`
      * lists the registered sink ids. The caller registers the sink before naming it, which is
      * what makes a destination configurable by name rather than by holding a live object.
@@ -222,6 +232,14 @@ export type GraphtyErrorCode =
      * corrects the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
+    /**
+     * A graphty project or document file (one `session.project.save` writes) was handed to a data
+     * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+     * opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+     * that opens it. Nothing in the session changed. The caller opens the file with
+     * `session.project.open`, which reads data files too.
+     */
+    | "E_PROJECT_FILE_AS_DATA"
     /**
      * An edge table declares no endpoint columns and contains none of the accepted pairs
      * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
@@ -363,6 +381,21 @@ export type GraphtyErrorCode =
      */
     | "E_NO_ACCELERATOR"
     /**
+     * No accelerator factory is registered, so the element never looked for a GPU. Usually
+     * `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
+     * failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+     * through `capabilities.acceleration`; a registration that arrives later switches
+     * acceleration on without the consumer doing anything.
+     */
+    | "E_NO_ACCELERATOR_REGISTERED"
+    /**
+     * A registered accelerator factory threw while setting up, with an error that is not one of
+     * the other acceleration codes -- a module of the backend that failed to load, or a defect in
+     * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
+     * the CPU path runs.
+     */
+    | "E_ACCELERATOR_FAILED"
+    /**
      * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
      * in a secure context or the browser does not implement it. Reported through
      * `capabilities.acceleration` rather than thrown during ordinary use.
@@ -456,6 +489,74 @@ export type GraphtyErrorCode =
      */
     | "E_HELD_BY_TRANSACTION"
     /**
+     * The browser refused a request to a network source and hid why. `details.cause` is `"cors"`, `"unreachable"`, `"local-network"` or `"unknown"`; `details.url` the address, origin and path.
+     */
+    | "E_SOURCE_BLOCKED"
+    /**
+     * A network source wants a credential, or refused the one given. `details.origin` is the host that asked, `details.status` its status, `details.stored` true when the credential came from the element's store. Experimental.
+     */
+    | "E_SOURCE_AUTH"
+    /**
+     * A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+     */
+    | "E_SOURCE_FORBIDDEN"
+    /**
+     * The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+     */
+    | "E_SOURCE_NOT_FOUND"
+    /**
+     * A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+     */
+    | "E_SOURCE_QUOTA"
+    /**
+     * A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+     */
+    | "E_SOURCE_TIMEOUT"
+    /**
+     * A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+     */
+    | "E_SOURCE_QUERY"
+    /**
+     * A query returned no node, relationship or path. `details.columns`. Experimental.
+     */
+    | "E_SOURCE_NOT_A_GRAPH"
+    /**
+     * A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+     */
+    | "E_SOURCE_RESPONSE"
+    /**
+     * A redirect, or a changed origin, while a credential was attached; it was not followed. `details.from`, `details.to`. Experimental.
+     */
+    | "E_SOURCE_REDIRECT"
+    /**
+     * The source cannot run here. `details.runtime`, `details.reason` (`"cors"`, `"needs-peer-dependency"`, `"insecure-endpoint"`, ...), `details.package`. Experimental.
+     */
+    | "E_SOURCE_RUNTIME"
+    /**
+     * A source parameter or load option is invalid. `details.name`, `details.reason`. Experimental.
+     */
+    | "E_SOURCE_PARAM"
+    /**
+     * A load cap was reached under `onLimit: "error"`. `details.limit`, `details.value`. Experimental.
+     */
+    | "E_SOURCE_LIMIT"
+    /**
+     * No network source has that id. `details.id`, `details.known`. Experimental.
+     */
+    | "E_SOURCE_UNKNOWN"
+    /**
+     * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
+     */
+    | "E_SOURCE_UNSUPPORTED"
+    /**
+     * A malformed network source at registration. `details.id`, `details.reason`. Experimental.
+     */
+    | "E_SOURCE_INVALID"
+    /**
+     * A credential whose secret is a function (a token refresher, a custom or AWS credential) cannot be remembered. `details.kind`. Experimental.
+     */
+    | "E_CREDENTIAL_NOT_STORABLE"
+    /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
@@ -542,6 +643,8 @@ const CODE_TABLE = {
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
     E_UNKNOWN_PALETTE: "E_UNKNOWN_PALETTE",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
+    E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
@@ -558,6 +661,7 @@ const CODE_TABLE = {
     E_PROTECTED: "E_PROTECTED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
     E_EMPTY_LOAD: "E_EMPTY_LOAD",
@@ -578,6 +682,8 @@ const CODE_TABLE = {
     E_BAD_PATH: "E_BAD_PATH",
     E_PATH_COUNT_OVERFLOW: "E_PATH_COUNT_OVERFLOW",
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
+    E_NO_ACCELERATOR_REGISTERED: "E_NO_ACCELERATOR_REGISTERED",
+    E_ACCELERATOR_FAILED: "E_ACCELERATOR_FAILED",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
@@ -591,6 +697,23 @@ const CODE_TABLE = {
     E_EXTENSION_FAILED: "E_EXTENSION_FAILED",
     E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
     E_HELD_BY_TRANSACTION: "E_HELD_BY_TRANSACTION",
+    E_SOURCE_BLOCKED: "E_SOURCE_BLOCKED",
+    E_SOURCE_AUTH: "E_SOURCE_AUTH",
+    E_SOURCE_FORBIDDEN: "E_SOURCE_FORBIDDEN",
+    E_SOURCE_NOT_FOUND: "E_SOURCE_NOT_FOUND",
+    E_SOURCE_QUOTA: "E_SOURCE_QUOTA",
+    E_SOURCE_TIMEOUT: "E_SOURCE_TIMEOUT",
+    E_SOURCE_QUERY: "E_SOURCE_QUERY",
+    E_SOURCE_NOT_A_GRAPH: "E_SOURCE_NOT_A_GRAPH",
+    E_SOURCE_RESPONSE: "E_SOURCE_RESPONSE",
+    E_SOURCE_REDIRECT: "E_SOURCE_REDIRECT",
+    E_SOURCE_RUNTIME: "E_SOURCE_RUNTIME",
+    E_SOURCE_PARAM: "E_SOURCE_PARAM",
+    E_SOURCE_LIMIT: "E_SOURCE_LIMIT",
+    E_SOURCE_UNKNOWN: "E_SOURCE_UNKNOWN",
+    E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
+    E_SOURCE_INVALID: "E_SOURCE_INVALID",
+    E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 
@@ -609,7 +732,14 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[] = Object.freeze(Ob
  * thrown: absence of acceleration is a state the consumer renders, not a failure it catches.
  */
 export type AccelerationErrorCode =
-    "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE";
+    | "E_NO_WEBGPU"
+    | "E_NO_ADAPTER"
+    | "E_SOFTWARE_ONLY"
+    | "E_DEVICE_INCORRECT"
+    | "E_DEVICE_LOST"
+    | "E_TOO_LARGE"
+    | "E_NO_ACCELERATOR_REGISTERED"
+    | "E_ACCELERATOR_FAILED";
 
 /**
  * Every code that can appear on `capabilities.acceleration.code`.
@@ -621,6 +751,8 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
     CODE_TABLE.E_TOO_LARGE,
+    CODE_TABLE.E_NO_ACCELERATOR_REGISTERED,
+    CODE_TABLE.E_ACCELERATOR_FAILED,
 ]);
 
 /**

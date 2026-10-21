@@ -229,7 +229,7 @@ export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
-export type { Edge } from "./src/Edge";
+export type { Edge, EdgeCapEnd } from "./src/Edge";
 export type {
     EdgePosition,
     LayoutEngineStatics,
@@ -422,8 +422,13 @@ export { compareNodeIds } from "./src/simple/view";
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
 export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
+export * from "./src/session/sources/public";
 
 // ---------------------------------------------------------------------------------------------
 // Acceleration: internal, and not one of the six. A factory, registered by name, called with the

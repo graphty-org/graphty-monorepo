@@ -1,0 +1,205 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-shapes"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 152,
+                "y": 669
+            }
+        },
+        {
+            "key": "shape-circle",
+            "attributes": {
+                "x": 376,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "type-circle",
+            "attributes": {
+                "x": 600,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "type": "circle"
+            }
+        },
+        {
+            "key": "type-point",
+            "attributes": {
+                "x": 824,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "type": "point"
+            }
+        },
+        {
+            "key": "type-image",
+            "attributes": {
+                "x": 1048,
+                "y": 669,
+                "size": 18,
+                "color": "#c8c8c8",
+                "type": "image"
+            }
+        },
+        {
+            "key": "type-border",
+            "attributes": {
+                "x": 152,
+                "y": 259,
+                "size": 18,
+                "color": "#c8c8c8",
+                "type": "border"
+            }
+        },
+        {
+            "key": "type-square",
+            "attributes": {
+                "x": 376,
+                "y": 259,
+                "size": 18,
+                "color": "#c8c8c8",
+                "type": "square"
+            }
+        },
+        {
+            "key": "shape-square",
+            "attributes": {
+                "x": 600,
+                "y": 259,
+                "size": 18,
+                "color": "#c8c8c8",
+                "shape": "square"
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 77.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-shape-circle",
+            "attributes": {
+                "x": 261.4,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "neutral=circle"
+            }
+        },
+        {
+            "key": "cap-type-circle",
+            "attributes": {
+                "x": 555.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "type=circle"
+            }
+        },
+        {
+            "key": "cap-type-point",
+            "attributes": {
+                "x": 783,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "type=point"
+            }
+        },
+        {
+            "key": "cap-type-image",
+            "attributes": {
+                "x": 1007,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "type=image"
+            }
+        },
+        {
+            "key": "cap-type-border",
+            "attributes": {
+                "x": 77.6,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "type=border"
+            }
+        },
+        {
+            "key": "cap-type-square",
+            "attributes": {
+                "x": 271.6,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "type=square"
+            }
+        },
+        {
+            "key": "cap-shape-square",
+            "attributes": {
+                "x": 552.2,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "shape=square"
+            }
+        }
+    ],
+    "edges": []
+}

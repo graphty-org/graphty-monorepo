@@ -33,6 +33,8 @@ import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
+import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
@@ -44,6 +46,7 @@ import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
+import type { DataImportSourceCommand } from "./source-load";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
 type RecordInput = NodeRecordInput;
@@ -139,6 +142,8 @@ export interface DataImportCommand {
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /** For `"merge"`: a node already in the graph keeps its attributes (the default) or takes the incoming ones. */
+    readonly existing?: "keep" | "update";
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
@@ -180,6 +185,37 @@ export interface HeldRows {
     readonly target?: string;
     /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
     readonly weight?: string | null;
+    /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
+    readonly repeated?: DuplicatePolicy;
+}
+
+/** The load choices a `data.import` command carries. */
+export type ImportChoices = Pick<
+    DataImportCommand,
+    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
+>;
+
+/**
+ * The one `data.import` command `session.data.import` and `LoadDraft.load` both send, so a file
+ * loads the same whichever of the two loads it.
+ * @param source - Where the rows come from.
+ * @param choices - The load choices; one left out is left out of the command.
+ * @param held - The rows a draft already read, loaded in place of reading the source again.
+ * @returns The command.
+ */
+export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
+    const optional = Object.fromEntries(
+        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
+            .filter((key) => choices[key] !== undefined)
+            .map((key) => [key, choices[key]]),
+    );
+    return {
+        op: "data.import",
+        source,
+        mode: choices.mode ?? "replace",
+        ...optional,
+        ...(held === undefined ? {} : { held }),
+    };
 }
 
 /**
@@ -244,6 +280,7 @@ export interface DataSetFileStylesCommand {
 export type DataCommand =
     | DataApplyCommand
     | DataImportCommand
+    | DataImportSourceCommand
     | DataExpandCommand
     | DataDeclareCommand
     | DataSetSourceCommand
@@ -298,6 +335,19 @@ export interface DataService {
 
 /** The graph value naming where the graph was last loaded from. */
 export const SOURCE_VALUE = "source";
+
+/**
+ * The graph value holding what the last loaded file said about the whole graph: its format and
+ * its graph-level attributes (`{ format: "dot", attributes: { layout: "neato" } }`). Written only
+ * for a reader that declares graph values.
+ */
+export const FILE_GRAPH_VALUE = "fileGraph";
+
+/** What {@link FILE_GRAPH_VALUE} holds. */
+export interface FileGraphValue {
+    readonly format: string;
+    readonly attributes: Readonly<Record<string, unknown>>;
+}
 
 /**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
@@ -551,7 +601,7 @@ function categoryOf(mutation: DataMutation): "data-add" | "data-update" | "data-
  * @param service - The session's data service.
  * @returns It.
  */
-function serviceOf(service: DataService | undefined): DataService {
+export function serviceOf(service: DataService | undefined): DataService {
     if (service === undefined) {
         throw new GraphtyError({
             code: "E_UNSUPPORTED",
@@ -614,7 +664,7 @@ function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
     return layout;
 }
 
-const dataImport: UndoableDefinition<DataImportCommand> = {
+export const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the
@@ -640,6 +690,11 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        if (layoutChoiceOf(command) === "recommended") {
+            // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
+            // asked here, before the step seals and the recommendation is read.
+            await ctx.services.layoutPrepare?.();
+        }
     },
 };
 
@@ -658,13 +713,45 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
             return;
         }
 
-        const scale = advice.id === "fixed" ? sceneScale() : null;
-        void dispatch({
+        const { unplaced, placed = [] } = advice;
+        const graphviz = GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === advice.id);
+        const scale = advice.id === "fixed" || graphviz || unplaced !== undefined ? sceneScale() : null;
+        // A file that placed only some nodes: every placed node goes back where the file put it,
+        // in the unit the fixed layout would draw it in (a layout may have moved it since), and
+        // the advised layout runs over the unplaced ones, holding the rest still.
+        const resize = scale ?? 1;
+        // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
+        // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
+        // size against the spaces Graphviz leaves between them.
+        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
+        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
+        const options =
+            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        const layout = dispatch({
             op: "layout.set",
             id: advice.id,
             engine: advice.engine,
-            ...(scale === null ? {} : { options: { scale } }),
-        }).catch((error: unknown) => {
+            ...(unplaced === undefined ? {} : { scope: { nodes: unplaced } }),
+            ...(options === undefined ? {} : { options }),
+        });
+        // Once the new layout holds the placed nodes, put them back: the layout running before
+        // it may have moved them.
+        const applied =
+            unplaced === undefined
+                ? layout
+                : layout.then(() =>
+                      dispatch({
+                          op: "positions.set",
+                          entries: placed.map(({ id, x, y, z = 0 }) => ({
+                              id,
+                              x: x * resize,
+                              y: y * resize,
+                              z: z * resize,
+                          })),
+                      }),
+                  );
+        void applied.catch((error: unknown) => {
             // An undo that took the import away cancels this too; anything else is a
             // layout the import promised and did not apply.
             if ((error as { name?: unknown } | null)?.name !== "AbortError") {

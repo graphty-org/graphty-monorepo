@@ -67,10 +67,12 @@ const config: KnipConfig = {
         // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
         // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
+            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
                 "src/positions/index.ts!",
+                "src/sources/*/index.ts!",
                 // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
                 "src/styles/internal.ts",
                 "test/**/*.test.ts",
@@ -82,6 +84,20 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js,mjs}",
             ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            // `neo4j-driver` is an optional peer (and a devDependency), loaded by `await import()` only for
+            // the Cypher source's Bolt transport. `lint:knip:prod` runs --strict and would report it as
+            // unlisted; the default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["neo4j-driver"] : [],
+        },
+
+        // graph-io-fidelity (private): the side-by-side style fidelity Storybook. It loads graphty-element and
+        // graph-io's fidelity harness from source by relative path (the scene extractor reads the renderer's own
+        // classes), so the two workspace dependencies are there for nx's project graph, not for an import; lit is
+        // the web-components Storybook renderer's peer.
+        "graph-io/fidelity-stories": {
+            entry: [".storybook/*.ts", "stories/**/*.stories.ts"],
+            project: [".storybook/*.ts", "stories/**/*.ts"],
+            ignoreDependencies: ["@graphty/graph-io", "@graphty/graphty-element", "lit"],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -210,6 +226,7 @@ const config: KnipConfig = {
                           "ai.ts!",
                           "catalog.ts!",
                           "commands.ts!",
+                          "credentials.ts!",
                           "extend.ts!",
                           "format.ts!",
                           "logging.ts!",
@@ -242,7 +259,7 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the AI SDK and its key store. Each is an
+                // The optional peers: the GPU package, Graphviz, the AI SDK and its key store. Each is an
                 // optional peer and an exact devDependency, imported from src so the element works
                 // without it and lights up with it. `lint:knip:prod` runs --strict, which reads only
                 // peers and dependencies, and would report them as unlisted; the default run
@@ -255,6 +272,7 @@ const config: KnipConfig = {
                           "@ai-sdk/openai",
                           "ai",
                           "encrypt-storage",
+                          "@hpcc-js/wasm-graphviz",
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because

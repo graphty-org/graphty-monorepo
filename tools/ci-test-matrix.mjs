@@ -179,13 +179,17 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
-    // graphty - every project but the stories (uses Playwright for browser-based vitest)
-    {
-        shard: "graphty",
+    // graphty - every project but the stories (uses Playwright for browser-based vitest), in two
+    // halves: about 1,240 tests took 46 minutes in one, past the gate's 30-minute shard limit. Each
+    // half writes its coverage to its own .coverage-parts/<shard> (COVERAGE_DIR), so the second
+    // does not overwrite the first in the group job; "coverage-file" says where for the upload.
+    ...[1, 2].map((n) => ({
+        shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": "cd graphty && pnpm exec vitest run --project='!storybook' --coverage",
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/2 --coverage`,
+        "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
-    },
+    })),
     // graphty's stories: every play function run as a test, as graphty-element's storybook shards
     // do. No coverage: the stories exercise the same source the graphty shard measures.
     {
@@ -308,7 +312,8 @@ export const GROUPS = {
         "graph-io-browser",
         "remote-logger",
         "compact-mantine",
-        "graphty",
+        "graphty-1",
+        "graphty-2",
         "graphty-storybook",
         "visual-review",
         "webgpu-graph-algorithms-browser",
@@ -317,7 +322,7 @@ export const GROUPS = {
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
-// package); graphty-storybook writes none (the graphty shard measures graphty); nor does
+// package); graphty-storybook writes none (the graphty shards measure graphty); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 const NO_COVERAGE = new Set(["webgpu-graph-algorithms-browser", "graphty-storybook", "graph-io-browser"]);
 
@@ -336,7 +341,7 @@ export function groupEntry(name, members) {
         "needs-browser": members.some((m) => m["needs-browser"]),
         coverage: members
             .filter((m) => !NO_COVERAGE.has(m.shard))
-            .map((m) => `${m.shard}=${m.package}/coverage/lcov.info`)
+            .map((m) => `${m.shard}=${m["coverage-file"] ?? `${m.package}/coverage/lcov.info`}`)
             .join(" "),
     };
 }

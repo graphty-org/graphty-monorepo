@@ -1024,26 +1024,24 @@ describe("color sets from 2 to dozens", () => {
         assert.lengthOf(bound.querySelectorAll("[data-varied-line] .ws-varied-ends span"), 2, "the ramp's two ends");
     });
 
-    it("draws every chit up to 6, else the first 5 and +N, never +1", async () => {
+    // 38, not 40: each layer paints two of the sample's 77 nodes, so a 39th would land on the
+    // first layer's nodes, painted over everywhere, and the line leaves such a layer out.
+    it.each([
+        [6, 6, null],
+        [7, 5, "+2"],
+        [38, 5, "+33"],
+    ] as const)("draws every chit up to 6, else the first 5 and +N, never +1: %i colors", async (n, chits, more) => {
         const session = await openSample();
-        // 38, not 40: each layer paints two of the sample's 77 nodes, so a 39th would land on the
-        // first layer's nodes, painted over everywhere, and the line leaves such a layer out.
-        for (const [n, chits, more] of [
-            [6, 6, null],
-            [7, 5, "+2"],
-            [38, 5, "+33"],
-        ] as const) {
-            await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
-            await clickRow(`Line${String(n)}`);
-            const row = await line("node.color");
-            const shown = atRest(row);
-            assert.lengthOf(shown.chits, chits, `${String(n)} colors`);
-            assert.strictEqual(shown.more, more, `${String(n)} colors`);
-            assert.notInclude(shown.words, "+1");
-            within(row).getByRole("button", {
-                name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
-            });
-        }
+        await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
+        await clickRow(`Line${String(n)}`);
+        const row = await line("node.color");
+        const shown = atRest(row);
+        assert.lengthOf(shown.chits, chits, `${String(n)} colors`);
+        assert.strictEqual(shown.more, more, `${String(n)} colors`);
+        assert.notInclude(shown.words, "+1");
+        within(row).getByRole("button", {
+            name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
+        });
     });
 
     it("extends the palette shown, not a ramp, when 35 numbered groups go past it", async () => {

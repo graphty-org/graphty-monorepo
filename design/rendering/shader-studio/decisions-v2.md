@@ -29,11 +29,21 @@ the node, replace it, or sit around it?" So there are three parts, and only thre
 | ----------- | ------------------- | ---------- | ------------------------------------------------------------------------------ | --------------------- |
 | `paint`     | On the node / line  | node, edge | Paints the node's or line's own surface: Pearl, Glass, Fiber                   | one; the topmost wins |
 | `replace`   | Instead of the node | node       | The node's shape is not drawn; the shader draws in its place: Sticker, Mandala | one; the topmost wins |
-| `over`      | On top              | node       | Drawn over the node's paint, inside its outline: Frost, Halftone               | they stack            |
+| `over`      | On the node         | node       | Drawn over the node's paint, inside its outline: Frost, Halftone               | they stack            |
 | `around`    | Around              | node       | Drawn outside the node's outline, reaching past it: Aura, Reticle, Shockwave   | they stack            |
-| `behind`    | Behind              | node       | Drawn before the node, so the node covers its middle: a glow, a shadow         | they stack            |
-| `along`     | Along the line      | edge       | A strip that follows the edge over the line: Comets, Light packets, Edge glow  | they stack            |
+| `behind`    | Behind              | node       | Drawn before the node, so the node covers its middle: a shadow, a soft disc    | they stack            |
+| `along`     | Along the line      | edge       | A strip that follows the edge over the line: Comets, Light packets, Neon line  | they stack            |
 | `group`     | Around the group    | node       | One outline around the nodes the layer matches: Soap bubble, Hull              | they stack            |
+
+**`paint` and `over` share the words "On the node".** No shader can choose between them (`paint`
+is fixed, `over` is one of the four square-drawn places), so the user never needs the difference;
+the API keeps it because one replaces the surface and the other composites over it. So the app shows
+six places on the Node tab, not seven.
+
+**No built-in shader is named after a style option.** Outline, Glow, Halo, Wireframe and Band are
+options in the Shape and Line + menus; no preset's name contains one of those words, so a user
+never sees two things called "glow". Renamed: Edge glow to Neon line (`neon-line`), Lantern glow to
+Lantern (`lantern`), Toon outline to Cel shade (`cel-shade`).
 
 The background is not on a layer, so it keeps its own list (section 2.3) and has no place.
 
@@ -56,8 +66,14 @@ list order.
   the `paint` beneath it. Whatever is covered is reported through the element's existing coverage
   fact (`styles.agreement`), never dropped silently.
 - Every other place stacks in that order.
-- An entry `{ shader: "halo", off: true }` removes that shader, wherever lower layers put it, from
+- An entry `{ shader: "aura", off: true }` removes that shader, wherever lower layers put it, from
   the elements this layer matches.
+- **`group` in a per-node list.** A `group` use on a node means "this node is a member of an
+  outline". The element draws one outline per (layer, use, `groupBy` value), around the nodes that
+  carry that use after resolution. Outlines stack in layer then list order. `off` on a higher layer
+  takes the nodes it matches out of every outline of that shader beneath it, so the outline is
+  redrawn around the remaining members. A shader whose entry is `shade(GroupInput g)` is allowed
+  only at `group`, and only in `node.shaders`.
 
 This is the tool survey's common answer, and the reason for the model. Figma, Spline, Blender,
 Unity, Rive and TouchDesigner all attach an effect with one "+" per object into an ordered stack.
@@ -78,15 +94,15 @@ Node tab
     Color      [#4a90e2]
     Wireframe  [on]
   Shaders                      [+]   opens the gallery (2.2)
-    = [pic] Pearl      [On the node v]       [settings] [-]
+    = [pic] Pearl      On the node           [settings] [-]
     = [pic] Reticle    [Around v]            [settings] [-]
-    = [pic] Hull       [Around the group v]  [settings] [-]
+    = [pic] Hull       Around the group      [settings] [-]
   Visibility ...   Text ...
 
 Edge tab
   Line                         [+]   + : Width, Color, Pattern, Band
   Shaders                      [+]
-    = [pic] Comets     [Along the line v]    [settings] [-]
+    = [pic] Comets     Along the line        [settings] [-]
 ```
 
 - **One section and one + per tab.** The Effects section, the Rendering section with its Material
@@ -94,17 +110,21 @@ Edge tab
   shader at the place "Around the group", so it has no section of its own. That is the owner's
   third point taken as written: no sections, galleries or kinds per target.
 - **Outline, Glow, Halo, Band and Wireframe are ordinary style options** in their section's +
-  menu. They are released channels, not shaders, and they never appear in the shader gallery.
-- **The row** shows a drag handle, the picture, the name, a **Place** dropdown, a settings button
-  and a minus.
-    - The Place dropdown lists only the places that shader allows, each option with a small diagram
+  menu, not shaders. Outline, Glow, Halo and Wireframe are released channels. Band
+  (`edge.bandColor`, `bandWidth`, `bandOpacity`) is unreleased (it exists only on this branch) and
+  stays an option on purpose: a flat stripe under the line is a line attribute like Pattern, with
+  no code to write, and a GPU program for a flat color buys nothing.
+- **The row** shows a drag handle, the picture, the name, the place, a settings button and a minus.
+    - The place is a **Place** dropdown only when the shader allows more than one place; otherwise
+      it is a static label. The dropdown lists only the allowed places, each with a small diagram
       of where it draws, so a wrong choice is impossible and the diagram explains the words.
     - Rows reorder by drag, and by Alt+Up / Alt+Down from the keyboard. The order is the draw order
       inside one place (section 1).
 - **The settings popover** holds:
     - the shader's parameters, made from its descriptor, each with the same "calculated" toggle as
       every other style row;
-    - its clock parameters, if any (section 4.3), as ordinary rows;
+    - parameters bound to a clock (section 4.3) are ordinary parameter rows whose value shows the
+      binding;
     - **Minimum size**, only if the shader declares one (section 5);
     - one cost line, written from the same cost fact the gallery tile shows (2.2), so the words come
       from one place.
@@ -123,9 +143,14 @@ Edge tab
 The same gallery opens from the Node tab's +, the Edge tab's + and the Background's Shader item.
 
 - **Top.** A search field, which has focus when the gallery opens. Under it, a place filter phrased
-  as what the user wants: Node tab **All | On the node | Instead of | On top | Around | Behind |
+  as what the user wants: Node tab **All | On the node | Instead of the node | Around | Behind |
   Around the group**; Edge tab **All | On the line | Along the line**. Under that, the origin filter
-  **All | Built in | This project**.
+  **All | Built in | This project**. The chip rows wrap; they are checked at 768 px wide through the
+  browser gate.
+- **Search also finds the style options** of the tab it opened from (Outline, Glow, Halo,
+  Wireframe on the Node tab; Band on the Edge tab). Such a hit is a tile marked as a Shape (or Line)
+  option, and picking it adds that option row instead of a shader. That is how a user who types
+  "glow" learns that glow is an option, not a shader.
 - **Tiles.** Each tile shows:
     - the picture, drawn by the shader's own code at its default place (supplied pictures of the
       presets stay, as decided in the first redesign);
@@ -138,9 +163,11 @@ The same gallery opens from the Node tab's +, the Edge tab's + and the Backgroun
     - its menu: Edit code, Duplicate, Copy text, Delete, on the shaders that allow them.
 - **Picking a tile** adds the row at the shader's default place and moves focus to that row's Place
   dropdown, so the second decision comes right after the first, with no extra dialog step.
-- **"New shader..."** is the last tile. It opens the code dialog with a working template for the
-  place selected in the filter (or the tab's first place under All). No Look/Effect question, no
-  Kind select: the template's header already says its place, and pasting replaces the template.
+- **"New shader..."** is the last tile. It opens the code dialog, whose first field is the place
+  (the same words and diagrams as the filter), preset from the filter or the tab's first place
+  under All, so nothing depends on hidden state. The template follows that field ("On the node"
+  gives the `paint` template; an author who wants `over` changes the header). No Look/Effect
+  question, no Kind select, and pasting replaces the template.
 - Keyboard and screen-reader behavior (radiogroup of tiles, arrows, type-ahead), the viewport cap
   and the `categories` headings carry over from the current gallery unchanged.
 
@@ -170,7 +197,7 @@ background shaders. It stays a separate list because the background is not on a 
    and every surface paint do not, so they show no such setting and scale with the node (section 5).
 3. **"Imagine an 'Add shader' button with features like 'replace node'."** That is the model now:
    one Shaders section with one + per tab, one gallery, and the place (on the node, instead of it,
-   on top, around, behind, around the group, along the line) as an option on the row, not a kind of
+   around, behind, around the group, along the line) as an option on the row, not a kind of
    shader (sections 1 and 2). Node looks, node effects, edge looks, edge effects and group outlines
    are no longer separate galleries, sections or element roles.
 4. **"Can 'on enter' and 'on change' be replaced with calculated values?"** Yes. Every timing tag is
@@ -189,61 +216,82 @@ Only the layer's condition decides. A shader on the Selected layer draws while a
 a hover effect is a shader on a Hovered layer. That is the earlier decision that hover is a
 calculated value, now applied to every timing.
 
-**A layer may keep applying for a short time after its condition stops matching**, so an exit
-animation can play: the layer's optional `keep` (seconds, default 0). This is part of the
-condition (in the app, "Keep for [0.3] s after" in the condition picker), not a property of any
-shader, and it works for every condition, including ones like `score > 5`. The judges' alternative,
-writing `hovered || since.unhovered < 0.3` into the condition, only works for the three view
-states; `keep` is the general form, and the expression form still works for anyone who writes it.
+**A layer's shaders may keep drawing for a short time after its condition stops matching**, so an
+exit animation can play. Only the layer's `node.shaders` and `edge.shaders` uses are held; every
+other channel the layer sets (color, size, outline) reverts at once, exactly as today. So no
+released behavior changes, and no CPU-painted channel needs a timed repaint.
+
+- The hold of a use is the larger of the layer's optional `keep` (seconds, default 0) and the end
+  of the domain of any of its parameters bound to `since.unmatched`. So a shader with an exit
+  animation (Reticle's brackets fold away over 0.25 s) plays it out with nothing set by the user,
+  and the app sets no `keep` of its own.
+- `keep` works for every condition, including `score > 5`; in the app it is "Keep shaders for [ ]
+  s after" in the condition picker. The judges' alternative, `hovered || since.unhovered < 0.3` in
+  the condition, only works for the three view states and holds every channel; it still works for
+  anyone who writes it.
 
 ### 4.2 The clocks the element provides
 
 All are seconds, as neutral numbers. A moment that never happened reads as -1.
 
-| Value                                   | Meaning                                                                                             | In conditions and calculated values | In the shader input                                   |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
-| `state.selected`, `.hovered`, `.pinned` | the state now, 0 or 1                                                                               | new path                            | `selected`, `hovered`, `pinned` (exist)               |
-| `since.selected`, `since.deselected`    | since selection began / ended                                                                       | new path                            | `sinceSelected` (exists), `sinceDeselected` (new)     |
-| `since.hovered`, `since.unhovered`      | the same for hover                                                                                  | new path                            | `sinceHovered` (exists), `sinceUnhovered` (new)       |
-| `since.pinned`, `since.unpinned`        | the same for pinning                                                                                | new path                            | `sincePinned` (exists), `sinceUnpinned` (new)         |
-| `since.added`                           | since the element entered the graph                                                                 | new path                            | `sinceAdded` (new)                                    |
-| `since.changed`                         | since this element's data last changed                                                              | new path                            | `sinceChanged` (exists; now fed on every data change) |
-| `changedFields`                         | the data paths that changed in that update                                                          | new path                            | --                                                    |
-| `since.matched`                         | since this layer began to apply to this element                                                     | clock parameters only               | `sinceMatched` (renames `sinceEntered`)               |
-| `since.unmatched`                       | since this layer's condition stopped matching (-1 while it matches); only nonnegative during `keep` | clock parameters only               | `sinceUnmatched` (renames `sinceExited`)              |
+| Value                                   | Meaning                                                                                               | In conditions and calculated values | In the shader input                                   |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
+| `state.selected`, `.hovered`, `.pinned` | the state now, 0 or 1                                                                                 | new path                            | `selected`, `hovered`, `pinned` (exist)               |
+| `since.selected`, `since.deselected`    | since selection began / ended                                                                         | new path                            | `sinceSelected` (exists), `sinceDeselected` (new)     |
+| `since.hovered`, `since.unhovered`      | the same for hover                                                                                    | new path                            | `sinceHovered` (exists), `sinceUnhovered` (new)       |
+| `since.pinned`, `since.unpinned`        | the same for pinning                                                                                  | new path                            | `sincePinned` (exists), `sinceUnpinned` (new)         |
+| `since.added`                           | since the element entered the graph                                                                   | new path                            | `sinceAdded` (new)                                    |
+| `since.changed`                         | since this element's data last changed                                                                | new path                            | `sinceChanged` (exists; now fed on every data change) |
+| `changedFields`                         | the data paths that changed in that update                                                            | new path                            | --                                                    |
+| `since.matched`                         | since this layer began to apply to this element                                                       | values only                         | `sinceMatched` (renames `sinceEntered`)               |
+| `since.unmatched`                       | since this layer's condition stopped matching (-1 while it matches); only nonnegative during the hold | values only                         | `sinceUnmatched` (renames `sinceExited`)              |
+
+- **One spelling rule.** A path `since.x` is the struct field `sinceX` (GLSL has no dots). The
+  page states the rule once instead of two tables.
+- **Why `since.matched` cannot be read in a condition.** It is the clock of the layer's own
+  condition, so a condition reading it would decide its own start. It is readable in that layer's
+  values and shaders only.
 
 - **Adding or editing a layer is not a moment.** The elements a new or edited layer matches at that
   instant read `since.matched` as 1e6 ("long ago"), so they show the end state instead of all
   playing an entrance. This keeps the existing entrance rules (no restart within its own length, a
-  cap on how many elements play at once), now keyed on clock parameters.
+  cap on how many elements play at once), now keyed on clock-bound parameters.
 - **Time conditions are the element's job.** A condition that compares a clock with a constant
   (`since.changed < 1.5`) is re-evaluated by the element exactly at the moment it flips, so a
   "changed recently" layer ends on its own, with no polling by the consumer.
-- **Clocks the element cannot schedule are refused, not polled.** A clock compared with anything
-  other than a constant, or a clock in a calculated value of a channel the CPU paints (such as
-  `node.size`), returns the problem `{ code: "style.clock-unsupported", params: { layer, path,
-where } }`, where `where` is `"condition"` or `"value"`. It is never quietly checked every frame.
+- **A clock in a CPU-painted value is evaluated while it moves, then stops.** "Grow when hovered"
+  (`node.size` bound `{ by: "since.hovered", domain: [0, 0.25], range: [1, 1.5] }`) is a style row,
+  not a shader. The element repaints that channel each frame only for the elements whose clock is
+  inside the binding's domain (a bounded, countable set), and requests no frames once every such
+  clock has left it. It is the same stop rule the GPU path uses.
+- **Clocks the element cannot bound are refused, not polled.** A clock compared with anything
+  other than a constant, or a clock binding with no domain, returns the problem `{ code:
+"style.clock-unsupported", params: { layer, path, where } }`, where `where` is `"condition"` or
+  `"value"`. It is never quietly checked every frame.
 - **"Score changed"** is a condition: `since.changed < 0.6` and `changedFields` contains
   `data.score`. If the rule language cannot test a list today, the element adds that test (additive).
 
 ### 4.3 How a shader animates
 
-- **Simple path:** the body reads the input struct's clocks directly, for example
-  `n.sinceMatched` for an entrance and `n.sinceUnmatched` for an exit. Nothing to declare.
-- **Advanced path: a `clock` parameter.** `start: { type: "clock", default: "since.matched", max:
-0.55 }`.
-    - The user can rebind it in the settings popover, through the same value picker as any
-      calculated value. The app writes the words, for example "Starts: When this layer starts
-      applying"; the element returns only the bound path.
-    - `max` is the clock's range, like a number parameter's max: the element clamps the clock to
-      it and stops drawing new frames for that element once every clock has passed its max. A
-      shader that reads clocks without declaring a max is treated as animating while it draws.
-- **Any number or color parameter can be bound to a clock** with a linear, pow or bins scale, for
-  example a Hovered layer's Glow with `strength: { by: "since.hovered", domain: [0, 0.25], range:
-[0, 1], clamp: true }`. This is how a shader that knows nothing about time still eases in.
-    - The scale is evaluated on the GPU from timestamps the element already keeps, so it costs no
-      CPU work per frame and no frames once the clock leaves the domain.
-    - It counts against the existing limit of four bound parameters per shader.
+There is one mechanism: **a number or color parameter bound to a clock** with a linear, pow or
+bins scale. There is no `clock` parameter type.
+
+- **An author** gives the binding as the parameter's default: `fade: { by: "since.matched",
+domain: [0, 0.3] }` (range defaults to [0, 1], clamped). The body reads `fade` like any
+  parameter.
+- **A user** binds or rebinds any number or color parameter the same way in the settings popover,
+  through the same value picker as any calculated value, for example a Hovered layer's shader with
+  `strength` bound to `since.hovered` over [0, 0.25]. The app writes the words ("Starts: When this
+  layer starts applying"); the element returns only the bound path.
+- **The end of the domain is the stop.** The element evaluates the scale on the GPU from
+  timestamps it already keeps, so it costs no CPU work per frame, and it requests no frames for an
+  element once every clock binding of its uses has left its domain.
+- **Clock bindings do not count** against the limit of four data-bound parameters per shader: that
+  limit is per-element data columns, and a clock binding reads only timestamps the element already
+  stores and a few uniforms.
+- **Reading a clock field directly in the body** (`n.sinceMatched`) still works, as a shortcut.
+  The element cannot know when such a body is done, so it treats it as animating while it draws,
+  and the gallery's "animates" fact says so. The docs teach the bound form first.
 - **Looping** is inferred from the body (it reads the input's `time` field); `motion` keeps only
   `"still" | "loop"` (and `loop.speedParam`), as a declared override. It is a fact the element uses
   for the reduced-motion and quality settings, and it is never shown as a trigger.
@@ -254,9 +302,9 @@ where } }`, where `where` is `"condition"` or `"value"`. It is never quietly che
   `since.changed < 1.5`, so a change flash is "pick that condition, then add Change flash", with
   nothing typed. No new starting layer is added, because starting rows are released element
   behavior.
-- The condition picker gains "Keep for [ ] s after", writing the layer's `keep`.
-- The app sets `keep: 0.3` on its own Hovered and Selected starting layers after the element
-  creates them. This is the app's choice through an element option; the element's default stays 0.
+- The condition picker gains "Keep shaders for [ ] s after", writing the layer's `keep`.
+- The app does not change its starting layers: an exit animation comes from the shader's own
+  `since.unmatched` binding (4.1), so hover and selection feel exactly as they do today.
 - The value picker lists the clocks of 4.2 as values, with the app's own words.
 
 ---
@@ -274,8 +322,11 @@ where } }`, where `where` is `"condition"` or `"value"`. It is never quietly che
 - **Presets:** Reticle declares 40, with its detail fading scan first, then the inner circle and
   pips, then the ticked ring, and the four brackets last (as in the first redesign). Satellites may
   declare it if its own review asks. Frost, Glass, Pearl and every other surface paint do not.
-- Every square-drawn shader still skips a node smaller than 3 px on screen, whatever its minimum
-  size, so an overview of a large graph is never covered in squares.
+- **The 3 px skip applies only when the use's `minSize` is 0 or not declared.** A minimum size
+  exists to find a tiny node in a zoomed-out graph, so a Reticle with `minSize: 40` on a 2 px
+  selected node draws a 40 px square. What keeps an overview from filling with squares is the
+  layer's condition (Selected, Hovered); a user who puts a minimum-size shader on Everything sees
+  exactly what they asked for, and the cost line says so.
 
 ---
 
@@ -308,8 +359,30 @@ interface ShaderDefinition {
 }
 ```
 
+- **Required:** `id` and `glsl`. Everything else is optional with the default shown. `categories`
+  is a list of plain strings; `lowDetail` has the same form as `glsl`.
+- **`defineShader` registers** the shader (it returns nothing). A use names it by id:
+  `ShaderUse.shader` is always the id string.
 - **The target** (node, edge, group, background) is still read from the entry function's input,
-  `shade(NodeInput n)` and so on, so the code cannot disagree with a header.
+  so the code cannot disagree with a header. The four entries are `vec4 shade(NodeInput n)`,
+  `vec4 shade(EdgeInput e)`, `vec4 shade(GroupInput g)` and `vec4 shade(BackgroundInput b)`.
+- **Parameters are bare names** in the body (`color`, `width`), with the GLSL type from the
+  parameter's type.
+- **Coordinates.** On a node, `n.uv` is centered on the node, -1 to 1, with the node's outline at
+  `length(n.uv) == 1` in every place; a square-drawn place extends it out to `reach`. So a body
+  never needs `reach` to find the outline. On an edge, `e.t` runs 0 to 1 from source to target and
+  `e.side` -1 to 1 across.
+- **Alpha is straight (not premultiplied) in every place.** Today paint returns straight alpha and
+  effects, along and group return premultiplied; since a shader may now move between places, one
+  convention is required, and the element premultiplies before it blends. Presets that premultiply
+  are ported.
+- **How problems reach the author.** A problem with the definition (`shader.min-size-place`, a body
+  the checker refuses) throws from `defineShader` as a `GraphtyError` whose details carry `{ code,
+params }`. A problem with a use (`shader.place-unsupported`, `shader.target-mismatch`,
+  `style.clock-unsupported`) rejects the run `styles.add` returns, the same way other refused layer
+  specs do.
+- **Looping** is inferred from reading the input's `time` field (`n.time`, `e.time`, `g.time`,
+  `b.time`); nothing else makes a shader loop.
 - **`places`**, when absent: a shader whose place is one of the four square-drawn places may be
   moved among all four; `paint`, `along` and `group` stay where they are. An author narrows it, for
   example an "around" shader that leaves the node's middle empty and would look broken in
@@ -339,6 +412,10 @@ interface ShaderUse {
 "edge.shaders": readonly ShaderUse[];
 ```
 
+A layer is `{ target, selector, set, keep? }`: `keep` sits on the layer beside `selector`, and the
+shader lists sit in `set` like every other channel. `place` on a use is optional and falls back to
+the shader's own `place`.
+
 They replace `node.shader`, `node.shaderParams`, `node.effects`, `edge.shader`,
 `edge.shaderParams`, `edge.effects` and the layer's `boundary` (`LayerBoundary`), all unreleased.
 A list rather than a record keyed by id, so the same shader can be used twice with different
@@ -352,34 +429,47 @@ import { defineShader } from "@graphty/graphty-element/extend";
 defineShader({
     id: "acme/ring",
     place: "around",
-    params: { color: "#ffcc00", width: { default: 2, min: 0.5, max: 8 } },
+    params: {
+        color: "#ffcc00",
+        width: { default: 2, min: 0.5, max: 8 },
+        fade: { by: "since.matched", domain: [0, 0.3] },
+    },
     glsl: `vec4 shade(NodeInput n) {
-        float d = abs(length(n.uv) - 1.2);
-        float ring = 1.0 - smoothstep(0.0, width / n.pixelSize, d);
-        return vec4(color, ring * clamp(n.sinceMatched / 0.3, 0.0, 1.0));
+        float ring = 1.0 - smoothstep(0.0, width / n.pixelSize, abs(length(n.uv) - 1.2));
+        return vec4(color, ring * fade);
     }`,
 });
 
 await element.session.styles.add({
     target: "node",
-    selector: { match: "state", state: "selected" },
+    selector: { match: "state", state: "hovered" },
     set: { "node.shaders": [{ shader: "acme/ring", params: { color: "#00ff88" } }] },
 });
 ```
 
-It names no kind, role, card or trigger. The ring fades in over 0.3 s whenever a node becomes
-selected, because the layer's condition is "selected" and the body reads `sinceMatched`. The one
-spelling for adding a layer everywhere in docs and examples is `element.session.styles.add`, and
-`defineShader` is always imported from `/extend`, never the root entry (which pulls in Babylon.js).
+It names no kind, role, card or trigger. The ring fades in over 0.3 s whenever a node is hovered,
+because the layer's condition is "hovered" and `fade` is bound to the layer's own clock; after
+0.3 s the element stops drawing frames for it. The one spelling for adding a layer everywhere in
+docs and examples is `element.session.styles.add`, and `defineShader` is always imported from
+`/extend`, never the root entry (which pulls in Babylon.js).
 
-**The advanced path** adds one line each: `minSize: 40`; `places: [...]`; `reach: 2`; a `clock`
-parameter with `max`; `lowDetail`; `registerShader` with `wgsl`.
+The page's edge example lights the edges of the hovered node with the released selector
+`{ match: "hover", reach: "neighbors" }`, which on an edge layer matches the edges that touch the
+hovered node, so an edge shader needs no endpoint paths of its own.
 
-**The published shader page** must state, checked against the code: the parameter short and long
-forms and their GLSL types; every field of the four input structs, including the clocks and their
--1 and 1e6 readings; the GLSL prelude a body may call (`lightDir`, `palette()`, the hash helpers,
-the anti-aliasing helpers) with signatures; straight or premultiplied alpha; the place table of
-section 1 with a picture of each place; ids, failure and the entry point.
+**The advanced path** adds one line each: `minSize: 40`; `places: [...]`; `reach: 2`; `lowDetail`;
+`registerShader` with `wgsl`.
+
+**The published shader page** must state, checked against the code: the four entry signatures;
+the parameter short and long forms (including the clock-bound default), their GLSL types and that
+they are bare names; every field of the four input structs, including the clocks, the `since.x` to
+`sinceX` rule and the -1 and 1e6 readings; the coordinates of 6.1; the GLSL prelude a body may call
+(`lightDir`, `lightColor`, `ambient`, `canvasColor`, `Q()`, `palette()`, `noise`, `fbm`,
+`voronoi`, the hash helpers, the anti-aliasing helpers) with signatures; straight alpha; the
+layer's shape with a hovered and a neighbors example; the place table of section 1 with a picture
+of each place; `minSize` in CSS pixels and when the 3 px skip applies; which fields are required;
+that `defineShader` registers; how each problem code reaches the author; the limit of four
+data-bound parameters and its refusal.
 
 **Gate.** Before the branch lands, an author who sees only that page writes this example and one
 edge `along` shader, and both compile against the published types (a compile-only test in
@@ -400,9 +490,17 @@ graphty-element runs the example from the docs). The plugin-author personas in
   lower-detail mesh, and the solid nodes are unaffected.
 - **The app's Wireframe row** writes `node.wireframe: true` and `node.meshDetail: "low"` in one undo
   step; turning it off removes both. This is the app's choice through an element option.
-- **Babylon's edges rendering was considered and not used:** a smooth sphere has no hard edges, so
-  it draws either almost nothing or every triangle. It can become an option if someone asks for
-  "edges only" on faceted shapes.
+- **Babylon's edges rendering is open until captured.** The first reason for rejecting it (a smooth
+  sphere has no hard edges) does not hold for a low-detail mesh. The likely difference: an
+  icosphere has no coplanar faces, so wireframe and edges both draw a geodesic of triangles; a UV
+  sphere's quads are planar, so edges rendering drops their diagonals and draws a latitude and
+  longitude grid (a globe), while wireframe draws the diagonals too. Before this section is frozen,
+  both are captured on a sphere and an icosphere at "low" detail through the browser gate, and the
+  images are judged by eye (not by the image model's yes or no). If edges rendering looks better,
+  it becomes an additive option, `node.wireframeStyle: "triangles" | "edges"` (default
+  "triangles", today's drawing; `node.wireframe` is a released boolean and cannot take a new
+  value), and the app's Wireframe row chooses it. Otherwise the captures are recorded here as the
+  reason.
 - Saved layers that use `node.wireframe` keep drawing exactly as they do now.
 
 ---
@@ -445,14 +543,18 @@ graphty-element runs the example from the docs). The plugin-author personas in
 | Change                                                                                                                                                            | Status              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `role`, `geometry`, `minPixels`, `motion.enter/exit/change` removed from the descriptor                                                                           | Unreleased: free    |
-| `ShaderPlace`, `place`, `places`, `minSize`, the `clock` parameter type, `reads: "light"` added                                                                   | Unreleased: free    |
+| `ShaderPlace`, `place`, `places`, `minSize`, clock-bound parameter defaults, `reads: "light"` added; straight alpha everywhere                                    | Unreleased: free    |
+| Presets renamed: `edge-glow` to `neon-line`, `lantern-glow` to `lantern`, `toon-outline` to `cel-shade`                                                           | Unreleased: free    |
+| Band (`edge.bandColor`, `bandWidth`, `bandOpacity`) stays an option                                                                                               | Unreleased: free    |
 | `node.shaders`, `edge.shaders` (`ShaderUse`) replace the six single shader channels and `LayerBoundary`                                                           | Unreleased: free    |
 | `sinceEntered` / `sinceExited` renamed `sinceMatched` / `sinceUnmatched`; `sinceAdded`, `sinceDeselected`, `sinceUnhovered`, `sinceUnpinned` added to the structs | Unreleased: free    |
 | `shaderTemplate({ target, place })`; problem codes `shader.place-unsupported`, `shader.min-size-place`                                                            | Unreleased: free    |
 | `node.meshDetail` channel                                                                                                                                         | Additive            |
 | Readable paths `state.*`, `since.*`, `changedFields` in conditions and calculated values; problem code `style.clock-unsupported`                                  | Additive            |
-| The layer's optional `keep` (seconds)                                                                                                                             | Additive            |
-| `node.wireframe`, Outline, Glow, Halo, Band, the starting rows                                                                                                    | Released: unchanged |
+| The layer's optional `keep` (seconds; holds only the shader lists)                                                                                                | Additive            |
+| Clock bindings on CPU-painted channels, evaluated while inside their domain                                                                                       | Additive            |
+| `node.wireframeStyle`, only if the capture in section 7 favors edges rendering                                                                                    | Additive            |
+| `node.wireframe`, Outline, Glow, Halo, the starting rows                                                                                                          | Released: unchanged |
 
 Nothing here breaks a released API, so nothing needs the owner. The one condition from the first
 redesign still holds: the shader API must land in one piece from this branch, because once any of
@@ -490,8 +592,8 @@ shader), 5.4 (`minPixels`) and 5.8 (timing).
 ## 12. Rejected, with the reason
 
 - **A `lingers` or `settles` field on the descriptor.** Both are an exit tag under another name.
-  The exit window is the layer's `keep` (a condition), and the end of an animation is a clock
-  parameter's `max` (a range on an input).
+  The exit window is the hold of section 4.1, and the end of an animation is the end of a
+  clock binding's domain.
 - **A `{ match: "changed", within }` selector.** `since.changed < N` in an ordinary condition does
   the same with no new selector member.
 - **A two-step Add dialog** (pick a tile, then a Position step, then Add). Adding at the default
@@ -504,12 +606,80 @@ shader), 5.4 (`minPixels`) and 5.8 (timing).
   condition picker's "Changed recently" gives the same one-click path.
 - **A separate Group outline section.** It is a section per target, which the owner's third point
   asks to drop; "Around the group" is a place in the one gallery.
+- **A `clock` parameter type.** It was a second spelling of a clock-bound parameter; one mechanism
+  serves users and authors.
+- **`keep` holding the whole layer, and the app setting `keep: 0.3` on its starting layers.** It
+  would make hover color, size and outline linger, a change to released interaction feel.
+- **A layer target `"group"`.** The per-node membership rule in section 1 gives `group` a clear
+  meaning inside `node.shaders` without a second kind of layer.
 
 ## 13. Watch at the owner's next review
 
 - Asked to "outline each group", does a newcomer find "Around the group" in the Shaders gallery,
   with no section named for it?
-- Do the place diagrams make "On the node", "On top", "Around" and "Behind" clear without reading?
+- Do the place diagrams make "On the node", "Instead of the node", "Around" and "Behind" clear
+  without reading?
 - Does "Hidden: Sticker draws instead of the node" answer "where did my node go?"
-- Does a Hovered layer with Reticle play in and out with nothing set by the user?
-- Does a wireframed sphere at `meshDetail: "low"` read as a clean globe?
+- Does a Hovered layer with Reticle play in and out with nothing set by the user, while the hover
+  color still reverts at once?
+- Does a user who types "glow" in the gallery end up with the Glow option?
+- Does the wireframe chosen by the section 7 capture read as a clean globe?
+
+---
+
+## 14. Critiques
+
+Red team, on the first version of this file:
+
+1. The 3 px skip defeats minimum size. **Accepted**: the skip applies only without a minimum size
+   (section 5); the layer's condition is what limits squares in an overview.
+2. Presets and options compete for the same words, and Band is not released. **Accepted**: no
+   preset is named after an option, three presets renamed, search finds options (sections 1, 2.2);
+   Band corrected to unreleased and kept an option on purpose (2.1, 9).
+3. Place still hides kinds, and `group` is undefined in a per-node list. **Accepted**: the Place
+   dropdown shows only when there is a choice; `group` resolution written down as per-node
+   membership, not a layer target (sections 1, 2.1).
+4. "On the node" and "On top" read the same, the chip row is too long, and "New shader..." reads
+   hidden state. **Accepted**: paint and over share "On the node" in the app, six chips with full
+   words checked at 768 px, and the code dialog asks for the place first (sections 1, 2.2).
+5. Layer-wide `keep` and the app's 0.3 default change released hover feel. **Accepted**: `keep`
+   holds only the shader lists, a use's hold comes from its `since.unmatched` binding, and the app
+   sets nothing (4.1, 4.4).
+6. Three ways to animate on a clock. **Accepted**: the `clock` type is gone; a clock is a bound
+   parameter, clock bindings do not count against the four, and the reason `since.matched` is not
+   readable in a condition is stated (4.2, 4.3). Direct struct reads stay as a documented shortcut.
+7. Refusing clocks in CPU-painted values blocks "grow when hovered". **Accepted**: evaluated per
+   frame only inside the binding's domain, refused only when unbounded (4.2).
+8. The reason for rejecting edges rendering no longer holds at low detail. **Accepted**: section 7
+   is open until both are captured and judged by eye.
+
+Blind author, writing the canonical examples from this file alone:
+
+1. The GLSL contract (entry names, parameter access, coordinates, `time`, alpha) is not stated.
+   **Accepted**: stated in 6.1 and required on the page.
+2. No entry signature for node or edge. **Accepted**: the four signatures are in 6.1.
+3. No way for an edge to react to its node's hover. **Accepted** as a documentation gap: the
+   released `{ match: "hover", reach: "neighbors" }` already does it (6.3); no new paths.
+4. The condition's field and syntax are unnamed. **Accepted**: the example uses the released
+   `selector` forms, and the page shows a hovered example.
+5. The layer's top-level shape and where `keep` goes. **Accepted**: stated under 6.2.
+6. Whether `defineShader` registers, and what `ShaderUse.shader` takes. **Accepted**: it registers;
+   a use takes the id (6.1).
+7. Place spellings. **Accepted**: the API values are the lowercase words of the table's first
+   column; the page shows both.
+8. The `params` schema. **Accepted**: short and long forms and the clock-bound default go on the
+   page; the separate clock type is gone.
+9. Drawing around needs the internal square and `reach`. **Accepted**: the outline is at
+   `length(n.uv) == 1` in every place, so a body never needs `reach` (6.1).
+10. `minSize` units, name and order with the 3 px skip. **Accepted**: CSS pixels, a parameter named
+    `minSize`, no effect at `paint` and `over`, and the skip only without it (5).
+11. How problems reach the author. **Accepted**: definition problems throw, use problems reject
+    the `styles.add` run (6.1).
+12. Required fields and the shape of `lowDetail` and `categories`. **Accepted** (6.1).
+13. What makes a shader loop. **Accepted**: only reading `time` (6.1).
+14. Whether a use's `place` and a definition's `places` default. **Accepted**: both default as
+    stated (6.1, 6.2).
+
+Internal concepts the author had to invent: the camera-facing square is gone from the author's
+view (the outline is at 1); the limit of four is on the page with its refusal; `groupBy` and the
+coverage fact are advanced and documented there, not in the canonical example.

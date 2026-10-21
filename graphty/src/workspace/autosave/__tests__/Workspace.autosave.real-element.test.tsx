@@ -140,6 +140,23 @@ describe("Workspace autosave with the real graphty-element", () => {
     beforeEach(forgetAutosave);
     afterEach(forgetAutosave);
 
+    // First in the file: the element reports the at-risk fact once per page load.
+    it("says nothing about a private window when a fresh session opens the start screen and a sample", async () => {
+        const { store, view } = mountWorkspace();
+        await userEvent.click(screen.getByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
+        const { element, session } = await openElement();
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
+                assert.strictEqual(element.autosaver.status.state, "saved");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.notMatch(store.get().notice?.message ?? "", /private window|may clear/);
+        assert.notMatch(document.body.textContent, /private window|may clear/);
+        view.unmount();
+    });
+
     it("offers the work after a reload, and Restore opens it again", async () => {
         const entry = await workThenLeave();
 

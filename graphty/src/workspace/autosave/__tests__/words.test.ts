@@ -2,7 +2,6 @@ import type { AutosaveEntry, AutosaveRestored, AutosaveStatus } from "@graphty/g
 import { assert, describe, it } from "vitest";
 
 import {
-    atRiskSentence,
     autosaveProblemSentence,
     availableSentence,
     formatAutosaveChip,
@@ -110,7 +109,7 @@ describe("formatAutosave", () => {
         );
     });
 
-    it("words the entries it did not reopen and the at-risk fact", () => {
+    it("words the entries it did not reopen", () => {
         const reasons = ["held-by-other-tab", "page-data-changed", "restore-failed", "manual"] as const;
         assert.strictEqual(
             new Set(reasons.map((reason) => availableSentence({ entry: ENTRY, reason, problem: null }))).size,
@@ -124,12 +123,6 @@ describe("formatAutosave", () => {
             }),
             "newer version",
         );
-        const fact = (ephemeral: "likely" | "unknown") => ({
-            code: "W_AUTOSAVE_ORIGIN_EPHEMERAL" as const,
-            params: { persisted: false, ephemeral, unexported: true },
-        });
-        assert.include(atRiskSentence(fact("likely")), "private window");
-        assert.include(atRiskSentence(fact("unknown")), "may clear");
     });
 
     it("words the start screen's offer and the notice once it is restored", () => {

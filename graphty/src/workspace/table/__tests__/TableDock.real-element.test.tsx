@@ -154,7 +154,9 @@ describe("the table dock", () => {
                 .map((cell) => cell.textContent ?? "");
         const before = headers();
         assert.isAtLeast(before.length, 3);
-        await userEvent.click(within(grid).getAllByTestId("data-table-header-menu")[0]);
+        // The key's header has a menu of its own too (Role, Type): open the first movable column's.
+        const firstMovable = within(grid).getAllByRole("columnheader")[1];
+        await userEvent.click(within(firstMovable).getByTestId("data-table-header-menu"));
         const left = await screen.findByRole("menuitem", { name: "Move left" });
         assert.isTrue(left.hasAttribute("disabled") || left.getAttribute("data-disabled") === "true");
         await userEvent.click(screen.getByRole("menuitem", { name: "Move right" }));

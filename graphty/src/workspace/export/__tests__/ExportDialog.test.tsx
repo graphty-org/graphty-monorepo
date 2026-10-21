@@ -48,15 +48,16 @@ describe("the Export dialog", () => {
         assert.isNull(within(dialog).queryByRole("heading", { name: "Image" }));
     });
 
-    it("lists its two kinds in the shared page list, the current one marked", async () => {
+    it("lists its outputs in the shared page list, the current one marked", async () => {
         render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const kinds = within(dialog).getByRole("grid", { name: "What to export" });
         const rows = within(kinds).getAllByRole("gridcell");
+        // The one Export dialog's outputs (the data prototype), in tier 3's page list.
         assert.deepEqual(
             rows.map((row) => row.textContent),
-            ["Image", "Data"],
+            ["Image", "Video", "Data", "Styles", "Recipe", "Project"],
         );
         assert.strictEqual(rows[0].getAttribute("aria-current"), "page");
         assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));

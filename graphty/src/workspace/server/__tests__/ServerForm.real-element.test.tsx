@@ -247,7 +247,7 @@ describe("server sources on the real element", () => {
             assert.lengthOf(session.data.nodes(), 2 * PAGE);
         });
         // A receipt names what Load more brought.
-        await screen.findByText(`+${String(PAGE)} nodes`);
+        await screen.findByText(`+${String(PAGE)} nodes`, { selector: ".cm-toast-message" });
 
         // The node menu: Expand... with its rows, then Collapse.
         await userEvent.click(element, { button: "right", position: await pointOn(element, "p0") });
@@ -271,7 +271,7 @@ describe("server sources on the real element", () => {
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "Refresh" }));
         await waitFor(() => {
-            assert.isNotNull(screen.queryByText(/changed/));
+            assert.isNotNull(screen.queryByText(/changed/, { selector: ".cm-toast-message" }));
         });
     });
 

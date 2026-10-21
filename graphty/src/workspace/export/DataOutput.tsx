@@ -9,7 +9,15 @@ import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, dataExportOptions, type DataScope, fileName, formatRows, previewOf } from "./choices";
+import {
+    type DataChoices,
+    dataExportOptions,
+    type DataScope,
+    failureWords,
+    fileName,
+    formatRows,
+    previewOf,
+} from "./choices";
 import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows } from "./lossWords";
 
 /** Why a file was not written: the export's refusals (its E_ losses) as rows, else a label from its error code. */
@@ -27,7 +35,8 @@ function failureOf(error: unknown, losses: readonly ExportLoss[] = []): Failure 
         return refused;
     }
     const code = (error as { code?: unknown } | null)?.code;
-    return code === "E_UNSUPPORTED" ? "Format cannot hold this graph" : "Write failed";
+    // Worded by its code, as the image's failures are; an unknown code shows as itself.
+    return code === "E_UNSUPPORTED" ? "Format cannot hold this graph" : failureWords(error);
 }
 
 /**
@@ -332,7 +341,12 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             // A new row starts with its Advanced fold closed.
                             key={row.id}
                             session={session}
-                            options={row.options}
+                            // With no edges there is only the node table to write: no Table choice.
+                            options={
+                                session.data.statistics().edgeCount === 0
+                                    ? row.options.filter((option) => option.name !== "table")
+                                    : row.options
+                            }
                             values={keyed}
                             words={optionWords}
                             onChange={(option, value) => {

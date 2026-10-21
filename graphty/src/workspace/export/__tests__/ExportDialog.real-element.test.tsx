@@ -226,7 +226,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, storyWaitOptions(1000));
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
-        await screen.findByText("Exported untitled_nodes.csv", {}, storyWaitOptions(1000));
+        await screen.findByText("Exported untitled_nodes.csv", TOAST, storyWaitOptions(1000));
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         const rows = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
         assert.lengthOf(rows, 4 + 1, "the shown nodes, under one header");
@@ -235,7 +235,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         dialog = await openExport();
         await pick(dialog, "Styles");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_styles.style.json", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_styles.style.json", TOAST, { timeout: TIMEOUT_MS });
         const styles = JSON.parse(
             (await saved.find(({ name }) => name === "untitled_styles.style.json")?.blob.text()) ?? "{}",
         ) as Record<string, unknown>;
@@ -248,7 +248,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         dialog = await openExport();
         await pick(dialog, "Recipe");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_recipe.json", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_recipe.json", TOAST, { timeout: TIMEOUT_MS });
         const recipe = (await saved.find(({ name }) => name === "untitled_recipe.json")?.blob.text()) ?? "";
         assert.include(recipe, '"score"');
         for (const node of NODES) {

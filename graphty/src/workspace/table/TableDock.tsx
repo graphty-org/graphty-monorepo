@@ -382,7 +382,7 @@ interface HeaderCellProps {
 /** The header's parts of a table column. */
 type HeaderParts = Pick<
     DataTableColumn<object>,
-    "icon" | "iconLabel" | "headerTooltip" | "headerEnd" | "menu" | "width"
+    "icon" | "iconLabel" | "headerTooltip" | "headerEnd" | "menu" | "minWidth"
 >;
 
 /**
@@ -402,7 +402,8 @@ function headerCell(props: HeaderCellProps): HeaderParts {
             </>
         );
     return {
-        width: headerWidth(column, issues.length > 0),
+        // A floor for the content's width: the name beside its icons, badge and warning.
+        minWidth: headerWidth(column, issues.length > 0),
         icon: <HeaderIcons column={column} />,
         iconLabel: headerIconsLabel(column),
         ...(column.descriptor === undefined ? {} : { headerTooltip: columnSummary(column.descriptor) }),

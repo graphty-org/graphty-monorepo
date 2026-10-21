@@ -161,7 +161,10 @@ describe("the join screen on the real element", () => {
         assert.strictEqual(joined.matched, 58);
         await screen.findByLabelText("58/70 matched");
 
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+        // The header's Undo names the step it undoes ("Undo joining ...").
+        await userEvent.click(
+            within(screen.getByRole("banner", { name: "Project" })).getByRole("button", { name: /^Undo/ }),
+        );
         await waitFor(() => {
             assert.deepEqual(session.data.joins(), []);
         });
@@ -210,7 +213,9 @@ describe("the join screen on the real element", () => {
         assert.isNull(store.get().joining);
         assert.deepEqual(session.data.joins(), []);
 
-        const toast = (await screen.findByText("Join canceled")).closest<HTMLElement>('[role="group"]');
+        const toast = (
+            await screen.findByText("Join canceled", { selector: ".cm-toast-message" })
+        ).closest<HTMLElement>('[role="group"]');
         assert.isNotNull(toast);
         await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
         const back = await screen.findByRole("region", { name: "Join" });

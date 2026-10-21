@@ -379,6 +379,11 @@ export const registration = defineRegistration({
             label: "Expand...",
             group: "Selection",
             keywords: ["neighbors", "server", "fetch"],
+            tooltip: (ctx) => {
+                const id = selectedNode(ctx);
+                const hidden = id === undefined ? null : hiddenNeighbors(ctx.session, id);
+                return hidden === null ? "Expand..." : `Expand... (+${String(hidden)} on the server)`;
+            },
             shown: (ctx) => {
                 const id = selectedNode(ctx);
                 return id !== undefined && expandableSource(ctx.session, id) !== undefined;

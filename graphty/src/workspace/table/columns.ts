@@ -160,9 +160,13 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
             },
         ];
     });
-    // The edge's ends are named as this graph's direction names them.
+    // The edge's ends are named after the columns a load read them from ("from", "to"), else as
+    // this graph's direction names them.
     const [from, to] = edgeEnds(session);
-    const ends: Readonly<Record<string, string>> = { source: from, target: to };
+    const read = (role: "source" | "target"): string | undefined =>
+        sources.map((source) => loadValue(tableRoles(source, "edges"), role)).find((name) => name !== null) ??
+        undefined;
+    const ends: Readonly<Record<string, string>> = { source: read("source") ?? from, target: read("target") ?? to };
     // A key column whose values a loaded column holds (its role says so) is that column, first.
     const keys = KEYS[kind]
         .filter((key) => !loaded.some((column) => column.role === key.keyRole))
@@ -172,10 +176,12 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
             group: key.group,
             numeric: key.numeric,
         }));
-    const keyed = loaded.filter((column) => KEYS[kind].some((key) => key.keyRole === column.role));
-    const attributes = loaded.filter(
-        (column) => !keyed.includes(column) && !keys.some((key) => key.id === column.attribute),
-    );
+    // It is the key, as the element's own key column would be: it names its row and always shows.
+    const keyed = loaded
+        .filter((column) => KEYS[kind].some((key) => key.keyRole === column.role))
+        .map((column): TableColumnChoice => ({ ...column, group: "key" }));
+    const isKeyed = (column: TableColumnChoice): boolean => keyed.some((key) => key.id === column.id);
+    const attributes = loaded.filter((column) => !isKeyed(column) && !keys.some((key) => key.id === column.attribute));
     return [...keys, ...keyed, ...attributes, ...results];
 }
 

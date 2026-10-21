@@ -302,9 +302,10 @@ describe("the table dock's configuration", () => {
         await session.visibility.set({ kind: "categories", attribute: "data.flagged", values: ["yes"] });
         const shown = session.visibility.summary.visibleNodes;
         assert.isBelow(shown, total);
-        await within(dock).findByText(`${String(shown)} nodes`);
+        // Tier 3's count words while a filter hides some: "100 of 412 nodes".
+        await within(dock).findByText(`${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} nodes`);
         await userEvent.click(within(dock).getByText("All"));
-        await within(dock).findByText(`${String(total)} nodes`);
+        await within(dock).findByText(`${total.toLocaleString("en-US")} nodes`);
         await session.visibility.set(null);
 
         // Esc minimizes back to the dock, and the drawing shows again.

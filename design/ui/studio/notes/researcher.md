@@ -10,6 +10,10 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-21) Round 1 plan is `tier3/rounds/round-1/plan.md`: 56 rows generated from roster.md's
+  allocation (core T39, T40, T47, T48 first; A/B alternating), Sam `empty --keys`, everyone else
+  `empty`, T49 rows carry the follow-up. All 56 rows brief. Before a round, grep every briefing's
+  `REAL_DIST=` line for the frozen build: --brief had been sending participants to an old build.
 - (2026-10-21) Round 1 is frozen on 758b8e8081; the key reads it from 15 halves' targeted
   re-pilots (rounds/r1d2/pilot/). T44 B's spoiler is fixed (Undo across Replace redraws), so its
   grade-from-screenshot line is withdrawn. New grading risk: with a find-box selection held, the
@@ -85,6 +89,16 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-21 (round 1 plan):** Generated the plan from roster.md's "Who takes which task in
+  round 1" table with a script that asserts 56 rows, each half's count equal to its names, and no
+  persona on both halves, so the plan cannot drift from the roster. Order: the core tasks first
+  (criteria's run order), A and B alternating so an early stop leaves both domains run. Every
+  start `empty` (roster: no setups, T50's project opened by the participant), Sam's `empty
+--keys`. Follow-up only on T49, word for word from tasks.md. Fixed `real.mjs --brief`, not
+  criteria.md: its build regex wanted backticks, so it skipped criteria's first line and took the
+  change log's older build (6de5f95d12) -- every briefing would have run on the wrong build. The
+  first line is the Director's frozen text; the tool must read it as written.
+
 - **2026-10-21 (758b8e8081 re-pilots into the key):** Kept every step count and bar; every walked
   success path matched. Withdrew T44 B's grade-from-screenshot line because the fix makes tree and
   drawing agree again; a grading rule for a build defect must leave with the defect. For the
@@ -132,15 +146,9 @@ logged). Their reasons, in short:
   is confirmed by two sessions on two different task halves, not two on one prompt. Did not
   re-propose the schema twins.
 
-- **2026-10-19 (pilots on e3c5bca8e6 into the key):** Patched answers.md bullet by bullet from 30
-  pilot outputs (most report.md files never written). Rewrote the shared "every path meets" block
-  where the build changed (Which nodes expand click, Enter focus, unset line, re-framing, find box,
-  Undo). Kept every target. Wrote T50 B's "hours 30 to 52 and trained", read from the card, as S
-  because it is the stored rule and 52 is the file's maximum; left the selection-summary reading
-  ("31 to 52") to the Director because it is not the layer's rule. Moved T48's filtered run and
-  T49's removed line to the settled rules already at the top of the key, instead of leaving stale
-  "for the Director" text. Did not count pilot step numbers that split "type, Enter" into two
-  (T42 B said 12; the key's counting gives 11).
+- **2026-10-19 (pilots on e3c5bca8e6 into the key, folded):** Rewrote the shared "every path
+  meets" block where the build changed; kept every target; T50 B read from the card graded S;
+  settled rules moved to the key's top instead of stale "for the Director" text.
 
 - **2026-10-19 (fourth read of the criteria, build 1fa51e2b0b):** Proposed, not applied (the
   Director freezes): (1) a method whose two frozen-build runs differ is graded against the
@@ -201,6 +209,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-21 (round 1 plan) -- Worked: briefing all 56 rows and tallying each briefing's
+  `REAL_DIST=` and start word (caught the wrong build; one --brief success line proves nothing
+  about which build it names). Did not work: grepping `--start` across briefings (the README
+  parts carry example start lines); grep the `^REAL_DIST=` line instead.
+
 - 2026-10-21 (758b8e8081 re-pilots) -- Worked: one asserted `\s+`-joined edit script (all 50 or so
   edits matched first time); running prettier on a copy with `--parser markdown` and copying the
   result back (it only moved a blank line). Checking a pilot claim against session.log (`grep -c
@@ -243,15 +256,9 @@ ORB`) and one screenshot before writing it. Did not work: trusting a pilot line 
   which showed the two "domains" share one schema; grepping the fix commits between the last two
   builds for prompt phrases before calling a prompt clean of echoes; reading the dry-run
   recurrence summary (tmp/tier3-dryrun-analysis) before judging the preflight's exit rule.
-- 2026-10-18 (6dd0b00bd7) -- Worked: a `bullet(section, label, new)` helper with an assert that
-  the label occurs once in that section; a non-ASCII assert on all three files. Did not work:
-  four keyboard pilots holding all four browser slots while a fifth pilot waited -- T46 A never
-  started and T37 A's keyboard start queued past its agent; launch keyboard walks staggered.
-- 2026-10-18 -- Worked: writing the new body to a named scratch subfolder and splicing it with
-  asserted line anchors (the old heading at its line, the log heading), then a non-ASCII count.
-  Did not work: pilots reporting from different folder layouts (`5bd16cda6e/` subfolder vs
-  `success/`, `detours-b/`); the key now points at both, and the gate may count only one (T44B
-  pilot's note).
+- 2026-10-18 (folded) -- Worked: a label-asserted bullet helper; a non-ASCII assert; splicing a
+  new body at asserted line anchors. Did not work: four keyboard pilots holding all four browser
+  slots (stagger them); pilots reporting from different folder layouts.
 - 2026-10-17 (folded) -- Worked: assembling files from saved parts in my own scratch subfolder;
   styleContent in measure.mjs to confirm look hashes; wording.mjs plus grepping app style source
   for prompt words; grepping score.mjs before trusting a criteria claim; asserted edit scripts and

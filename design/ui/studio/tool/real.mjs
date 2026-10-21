@@ -273,7 +273,9 @@ async function brief(dir, task, persona) {
         .trim();
     const readme = readFileSync(join(here, "README.md"), "utf8");
     const part = (h) => readme.match(new RegExp(`^## ${h}\\n[\\s\\S]*?(?=^## )`, "m"))?.[0].trim() ?? "";
-    const distLine = readFileSync(join(tierDir, "criteria.md"), "utf8").match(/served from `([^`]+)`/)?.[1];
+    // the first "served from" is the first line's, the frozen build (backticks optional: a change log
+    // entry further down names an older build in backticks, and briefed participants onto it)
+    const distLine = readFileSync(join(tierDir, "criteria.md"), "utf8").match(/served from `?([^`\s]+)`?/)?.[1];
     // the start: the plan's, or else the task's half in the roster's "Where each session starts"
     const cell = roster.match(new RegExp(`^\\| ${t.task} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[t.half === "A" ? 1 : 2];
     const fromRoster = cell && (/empty/.test(cell) ? "empty" : `setup:${cell.replaceAll("`", "").trim()}`);

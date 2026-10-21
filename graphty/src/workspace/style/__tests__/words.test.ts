@@ -175,10 +175,10 @@ describe("shader words", () => {
     it("says what a shader uses and how it moves, as values", () => {
         assert.equal(usesWords(["color", "size"]), "Color, size");
         assert.equal(usesWords([]), "Nothing");
-        const spin = { name: "spin", plainName: "Spin", type: "number" as const };
-        assert.equal(motionWords({ motion: { loop: { speedParam: "spin" } }, params: [spin] }), "Spin");
-        assert.equal(motionWords({ motion: {}, params: [] }), "Still");
-        assert.equal(motionWords({ motion: { enter: 0.4 }, params: [] }), "On enter");
+        // A speed parameter is the Motion row's field; the words never name a parameter.
+        assert.equal(motionWords({ motion: { loop: { speedParam: "spin" } } }), "Moves");
+        assert.equal(motionWords({ motion: {} }), "Still");
+        assert.equal(motionWords({ motion: { enter: 0.4 } }), "On enter");
         assert.equal(triggerWord({ motion: { change: 1 } }), "On change");
         assert.isUndefined(triggerWord({ motion: { loop: {} } }));
     });

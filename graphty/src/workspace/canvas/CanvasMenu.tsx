@@ -37,7 +37,8 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     const { session, element } = useWorkspace();
     // The menu's rows read the selection, which the press changes after the menu opens.
     useSessionVersion(session);
-    // The Motion row follows the reader's preference, which another door may change.
+    // The Motion row follows the motion the element draws with: the reader's preference, which
+    // another door may change, and the platform's reduced-motion preference.
     useShaderSettings();
     // The node the menu opened over, or null for empty canvas.
     const [overNode, setOverNode] = useState<NodeId | null>(null);
@@ -99,7 +100,7 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
                 </div>
             }
         >
-            <Sections sections={[ids, [motionCommandId()]]} />
+            <Sections sections={[ids, [motionCommandId(element)]]} />
         </ContextMenu>
     );
 }

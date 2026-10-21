@@ -18,7 +18,7 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
-import { effectOffWords, SHADER_ROW_WORDS } from "./words";
+import { effectOffWords, MATERIAL_WORDS, SHADER_ROW_WORDS, SHADER_STEP_WORDS } from "./words";
 
 /** What one value on a layer writes; undefined takes the channel off the layer. */
 type Writes = Partial<Record<Channel, ChannelValue | undefined>>;
@@ -176,9 +176,33 @@ export function ownLayer(ctx: RowContext): Layer | undefined {
  * @param ctx - the row.
  * @param writes - the values, undefined to take a channel off.
  * @param drop - the encode keys to take off with them.
+ * @param words - the step's name, for Undo and Redo.
  * @returns when it is written.
  */
-async function writeRow(ctx: RowContext, writes: Writes, drop: (key: string) => boolean = () => false): Promise<void> {
+async function writeRow(
+    ctx: RowContext,
+    writes: Writes,
+    drop: (key: string) => boolean = () => false,
+    words?: string,
+): Promise<void> {
+    // Named, so Undo reads "Undid changing Reticle spin"; several rows name each write their own way.
+    if (words !== undefined && ctx.many === undefined) {
+        await ctx.session.transaction(words, (tx) =>
+            writeRowNow({ ...ctx, session: tx as GraphSession }, writes, drop),
+        );
+        return;
+    }
+    await writeRowNow(ctx, writes, drop);
+}
+
+/**
+ * The write itself, with no step name of its own.
+ * @param ctx - the row.
+ * @param writes - the values, undefined to take a channel off.
+ * @param drop - the encode keys to take off with them.
+ * @returns when it is written.
+ */
+async function writeRowNow(ctx: RowContext, writes: Writes, drop: (key: string) => boolean): Promise<void> {
     const { session, many } = ctx;
     const entries = Object.entries(writes) as [Channel, ChannelValue | undefined][];
     if (many !== undefined) {
@@ -213,6 +237,19 @@ async function writeRow(ctx: RowContext, writes: Writes, drop: (key: string) => 
         { set: empty(set) ? undefined : set, encode: empty(encode) ? undefined : encode },
         { keepEmpty: true },
     );
+}
+
+/**
+ * A shader as the history names it: its catalog name, Plain or Wireframe.
+ * @param session - the session.
+ * @param id - the shader.
+ * @returns its name.
+ */
+function nameOf(session: GraphSession, id: string): string {
+    if (id === "plain" || id === "wireframe") {
+        return MATERIAL_WORDS[id];
+    }
+    return session.catalog.shaders().find((each) => each.id === id)?.plainName ?? SHADER_STEP_WORDS.unknown;
 }
 
 /**
@@ -285,7 +322,12 @@ export async function pickShader(
         const value = given ? params : (Object.fromEntries(kept)[id] ?? true);
         const map: ShaderEffects = { ...Object.fromEntries(kept), [id]: value };
         settingsNext = `${slot.channel}:${id}`;
-        await writeRow(ctx, { [slot.channel]: map }, bindsOf(slot.params, was === id ? undefined : was));
+        await writeRow(
+            ctx,
+            { [slot.channel]: map },
+            bindsOf(slot.params, was === id ? undefined : was),
+            pickWords(ctx, id, was),
+        );
         return;
     }
     const sets = paramSetsOf(ctx, slot.params);
@@ -305,7 +347,21 @@ export async function pickShader(
         }
         settingsNext = `${slot.channel}:${id}`;
     }
-    await writeRow(ctx, writes, bindsOf(slot.params, prev));
+    await writeRow(ctx, writes, bindsOf(slot.params, prev), pickWords(ctx, id, was ?? prev));
+}
+
+/**
+ * What Undo calls a pick: adding the shader, or changing the one it replaces to it.
+ * @param ctx - the row.
+ * @param id - the picked id.
+ * @param was - the id it replaces.
+ * @returns the words.
+ */
+function pickWords(ctx: RowContext, id: string, was: string | undefined): string {
+    const name = nameOf(ctx.session, id);
+    return was === undefined || was === id
+        ? SHADER_STEP_WORDS.add(name)
+        : SHADER_STEP_WORDS.swap(nameOf(ctx.session, was), name);
 }
 
 /**
@@ -322,6 +378,7 @@ export async function removeShader(ctx: RowContext, slot: ShaderSlot, entry: Sha
             ctx,
             { [slot.channel]: Object.keys(map).length === 0 ? undefined : map },
             bindsOf(slot.params, entry.id),
+            SHADER_STEP_WORDS.remove(nameOf(ctx.session, entry.id)),
         );
         return;
     }
@@ -332,7 +389,12 @@ export async function removeShader(ctx: RowContext, slot: ShaderSlot, entry: Sha
     if (slot.role === "material") {
         writes["node.wireframe"] = undefined;
     }
-    await writeRow(ctx, writes, bindsOf(slot.params, entry.id));
+    await writeRow(
+        ctx,
+        writes,
+        bindsOf(slot.params, entry.id),
+        SHADER_STEP_WORDS.remove(nameOf(ctx.session, entry.id)),
+    );
 }
 
 /**
@@ -373,19 +435,40 @@ export async function writeParam(
         const rest = Object.fromEntries(Object.entries(params).filter(([key]) => key !== name));
         return value === undefined ? rest : { ...rest, [name]: value };
     };
+    const words = SHADER_STEP_WORDS.param(nameOf(ctx.session, id), paramName(ctx.session, id, name));
     if (slot.role === "effect") {
         const map = effectsOf(ctx, slot.channel);
         const was = map[id];
         const next = apply(typeof was === "object" ? was : {});
-        await writeRow(ctx, { [slot.channel]: { ...map, [id]: Object.keys(next).length === 0 ? true : next } });
+        await writeRow(
+            ctx,
+            { [slot.channel]: { ...map, [id]: Object.keys(next).length === 0 ? true : next } },
+            undefined,
+            words,
+        );
         return;
     }
     const sets = paramSetsOf(ctx, slot.params);
     const next = apply(sets[id] ?? {});
     const rest = withoutSet(sets, id) ?? {};
-    await writeRow(ctx, {
-        [slot.params]: Object.keys(next).length === 0 ? withoutSet(sets, id) : { ...rest, [id]: next },
-    });
+    await writeRow(
+        ctx,
+        { [slot.params]: Object.keys(next).length === 0 ? withoutSet(sets, id) : { ...rest, [id]: next } },
+        undefined,
+        words,
+    );
+}
+
+/**
+ * A parameter as the history names it: its catalog name.
+ * @param session - the session.
+ * @param id - the shader.
+ * @param name - the parameter's id.
+ * @returns its name.
+ */
+function paramName(session: GraphSession, id: string, name: string): string {
+    const shader = session.catalog.shaders().find((each) => each.id === id);
+    return shader?.params.find((param) => param.name === name)?.plainName ?? name;
 }
 
 /**
@@ -403,7 +486,12 @@ export async function writeShown(ctx: RowContext, slot: ShaderSlot, id: string, 
         Object.entries(typeof was === "object" ? was : {}).filter(([key]) => key !== "visible"),
     );
     const params: Params = shown ? rest : { ...rest, visible: false };
-    await writeRow(ctx, { [slot.channel]: { ...map, [id]: Object.keys(params).length === 0 ? true : params } });
+    await writeRow(
+        ctx,
+        { [slot.channel]: { ...map, [id]: Object.keys(params).length === 0 ? true : params } },
+        undefined,
+        SHADER_STEP_WORDS.shown(nameOf(ctx.session, id), shown),
+    );
 }
 
 /**
@@ -584,7 +672,12 @@ export function spriteOn(ctx: RowContext): ShaderDescriptor | undefined {
  */
 export function unbindParam(ctx: RowContext, slot: ShaderSlot, id: string, param: string): Promise<void> {
     const key = `${slot.params}.${id}.${param}`;
-    return writeRow(ctx, {}, (each) => each === key);
+    return writeRow(
+        ctx,
+        {},
+        (each) => each === key,
+        SHADER_STEP_WORDS.unbind(nameOf(ctx.session, id), paramName(ctx.session, id, param)),
+    );
 }
 
 /**

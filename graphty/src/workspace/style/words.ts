@@ -337,7 +337,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailOpacity": "Source end opacity",
     "edge.arrowTailText": "Label at source end",
     "edge.arrowTailTextStyle": "Label at source end style",
-    "edge.animationSpeed": "Motion",
+    "edge.animationSpeed": "Dash motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",
@@ -928,6 +928,21 @@ export const SHADER_ROW_WORDS: Readonly<Record<ShaderKind, string>> = {
 export const MATERIAL_WORDS = { plain: "Plain", wireframe: "Wireframe" } as const;
 
 /**
+ * What Undo and Redo call a shader write, by the shader's name and the parameter's: "changing
+ * Reticle spin", "adding Aura", "changing Pearl to Glass marble", "hiding Aura".
+ */
+export const SHADER_STEP_WORDS = {
+    param: (shader: string, param: string): string => `changing ${shader} ${param.toLowerCase()}`,
+    unbind: (shader: string, param: string): string => `fixing ${shader} ${param.toLowerCase()}`,
+    add: (shader: string): string => `adding ${shader}`,
+    swap: (from: string, to: string): string => `changing ${from} to ${to}`,
+    remove: (shader: string): string => `removing ${shader}`,
+    shown: (shader: string, shown: boolean): string => `${shown ? "showing" : "hiding"} ${shader}`,
+    /** A shader the catalog no longer holds (a pasted one, deleted). */
+    unknown: "a shader",
+} as const;
+
+/**
  * The words a reader may search the gallery by beside a shader's name, by preset id: glass,
  * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
  */
@@ -1014,16 +1029,13 @@ export const TRIGGER_TIPS: Readonly<Record<string, string>> = {
 };
 
 /**
- * The Motion row: the parameter that sets its speed ("Spin"), "On enter", "On change" or "Still".
+ * The Motion row of a shader whose speed is no parameter (a speed parameter is the row's field):
+ * "Moves", "On enter", "On change" or "Still".
  * @param descriptor - the catalog's entry.
  * @returns the words.
  */
-export function motionWords(descriptor: Pick<ShaderDescriptor, "motion" | "params">): string {
+export function motionWords(descriptor: Pick<ShaderDescriptor, "motion">): string {
     const { motion } = descriptor;
-    const speed = descriptor.params.find((param) => param.name === motion.loop?.speedParam);
-    if (speed !== undefined) {
-        return speed.plainName;
-    }
     if (motion.loop !== undefined) {
         return "Moves";
     }
@@ -1260,3 +1272,30 @@ export function heldShadersWords(names: readonly string[]): string {
 export function usedByWords(count: number): string {
     return `Used by ${String(count)}`;
 }
+
+/** The Node tab's Group outline section: its title, rows, pop-outs and what its writes are called. */
+export const GROUP_OUTLINE_WORDS = {
+    title: "Group outline",
+    outline: "Outline",
+    groupBy: "Group by",
+    /**
+     * The Group by line under the outline: "Group by Louvain", or "Group by..." while none is picked.
+     * @param value - what it groups by, or undefined while none is picked.
+     * @returns the words.
+     */
+    line: (value?: string): string => (value === undefined ? "Group by..." : `Group by ${value}`),
+    none: "None",
+    mixed: "Mixed",
+    find: "Find outline",
+    copy: "Copy shader",
+    remove: "Remove group outline",
+    /**
+     * The history's name for a write: "changing the group outline on 3 layers".
+     * @param layers - how many layers it writes.
+     * @returns the words.
+     */
+    step: (layers: number): string =>
+        layers === 1 ? "changing the group outline" : `changing the group outline on ${String(layers)} layers`,
+    added: (name: string): string => `${name} added`,
+    removed: (name: string): string => `${name} removed`,
+} as const;

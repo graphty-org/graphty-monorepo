@@ -1,22 +1,22 @@
 import { ControlSection, Popout, PopoutButton } from "@graphty/compact-mantine";
-import type { ShaderParams } from "@graphty/graphty-element/catalog";
+import type { ShaderParams as Params } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type PasteInit, PasteShaderDialog } from "../style/PasteShaderDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
+import { ShaderParams } from "../style/ShaderParams";
 import { copyShaderText } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
 import {
-    enumWords,
     renderQualityWords,
     SHADER_KIND_WORDS,
     SHADER_MOTION_WORDS,
     SHADER_QUALITY_WORDS,
+    SHADER_STEP_WORDS,
     usedByWords,
 } from "../style/words";
 import { heldShaders, runHeld } from "./heldShaders";
@@ -53,12 +53,12 @@ interface BackgroundShaderProps {
     /** The background shader in force, if the background is one. */
     readonly shader: string | undefined;
     /** Its parameters. */
-    readonly params: ShaderParams;
+    readonly params: Params;
     /**
      * Writes a shader and its parameters as the background, through `scope` when given (a paste's
      * transaction, so the add and the write are one undo step).
      */
-    readonly onWrite: (shader: string, params: ShaderParams, scope?: GraphSession) => Promise<void> | void;
+    readonly onWrite: (shader: string, params: Params, scope?: GraphSession) => Promise<void> | void;
 }
 
 /**
@@ -153,23 +153,22 @@ export function BackgroundShader({
                         header={{ variant: "title", title: `${name} settings` }}
                     >
                         <Popout.Content>
-                            <Stack gap={8}>
-                                <OptionsForm
-                                    session={session}
-                                    options={descriptor.params}
-                                    values={params}
-                                    onChange={(param, value) => {
-                                        if (
-                                            typeof value === "number" ||
-                                            typeof value === "string" ||
-                                            typeof value === "boolean"
-                                        ) {
-                                            void onWrite(descriptor.id, { ...params, [param]: value });
-                                        }
-                                    }}
-                                    words={(option) => ({ label: option.plainName, choice: enumWords })}
-                                />
-                            </Stack>
+                            <ShaderParams
+                                descriptor={descriptor}
+                                values={params}
+                                onChange={(param, value) => {
+                                    const rest = Object.fromEntries(
+                                        Object.entries(params).filter(([key]) => key !== param),
+                                    );
+                                    const next = value === undefined ? rest : { ...rest, [param]: value };
+                                    const option = descriptor.params.find((each) => each.name === param);
+                                    // One step, named so Undo reads "Undid changing Nebula tint".
+                                    void session.transaction(
+                                        SHADER_STEP_WORDS.param(name, option?.plainName ?? param),
+                                        (tx) => onWrite(descriptor.id, next, tx as GraphSession),
+                                    );
+                                }}
+                            />
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>

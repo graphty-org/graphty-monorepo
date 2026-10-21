@@ -434,3 +434,30 @@
     border-top: 1px solid var(--cm-border, var(--mantine-color-default-border));
     background: var(--cm-bg);
 }
+
+/* A shader's settings pop-out: the panel's property rows, with a label column of its own (the
+   pop-out is outside the tab that sizes the tab's column). A number's name scrubs its value. */
+.ws-shader-params {
+    --ws-label: 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-shader-params .ws-field-label[data-scrub] {
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+/* An integer that picks one of a set: its pictures, the one in force pressed. */
+.ws-param-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+/* A line that belongs to the row above (Group by under a group outline): it starts at the field
+   column and adds no name to the label column. */
+.ws-field-sub {
+    padding-inline-start: var(--ws-label, 80px);
+}

@@ -27,6 +27,8 @@ const MANTINE_FLOATING_SELECTORS = [
  * Hook that calls a callback when clicking outside of any registered popout panels.
  * Uses data attributes to identify popout panels and their related elements.
  *
+ * A click on an element marked `data-popout-keep` (or inside one) is not outside either.
+ *
  * This hook is aware of Mantine's floating UI elements (Select dropdowns, Menu items,
  * Tooltips, etc.) which are rendered in portals. Clicks on these elements will NOT
  * trigger the outside click callback, allowing users to interact with form controls
@@ -63,6 +65,13 @@ export function useClickOutside(callback: () => void, enabled = true): void {
             if (clickedPortalContainer) {
                 // Click is in the portal container area but not on a panel,
                 // this could be on empty space in the container
+                return;
+            }
+
+            // A control that acts on what an open pop-out edits (an app's Undo and Redo) marks
+            // itself with data-popout-keep: pressing it leaves the pop-outs open, so the reader
+            // sees the change in the pop-out it was made in.
+            if (target.closest("[data-popout-keep]")) {
                 return;
             }
 

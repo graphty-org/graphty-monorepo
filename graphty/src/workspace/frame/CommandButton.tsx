@@ -13,6 +13,11 @@ interface CommandButtonProps {
     icon: React.ReactNode;
     /** Whether the thing it opens is open (`aria-pressed`). */
     pressed?: boolean;
+    /**
+     * A press leaves open pop-outs open (Undo and Redo): the reader sees the change taken back in
+     * the pop-out it was made in.
+     */
+    keepsPopouts?: boolean;
 }
 
 /**
@@ -27,9 +32,15 @@ interface CommandButtonProps {
  * @param props.id - The command id
  * @param props.icon - The glyph
  * @param props.pressed - Whether the thing it opens is open
+ * @param props.keepsPopouts - Whether a press leaves open pop-outs open
  * @returns The button, or null
  */
-export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps>): React.JSX.Element | null {
+export function CommandButton({
+    id,
+    icon,
+    pressed,
+    keepsPopouts,
+}: Readonly<CommandButtonProps>): React.JSX.Element | null {
     const door = useCommand(id);
     const { store } = useWorkspace();
     if (door === null) {
@@ -46,6 +57,7 @@ export function CommandButton({ id, icon, pressed }: Readonly<CommandButtonProps
                 // Every key, where the tooltip shows the first: Redo is Shift+Control+Z and Control+Y.
                 aria-keyshortcuts={command.keys?.map(ariaKey).join(" ")}
                 aria-pressed={pressed}
+                data-popout-keep={keepsPopouts === true ? "" : undefined}
                 aria-disabled={disabledReason !== null}
                 data-disabled={disabledReason === null ? undefined : true}
                 onClick={

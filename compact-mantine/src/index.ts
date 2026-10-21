@@ -41,10 +41,12 @@ export { ToggleWithContent } from "./components/ToggleWithContent";
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), and focus put on
-// a field by program with its ring drawn.
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), focus put on
+// a field by program with its ring drawn, and the scrub gesture a number field's handle uses, for a
+// property row whose label scrubs its value.
 export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
 export { focusWithRing } from "./components/inputs/listbox";
+export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
 // the toast and the tooltip's shortcut label (8.1-8.6).

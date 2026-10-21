@@ -480,4 +480,52 @@ describe("the canvas key on the real element", () => {
         );
         await unmoved("Undo taking the key away moved the drawing");
     });
+
+    it("does not come up for an effect, and names the effect when the reader asks for the key", async () => {
+        await page.viewport(1440, 900);
+        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const element = await waitFor(
+            () => {
+                const found = document.querySelector("graphty-element");
+                assert.isDefined(found?.session);
+                return found;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const session = element?.session;
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.config.set({ startingRows: true, editableBase: true });
+        const ids = session.data.nodes().map((node) => node.id);
+        const layer = await session.styles.add({
+            name: "Glowing",
+            target: "node",
+            selector: { match: "ids", nodes: ids.slice(0, 5) },
+            set: { "node.effects": { "uncertainty-aura": true } },
+        });
+        await session.styles.settled();
+        await element?.waitForStableFrame();
+        // A style write of an effect is no reason for the key to come up.
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+        assert.isFalse(store.get().keyHasEntries);
+
+        // Asked for, the key names the effect, as the catalog does.
+        store.set({ legendShown: true, legendAsked: true });
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const section = await within(legend).findByRole("group", { name: "Effects: Glowing" });
+        assert.deepEqual(
+            [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+            ["Aura"],
+        );
+
+        // An effect hidden by its eye draws nothing, so its block goes: no empty "Effects" block.
+        await session.styles.update(layer.id, { set: { "node.effects": { "uncertainty-aura": { visible: false } } } });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNull(within(legend).queryByRole("group", { name: /^Effects/ }));
+        });
+    });
 });

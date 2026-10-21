@@ -20,6 +20,7 @@ import { isPanelEscape } from "../keys/keys";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, selectionName, writeKind } from "./cards";
+import { GroupOutlineSection } from "./GroupOutlineSection";
 import { GroupDetail } from "./Groups";
 import { LabelSection } from "./LabelSection";
 import type { RowContext } from "./PropertyRow";
@@ -503,6 +504,7 @@ export function RowStyle({
                         <Section key={spec.id} ctx={ctx} spec={spec} />
                     ),
                 )}
+                {side === "node" && <GroupOutlineSection ctx={ctx} />}
             </section>
         );
     };

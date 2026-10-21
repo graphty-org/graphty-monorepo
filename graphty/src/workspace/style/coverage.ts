@@ -98,7 +98,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.bandColor": at("Edges, Effects, Band"),
     "edge.bandWidth": at("Edges, Effects, Band width"),
     "edge.bandOpacity": at("Edges, Effects, Band opacity"),
-    "edge.animationSpeed": at("Edges, Effects, Motion"),
+    "edge.animationSpeed": at("Edges, Effects, Dash motion"),
     "edge.label": at("Edges, Text, Label entry, source (a value, or Fixed text)"),
     "edge.labelStyle": at("Edges, Label entry look, position and Label settings"),
     "edge.labelSize": at("Edges, Label entry, size"),

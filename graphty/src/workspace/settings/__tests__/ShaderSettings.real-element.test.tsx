@@ -11,9 +11,10 @@ import "@graphty/graphty-element";
 
 import { createGraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { cdp, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { SHADER_MOTION, SHADER_QUALITY, TRUSTED_SHADERS_KEY } from "../shaderPreferences";
@@ -184,8 +185,9 @@ describe("the graph's shader settings", () => {
             assert.strictEqual(background.backgroundType === "shader" ? background.shader : "", "nebula");
         });
 
-        // The pick opens its settings, as a style row's pick does.
-        const drift = await screen.findByRole("spinbutton", { name: /^Drift/ }, { timeout: TIMEOUT_MS });
+        // The pick opens its settings, as a style row's pick does. Drift sets how fast it moves,
+        // so it is the Motion row's field.
+        const drift = await screen.findByRole("spinbutton", { name: "Motion" }, { timeout: TIMEOUT_MS });
         await userEvent.clear(drift);
         await userEvent.type(drift, "0{Enter}");
         await waitFor(() => {
@@ -254,6 +256,55 @@ describe("the graph's shader settings", () => {
         await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
         await screen.findByRole("menuitem", { name: "Motion on" });
         assert.isNull(screen.queryByRole("menuitem", { name: "Motion off" }));
+
+        // Motion on goes back to the system's own preference, not a permanent "on".
+        await userEvent.click(screen.getByRole("menuitem", { name: "Motion on" }));
+        assert.strictEqual(element.shaderSettings.motion, "system");
+    });
+
+    it("offers Motion on when the system asks for reduced motion, and then overrides it", async () => {
+        const send = cdp() as unknown as { send: (method: string, params?: object) => Promise<unknown> };
+        await send.send("Emulation.setEmulatedMedia", {
+            features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+        });
+        try {
+            const element = await openGraphSettings();
+            await pickNebula();
+            await waitFor(
+                () => {
+                    assert.strictEqual(
+                        element.renderQuality.motion,
+                        "still",
+                        "the system's preference holds shaders still",
+                    );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
+            assert.isNotNull(surface);
+            await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
+            // Already still: the menu offers to start motion, never to stop it again.
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Motion on" }));
+            assert.isNull(screen.queryByRole("menuitem", { name: "Motion off" }));
+            assert.strictEqual(element.shaderSettings.motion, "on", "the reader overrides the system's preference");
+        } finally {
+            await send.send("Emulation.setEmulatedMedia", { features: [] });
+        }
+    });
+
+    it("names the background and the parameter in Undo", async () => {
+        const element = await openGraphSettings();
+        await pickNebula();
+        await waitFor(() => {
+            assert.strictEqual(historyTip(element.session, true), "Undo changing the background");
+        });
+        const settings = await screen.findByRole("dialog", { name: "Nebula settings" }, { timeout: TIMEOUT_MS });
+        const stars = within(settings).getByRole("spinbutton", { name: "Stars" });
+        await userEvent.clear(stars);
+        await userEvent.type(stars, "0.2{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(historyTip(element.session, true), "Undo changing Nebula stars");
+        });
     });
 
     it("names a file's pasted shader in the load report; Run draws it, and a reload does not hold it again", async () => {

@@ -16,8 +16,13 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { dragAcross } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
+import { CommandButton } from "../../frame/CommandButton";
+import { historyTip } from "../../frame/historyWords";
+import { GLYPHS } from "../../glyphs";
+import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { StylePanel } from "../StylePanel";
@@ -573,5 +578,147 @@ describe("shader rows on the real element", () => {
         await userEvent.click(plus);
         await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
         assert.strictEqual(plus.getAttribute("aria-expanded"), "true");
+    });
+});
+
+describe("a shader's settings pop-out", () => {
+    beforeAll(async () => {
+        await page.viewport(1024, 768);
+    });
+
+    /**
+     * The open pop-out's row for one parameter.
+     * @param name - the parameter's id.
+     * @returns the row.
+     */
+    function paramRow(name: string): HTMLElement {
+        const row = document.querySelector<HTMLElement>(`.ws-shader-params [data-option="${name}"]`);
+        assert.isNotNull(row, `the ${name} row is drawn`);
+        return row;
+    }
+
+    it("draws property rows: a label column, bounded fields, one minus, Motion as the speed field and a named color chip", async () => {
+        const { session, element } = await mountElement();
+        const id = await renderRow(session, element);
+        await showKind("node");
+        await addEffect("Reticle");
+        await screen.findByRole("dialog", { name: "Reticle settings" }, { timeout: TIMEOUT_MS });
+
+        // Every parameter is a row of the panel: its name in the label column, beside its field.
+        for (const name of ["hudColor", "ticks", "lineWidth"]) {
+            assert.isNotNull(paramRow(name).querySelector(".ws-field[data-named] > .ws-field-label"));
+        }
+        // A number field is bounded by the parameter's range.
+        const ticks = within(paramRow("ticks")).getByRole("spinbutton", { name: "Ticks" });
+        assert.strictEqual(ticks.getAttribute("aria-valuemin"), "8");
+        assert.strictEqual(ticks.getAttribute("aria-valuemax"), "120");
+        // Motion is the speed parameter's own field, not its name as words.
+        const motion = screen.getByTestId("shader-motion");
+        within(motion).getByRole("spinbutton", { name: "Motion" });
+        assert.isNull(
+            document.querySelector('.ws-shader-params [data-option="spin"]:not([data-testid="shader-motion"] *)'),
+        );
+        // Nothing set yet: no reset anywhere.
+        assert.isNull(screen.queryByRole("button", { name: /^Reset / }));
+
+        await userEvent.clear(ticks);
+        await userEvent.type(ticks, "60{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(session.styles.get(id)?.set?.["node.effects"], { "lock-on-reticle": { ticks: 60 } });
+        });
+        // One minus, the only reset, on the one parameter set.
+        assert.lengthOf(screen.getAllByRole("button", { name: /^Reset / }), 1);
+        within(paramRow("ticks")).getByRole("button", { name: "Reset ticks" });
+
+        // A color chip is named after its parameter.
+        await closePopout();
+        await addEffect("Aura");
+        await screen.findByRole("dialog", { name: "Aura settings" }, { timeout: TIMEOUT_MS });
+        within(paramRow("auraColor")).getByRole("button", { name: "Pick aura color" });
+    });
+
+    it("scrubs a number by its name, inside the parameter's range, as one undo step", async () => {
+        const { session, element } = await mountElement();
+        const id = await renderRow(session, element);
+        await showKind("node");
+        await addEffect("Reticle");
+        await screen.findByRole("dialog", { name: "Reticle settings" }, { timeout: TIMEOUT_MS });
+        const steps = session.history.position;
+
+        const label = paramRow("lineWidth").querySelector(".ws-field-label");
+        assert.isNotNull(label);
+        // Far past the top of the range: the value stops at the parameter's max.
+        await dragAcross(label, 600);
+        await waitFor(() => {
+            const effects = session.styles.get(id)?.set?.["node.effects"] as Record<string, Record<string, number>>;
+            assert.strictEqual(effects["lock-on-reticle"]?.lineWidth, 5);
+        });
+        assert.strictEqual(session.history.position, steps + 1, "one step for the whole drag");
+    });
+
+    it("draws an integer that picks one of a set as its pictures", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Stickers",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shader": "icon-sticker" },
+        });
+        renderPanel(session, element, [layer.id]);
+        await showKind("node");
+        await userEvent.click(await screen.findByRole("button", { name: "Sticker settings" }, { timeout: TIMEOUT_MS }));
+        const grid = await screen.findByRole("group", { name: "Icon" });
+        assert.isNull(within(paramRow("icon")).queryByRole("spinbutton"), "no bare number box");
+        await userEvent.click(within(grid).getByRole("button", { name: "Heart outline" }));
+        await waitFor(() => {
+            assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaderParams"], { "icon-sticker": { icon: 8 } });
+        });
+        assert.strictEqual(
+            within(grid).getByRole("button", { name: "Heart outline" }).getAttribute("aria-pressed"),
+            "true",
+        );
+    });
+
+    it("names the effect and the parameter in Undo, and stays open when Undo is pressed", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 1 },
+        });
+        const value = makeWorkspaceValue(createWorkspaceStore(), createRegistry(REGISTRATIONS), session, element);
+        render(
+            <WorkspaceContext.Provider value={value}>
+                <PopoutManager>
+                    <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} keepsPopouts />
+                    <div style={{ width: 300 }}>
+                        <StylePanel layers={[layer.id]} />
+                    </div>
+                </PopoutManager>
+            </WorkspaceContext.Provider>,
+        );
+        await showKind("node");
+        await addEffect("Reticle");
+        await screen.findByRole("dialog", { name: "Reticle settings" }, { timeout: TIMEOUT_MS });
+        assert.strictEqual(historyTip(session, true), "Undo adding Reticle");
+
+        const ticks = within(paramRow("ticks")).getByRole("spinbutton", { name: "Ticks" });
+        await userEvent.clear(ticks);
+        await userEvent.type(ticks, "60{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(historyTip(session, true), "Undo changing Reticle ticks");
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+        await waitFor(() => {
+            assert.deepEqual(session.styles.get(layer.id)?.set?.["node.effects"], { "lock-on-reticle": true });
+        });
+        // The pop-out the change was made in stays open, showing the value taken back.
+        screen.getByRole("dialog", { name: "Reticle settings" });
+        assert.strictEqual(
+            within(paramRow("ticks")).getByRole("spinbutton", { name: "Ticks" }).getAttribute("aria-valuenow"),
+            "48",
+        );
     });
 });

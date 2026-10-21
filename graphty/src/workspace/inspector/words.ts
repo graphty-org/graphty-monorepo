@@ -128,7 +128,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailOpacity": "Arrow",
     "edge.arrowTailText": "Arrow",
     "edge.arrowTailTextStyle": "Arrow",
-    "edge.animationSpeed": "Motion",
+    "edge.animationSpeed": "Dash motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label",
     "edge.bandColor": "Band",

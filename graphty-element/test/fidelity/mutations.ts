@@ -643,6 +643,17 @@ const DEFECTS = {
         });
         return s;
     },
+    // the caps of a line drawn in pieces: a line the program stops a piece of its pattern short of its cap (Cytoscape
+    // desktop's zigzag, sine wave, slashes), its cap judged only once the comparator pairs that line by its own cap
+    "arrowhead color changed on lines drawn in pieces": eachEdge((e) => {
+        if (e.stroke !== null && isPattern(e.stroke.dashClass)) {
+            e.arrows.forEach((a) => {
+                if (a.color !== null) {
+                    a.color = invert(a.color);
+                }
+            });
+        }
+    }),
     "arrowhead color changed": eachEdge((e) => {
         e.arrows.forEach((a) => {
             if (a.color !== null) {
@@ -849,6 +860,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "label words changed": ["label.text", "label.present", "edge.label", "group.label"],
     "label lines aligned the other way": ["label.align", "label.lines", "label.present", "edge.label", "group.label"],
     "label background border added": ["label.backgroundBorder", "label.present", "edge.label", "group.label"],
+    "arrowhead color changed on lines drawn in pieces": ["edge.arrowColor", "edge.arrow"],
     "arrowhead color changed": ["edge.arrowColor", "edge.arrow"],
     "group fill color changed": ["group.fill"],
     "one node moved twice its size": ["node.position", "node.present", "node.extra"],

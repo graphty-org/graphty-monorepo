@@ -3744,3 +3744,59 @@ Still failing, open:
   spacing (ratio 0.82, tolerance 0.9).
 - edge.arrow (42 target ends) and stray.present (31 shapes): about 5 x 3 px arrowheads at crowded nodes that the
   comparator gives to no edge. Comparator, open.
+
+## Cytoscape desktop's patterned lines carried to their own arrowheads (round 4, 2026-10-20)
+
+Cytoscape desktop exports a zigzag, sine-wave, slashes, double or arrows line as a filled band, and stops it up to a
+piece of its pattern short of its arrowhead's base; it draws each edge's arrowheads right after its line. The
+comparator looked for a band's nodes only within an end reach of the band's axis ends, so a band 20 px or more short
+of its node, or nearer a neighbor's box than its own node, was left unpaired. The free band was then taken for a
+neighbor's arrowhead: `cys-syn-mappings` 186->198's target cap was read as a "half" 346 px long, colored like the
+zigzag below it, and carried 186->198's line on to x = 802, past its node at x = 663. The band's own arrowheads went to
+whichever line ended nearest, and what was left became strays. Fixed in the comparator
+(`graphty-element/test/fidelity/oracle/associate.ts`, tests in `associate-patterned-ends.test.ts`):
+
+- The shapes drawn right after a line (its two caps; a dot no wider than the line is its own end) carry an end that is
+  not on a node's outline on to their tip, and they cap that line, whichever neighbor's end lies nearer them. A line
+  they would carry to a pair graphty does not draw is read as it was without them (an arrow annotation in
+  `xgmml-wp4271-cy3-export`).
+- A band's end reaches half its swing farther, as its drawn pieces do.
+- A band is no arrowhead an end reaches its node through (`cys-syn-mappings` 420->426: an open half circle at the end
+  of a double line, read through that line to the far node, stood in for the edge).
+- An end beyond a flat ellipse is judged by its distance along the ray from its center (35 px off a 38 x 15 ellipse's
+  end was read as 19, `xgmml-syn-mappings` 345->360).
+- A wide sine wave Cytoscape draws a whole period per piece (`cys-syn-mappings` 432->450, 225->210) is read as a sine
+  wave, not as arrows: a period lies off its mirror image by half its thickness or more, an arrow by a fraction of a
+  pixel (`primitives.ts`).
+- Planted defect "arrowhead color changed on lines drawn in pieces" (`mutations.ts`), caught on all four syn samples.
+
+Before -> after (whole oracle report, every sample re-run; no other sample's score moved apart from the run-to-run
+raster and layout noise graphty's own drawing already showed):
+
+- `cys-syn-mappings`: failing elements 167 -> 45, strays 31 -> 5; edge.extra 0.936 -> 0.979, route 0.878 -> 0.985,
+  dash 0.962 -> 0.993, arrow 0.896 -> 0.99, arrowShape 0.791 -> 0.984, arrowColor 0.815 -> 0.992. 186->198 now
+  passes every property (its target cap the #b44c42 triangle 18.8 px long, its line ending at x = 649).
+- `cx-syn-mappings`: 171 -> 47 failing, strays 34 -> 5; arrowColor 0.797 -> 0.992, arrowShape 0.783 -> 0.984; 255->279
+  passes; 462->192 fails only arrow length and width (Cytoscape draws its caps larger).
+- `cx2-syn-mappings`: 207 -> 82, strays 39 -> 12; `xgmml-syn-mappings`: 170 -> 45, strays 30 -> 5; the same rises.
+- The syn-bypass family: `cys` 21 -> 17, `cx` 27 -> 24, `cx2` 30 -> 25, `xgmml` 24 -> 17 failing elements.
+- Other Cytoscape and draw.io drawings whose caps follow their lines: `cx2-signor-aml` 180 -> 120, `cx-nci-pid-rhoa`
+  10 -> 1, `json-cyjs-graphmaker` 19 -> 4, `cx2-wp1449-tlr` 137 -> 130, `graphml-synthetic-edges` 109 -> 106,
+  `graphml-stm32-func` 130 -> 126.
+
+Lowered floors (each with its reason in `oracle-floors.json`): `cx-radiation-bibliography` arrowToSpacing 0.006 -> 0 and
+(matched) arrowLength and arrowToSpacing 0.012 -> 0.006, more of its arrowheads judged and failing as nearly all already
+did; `cx2-syn-mappings` stray.present 0.093 -> 0.077, over 13 free shapes instead of 43; `graphml-yfiles-html-ss13-tree`
+arrowFill 0.171 -> 0.17 and `yed-graphml-specimen-arrows` arrowFill 0.944 -> 0.9, a cap judged for the first time that
+fails as its twins do (draw.io, the yEd stand-in, draws them hollow).
+
+Still open:
+
+- `cx-syn-bypass` / `cx2-syn-bypass` 2235->2244: one path holds the slashes of several lines (1715 pieces), so no one
+  band of it is the edge.
+- `xgmml-syn-bypass` 1273092->1273088: the only band in its color is a slashes band of 716 pieces running from x = 468,
+  past 1273092, so no band ends at both nodes; not investigated further.
+- `*-syn-mappings` 189->192 (a solid line 5 px wide): no line of Cytoscape's SVG is read there yet; not investigated
+  further.
+- Now judged and failing as import gaps: Cytoscape's mapped arrow sizes on the syn-mappings family (49 to 92 px heads
+  where graphty draws 13 to 22, e.g. 441->426, 408->414, 345->360), and half arrows drawn as one long barb.

@@ -602,8 +602,9 @@ function piecesPattern(
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
         // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
-        // its own mirror image by more than its thickness; an arrow drawn square on the line is its own mirror image
-        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > thin;
+        // its own mirror image by half its thickness or more (a wide one's period, cys-syn-mappings 432->450: 1.3 px off
+        // at 1.4 thick); an arrow drawn square on the line is its own mirror image, a fraction of a pixel off
+        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 0.5 * thin;
         if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
@@ -771,6 +772,8 @@ const BAND_ASPECT = 1.5;
 export interface PaintedBand extends PaintedOutline {
     /** The two ends of the band's axis, along its longest direction. */
     ends: [Pt, Pt];
+    /** How far the band reaches across its axis: a wave's or a zigzag's swing, a double line's two rows. */
+    across: number;
 }
 
 /**
@@ -817,11 +820,11 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     });
     if (runs.length === subpaths.length && subpaths.length <= 2) {
         if (subpaths.length === 2) {
-            return { ...patternResult("double", null, box), ends };
+            return { ...patternResult("double", null, box), ends, across: spread };
         }
         const q = subpaths[0];
         const width = (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9);
-        return { ...patternResult(continuousPattern(q), width, box), ends };
+        return { ...patternResult(continuousPattern(q), width, box), ends, across: spread };
     }
     if (subpaths.length < 3) {
         return null;
@@ -834,7 +837,7 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    return { ...patternResult(dashClass, width, box), ends };
+    return { ...patternResult(dashClass, width, box), ends, across: spread };
 }
 
 /**

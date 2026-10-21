@@ -248,7 +248,7 @@ function flavorOf(style: EdgeStyleConfig | null): string {
 function edgeSeedOf(id: string): number {
     let hash = 0x811c9dc5;
     for (let i = 0; i < id.length; i++) {
-        hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193);
+        hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193); // NOSONAR(S7758): FNV-1a over UTF-16 code units; codePointAt would change the seed of an id outside the BMP
     }
 
     return (hash >>> 0) / 0xffffffff;
@@ -1434,29 +1434,7 @@ export class Edge {
 
         const batch = this.lineBatch;
         if (batch?.widened === true) {
-            const shader =
-                surface !== null && this.lineBuilt === `surface:${surface}`
-                    ? (drawing?.shader(surface, this) ?? null)
-                    : null;
-            if (shader !== null && this.surfaceEnteredFor !== surface && drawing !== null) {
-                const { stamp, untilMs } = drawing.entrance(shader, this.causedAt);
-                this.surfaceEntered = stamp;
-                this.surfaceEnteredFor = surface;
-                for (const slot of this.lineSlots) {
-                    shaded(batch)?.playUntil(slot, untilMs);
-                }
-            }
-
-            const look = this.staticLook(style, shader === null ? EDGE_NEVER : this.surfaceEntered);
-            const values = surface === null ? undefined : block?.params?.[surface];
-            this.lineStatic =
-                shader !== null && drawing !== null
-                    ? drawing.staticValues(look, shader, values)
-                    : edgeStaticValues(look);
-            this.lineSpeed = shader !== null && drawing !== null ? drawing.speedOf(shader, values) : 0;
-            for (const slot of this.lineSlots) {
-                this.prepareLineSlot(slot);
-            }
+            this.syncLineShading(style, batch, drawing, surface, block);
         } else {
             this.lineStatic = null;
             this.surfaceEnteredFor = null;
@@ -1464,6 +1442,46 @@ export class Edge {
 
         if (drawing !== null) {
             this.syncEffects(style, drawing);
+        }
+    }
+
+    /**
+     * The line half of {@link Edge.syncShading}, for a widened line batch: play the surface's
+     * entrance when the surface changed, then write the line's static values and speed into every
+     * slot.
+     * @param style - The resolved style.
+     * @param batch - The line batch, widened.
+     * @param drawing - The scene's edge shader drawing, or null when there is none.
+     * @param surface - The surface's id, or null for none.
+     * @param block - The style's shader block.
+     */
+    private syncLineShading(
+        style: EdgeStyleConfig,
+        batch: EdgeLineBatch,
+        drawing: EdgeShaderDrawing | null,
+        surface: string | null,
+        block: EdgeShaderStyle | undefined,
+    ): void {
+        const shader =
+            surface !== null && this.lineBuilt === `surface:${surface}`
+                ? (drawing?.shader(surface, this) ?? null)
+                : null;
+        if (shader !== null && this.surfaceEnteredFor !== surface && drawing !== null) {
+            const { stamp, untilMs } = drawing.entrance(shader, this.causedAt);
+            this.surfaceEntered = stamp;
+            this.surfaceEnteredFor = surface;
+            for (const slot of this.lineSlots) {
+                shaded(batch)?.playUntil(slot, untilMs);
+            }
+        }
+
+        const look = this.staticLook(style, shader === null ? EDGE_NEVER : this.surfaceEntered);
+        const values = surface === null ? undefined : block?.params?.[surface];
+        this.lineStatic =
+            shader !== null && drawing !== null ? drawing.staticValues(look, shader, values) : edgeStaticValues(look);
+        this.lineSpeed = shader !== null && drawing !== null ? drawing.speedOf(shader, values) : 0;
+        for (const slot of this.lineSlots) {
+            this.prepareLineSlot(slot);
         }
     }
 
@@ -1534,25 +1552,7 @@ export class Edge {
             }
 
             kept.add(id);
-            let run = this.effectRuns.get(id);
-            if (run !== undefined && (run.batch !== batch || run.batch.disposed)) {
-                this.releaseEffect(id, run, false);
-                run = undefined;
-            }
-
-            if (run === undefined) {
-                const { stamp, untilMs } = drawing.entrance(batch.shader, this.causedAt);
-                const slot = batch.acquire();
-                if (untilMs > 0) {
-                    batch.playUntil(slot, untilMs);
-                }
-
-                run = { batch, slots: [slot], values: new Float32Array(0), speed: 0, entered: stamp };
-                this.effectRuns.set(id, run);
-                // The run has no place until the next update puts it on the line.
-                this.invalidatePositionCache();
-            }
-
+            const run = this.effectRunFor(id, batch, drawing);
             run.values = drawing.staticValues(this.staticLook(style, run.entered), batch.shader, values);
             run.speed = drawing.speedOf(batch.shader, values);
             for (const slot of run.slots) {
@@ -1566,6 +1566,38 @@ export class Edge {
                 this.releaseEffect(id, run, true);
             }
         }
+    }
+
+    /**
+     * The run that draws one effect with one batch: the edge's current run when it still draws with
+     * that batch, else a new run of one slot that plays the effect's entrance (an old run on another
+     * or a disposed batch is released at once, without its exit).
+     * @param id - The effect's id.
+     * @param batch - The batch the effect draws with now.
+     * @param drawing - The scene's edge shader drawing.
+     * @returns The run.
+     */
+    private effectRunFor(id: string, batch: EffectRun["batch"], drawing: EdgeShaderDrawing): EffectRun {
+        const run = this.effectRuns.get(id);
+        if (run !== undefined && run.batch === batch && !run.batch.disposed) {
+            return run;
+        }
+
+        if (run !== undefined) {
+            this.releaseEffect(id, run, false);
+        }
+
+        const { stamp, untilMs } = drawing.entrance(batch.shader, this.causedAt);
+        const slot = batch.acquire();
+        if (untilMs > 0) {
+            batch.playUntil(slot, untilMs);
+        }
+
+        const created: EffectRun = { batch, slots: [slot], values: new Float32Array(0), speed: 0, entered: stamp };
+        this.effectRuns.set(id, created);
+        // The run has no place until the next update puts it on the line.
+        this.invalidatePositionCache();
+        return created;
     }
 
     /**

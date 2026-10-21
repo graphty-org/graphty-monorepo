@@ -272,7 +272,7 @@ export interface RenderQualityChange {
 /** The settings the host draws by, resolved from {@link ShaderSettings}. */
 export interface HostRenderSettings {
     /** The quality level the settings ask for, `"auto"` resolved. */
-    readonly quality: "low" | "medium" | "high";
+    readonly quality: RenderQuality["level"];
     /** Whether shaders move. */
     readonly motion: "system" | "on" | "off";
     /** Whether the frame guard may step quality down. */
@@ -444,7 +444,7 @@ function bodyLineOf(text: string, body: string): number {
     const start = text.endsWith(body) ? text.length - body.length : 0;
     let line = 1;
     for (let index = 0; index < start; index++) {
-        if (text.charCodeAt(index) === 10) {
+        if (text.codePointAt(index) === 10) {
             line++;
         }
     }
@@ -511,7 +511,7 @@ function differingDefaults(text: ShaderDescriptor, known: ShaderDescriptor): Sha
  * @throws A `GraphtyError` with `E_SHADER_KIND` for a background, which no layer draws.
  */
 function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: ShaderParams = {}): Partial<LayerSpec> {
-    const set = { ...(spec.set ?? {}) } as Record<string, unknown>;
+    const set = { ...spec.set } as Record<string, unknown>;
     const given = Object.keys(params).length > 0;
     const surface = (side: "node" | "edge"): void => {
         set[`${side}.shader`] = descriptor.id;
@@ -706,7 +706,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return undefined;
         }
 
-        const renamedText = text.replace(new RegExp(`("id"\\s*:\\s*)"${named}"`), `$1"user/${named}"`);
+        const renamedText = text.replace(new RegExp(String.raw`("id"\s*:\s*)"${named}"`), `$1"user/${named}"`);
         const copy = renamedText === text ? undefined : readText(renamedText, kind);
         return copy === undefined || Array.isArray(copy) ? undefined : { ...(copy as ReadText), copyOf: named };
     };
@@ -891,6 +891,25 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
+     * Start compiling one project shader when it may run (a host, a trusted text, not quarantined)
+     * and has not been compiled yet.
+     * @param id - The shader's id.
+     * @param shader - The shader, read.
+     */
+    function startCompile(id: string, shader: ReadText): void {
+        if (host === null || !trusted(shader.hash) || quarantined.has(shader.hash) || compiled.has(shader.hash)) {
+            return;
+        }
+
+        void compile({
+            id,
+            hash: shader.hash,
+            registration: shader.registration,
+            bodyLine: shader.bodyLine,
+        });
+    }
+
+    /**
      * Bring every project shader's status up to date: start compiling the ones that may run,
      * and publish what changed.
      */
@@ -903,17 +922,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 continue;
             }
 
-            if (host !== null && trusted(shader.hash) && !quarantined.has(shader.hash)) {
-                if (!compiled.has(shader.hash)) {
-                    void compile({
-                        id,
-                        hash: shader.hash,
-                        registration: shader.registration,
-                        bodyLine: shader.bodyLine,
-                    });
-                }
-            }
-
+            startCompile(id, shader);
             const status = statusOf(shader);
             if (status.state === "held") {
                 held.add(id);
@@ -975,7 +984,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             const body =
                 registeredShaderSource(descriptor.id)?.glsl ??
                 (descriptor.origin === "element" ? await presetBody(descriptor.id) : undefined);
-            if (body !== undefined && body.trim() === shader.registration.glsl.trim()) {
+            if (body?.trim() === shader.registration.glsl.trim()) {
                 return { id: descriptor.id, params: differingDefaults(shader.descriptor, descriptor) };
             }
         }
@@ -1576,7 +1585,7 @@ function renderSettingsOf(settings: ShaderSettings): HostRenderSettings {
  * @param settings - The settings.
  * @returns The level.
  */
-function qualityOf(settings: ShaderSettings): "low" | "medium" | "high" {
+function qualityOf(settings: ShaderSettings): RenderQuality["level"] {
     const quality = settings.quality ?? "auto";
     if (quality !== "auto") {
         return quality;

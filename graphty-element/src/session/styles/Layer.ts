@@ -1326,6 +1326,36 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
 }
 
 /**
+ * Check one channel the specification sets: its name, then its value -- a shader value or a
+ * static one.
+ * @param channel - The channel's name.
+ * @param value - The value it is set to.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param catalog - Whether shader ids are checked against the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkSetChannel(
+    channel: string,
+    value: ChannelValue | undefined,
+    target: SelectorTarget | null,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const path = `set.${channel}`;
+    const descriptor = checkChannel(channel, target, path, log);
+
+    if (descriptor?.shaderKinds !== undefined && value !== undefined) {
+        checkShaderValue(descriptor, value, path, catalog, log);
+    } else if (descriptor !== null && value !== undefined) {
+        const problem = checkStaticValue(descriptor, value, path);
+
+        if (problem !== null) {
+            report(log, problem);
+        }
+    }
+}
+
+/**
  * Check every channel the specification writes.
  * @param spec - The specification.
  * @param target - The layer's target, or null when it could not be settled.
@@ -1342,18 +1372,7 @@ function checkChannels(
 ): void {
     const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
-        const path = `set.${channel}`;
-        const descriptor = checkChannel(channel, target, path, log);
-
-        if (descriptor?.shaderKinds !== undefined && value !== undefined) {
-            checkShaderValue(descriptor, value, path, catalog, log);
-        } else if (descriptor !== null && value !== undefined) {
-            const problem = checkStaticValue(descriptor, value, path);
-
-            if (problem !== null) {
-                report(log, problem);
-            }
-        }
+        checkSetChannel(channel, value, target, catalog, log);
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {

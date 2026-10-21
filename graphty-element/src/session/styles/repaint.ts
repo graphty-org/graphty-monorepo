@@ -873,6 +873,22 @@ function combined(combine: Combine, beneath: number, painted: number): number {
 }
 
 /**
+ * Write what one channel of a layer painted on one element into the channel's column: combined
+ * with the number beneath for a combining number channel, else written as the column holds it.
+ * @param channel - The channel.
+ * @param index - The element.
+ * @param painted - What the layer painted, never undefined.
+ */
+function writePainted(channel: PreparedChannel, index: number, painted: unknown): void {
+    const { column, combine } = channel;
+    if (combine !== null && column.kind === "number" && typeof painted === "number") {
+        column.values[index] = combined(combine, column.values[index], painted);
+    } else {
+        writeColumn(column, index, channel.toColumn === null ? painted : channel.toColumn(painted), channel.plainText);
+    }
+}
+
+/**
  * The combine a binding asks for, ready for the pass.
  * @param descriptor - The channel.
  * @param binding - The binding.
@@ -1619,17 +1635,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     reached[index] = 1;
                 }
 
-                const { column, combine } = channel;
-                if (combine !== null && column.kind === "number" && typeof painted === "number") {
-                    column.values[index] = combined(combine, column.values[index], painted);
-                } else {
-                    writeColumn(
-                        column,
-                        index,
-                        channel.toColumn === null ? painted : channel.toColumn(painted),
-                        channel.plainText,
-                    );
-                }
+                writePainted(channel, index, painted);
             }
         };
 

@@ -1934,6 +1934,9 @@ const SHADER_CAVEAT =
 /** Where each shader channel lands in a parsed style's `shader` block. */
 const SHADER_STYLE_FIELD = { shader: "id", shaderParams: "params", effects: "effects" } as const;
 
+/** The names of a target's three shader channels. */
+type ShaderChannelName = "shader" | "shaderParams" | "effects";
+
 /**
  * The three shader channels of one target.
  * @param target - Nodes or edges.
@@ -1945,10 +1948,10 @@ function shaderChannels<T extends "node" | "edge">(
     target: T,
     drawn: readonly ShaderKind[],
     effects: readonly ShaderKind[],
-): Record<`${T}.${"shader" | "shaderParams" | "effects"}`, ChannelDescriptor> {
+): Record<`${T}.${ShaderChannelName}`, ChannelDescriptor> {
     const title = target === "node" ? "Node" : "Edge";
     const row = (
-        name: "shader" | "shaderParams" | "effects",
+        name: ShaderChannelName,
         accepts: ChannelValueKind,
         plainName: string,
         kinds: readonly ShaderKind[],
@@ -1972,7 +1975,7 @@ function shaderChannels<T extends "node" | "edge">(
         [`${target}.shader`]: row("shader", "shader", "Shader", drawn),
         [`${target}.shaderParams`]: row("shaderParams", "shaderParams", "Shader parameters", drawn),
         [`${target}.effects`]: row("effects", "shaderEffects", "Effects", effects),
-    } as Record<`${T}.${"shader" | "shaderParams" | "effects"}`, ChannelDescriptor>;
+    } as Record<`${T}.${ShaderChannelName}`, ChannelDescriptor>;
 }
 
 /**

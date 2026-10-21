@@ -984,6 +984,33 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * Check one value a LAYER wrote to a number channel: a finite number inside the channel's range.
+ * @param descriptor - The channel.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @returns The number.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
+ */
+function authoredNumber(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    what: string,
+    wrongKind: (expected: string) => GraphtyError,
+): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw wrongKind("a number");
+    }
+
+    const { max, min } = descriptor;
+    if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
  * Check one value a LAYER wrote against the channel it is written to.
  *
  * A literal, a per-value override and what a missing value paints are all authored, so all three
@@ -1010,18 +1037,8 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         case "color":
             // An effect written off carries the one off colour, which the painter draws as nothing.
             return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
-        case "number": {
-            if (typeof value !== "number" || !Number.isFinite(value)) {
-                throw wrongKind("a number");
-            }
-
-            const { max, min } = descriptor;
-            if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
-        }
+        case "number":
+            return authoredNumber(descriptor, value, what, wrongKind);
         case "text":
             if (typeof value !== "string") {
                 throw wrongKind("text");

@@ -3281,9 +3281,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const documentShaders = (
         document: StyleDocument,
-        asked: "run" | "hold" | "refuse" | undefined,
+        asked: ShaderTrustMode | undefined,
     ): {
-        readonly mode: "run" | "hold" | "refuse";
+        readonly mode: ShaderTrustMode;
         readonly writes: readonly { readonly id: string; readonly text: string }[];
         readonly facts: readonly CodedFact<"shader.held" | "shader.id-taken">[];
     } => {
@@ -5079,10 +5079,13 @@ export function paintingOf(api: SessionStylesApi, stack: readonly CompiledLayer[
     return PAINTING.get(api)?.(stack) ?? stack;
 }
 
+/** What a document's shaders do: run, wait for approval, or draw nothing. */
+type ShaderTrustMode = "run" | "hold" | "refuse";
+
 /** What a session's shaders tell its style stack about trust; see {@link setShaderTrust}. */
 interface ShaderTrust {
     /** The trust a document gets when its call names none. */
-    readonly mode: () => "run" | "hold" | "refuse";
+    readonly mode: () => ShaderTrustMode;
     /** Whether a text may run without asking. */
     readonly trusted: (text: string) => boolean;
     /** Approve texts for this session. */

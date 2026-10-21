@@ -1247,6 +1247,30 @@ function captionTally(directed: boolean): {
 }
 
 /**
+ * What a layer's boundary shader does not draw: nothing when the layer names none, matches
+ * nothing, or names a boundary shader; else one fact saying the shader is unknown or of another
+ * kind, with how many elements it would have drawn.
+ * @param boundary - The boundary shader the layer names, if any.
+ * @param matched - How many elements the layer matched.
+ * @returns The facts.
+ */
+function boundaryFactsOf(boundary: string | undefined, matched: number): CodedFact<UndrawnCode>[] {
+    return boundary === undefined || matched === 0 || shaderDescriptor(boundary)?.kind === "boundary"
+        ? []
+        : [
+              {
+                  code: shaderDescriptor(boundary) === undefined ? "shader.unknown" : "shader.kind-mismatch",
+                  params: {
+                      channel: "boundary",
+                      shader: boundary,
+                      ...(shaderDescriptor(boundary) === undefined ? {} : { kind: shaderDescriptor(boundary)?.kind }),
+                      count: matched,
+                  },
+              },
+          ];
+}
+
+/**
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
@@ -1325,23 +1349,7 @@ export function styleCounts(
         }
     }
 
-    const boundary = layer.boundary?.shader;
-    const boundaryFacts: CodedFact<UndrawnCode>[] =
-        boundary === undefined || matched === 0 || shaderDescriptor(boundary)?.kind === "boundary"
-            ? []
-            : [
-                  {
-                      code: shaderDescriptor(boundary) === undefined ? "shader.unknown" : "shader.kind-mismatch",
-                      params: {
-                          channel: "boundary",
-                          shader: boundary,
-                          ...(shaderDescriptor(boundary) === undefined
-                              ? {}
-                              : { kind: shaderDescriptor(boundary)?.kind }),
-                          count: matched,
-                      },
-                  },
-              ];
+    const boundaryFacts = boundaryFactsOf(layer.boundary?.shader, matched);
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
     const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({

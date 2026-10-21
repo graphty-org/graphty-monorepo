@@ -4104,13 +4104,7 @@ export class Graph implements GraphContext {
         const secondary = event.button === 2;
         const boundary = edgeId === undefined ? this.renderManager.pickBoundary(x, y) : null;
         if (boundary !== null) {
-            if (!secondary) {
-                this.selectionManager.deselect();
-                if (this.session.selection.edges.length > 0) {
-                    this.session.selection.clear();
-                }
-            }
-
+            this.clearSelectionOnPrimary(secondary);
             this.session.boundaryClick(boundary);
         } else if (edgeId !== undefined) {
             if (!(secondary && this.session.selection.edges.includes(edgeId))) {
@@ -4119,13 +4113,25 @@ export class Graph implements GraphContext {
             }
             this.session.elementClick({ edge: edgeId });
         } else {
-            if (!secondary) {
-                this.selectionManager.deselect();
-                if (this.session.selection.edges.length > 0) {
-                    this.session.selection.clear();
-                }
-            }
+            this.clearSelectionOnPrimary(secondary);
             this.session.emptyClick({ x, y, secondary });
+        }
+    }
+
+    /**
+     * A click away from any node or edge clears the selection: the node selection, and the
+     * session's edges when it holds any. A secondary (right) click clears nothing, since it asks
+     * for a menu about the selection.
+     * @param secondary - Whether the click was a secondary one.
+     */
+    private clearSelectionOnPrimary(secondary: boolean): void {
+        if (secondary) {
+            return;
+        }
+
+        this.selectionManager.deselect();
+        if (this.session.selection.edges.length > 0) {
+            this.session.selection.clear();
         }
     }
 

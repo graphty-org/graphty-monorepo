@@ -328,7 +328,8 @@ export async function importSource(
         config: input.config,
         endpoint: read.info?.endpoint ?? access.endpoint,
         // The ledger keeps only the recordable choices; the credential and `write` never reach it.
-        options: options as Readonly<Record<string, unknown>>,
+        // The mode is the one the load ran with, as an opened project's record says it.
+        options: { ...options, mode: options.mode ?? "replace" },
         next: read.info?.next ?? null,
         validators: read.info?.validators ?? {},
         credential: access.credential ?? null,

@@ -119,6 +119,8 @@ function badMember(message: string): never {
 
 /** The load records of one session. Experimental. */
 export class SourceLedger {
+    /** Called after every change to the records; autosave hears it to write the sources member. */
+    readonly changed = new Set<() => void>();
     private records: SourceLoadRecord[] = [];
     private serial = 0;
 
@@ -150,7 +152,7 @@ export class SourceLedger {
             ...(facts.total === undefined ? {} : { total: facts.total }),
             ...(facts.expand === undefined ? {} : { expand: plain(facts.expand) }),
         };
-        this.records = [...this.records, record];
+        this.set([...this.records, record]);
         return record;
     }
 
@@ -296,13 +298,13 @@ export class SourceLedger {
                 badMember("A graphty-sources record has no key, source or expansions.");
             }
         }
-        this.records = plain(loads as SourceLoadRecord[]);
+        this.set(plain(loads as SourceLoadRecord[]));
         this.serial = Math.max(0, ...this.records.map((r) => Number(/^load-(\d+)$/.exec(r.key)?.[1] ?? 0)));
     }
 
     /** Forget every record. */
     clear(): void {
-        this.records = [];
+        this.set([]);
     }
 
     /**
@@ -324,6 +326,17 @@ export class SourceLedger {
      * @param record - the new record
      */
     private replace(key: string, record: SourceLoadRecord): void {
-        this.records = this.records.map((r) => (r.key === key ? record : r));
+        this.set(this.records.map((r) => (r.key === key ? record : r)));
+    }
+
+    /**
+     * Take new records and tell every listener.
+     * @param records - the records
+     */
+    private set(records: SourceLoadRecord[]): void {
+        this.records = records;
+        for (const listener of this.changed) {
+            listener();
+        }
     }
 }

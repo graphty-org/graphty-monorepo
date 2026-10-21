@@ -104,8 +104,8 @@ function attempt(part: string, build: () => string): string {
 }
 
 /**
- * The `data` part and, written with it because a load changes the data, the `sources` part.
- * ponytail: a refresh that found nothing new changes only the record, and waits for the next data write.
+ * The `data` part and, written with it because the data member reads the load records too, the
+ * `sources` part. Every change to the records marks the data part unwritten (`Autosaver`).
  * @param session - The session.
  * @returns The parts; `sources` is null when the session holds no load.
  */

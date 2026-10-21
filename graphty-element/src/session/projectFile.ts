@@ -138,6 +138,19 @@ export function sourcesFileOf(session: GraphSession): SourcesWrite | undefined {
     return typeof data.sourceFile === "function" ? data.sourceFile() : undefined;
 }
 
+/**
+ * Hear every change to a session's load records (a load, a next page, a refresh, an expansion),
+ * including those that change no row.
+ * @param session - The session.
+ * @param listener - Called after each change.
+ * @returns Stops listening; a session that keeps no load records never calls it.
+ */
+export function onSourceRecords(session: GraphSession, listener: () => void): () => void {
+    const { ledger } = session.data as Partial<Pick<SessionData, "ledger">>;
+    ledger?.changed.add(listener);
+    return () => ledger?.changed.delete(listener);
+}
+
 /** Where the project was last saved: a history step, and whether that step has changed since. */
 interface SavePoint {
     step: string | null;

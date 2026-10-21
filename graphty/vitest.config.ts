@@ -94,6 +94,11 @@ export default defineConfig({
             },
             {
                 extends: true,
+                // Pre-bundled up front: the app imports react-dom/client and eruda only once a test
+                // mounts it, so Vite found them mid-run, re-bundled and reloaded the page, and a
+                // model the element was loading lost its lazily imported Babylon loader ("Failed to
+                // fetch dynamically imported module") and stayed "accepted", never drawn.
+                optimizeDeps: { include: ["@mantine/hooks", "react-dom/client", "eruda"] },
                 test: {
                     name: "real-element",
                     include: [REAL_ELEMENT_TESTS],

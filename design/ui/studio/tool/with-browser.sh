@@ -26,21 +26,51 @@ here=$(cd "$(dirname "$0")" && pwd)
 if [[ "$*" =~ real\.mjs\ --(start|step|end|brief|prove)( |$) ]]; then
     exec "$@"
 fi
+# bars.mjs launches no browser itself: its tier 2 and tier 3 walks are real.mjs sessions, each
+# taking its own slot, and its tier 1 screens run as "bars.mjs ... --inner", which it wraps in this
+# gate itself. Wrapped, it held one slot with no browser for its whole run (round 1's tool dry run 2).
+if [[ "$*" =~ bars\.mjs( |$) && ! "$*" =~ (^| )--inner( |$) ]]; then
+    exec "$@"
+fi
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
 # BROWSER_SLOT_DIR: another pool, for the self-test that fills every slot
 DIR="${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}"
-mkdir -p "$DIR"
-while true; do
-    for i in $(seq 1 "$SLOTS"); do
-        exec 9>"$DIR/slot$i"
-        if flock -n 9; then
-            export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
-            "$@"
-            code=$?
-            flock -u 9
-            exit $code
-        fi
-        exec 9>&-
+mkdir -p "$DIR/queue"
+# First come, first served: each waiter holds a ticket named by when it asked (nanoseconds, then its
+# pid), and only the oldest live ticket may take a free slot. Until 2026-10-21 every waiter retried
+# every 2 seconds in no order, so one start waited 14 minutes while later ones got slots (round 1's
+# tool dry run 2). A ticket whose process is gone (killed while it waited) is removed by whoever
+# finds it. Commands that take the machine's slots without this script (the pre-push gate's
+# shards) do not queue here; they take a free slot when they find one.
+ticket="$DIR/queue/$(date +%s%N)-$$"
+: >"$ticket"
+trap 'rm -f "$ticket"' EXIT
+trap 'exit 143' TERM INT HUP
+first_in_line() {
+    local t
+    for t in $(ls "$DIR/queue" | sort); do
+        [[ "$DIR/queue/$t" == "$ticket" ]] && return 0
+        # alive, and still this script (a pid can be reused by another process)
+        grep -qs with-browser "/proc/${t##*-}/cmdline" && return 1
+        rm -f "$DIR/queue/$t"
     done
-    sleep 2
+    return 0
+}
+while true; do
+    if first_in_line; then
+        for i in $(seq 1 "$SLOTS"); do
+            exec 9>"$DIR/slot$i"
+            if flock -n 9; then
+                rm -f "$ticket"
+                trap - EXIT TERM INT HUP
+                export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
+                "$@"
+                code=$?
+                flock -u 9
+                exit $code
+            fi
+            exec 9>&-
+        done
+    fi
+    sleep 1
 done

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:viz="http://www.gexf.net/1.2draft/viz" version="1.2">
+  <meta lastmodifieddate="2026-10-18">
+    <creator>graphty gexf-gephi specimen generator</creator>
+    <description>A dynamic GEXF 1.2draft (mode=dynamic, timeformat=double) whose nodes, spell and edge have open interval bounds (startopen / endopen).</description>
+  </meta>
+  <graph mode="dynamic" timeformat="double" defaultedgetype="undirected">
+    <nodes>
+      <node id="anchor-nw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-ne">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-sw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-se">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default">
+        <viz:position x="152" y="464"/>
+      </node>
+      <node id="cap-default" label="interval=none">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="152" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="node-startopen" end="2" startopen="1">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="376" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-node-startopen" label="startopen-end=1-2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="376" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="node-endopen" start="1" endopen="2">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="600" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-node-endopen" label="start-endopen=1-2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="600" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="node-spell-open">
+        <spells>
+          <spell startopen="1" endopen="2"/>
+        </spells>
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="824" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-node-spell-open" label="spell startopen-endopen=1-2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="824" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="edge-startopen-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1010" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="edge-startopen-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1086" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-edge-startopen" label="edge startopen-end=1-2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1048" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+    </nodes>
+    <edges>
+      <edge id="edge-startopen" source="edge-startopen-s" target="edge-startopen-t" weight="1.5" end="2" startopen="1">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

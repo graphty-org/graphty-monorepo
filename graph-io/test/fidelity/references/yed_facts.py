@@ -7,7 +7,8 @@ the file is the reference.
 Node kinds: ShapeNode, GenericNode, UMLNoteNode, UMLClassNode, SVGNode, ImageNode, TableNode, and
 group nodes (ProxyAutoBoundsNode, the realizer its `active` attribute names), which become groups.
 yEd's coordinates are already y down; a node's Geometry is its top-left corner. Edge paths run from
-each port through the bends, clipped where they leave the source outline and meet the target.
+each port through the bends, clipped where they leave the source outline and meet the target; a Bezier
+or quad curve edge's bends are control points, so its path is the curve they pull (`curve_points`).
 """
 
 import sys
@@ -25,6 +26,42 @@ GENERIC = {"process": "rect", "decision": "diamond", "terminator": "roundrect", 
            "data": "parallelogram", "preparation": "hexagon", "manualOperation": "other", "BevelNode": "rect",
            "BevelNode2": "rect", "BevelNode3": "roundrect", "ShinyPlateNode": "rect", "ShinyPlateNode2": "rect",
            "ShinyPlateNode3": "roundrect"}
+
+
+def curve_points(kind, ctrl, straightness, steps=16):
+    """The points yEd's curve passes through, from its port, bend and port control points (yFiles'
+    developer's guide, "Bringing Graph Elements to Life": a Bezier or quad curve edge's bends are
+    control points that are not on its path). BezierEdge: a cubic Bezier per three bends, the points
+    3k on it (a count that is not 3n + 1 is left as the control polygon). QuadCurveEdge: a quadratic
+    spline, each bend pulling the curve that runs from the middle of the leg before it to the middle of
+    the leg after (the ports on the end legs); straightness (0..1) keeps that share of every leg
+    straight, the control polygon at 1."""
+    def lerp(a, b, t):
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    out = [ctrl[0]]
+    if kind == "BezierEdge":
+        if (len(ctrl) - 1) % 3:
+            return ctrl
+        for i in range(0, len(ctrl) - 1, 3):
+            p0, p1, p2, p3 = ctrl[i:i + 4]
+            for k in range(1, steps + 1):
+                t = k / steps
+                w = [(1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t ** 3]
+                out.append([sum(w[j] * q[0] for j, q in enumerate((p0, p1, p2, p3))),
+                            sum(w[j] * q[1] for j, q in enumerate((p0, p1, p2, p3)))])
+        return out
+    s = min(1.0, max(0.0, straightness))
+    n = len(ctrl) - 1
+    for i in range(1, n):
+        c = ctrl[i]
+        a = lerp(c, ctrl[0] if i == 1 else lerp(ctrl[i - 1], c, 0.5), 1 - s)
+        b = lerp(c, ctrl[n] if i == n - 1 else lerp(c, ctrl[i + 1], 0.5), 1 - s)
+        for k in range(steps + 1):
+            t = k / steps
+            out.append([(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0],
+                        (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1]])
+    out.append(ctrl[n])
+    return out
 
 
 def local(tag):
@@ -125,7 +162,10 @@ def scene(path):
         p, ls, a = r.find(Y + "Path"), r.find(Y + "LineStyle"), r.find(Y + "Arrows")
         sx, sy, tx, ty = (float(p.get(k, 0)) if p is not None else 0.0 for k in ("sx", "sy", "tx", "ty"))
         bends = [[float(q.get("x")), float(q.get("y"))] for q in (p.findall(Y + "Point") if p is not None else [])]
-        pts = clip_path([[s[0] + sx, s[1] + sy], *bends, [t[0] + tx, t[1] + ty]], s, t)
+        route = [[s[0] + sx, s[1] + sy], *bends, [t[0] + tx, t[1] + ty]]
+        if local(r.tag) in ("BezierEdge", "QuadCurveEdge") and bends:
+            route = curve_points(local(r.tag), route, float(r.get("straightness", 0.1)))
+        pts = clip_path(route, s, t)
         color = hex_color(ls.get("color", "#000000")) or ("#000000", 1.0)
         bs = r.find(Y + "BendStyle")
         labs = [lab.text.strip() for lab in r.findall(Y + "EdgeLabel") if lab.get("visible", "true") == "true" and (lab.text or "").strip()]

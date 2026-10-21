@@ -385,6 +385,21 @@ export type GraphtyErrorCode =
      */
     | "E_NO_ACCELERATOR"
     /**
+     * No accelerator factory is registered, so the element never looked for a GPU. Usually
+     * `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
+     * failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+     * through `capabilities.acceleration`; a registration that arrives later switches
+     * acceleration on without the consumer doing anything.
+     */
+    | "E_NO_ACCELERATOR_REGISTERED"
+    /**
+     * A registered accelerator factory threw while setting up, with an error that is not one of
+     * the other acceleration codes -- a module of the backend that failed to load, or a defect in
+     * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
+     * the CPU path runs.
+     */
+    | "E_ACCELERATOR_FAILED"
+    /**
      * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
      * in a secure context or the browser does not implement it. Reported through
      * `capabilities.acceleration` rather than thrown during ordinary use.
@@ -677,6 +692,8 @@ const CODE_TABLE = {
     E_BAD_PATH: "E_BAD_PATH",
     E_PATH_COUNT_OVERFLOW: "E_PATH_COUNT_OVERFLOW",
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
+    E_NO_ACCELERATOR_REGISTERED: "E_NO_ACCELERATOR_REGISTERED",
+    E_ACCELERATOR_FAILED: "E_ACCELERATOR_FAILED",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
@@ -725,7 +742,14 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[] = Object.freeze(Ob
  * thrown: absence of acceleration is a state the consumer renders, not a failure it catches.
  */
 export type AccelerationErrorCode =
-    "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE";
+    | "E_NO_WEBGPU"
+    | "E_NO_ADAPTER"
+    | "E_SOFTWARE_ONLY"
+    | "E_DEVICE_INCORRECT"
+    | "E_DEVICE_LOST"
+    | "E_TOO_LARGE"
+    | "E_NO_ACCELERATOR_REGISTERED"
+    | "E_ACCELERATOR_FAILED";
 
 /**
  * Every code that can appear on `capabilities.acceleration.code`.
@@ -737,6 +761,8 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
     CODE_TABLE.E_TOO_LARGE,
+    CODE_TABLE.E_NO_ACCELERATOR_REGISTERED,
+    CODE_TABLE.E_ACCELERATOR_FAILED,
 ]);
 
 /**

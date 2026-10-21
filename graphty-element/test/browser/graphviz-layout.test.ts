@@ -146,4 +146,41 @@ describe("Graphviz layouts in the element", () => {
         assert.closeTo(radius("a"), radius("b"), 1e-4, "the first ring around the root the file named");
         assert.isAbove(radius("d"), radius("a"), "the second ring further out");
     });
+
+    it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
+        // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
+        // 0.5 inch ranksep): each box is twice as wide as the step between their centres.
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const width = 2 * (graph.getNode("a")?.drawnHalfExtents.x ?? Number.NaN);
+        const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
+        assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
+    });
+
+    // twopi spaces its rings, and patchwork sizes its cells, without reading a node's width: both
+    // must be told the drawn size, or nodes 1.5 units wide land 1 unit apart and draw as one blob.
+    for (const engine of ["twopi", "patchwork"]) {
+        it(`keeps ${engine}'s nodes from overlapping as the element draws them`, async () => {
+            const pairs = "a b a c b d c d d e e f e g f h g h h a c i i j j h b k k l l f".split(" ");
+            const ids = [...new Set(pairs)];
+            await graph.addNodes(ids.map((id) => ({ id })));
+            await graph.addEdges(pairs.flatMap((src, i) => (i % 2 === 0 ? [{ src, dst: pairs[i + 1] }] : [])));
+            await graph.setLayout(`graphviz-${engine}`);
+            await settled();
+
+            for (const [i, a] of ids.entries()) {
+                for (const b of ids.slice(i + 1)) {
+                    const gap = Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y);
+                    const width = (graph.getNode(a)?.drawnRadius ?? 0) + (graph.getNode(b)?.drawnRadius ?? 0);
+                    assert.isAtLeast(gap, width, `${a} and ${b} overlap`);
+                }
+            }
+        });
+    }
 });

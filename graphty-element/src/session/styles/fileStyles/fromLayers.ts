@@ -45,9 +45,9 @@ import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import { ARROW_SHAPES, ARROW_SHAPES_NEAREST, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
-import { LAYER_SPEC_EXT } from "./translate";
+import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -150,9 +150,9 @@ function inverse(
     return out;
 }
 
-const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES), new Set(["none"]));
+const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES));
 const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
-const ARROW_OF = inverse(ARROW_SHAPES);
+const ARROW_OF = inverse(ARROW_SHAPES, ARROW_SHAPES_NEAREST);
 
 const color: PropertyPlan["toNeutral"] = (value) => {
     const found = colorOf(value);
@@ -161,6 +161,8 @@ const color: PropertyPlan["toNeutral"] = (value) => {
 const number: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && Number.isFinite(value) ? value : null;
 const text: PropertyPlan["toNeutral"] = (value) => (typeof value === "string" ? value : null);
+const scaled = (value: unknown, by: number): number | null =>
+    typeof value === "number" && Number.isFinite(value) ? value * by : null;
 const flag: PropertyPlan["toNeutral"] = (value) => (typeof value === "boolean" ? value : null);
 const opacity: PropertyPlan["toNeutral"] = (value) =>
     typeof value === "number" && value >= 0 && value <= 1 ? value : null;
@@ -189,7 +191,19 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelSize", plan(number, "labelSize")],
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
+        ["node.labelTextAlign", plan(text, "labelTextAlign")],
+        ["node.labelLocation", plan(text, "labelPosition")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelRotation", plan(number, "labelRotation")],
+        // The scene's units, written in a node size's, which a file graphty wrote is read back in.
+        ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
+        ["node.labelWrapTrailingSpace", plan(flag, "labelWrapTrailingSpace")],
+        // Screen pixels: never scaled with the file's lengths.
+        ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
+        ["node.labelOnTop", plan(flag, "labelOnTop")],
+        ["node.labelMinNodeScreenSize", plan(number, "labelMinNodeScreenSize")],
+        // Only the size order has a neutral spelling (Gephi's and sigma.js's).
+        ["node.labelDeclutter", plan((value) => (value === "size" ? true : null), "labelAvoidOverlap")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
@@ -198,10 +212,15 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.color", plan(color, "color")],
         ["edge.opacity", plan(opacity, "opacity")],
         ["edge.width", plan(number, "width")],
+        // Screen pixels: never scaled with the file's lengths.
+        ["edge.minScreenWidth", plan(number, "minScreenWidth")],
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],
         ["edge.bends", plan(text, "bends")],
+        ["edge.fanSpacing", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "fanSpacing")],
+        ["edge.sourcePort", plan(text, "sourcePort")],
+        ["edge.targetPort", plan(text, "targetPort")],
         ["edge.arrowHeadColor", plan(color, "targetArrowColor")],
         ["edge.arrowTailColor", plan(color, "sourceArrowColor")],
         ["edge.label", plan(text, "label")],
@@ -211,7 +230,11 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelSize", plan(number, "labelSize")],
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
+        ["edge.labelTextAlign", plan(text, "labelTextAlign")],
+        ["edge.labelLocation", plan(text, "labelPosition")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelMinScreenSize", plan(number, "labelMinScreenSize")],
+        ["edge.labelOnTop", plan(flag, "labelOnTop")],
     ]),
 };
 

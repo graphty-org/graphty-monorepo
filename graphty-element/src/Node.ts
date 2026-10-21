@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    Camera,
     Color3,
     Color4,
     InstancedMesh,
@@ -7,6 +8,7 @@ import {
     MeshBuilder,
     type Scene,
     StandardMaterial,
+    Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
@@ -27,11 +29,18 @@ import type { GroupBox } from "./managers/LayoutManager";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
+import { labelFitExtent } from "./meshes/labelFit";
+import {
+    createNodeDecorations,
+    type NodeDecorationMetadata,
+    type NodeDecorationPiece,
+} from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
-import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
-import { isFlatShape } from "./meshes/shapeOutlines";
+import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { pixelsPerUnit } from "./meshes/screenSize";
+import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -84,6 +93,12 @@ const MIN_OVERLAY_SIZE = 0.2;
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
 
+/**
+ * How much a group's box may change size, as a fraction, before its border is rebuilt and its
+ * label re-attached at the new size: a moving layout changes every box a little every frame.
+ */
+const GROUP_RESIZE_EPSILON = 0.01;
+
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
 const GROUP_REGION_OPACITY = 0.25;
 
@@ -109,7 +124,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
         ? style.texture
         : { ...style.texture, color: { colorType: "solid" as const, value: painted, opacity: GROUP_REGION_OPACITY } };
 
-    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture } };
+    // The region is stretched over its members' box whatever its own size, so its border rings that box from
+    // outside: a border position, which draws the fill in from the node's own size, has nothing to draw it in from.
+    const border = style.border === undefined ? undefined : { ...style.border, position: undefined };
+
+    return { meshKey: `${meshKey}|group`, style: { ...style, shape, texture, border } };
 }
 
 interface NodeOpts {
@@ -206,6 +225,46 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
+type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
+
+/**
+ * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
+ * or a gradient's first color as a fallback.
+ * @param color - The style's background color.
+ * @returns The color, or undefined for none.
+ */
+function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
+    if (!color) {
+        return undefined;
+    }
+    if (typeof color === "string") {
+        return color;
+    }
+    if (color.colorType === "solid") {
+        return color.value;
+    }
+    if (color.colorType === "gradient") {
+        return color.colors[0];
+    }
+    return undefined;
+}
+
+/**
+ * A label's borders with a color each, the only ones the label renderer can draw.
+ * @param borders - The style's borders.
+ * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
+ */
+function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
+    const valid = (borders ?? [])
+        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
+        .map((border) => ({
+            width: border.width,
+            color: border.color,
+            spacing: border.spacing,
+        }));
+    return valid.length > 0 ? valid : undefined;
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -255,6 +314,12 @@ export class Node {
     mesh: AbstractMesh;
     label?: RichTextLabel;
 
+    /** The further texts on screen (`shape.texts`), one label each. */
+    shapeTextLabels: RichTextLabel[] = [];
+
+    /** What the further texts on screen were drawn from, or undefined for none. See {@link syncShapeTexts}. */
+    private drawnShapeTexts?: string;
+
     /**
      * The tooltip on screen, and undefined whenever the pointer is not over this node.
      *
@@ -294,6 +359,14 @@ export class Node {
      */
     private drawnLabelText?: string;
 
+    /**
+     * The label a node that grows to hold it (`shape.labelFit`) was last fitted to, and the width
+     * and height that gave; null when the node is drawn at the size it states. A new label means a
+     * new size, so `keepsMeshFor` rebuilds the mesh when the label changes under the same style.
+     */
+    private fittedFor: { text: string; label: NodeStyleConfig["label"] } | null = null;
+    private fittedExtent: { width: number; height: number } | null = null;
+
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
     private drawnStyle: NodeStyleConfig | null = null;
     private drawnColor: Rgba | null = null;
@@ -323,6 +396,26 @@ export class Node {
 
     /** The node's border, a child of its mesh, or null when its style draws none. */
     private border: AbstractMesh | null = null;
+
+    /** The node's outer border (`outerBorder`), a child of its mesh like its border, or null when its style draws none. */
+    private outerBorder: AbstractMesh | null = null;
+    /** The filled shapes drawn beneath (`underlay`) and over (`overlay`) the node, children of its mesh, or null. */
+    private underlay: AbstractMesh | null = null;
+    private overlay: AbstractMesh | null = null;
+
+    /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
+    private decorations: AbstractMesh[] = [];
+
+    /** How far the border reaches past the outline, in the units positions are laid out in. */
+    private borderWidth = 0;
+
+    /**
+     * What the border was last built from: the mesh key and style, and for a border in screen
+     * pixels (`border.screenWidth`) the screen pixels one scene unit was drawn as then, rounded to
+     * a step of 1/16 of a doubling, so a zoom that changes the border on screen rebuilds it and one
+     * that does not leaves it alone. Null scale for a border in scene units.
+     */
+    private borderBuilt: { meshKey: string; style: NodeStyleConfig; scale: number | null } | null = null;
 
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: AbstractMesh | null = null;
@@ -389,6 +482,8 @@ export class Node {
 
     /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
     private drawnAsGroup = false;
+    /** The border built for this node drawn as a group at its box's size, while it is the border drawn. */
+    private groupBorder: AbstractMesh | null = null;
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
@@ -452,10 +547,11 @@ export class Node {
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
+        const fit = this.fitToLabel(paint.meshKey, o);
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: paint.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
+            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
             this.context.getScene(),
         );
 
@@ -474,7 +570,8 @@ export class Node {
             nodeId: this.id,
         };
 
-        this.syncBorder(paint.meshKey, o);
+        this.syncBorder(fit.meshKey, fit.style);
+        this.syncDecorations(fit.meshKey, fit.style);
 
         // create label
         this.syncLabel(o, true);
@@ -524,9 +621,7 @@ export class Node {
      * @internal
      */
     get borderReach(): number {
-        return this.border === null
-            ? 0
-            : (this.drawnStyle?.border?.width ?? 0) * NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        return this.border === null ? 0 : this.borderWidth;
     }
 
     /**
@@ -546,8 +641,15 @@ export class Node {
         }
 
         const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+        // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
+        // depends on the zoom, so counting it made the box depend on the camera that frames it.
+        // The first framing measured the ring built for the camera before it, the ring was then
+        // rebuilt for the new zoom, and whether a second framing came along to measure that one
+        // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
+        // few pixels.
+        const reach = typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
 
-        return (extent + this.borderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        return (extent + reach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
     }
 
     /**
@@ -557,10 +659,34 @@ export class Node {
      * @param style - The resolved style.
      */
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
+        const scale = this.screenScale(style);
+        const perSize = NodeMesh.extentPerSize(style.shape);
+        let { border } = style;
+        let key = meshKey;
+        if (scale !== null && border?.screenWidth !== undefined) {
+            // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+            const box = this.mesh.getBoundingInfo().boundingBox.extendSize;
+            const across = 2 * Math.min(box.x * Math.abs(this.mesh.scaling.x), box.y * Math.abs(this.mesh.scaling.y));
+            border = { ...border, width: Math.min(border.screenWidth / scale, across) / perSize };
+            // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
+            // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
+            key = `${meshKey}|screen${String(scale)}`;
+        }
+
+        this.borderBuilt = { meshKey, style, scale };
+        this.borderWidth =
+            (border?.position ?? "outside") === "outside"
+                ? (border?.width ?? 0) * perSize
+                : // only an inside border is ever drawn narrower than its width, and only on a small node
+                  NodeMesh.borderFit(
+                      style.shape,
+                      border,
+                      NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3)),
+                  ).ring;
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: style.shape, border: style.border },
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border },
             this.mesh,
             this.context.getScene(),
         );
@@ -569,6 +695,131 @@ export class Node {
             this.border.parent = this.mesh;
             this.border.position.setAll(0);
         }
+
+        if (this.outerBorder !== null && !this.outerBorder.isDisposed()) {
+            this.outerBorder.dispose();
+        }
+
+        this.outerBorder = NodeMesh.createOuterBorder(
+            this.context.getMeshCache(),
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { shape: style.shape, border, outerBorder: style.outerBorder },
+            this.mesh,
+            this.context.getScene(),
+        );
+
+        if (this.outerBorder !== null) {
+            this.outerBorder.parent = this.mesh;
+            this.outerBorder.position.setAll(0);
+        }
+
+        for (const kind of ["underlay", "overlay"] as const) {
+            const old = this[kind];
+            if (old !== null && !old.isDisposed()) {
+                old.dispose();
+            }
+
+            const halo = NodeMesh.createHalo(
+                this.context.getMeshCache(),
+                { styleId: key, is2D: this.context.is2D(), size: this.size },
+                style.shape,
+                style[kind],
+                kind,
+                this.mesh,
+                this.context.getScene(),
+            );
+            if (halo !== null) {
+                halo.parent = this.mesh;
+                halo.position.setAll(0);
+            }
+
+            this[kind] = halo;
+        }
+    }
+
+    /**
+     * Build what this node draws over its face (its pie, stripes and image) from its style, as
+     * children of its mesh, so they move, hide and are disposed with the node. Called after every
+     * new mesh: the old ones went with the old mesh.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     */
+    private syncDecorations(meshKey: string, style: NodeStyleConfig): void {
+        for (const old of this.decorations) {
+            if (!old.isDisposed()) {
+                old.dispose();
+            }
+        }
+
+        const { pieces, image, glyph } = createNodeDecorations(
+            this.context.getMeshCache(),
+            `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
+            style,
+            this.size,
+            this.mesh,
+            this.context.getScene(),
+        );
+        this.decorations = [pieces, image, glyph].filter((m): m is InstancedMesh => m !== null);
+        for (const mesh of this.decorations) {
+            mesh.parent = this.mesh;
+            mesh.position.setAll(0);
+        }
+    }
+
+    /**
+     * What this node draws over its face, for a reader of the drawing: each piece's kind and its
+     * box in the node mesh's own plane.
+     * @returns The pieces, the colored ones first.
+     * @internal
+     */
+    get decorationPieces(): readonly NodeDecorationPiece[] {
+        return this.decorations.flatMap((mesh) => {
+            const source = "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+            return (source.metadata as Partial<NodeDecorationMetadata> | null)?.nodePieces ?? [];
+        });
+    }
+
+    /**
+     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a
+     * doubling, for a style whose border is in screen pixels; null for any other.
+     * @param style - The style the border is built from.
+     * @returns The rounded scale, or null.
+     */
+    private screenScale(style: NodeStyleConfig): number | null {
+        if (style.border?.screenWidth === undefined) {
+            return null;
+        }
+
+        const camera = this.context.getScene().activeCamera;
+        // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
+        // of one on a high-density screen.
+        const ppu = camera
+            ? pixelsPerUnit(camera, this.mesh.getAbsolutePosition()) * camera.getEngine().getHardwareScalingLevel()
+            : 0;
+
+        // ponytail: the scale of the scene's root (an XR gesture's) is not divided out; a border
+        // drawn in a headset is as wide as the root's scale makes it.
+        return ppu > 0 ? 2 ** (Math.round(Math.log2(ppu) * 16) / 16) : 1;
+    }
+
+    /**
+     * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
+     * screen. Called by the update loop on a frame the camera moved; does nothing for a node
+     * whose border is in scene units.
+     * @internal
+     */
+    refreshScreenBorder(): void {
+        const built = this.borderBuilt;
+        if (typeof built?.scale !== "number" || this.mesh.isDisposed()) {
+            return;
+        }
+
+        if (this.screenScale(built.style) === built.scale) {
+            return;
+        }
+
+        this.border?.dispose();
+        this.syncBorder(built.meshKey, built.style);
     }
 
     /**
@@ -687,20 +938,71 @@ export class Node {
         const thin = GROUP_DEPTH_RATIO * Math.min(half.x, half.y);
         const back = center.z + half.z + thin;
         // Seen in perspective from in front, a face set back looks smaller: grown by the ratio of
-        // the two distances, it covers the box its members make on screen.
-        const eye = this.mesh.getScene().activeCamera?.position.z;
+        // the two distances, it covers the box its members make on screen. An orthographic view
+        // (2D) has no perspective, so nothing is grown there: growing it by where that camera sits
+        // drew the group larger before the view was framed than after (issue #3107).
+        const camera = this.mesh.getScene().activeCamera;
+        const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
         // corner is still inside it.
         const round = this.shapeType === "ellipse";
         const grow = round ? far * Math.SQRT2 : far;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
-        this.mesh.scaling.set(
-            scale(half.x * grow, extendSize.x),
-            scale(half.y * grow, extendSize.y),
-            scale(thin, extendSize.z),
-        );
+        const stretch = this.mesh.scaling;
+        const before = stretch.clone();
+        stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
+        if (
+            this.border !== this.groupBorder ||
+            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
+        ) {
+            this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
+        }
+    }
+
+    /**
+     * Keep a stretched group's border and label at the size its style gives, rather than stretched
+     * with its box: the border is rebuilt at the box's size and the label re-attached, each under
+     * the inverse of the box's stretch. Called only when the box's size changes.
+     * @param width - The box's drawn width.
+     * @param height - Its drawn height.
+     * @param depth - Its drawn depth.
+     */
+    private fitGroupChildren(width: number, height: number, depth: number): void {
+        const { scaling } = this.mesh;
+        const inverse = new Vector3(1 / scaling.x, 1 / scaling.y, 1 / scaling.z);
+        const old = this.border;
+        const style = this.drawnStyle;
+        const ring =
+            old === null || style === null
+                ? null
+                : NodeMesh.createGroupBorder(
+                      { shape: style.shape, border: style.border },
+                      { x: width, y: height, z: depth },
+                      this.context.is2D(),
+                      this.context.getScene(),
+                  );
+        if (old !== null && ring !== null) {
+            // The cached border's material, shared: the ring's own disposal never takes it.
+            ring.material = old.material;
+            ring.parent = this.mesh;
+            ring.scaling.copyFrom(inverse);
+            old.dispose(false, false);
+            this.border = ring;
+            this.groupBorder = ring;
+        }
+
+        // ponytail: a group's box is stretched over its members, so its outer border would be stretched with it; it
+        // is left off a group until the ring is rebuilt at the box's size as the border is
+        this.outerBorder?.dispose();
+        this.outerBorder = null;
+        this.underlay?.dispose();
+        this.underlay = null;
+        this.overlay?.dispose();
+        this.overlay = null;
+
+        this.label?.reattach();
     }
 
     /**
@@ -853,7 +1155,62 @@ export class Node {
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
         const sameGeometry =
             meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-        return sameGeometry && !this.mesh.isDisposed();
+        return sameGeometry && !this.mesh.isDisposed() && !this.fitIsStale(o);
+    }
+
+    /**
+     * The words a node's label shows, and the label block that draws them, when it has one on.
+     * @param o - The resolved style.
+     * @returns The text ("" with no label) and the block.
+     */
+    private labelOf(o: NodeStyleConfig): { text: string; label: NodeStyleConfig["label"] } {
+        const label = o.label?.enabled === true ? o.label : undefined;
+        return { text: label === undefined ? "" : this.extractLabelText(label), label };
+    }
+
+    /**
+     * Whether a node that grows to hold its label was fitted to another label than the style's.
+     * @param o - The resolved style.
+     * @returns True when the mesh has to be fitted again.
+     */
+    private fitIsStale(o: NodeStyleConfig): boolean {
+        if (o.shape?.labelFit === undefined || this.drawnAsGroup) {
+            return false;
+        }
+
+        const { text, label } = this.labelOf(o);
+        return text !== this.fittedFor?.text || !isEqual(label, this.fittedFor.label);
+    }
+
+    /**
+     * The mesh key and style a node is built from: as painted, or for a node that grows to hold
+     * its label (`shape.labelFit`), with the width and height its measured label asks for
+     * (`labelFitExtent`) and a key naming them, since nodes of one style differ by their label.
+     * A group drawn over its members is sized by them instead.
+     * @param meshKey - The paint's mesh key.
+     * @param o - The resolved style.
+     * @returns The key and style to build the mesh and its border from.
+     */
+    private fitToLabel(meshKey: string, o: NodeStyleConfig): { meshKey: string; style: NodeStyleConfig } {
+        const { shape } = o;
+        if (shape?.labelFit === undefined || this.drawnAsGroup) {
+            this.fittedFor = null;
+            this.fittedExtent = null;
+            return { meshKey, style: o };
+        }
+
+        const { text, label } = this.labelOf(o);
+        const words =
+            text === ""
+                ? { width: 0, height: 0 }
+                : RichTextLabel.measureWords(this.context.getScene(), this.createLabelOptions(text, label));
+        const perSize = NodeMesh.extentPerSize(shape);
+        const extent = labelFitExtent(shape, { width: words.width / perSize, height: words.height / perSize });
+        const width = Number((extent?.width ?? 0).toPrecision(6));
+        const height = Number((extent?.height ?? 0).toPrecision(6));
+        this.fittedFor = { text, label: cloneDeep(label) };
+        this.fittedExtent = { width, height };
+        return { meshKey: `${meshKey}|fit:${width}x${height}`, style: { ...o, shape: { ...shape, width, height } } };
     }
 
     /**
@@ -953,8 +1310,12 @@ export class Node {
 
         // Width, height, depth, flatness and a border move a node's surface as surely as its size
         // and shape do, so any of them sends the edges back to find it.
+        const fittedBefore = this.fittedExtent;
+        const fit = this.fitToLabel(meshKey, o);
         const geometryChanged =
-            !isEqual(this.drawnStyle?.shape, o.shape) || !isEqual(this.drawnStyle?.border, o.border);
+            !isEqual(this.drawnStyle?.shape, o.shape) ||
+            !isEqual(this.drawnStyle?.border, o.border) ||
+            !isEqual(fittedBefore, this.fittedExtent);
 
         this.meshKey = meshKey;
         this.drawnStyle = o;
@@ -1023,14 +1384,15 @@ export class Node {
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
+            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
             this.context.getScene(),
         );
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
-        this.syncBorder(meshKey, o);
+        this.syncBorder(fit.meshKey, fit.style);
+        this.syncDecorations(fit.meshKey, fit.style);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
@@ -1129,6 +1491,12 @@ export class Node {
             this.label.dispose();
             this.label = undefined;
         }
+
+        for (const label of this.shapeTextLabels) {
+            label.dispose();
+        }
+        this.shapeTextLabels = [];
+        this.drawnShapeTexts = undefined;
 
         // A tooltip outlives no node: its plane is not parented to the node's mesh, so nothing
         // else would take it down and a hovered node that is then removed would leave its words
@@ -1453,6 +1821,15 @@ export class Node {
         const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
 
         return radius + this.borderReach;
+    }
+
+    /**
+     * Whether the node is drawn as a group following its members: a region behind them, its edges and
+     * their labels, stretched over its members' box.
+     * @returns True while it is drawn so.
+     */
+    get isDrawnAsGroup(): boolean {
+        return this.drawnAsGroup;
     }
 
     /**
@@ -1787,6 +2164,8 @@ export class Node {
      *     label asking for exactly what was drawn a moment ago must still be built again.
      */
     private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
+        // the further texts first: the label's own early return must not skip them
+        this.syncShapeTexts(o, rebuild);
         const wanted = drawnText(o.label);
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
@@ -1803,6 +2182,50 @@ export class Node {
         // reference somebody else can still write to is a comparison that silently starts
         // passing. Paid only when the label actually changes.
         this.drawnLabelStyle = wanted === undefined ? undefined : cloneDeep(wanted);
+    }
+
+    /**
+     * Bring the further texts (`shape.texts`) on screen into line with one resolved style: each one line in the
+     * label's font, size and color (or its own, where its entry gives one), centered on its point over the node, as
+     * Graphviz draws a record's fields. Rebuilt only when the texts, the label's typography or the node's size change,
+     * or the mesh they hang from was replaced.
+     * @param o - The resolved style.
+     * @param rebuild - True when the node's mesh has just been replaced.
+     */
+    private syncShapeTexts(o: NodeStyleConfig, rebuild: boolean): void {
+        const texts = shapeTexts(o.shape?.texts);
+        const half = this.drawnHalfExtents;
+        const key = texts.length === 0 ? undefined : JSON.stringify([o.shape?.texts, o.label, half.x, half.y]);
+        if (!rebuild && key === this.drawnShapeTexts) {
+            return;
+        }
+
+        for (const label of this.shapeTextLabels) {
+            label.dispose();
+        }
+        this.shapeTextLabels = [];
+        this.drawnShapeTexts = key;
+        if (key === undefined) {
+            return;
+        }
+
+        const scene = this.mesh.getScene();
+        const style = { ...o.label, location: "center" as const, attachOffset: 0, offsetX: 0, offsetY: 0 };
+        this.shapeTextLabels = texts.map(
+            ([x, y, text, look]) =>
+                new RichTextLabel(scene, {
+                    ...this.createLabelOptions(text, {
+                        ...style,
+                        ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
+                        ...(look.color === undefined ? {} : { textColor: look.color }),
+                        ...(look.font === undefined ? {} : { font: look.font }),
+                        ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
+                    }),
+                    // right and down on screen
+                    offsetX: x * half.x,
+                    offsetY: -y * half.y,
+                }),
+        );
     }
 
     /**
@@ -1941,20 +2364,20 @@ export class Node {
     private createLabelOptions(labelText: string, labelStyle: NodeStyleConfig["label"] = {}): RichTextLabelOptions {
         // Get attach position and offset
         const attachPosition = this.getAttachPosition(labelStyle.location ?? "top");
-        const attachOffset = labelStyle.attachOffset ?? this.getDefaultAttachOffset(labelStyle.location ?? "top");
-
-        // Transform backgroundColor to string if it's an advanced color style
-        let backgroundColor: string | undefined = undefined;
-        if (labelStyle.backgroundColor) {
-            if (typeof labelStyle.backgroundColor === "string") {
-                ({ backgroundColor } = labelStyle);
-            } else if (labelStyle.backgroundColor.colorType === "solid") {
-                ({ value: backgroundColor } = labelStyle.backgroundColor);
-            } else if (labelStyle.backgroundColor.colorType === "gradient") {
-                // For gradients, use the first color as a fallback
-                [backgroundColor] = labelStyle.backgroundColor.colors;
-            }
+        // Measured from the node's outline: a border centered on it or inside it draws the fill, which the label is
+        // placed against, in from it by the inset, so a label beside the node goes that much further out and one
+        // inside it that much less far in; one in the middle stays.
+        const inset = this.fillInset();
+        const placed = labelStyle.location ?? "top";
+        let along = inset;
+        if (placed === "center") {
+            along = 0;
+        } else if (placed.startsWith("inside-")) {
+            along = -inset;
         }
+        const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
+
+        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
 
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
@@ -1967,22 +2390,7 @@ export class Node {
             }
         }
 
-        // Transform borders to ensure colors are strings
-        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
-        if (labelStyle.borders && labelStyle.borders.length > 0) {
-            const validBorders = labelStyle.borders
-                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-                .map((border) => ({
-                    width: border.width,
-                    color: border.color,
-                    spacing: border.spacing,
-                }));
-            // Only set borders if we have valid borders, otherwise leave it undefined
-            // so the default empty array is used
-            if (validBorders.length > 0) {
-                borders = validBorders;
-            }
-        }
+        const borders = labelBorders(labelStyle.borders);
 
         // Create label options by spreading the entire labelStyle object
         const labelOptions: RichTextLabelOptions = {
@@ -1992,6 +2400,7 @@ export class Node {
             attachTo: this.mesh,
             attachPosition,
             attachOffset,
+            ...(this.shapeType === "polygon" && { centerAtOrigin: true }),
             backgroundColor,
             backgroundGradientColors,
             ...(borders !== undefined && { borders }),
@@ -2009,9 +2418,25 @@ export class Node {
         return finalLabelOptions;
     }
 
-    private getAttachPosition(
-        location: string,
-    ): "top" | "top-left" | "top-right" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" {
+    /**
+     * How far in from its outline this node's fill is drawn: half its border's width for a border centered on the
+     * outline, the whole width for one inside it, nothing for one outside it (`NodeMesh.borderFit`).
+     * @returns The inset, in world units.
+     */
+    private fillInset(): number {
+        const style = this.drawnStyle;
+        if (style?.border === undefined) {
+            return 0;
+        }
+        const { shape } = style;
+        return NodeMesh.borderFit(
+            shape,
+            style.border,
+            NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? this.size, 1e-3)),
+        ).inset;
+    }
+
+    private getAttachPosition(location: string): AttachPosition {
         switch (location) {
             case "floating":
             case "automatic":
@@ -2025,6 +2450,14 @@ export class Node {
             case "bottom":
             case "bottom-left":
             case "bottom-right":
+            case "inside-top":
+            case "inside-bottom":
+            case "inside-left":
+            case "inside-right":
+            case "inside-top-left":
+            case "inside-top-right":
+            case "inside-bottom-left":
+            case "inside-bottom-right":
                 return location;
             default:
                 return "top";
@@ -2038,7 +2471,15 @@ export class Node {
             case "right":
                 return 1; // Larger offset for horizontal positions
             case "center":
-                return 0; // No offset for center
+            case "inside-top":
+            case "inside-bottom":
+            case "inside-left":
+            case "inside-right":
+            case "inside-top-left":
+            case "inside-top-right":
+            case "inside-bottom-left":
+            case "inside-bottom-right":
+                return 0; // No offset for center, nor for a label flush inside a side
             default:
                 return 0.5; // Standard offset for top/bottom positions
         }

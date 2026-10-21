@@ -414,7 +414,7 @@ describe("the palette's capacity", () => {
 
     it("applies to a channel that carries one of a fixed list, for the same reason", () => {
         assert.strictEqual(
-            codeOf(() => prepare("edge.style", { by: "x", scale: "bins", bins: 10 }, [0, 1])),
+            codeOf(() => prepare("edge.style", { by: "x", scale: "bins", bins: 20 }, [0, 1])),
             "E_CAP_EXCEEDED",
         );
     });

@@ -172,6 +172,24 @@ describe("node labels do not overlap", () => {
         );
     });
 
+    it("keeps the first-added label among labels of one size that ask to be decluttered by size", async () => {
+        // left is added first; the hub has more edges, which decides only the degree order
+        const g = await draw([PILED[1], PILED[0], PILED[2]], false, PILED_VIEW);
+        await g.getSession().styles.add({
+            name: "declutter by size",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelDeclutter": "size" },
+        });
+        await operationQueueOf(g).waitForCompletion();
+        for (let at = 0; at < FRAMES; at++) {
+            g.scene.render();
+            await nextFrame();
+        }
+
+        assert.deepEqual([...drawnLabels(g).keys()], ["left"]);
+    });
+
     it("keeps a selected node's label over a better-connected one", async () => {
         const g = await draw(PILED, true, PILED_VIEW);
 

@@ -426,4 +426,19 @@ describe("GEXFDataSource", () => {
             assert.equal(nodes[0].score, 2);
         });
     });
+
+    test("draws a file under the Gephi Preview settings given as gephiPreview", async () => {
+        const xml = `<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed">
+            <nodes><node id="a"/><node id="b"/></nodes><edges><edge id="e" source="a" target="b"/></edges></graph></gexf>`;
+        const edgeStyle = async (config: Record<string, unknown>): Promise<string> => {
+            const session = createGraphSession();
+            await session.data.import({ type: "gexf", config: { data: xml, ...config } }, { styles: "file" });
+            await session.styles.settled();
+            const [edge] = session.data.edges();
+            return JSON.stringify(session.styles.explain({ edge: edge.id }).merged).toLowerCase();
+        };
+        // Gephi's default draws the edge in its end nodes' mixed color (both black); edge.color=#ff0000 draws it red
+        assert.notInclude(await edgeStyle({}), "#ff0000");
+        assert.include(await edgeStyle({ gephiPreview: { "edge.color": "#ff0000" } }), "#ff0000");
+    });
 });

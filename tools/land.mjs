@@ -1431,13 +1431,18 @@ export function liveCopy(env = process.env) {
  * Hands the run to the live copy, so every session runs the same version of this tool whichever
  * checkout's copy it called: the live copy runs with the same arguments, environment and working
  * directory, and its exit code is passed through. It does not hand off when this file is the live copy,
- * or when it was itself started by a hand-off (LAND_LIVE_COPY is set), so it never loops.
+ * or when it was itself started by a hand-off (LAND_LIVE_COPY is set), so it never loops. The live copy
+ * removes the mark from its environment once read, so the commands it runs (the pre-push gate, whose
+ * tests run this tool) start as fresh sessions would.
  * @param argv the arguments after the script
  * @param [env] the environment
  * @returns the live copy's exit code, or null when this copy should run itself
  */
 export async function handOff(argv, env = process.env) {
-    if (env[LIVE_MARK]) return null;
+    if (env[LIVE_MARK]) {
+        delete env[LIVE_MARK];
+        return null;
+    }
     const self = fileURLToPath(import.meta.url);
     const live = liveCopy(env);
     if (!live || !existsSync(live)) {

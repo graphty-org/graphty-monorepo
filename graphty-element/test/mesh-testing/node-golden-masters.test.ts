@@ -339,7 +339,7 @@ describe("Node Golden Masters", () => {
             assert.isNotNull(result.material.diffuseTexture);
         });
 
-        test("2D gradients light the emissive channel as well as the diffuse one", () => {
+        test("2D gradients light the emissive channel alone, so the ramp is not drawn squared", () => {
             const result = createNode({
                 shape: "sphere",
                 is2D: true,
@@ -347,6 +347,7 @@ describe("Node Golden Masters", () => {
             });
 
             assert.isNotNull(result.material.emissiveTexture);
+            assert.isNull(result.material.diffuseTexture);
             assert.isTrue(result.material.disableLighting);
         });
 

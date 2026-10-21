@@ -85,6 +85,8 @@ opens as above. Any other file -- CSV, GraphML, GML, GEXF, DOT, Pajek, JSON grap
 into a [load draft](./load-preview), as `session.data.prepare` reads it, and the report says
 `opened: "graph"` and carries the `draft`. Nothing is in the graph until you load it, so the
 reader can check the columns first, and the unsaved-changes check does not apply.
+For a graph file, `draft.load()` loads what `session.data.import` of the same file loads, and
+also labels the nodes with the file's `label` field ([load draft](./load-preview)).
 
 ```typescript
 const report = await project.open(file, { discard: true });
@@ -92,7 +94,9 @@ if (report.opened === "graph") await report.draft?.load(); // or show report.dra
 ```
 
 A data file no format reads is refused with `E_UNKNOWN_FORMAT`, and one its format cannot read
-with `E_PARSE_FAILED`, as `prepare` refuses them. Text handed over without a `File` is read by its
+with `E_PARSE_FAILED`, as `prepare` refuses them. The other way round, a project file handed to
+`data.import` or `data.prepare` is refused with `E_PROJECT_FILE_AS_DATA` (`details`:
+`{ kind, use: "project.open" }`) rather than loaded as an empty graph. Text handed over without a `File` is read by its
 content; pass `{ fileName }` so its extension names the format.
 
 ## Saving without a download

@@ -314,3 +314,13 @@ export function counts(filters: QueryFilters): readonly [string, string] {
         `MATCH (a)-[r${typesPattern(filters)}]->(b)${whereClause(where.length === 0 ? null : where.join(" AND "))} RETURN count(r) AS c`,
     ];
 }
+
+/**
+ * The node count of a mode "all" load with at most one label and the server's ids: a pattern
+ * Neo4j answers from its count store in one cheap lookup, whatever the graph's size.
+ * @param label - the quoted label, or undefined for every node
+ * @returns the statement
+ */
+export function storeCount(label: string | undefined): string {
+    return `MATCH (n${label === undefined ? "" : `:${label}`}) RETURN count(n) AS c`;
+}

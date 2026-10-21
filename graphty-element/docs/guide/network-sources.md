@@ -150,6 +150,10 @@ A capped load (`limits: { maxNodes: 500, onLimit: "stop" }`) records where it st
 service returns, so a load can end one page past it: one OpenAlex page of 200 works, with the
 works they cite as nodes, is about 11,000 nodes. A graph database applies the cap in its query. `session.data.loads()` lists every load
 with its source, parameters, endpoint and whether more is available, never a secret.
+Each entry of `session.data.sources()` has `total` when the source said how many nodes it holds
+for the load (a Neo4j `mode: "all"` load with one label counts them in one cheap query), or when a
+complete read counted them, so an application can show "100 of 28,455"; `session.data.more()`
+keeps it, and a saved project records it.
 
 `mode: "merge"` adds to the graph instead of replacing it. A node already there keeps its
 attributes unless you pass `existing: "update"`.

@@ -39,6 +39,14 @@ const QUERIES = recorded("movies-queries");
 const EXPAND_PAGED = recorded("movies-expand-paged");
 const MOVIES = { database: "movies", mode: "all", pageSize: 100 } as const;
 
+/** The count-store lookup a first page of Everything runs: the demo's 171 movies-graph nodes. */
+const COUNT: Recording = {
+    ...PAGED[0],
+    requestBody: JSON.stringify({ statement: "MATCH (n) RETURN count(n) AS c", parameters: {}, accessMode: "Read" }),
+    body: { data: { fields: ["c"], values: [[{ $type: "Integer", _value: "171" }]] }, bookmarks: [] },
+};
+const LOAD = [COUNT, ...PAGED];
+
 /** A recorded Query API answer's rows. */
 type Rows = { data: { fields: string[]; values: { _value: Record<string, string> }[][] } };
 
@@ -83,7 +91,7 @@ function among(last: string, after: string | null): Recording {
 }
 
 /** Mode "all" capped at 100 nodes, page by page: each node page, then the edges among what is loaded. */
-const CAPPED = [PAGED[0], among(lastKey(PAGED[0]), null), PAGED[1], among(lastKey(PAGED[1]), lastKey(PAGED[0]))];
+const CAPPED = [COUNT, PAGED[0], among(lastKey(PAGED[0]), null), PAGED[1], among(lastKey(PAGED[1]), lastKey(PAGED[0]))];
 
 /** Load options against recordings, with the demo's published login. */
 function options(recordings: readonly Recording[]): Parameters<typeof loadFromSource>[2] {
@@ -92,13 +100,14 @@ function options(recordings: readonly Recording[]): Parameters<typeof loadFromSo
 
 describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     it("loads the movies graph exactly: 171 nodes, 253 edges", async () => {
-        const fetch = replayFetch(PAGED);
-        const { snapshot, report, format } = await loadFromSource("neo4j", MOVIES, { ...options(PAGED), fetch });
+        const fetch = replayFetch(LOAD);
+        const { snapshot, report, format } = await loadFromSource("neo4j", MOVIES, { ...options(LOAD), fetch });
         expect(format).toBe("source:neo4j");
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([171, 253]);
         expect(snapshot.directed).toBe(true);
         expect(report.source?.next).toBeNull();
-        expect(report.source?.requests).toBe(5);
+        expect(report.source?.requests).toBe(6);
+        expect(report.source?.total).toEqual({ nodes: 171 });
         expect(report.source?.server).toEqual({ product: "Neo4j", profile: "neo4j", readOnly: "enforced" });
         expect(report.source?.validators?.contentHash).toMatch(/^[0-9a-f]{64}$/);
         expect(fetch.calls.every((c) => c.method === "POST" && c.credential)).toBe(true);
@@ -109,7 +118,7 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     });
 
     it("keeps labels, relationship types, properties and the degree hint", async () => {
-        const { snapshot } = await loadFromSource("neo4j", MOVIES, options(PAGED));
+        const { snapshot } = await loadFromSource("neo4j", MOVIES, options(LOAD));
         const keanu =
             Array.from({ length: snapshot.nodeCount }, (_, i) => i).find(
                 (i) => snapshot.nodes.value("name", i) === "Keanu Reeves",
@@ -291,13 +300,13 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
     });
 
     it("validate re-runs the load and compares the content hash", async () => {
-        const { report } = await loadFromSource("neo4j", MOVIES, options(PAGED));
+        const { report } = await loadFromSource("neo4j", MOVIES, options(LOAD));
         const seen = report.source?.validators ?? {};
-        expect((await validateSource("neo4j", MOVIES, seen, options(PAGED))).status).toBe("current");
-        expect((await validateSource("neo4j", MOVIES, { contentHash: "0".repeat(64) }, options(PAGED))).status).toBe(
+        expect((await validateSource("neo4j", MOVIES, seen, options(LOAD))).status).toBe("current");
+        expect((await validateSource("neo4j", MOVIES, { contentHash: "0".repeat(64) }, options(LOAD))).status).toBe(
             "changed",
         );
-        expect((await validateSource("neo4j", MOVIES, {}, options(PAGED))).status).toBe("unverifiable");
+        expect((await validateSource("neo4j", MOVIES, {}, options(LOAD))).status).toBe("unverifiable");
     });
 
     it("maps a 401 to E_SOURCE_AUTH with the origin", async () => {

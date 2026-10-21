@@ -187,6 +187,7 @@ export {
     type SourceRuntime,
     type SourceRuntimeReason,
     type SourceSample,
+    type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
 

@@ -243,22 +243,32 @@ describe("the mouse", () => {
             const element = await mounted(viewMode);
             element.zoomToPointer = true;
             const point = at(element, "a");
-            const turns = async (deltaY: number): Promise<number> => {
+            // How far in the view is: in 2D the drawing's scale, the spread; in 3D the camera's
+            // nearness, because a perspective view draws two nodes at another depth than the pivot
+            // growing faster as the camera nears them than they shrink as it backs away.
+            const nearness = (): number =>
+                viewMode === "2d" ? spread(element) : 1 / (element.getCameraState().cameraDistance ?? Number.NaN);
+            const turns = async (deltaY: number): Promise<{ spread: number; nearness: number }> => {
                 for (let notch = 0; notch < 3; notch++) {
                     await wheel(element, point, deltaY);
                 }
                 await applied(element);
-                return spread(element);
+                return { spread: spread(element), nearness: nearness() };
             };
 
-            const start = spread(element);
+            const start = { spread: spread(element), nearness: nearness() };
             const zoomedIn = await turns(-100);
             const back = await turns(100);
             const zoomedOut = await turns(100);
 
-            assert.isAbove(zoomedIn, start * 1.2, "three turns in zoomed in");
-            assert.closeTo(back / start, 1, 0.01, "three turns out undid three turns in");
-            assert.closeTo(start / zoomedOut, zoomedIn / start, 0.01, "out shrank the drawing as much as in grew it");
+            assert.isAbove(zoomedIn.spread, start.spread * 1.2, "three turns in zoomed in");
+            assert.closeTo(back.spread / start.spread, 1, 0.01, "three turns out undid three turns in");
+            assert.closeTo(
+                start.nearness / zoomedOut.nearness,
+                zoomedIn.nearness / start.nearness,
+                0.01,
+                "three turns out zoomed out as far as three turns in zoomed in",
+            );
         });
     }
 
@@ -572,6 +582,30 @@ async function hold(
     assert.strictEqual(heldFrames, count, "the key was held for the frames counted");
 }
 
+/**
+ * Tap a key on the 3D canvas and wait until the motion it owes is over: a tap moves the camera for
+ * a few frames, and the camera is the reader's, so a stable frame does not wait for it.
+ * @param element - The element.
+ * @param key - The key, as userEvent names it.
+ */
+async function tap(element: Graphty, key: string): Promise<void> {
+    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get("orbit");
+    assert.isDefined(input);
+    const update = input.update.bind(input);
+    let updates = 0;
+    input.update = (): void => {
+        updates++;
+        update();
+    };
+    try {
+        await userEvent.keyboard(key);
+        await settled(element, () => updates);
+    } finally {
+        input.update = update;
+    }
+    await applied(element);
+}
+
 describe("the keyboard", () => {
     it("does not take focus from the page when it loads", async () => {
         const input = document.createElement("input");
@@ -610,11 +644,9 @@ describe("the keyboard", () => {
             const gap = spread(element);
 
             // A tap: down and up before the next frame, which a key read once a frame never saw.
-            await userEvent.keyboard(key);
-            await applied(element);
+            await tap(element, key);
             const once = spread(element);
-            await userEvent.keyboard(key);
-            await applied(element);
+            await tap(element, key);
 
             assert.isAbove(once, gap * 1.05, "the first tap zoomed in");
             assert.isAbove(spread(element), once * 1.05, "and so did the second");

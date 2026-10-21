@@ -19,14 +19,17 @@ const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>
     "turn-down": "turn-up",
     "roll-left": "roll-right",
     "roll-right": "roll-left",
+    "zoom-in": "zoom-out",
+    "zoom-out": "zoom-in",
 };
 
 /**
- * How much of a wheel notch one auto-repeat of a held zoom key moves: a tap is a whole notch,
- * and a key held down repeats at about 30 a second, so a quarter notch a repeat zooms about 2x a
- * second rather than 17x.
+ * The factor one mouse wheel notch (deltaY 100) multiplies the camera distance by: each notch out
+ * multiplies it by this and each notch in divides it by the same, so a turn out undoes a turn in.
+ * It is its own number, not keyboardZoomSpeed: a zoom key moves the camera every frame it is held,
+ * a notch only once.
  */
-const REPEAT_SHARE = 0.25;
+const WHEEL_NOTCH_FACTOR = 1.1;
 
 /**
  * Handles user input for the orbit camera controller.
@@ -92,15 +95,6 @@ export class OrbitInputController {
             return;
         }
 
-        // A zoom key acts on the key press itself, one wheel notch, and a fraction of one on each
-        // auto-repeat while held: a camera distance can be thousands of units, so a fixed step
-        // per frame was invisible on a large graph and a tap between two frames was lost.
-        if (action === "zoom-in" || action === "zoom-out") {
-            const notches = (action === "zoom-in" ? -1 : 1) * (evt.repeat ? REPEAT_SHARE : 1);
-            this.zoomBy(notches);
-            return;
-        }
-
         this.held.add(action);
         if (!evt.repeat) {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
@@ -128,7 +122,7 @@ export class OrbitInputController {
         }
     };
 
-    // One mouse wheel notch (deltaY 100) moves the camera by about keyboardZoomSpeed / 2 of its distance;
+    // One mouse wheel notch (deltaY 100) moves the camera by about a tenth of its distance;
     // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
     // delta from jumping the camera.
     private readonly wheelHandler = (evt: WheelEvent): void => {
@@ -153,15 +147,15 @@ export class OrbitInputController {
 
     /**
      * How far some wheel notches move the camera: each notch out multiplies its distance by
-     * 1 + keyboardZoomSpeed / 2 and each notch in divides it by the same, so a turn out undoes a
-     * turn in. Adding the same share of the distance either way zoomed in 1/0.9 a notch and out
-     * only 1/1.1, and three turns out did not undo three turns in.
+     * WHEEL_NOTCH_FACTOR and each notch in divides it by the same, so a turn out undoes a turn in.
+     * Adding the same share of the distance either way zoomed in 1/0.9 a notch and out only 1/1.1,
+     * and three turns out did not undo three turns in.
      * @param notches - Notches; negative zooms in.
      * @returns The distance delta.
      */
     private notchDistance(notches: number): number {
         const distance = this.controller.cameraDistance;
-        return distance * (1 + this.config.keyboardZoomSpeed / 2) ** notches - distance;
+        return distance * WHEEL_NOTCH_FACTOR ** notches - distance;
     }
 
     /**
@@ -307,6 +301,16 @@ export class OrbitInputController {
 
         if (yaw !== 0 || pitch !== 0) {
             cam.rotate(-yaw * turn, -pitch * turn);
+        }
+
+        // A zoom key multiplies the distance by the same factor every frame it is held, so the
+        // zoom is as quick far out as close in, and the two keys are exact inverses.
+        if (on("zoom-in")) {
+            cam.zoomBy(1 - this.config.keyboardZoomSpeed);
+        }
+
+        if (on("zoom-out")) {
+            cam.zoomBy(1 / (1 - this.config.keyboardZoomSpeed));
         }
 
         if (on("roll-left")) {

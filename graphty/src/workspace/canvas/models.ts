@@ -13,7 +13,7 @@ import type { WorkspaceStore } from "../state/store";
 import { modelWords } from "../style/words";
 
 /** What was dropped: the files, and the same files as graphty-element's assets take them. */
-export interface Dropped {
+interface Dropped {
     /** Every file, for asking the element what they are. */
     readonly files: readonly File[];
     /** For `session.assets.add`: the files, or a folder's files by path. */

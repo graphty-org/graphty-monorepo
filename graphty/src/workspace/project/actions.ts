@@ -24,7 +24,7 @@ export const KEEP_ASSETS_DIALOG = "keep-assets";
 export type AssetChoices = Record<string, "embed" | "url">;
 
 /** A save waiting for the reader's choices: the addresses to ask about, and what to do with the answer. */
-export interface AssetQuestion {
+interface AssetQuestion {
     readonly assets: readonly { readonly url: string; readonly name: string; readonly kind: "model" | "image" }[];
     readonly answer: (choices: AssetChoices | null) => void;
 }

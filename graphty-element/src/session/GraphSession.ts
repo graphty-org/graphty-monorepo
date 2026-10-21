@@ -1831,14 +1831,7 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
         }
     }
 
-    for (const run of runs.list()) {
-        for (const field of run.fields) {
-            if (field.kind === target) {
-                // A field declared by its algorithm names the run as "$" until bound to this one.
-                paths.push(bindResultPath(field.path, run.id));
-            }
-        }
-    }
+    paths.push(...runFieldPaths(runs, target));
 
     // Every node's structure (its degree; in and out degree on a directed graph) is answered from
     // the snapshot, with no run.
@@ -1851,6 +1844,26 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
         for (const endpoint of ["data.source", "data.target"]) {
             if (!paths.includes(endpoint)) {
                 paths.push(endpoint);
+            }
+        }
+    }
+
+    return paths;
+}
+
+/**
+ * The paths the runs publish for one kind of element, each bound to its run.
+ * @param runs - The runs.
+ * @param target - Nodes or edges.
+ * @returns The paths, in run order.
+ */
+function runFieldPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
+    const paths: Path[] = [];
+    for (const run of runs.list()) {
+        for (const field of run.fields) {
+            if (field.kind === target) {
+                // A field declared by its algorithm names the run as "$" until bound to this one.
+                paths.push(bindResultPath(field.path, run.id));
             }
         }
     }
@@ -3003,7 +3016,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
-        stack !== null && stack.compiled().some((entry) => entry.layer.selector.match === "state");
+        stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
     const repaintStates = (dirty: ElementIndices): void => {
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
@@ -3022,7 +3035,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
         const changed: number[] = [];
         for (let index = 0; index < after.length; index++) {
-            if (before === undefined || before.length !== after.length || before[index] !== after[index]) {
+            if (before?.length !== after.length || before[index] !== after[index]) {
                 changed.push(index);
             }
         }

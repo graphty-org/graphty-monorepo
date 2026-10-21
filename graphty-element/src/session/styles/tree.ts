@@ -32,7 +32,7 @@ import type { LayerId, StyleDocumentRow } from "../../catalog/types";
 import type { CompiledLayer } from "./Layer";
 
 /** A row's id: its layer's id for a layer row, an element-minted `folder:` id for a folder. */
-export type StyleRowId = string;
+export type StyleRowId = string; // NOSONAR(S6564): public API name in api/session.api.md, removing it is breaking
 
 /** Where a row is pinned among its siblings. */
 export type StyleRowPin = "top" | "bottom" | "none";
@@ -459,7 +459,7 @@ function placeBetween(rows: Rows, id: LayerId, below: LayerId | undefined, above
 
     const container = depth === 0 ? null : (lowPath[depth - 1] ?? null);
     const siblings = container === null ? rows : (container.children ?? []);
-    const index = siblings.findIndex((row) => row === lowPath[depth]);
+    const index = lowPath[depth] === undefined ? -1 : siblings.indexOf(lowPath[depth]);
 
     return insertRow(rows, container?.id ?? null, index + 1, layerRow(id));
 }

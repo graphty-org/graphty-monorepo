@@ -575,6 +575,36 @@ interface CapturedMembership {
     readonly edges: U8;
 }
 
+/**
+ * Add to `added` each element a mask holds now that a captured membership did not, and to
+ * `removed` each it held that the mask does not, in index order.
+ * @param mask - The membership now.
+ * @param mask.count - How many elements it spans.
+ * @param mask.has - Whether it holds the element at an index.
+ * @param before - The captured membership, one byte per element.
+ * @param idOf - The id of the element at an index.
+ * @param added - Where the added ids go.
+ * @param removed - Where the removed ids go.
+ */
+function diffMembership(
+    mask: { readonly count: number; has(index: number): boolean },
+    before: U8,
+    idOf: (index: number) => NodeId,
+    added: NodeId[],
+    removed: NodeId[],
+): void {
+    for (let index = 0; index < mask.count; index++) {
+        const was = index < before.length && before[index] === MEMBER;
+        const is = mask.has(index);
+
+        if (is && !was) {
+            added.push(idOf(index));
+        } else if (was && !is) {
+            removed.push(idOf(index));
+        }
+    }
+}
+
 /** What one attribute looked like as a walk accumulated it. */
 interface AttributeAccumulator {
     /** The finite numbers seen, in index order. */
@@ -1287,27 +1317,8 @@ class Selection implements SelectionOwner {
         const removed: NodeId[] = [];
         const { nodeSpace, edgeSpace } = this.#frame;
 
-        for (let index = 0; index < this.#nodes.count; index++) {
-            const was = index < before.nodes.length && before.nodes[index] === MEMBER;
-            const is = this.#nodes.has(index);
-
-            if (is && !was) {
-                added.push(nodeSpace.idOf(index));
-            } else if (was && !is) {
-                removed.push(nodeSpace.idOf(index));
-            }
-        }
-
-        for (let index = 0; index < this.#edges.count; index++) {
-            const was = index < before.edges.length && before.edges[index] === MEMBER;
-            const is = this.#edges.has(index);
-
-            if (is && !was) {
-                added.push(edgeSpace.idOf(index));
-            } else if (was && !is) {
-                removed.push(edgeSpace.idOf(index));
-            }
-        }
+        diffMembership(this.#nodes, before.nodes, (index) => nodeSpace.idOf(index), added, removed);
+        diffMembership(this.#edges, before.edges, (index) => edgeSpace.idOf(index), added, removed);
 
         const delta: SelectionDelta = Object.freeze({
             added: Object.freeze(added),

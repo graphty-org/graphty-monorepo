@@ -426,9 +426,10 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     // A binding that says what to do with too many groups is painted through the preferred palette
     // and handles the rest itself -- except "extend", whose whole point is the larger palette.
     const folds = overflow === "other" || overflow === "shape" || overflow === "pattern";
+    const wanted = folds ? 0 : declared;
     const palette =
         stops === undefined
-            ? requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared))
+            ? requirePalette(named ?? defaultPaletteFor(registry, scale, wanted))
             : inlinePalette(
                   stops,
                   registry.describe(scale)?.domainKind === "categorical",

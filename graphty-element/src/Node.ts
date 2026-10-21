@@ -1720,14 +1720,7 @@ export class Node {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
-            if (existing && !existing.isDisposed()) {
-                existing.setEnabled(false);
-            }
-
-            if (kind === "halo") {
-                this.ringLabel(null);
-            }
-
+            this.hideOverlay(kind, existing);
             return;
         }
 
@@ -1751,21 +1744,32 @@ export class Node {
             // passed through.
             Node.paintHalo(overlay, look);
             this.ringLabel(look.scale);
-        } else {
-            this.contextPoint = overlay;
-        }
-
-        if (kind === "halo") {
             // The node's own geometry, scaled about its centre: every point of the node's surface
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.mesh.scaling).scaleInPlace(selection.scale);
         } else {
+            this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
+    }
+
+    /**
+     * Stop drawing one of this node's overlays, keeping it for the next time it is wanted.
+     * @param kind - Which overlay.
+     * @param existing - The overlay, when one was built.
+     */
+    private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
+        if (existing && !existing.isDisposed()) {
+            existing.setEnabled(false);
+        }
+
+        if (kind === "halo") {
+            this.ringLabel(null);
+        }
     }
 
     /**

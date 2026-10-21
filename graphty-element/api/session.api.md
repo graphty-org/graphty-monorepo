@@ -1124,13 +1124,16 @@ export interface FindHitBase {
     };
     readonly match: {
         readonly path: Path;
-        readonly value: string | number | boolean;
+        readonly value: FindMatchValue;
     };
     readonly target: SelectionTarget;
 }
 
 // @public
 export type FindKind = "node" | "edge";
+
+// @public
+export type FindMatchValue = string | number | boolean;
 
 // @public
 export interface FindNamedRow {

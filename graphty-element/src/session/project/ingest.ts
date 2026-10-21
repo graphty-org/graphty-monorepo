@@ -366,6 +366,22 @@ function isStorableRecordId(value: unknown): value is string | number {
     return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
 }
 
+/** What one `addEdges` batch is resolved to before its records are added. */
+interface EdgeBatch {
+    /** The endpoint expressions the batch answers. */
+    readonly endpoints: ResolvedEndpoints;
+    /** The repeat policy for this call. */
+    readonly policy: DuplicatePolicy;
+    /** Where a record's own id is read, or null when none is. */
+    readonly recordIdPath: string | null;
+    /** Where a record's weight is read, or null when none is. */
+    readonly weightPath: string | null;
+    /** Whether the legacy `value` key is read when the weight path answers nothing. */
+    readonly legacyFallback: boolean;
+    /** The counters of the load or call. */
+    readonly tally: ImportTally;
+}
+
 /**
  * Turns node and edge records, and whole data sources, into the graph a host holds.
  *
@@ -786,88 +802,11 @@ export class Ingest<K extends KnownEdge> {
             DEFAULT_LIMITS.renderCeiling,
         );
 
+        const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
         for (const edge of edges) {
-            tally.edgeRecords++;
-            const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
-            const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
-            if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
-                this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
-                tally.edgeIds.push(null);
-                continue;
-            }
-
-            const weight = resolveEdgeWeight(edge, weightPath, legacyFallback);
-            if (weight.source === "legacy") {
+            if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;
             }
-
-            if (weight.source !== "default") {
-                tally.weightsResolvedFrom = weight.source;
-                tally.weightsAttribute = weight.source === "legacy" ? "value" : weightPath;
-            }
-
-            const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-            const known = this.knownEdgeFor(srcNodeId, dstNodeId, recordId);
-            const record = frozenRecord(edge);
-            if (known !== null) {
-                tally.repeatedSeen++;
-                if (
-                    this.mergeRepeat(
-                        known,
-                        { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId },
-                        policy,
-                        tally,
-                        writer,
-                    )
-                ) {
-                    tally.edgeIds.push(null);
-                    continue;
-                }
-            } else if (this.measuredRepeat(srcNodeId, dstNodeId, recordId)) {
-                tally.repeatedSeen++;
-                if (this.countRepeat(policy, tally)) {
-                    continue;
-                }
-            }
-
-            // The STORE takes the edge now, whether or not the endpoints have render objects:
-            // the builder creates a missing endpoint itself, so the snapshot is complete while
-            // the scene is still catching up. A load remembers which, to draw them at its end.
-            if (this.loadTally !== null) {
-                for (const id of [srcNodeId, dstNodeId]) {
-                    if (isStorableId(id) && !this.host.store().builder.hasNode(id)) {
-                        this.loadMadeEndpoints.add(id);
-                    }
-                }
-            }
-
-            const { index: edgeIndex, edgeId } = writer.addEdge(
-                srcNodeId,
-                dstNodeId,
-                weight.weight,
-                record,
-                isStorableRecordId(recordId) ? recordId : undefined,
-            );
-            if (edgeIndex === INVALID_INDEX) {
-                // graph-format will not hold an edge between these ids -- most often because the
-                // record does not answer the endpoint expressions at all, so both came back null.
-                // It gets no row, no counter and no render object, which is what makes "every Edge
-                // has a store row" an invariant everything downstream can rely on.
-                tally.rejected++;
-                tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
-                tally.edgeIds.push(null);
-                continue;
-            }
-
-            if (isStorableRecordId(recordId)) {
-                this.edgesByRecordId.set(recordId, edgeIndex);
-                tally.edgesById++;
-            } else {
-                tally.edgesByPosition++;
-            }
-
-            tally.edgeIds.push(edgeIdOf(edgeId));
-            this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
         }
 
         if (legacyWeights > 0) {
@@ -896,6 +835,131 @@ export class Ingest<K extends KnownEdge> {
 
         if (edges.length > 0) {
             this.host.edgesArrived(edges.length);
+        }
+    }
+
+    /**
+     * Add one edge record of an `addEdges` batch: leave it out, merge it as a repeat, or store it.
+     * @param edge - The edge record.
+     * @param batch - What the whole batch was resolved to.
+     * @param writer - The graph primitives to write through.
+     * @returns True when its weight was read from the legacy `value` key.
+     */
+    private addEdgeRecord(edge: Record<string | number, unknown>, batch: EdgeBatch, writer: GraphWriter): boolean {
+        const { endpoints, tally, weightPath } = batch;
+        tally.edgeRecords++;
+        const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
+        const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
+        if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+            this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
+            tally.edgeIds.push(null);
+            return false;
+        }
+
+        const weight = resolveEdgeWeight(edge, weightPath, batch.legacyFallback);
+        const legacy = weight.source === "legacy";
+        if (weight.source !== "default") {
+            tally.weightsResolvedFrom = weight.source;
+            tally.weightsAttribute = legacy ? "value" : weightPath;
+        }
+
+        const recordId = batch.recordIdPath === null ? undefined : readEndpoint(edge, batch.recordIdPath);
+        const record = frozenRecord(edge);
+        const repeat = { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId };
+        if (this.repeatConsumed(repeat, recordId, batch, writer)) {
+            return legacy;
+        }
+
+        // The STORE takes the edge now, whether or not the endpoints have render objects:
+        // the builder creates a missing endpoint itself, so the snapshot is complete while
+        // the scene is still catching up. A load remembers which, to draw them at its end.
+        if (this.loadTally !== null) {
+            this.rememberMadeEndpoints(srcNodeId, dstNodeId);
+        }
+
+        const { index: edgeIndex, edgeId } = writer.addEdge(
+            srcNodeId,
+            dstNodeId,
+            weight.weight,
+            record,
+            isStorableRecordId(recordId) ? recordId : undefined,
+        );
+        if (edgeIndex === INVALID_INDEX) {
+            // graph-format will not hold an edge between these ids -- most often because the
+            // record does not answer the endpoint expressions at all, so both came back null.
+            // It gets no row, no counter and no render object, which is what makes "every Edge
+            // has a store row" an invariant everything downstream can rely on.
+            tally.rejected++;
+            tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
+            tally.edgeIds.push(null);
+            return legacy;
+        }
+
+        if (isStorableRecordId(recordId)) {
+            this.edgesByRecordId.set(recordId, edgeIndex);
+            tally.edgesById++;
+        } else {
+            tally.edgesByPosition++;
+        }
+
+        tally.edgeIds.push(edgeIdOf(edgeId));
+        this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
+        return legacy;
+    }
+
+    /**
+     * Hand an edge record naming a pair the graph already holds to the repeat policy.
+     * @param repeat - The record, its weight and its endpoints.
+     * @param repeat.record - The frozen edge record.
+     * @param repeat.weight - Its weight.
+     * @param repeat.sourceId - Its source id.
+     * @param repeat.targetId - Its target id.
+     * @param recordId - The record's own id, when the batch reads one.
+     * @param batch - What the whole batch was resolved to.
+     * @param writer - The graph primitives to write through.
+     * @returns True when the policy consumed the record, so it is not stored as a new edge.
+     */
+    private repeatConsumed(
+        repeat: {
+            readonly record: Record<string | number, unknown>;
+            readonly weight: number;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
+        recordId: unknown,
+        batch: EdgeBatch,
+        writer: GraphWriter,
+    ): boolean {
+        const { policy, tally } = batch;
+        const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
+        if (known !== null) {
+            tally.repeatedSeen++;
+            if (this.mergeRepeat(known, repeat, policy, tally, writer)) {
+                tally.edgeIds.push(null);
+                return true;
+            }
+
+            return false;
+        }
+
+        if (!this.measuredRepeat(repeat.sourceId, repeat.targetId, recordId)) {
+            return false;
+        }
+
+        tally.repeatedSeen++;
+        return this.countRepeat(policy, tally);
+    }
+
+    /**
+     * Remember the endpoints of a load's edge that the store will create because no node record
+     * named them, so the load draws them at its end.
+     * @param ids - The edge's endpoint ids.
+     */
+    private rememberMadeEndpoints(...ids: NodeIdType[]): void {
+        for (const id of ids) {
+            if (isStorableId(id) && !this.host.store().builder.hasNode(id)) {
+                this.loadMadeEndpoints.add(id);
+            }
         }
     }
 

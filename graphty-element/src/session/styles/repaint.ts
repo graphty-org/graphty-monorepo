@@ -889,6 +889,23 @@ function combineOf(descriptor: ChannelDescriptor, binding: Binding): Combine | n
     };
 }
 
+/**
+ * Write what one channel painted on one element into its column, combined with what is beneath
+ * when the channel combines numbers.
+ * @param channel - The channel.
+ * @param index - The element.
+ * @param painted - What the channel painted (never undefined).
+ */
+function writeChannel(channel: PreparedChannel, index: number, painted: unknown): void {
+    const { column, combine } = channel;
+    if (combine !== null && column.kind === "number" && typeof painted === "number") {
+        column.values[index] = combined(combine, column.values[index], painted);
+        return;
+    }
+
+    writeColumn(column, index, channel.toColumn === null ? painted : channel.toColumn(painted), channel.plainText);
+}
+
 /** One layer, ready to paint. */
 interface PreparedLayer {
     /** What it paints, in the order it will be applied. */
@@ -1598,17 +1615,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     reached[index] = 1;
                 }
 
-                const { column, combine } = channel;
-                if (combine !== null && column.kind === "number" && typeof painted === "number") {
-                    column.values[index] = combined(combine, column.values[index], painted);
-                } else {
-                    writeColumn(
-                        column,
-                        index,
-                        channel.toColumn === null ? painted : channel.toColumn(painted),
-                        channel.plainText,
-                    );
-                }
+                writeChannel(channel, index, painted);
             }
         };
 
@@ -1745,6 +1752,51 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
+     * Prepare one layer, recording (and warning once about) a layer that paints nothing.
+     * @param entry - The layer.
+     * @returns The prepared layer, or null when it has nothing to paint.
+     */
+    const paintableLayer = (entry: CompiledLayer): PreparedLayer | null => {
+        const layer = prepareLayer(entry);
+
+        if (layer.problem !== null) {
+            problems.push(layer.problem);
+            const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
+            if (!reported.has(key)) {
+                reported.add(key);
+                console.warn(
+                    `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
+                );
+            }
+
+            return null;
+        }
+
+        return layer.channels.length === 0 ? null : layer;
+    };
+
+    /**
+     * Hide every dirty element no layer reached, when hiding what nothing paints is on.
+     * @param store - The store.
+     * @param reached - Which elements a layer painted, or null when hiding is off.
+     */
+    const hideUnreached = (store: TargetStore, reached: Uint8Array | null): void => {
+        if (reached === null) {
+            return;
+        }
+
+        const channel: Channel = `${store.target}.visible`;
+        const column = columnFor(store, channel);
+        store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
+        for (let at = 0; at < store.dirtyCount; at++) {
+            const index = store.dirty[at];
+            if (reached[index] === 0) {
+                writeColumn(column, index, false, false);
+            }
+        }
+    };
+
+    /**
      * Repaint one kind of element.
      * @param store - The store.
      * @param stack - The stack as it will stand, bottom first.
@@ -1786,22 +1838,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 continue;
             }
 
-            const layer = prepareLayer(entry);
-
-            if (layer.problem !== null) {
-                problems.push(layer.problem);
-                const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
-                if (!reported.has(key)) {
-                    reported.add(key);
-                    console.warn(
-                        `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
-                    );
-                }
-
-                continue;
-            }
-
-            if (layer.channels.length === 0) {
+            const layer = paintableLayer(entry);
+            if (layer === null) {
                 continue;
             }
 
@@ -1809,17 +1847,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             slice = await paintLayer(store, entry, layer, context, slice, reached);
         }
 
-        if (reached !== null) {
-            const channel: Channel = `${store.target}.visible`;
-            const column = columnFor(store, channel);
-            store.meshWritten = store.meshWritten || meshChannelsFor(store.target).includes(channel);
-            for (let at = 0; at < store.dirtyCount; at++) {
-                const index = store.dirty[at];
-                if (reached[index] === 0) {
-                    writeColumn(column, index, false, false);
-                }
-            }
-        }
+        hideUnreached(store, reached);
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a colour encoding moves no element to another mesh.

@@ -4045,21 +4045,32 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
-        if (edgeId !== undefined) {
-            if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-                const add = event.shiftKey === true;
-                this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
-            }
-            this.session.elementClick({ edge: edgeId });
-        } else {
-            if (!secondary) {
-                this.selectionManager.deselect();
-                if (this.session.selection.edges.length > 0) {
-                    this.session.selection.clear();
-                }
-            }
-            this.session.emptyClick({ x, y, secondary });
+        if (edgeId === undefined) {
+            this.clickEmptyCanvas(x, y, secondary);
+            return;
         }
+
+        if (!(secondary && this.session.selection.edges.includes(edgeId))) {
+            const add = event.shiftKey === true;
+            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+        }
+        this.session.elementClick({ edge: edgeId });
+    }
+
+    /**
+     * A click on empty canvas: a primary click clears the selection; either reports the click.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param secondary - Whether it was the secondary button.
+     */
+    private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
+        if (!secondary) {
+            this.selectionManager.deselect();
+            if (this.session.selection.edges.length > 0) {
+                this.session.selection.clear();
+            }
+        }
+        this.session.emptyClick({ x, y, secondary });
     }
 
     /**

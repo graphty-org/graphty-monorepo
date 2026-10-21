@@ -310,6 +310,9 @@ export interface FindEnd {
     readonly name: string;
 }
 
+/** A value {@link FindHitBase.match} found the text in: an attribute's value, or a node's id. */
+export type FindMatchValue = string | number | boolean;
+
 /** What every {@link FindHit} carries. */
 export interface FindHitBase {
     /**
@@ -317,7 +320,7 @@ export interface FindHitBase {
      * column key (`AttributeDescriptor.path`, such as `"data.name"`). When several values match,
      * this is the best-ranked one, ties going to the first in `data.attributes()` order.
      */
-    readonly match: { readonly path: Path; readonly value: string | number | boolean };
+    readonly match: { readonly path: Path; readonly value: FindMatchValue };
     /**
      * Present when the element is in the graph but `session.visibility` hides it (the time window
      * is part of that filter). Never present under `scope: "visible"`, which leaves hidden

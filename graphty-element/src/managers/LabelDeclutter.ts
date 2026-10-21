@@ -785,18 +785,12 @@ export class LabelDeclutter {
             }
 
             for (const text of texts) {
-                const mesh = text.labelMesh as Mesh;
                 labeled++;
-                mesh.isVisible = true;
-                if (!mesh.isEnabled()) {
+                const placed = this.placeEdgeText(text, declutter);
+                if (placed === "edge-hidden") {
                     edgeHidden++;
-                } else if (declutter && this.measure(text, mesh)) {
-                    if (this.isClear(this.box, this.cellSize)) {
-                        this.keep({ ...this.box }, this.cellSize);
-                    } else {
-                        mesh.isVisible = false;
-                        hiddenByOverlap++;
-                    }
+                } else if (placed === "overlap") {
+                    hiddenByOverlap++;
                 }
             }
         }
@@ -809,6 +803,33 @@ export class LabelDeclutter {
         ) {
             this.edgeCounts = Object.freeze({ labeled, edgeHidden, hiddenByOverlap });
         }
+    }
+
+    /**
+     * Show one edge text, or, with declutter on, hide it when it would overlap a label kept before it.
+     * @param text - The text.
+     * @param declutter - Whether to hide an overlapping text.
+     * @returns "edge-hidden" when its edge is hidden, "overlap" when it was hidden for overlapping,
+     * else "shown".
+     */
+    private placeEdgeText(text: RichTextLabel, declutter: boolean): "edge-hidden" | "overlap" | "shown" {
+        const mesh = text.labelMesh as Mesh;
+        mesh.isVisible = true;
+        if (!mesh.isEnabled()) {
+            return "edge-hidden";
+        }
+
+        if (!declutter || !this.measure(text, mesh)) {
+            return "shown";
+        }
+
+        if (this.isClear(this.box, this.cellSize)) {
+            this.keep({ ...this.box }, this.cellSize);
+            return "shown";
+        }
+
+        mesh.isVisible = false;
+        return "overlap";
     }
 
     /**

@@ -29,6 +29,16 @@ const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>
 const NOTCH_ZOOM = 1.1;
 
 /**
+ * One axis from a pair of opposing keys: 1, -1, or 0 when neither or both are on.
+ * @param plus - Whether the key that moves the positive way is on.
+ * @param minus - Whether the key that moves the negative way is on.
+ * @returns The axis value.
+ */
+function axisOf(plus: boolean, minus: boolean): number {
+    return Number(plus) - Number(minus);
+}
+
+/**
  * Handles user input for the orbit camera controller.
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
@@ -40,7 +50,7 @@ export class OrbitInputController {
     private lastY = 0;
     private isMultiTouch = false;
     /** The camera actions whose keys are held down now. */
-    private held = new Set<CanvasKeyAction>();
+    private readonly held = new Set<CanvasKeyAction>();
     /**
      * Frames of motion each action still owes from its last press (TAP_FRAMES), so a quick tap
      * turns by a step the reader can see rather than by one frame's sliver -- and a key pressed
@@ -307,8 +317,8 @@ export class OrbitInputController {
         // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
         // up while it is held and nothing coasts on after it is let go.
         const turn = this.config.keyboardRotationSpeed / this.config.trackballRotationSpeed;
-        const yaw = (on("turn-left") ? 1 : 0) - (on("turn-right") ? 1 : 0);
-        const pitch = (on("turn-up") ? 1 : 0) - (on("turn-down") ? 1 : 0);
+        const yaw = axisOf(on("turn-left"), on("turn-right"));
+        const pitch = axisOf(on("turn-up"), on("turn-down"));
 
         if (yaw !== 0 || pitch !== 0) {
             cam.rotate(-yaw * turn, -pitch * turn);
@@ -328,7 +338,7 @@ export class OrbitInputController {
         const { held } = this;
         const zooming = (action: CanvasKeyAction): boolean => held.has(action) && (owed.get(action) ?? 0) === 0;
         const both = held.has("zoom-in") && held.has("zoom-out");
-        const zoom = both ? 0 : (zooming("zoom-out") ? 1 : 0) - (zooming("zoom-in") ? 1 : 0);
+        const zoom = both ? 0 : axisOf(zooming("zoom-out"), zooming("zoom-in"));
         if (zoom !== 0) {
             cam.zoomBy((1 - this.config.keyboardZoomSpeed) ** -zoom);
         }

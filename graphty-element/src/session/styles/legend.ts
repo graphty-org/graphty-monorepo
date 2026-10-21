@@ -1310,7 +1310,7 @@ function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reach
         return Object.freeze(folded);
     }
     const met = copies.map((copy) => reached?.(copy.layerId, copy.channel));
-    if (met.some((each) => each === undefined)) {
+    if (met.includes(undefined)) {
         return Object.freeze(folded);
     }
     // Each category once, painted as the copy that meets it paints it, in the kept copy's order.

@@ -2174,24 +2174,7 @@ export class Edge {
      * @param flat - The points, flat x, y, z.
      */
     private placeRun(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
-        const segments = flat.length / 3 - 1;
-
-        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
-        // slot goes, which must not happen in the middle of re-sizing a run.
-        while (slots.length < segments) {
-            slots.push(batch.acquire());
-        }
-
-        while (slots.length > Math.max(1, segments)) {
-            const slot = slots.pop();
-
-            if (slot !== undefined) {
-                batch.release(slot);
-            }
-        }
-
-        // One write per piece, each with its neighbours, so the pieces meet at their corners.
-        batch.placeRun(slots, flat);
+        Edge.placeBand(batch, slots, flat);
     }
 
     /**
@@ -2355,6 +2338,9 @@ export class Edge {
      */
     private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
         const segments = flat.length / 3 - 1;
+
+        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
+        // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
             slots.push(batch.acquire());
         }

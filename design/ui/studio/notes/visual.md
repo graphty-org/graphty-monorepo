@@ -5,42 +5,42 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 expert walkthrough). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-10-21 (tier 3 round 1 closed; insights read). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-10-21, tier 3 round 1 walk) 27 findings in `tier3/rounds/round-1/expert/visual.md` on
-   frozen build `tier3-r1d2-758b8e8081`: 2 sev 3, 13 sev 2, 12 sev 1. Screenshots in
-   `tier3/rounds/round-1/expert/visual/{a-lesmis,b-volunteers,c-poster-dark-900}/`.
-2. New sev 3: a picker whose conditions together pick nothing looks healthy once closed. The warning
-   is only a 9 px red line while open; closed chips print each card's own count (8, 15, 7), the
-   result "0 of 24 nodes" is the smallest gray text, and the tree's "0" looks like Hovered's normal 0
-   (`b-volunteers/12.png`, `13.png`). Watch it in the participants' T41/T48 sessions.
-3. Known sev 3, still open: the key covers drawn nodes and grows with each layer. "The key never
-   moves the drawing" (owner-decisions, 2026-10-19) stands, so my fix is the key's own size: 20 px
-   rows (now 32), content width (now fixed 240), title at entry size (now 8-9 px), one left edge.
-4. Lead sev 2 theme: the condition picker's hierarchy is upside down. Heading ~9 px under a 12 px
-   "+ Add a condition"; the AND rule is a 9 px caption; Done is saturated green before any edit.
-5. One count, four looks (heading "6 of 77", card "6 nodes", chip ", 6 nodes", tree "6"); the
-   category card's counts sit inside the checkbox labels and do not align.
-6. The "Layer" token has two looks: purple 600 in the field, plain black in the closed chip.
-7. Size by a number (default 1 to 3) lets big nodes hide neighbors; the board member vanishes
-   behind a volunteer (`b-volunteers/25.png`). graphty-element layout; any default change is breaking.
-8. Selection on a ~5 px node is a faint horizontal smear (`c-poster-dark-900/04.png`), element.
-9. At 900 x 700 the canvas gets 365 of 900 px; nodes ~5 px (`c-poster-dark-900/02.png`).
-10. compact-mantine items: the Select dropdown has no max height (shape list ~880 px, covers the
-    field); menus open with the first item filled saturated green; select white vs inputs gray.
-11. Held from earlier rounds and still true on this build: painted-over swatches at full strength
-    ("Why this look" shows Everything's indigo), the "+"-per-section height, attribute icons from
-    the app rather than the element.
+1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; the studio
+   stops. Bar 5 fails only on two backlog items rated 3 before the round; no new sev 3 survived.
+   Insights: `tier3/rounds/round-1/insights.md`.
+2. Both my sev 3 claims were weakened to sev 2 by the skeptics: the key covering nodes (no session
+   was misled) and the picker that picks nothing (no session reached it; "watch"). Lesson: a
+   visual finding needs a reader who paid for it, or a scripted repro, to hold its severity.
+3. The round's strongest signal was visual: a new style line starts at the value everything
+   already has (Fill "+" gives `6366F1`, edge Width 8 with no unit), so accepting it changes
+   nothing on screen and looks broken (9 sessions). A change a reader makes must be visible.
+4. Newcomers look for node color in the Graph inspector first (9 sessions); it shows only canvas
+   settings and points nowhere. The only bridge was matching the count beside "Everything" to the
+   node count -- counts carry wayfinding, so one count, one look (heading, card, chip, tree) matters.
+5. Focus visibility is a bar 6 item: the inspector's F6 stop draws no focus indicator (WCAG
+   2.4.7); the color swatch's focus draws as the hex box's border. Every stop gets one focus look.
+6. `colorWord` (compact-mantine) names FFD700 "gold" and F16363 "red": the spoken name and the
+   seen hue disagree. Color names must follow hue bands, fixed in compact-mantine. Measure delta E
+   before claiming two drawn colors look alike.
+7. Nothing says the color box accepts a color word, and the swatches hold no common hues.
+8. The purple "Layer" token: readers avoided it rather than read it (6 sessions). Avoidance is not
+   understanding; the token's two looks (purple field, black chip) are still mine to unify.
+9. Members listed by id (`s05`) and no row mark in the table: readers checked by eye. A visual
+   "painted by this layer" mark on rows is the cheapest fix to propose.
+10. Still open from my walk: key size (20 px rows, content width, title at entry size), condition
+    picker hierarchy, Select with no max height, menus opening with a filled first item.
+11. The round is at its ceiling (55 of 56 succeeded): judge by cost and routes, not success. Same
+    model plays every persona, so my screenshot audits are a needed second source.
 12. Rules for my own work: one path per problem; check what the element offers first; a claim only
     I made is scripted on the frozen build before anyone fixes it; words at rest never rise.
-13. Tool habits: start `real.mjs --start` in the background with `REAL_SLOT_WAIT_SECONDS` high when
-    slots are busy (a 90 s wait failed once this round); crop with `tmp/visual-r1/crop.py <png> x y
-w h <out> [scale]` to read 8-9 px text; the headless capture splits words ("Valu es"), ignore it.
-14. Click empty canvas before a shortcut, or keys type into the find box (Escape does not blur it).
+13. Tool habits: `real.mjs --start` in the background with `REAL_SLOT_WAIT_SECONDS` high; crop with
+    `tmp/visual-r1/crop.py` to read 8-9 px text; click empty canvas before a shortcut.
 
 ## Priorities and values
 
@@ -152,6 +152,13 @@ w h <out> [scale]` to read 8-9 px text; the headless capture splits words ("Valu
   app does not compute a scale.
 - 2026-10-12 (tier 3): Saved label looks are copies (a reader preference) until the element keeps
   linked looks in the style document.
+
+- 2026-10-21 (round 1 closed): a visual finding keeps sev 3 only with a reader who paid for it
+  or a scripted repro; both my sev 3 claims (key over nodes, empty picker) fell to 2 without one.
+  Next time I attach a repro to every sev 3 before scoring.
+- 2026-10-21: "a change must be visible" joins my criteria -- a new line at the inherited value
+  read as broken in 9 sessions. Proposal (app choice, not element): start the line empty or show
+  the inherited value as a placeholder, so accepting a real value is the visible change.
 
 ## Tried: worked / did not work
 

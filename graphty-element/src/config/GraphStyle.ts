@@ -14,7 +14,7 @@ const GraphBackgroundSkybox = z.strictObject({
 });
 
 /** A shader parameter name: a GLSL identifier with no `__`, so no key reaches a prototype. */
-const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z]\w{0,63}$/;
 
 const GraphBackgroundShader = z.strictObject({
     backgroundType: z.literal("shader"),

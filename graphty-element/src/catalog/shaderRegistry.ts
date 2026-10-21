@@ -18,6 +18,7 @@ import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
 import { checkShaderBody, inferShaderReads } from "./shaderGlsl";
 import {
     motionOf,
+    type ShaderCost,
     type ShaderDescriptor,
     type ShaderKind,
     type ShaderProblem,
@@ -82,6 +83,34 @@ function fieldOf(problem: ShaderProblem): string {
 }
 
 /**
+ * Refuse a native WebGPU shader with no WGSL body, or a cost that is not a cost class.
+ * @param id - The shader's id.
+ * @param native - Whether it says its WebGPU form is native.
+ * @param wgsl - Its WGSL body.
+ * @param cost - The cost class it gives.
+ */
+function checkBackendFacts(id: unknown, native: boolean, wgsl: unknown, cost: ShaderCost | undefined): void {
+    if ((native && typeof wgsl !== "string") || (cost !== undefined && !["light", "medium", "heavy"].includes(cost))) {
+        refuse(id, native ? "wgsl" : "descriptor.cost", [
+            { code: "shader.header-key", params: { key: native ? "webgpu" : "cost" } },
+        ]);
+    }
+}
+
+/**
+ * Refuse a low-detail body that is not a string or does not pass the checks `glsl` does.
+ * @param id - The shader's id.
+ * @param lowDetail - The low-detail body.
+ * @param kind - The shader's kind.
+ */
+function checkLowDetail(id: unknown, lowDetail: unknown, kind: ShaderKind): void {
+    const cheap = typeof lowDetail === "string" ? checkShaderBody(lowDetail, kind).problems : null;
+    if (cheap === null || cheap.length > 0) {
+        refuse(id, "lowDetail", cheap ?? [{ code: "shader.entry-missing", params: { kind, expected: "shade" } }]);
+    }
+}
+
+/**
  * Check a registration and build the descriptor the catalog lists.
  * @param registration - The shader.
  * @param origin - Whose it is.
@@ -100,11 +129,7 @@ function admit(
     const { descriptor: given, glsl, wgsl, lowDetail } = registration;
     const { webgpu, cost, thumbnail, ...facts } = given;
     const native = webgpu === "native";
-    if ((native && typeof wgsl !== "string") || (cost !== undefined && !["light", "medium", "heavy"].includes(cost))) {
-        refuse(given.id, native ? "wgsl" : "descriptor.cost", [
-            { code: "shader.header-key", params: { key: native ? "webgpu" : "cost" } },
-        ]);
-    }
+    checkBackendFacts(given.id, native, wgsl, cost);
 
     const read = readShaderDescriptor(
         { ...facts, ...(native || webgpu === undefined ? {} : { webgpu }) },
@@ -125,14 +150,7 @@ function admit(
     }
 
     if (lowDetail !== undefined) {
-        const cheap = typeof lowDetail === "string" ? checkShaderBody(lowDetail, read.kind).problems : null;
-        if (cheap === null || cheap.length > 0) {
-            refuse(
-                given.id,
-                "lowDetail",
-                cheap ?? [{ code: "shader.entry-missing", params: { kind: read.kind, expected: "shade" } }],
-            );
-        }
+        checkLowDetail(given.id, lowDetail, read.kind);
     }
 
     const descriptor: ShaderDescriptor = Object.freeze({

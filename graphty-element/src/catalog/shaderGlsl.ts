@@ -254,6 +254,9 @@ export interface BodyOrigin {
     readonly column: number;
 }
 
+/** The origin of a text that starts at its own first character. */
+const TEXT_START: BodyOrigin = { line: 1, column: 1 };
+
 /**
  * Build a problem with a place.
  * @param code - The code.
@@ -278,7 +281,7 @@ function problemAt(
  * @param origin - Where the text starts.
  * @returns The place.
  */
-export function placeOf(text: string, offset: number, origin: BodyOrigin = { line: 1, column: 1 }): BodyOrigin {
+export function placeOf(text: string, offset: number, origin: BodyOrigin = TEXT_START): BodyOrigin {
     let { line } = origin;
     let { column } = origin;
     for (let index = 0; index < offset && index < text.length; index++) {
@@ -302,8 +305,10 @@ export function placeOf(text: string, offset: number, origin: BodyOrigin = { lin
  */
 export function firstNonAscii(text: string): number {
     for (let index = 0; index < text.length; index++) {
-        const code = text.charCodeAt(index);
-        const loneReturn = code === 0x0d && text.charCodeAt(index + 1) !== 0x0a;
+        // Any code point above 0x7e is refused at its first unit, so reading whole code points
+        // finds the same offset as reading code units would.
+        const code = text.codePointAt(index) ?? 0;
+        const loneReturn = code === 0x0d && text.codePointAt(index + 1) !== 0x0a;
         if (loneReturn || code > 0x7e || (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d)) {
             return index;
         }
@@ -472,6 +477,143 @@ function applyOperator(operator: string | undefined, left: number, right: number
 const BRACKET_DEPTH: Readonly<Record<string, number>> = { "(": 1, "[": 1, "{": 1, ")": -1, "]": -1, "}": -1 };
 
 /**
+ * The value of a numeric literal or a known global constant.
+ * @param token - The token.
+ * @param constants - The global constants known so far.
+ * @returns The value, or null when it is neither.
+ */
+function leafValue(token: Token, constants: ReadonlyMap<string, number>): number | null {
+    if (token.kind === "num") {
+        const value = Number(token.text.replace(/[uUfF]$/, ""));
+        return Number.isFinite(value) ? value : null;
+    }
+
+    return token.kind === "id" ? (constants.get(token.text) ?? null) : null;
+}
+
+/** A recursive-descent reader of one constant expression. */
+class ConstantReader {
+    private at = 0;
+
+    /**
+     * Start a reader at the first token.
+     * @param tokens - The expression's tokens.
+     * @param constants - The global constants known so far.
+     */
+    constructor(
+        private readonly tokens: readonly Token[],
+        private readonly constants: ReadonlyMap<string, number>,
+    ) {}
+
+    /**
+     * Read the whole expression.
+     * @returns The value, or null when it is not constant or tokens are left over.
+     */
+    read(): number | null {
+        const value = this.sum();
+
+        return this.at === this.tokens.length && value !== null && Number.isFinite(value) ? value : null;
+    }
+
+    /**
+     * The text of the next token.
+     * @returns The text, or undefined at the end.
+     */
+    private peek(): string | undefined {
+        return this.tokens[this.at]?.text;
+    }
+
+    /**
+     * Read a primary: a parenthesized expression, a signed primary, a constructor call or a leaf.
+     * @returns The value, or null when it is not constant.
+     */
+    private primary(): number | null {
+        const token = this.tokens[this.at] as Token | undefined;
+        if (token === undefined) {
+            return null;
+        }
+
+        this.at++;
+        if (token.text === "(") {
+            const value = this.sum();
+            return this.peek() === ")" ? (this.at++, value) : null;
+        }
+
+        if (token.text === "-" || token.text === "+") {
+            return this.signed(token.text);
+        }
+
+        if ((token.text === "int" || token.text === "float") && this.peek() === "(") {
+            return this.constructorCall(token.text);
+        }
+
+        return leafValue(token, this.constants);
+    }
+
+    /**
+     * Read the primary after a unary sign.
+     * @param sign - The sign.
+     * @returns The value, or null when it is not constant.
+     */
+    private signed(sign: string): number | null {
+        const value = this.primary();
+        if (value === null) {
+            return null;
+        }
+
+        return sign === "-" ? -value : value;
+    }
+
+    /**
+     * Read the parenthesized argument of an `int` or `float` constructor.
+     * @param type - The constructor.
+     * @returns The value, or null when it is not constant.
+     */
+    private constructorCall(type: string): number | null {
+        this.at++;
+        const value = this.sum();
+        if (this.peek() !== ")" || value === null) {
+            return null;
+        }
+
+        this.at++;
+        return type === "int" ? Math.trunc(value) : value;
+    }
+
+    /**
+     * Read a run of primaries joined by `*` and `/`.
+     * @returns The value, or null when it is not constant.
+     */
+    private product(): number | null {
+        let value = this.primary();
+        while (value !== null && (this.peek() === "*" || this.peek() === "/")) {
+            const operator = this.peek();
+            this.at++;
+            const right = this.primary();
+            value = right === null ? null : applyOperator(operator, value, right);
+        }
+
+        return value;
+    }
+
+    /**
+     * Read a run of products joined by `+` and `-`.
+     * @returns The value, or null when it is not constant.
+     */
+    private sum(): number | null {
+        let value = this.product();
+        while (value !== null && (this.peek() === "+" || this.peek() === "-")) {
+            const operator = this.peek();
+            this.at++;
+            const right = this.product();
+            value = right === null ? null : applyOperator(operator, value, right);
+        }
+
+        return value;
+    }
+}
+
+/**
  * Evaluate a constant expression: literals, global constants, unary minus, the four operators,
  * parentheses and the `int` and `float` constructors.
  * @param tokens - The expression's tokens.
@@ -479,76 +621,7 @@ const BRACKET_DEPTH: Readonly<Record<string, number>> = { "(": 1, "[": 1, "{": 1
  * @returns The value, or null when it is not constant.
  */
 export function evaluateConstant(tokens: readonly Token[], constants: ReadonlyMap<string, number>): number | null {
-    let at = 0;
-    const peek = (): string | undefined => tokens[at]?.text;
-
-    const primary = (): number | null => {
-        const token = tokens[at] as Token | undefined;
-        if (token === undefined) {
-            return null;
-        }
-
-        at++;
-        if (token.text === "(") {
-            const value = sum();
-            return peek() === ")" ? (at++, value) : null;
-        }
-
-        if (token.text === "-" || token.text === "+") {
-            const value = primary();
-            if (value === null) {
-                return null;
-            }
-
-            return token.text === "-" ? -value : value;
-        }
-
-        if ((token.text === "int" || token.text === "float") && peek() === "(") {
-            at++;
-            const value = sum();
-            if (peek() !== ")" || value === null) {
-                return null;
-            }
-
-            at++;
-            return token.text === "int" ? Math.trunc(value) : value;
-        }
-
-        if (token.kind === "num") {
-            const value = Number(token.text.replace(/[uUfF]$/, ""));
-            return Number.isFinite(value) ? value : null;
-        }
-
-        return token.kind === "id" ? (constants.get(token.text) ?? null) : null;
-    };
-
-    const product = (): number | null => {
-        let value = primary();
-        while (value !== null && (peek() === "*" || peek() === "/")) {
-            const operator = peek();
-            at++;
-            const right = primary();
-            value = right === null ? null : applyOperator(operator, value, right);
-        }
-
-        return value;
-    };
-
-    const sum = (): number | null => {
-        let value = product();
-        while (value !== null && (peek() === "+" || peek() === "-")) {
-            const operator = peek();
-            at++;
-            const right = product();
-            value = right === null ? null : applyOperator(operator, value, right);
-        }
-
-        return value;
-    };
-
-    const value = sum();
-
-    return at === tokens.length && value !== null && Number.isFinite(value) ? value : null;
+    return new ConstantReader(tokens, constants).read();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1045,7 +1118,7 @@ function readLoopHeader(tokens: readonly Token[], constants: ReadonlyMap<string,
         if (token.text === ";") {
             parts.push([]);
         } else {
-            parts[parts.length - 1].push(token);
+            parts.at(-1)?.push(token);
         }
     }
 
@@ -1098,6 +1171,30 @@ function stepOf(tokens: readonly Token[], index: string, constants: ReadonlyMap<
 }
 
 /**
+ * The exact number of times a loop tested with `<`, `<=`, `>` or `>=` runs.
+ * @param span - The tested value less the index's first value.
+ * @param by - How much each step moves the index.
+ * @param relation - The test.
+ * @param upward - Whether the test is `<` or `<=`.
+ * @returns The trip count, or null when the loop never ends.
+ */
+function orderedTripCount(span: number, by: number, relation: string, upward: boolean): number | null {
+    const inclusive = relation === "<=" || relation === ">=";
+    const ahead = upward ? span : -span;
+    if (ahead < 0 || (ahead === 0 && !inclusive)) {
+        return 0;
+    }
+
+    if ((upward && by <= 0) || (!upward && by >= 0)) {
+        return null;
+    }
+
+    const steps = ahead / Math.abs(by);
+
+    return inclusive ? Math.floor(steps) + 1 : Math.ceil(steps);
+}
+
+/**
  * The exact number of times a loop runs.
  * @param from - The index's first value.
  * @param to - The value it is tested against.
@@ -1109,19 +1206,7 @@ export function tripCount(from: number, to: number, by: number, relation: string
     const span = to - from;
     const upward = relation === "<" || relation === "<=";
     if (upward || relation === ">" || relation === ">=") {
-        const inclusive = relation === "<=" || relation === ">=";
-        const ahead = upward ? span : -span;
-        if (ahead < 0 || (ahead === 0 && !inclusive)) {
-            return 0;
-        }
-
-        if ((upward && by <= 0) || (!upward && by >= 0)) {
-            return null;
-        }
-
-        const steps = ahead / Math.abs(by);
-
-        return inclusive ? Math.floor(steps) + 1 : Math.ceil(steps);
+        return orderedTripCount(span, by, relation, upward);
     }
 
     if (relation !== "!=") {
@@ -1243,11 +1328,7 @@ function checkEntry(kind: ShaderKind, walk: Walk, origin: BodyOrigin): void {
  * @param origin - Where the body starts in the text it came from.
  * @returns The problems, and the cost bound and class when there are none.
  */
-export function checkShaderBody(
-    body: string,
-    kind: ShaderKind,
-    origin: BodyOrigin = { line: 1, column: 1 },
-): BodyCheck {
+export function checkShaderBody(body: string, kind: ShaderKind, origin: BodyOrigin = TEXT_START): BodyCheck {
     const failed = (problems: readonly ShaderProblem[]): BodyCheck => ({ problems, cost: 0, costClass: "heavy" });
     const bytes = body.length;
     if (bytes > SHADER_BODY_LIMIT) {
@@ -1328,7 +1409,7 @@ function costCheck(kind: ShaderKind, walk: Walk): BodyCheck {
 /** The struct fields that say what a body reads, by input. */
 const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
     [/\.(?:color|sourceColor|targetColor)\b/, "color"],
-    [/\.(?:color|sourceColor|targetColor)\.(?:a|w)\b|\.(?:color|sourceColor|targetColor)\b(?!\s*\.)/, "opacity"],
+    [/\.(?:color|sourceColor|targetColor)\.[aw]\b|\.(?:color|sourceColor|targetColor)\b(?!\s*\.)/, "opacity"],
     [/\.(?:size|pixelSize)\b/, "size"],
     [/\.local\b/, "shape"],
     [/\.widthPx\b/, "width"],

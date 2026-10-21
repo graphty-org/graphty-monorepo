@@ -165,7 +165,7 @@ describe("the edge presets", () => {
 
     it.each(TABLE.map((row) => [row.descriptor.id, row] as const))("%s ships a thumbnail", (id, row) => {
         const url = row.descriptor.thumbnail ?? "";
-        assert.match(url, /thumb\.webp$/);
+        assert.match(new URL(url).pathname, /thumb\.webp$/);
         const bytes = readFileSync(new URL(`../../../src/shaders/presets/${id}/thumb.webp`, import.meta.url));
         assert.strictEqual(String.fromCharCode(...bytes.subarray(8, 12)), "WEBP");
     });

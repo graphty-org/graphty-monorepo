@@ -22,6 +22,24 @@ import type { ShaderDefinition } from "./types";
 const BARE_COLOR = /^#[\da-fA-F]{6}$/;
 
 /**
+ * The optional catalog facts a definition gives, leaving out each one it does not.
+ * @param definition - The definition.
+ * @returns Its motion, reach, blend, bloom, form and reach parameter, where given.
+ */
+function optionalFacts(
+    definition: ShaderDefinition,
+): Partial<Pick<ShaderDefinition, "motion" | "reach" | "blend" | "bloom" | "form" | "reachParam">> {
+    return {
+        ...(definition.motion === undefined ? {} : { motion: definition.motion }),
+        ...(definition.reach === undefined ? {} : { reach: definition.reach }),
+        ...(definition.blend === undefined ? {} : { blend: definition.blend }),
+        ...(definition.bloom === undefined ? {} : { bloom: definition.bloom }),
+        ...(definition.form === undefined ? {} : { form: definition.form }),
+        ...(definition.reachParam === undefined ? {} : { reachParam: definition.reachParam }),
+    };
+}
+
+/**
  * Register a shader from its kind, its GLSL body and its parameters in short form.
  *
  * ```ts
@@ -77,12 +95,7 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
                     plainName: typeof definition.name === "string" ? definition.name : sentenceCase(id.split("/")[1]),
                     kind: definition.kind,
                     params,
-                    ...(definition.motion === undefined ? {} : { motion: definition.motion }),
-                    ...(definition.reach === undefined ? {} : { reach: definition.reach }),
-                    ...(definition.blend === undefined ? {} : { blend: definition.blend }),
-                    ...(definition.bloom === undefined ? {} : { bloom: definition.bloom }),
-                    ...(definition.form === undefined ? {} : { form: definition.form }),
-                    ...(definition.reachParam === undefined ? {} : { reachParam: definition.reachParam }),
+                    ...optionalFacts(definition),
                 },
                 glsl: definition.glsl,
             },

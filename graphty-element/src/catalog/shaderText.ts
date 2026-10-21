@@ -633,7 +633,7 @@ const UNAMBIGUOUS_INPUT: Readonly<Record<string, ShaderKind>> = {
 };
 
 /** Every entry input type. */
-const ENTRY_INPUTS = ["NodeInput", "EdgeInput", "BackgroundInput", "BoundaryInput"];
+const ENTRY_INPUTS: ReadonlySet<string> = new Set(["NodeInput", "EdgeInput", "BackgroundInput", "BoundaryInput"]);
 
 /**
  * Read a body with no header: its kind comes from the caller or from its entry function's input.
@@ -648,7 +648,7 @@ function readHeaderless(text: string, kind: ShaderKind | undefined): ShaderTextR
     if (settled === undefined) {
         // A node or edge body needs a header (or a kind) to say which kind it is; anything else
         // is missing its entry function or has the wrong one.
-        if (input !== undefined && ENTRY_INPUTS.includes(input)) {
+        if (input !== undefined && ENTRY_INPUTS.has(input)) {
             return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
         }
 

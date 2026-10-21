@@ -287,7 +287,7 @@ export interface ShaderRegistration {
  * shader is pasted, copied and saved in. Code, not words for a reader.
  * @since 3.36.0
  */
-export type ShaderText = string;
+export type ShaderText = string; // NOSONAR(S6564): a published, documented name for the pasted text form
 
 /** What `parseShaderText` answers. @since 3.36.0 */
 export type ShaderTextResult =

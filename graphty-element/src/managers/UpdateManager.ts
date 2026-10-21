@@ -756,24 +756,54 @@ export class UpdateManager implements Manager {
         }
 
         if (painter.hasPendingEdges) {
-            // A repainted edge's own appearance changed: the frame visits every edge.
-            this.forceEdgeWalk();
-
-            do {
-                for (const index of painter.takeEdges(EDGE_PAINT_BATCH)) {
-                    const edge = this.dataManager.edgesByIndex[index];
-                    const paint = edge === undefined ? null : painter.edgePaint(index);
-
-                    if (edge !== undefined && paint !== null) {
-                        edge.applySessionPaint(paint);
-                    }
-                }
-            } while (painter.hasPendingEdges && performance.now() < deadline);
+            this.syncEdgeStyles(painter, deadline);
         }
 
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+    }
+
+    /**
+     * Paint the pending edges, batch by batch, until none is left or the frame's time is up.
+     * @param painter - Where the paint is read from.
+     * @param deadline - When this frame stops starting batches; the first always runs.
+     */
+    private syncEdgeStyles(painter: StylePainter, deadline: number): void {
+        // A repainted edge's own appearance changed: the frame visits every edge.
+        this.forceEdgeWalk();
+
+        do {
+            for (const index of painter.takeEdges(EDGE_PAINT_BATCH)) {
+                const edge = this.dataManager.edgesByIndex[index];
+                const paint = edge === undefined ? null : painter.edgePaint(index);
+
+                if (edge !== undefined && paint !== null) {
+                    edge.applySessionPaint(paint);
+                }
+            }
+        } while (painter.hasPendingEdges && performance.now() < deadline);
+    }
+
+    /**
+     * Take one batch of pending nodes and the paint each is to be drawn with.
+     * @param painter - Where the paint is read from.
+     * @param pending - The nodes that were pending when the frame began, by index.
+     * @returns Each node of the batch and its paint.
+     */
+    private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
+        const painted: [Node, NodePaint][] = [];
+
+        for (const index of painter.takeNodes(NODE_PAINT_BATCH)) {
+            const node = pending.get(index);
+            const paint = node === undefined ? null : painter.nodePaint(index);
+
+            if (node !== undefined && paint !== null) {
+                painted.push([node, paint]);
+            }
+        }
+
+        return painted;
     }
 
     /**
@@ -796,18 +826,7 @@ export class UpdateManager implements Manager {
         const resized = new Set<Node>();
 
         do {
-            const painted: [Node, NodePaint][] = [];
-
-            for (const index of painter.takeNodes(NODE_PAINT_BATCH)) {
-                const node = pending.get(index);
-                const paint = node === undefined ? null : painter.nodePaint(index);
-
-                if (node !== undefined && paint !== null) {
-                    painted.push([node, paint]);
-                }
-            }
-
-            for (const node of this.paintNodes(painted)) {
+            for (const node of this.paintNodes(this.takeNodeBatch(painter, pending))) {
                 resized.add(node);
             }
         } while (painter.hasPendingNodes && performance.now() < deadline);
@@ -1381,25 +1400,11 @@ export class UpdateManager implements Manager {
         const budget = Math.min(frameMs / 2, LAYOUT_FRAME_BUDGET_MS);
 
         for (let round = 0; round < rounds; round++) {
-            // A settled engine has nothing left to catch up on.
-            const engine = this.layoutManager.layoutEngine;
-            if (round > 0 && (!engine || engine.isSettled || this.roundWouldOverrun(started, round, budget))) {
+            if (round > 0 && this.catchUpEnds(started, round, budget)) {
                 break;
             }
 
-            const before = minDelta > 0 ? this.enginePositions() : null;
-
-            if (simulation) {
-                this.layoutManager.stepBatch();
-                this.layoutStepCount++;
-            } else {
-                for (let i = 0; i < stepMultiplier; i++) {
-                    this.layoutManager.step();
-                    this.layoutStepCount++;
-                }
-            }
-
-            if (before !== null && this.largestMove(before) < minDelta) {
+            if (this.stepRound(simulation, stepMultiplier, minDelta)) {
                 this.layoutManager.running = false;
                 break;
             }
@@ -1409,14 +1414,45 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether one more catch-up round would take this frame's stepping past its budget, guessing
-     * the next round costs what the rounds so far cost on average.
+     * Take one round of layout steps: one batch of a simulation, `stepMultiplier` steps of any
+     * other engine.
+     * @param simulation - Whether the engine is a simulation.
+     * @param stepMultiplier - How many steps a round of a non-simulation engine takes.
+     * @param minDelta - The settle threshold; 0 switches it off.
+     * @returns True when the round moved no node as far as `minDelta`: the layout has arrived.
+     */
+    private stepRound(simulation: boolean, stepMultiplier: number, minDelta: number): boolean {
+        const before = minDelta > 0 ? this.enginePositions() : null;
+
+        if (simulation) {
+            this.layoutManager.stepBatch();
+            this.layoutStepCount++;
+        } else {
+            for (let i = 0; i < stepMultiplier; i++) {
+                this.layoutManager.step();
+                this.layoutStepCount++;
+            }
+        }
+
+        return before !== null && this.largestMove(before) < minDelta;
+    }
+
+    /**
+     * Whether this frame takes no more catch-up rounds: the engine has settled or gone, or one
+     * more round would take the frame's stepping past its budget, guessing the next round costs
+     * what the rounds so far cost on average.
      * @param started - When the frame's first round began.
      * @param done - How many rounds have run; at least one.
      * @param budget - The most stepping time this frame may take.
      * @returns True when the next round should wait for the next frame.
      */
-    private roundWouldOverrun(started: number, done: number, budget: number): boolean {
+    private catchUpEnds(started: number, done: number, budget: number): boolean {
+        // A settled engine has nothing left to catch up on.
+        const engine = this.layoutManager.layoutEngine;
+        if (!engine || engine.isSettled) {
+            return true;
+        }
+
         const spent = performance.now() - started;
 
         return spent + spent / done > budget;

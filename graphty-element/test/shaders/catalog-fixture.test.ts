@@ -20,7 +20,7 @@ import { shaderDescriptors } from "../../src/catalog/shaderRegistry";
 import { readShaderDescriptor } from "../../src/catalog/shaderText";
 import { createGraphSession } from "../../src/session";
 import { SHADER_PRESETS } from "../../src/shaders/presets";
-import { SHADER_PRESET_BODIES } from "../../src/shaders/presets/bodies";
+import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../src/shaders/presets/bodies";
 import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 import { transitionDescriptors } from "../../src/transitions/registry";
 
@@ -171,19 +171,30 @@ describe("the shader presets", () => {
         );
     });
 
-    // Skipped (and so reported as skipped) until the preset packages add their import lines.
-    it.skipIf(SHADER_PRESETS.length === 0)("lists all 32 presets, the same list the catalog shows", () => {
-        assert.sameMembers(ids, PLANNED_SHADERS);
-        assert.deepEqual(
-            createGraphSession()
-                .catalog.shaders()
-                .map((descriptor) => descriptor.id),
-            ids,
-        );
-    });
+    // Skipped (and so reported as skipped) until every preset package has added its import lines.
+    it.skipIf(SHADER_PRESETS.length < PLANNED_SHADERS.length)(
+        "lists all 32 presets, the same list the catalog shows",
+        () => {
+            assert.sameMembers(ids, PLANNED_SHADERS);
+            assert.deepEqual(
+                createGraphSession()
+                    .catalog.shaders()
+                    .map((descriptor) => descriptor.id),
+                ids,
+            );
+        },
+    );
 
     it("has a body for exactly the listed presets", () => {
         assert.sameMembers(Object.keys(SHADER_PRESET_BODIES), ids);
+    });
+
+    it("has a small-size program only for listed heavy surfaces", () => {
+        const heavy = SHADER_PRESETS.filter((preset) => preset.cost === "heavy" && preset.kind === "node-surface");
+        assert.includeMembers(
+            heavy.map((preset) => preset.id),
+            Object.keys(SHADER_PRESET_LOW_DETAIL),
+        );
     });
 
     it("lists the presets first in the catalog", () => {
@@ -211,6 +222,9 @@ describe("the shader presets", () => {
             const body = await SHADER_PRESET_BODIES[id]();
             const checked = checkShaderBody(body, preset.kind);
             assert.deepEqual(checked.problems, []);
+            if (Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id)) {
+                assert.deepEqual(checkShaderBody(await SHADER_PRESET_LOW_DETAIL[id](), preset.kind).problems, []);
+            }
 
             assert.isString(thumbnail, "a preset ships a thumbnail");
             const bytes = loadThumbnail(thumbnail ?? "");

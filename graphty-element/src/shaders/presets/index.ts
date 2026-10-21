@@ -10,6 +10,17 @@
  */
 
 import type { ShaderDescriptor } from "../../catalog/shaders";
+import { DEW_DROP } from "./dew-drop/descriptor";
+import { DISCO_BALL } from "./disco-ball/descriptor";
+import { GEMSTONE } from "./gemstone/descriptor";
+import { GLASS_MARBLE } from "./glass-marble/descriptor";
+import { LANTERN_GLOW } from "./lantern-glow/descriptor";
 
 /** Every preset's descriptor, in catalog order. */
-export const SHADER_PRESETS: readonly ShaderDescriptor[] = Object.freeze([]);
+export const SHADER_PRESETS: readonly ShaderDescriptor[] = Object.freeze([
+    GLASS_MARBLE,
+    GEMSTONE,
+    DISCO_BALL,
+    LANTERN_GLOW,
+    DEW_DROP,
+]);

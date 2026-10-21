@@ -1301,7 +1301,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return null;
             }
 
-            const lowDetail = source?.lowDetail;
+            const lowDetail = source === undefined ? await presetLowDetail(id) : source.lowDetail;
             return {
                 id,
                 hash: sha256Hex(`${id}\n${glsl}`),
@@ -1359,6 +1359,16 @@ function qualityOf(settings: ShaderSettings): "low" | "medium" | "high" {
 async function presetBody(id: string): Promise<string | undefined> {
     const { SHADER_PRESET_BODIES } = await import("../shaders/presets/bodies");
     return Object.hasOwn(SHADER_PRESET_BODIES, id) ? SHADER_PRESET_BODIES[id]() : undefined;
+}
+
+/**
+ * A heavy preset's small-size program, loaded on first use.
+ * @param id - The preset.
+ * @returns Its cheaper body, or undefined when the preset has none.
+ */
+async function presetLowDetail(id: string): Promise<string | undefined> {
+    const { SHADER_PRESET_LOW_DETAIL } = await import("../shaders/presets/bodies");
+    return Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id) ? SHADER_PRESET_LOW_DETAIL[id]() : undefined;
 }
 
 /**

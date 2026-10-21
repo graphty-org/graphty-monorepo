@@ -403,7 +403,15 @@ async function openInSession(
         const report = await session.project.open(file, { discard, fileName: file.name });
         if (report.opened === "graph") {
             // A data file: a new project's graph, or added to the open one.
-            await report.draft?.load({ ...(fresh ? {} : { mode: "merge" as const }), styles: fileStylesChoice() });
+            // Temporary workaround of a graphty-element defect (#3243): draft.load() does not load
+            // what data.import does (CSV ids are typed, a graph file's `label` field is made the
+            // label column), so the draft is let go and the file imported as before. Load the
+            // draft instead once #3243 is fixed.
+            report.draft?.dispose();
+            await session.data.import(
+                { config: { file }, name: file.name },
+                { ...(fresh ? {} : { mode: "merge" as const }), styles: fileStylesChoice() },
+            );
             noticeFileStyles(workspace, session);
             return;
         }

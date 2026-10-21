@@ -1534,15 +1534,8 @@ export class Edge {
             return;
         }
 
-        const scene = this.context.getScene();
-        const is2D = EdgeMesh.drawsFlat(scene);
-        const painted = style.line?.color;
-        const line = {
-            width: is2D ? width / 40 : width * 20,
-            worldWidth: is2D,
-            color: typeof painted === "string" ? painted : "#a9a9a9",
-            opacity: style.line?.opacity ?? 1,
-        };
+        const is2D = EdgeMesh.drawsFlat(this.context.getScene());
+        const line = Edge.effectLineOf(style, width, is2D);
         const kept = new Set<string>();
         for (const [id, values] of wanted) {
             const name = `edge-effect|${id}|${String(width)}|${is2D ? "2d" : "3d"}`;
@@ -1569,6 +1562,28 @@ export class Edge {
     }
 
     /**
+     * The line an edge effect's batch is drawn along: the edge's width in the units of the view,
+     * its painted color (dark gray when none is painted) and its opacity.
+     * @param style - The resolved style.
+     * @param width - The line's width as painted.
+     * @param is2D - Whether the scene draws flat.
+     * @returns The line facts the batch is keyed and drawn by.
+     */
+    private static effectLineOf(
+        style: EdgeStyleConfig,
+        width: number,
+        is2D: boolean,
+    ): { width: number; worldWidth: boolean; color: string; opacity: number } {
+        const painted = style.line?.color;
+        return {
+            width: is2D ? width / 40 : width * 20,
+            worldWidth: is2D,
+            color: typeof painted === "string" ? painted : "#a9a9a9",
+            opacity: style.line?.opacity ?? 1,
+        };
+    }
+
+    /**
      * The run that draws one effect with one batch: the edge's current run when it still draws with
      * that batch, else a new run of one slot that plays the effect's entrance (an old run on another
      * or a disposed batch is released at once, without its exit).
@@ -1579,7 +1594,7 @@ export class Edge {
      */
     private effectRunFor(id: string, batch: EffectRun["batch"], drawing: EdgeShaderDrawing): EffectRun {
         const run = this.effectRuns.get(id);
-        if (run !== undefined && run.batch === batch && !run.batch.disposed) {
+        if (run?.batch === batch && !batch.disposed) {
             return run;
         }
 

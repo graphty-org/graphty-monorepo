@@ -152,6 +152,27 @@ interface FieldTarget {
 const scratch = new Vector3();
 const projected = new Vector3();
 
+/**
+ * A group's box in the boundary target's pixels, clamped to the target.
+ * @param box - The box in canvas pixels: left, top, right, bottom.
+ * @param toTarget - Target pixels per canvas pixel.
+ * @param size - The target's size.
+ * @param size.width - Its width in pixels.
+ * @param size.height - Its height in pixels.
+ * @returns Left, top, right and bottom, or null when nothing of the box is on the target.
+ */
+function pixelBox(
+    box: readonly number[],
+    toTarget: number,
+    size: { width: number; height: number },
+): [number, number, number, number] | null {
+    const x0 = Math.max(0, Math.floor(box[0] * toTarget));
+    const y0 = Math.max(0, Math.floor(box[1] * toTarget));
+    const x1 = Math.min(size.width, Math.ceil(box[2] * toTarget));
+    const y1 = Math.min(size.height, Math.ceil(box[3] * toTarget));
+    return x1 <= x0 || y1 <= y0 ? null : [x0, y0, x1, y1];
+}
+
 /** The boundaries of one scene. */
 export class BoundaryPass {
     private readonly renderer: EffectRenderer;
@@ -799,13 +820,12 @@ export class BoundaryPass {
             for (const layer of placed) {
                 const { effect, shader } = layer;
                 for (const group of layer.groups) {
-                    const x0 = Math.max(0, Math.floor(group.box[0] * toTarget));
-                    const y0 = Math.max(0, Math.floor(group.box[1] * toTarget));
-                    const x1 = Math.min(size.width, Math.ceil(group.box[2] * toTarget));
-                    const y1 = Math.min(size.height, Math.ceil(group.box[3] * toTarget));
-                    if (x1 <= x0 || y1 <= y0) {
+                    const pixels = pixelBox(group.box, toTarget, size);
+                    if (pixels === null) {
                         continue;
                     }
+
+                    const [x0, y0, x1, y1] = pixels;
 
                     this.renderer.setViewport(
                         new Viewport(

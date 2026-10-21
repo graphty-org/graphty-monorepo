@@ -1011,6 +1011,22 @@ function authoredNumber(
 }
 
 /**
+ * An authored on-or-off value: `true`, "true" or 1 is on, `false`, "false" or 0 is off.
+ * @param value - The value as it was authored.
+ * @param wrongKind - Builds the refusal for a value of another kind.
+ * @returns Whether it is on.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for anything else.
+ */
+function authoredBoolean(value: ChannelValue, wrongKind: (expected: string) => GraphtyError): boolean {
+    const read = value === true || value === "true" || value === 1;
+    if (!read && value !== false && value !== "false" && value !== 0) {
+        throw wrongKind("on or off");
+    }
+
+    return read;
+}
+
+/**
  * Check one value a LAYER wrote against the channel it is written to.
  *
  * A literal, a per-value override and what a missing value paints are all authored, so all three
@@ -1045,14 +1061,8 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             }
 
             return value;
-        case "boolean": {
-            const read = value === true || value === "true" || value === 1;
-            if (!read && value !== false && value !== "false" && value !== 0) {
-                throw wrongKind("on or off");
-            }
-
-            return read;
-        }
+        case "boolean":
+            return authoredBoolean(value, wrongKind);
         case "enum":
             if (typeof value !== "string" || !(values ?? []).includes(value)) {
                 throw outOfRange(descriptor, value, what);

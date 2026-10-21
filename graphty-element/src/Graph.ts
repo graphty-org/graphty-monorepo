@@ -4086,13 +4086,7 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        const picked = pickAsDrawn(this.scene, x, y);
-        if (picked && isCloseLabel(picked)) {
-            const close = closeRectOnScreen(picked);
-            if (close !== undefined && inRect(close, x, y)) {
-                this.selectionManager.deselect();
-            }
-
+        if (this.handledOnCloseLabel(x, y)) {
             return;
         }
 
@@ -4116,6 +4110,27 @@ export class Graph implements GraphContext {
             this.clearSelectionOnPrimary(secondary);
             this.session.emptyClick({ x, y, secondary });
         }
+    }
+
+    /**
+     * A click on a label that draws a close button: on the x it clears the selection, and anywhere
+     * else on that label it does nothing at all.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @returns True when the click landed on such a label, so nothing else answers it.
+     */
+    private handledOnCloseLabel(x: number, y: number): boolean {
+        const picked = pickAsDrawn(this.scene, x, y);
+        if (!picked || !isCloseLabel(picked)) {
+            return false;
+        }
+
+        const close = closeRectOnScreen(picked);
+        if (close !== undefined && inRect(close, x, y)) {
+            this.selectionManager.deselect();
+        }
+
+        return true;
     }
 
     /**

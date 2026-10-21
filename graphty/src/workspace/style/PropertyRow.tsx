@@ -458,7 +458,7 @@ interface FieldProps {
  * @returns what covers it, or undefined.
  */
 function coveredOn(ctx: RowContext, own: Line | undefined, channel: Channel): PaintedOver | undefined {
-    return own === undefined || !own.layer.enabled ? undefined : ctx.paintedOver?.(channel);
+    return own?.layer.enabled === true ? ctx.paintedOver?.(channel) : undefined;
 }
 
 /**

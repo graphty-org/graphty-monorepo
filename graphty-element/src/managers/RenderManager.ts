@@ -24,8 +24,9 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import { shaderDescriptor } from "../catalog/shaderRegistry";
+import type { ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
-import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
+import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
@@ -359,8 +360,17 @@ export interface ShaderSceneSources {
     readonly member: (id: NodeId) => BoundaryMember | undefined;
 }
 
-/** A background shader the graph asks for. */
-type ShaderBackground = Extract<GraphBackgroundConfig, { backgroundType: "shader" }>;
+/** A background shader the graph asks for, with what it is drawn over. */
+interface ShaderBackground {
+    /** The shader's id. */
+    readonly id: string;
+    /** Its parameter values over the defaults. */
+    readonly params: ShaderParams | undefined;
+    /** The background color, hex: drawn beneath, and for a pixel whose result is not a number. */
+    readonly color: string;
+    /** The skybox dome, whose image the shader is drawn over; hidden while the shader draws it. */
+    readonly dome: PhotoDome | null;
+}
 
 /** The session events after which the boundary layers may draw other groups or members. */
 const BOUNDARY_EVENTS = [
@@ -415,7 +425,7 @@ class ShaderScene {
         this.stops.push(
             session.on("shader:status", ({ id }) => {
                 this.boundary?.forget(id);
-                if (this.wanted?.shader === id) {
+                if (this.wanted?.id === id) {
                     void this.showBackground();
                 }
 
@@ -495,13 +505,14 @@ class ShaderScene {
         const controller = shadersControllerOf(this.sources.session);
         const host = this.host();
         if (wanted === null || controller === undefined || host === null) {
+            wanted?.dome?.setEnabled(true);
             this.background?.dispose();
             this.background = null;
             return;
         }
 
         const [shader, runtime, module] = await Promise.all([
-            controller.drawable(wanted.shader),
+            controller.drawable(wanted.id),
             host.runtime(),
             import("../meshes/BackgroundPass"),
         ]);
@@ -510,6 +521,7 @@ class ShaderScene {
         }
 
         if (shader?.registration.descriptor.target !== "background") {
+            wanted.dome?.setEnabled(true);
             this.background?.hide();
             return;
         }
@@ -521,8 +533,17 @@ class ShaderScene {
             this.budget,
             (count) => this.boundary?.tints(count) ?? [],
         );
-        const color = Color4.FromHexString(wanted.color ?? DEFAULT_BACKGROUND_COLOR);
-        await this.background.show(shader, wanted.params, [color.r, color.g, color.b, 1]);
+        const color = Color4.FromHexString(wanted.color);
+        const drawn = await this.background.show(
+            shader,
+            wanted.params,
+            [color.r, color.g, color.b, 1],
+            wanted.dome?.texture ?? null,
+        );
+        // The pass draws the image beneath the shader, so the dome, which would cover it, hides.
+        if (ticket === this.backgroundTicket && !wanted.dome?.isDisposed()) {
+            wanted.dome?.setEnabled(!drawn);
+        }
     }
 
     /** Allocate or release the boundary and bloom passes as the style stack now asks. */
@@ -1367,8 +1388,9 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background: a clear colour, a photo-dome skybox, or a background
-     * shader drawn over the clear colour once it compiled (its `color` is the clear colour).
+     * Draw the graph against a background, bottom to top: the clear colour (its own, else the
+     * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
+     * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
      * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
@@ -1377,26 +1399,31 @@ export class RenderManager implements Manager {
      * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
      */
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
-        this.shaderBackground = background.backgroundType === "shader" ? background : null;
-        this.shaderScene?.setBackground(this.shaderBackground);
+        const color = backgroundColorOf(background);
+        this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
-            if (this.dome?.url === url) {
-                return;
+            if (this.dome?.url !== url) {
+                this.dome?.dome.dispose();
+                const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
+                dome.texture.onLoadObservable.addOnce(() => {
+                    onSkyboxLoaded(url);
+                });
+                this.dome = { url, dome };
             }
-
+        } else {
             this.dome?.dome.dispose();
-            const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
-            dome.texture.onLoadObservable.addOnce(() => {
-                onSkyboxLoaded(url);
-            });
-            this.dome = { url, dome };
-            return;
+            this.dome = null;
         }
 
-        this.dome?.dome.dispose();
-        this.dome = null;
-        this.setBackgroundColor(background.color ?? DEFAULT_BACKGROUND_COLOR);
+        const dome = this.dome?.dome ?? null;
+        const { shader } = background;
+        if (shader === undefined) {
+            dome?.setEnabled(true);
+        }
+
+        this.shaderBackground = shader === undefined ? null : { id: shader.id, params: shader.params, color, dome };
+        this.shaderScene?.setBackground(this.shaderBackground);
     }
 
     /**

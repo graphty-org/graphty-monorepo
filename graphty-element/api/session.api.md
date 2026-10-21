@@ -4218,6 +4218,7 @@ export interface SessionConfig extends ProjectConfig {
         readonly policy: AccelerationPolicy;
         readonly minNodes: number;
     };
+    readonly backgroundColor: string;
     inEffect(key: GraphSettingKey): SettingEffect;
     set(values: ProjectConfigPatch): Promise<void>;
 }

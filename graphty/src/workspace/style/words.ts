@@ -1496,6 +1496,19 @@ export function layersWord(count: number): string {
 /** The Background row's paint types, as Figma's fill. */
 export const BACKGROUND_WORDS = { color: "Color", image: "Image", shader: "Shader" } as const;
 
+/**
+ * The Background section's words: its "+" (Color, Image and Shader, one of each), the reason a
+ * kind already there is disabled in its menu, each row's minus, and the caption that names the
+ * color drawn when the background sets none.
+ */
+export const BACKGROUND_SECTION_WORDS = {
+    title: "Background",
+    add: "Add to background",
+    present: (kind: string): string => `${kind} is already in the background`,
+    remove: (kind: string): string => `Remove background ${kind.toLowerCase()}`,
+    drawnIn: (word: string, hex: string): string => `No color set: drawn in ${word === "" ? hex : `${word} (${hex})`}`,
+} as const;
+
 /** The Quality row's choices: the reader's `shaderSettings.quality`. */
 export const SHADER_QUALITY_WORDS = { auto: "Auto", low: "Low", medium: "Medium", high: "High" } as const;
 

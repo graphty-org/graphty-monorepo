@@ -102,11 +102,11 @@ async function choose(name: string, option: string): Promise<void> {
 }
 
 /**
- * Picks Shader as the Background's paint, opens its gallery and picks Nebula.
+ * Adds a Shader to the Background with its "+", which opens the gallery, and picks Nebula.
  */
 async function pickNebula(): Promise<void> {
-    await userEvent.click(screen.getByText("Shader"));
-    await userEvent.click(await screen.findByRole("button", { name: /^Background shader/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
     const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
     await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
 }
@@ -181,8 +181,7 @@ describe("the graph's shader settings", () => {
         await pickNebula();
         await waitFor(() => {
             const { background } = element.session.config;
-            assert.strictEqual(background.backgroundType, "shader");
-            assert.strictEqual(background.backgroundType === "shader" ? background.shader : "", "nebula");
+            assert.strictEqual(background.shader?.id, "nebula");
         });
 
         // The pick opens its settings, as a style row's pick does. Drift sets how fast it moves,
@@ -192,20 +191,16 @@ describe("the graph's shader settings", () => {
         await userEvent.type(drift, "0{Enter}");
         await waitFor(() => {
             const { background } = element.session.config;
-            assert.deepEqual(background.backgroundType === "shader" ? background.params : undefined, { drift: 0 });
+            assert.deepEqual(background.shader?.params, { drift: 0 });
         });
     });
 
-    it("arrowing onto the Shader paint opens nothing (WCAG 3.2.2); its gallery ends in Paste shader..., whose Add sets the background as one step", async () => {
+    it("the Background shader gallery ends in Paste shader..., whose Add sets the background as one step", async () => {
         const element = await openGraphSettings();
-        await userEvent.click(screen.getByText("Color"));
-        await userEvent.keyboard("{ArrowRight}{ArrowRight}");
-        await screen.findByRole("button", { name: /^Background shader/ });
-        assert.isNull(screen.queryByTestId("shader-gallery"), "moving onto Shader opened no gallery");
-
         // A copy whose body differs from the preset's by a comment, so it is added as a new shader.
         const text = `${await element.session.shaders.source("nebula", { duplicate: true })}\n// pasted\n`;
-        await userEvent.click(screen.getByRole("button", { name: /^Background shader/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(gallery).getByRole("button", { name: "Paste shader..." }));
         const dialog = await screen.findByRole("dialog", { name: "Paste shader" });
@@ -223,7 +218,7 @@ describe("the graph's shader settings", () => {
         await waitFor(
             () => {
                 const { background } = element.session.config;
-                assert.strictEqual(background.backgroundType === "shader" ? background.shader : "", "user/nebula");
+                assert.strictEqual(background.shader?.id, "user/nebula");
             },
             { timeout: TIMEOUT_MS },
         );

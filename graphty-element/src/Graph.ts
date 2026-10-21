@@ -2073,7 +2073,8 @@ export class Graph implements GraphContext {
      * its texture has arrived; the scene never holds more than one dome. A later read of
      * `styles.config.graph.background` sees the value, parsed.
      * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
-     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG.
+     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG;
+     *     either may carry a `shader` (`{ id, params }`) drawn over it.
      * @throws A Zod error when the value is not a background; nothing is changed then.
      */
     setBackground(background: GraphBackgroundConfig): void {

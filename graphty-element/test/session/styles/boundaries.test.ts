@@ -5,8 +5,10 @@
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { z } from "zod";
 
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
+import { ColorStyle, ImageData } from "../../../src/config/common";
 import { GraphBackground } from "../../../src/config/GraphStyle";
 import { boundariesOf, BOUNDARY_GROUP_CAP } from "../../../src/session/styles/StylesApi";
 import { FIELD_TARGETS } from "../../../src/shaders/runtime/scenePrograms";
@@ -142,31 +144,74 @@ describe("boundariesOf", () => {
     });
 });
 
-describe("GraphBackground: the shader member", () => {
-    it("takes a shader id, its parameters and a color drawn until it draws", () => {
+describe("GraphBackground: a shader over the color or the image", () => {
+    // The schema as origin/master released it (3.30.0): a strict union of a color and a skybox.
+    const RELEASED_SCHEMA = z.discriminatedUnion("backgroundType", [
+        z.strictObject({ backgroundType: z.literal("color"), color: ColorStyle }),
+        z.strictObject({ backgroundType: z.literal("skybox"), data: ImageData }),
+    ]);
+    const RELEASED = [
+        { backgroundType: "color", color: "#101014" },
+        { backgroundType: "color", color: "black" },
+        { backgroundType: "color", color: "whitesmoke" },
+        { backgroundType: "color", color: "rgb(10, 20, 30)" },
+        { backgroundType: "skybox", data: "https://example.com/sky.jpg" },
+        { backgroundType: "skybox", data: "data:image/png;base64,iVBORw0KGgo=" },
+    ];
+
+    it("parses every background the released schema took, unchanged", () => {
+        for (const background of RELEASED) {
+            assert.deepEqual(GraphBackground.parse(background), RELEASED_SCHEMA.parse(background));
+        }
+    });
+
+    it("takes a shader on the color member, with its parameters", () => {
         const parsed = GraphBackground.parse({
-            backgroundType: "shader",
-            shader: "nebula",
-            params: { drift: 0, gasA: "#2a0f4a", stars: true },
+            backgroundType: "color",
             color: "black",
+            shader: { id: "nebula", params: { drift: 0, gasA: "#2a0f4a", stars: true } },
         });
         assert.deepEqual(parsed, {
-            backgroundType: "shader",
-            shader: "nebula",
-            params: { drift: 0, gasA: "#2a0f4a", stars: true },
+            backgroundType: "color",
             color: "#000000",
+            shader: { id: "nebula", params: { drift: 0, gasA: "#2a0f4a", stars: true } },
         });
+    });
+
+    it("takes a color and a shader on the skybox member", () => {
+        const parsed = GraphBackground.parse({
+            backgroundType: "skybox",
+            data: "https://example.com/sky.jpg",
+            color: "red",
+            shader: { id: "nebula" },
+        });
+        assert.deepEqual(parsed, {
+            backgroundType: "skybox",
+            data: "https://example.com/sky.jpg",
+            color: "#FF0000",
+            shader: { id: "nebula" },
+        });
+    });
+
+    it("leaves the color out when none is set, so the element draws its default", () => {
+        const parsed = GraphBackground.parse({ backgroundType: "color", shader: { id: "nebula" } });
+        assert.deepEqual(parsed, { backgroundType: "color", shader: { id: "nebula" } });
+    });
+
+    it("has no shader member any more", () => {
+        assert.isFalse(GraphBackground.safeParse({ backgroundType: "shader", shader: "nebula" }).success);
     });
 
     it("refuses a parameter name that could reach a prototype, and unknown members", () => {
         assert.isFalse(
             GraphBackground.safeParse({
-                backgroundType: "shader",
-                shader: "nebula",
-                params: Object.fromEntries([["__proto__x", 1]]),
+                backgroundType: "color",
+                shader: { id: "nebula", params: Object.fromEntries([["__proto__x", 1]]) },
             }).success,
         );
-        assert.isFalse(GraphBackground.safeParse({ backgroundType: "shader", shader: "nebula", trust: "run" }).success);
-        assert.isFalse(GraphBackground.safeParse({ backgroundType: "shader", shader: "" }).success);
+        assert.isFalse(
+            GraphBackground.safeParse({ backgroundType: "color", shader: { id: "nebula", trust: "run" } }).success,
+        );
+        assert.isFalse(GraphBackground.safeParse({ backgroundType: "color", shader: { id: "" } }).success);
     });
 });

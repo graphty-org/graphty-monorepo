@@ -67,6 +67,9 @@ vec4 shade(BackgroundInput b) {
         + starLayer(dir, 32.0, 13.0, 0.01, clock) * 0.7;
     vec3 starColor = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), hash13(floor(dir * 70.0)));
     c += starColor * s * (1.0 - 0.6 * dust * body);
-    return vec4(c, 1.0);
+    // The gas and the stars are light added over what is beneath: the dark sky between them is
+    // as opaque as sky says, so at 0 the background color or image shows through it.
+    float a = mix(clamp(max(c.r, max(c.g, c.b)) * 3.0, 0.0, 1.0), 1.0, sky);
+    return vec4(c / max(a, 1e-3), a);
 }
 `;

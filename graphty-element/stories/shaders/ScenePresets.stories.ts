@@ -245,10 +245,9 @@ export const Nebula: Story = {
     ...controls("nebula"),
     render: (args) =>
         communities([], {
-            backgroundType: "shader",
-            shader: presetId("nebula"),
-            params: paramsOf("nebula", args),
+            backgroundType: "color",
             color: "#0b0614",
+            shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
         }),
     play: async ({ canvasElement }) => {
         await settled(canvasElement, "Shaders/Scene Presets Nebula");
@@ -274,10 +273,9 @@ export const NebulaTintedByGroups: Story = {
                 },
             ],
             {
-                backgroundType: "shader",
-                shader: presetId("nebula"),
-                params: paramsOf("nebula", args),
+                backgroundType: "color",
                 color: "#0b0614",
+                shader: { id: presetId("nebula"), params: paramsOf("nebula", args) },
             },
         ),
     play: async ({ canvasElement }) => {

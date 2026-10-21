@@ -35,6 +35,7 @@ const TABLE: Readonly<
             ["drift", "number", 1, 0, 5],
             ["stars", "number", 0.6, 0, 1],
             ["twinkle", "number", 0.6, 0, 1],
+            ["sky", "number", 1, 0, 1],
             ["tintBy", "enum", "none"],
         ],
     },

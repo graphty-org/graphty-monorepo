@@ -89,6 +89,8 @@ uniform vec3 graphty_eye;
 uniform vec2 graphty_resolution;
 uniform float graphty_freeze;
 uniform vec4 graphty_fallback;
+uniform sampler2D graphty_image;
+uniform float graphty_hasImage;
 ${[...TINT_UNIFORMS, ...TINT_COLOR_UNIFORMS].map((name) => `uniform vec4 ${name};`).join("\n")}
 varying vec2 vUV;
 ${paramDeclarations(params)}
@@ -126,7 +128,19 @@ ${TINT_UNIFORMS.map(
         graphty_out = graphty_fallback;
     }
 
-    gl_FragColor = vec4(clamp(graphty_out.rgb, 0.0, 1.0), 1.0);
+    // Over the image, which is over the clear color: where the shader's alpha is low, what is
+    // beneath it shows. The image is sampled by view direction as the photo dome maps it.
+    vec4 graphty_top = clamp(graphty_out, 0.0, 1.0);
+    vec4 graphty_under = vec4(0.0);
+    if (graphty_hasImage > 0.5) {
+        vec3 graphty_d = graphty_in.viewDir;
+        vec2 graphty_st = vec2(atan(graphty_d.z, graphty_d.x) / 6.28318531 + 0.5, acos(clamp(graphty_d.y, -1.0, 1.0)) / 3.14159265);
+        graphty_under = texture2D(graphty_image, vec2(1.0 - graphty_st.x, graphty_st.y));
+    }
+
+    float graphty_a = graphty_top.a + graphty_under.a * (1.0 - graphty_top.a);
+    vec3 graphty_rgb = graphty_top.rgb * graphty_top.a + graphty_under.rgb * graphty_under.a * (1.0 - graphty_top.a);
+    gl_FragColor = vec4(graphty_a > 0.0 ? graphty_rgb / graphty_a : vec3(0.0), graphty_a);
 }
 `;
 
@@ -140,12 +154,13 @@ ${TINT_UNIFORMS.map(
             "graphty_resolution",
             "graphty_freeze",
             "graphty_fallback",
+            "graphty_hasImage",
             ...TINT_UNIFORMS,
             ...TINT_COLOR_UNIFORMS,
             ...params.map((param) => `graphty_p_${param.name}`),
         ],
         uniformBuffers: [SCENE_BLOCK],
-        samplers: [],
+        samplers: ["graphty_image"],
     };
 }
 

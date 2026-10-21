@@ -46,6 +46,7 @@ const VALUE_EXPORTS = [
     "sniff",
     "sniffFormat",
     "sniffJsonDialectHead",
+    "sniffJsonDialect",
     // formats (8.4, 8.5)
     "CSV_CAPABILITIES",
     "CSV_ISSUE",

@@ -87,7 +87,7 @@ describe("edges that only round off bends are curved only with bends", () => {
     const edge = (realizer: string, inner: string): string =>
         `<edge source="a" target="b"><data key="d10"><y:${realizer}>${inner}</y:${realizer}></data></edge>`;
 
-    it("yEd GraphML: smoothed and the curve realizers curve only edges with bends; an arc is always curved", async () => {
+    it("yEd GraphML: a smoothed polyline curves only with bends, a quad curve is flattened, an arc is always curved", async () => {
         const path = '<y:Path sx="0" sy="0" tx="0" ty="0"/>';
         const bent = '<y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="10" y="20"/></y:Path>';
         const doc = `${YED}
@@ -98,7 +98,8 @@ ${edge("BezierEdge", path)}
 ${edge("QuadCurveEdge", bent)}
 ${edge("ArcEdge", path)}
 </graph></graphml>`;
-        expect(await curved(doc, "graphml")).toEqual([false, true, false, false, true, true]);
+        // a quad curve is flattened into the points it passes through and drawn straight between them
+        expect(await curved(doc, "graphml")).toEqual([false, true, false, false, false, true]);
     });
 
     it("yEd GML: smoothBends curves only an edge whose Line has a point between its two ends", async () => {

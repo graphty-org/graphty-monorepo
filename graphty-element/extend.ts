@@ -229,7 +229,7 @@ export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
-export type { Edge } from "./src/Edge";
+export type { Edge, EdgeCapEnd } from "./src/Edge";
 export type {
     EdgePosition,
     LayoutEngineStatics,

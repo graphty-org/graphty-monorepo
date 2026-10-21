@@ -236,72 +236,112 @@ the layer is reported unbound rather than painting anything.
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel        | Takes                                                                      |
-| ------------------- | -------------------------------------------------------------------------- |
-| `node.color`        | any CSS colour                                                             |
-| `node.size`         | 0 or more; what it measures is `node.sizeMode`'s                           |
-| `node.sizeMode`     | `scale` (the default), `diameter` or `uniform`: what `node.size` measures  |
-| `node.shape`        | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...   |
-| `node.width`        | 0 or more: the width, in the units of `node.size`                          |
-| `node.height`       | 0 or more: the height, in the units of `node.size`                         |
-| `node.depth`        | 0 or more: the depth (3D), in the units of `node.size`                     |
-| `node.planar`       | true or false: draw the node thin, as a flat shape, even in 3D             |
-| `node.zIndex`       | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes    |
-| `node.drawOrder`    | 0 to 100: in 2D, which of two overlapping nodes is drawn on top            |
-| `node.borderColor`  | a colour; black when unset                                                 |
-| `node.borderWidth`  | 0 or more, in the units of `node.size`; 0 draws no border                  |
-| `node.borderStyle`  | `solid`, `dashed`, `dotted` or `double`                                    |
-| `node.cornerRadius` | 0 or more: a round-rectangle's largest corner radius, in `node.size` units |
-| `node.label`        | the words to draw                                                          |
-| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}`         |
-| `node.labelColor`   | any CSS colour: the label's colour                                         |
-| `node.labelSize`    | a number: the label's font size                                            |
-| `node.labelFont`    | a font family                                                              |
-| `node.labelWeight`  | `normal` or `bold`                                                         |
-| `node.labelItalic`  | true or false                                                              |
-| `node.tooltip`      | the words to show on hover                                                 |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                                      |
-| `node.opacity`      | 0 to 1                                                                     |
-| `node.outline`      | a colour                                                                   |
-| `node.glow`         | a colour                                                                   |
-| `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
-| `node.halo`         | true or false: the selection highlight around the node, in its own shape   |
-| `node.haloColor`    | a colour; the selection highlight's when unset (gold)                      |
-| `node.haloScale`    | above 0: how many times the node's size the halo is drawn at (1.45)        |
-| `node.haloOpacity`  | 0 to 1 (0.4)                                                               |
-| `node.wireframe`    | true or false                                                              |
-| `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
-| `node.unlit`        | true or false: drawn in its own color with no light, as a flat dot (3D)    |
+| Node channel                  | Takes                                                                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `node.color`                  | any CSS colour                                                                                                                                   |
+| `node.gradientColor`          | any CSS colour: fills the node with a gradient from `node.color` into it                                                                         |
+| `node.gradientDirection`      | 0 to 360: which way that gradient runs; 0 left to right, 90 downward                                                                             |
+| `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
+| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
+| `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
+| `node.size`                   | 0 or more; what it measures is `node.sizeMode`'s                                                                                                 |
+| `node.sizeMode`               | `scale` (the default), `diameter` or `uniform`: what `node.size` measures                                                                        |
+| `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |
+| `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
+| `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
+| `node.depth`                  | 0 or more: the depth (3D), in the units of `node.size`                                                                                           |
+| `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
+| `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
+| `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
+| `node.borderColor`            | a colour; black when unset                                                                                                                       |
+| `node.borderWidth`            | 0 or more, in the units of `node.size`; 0 draws no border                                                                                        |
+| `node.borderStyle`            | `solid`, `dashed`, `dotted`, `dash-dot`, `double`, `zigzag`, `sinewave`, `forward-slash`, `backward-slash`, `vertical-slash` or `separate-arrow` |
+| `node.cornerRadius`           | 0 or more: a round-rectangle's largest corner radius, in `node.size` units                                                                       |
+| `node.shapePoints`            | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height                                                                     |
+| `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
+| `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
+| `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
+| `node.label`                  | the words to draw                                                                                                                                |
+| `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
+| `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
+| `node.labelSize`              | a number: the label's font size                                                                                                                  |
+| `node.labelLetterSize`        | a number: how tall the letters (one font size) are drawn, in scene units                                                                         |
+| `node.labelFont`              | a font family                                                                                                                                    |
+| `node.labelWeight`            | `normal` or `bold`                                                                                                                               |
+| `node.labelItalic`            | true or false                                                                                                                                    |
+| `node.labelWrapWidth`         | a number: how wide a line may be before its words wrap, in scene units                                                                           |
+| `node.labelWrapTrailingSpace` | true or false: a word must fit with the space after it, as Cytoscape wraps                                                                       |
+| `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
+| `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
+| `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
+| `node.labelRunAlign`          | `baseline`, `hanging` or `middle`: where runs of different sizes in one line of label markup meet                                                |
+| `node.labelMinScreenSize`     | a number of screen pixels: the label is hidden while its letters are drawn smaller                                                               |
+| `node.labelOnTop`             | true or false: draw the label over every node and edge                                                                                           |
+| `node.labelDeclutter`         | `degree` or `size`: hide the label where it overlaps one kept before it                                                                          |
+| `node.labelRotation`          | degrees, clockwise as the reader sees it: how far the label is turned                                                                            |
+| `node.tooltip`                | the words to show on hover                                                                                                                       |
+| `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
+| `node.opacity`                | 0 to 1                                                                                                                                           |
+| `node.outline`                | a colour                                                                                                                                         |
+| `node.glow`                   | a colour                                                                                                                                         |
+| `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
+| `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
+| `node.haloColor`              | a colour; the selection highlight's when unset (gold)                                                                                            |
+| `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
+| `node.haloOpacity`            | 0 to 1 (0.4)                                                                                                                                     |
+| `node.wireframe`              | true or false                                                                                                                                    |
+| `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
+| `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
 
-| Edge channel              | Takes                                                                      |
-| ------------------------- | -------------------------------------------------------------------------- |
-| `edge.color`              | any CSS colour                                                             |
-| `edge.width`              | 0 or more; 0 draws no line (the caps and label still draw)                 |
-| `edge.opacity`            | 0 to 1                                                                     |
-| `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
-| `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
-| `edge.curvature`          | true or false (a bezier)                                                   |
-| `edge.bends`              | points the line runs through, `"along,across ..."` from source to target   |
-| `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
-| `edge.arrowHeadSize`      | 0 or more, 1 being the element's own size; 0 draws no head                 |
-| `edge.arrowHeadColor`     | a colour                                                                   |
-| `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
-| `edge.arrowHeadText`      | words drawn beside the head cap                                            |
-| `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
-| `edge.arrowTail`          | the same arrows                                                            |
-| `edge.arrowTailSize`      | 0 or more; 0 draws no tail                                                 |
-| `edge.arrowTailColor`     | a colour                                                                   |
-| `edge.arrowTailOpacity`   | 0 to 1                                                                     |
-| `edge.arrowTailText`      | words drawn beside the tail cap                                            |
-| `edge.arrowTailTextStyle` | as `node.labelStyle`                                                       |
-| `edge.animationSpeed`     | a number                                                                   |
-| `edge.label`              | the words to draw                                                          |
-| `edge.labelStyle`         | as `node.labelStyle`                                                       |
-| `edge.labelColor`         | as `node.labelColor`                                                       |
-| `edge.labelSize`          | as `node.labelSize`                                                        |
-| `edge.labelFont`          | as `node.labelFont`                                                        |
-| `edge.labelWeight`        | as `node.labelWeight`                                                      |
-| `edge.labelItalic`        | as `node.labelItalic`                                                      |
+| Edge channel                  | Takes                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `edge.color`                  | any CSS colour                                                                                               |
+| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                   |
+| `edge.opacity`                | 0 to 1                                                                                                       |
+| `edge.style`                  | `solid`, `dash`, `dot`, `zigzag`, `double`, `forward-slash`, `separate-arrow`, ... (`EdgeLineTypes.options`) |
+| `edge.patternCount`           | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it)                                   |
+| `edge.curvature`              | true or false (a bezier)                                                                                     |
+| `edge.bends`                  | points the line runs through, `"along,across ..."` from source to target                                     |
+| `edge.fanSpacing`             | 0 or more: how far apart curved parallel edges are at their middle                                           |
+| `edge.fanned`                 | false draws a curved edge as its own curve, ignoring the edges beside it                                     |
+| `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                 |
+| `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                   |
+| `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                    |
+| `edge.arrowHeadColor`         | a colour                                                                                                     |
+| `edge.arrowHeadOpacity`       | 0 to 1                                                                                                       |
+| `edge.arrowHeadText`          | words drawn beside the head cap                                                                              |
+| `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                         |
+| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                              |
+| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                          |
+| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                           |
+| `edge.arrowTail`              | the same arrows                                                                                              |
+| `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                   |
+| `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                 |
+| `edge.arrowTailColor`         | a colour                                                                                                     |
+| `edge.arrowTailOpacity`       | 0 to 1                                                                                                       |
+| `edge.arrowTailText`          | words drawn beside the tail cap                                                                              |
+| `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                         |
+| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                              |
+| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                               |
+| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                               |
+| `edge.animationSpeed`         | a number                                                                                                     |
+| `edge.label`                  | the words to draw                                                                                            |
+| `edge.labelStyle`             | as `node.labelStyle`                                                                                         |
+| `edge.labelColor`             | as `node.labelColor`                                                                                         |
+| `edge.labelSize`              | as `node.labelSize`                                                                                          |
+| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                    |
+| `edge.labelFont`              | as `node.labelFont`                                                                                          |
+| `edge.labelWeight`            | as `node.labelWeight`                                                                                        |
+| `edge.labelItalic`            | as `node.labelItalic`                                                                                        |
+| `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                     |
+| `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                             |
+| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                  |
+| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                  |
+| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                |
+| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                      |
+| `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                 |
+| `edge.labelOnTop`             | as `node.labelOnTop`                                                                                         |
+| `edge.labelRotation`          | as `node.labelRotation`                                                                                      |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -329,11 +369,30 @@ A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` 
 at 24 px, and each field takes the value from the highest layer that set it.
 
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
-a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`,
-`node.labelFont`, `node.labelWeight`, `node.labelItalic`, and the same five on edges). Each lands
+a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
+`node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
+`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelRunAlign`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with
 the code `W_LABEL_STYLE_BOUND`, naming the field channels to bind instead.
+
+Two label fields decide whether a label is drawn at all, the way many graph programs thin out
+their labels. `node.labelMinScreenSize` hides a label while its letters are drawn smaller than that
+many pixels on screen, and shows it again when the reader zooms in. `node.labelDeclutter` hides a
+node label where its words would overlap a label kept before it: a selected node's first, then the
+node with more edges (`degree`) or the larger label and then the larger node (`size`). Both are
+decided again whenever the camera moves. `layoutBehavior.labels.declutter` does the same for every
+node label at once, as a preference of the view rather than a style.
+
+```typescript
+await element.session.styles.add({
+    name: "Readable labels only",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.labelMinScreenSize": 6, "node.labelDeclutter": "size" },
+});
+```
 
 ```typescript
 await element.session.styles.add({
@@ -353,8 +412,10 @@ the extent along one axis in the same units, so a node of width 4 is as wide as 
 an axis left unset keeps the shape's own proportions at `node.size`.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
-`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star` and `vee` (`FLAT_NODE_SHAPES` in
-`@graphty/graphty-element/schema`) -- are the shapes graph files from 2D tools name. They are
+`hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, and Pajek's `cross`, `house`,
+`man` and `woman` (`FLAT_NODE_SHAPES` in `@graphty/graphty-element/schema`) -- are the shapes graph
+files from 2D tools name. `none` is a node with no body: it keeps its size, for its label and the
+edges that meet it, and draws only its label. They are
 drawn flat in every view: in a 3D view, a thin card facing the 2D camera, with its border drawn
 round its faces. `node.depth` makes one deeper, and `node.planar` makes a solid shape thin too.
 Edges end at their outline.

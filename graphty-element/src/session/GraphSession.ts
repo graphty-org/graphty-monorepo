@@ -44,6 +44,7 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
+import { GROUPS_VALUE, groupsOf } from "../data/groups";
 import { readonlyPositions } from "../data/lane";
 import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -197,6 +198,11 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
     readonly stale?: boolean;
     /** Whether the graph holds no node rows, answered without freezing; see `GraphStore.holdsNoRows`. */
     readonly holdsNoRows?: boolean;
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    readonly partialSeeds?: () => {
+        readonly unseeded: readonly NodeId[];
+        readonly placed: readonly PositionEntry[];
+    } | null;
     /**
      * The attribute revisions and input tick of whoever builds the stores (design/sets 6.2): the
      * data manager's, the same across a Clear. Absent, the store's own.
@@ -541,18 +547,36 @@ class Session implements ElementSession {
             }
         };
         this.dispatcher.services.layoutAdvice = () => {
+            // A group with no stored position is drawn as the box around its members, so it is
+            // placed whenever they are.
+            const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics(), {
-                placedNodes: this.store.seededNodeCount,
+                placedNodes: this.store.seededNodeCount + groups.length,
                 file: fileGraph(),
                 graphvizAvailable: graphviz === true,
             });
-            return advice === undefined
-                ? undefined
-                : {
-                      id: advice.layout.id,
-                      engine: advice.layout.engine,
-                      ...(advice.options === undefined ? {} : { options: advice.options }),
-                  };
+            if (advice === undefined) {
+                return undefined;
+            }
+            const advised = {
+                id: advice.layout.id,
+                engine: advice.layout.engine,
+                ...(advice.options === undefined ? {} : { options: advice.options }),
+            };
+
+            // A file that placed some nodes and not others: its placed nodes stay where it put
+            // them, and only the rest are laid out. An advised layout that cannot hold nodes still
+            // (a ring for a graph with no edges) would move every placed node, so the default
+            // force layout, which can, places the rest instead.
+            const partial = this.store.partialSeeds?.() ?? null;
+            const following = new Set(groups.map((g) => g.group));
+            const unplaced = (partial?.unseeded ?? []).filter((id) => !following.has(id));
+            if (partial === null || unplaced.length === 0 || partial.placed.length === 0) {
+                return advised;
+            }
+
+            const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
+            return { ...base, unplaced, placed: partial.placed };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
         this.project = projectOf(this, this.dispatcher, parts.canned, {

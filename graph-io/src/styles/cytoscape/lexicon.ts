@@ -39,6 +39,24 @@ const opacity255: CytoscapeValueParser = (raw, site) => {
 // CX2's 0..1 opacity.
 const opacity01: CytoscapeValueParser = (raw, site) => canonOpacity(raw, "css", site);
 const length: CytoscapeValueParser = (raw, site) => canonNumber(raw, site);
+// An arrow size as the neutral factor: Cytoscape's normal arrow is size 6 (default_vizmap.xml).
+export const arrowSizeParser: CytoscapeValueParser = (raw, site) => {
+    const v = canonNumber(raw, site);
+    return v === null ? null : num6(v / 6);
+};
+
+// Degrees, clockwise on screen as Cytoscape turns a label, folded into 0..360.
+// ponytail: a continuous mapping across 0 (from -30 to 30) folds to 330..30 and interpolates the long way round;
+// keep the sign when a file needs it.
+const rotation: CytoscapeValueParser = (raw, site) => {
+    const v = typeof raw === "number" ? raw : Number(scalarText(raw, site)?.trim() ?? Number.NaN);
+    if (!Number.isFinite(v)) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, String(raw));
+        return null;
+    }
+    return num6(((v % 360) + 360) % 360);
+};
+
 // Cytoscape desktop holds a font size as a whole number, so every value read for one is drawn rounded.
 const fontSize: CytoscapeValueParser = (raw, site) => {
     const v = canonNumber(raw, site);
@@ -85,29 +103,34 @@ const shape: CytoscapeValueParser = (raw, site) => {
 const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
     ["delta", "triangle"],
-    ["arrow", "vee"],
+    // a filled delta with a shallow notch in its back, as long and wide as DELTA (Cytoscape 3.10.5 SVG export)
+    ["arrow", "triangle"],
     ["diamond", "diamond"],
     ["circle", "circle"],
     ["t", "tee"],
     ["half_top", "half"],
-    ["half_bottom", "half"],
+    // the half arrow on the line's other side from HALF_TOP's
+    ["half_bottom", "other:half-bottom"],
     ["square", "square"],
     ["delta_short_1", "triangle"],
     ["delta_short_2", "triangle"],
-    ["arrow_short", "vee"],
+    // a short arrow whose notch is too shallow to show: drawn as the triangle it reads as
+    ["arrow_short", "triangle"],
     ["diamond_short_1", "diamond"],
     ["diamond_short_2", "diamond"],
     ["open_delta", "triangle-open"],
     ["open_circle", "circle-open"],
     ["open_diamond", "diamond-open"],
     ["open_square", "other:open-square"],
-    ["cross_delta", "vee"],
-    ["cross_open_delta", "triangle-open"],
+    // a delta with a bar across the line behind it
+    ["cross_delta", "other:cross-delta"],
+    ["cross_open_delta", "other:cross-open-delta"],
     ["open_half_circle", "other:open-half-circle"],
     ["half_circle", "other:half-circle"],
     ["triangle", "triangle"],
     ["triangle-tee", "tee"],
-    ["triangle-cross", "vee"],
+    // CX2's spelling of CROSS_DELTA
+    ["triangle-cross", "other:cross-delta"],
     ["triangle-backcurve", "triangle"],
     ["tee", "tee"],
     ["vee", "vee"],
@@ -117,7 +140,44 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["open-square", "other:open-square"],
     ["open-delta", "triangle-open"],
     ["half-top", "half"],
-    ["half-bottom", "half"],
+    ["half-bottom", "other:half-bottom"],
+]);
+
+/**
+ * How much longer and wider than the neutral shape it is read as each Cytoscape arrow is drawn: the short deltas and
+ * diamonds, the short arrow and the crossed deltas (a bar behind the delta), from the unit glyphs Cytoscape 3.10.5's
+ * SVG export draws (a DELTA is 2 long and 1 wide, DELTA_SHORT_1 1 by 1, ARROW_SHORT 1.2 by 0.8, CROSS_DELTA 3 by 1.5).
+ * Every other arrow is drawn in its shape's own proportions.
+ */
+const CY_ARROW_PROPORTIONS: ReadonlyMap<string, { readonly length: number; readonly width: number }> = new Map([
+    ["delta_short_1", { length: 0.5, width: 1 }],
+    ["delta_short_2", { length: 0.25, width: 1 }],
+    ["arrow_short", { length: 0.6, width: 0.8 }],
+    ["diamond_short_1", { length: 0.5, width: 1 }],
+    ["diamond_short_2", { length: 0.25, width: 1 }],
+    ["cross_delta", { length: 1.5, width: 1.5 }],
+    ["cross_open_delta", { length: 1.5, width: 1.5 }],
+    ["triangle-cross", { length: 1.5, width: 1.5 }],
+]);
+
+/**
+ * How far from its node Cytoscape draws each arrow that stands off the node's outline, as a multiple of the arrow's
+ * own length along its line, from the unit glyphs Cytoscape 3.10.5's SVG export draws back from the outline: T's bar
+ * from 0.8 to 1 (4 of its 0.2), a half circle from 0.5 to 1, HALF_TOP's barb from 0.3 to 1.435, a square from 0.25
+ * to 1.25. Every other arrow touches the outline.
+ */
+const CY_ARROW_GAPS: ReadonlyMap<string, number> = new Map([
+    ["t", 4],
+    ["tee", 4],
+    ["half_circle", 1],
+    ["open_half_circle", 1],
+    ["half_top", 0.3 / 1.135],
+    ["half_bottom", 0.3 / 1.135],
+    ["half-top", 0.3 / 1.135],
+    ["half-bottom", 0.3 / 1.135],
+    ["square", 0.25],
+    ["open_square", 0.25],
+    ["open-square", 0.25],
 ]);
 
 /** Cytoscape 2.x numbered arrow codes. */
@@ -142,16 +202,55 @@ const LEGACY_ARROW: readonly string[] = [
     "half_bottom",
 ];
 
+/**
+ * A Cytoscape arrow name, lowercase, with a 2.x numbered code read as its name.
+ * @param s - the raw name
+ * @returns the key
+ */
+function arrowKey(s: string): string {
+    const key = s.trim().toLowerCase();
+    return /^\d{1,2}$/.test(key) ? (LEGACY_ARROW.at(Number(key)) ?? key) : key;
+}
+
 const arrow: CytoscapeValueParser = (raw, site) => {
     const s = scalarText(raw, site);
     if (s === null) {
         return null;
     }
-    let key = s.trim().toLowerCase();
-    if (/^\d{1,2}$/.test(key)) {
-        key = LEGACY_ARROW.at(Number(key)) ?? key;
+    return caseless(CY_ARROWS.get(arrowKey(s)) ?? canonEnum("arrow", s, "cytoscape", site));
+};
+
+/**
+ * The parser of an arrow's length or width as a fraction of its neutral shape's, from the arrow's name: 1 for every
+ * arrow Cytoscape draws in its shape's proportions, so a bypass over a short default draws the full shape again.
+ * @param side - which proportion
+ * @returns the parser; null for a name it does not know (the shape's parser notes it)
+ */
+export function arrowProportion(side: "length" | "width"): CytoscapeValueParser {
+    return (raw, site) => {
+        const s = scalarText(raw, site);
+        if (s === null) {
+            return null;
+        }
+        const key = arrowKey(s);
+        return CY_ARROW_PROPORTIONS.get(key)?.[side] ?? (CY_ARROWS.has(key) ? 1 : null);
+    };
+}
+
+/**
+ * The parser of how far an arrow stands off its node, as a multiple of its own length (`CY_ARROW_GAPS`), from the
+ * arrow's name: 0 for an arrow that touches the node.
+ * @param raw - the arrow's name
+ * @param site - where it was read
+ * @returns the gap; null for a name it does not know (the shape's parser notes it)
+ */
+export const arrowGap: CytoscapeValueParser = (raw, site) => {
+    const s = scalarText(raw, site);
+    if (s === null) {
+        return null;
     }
-    return caseless(CY_ARROWS.get(key) ?? canonEnum("arrow", s, "cytoscape", site));
+    const key = arrowKey(s);
+    return CY_ARROW_GAPS.get(key) ?? (CY_ARROWS.has(key) ? 0 : null);
 };
 
 /** Cytoscape's line types, lowercase. */
@@ -199,8 +298,8 @@ function lineOf(kind: "lineStyle" | "borderStyle"): CytoscapeValueParser {
         if (v === null || isStyleValue("node", kind, v) || kind === "lineStyle") {
             return v;
         }
-        // a line type a border does not have is kept as other:
-        return `other:${key}`;
+        // a line type a border does not have is kept as other:, spelled as the line type's own (other:forward-slash)
+        return v.startsWith("other:") ? v : `other:${v}`;
     };
 }
 
@@ -212,9 +311,42 @@ interface FontFace {
 }
 
 /**
+ * A Java font name's own style: `Dialog.bolditalic` is the bold italic face of `Dialog`, and Java draws it bold and
+ * italic whatever style the rest of the face states (`Dialog.bolditalic,plain,12` is drawn bold italic).
+ * @param name - the font name
+ * @returns the family without the suffix, and whether the suffix makes it bold or italic
+ */
+function javaFace(name: string): FontFace {
+    const m = /\.(bold|italic|plain|bolditalic)$/i.exec(name);
+    const suffix = m?.[1].toLowerCase() ?? "";
+    return {
+        family: m === null ? name : name.slice(0, m.index),
+        weight: suffix.includes("bold") ? "bold" : "normal",
+        italic: suffix.includes("italic"),
+    };
+}
+
+/**
+ * A face whose family may carry a Java style suffix, its suffix's style added to the stated one.
+ * @param family - the family as written
+ * @param bold - whether the face states bold
+ * @param italic - whether the face states italic
+ * @returns the face
+ */
+function withSuffix(family: string, bold: boolean, italic: boolean): FontFace {
+    const own = javaFace(family.trim());
+    return {
+        family: own.family,
+        weight: bold || own.weight === "bold" ? "bold" : "normal",
+        italic: italic || own.italic,
+    };
+}
+
+/**
  * A font face: `SansSerif,plain,12`, `Dialog.bold,bold,12`, the legacy `SansSerif-0-12` (style bits 1 bold,
  * 2 italic) or CX2's `{ FONT_FAMILY, FONT_STYLE, FONT_WEIGHT }`, whose `FONT_NAME` (the font Cytoscape desktop
- * wrote it from, which its own import restores) wins over the CSS family when present.
+ * wrote it from, which its own import restores) wins over the CSS family when present. A Java style suffix on the
+ * name (`SansSerif.bold`) is drawn as well.
  * @param raw - the value
  * @param site - where it was read
  * @returns the face, or null
@@ -229,14 +361,12 @@ function fontFace(raw: unknown, site: CanonSite): FontFace | null {
     }
     const parts = s.split(",");
     if (parts.length >= 2) {
-        const st = parts[1].trim().toLowerCase();
-        return {
-            family: parts[0].trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, ""),
-            weight: st.includes("bold") ? "bold" : "normal",
-            italic: st.includes("italic"),
-        };
+        // desktop takes the face from the name alone (`FontVisualProperty.parseSerializableString`): its style word is
+        // what it writes, not what it reads, so a passthrough of `Serif,bold,12` is drawn plain (Cytoscape 3.10.5's
+        // SVG of specimen-mappings-bypass-p19, passthrough-font-face) and `SansSerif.bold,bold,10` bold by its suffix
+        return withSuffix(parts[0], false, false);
     }
-    return legacyFontFace(s) ?? { family: s.trim(), weight: "normal", italic: false };
+    return legacyFontFace(s) ?? withSuffix(s, false, false);
 }
 
 /**
@@ -249,18 +379,14 @@ function cx2FontFace(o: Record<string, unknown>, site: CanonSite): FontFace | nu
     const name = Object.hasOwn(o, "FONT_NAME") ? scalarText(o.FONT_NAME, site) : null;
     let family = Object.hasOwn(o, "FONT_FAMILY") ? scalarText(o.FONT_FAMILY, site) : null;
     if (name !== null && name.trim() !== "") {
-        family = name.trim().replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
+        family = name;
     }
     if (family === null) {
         return null;
     }
     const weight = Object.hasOwn(o, "FONT_WEIGHT") ? String(o.FONT_WEIGHT) : "";
     const style = Object.hasOwn(o, "FONT_STYLE") ? String(o.FONT_STYLE) : "";
-    return {
-        family: family.trim(),
-        weight: /bold/i.test(weight.slice(0, 32)) ? "bold" : "normal",
-        italic: /italic/i.test(style.slice(0, 32)),
-    };
+    return withSuffix(family, /bold/i.test(weight.slice(0, 32)), /italic/i.test(style.slice(0, 32)));
 }
 
 /**
@@ -281,79 +407,254 @@ function legacyFontFace(s: string): FontFace | null {
         family = family.slice(0, -"-bold".length);
         bold = true;
     }
-    return { family: family.replace(/\.bold$/i, ""), weight: bold ? "bold" : "normal", italic: (bits & 2) !== 0 };
+    return withSuffix(family, bold, (bits & 2) !== 0);
 }
 
-/** Java's logical font names, which Cytoscape desktop writes, as the CSS generic families they stand for. */
+/**
+ * The faces Java draws its logical fonts in on Linux, where the oracles were drawn (the JDK's fontconfig maps
+ * SansSerif and Dialog to DejaVu Sans), each before the CSS generic family it stands for. A label wraps by its width
+ * in that face: a browser's own sans-serif (Liberation Sans) is 14 percent narrower, so its lines break later.
+ */
+export const JAVA_SANS = "DejaVu Sans, sans-serif";
+export const JAVA_SERIF = "DejaVu Serif, serif";
+export const JAVA_MONO = "DejaVu Sans Mono, monospace";
+
 /** The family a Java logical font name is read as (`Dialog` is drawn as a sans-serif font). */
-export const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
-    ["sansserif", "sans-serif"],
-    ["dialog", "sans-serif"],
-    ["default", "sans-serif"],
-    ["dialoginput", "monospace"],
-    ["monospaced", "monospace"],
-    ["serif", "serif"],
+const JAVA_FONTS: ReadonlyMap<string, string> = new Map([
+    // CX2's CSS generic families too: Cytoscape desktop hands them to Java, which draws them as these
+    ["sans-serif", JAVA_SANS],
+    ["monospace", JAVA_MONO],
+    ["sansserif", JAVA_SANS],
+    ["dialog", JAVA_SANS],
+    ["default", JAVA_SANS],
+    ["dialoginput", JAVA_MONO],
+    ["monospaced", JAVA_MONO],
+    ["serif", JAVA_SERIF],
 ]);
 
 const fontFamily: CytoscapeValueParser = (raw, site) => {
     const family = fontFace(raw, site)?.family ?? null;
-    return family === null ? null : (JAVA_FONTS.get(family.toLowerCase()) ?? family);
+    return family === null ? null : javaFamily(family);
 };
+
+/** The CSS generic families. */
+const CSS_GENERIC: ReadonlySet<string> = new Set([
+    "sans-serif",
+    "serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+]);
+
+/**
+ * A Java font name as the CSS family Cytoscape draws it with: a logical name as its generic family, and any other
+ * with Dialog's face after it, because Java draws a font it does not have as Dialog
+ * (`Calibri-Bold` on a machine without Calibri is drawn in Dialog's face and measured so when a label wraps).
+ * @param family - the Java font name, without its style suffix
+ * @returns the CSS family
+ */
+export function javaFamily(family: string): string {
+    const logical = JAVA_FONTS.get(family.toLowerCase());
+    if (logical !== undefined) {
+        return logical;
+    }
+    // a CSS generic family or family list (CX2 writes them) already says what stands in for a missing font
+    return family.includes(",") || CSS_GENERIC.has(family.toLowerCase()) ? family : `${family}, ${JAVA_SANS}`;
+}
 const fontWeight: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.weight ?? null;
 const fontItalic: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.italic ?? null;
 
-/** The node anchor of a desktop label position `C,C,c,0.00,0.00`. */
-const ANCHOR: ReadonlyMap<string, string> = new Map([
-    ["C", "center"],
-    ["N", "top"],
-    ["S", "bottom"],
-    ["E", "right"],
-    ["W", "left"],
-    ["NE", "top-right"],
-    ["NW", "top-left"],
-    ["SE", "bottom-right"],
-    ["SW", "bottom-left"],
-    ["NONE", "center"],
+/** A desktop anchor letter as a point of a box, x right and y down, each -1, 0 or 1. */
+const ANCHOR: ReadonlyMap<string, readonly [number, number]> = new Map([
+    ["C", [0, 0]],
+    ["N", [0, -1]],
+    ["S", [0, 1]],
+    ["E", [1, 0]],
+    ["W", [-1, 0]],
+    ["NE", [1, -1]],
+    ["NW", [-1, -1]],
+    ["SE", [1, 1]],
+    ["SW", [-1, 1]],
+    ["NONE", [0, 0]],
 ]);
 
-/** CX2's `HORIZONTAL_ANCHOR,VERTICAL_ANCHOR`, lowercase. */
-const CX2_ANCHOR: ReadonlyMap<string, string> = new Map([
-    ["center,center", "center"],
-    ["center,top", "top"],
-    ["center,bottom", "bottom"],
-    ["right,center", "right"],
-    ["left,center", "left"],
-    ["right,top", "top-right"],
-    ["left,top", "top-left"],
-    ["right,bottom", "bottom-right"],
-    ["left,bottom", "bottom-left"],
+/** CX2's anchor and align words as a point of a box on one axis. */
+const CX2_SIDE: ReadonlyMap<string, number> = new Map([
+    ["center", 0],
+    ["left", -1],
+    ["right", 1],
+    ["top", -1],
+    ["bottom", 1],
 ]);
 
-const labelPosition: CytoscapeValueParser = (raw, site) => {
-    let key: string;
-    let found: string | undefined;
+/** A label justification as the neutral text alignment. */
+const JUSTIFY: ReadonlyMap<string, string> = new Map([
+    ["l", "left"],
+    ["left", "left"],
+    ["c", "center"],
+    ["center", "center"],
+    ["r", "right"],
+    ["right", "right"],
+]);
+
+/**
+ * A Cytoscape label position, read whole: the point of the node (or the edge's middle) `node` and the point of the
+ * label's box `label` it is pinned to, each `[x, y]` with x right and y down as -1, 0 or 1, the justification of its
+ * lines, and the offset `[x, y]` in px, y down.
+ * @category Styles
+ */
+export interface CytoscapeLabelPlace {
+    readonly node: readonly [number, number];
+    readonly label: readonly [number, number];
+    readonly justify: string;
+    readonly offset: readonly [number, number];
+}
+
+/**
+ * The anchors of CX2's edge label position `{ EDGE_ANCHOR, LABEL_ANCHOR, ... }`, each a desktop anchor letter, as
+ * `[edge x, edge y, label x, label y]`; undefined where a letter is not one.
+ * @param o - the position
+ * @param site - where a bad value is noted
+ * @returns the four sides
+ */
+function cx2EdgeAnchors(o: Record<string, unknown>, site: CanonSite): (number | undefined)[] {
+    const letter = (key: string): readonly [number, number] | undefined =>
+        ANCHOR.get((scalarText(Object.hasOwn(o, key) ? o[key] : "C", site) ?? "").trim().toUpperCase());
+    return [
+        ...(letter("EDGE_ANCHOR") ?? [undefined, undefined]),
+        ...(letter("LABEL_ANCHOR") ?? [undefined, undefined]),
+    ];
+}
+
+/**
+ * Reads a label position: desktop's `C,C,c,0.00,0.00` (node anchor, label anchor, justification, x and y offsets)
+ * or CX2's `{ HORIZONTAL_ANCHOR, VERTICAL_ANCHOR, HORIZONTAL_ALIGN, VERTICAL_ALIGN, JUSTIFICATION, MARGIN_X,
+ * MARGIN_Y }` (for an edge's label `{ EDGE_ANCHOR, LABEL_ANCHOR, JUSTIFICATION, MARGIN_X, MARGIN_Y }`, the anchors
+ * as desktop's letters).
+ * @param raw - the value
+ * @param site - where a bad value is noted
+ * @returns the place, or null
+ * @category Styles
+ */
+export function cytoscapeLabelPlace(raw: unknown, site: CanonSite): CytoscapeLabelPlace | null {
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
         const o = raw as Record<string, unknown>;
-        const h = scalarText(Object.hasOwn(o, "HORIZONTAL_ANCHOR") ? o.HORIZONTAL_ANCHOR : "center", site);
-        const v = scalarText(Object.hasOwn(o, "VERTICAL_ANCHOR") ? o.VERTICAL_ANCHOR : "center", site);
-        if (h === null || v === null) {
+        const word = (key: string): string => {
+            const v = Object.hasOwn(o, key) ? scalarText(o[key], site) : null;
+            return (v ?? "center").trim().toLowerCase();
+        };
+        const num = (key: string): number => {
+            const v = Object.hasOwn(o, key) ? Number(o[key]) : 0;
+            return Number.isFinite(v) ? v : 0;
+        };
+        const sides = Object.hasOwn(o, "EDGE_ANCHOR")
+            ? cx2EdgeAnchors(o, site)
+            : ["HORIZONTAL_ANCHOR", "VERTICAL_ANCHOR", "HORIZONTAL_ALIGN", "VERTICAL_ALIGN"].map((k) =>
+                  CX2_SIDE.get(word(k)),
+              );
+        if (sides.includes(undefined)) {
+            noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, JSON.stringify(raw).slice(0, 64));
             return null;
         }
-        key = `${h.trim().toLowerCase()},${v.trim().toLowerCase()}`;
-        found = CX2_ANCHOR.get(key);
-    } else {
-        const s = scalarText(raw, site);
-        if (s === null) {
-            return null;
-        }
-        key = s;
-        found = ANCHOR.get(s.split(",")[0].trim().toUpperCase());
+        const [nx, ny, lx, ly] = sides as number[];
+        return {
+            node: [nx, ny],
+            label: [lx, ly],
+            justify: JUSTIFY.get(word("JUSTIFICATION")) ?? "center",
+            offset: [num("MARGIN_X"), num("MARGIN_Y")],
+        };
     }
-    if (found === undefined) {
-        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, key);
+    const s = scalarText(raw, site);
+    if (s === null) {
         return null;
     }
-    return found;
+    const parts = s.split(",").map((p) => p.trim());
+    const node = ANCHOR.get(parts[0].toUpperCase());
+    // a position naming only the node's anchor pins the label's opposite point there, as Cytoscape 2.x did
+    const label = parts.length > 1 ? ANCHOR.get(parts[1].toUpperCase()) : node?.map((v) => -v);
+    if (node === undefined || label === undefined) {
+        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, s);
+        return null;
+    }
+    const at = (i: number): number => {
+        const v = Number(parts[i] ?? 0);
+        return Number.isFinite(v) ? v : 0;
+    };
+    return {
+        node,
+        label: [label[0], label[1]],
+        justify: JUSTIFY.get((parts[2] ?? "c").toLowerCase()) ?? "center",
+        offset: [at(3), at(4)],
+    };
+}
+
+/** The neutral position of a label inside its node against each side, by `[x, y]` of the side, y down. */
+const INSIDE: ReadonlyMap<string, string> = new Map([
+    ["0,0", "center"],
+    ["0,-1", "inside-top"],
+    ["0,1", "inside-bottom"],
+    ["-1,0", "inside-left"],
+    ["1,0", "inside-right"],
+    ["-1,-1", "inside-top-left"],
+    ["1,-1", "inside-top-right"],
+    ["-1,1", "inside-bottom-left"],
+    ["1,1", "inside-bottom-right"],
+]);
+
+/**
+ * The neutral `labelPosition` a Cytoscape label position starts from: where the label's point is the node's own
+ * point on both axes (its center, or inside against a side or a corner), that position; anywhere else `center`,
+ * with the rest said by `labelOffsetX`/`Y` and `labelShiftX`/`Y` (see `cytoscapeLabelMove()`).
+ * @param place - the label position
+ * @returns the neutral position
+ * @category Styles
+ */
+export function cytoscapeLabelBase(place: CytoscapeLabelPlace): string {
+    const inside = place.node[0] === place.label[0] && place.node[1] === place.label[1];
+    return inside ? (INSIDE.get(`${place.node[0]},${place.node[1]}`) ?? "center") : "center";
+}
+
+/**
+ * How far a Cytoscape label is moved from its `cytoscapeLabelBase()` position: the offset in px (y down), with the
+ * node's anchor point added when the base is `center` and the anchors differ, and the shift by the label's own
+ * size that pins the label's anchor point there.
+ * @param place - the label position
+ * @param width - the node's width (0 for an edge's middle)
+ * @param height - the node's height (0 for an edge's middle)
+ * @returns the offset and the shift, each `[x, y]`
+ * @category Styles
+ */
+export function cytoscapeLabelMove(
+    place: CytoscapeLabelPlace,
+    width: number,
+    height: number,
+): { readonly offset: readonly [number, number]; readonly shift: readonly [number, number] } {
+    if (
+        cytoscapeLabelBase(place) !== "center" ||
+        (place.node[0] === 0 && place.node[1] === 0 && place.label[0] === 0 && place.label[1] === 0)
+    ) {
+        return { offset: place.offset, shift: [0, 0] };
+    }
+    return {
+        offset: [(place.node[0] * width) / 2 + place.offset[0], (place.node[1] * height) / 2 + place.offset[1]],
+        shift: [halfBack(place.label[0]), halfBack(place.label[1])],
+    };
+}
+
+/**
+ * How far a label is shifted, as a fraction of its own size, to pin its point `side` (-1, 0 or 1) where its middle was.
+ * @param side - the label's point on one axis
+ * @returns the shift (0, never -0, for the middle)
+ * @category Styles
+ */
+export function halfBack(side: number): number {
+    return side === 0 ? 0 : -side / 2;
+}
+
+const labelPosition: CytoscapeValueParser = (raw, site) => {
+    const place = cytoscapeLabelPlace(raw, site);
+    return place === null ? null : cytoscapeLabelBase(place);
 };
 
 /**
@@ -388,6 +689,13 @@ export const CYTOSCAPE_LEXICON: Readonly<
                 ["NODE_BORDER_COLOR", color],
             ],
         ],
+        [
+            "borderOpacity",
+            [
+                ["NODE_BORDER_TRANSPARENCY", opacity255],
+                ["NODE_BORDER_OPACITY", opacity01],
+            ],
+        ],
         ["borderWidth", [["NODE_BORDER_WIDTH", length]]],
         [
             "borderStyle",
@@ -403,10 +711,25 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["label", [["NODE_LABEL", text]]],
         ["labelColor", [["NODE_LABEL_COLOR", color]]],
         ["labelSize", [["NODE_LABEL_FONT_SIZE", fontSize]]],
+        [
+            "labelWrapWidth",
+            [
+                ["NODE_LABEL_WIDTH", length],
+                ["NODE_LABEL_MAX_WIDTH", length],
+            ],
+        ],
         ["labelFont", [["NODE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["NODE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["NODE_LABEL_FONT_FACE", fontItalic]]],
         ["labelPosition", [["NODE_LABEL_POSITION", labelPosition]]],
+        ["labelRotation", [["NODE_LABEL_ROTATION", rotation]]],
+        [
+            "labelOpacity",
+            [
+                ["NODE_LABEL_TRANSPARENCY", opacity255],
+                ["NODE_LABEL_OPACITY", opacity01],
+            ],
+        ],
         ["tooltip", [["NODE_TOOLTIP", text]]],
         [
             "visible",
@@ -443,6 +766,14 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ],
         ["sourceArrow", [["EDGE_SOURCE_ARROW_SHAPE", arrow]]],
         ["targetArrow", [["EDGE_TARGET_ARROW_SHAPE", arrow]]],
+        // One neutral size for both ends: the target's, else the source's.
+        [
+            "arrowSize",
+            [
+                ["EDGE_TARGET_ARROW_SIZE", arrowSizeParser],
+                ["EDGE_SOURCE_ARROW_SIZE", arrowSizeParser],
+            ],
+        ],
         [
             "sourceArrowColor",
             [
@@ -464,6 +795,21 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["labelFont", [["EDGE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["EDGE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["EDGE_LABEL_FONT_FACE", fontItalic]]],
+        [
+            "labelWrapWidth",
+            [
+                ["EDGE_LABEL_WIDTH", length],
+                ["EDGE_LABEL_MAX_WIDTH", length],
+            ],
+        ],
+        ["labelRotation", [["EDGE_LABEL_ROTATION", rotation]]],
+        [
+            "labelOpacity",
+            [
+                ["EDGE_LABEL_TRANSPARENCY", opacity255],
+                ["EDGE_LABEL_OPACITY", opacity01],
+            ],
+        ],
         ["tooltip", [["EDGE_TOOLTIP", text]]],
         [
             "visible",
@@ -483,6 +829,13 @@ export const sizeParser: CytoscapeValueParser = length;
 
 /** The parser of colors, for the network background and `arrowColorMatchesEdge`. */
 export const colorParser: CytoscapeValueParser = color;
+
+/**
+ * The parser of 0..255 transparencies (desktop) and 0..1 opacities (CX2), by visual property.
+ * @param vp - the visual property (`*_TRANSPARENCY` or `*_OPACITY`)
+ * @returns its parser
+ */
+export const opacityParser = (vp: string): CytoscapeValueParser => (vp.endsWith("_OPACITY") ? opacity01 : opacity255);
 
 /** Every visual property the lexicon reads. */
 const KNOWN_VPS: ReadonlySet<string> = new Set([

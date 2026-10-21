@@ -915,6 +915,12 @@ export class Graph implements GraphContext {
                 ),
         };
 
+        // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).
+        dispatcherOf(this.session).services.viewport = () => {
+            const { clientWidth: width, clientHeight: height } = this.canvas;
+            return width > 0 && height > 0 ? { width, height } : null;
+        };
+
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
         // (design/sets 6.2): a held frame holds that work too.
         setsNotifierOfSession(this.session).useFrames((callback) => {

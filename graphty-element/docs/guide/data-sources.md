@@ -353,8 +353,9 @@ await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "rec
 
 - `"recommended"`: once the load is in, the element chooses a layout for it. When every node
   arrived with a position it picks `fixed`, which draws each node at its stored position. When
-  some or none did, it picks a layout that computes a drawing suited to the graph's size and
-  shape.
+  none did, it picks a layout that computes a drawing suited to the graph's size and shape. When
+  only some did, it keeps those where the file put them and runs that computed layout over the
+  others alone (as a [scoped layout](./sets.md)), as long as the layout can hold nodes still.
 - `"keep"` (the default): the layout stays as it is. The stored positions are still where each
   node starts, so a force layout begins from the file's drawing instead of from random points.
 
@@ -378,6 +379,7 @@ saved it:
 | DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
 | XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
 | Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| vis-network JSON (`from` / `to`)  | each node's `x` and `y`                       | pixels                                                    | down                                                                       |
 | Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
 | CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
 

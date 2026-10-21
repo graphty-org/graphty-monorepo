@@ -69,4 +69,27 @@ describe("readAnnotations", () => {
             { kind: "text", id: "b:text", text: "hi", anchor: "center", at: { x: 5, y: -2.5 } },
         ]);
     });
+
+    it("gives each arrowhead the length and width Cytoscape draws it at, whatever the line's width", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        b.setGraphValue("__Annotations", [
+            "type=org.cytoscape.view.presentation.annotations.ArrowAnnotation|uuid=a|x=0|y=0|targetPoint=100,0" +
+                "|sourceType=4|sourceSize=1.0|targetType=7|targetSize=2.0|lineThickness=8.0",
+            "type=org.cytoscape.view.presentation.annotations.ArrowAnnotation|uuid=b|x=0|y=0|targetPoint=100,0" +
+                "|sourceType=5|targetType=1",
+        ]);
+        const { annotations } = readAnnotations(b.freeze());
+        // an Open Arrow is 17 long and 10 wide; a Triangular Head 5 long, at size 2 twice both
+        expect(annotations[0]).toMatchObject({
+            sourceArrow: "triangle-open",
+            sourceHeadLength: 17,
+            sourceHeadWidth: 10,
+            targetHeadLength: 10,
+            targetHeadWidth: 20,
+        });
+        // an end with no head has no head size
+        expect(annotations[1]).toMatchObject({ targetHeadLength: 17, targetHeadWidth: 10 });
+        expect(annotations[1]).not.toHaveProperty("sourceHeadLength");
+    });
 });

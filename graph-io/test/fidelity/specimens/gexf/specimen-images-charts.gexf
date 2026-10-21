@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <meta lastmodifieddate="2026-10-18">
+    <creator>graphty gexf-gephi specimen generator</creator>
+    <description>viz:shape image with its uri (a data: URI and a web URL), and image with no uri. GEXF has no charts.</description>
+  </meta>
+  <graph mode="static" defaultedgetype="undirected">
+    <nodes>
+      <node id="anchor-nw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-ne">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-sw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-se">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default">
+        <viz:position x="180" y="464"/>
+      </node>
+      <node id="cap-default" label="shape=unset">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="180" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="image-data-uri">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="460" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="image" uri="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGP8z4AfMBGQZxhVMKqAAgEARzQBH0x8VawAAAAASUVORK5CYII="/>
+      </node>
+      <node id="cap-image-data-uri" label="image=data: png">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="460" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="image-url">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="740" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="image" uri="https://graphty.app/favicon.png"/>
+      </node>
+      <node id="cap-image-url" label="image=https url">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="740" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="image-no-uri">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1020" y="464"/>
+        <viz:size value="18"/>
+        <viz:shape value="image"/>
+      </node>
+      <node id="cap-image-no-uri" label="image=no uri">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1020" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+    </nodes>
+    <edges>
+    </edges>
+  </graph>
+</gexf>

@@ -219,12 +219,19 @@ function facilitatorFiles(dir) {
         });
 }
 // Persona sections written for the study team, never for the agent playing the persona
-const TEAM_ONLY = /facilitator|study team|for the real study|hypothes/i;
+// "Evidence limits" says how far the study team may trust the persona ("Weight findings on import ...
+// over findings on her words"): for the team, not the participant (round 1's tool dry run 2)
+const TEAM_ONLY = /facilitator|study team|for the real study|hypothes|evidence limits/i;
+const TEAM_NOTE =
+    /^\W*evidence limits\b|\bfindings?\b[^.]*\b(weigh|trust)|\b(weigh|trust)\w*\b[^.]*\bfindings?\b|\bhypothesis to test\b/i;
+const TEAM_SENTENCE = /;?[^.!?;]*\bfindings?\b[^.!?;]*\b(rest on|lead to check|weigh|trust)[^.!?]*[.!?]/gi;
 // a path into the study's files, or a pointer to the team's hypotheses file
 const STUDY_PATH = /`[^`\s]*\b(?:study|hypotheses)\/[^`\s]*`|\bhypotheses file\b/i;
 function personaText(text) {
     return (
         text
+            // a line that is only a closing tag is markup left in the file, never the persona's words
+            .replace(/^<\/[a-z]+>[ \t]*$/gim, "")
             .split(/^(?=## )/m)
             .filter((s) => !TEAM_ONLY.test(s.split("\n")[0]))
             .join("")
@@ -232,6 +239,13 @@ function personaText(text) {
             // moderator", Dana's intro) is itself for the team, and the briefing check would refuse it
             .split(/\n[ \t]*\n/)
             .filter((p) => !FACILITATOR_WORDS.test(p))
+            // a note to the team inside the persona's own text: how much its findings weigh
+            // ("Evidence limits: ...", Nadia's; "Findings that rest on her exact vocabulary ... carry
+            // less weight", Elena's)
+            .filter((p) => !TEAM_NOTE.test(p))
+            // and one sentence of it inside a paragraph ("No single finding may rest on the short clock
+            // alone.", "treat a vocabulary finding as a lead to check", Elena's)
+            .map((p) => p.replace(TEAM_SENTENCE, (m) => (m.startsWith(";") ? "." : "")))
             // a paragraph that points at the study's own files ("See `study/hypotheses/x.md` for the
             // design hypotheses", "the design team's guesses ... live in a separate hypotheses file")
             // sends a participant to team material
@@ -923,8 +937,22 @@ async function serve(dir, sr) {
     });
     await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     const origin = `http://127.0.0.1:${http.address().port}`;
-    const browser = await chromium.launch(LAUNCH);
-    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, acceptDownloads: true });
+    // A browser profile on disk, as a person's browser has, made empty for each session. A new
+    // context of a launched browser is an incognito one: Chromium sizes its storage quota from
+    // memory, which the app reads as a private window, so every session showed a false "This looks
+    // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
+    // profile is never copied to the round's folder.
+    const profile = join(homedir(), ".cache/graphty-real-profiles", basename(sockOf(dir), ".sock"));
+    await rm(profile, { recursive: true, force: true });
+    const context = await chromium.launchPersistentContext(profile, {
+        ...LAUNCH,
+        viewport: VIEWPORT,
+        deviceScaleFactor: 1,
+        acceptDownloads: true,
+    });
+    // a persistent context opens with a blank tab of its own, closed once the session's tab is open
+    const blank = context.pages();
+    const browser = { close: () => context.close().finally(() => rm(profile, { recursive: true, force: true })) };
     const s = {
         dir,
         sr,
@@ -942,6 +970,7 @@ async function serve(dir, sr) {
     // every session records live regions: a notice that times out while a slow step settles is
     // still reported (goneNotices), as a person would have seen it
     await s.context.addInitScript(watchLive);
+    await s.context.addInitScript(watchIdle);
     // REAL_SCHEME=light|dark: the app's color scheme for a scripted walk (bars.mjs --tier 3 --scheme);
     // studies leave it unset, so a participant sees the app's own default
     if (process.env.REAL_SCHEME)
@@ -950,6 +979,7 @@ async function serve(dir, sr) {
             process.env.REAL_SCHEME,
         );
     await newTab(s);
+    await Promise.all(blank.map((p) => p.close()));
 
     const sock = sockOf(dir);
     let queue = Promise.resolve();
@@ -1104,6 +1134,64 @@ function watchLive() {
         attributes: true,
     });
 }
+// In the page: window.__realIdle() resolves once the page has taken the last input -- no DOM change
+// across two animation frames, no timer of under a second pending and no request in flight -- or
+// after 2 s, whichever comes first. It stands in for the fixed 400 ms the tool waited after every
+// action until 2026-10-21. Timers of a second or more are left out: they are a tooltip's open
+// delay (compact-mantine's TOOLTIP_OPEN_DELAY), a notice's lifetime or an idle check, which a
+// person does not wait for between two moves.
+function watchIdle() {
+    const pending = new Set();
+    const [st, ct, f] = [window.setTimeout, window.clearTimeout, window.fetch];
+    window.setTimeout = function (fn, ms, ...a) {
+        if (typeof fn !== "function" || (Number(ms) || 0) >= 1000) return st.call(this, fn, ms, ...a);
+        const id = st.call(
+            this,
+            function (...b) {
+                pending.delete(id);
+                return fn.apply(this, b);
+            },
+            ms,
+            ...a,
+        );
+        pending.add(id);
+        return id;
+    };
+    window.clearTimeout = function (id) {
+        pending.delete(id);
+        return ct.call(this, id);
+    };
+    let inflight = 0;
+    if (f)
+        window.fetch = function (...a) {
+            inflight++;
+            return f.apply(this, a).finally(() => inflight--);
+        };
+    let changes = 0;
+    new MutationObserver(() => changes++).observe(document, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+    });
+    window.__realIdle = () =>
+        new Promise((done) => {
+            let quiet = 0,
+                seen = changes;
+            const cap = st(() => done(false), 2000);
+            const frame = () => {
+                quiet = changes === seen && !pending.size && !inflight ? quiet + 1 : 0;
+                seen = changes;
+                if (quiet >= 2) {
+                    ct(cap);
+                    done(true);
+                } else requestAnimationFrame(frame);
+            };
+            requestAnimationFrame(frame);
+        });
+}
+// Waits for the page to take the last input (watchIdle), at most about 2 s
+const appIdle = (page) => page.evaluate(() => window.__realIdle?.()).catch(() => {});
 const SR_STATES = new Set(["checked", "pressed", "expanded", "selected", "disabled", "invalid", "required"]);
 // What a screen reader says for the focused element (through shadow roots), from Chromium's own
 // accessibility tree, and the live-region text recorded since the last call
@@ -2084,17 +2172,24 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 }
                 return page.getByRole(rn[1], { name: rn[2] });
             };
-            const loc = rn ? (rn[2] ? await byRole() : page.getByRole(rn[1])) : page.getByText(v, { exact: false });
-            seen =
-                (await loc.filter({ visible: true }).count()) > 0 ||
-                (!rn &&
-                    (await page.evaluate(
-                        (w) =>
-                            [...document.querySelectorAll("input, textarea")].some(
-                                (f) => f.checkVisibility() && f.value.includes(w),
-                            ),
-                        v,
-                    )));
+            const onScreen = async () => {
+                const loc = rn ? (rn[2] ? await byRole() : page.getByRole(rn[1])) : page.getByText(v, { exact: false });
+                return (
+                    (await loc.filter({ visible: true }).count()) > 0 ||
+                    (!rn &&
+                        (await page.evaluate(
+                            (w) =>
+                                [...document.querySelectorAll("input, textarea")].some(
+                                    (f) => f.checkVisibility() && f.value.includes(w),
+                                ),
+                            v,
+                        )))
+                );
+            };
+            // what the last step started (a worker's result, a list filling) may land a moment later
+            const until = Date.now() + 2000;
+            while ((seen = await onScreen()) !== (a === "--expect") && Date.now() < until)
+                await page.evaluate(() => new Promise(requestAnimationFrame)).catch(() => {});
             if (seen !== (a === "--expect")) {
                 out.push(
                     `${a === "--expect" ? "expected on screen, not there" : "expected gone, still on screen"}: "${v}"`,
@@ -2126,7 +2221,7 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                     missed++;
                 });
             }
-            if (verb !== "hover") await page.waitForTimeout(400);
+            if (verb !== "hover") await appIdle(page);
             if (verb === "hover" && !f.miss) out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
         } else if (a in AT) {
             const [x, y] = v.split(",").map(Number);
@@ -2138,7 +2233,7 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
             } else {
                 await page.mouse.click(x, y, { button: AT[a].button || "left", clickCount: AT[a].clickCount || 1 });
-                await page.waitForTimeout(400);
+                await appIdle(page);
             }
         } else if (a === "--hover-icon") {
             // the nth control with an accessible name and no text of its own, counted in page order
@@ -2174,19 +2269,19 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             await page.mouse.down();
             await page.mouse.move(x2, y2, { steps: 12 });
             await page.mouse.up();
-            await page.waitForTimeout(400);
+            await appIdle(page);
         } else if (a === "--wheel") {
             const [x, y, d] = v.split(",").map(Number);
             await page.mouse.move(x, y);
             await page.mouse.wheel(0, d);
-            await page.waitForTimeout(400);
+            await appIdle(page);
         } else if (a === "--wait") {
             await page.waitForTimeout(+v);
         } else if (a === "--read") {
             await srRead(s, out);
         } else if (a === "--key") {
             await page.keyboard.press(v);
-            await page.waitForTimeout(400);
+            await appIdle(page);
         } else if (a === "--type") {
             const into = await page.evaluate((chars) => {
                 const e = document.activeElement;
@@ -2208,7 +2303,7 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 continue;
             }
             await page.keyboard.type(v, { delay: 20 });
-            await page.waitForTimeout(400);
+            await appIdle(page);
         } else if (a === "--upload") {
             for (let i = 0; !s.chooser && !s.picker && i < 30; i++) await page.waitForTimeout(100);
             if (!s.chooser && !s.picker) {
@@ -2226,7 +2321,7 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 s.chooser = null;
             }
             out.push(`chose the file ${basename(v)}`);
-            await page.waitForTimeout(400);
+            await appIdle(page);
         } else if (a === "--reopen") {
             // a picker left open dies with its tab
             s.picker?.answer(null);
@@ -2256,7 +2351,9 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             const data = { items: [], files: [path], dragOperationsMask: 1 };
             for (const type of ["dragEnter", "dragOver", "drop"])
                 await s.cdp.send("Input.dispatchDragEvent", { type, x, y, data });
-            await page.waitForTimeout(400);
+            // the listener records the drop on the next task; no record after 2 s is no drop
+            await page.waitForFunction(() => window.__realDrop !== null, null, { timeout: 2000 }).catch(() => {});
+            await appIdle(page);
             const got = await page.evaluate(() => window.__realDrop).catch(() => null);
             out.push(
                 got?.taken
@@ -2276,7 +2373,6 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
     await copySaves(s, out);
     // downloads that started during these steps: saved into the session folder and named
     if (s.downloads.length) {
-        await page.waitForTimeout(300);
         for (const line of await Promise.all(s.downloads.splice(0))) out.push(line);
     }
     for (const e of s.errors.splice(0)) {
@@ -2705,10 +2801,16 @@ async function prove() {
         x = step(A, "--hover", "Everything");
         check("a hover over a dismissed, hidden tooltip reports tooltip: null", /^tooltip: null$/m.test(x.out), x.out);
         // a client stopped mid-step (its agent was stopped): the session answers the next step
-        const gone = spawn(process.execPath, [self, "--step", A, "--wait", "2000"], { stdio: "ignore" });
-        await new Promise((ok) => setTimeout(ok, 600));
-        gone.kill("SIGKILL");
-        await new Promise((ok) => setTimeout(ok, 2500));
+        // (the request is written, then the client is gone before its answer; the next step queues
+        // behind it, so it is answered only after the session tried to answer the gone one)
+        await new Promise((ok) => {
+            const c = connect(sockOf(A));
+            c.on("error", ok);
+            c.write(JSON.stringify({ op: "step", steps: parseSteps(["--wait", "2000"]).steps }) + "\n", () => {
+                c.destroy();
+                ok();
+            });
+        });
         x = step(A, "--wait", "10");
         check(
             "a client killed mid-step leaves the session running",

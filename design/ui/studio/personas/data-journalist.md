@@ -137,6 +137,3 @@ and export over findings on her words.
 5. GIJN, "Unleashing the Power of Social Network Analysis for Investigative Journalism", https://gijn.org/stories/power-social-network-analysis-investigative-journalism/ (search summary only; fetch refused)
 6. GIJN, "My Favorite Tools 2020" and resource pages naming Kumu, Flourish and NodeXL, https://gijn.org/stories/my-favorite-tools-2020-top-investigative-journalists-tell-us-what-theyre-using/ (search summary only)
 7. Neo4j, "ICIJ" customer story, https://neo4j.com/customer-stories/icij/ (vendor; search summary only)
-</content>
-
-</invoke>

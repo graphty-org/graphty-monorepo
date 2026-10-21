@@ -815,10 +815,12 @@ export class RichTextLabel {
             return 1;
         }
 
+        // Measured without the outline: an outline is drawn around the letters, so it grows the
+        // label instead of shrinking the letters to make room for itself.
         const { lineBox } = measureLine(ctx, firstLine, {
             lineHeight: DEFAULT_LINE_HEIGHT,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
+            textOutline: false,
+            textOutlineWidth: 0,
             runAlign: this.options.runAlign,
         });
         const oneLine = this.actualDimensions.height - totalHeight + lineBox;
@@ -1461,10 +1463,11 @@ export class RichTextLabel {
             return;
         }
 
+        // Without the outline, as `measureHeightInLines` measures one line.
         const { lineBox } = measureLine(ctx, first, {
             lineHeight: DEFAULT_LINE_HEIGHT,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
+            textOutline: false,
+            textOutlineWidth: 0,
             runAlign: this.options.runAlign,
         });
         // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its

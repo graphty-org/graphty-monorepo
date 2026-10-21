@@ -496,3 +496,39 @@ describe("a Cytoscape node's own size under a locked node size", () => {
         }
     });
 });
+
+describe("a label outline another program wrote", () => {
+    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a grey outline
+    // (`text-outline-color`, `text-outline-width`). Without the outline the white letters spill
+    // onto the light canvas and cannot be read.
+    it("draws the outline around the label's letters, in the label's own proportion", async () => {
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a", name: "A" } }, { data: { id: "b", name: "B" } }],
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        label: "data(name)",
+                        color: "white",
+                        "font-size": 10,
+                        "text-outline-color": "#888",
+                        "text-outline-width": 2,
+                    },
+                },
+            ],
+        });
+        const session = createGraphSession();
+        try {
+            await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+            // The label field channels land in the node's label style, field by field.
+            const label = session.styles.explain({ node: "a" }).merged["node.labelStyle"] as Record<string, unknown>;
+            assert.strictEqual(label.color, "#ffffff");
+            assert.strictEqual(label.outline, "#888888");
+            assert.isNumber(label.sizePx);
+            assert.isNumber(label.outlineWidth);
+            assert.closeTo((label.outlineWidth as number) / (label.sizePx as number), 2 / 10, 1e-9);
+        } finally {
+            session.dispose();
+        }
+    });
+});

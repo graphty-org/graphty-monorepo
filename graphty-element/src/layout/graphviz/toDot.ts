@@ -16,6 +16,14 @@ export const POINTS_PER_UNIT = 72;
 const DEFAULT_NODE_SIZE = 1;
 
 /**
+ * patchwork's cell area per square inch of node width. patchwork ignores `width` and gives each
+ * node a cell of about 1000 square points per unit of its `area` attribute (measured), so a node
+ * one inch wide needs an area of 9 for a cell about 1.3 inches on a side: the drawn node fits
+ * inside its cell with a margin, even in the narrower cells of an uneven treemap.
+ */
+const PATCHWORK_AREA_PER_SQUARE_INCH = 9;
+
+/**
  * Quote a DOT attribute value.
  * @param value - the value
  * @returns the value as a DOT double-quoted string
@@ -54,6 +62,8 @@ function isLength(value: number | undefined): value is number {
  * @param extents - the drawn width and height of each node, two per row, in scene units: a row
  *     with two different sides is a box that size, the rest are circles as wide as `sizes` says
  * @param skip - the rows left out, with their edges: groups the element draws round their members
+ * @param cellAreas - also give each node a patchwork `area` that fits its drawn size, for the
+ *   engine that sizes nodes by area and ignores their width
  * @returns the DOT text
  */
 export function toDot(
@@ -62,6 +72,7 @@ export function toDot(
     sizes?: ArrayLike<number>,
     extents?: ArrayLike<number>,
     skip: (row: number) => boolean = () => false,
+    cellAreas = false,
 ): string {
     const lines: string[] = [];
     const arrow = stored.directed ? "->" : "--";
@@ -81,12 +92,14 @@ export function toDot(
         const width = extents?.[2 * row];
         const height = extents?.[2 * row + 1];
         if (isLength(width) && isLength(height) && width !== height) {
-            lines.push(`n${row} [shape=box, width=${width}, height=${height}];`);
+            const boxArea = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * width * height}` : "";
+            lines.push(`n${row} [shape=box, width=${width}, height=${height}${boxArea}];`);
             continue;
         }
         const size = sizes?.[row];
         const inches = isLength(size) ? size : DEFAULT_NODE_SIZE;
-        lines.push(`n${row} [width=${inches}];`);
+        const area = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * inches * inches}` : "";
+        lines.push(`n${row} [width=${inches}${area}];`);
     }
 
     const { src, dst } = stored.edgeList();

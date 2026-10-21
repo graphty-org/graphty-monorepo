@@ -48,6 +48,26 @@ function simctl(...args: string[]): string {
 }
 
 /**
+ * Terminate Safari. Safari may already be gone (iOS ends a background app in answer to a memory
+ * warning); simctl then fails with ESRCH, "found nothing to terminate", which is the state asked
+ * for. Any other failure is thrown.
+ * @param udid - The Simulator.
+ * @returns "terminated", or "already gone" when nothing was running.
+ */
+function terminateSafari(udid: string): "terminated" | "already gone" {
+    try {
+        simctl("terminate", udid, SAFARI);
+        return "terminated";
+    } catch (error) {
+        if (String((error as { stderr?: unknown }).stderr).includes("found nothing to terminate")) {
+            return "already gone";
+        }
+
+        throw error;
+    }
+}
+
+/**
  * The newest iPad the installed runtimes offer, else the newest iPhone.
  * @returns Its udid.
  */
@@ -269,8 +289,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     it("restores the saved work after an app switch and Safari terminated in the background", async () => {
         await scenario("ios-switch", async (from) => {
             const how = await appSwitch("ios-switch", from);
-            simctl("terminate", udid, SAFARI);
-            return `app switch (page ${how}), Safari terminated`;
+            return `app switch (page ${how}), Safari ${terminateSafari(udid)}`;
         });
     });
 
@@ -280,8 +299,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             // What Simulator's Debug > Simulate Memory Warning posts. A page cannot observe it; Safari
             // may drop the background tab's web process in answer, which the restore must survive.
             simctl("spawn", udid, "notifyutil", "-p", "com.apple.UIKit.SimulatorMemoryWarning");
-            simctl("terminate", udid, SAFARI);
-            return `memory warning in the background (page ${how}), Safari terminated`;
+            return `memory warning in the background (page ${how}), Safari ${terminateSafari(udid)}`;
         });
     });
 

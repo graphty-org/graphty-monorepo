@@ -82,6 +82,37 @@ describe("the frame guard", () => {
         assert.lengthOf(changes, 5, "the bottom of the ladder is the bottom");
     });
 
+    it("steps down on slow frames the loop spent waiting for its tick, with every fence signalled", () => {
+        // Chromium runs the next animation frame only once the GPU caught up, so a slow GPU shows
+        // as the wait between the loop's ticks, and the fence has signalled by then.
+        const { guard, changes } = guarded();
+        for (let i = 0; i < 13; i++) {
+            guard.frame({ intervalMs: 80, waitMs: 75, gpuBehind: false });
+        }
+
+        assert.strictEqual(guard.quality.level, "medium");
+        assert.strictEqual(changes[0]?.code, "guard.slow-gpu");
+    });
+
+    it("changes nothing for slow frames spent in the loop's own work, however long", () => {
+        const { guard, changes } = guarded({ pasted: true });
+        for (let i = 0; i < 200; i++) {
+            guard.frame({ intervalMs: 300, waitMs: 10, gpuBehind: false });
+        }
+
+        assert.lengthOf(changes, 0);
+    });
+
+    it("turns pasted shaders off after two long waits in a row, not after one", () => {
+        const { guard } = guarded({ pasted: true });
+        guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
+        guard.frame({ intervalMs: 16, waitMs: 6, gpuBehind: false });
+        assert.strictEqual(guard.quality.pasted, "on", "one long wait can be the page's own script");
+        guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
+        guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
+        assert.strictEqual(guard.quality.pasted, "off");
+    });
+
     it("changes nothing for slow frames the GPU kept up with: a CPU-bound layout", () => {
         const { guard, changes } = guarded();
         frames(guard, 200, 80, false);
@@ -269,6 +300,16 @@ describe("the flashing count", () => {
     it("calls 6 flashes a second flashing, sampled 10 or 20 times a second", () => {
         assert.isTrue(squareWave(6, 100));
         assert.isTrue(squareWave(6, 50));
+    });
+
+    it("calls 10, 15 and 20 flashes a second flashing, sampled every frame at 60 or 30 frames a second", () => {
+        for (const hz of [10, 15, 20]) {
+            assert.isTrue(squareWave(hz, 1000 / 60), `${String(hz)} Hz at 60 fps`);
+            assert.isTrue(squareWave(hz, 1000 / 30), `${String(hz)} Hz at 30 fps`);
+        }
+
+        // Why the check samples every frame: 10 times a second, a 10 Hz strobe reads as steady.
+        assert.isFalse(squareWave(10, 100));
     });
 
     it("leaves 2 flashes a second, a steady canvas and small swings alone", () => {

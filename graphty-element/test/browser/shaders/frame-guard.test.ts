@@ -41,15 +41,21 @@ vec4 shade(NodeInput n) {
 }
 `;
 
-/** A pasted sprite that flashes between black and white 6 times a second. */
-const FLASHING = `/* graphty-shader 1
-{ "id": "user/strobe", "name": "Strobe", "kind": "node-sprite", "motion": "loop" }
+/**
+ * A pasted sprite that flashes between black and white.
+ * @param hz - Flashes a second.
+ * @returns Its text.
+ */
+function strobe(hz: number): string {
+    return `/* graphty-shader 1
+{ "id": "user/strobe-${String(hz)}", "name": "Strobe", "kind": "node-sprite", "motion": "loop" }
 */
 vec4 shade(NodeInput n) {
-    float on = step(0.5, fract(n.time * 6.0));
+    float on = step(0.5, fract(n.time * ${hz.toFixed(1)}));
     return vec4(vec3(on), 1.0);
 }
 `;
+}
 
 const cleanups: (() => void)[] = [];
 
@@ -67,6 +73,21 @@ beforeAll(() => {
         glsl: `vec4 shade(NodeInput n) {
             float d = length(n.uv);
             return d > 2.5 && d < 3.5 ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0);
+        }`,
+    });
+    // Enough work per pixel that SwiftShader takes well over 50 ms a frame on a canvas this size.
+    defineShader({
+        id: "e4/slow",
+        kind: "node-sprite",
+        motion: "loop",
+        glsl: `vec4 shade(NodeInput n) {
+            float v = n.time;
+            for (int i = 0; i < 64; i++) {
+                for (int j = 0; j < 32; j++) {
+                    v = fract(sin(v + 1.7) * 43.5);
+                }
+            }
+            return vec4(vec3(v), 1.0);
         }`,
     });
     registerShader({
@@ -232,6 +253,32 @@ describe("the frame guard", () => {
         assert.strictEqual(hostOf(element).loaded?.uniforms.effectCap, 256, "the effect cap follows the level");
     });
 
+    it("steps quality down when a heavy shader really keeps the GPU behind, with no fence simulated", async () => {
+        // Three sprites drawn over one another: each frame shades the canvas about three times
+        // over, some 200 ms of SwiftShader's time, with almost none of it on the CPU.
+        const element = await mounted(
+            [
+                { id: "a", x: 0, y: 0 },
+                { id: "b", x: 0.1, y: 0 },
+                { id: "c", x: 0, y: 0.1 },
+            ],
+            { "node.shader": "e4/slow", "node.size": 40 },
+        );
+        const scene = element.graph.getScene();
+        await until(element, "the heavy sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
+        const seen = qualityEvents(element);
+        const starts: number[] = [];
+        const timing = scene.onBeforeRenderObservable.add(() => starts.push(performance.now()));
+        cleanups.unshift(() => {
+            scene.onBeforeRenderObservable.remove(timing);
+        });
+        await until(element, "the guard stepped down", () => seen.length > 0 || starts.length > 40);
+        const gaps = starts.slice(1).map((at, i) => Math.round(at - starts[i]));
+        assert.isAbove(seen.length, 0, `frame intervals ${gaps.join(" ")}`);
+        assert.strictEqual(seen[0].code, "guard.slow-gpu");
+        assert.strictEqual(element.renderQuality.level, "medium");
+    });
+
     it("changes nothing for CPU-bound slow frames", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shader": "e4/spin" });
         const scene = element.graph.getScene();
@@ -337,23 +384,25 @@ describe("motion", () => {
         assert.strictEqual(everyFrameAnimationsOn(element.graph.getScene()), 0, "a still loop asks for no frame");
     });
 
-    it("freezes a pasted shader that flashes 6 times a second, with shader.flashing", async () => {
-        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.size": 6 });
-        const layer = shadedLayer(element);
-        const added = await element.session.shaders.add(FLASHING, { apply: { layer } });
-        assert.isTrue(added.ok);
+    // 10, 15 and 20 Hz: sampled 10 times a second, as the check once was, each aliased to a
+    // steady or slow canvas and was never frozen.
+    for (const hz of [6, 10, 15, 20]) {
+        it(`freezes a pasted shader that flashes ${String(hz)} times a second, with shader.flashing`, async () => {
+            const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.size": 6 });
+            const layer = shadedLayer(element);
+            const text = strobe(hz);
+            const id = `user/strobe-${String(hz)}`;
+            const added = await element.session.shaders.add(text, { apply: { layer } });
+            assert.isTrue(added.ok);
 
-        await until(
-            element,
-            "the strobe was frozen",
-            () => element.session.shaders.status("user/strobe").state === "still",
-        );
-        assert.deepEqual(element.session.shaders.status("user/strobe"), {
-            state: "still",
-            problem: { code: "shader.flashing", params: { id: "user/strobe" } },
+            await until(element, "the strobe was frozen", () => element.session.shaders.status(id).state === "still");
+            assert.deepEqual(element.session.shaders.status(id), {
+                state: "still",
+                problem: { code: "shader.flashing", params: { id } },
+            });
+            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(sha256Hex(text)) ?? -1, 0);
         });
-        assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(sha256Hex(FLASHING)) ?? -1, 0);
-    });
+    }
 });
 
 /**

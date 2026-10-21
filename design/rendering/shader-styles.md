@@ -879,7 +879,8 @@ work. And nuisance: fast flashing, or deceptive text drawn in the canvas.
 - The element writes no approval to storage. It fires `shader-approved`; an application that wants
   approvals remembered stores the hashes as the reader's preference and passes them back.
 - Flashing: for animated pasted shaders, the element reads back a 16 x 16 downsample of the canvas
-  asynchronously (a WebGL2 buffer and a fence, never a stall) about 10 times a second, counts
+  asynchronously (a WebGL2 buffer and a fence, never a stall, up to 3 in flight) on every frame
+  drawn -- sampled 10 times a second, a 10 or 20 Hz strobe aliased to a steady canvas -- counts
   luminance swings over a WCAG-sized area, and past 3 flashes a second freezes that shader's time
   and reports `shader.flashing` (WCAG 2.3.1). Presets are checked for flashing at design time
   instead, in each preset's acceptance (section 8).
@@ -951,10 +952,15 @@ times members), then shade it.
 **The frame guard** (`shaderSettings.guard`, default true), in `RenderManager`, measures only while
 a continuous frame claim is held, and ignores frames after a visibility change, a resize, a compile
 or a context restore. It separates CPU time (measured around update and render submission) from
-GPU backlog (the existing `fenceFrame` / `gpuBehind` fence), and steps down only when the GPU is
-behind: after a second of GPU-bound frames over 50 ms, one quality level; at low, loops run at half
-rate, then pasted shaders turn off, then all shader motion pauses. One frame over 250 ms while a
-pasted shader is on screen turns pasted shaders off at once. After a sustained run of fast frames
+GPU backlog, and steps down only when the GPU is behind. A frame is GPU-bound when the loop waited
+over the limit between the end of its own work and the next tick, or when the existing
+`fenceFrame` / `gpuBehind` fence held it. The wait is the main signal: Chromium does not run the
+next animation frame until the GPU has caught up, so on a slow GPU the fence has always signalled
+by the next tick (measured on SwiftShader: the fence alone flagged no frame). After a second of
+GPU-bound frames over 50 ms, one quality level; at low, loops run at half rate, then pasted shaders
+turn off, then all shader motion pauses. A GPU-bound frame over 250 ms while a pasted shader is on
+screen turns pasted shaders off at once: one the fence held, or two such waits in a row, because a
+single long wait can be the page's own script. After a sustained run of fast frames
 the level steps back up, never above the setting. Each step updates `graph.renderQuality`, fires
 `render-quality` (`guard.slow-gpu`, `guard.paused`, `guard.recovered`) and reports
 `shader.guard-off` or `shader.still` with `reason: "guard"` on the shaders it changed.

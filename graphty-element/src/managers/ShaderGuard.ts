@@ -7,13 +7,17 @@
  * that names no shader is drawn the same at every level.
  *
  * **The guard steps down only when the GPU is behind.** {@link ShaderGuard.frame} is handed one
- * sample per frame drawn by `RenderManager`: how long since the frame before, and whether the
- * loop had to skip ticks waiting for that frame's fence (the existing `gpuBehind` fence). A slow
- * frame the GPU kept up with is the CPU's -- a 10,000-node layout step -- and changes nothing. The
+ * sample per frame drawn by `RenderManager`: how long since the frame before, how much of that the
+ * loop waited between its own ticks, and whether it skipped ticks for that frame's fence (the
+ * existing `gpuBehind` fence). A frame is GPU-bound when the wait alone is over the limit, or the
+ * fence held it: Chromium does not run the next animation frame until the GPU has caught up, so
+ * a slow GPU shows as a long wait and the fence has always signalled by then. A slow frame spent
+ * in the loop's own work is the CPU's -- a 10,000-node layout step -- and changes nothing. The
  * ladder, one rung per second of GPU-bound frames over 50 ms measured while a shader holds a motion
- * claim: high, medium, low, loops at half rate, pasted shaders off, all shader motion paused. One
- * GPU-bound frame over 250 ms with a pasted shader on screen turns pasted shaders off at once, and
- * they stay off until the settings change. After a sustained run of fast frames the guard steps
+ * claim: high, medium, low, loops at half rate, pasted shaders off, all shader motion paused. A
+ * GPU-bound frame over 250 ms with a pasted shader on screen turns pasted shaders off at once --
+ * one the fence held, or two waits in a row, since one long wait can be the page's own script --
+ * and they stay off until the settings change. After a sustained run of fast frames the guard steps
  * back up one rung, never above the setting.
  *
  * Also here: the render-target memory budget, the level-of-detail choice, and the flashing check
@@ -96,6 +100,12 @@ const RUNGS: readonly {
 export interface FrameSample {
     /** Milliseconds since the frame drawn before it, with only GPU waits between. */
     readonly intervalMs: number;
+    /**
+     * Milliseconds of the interval the loop spent waiting for its tick rather than working: the
+     * interval less the frame before's update and draw (and less any tick skipped on purpose).
+     * Defaults to 0, when only the fence is known.
+     */
+    readonly waitMs?: number;
     /** Whether the loop skipped ticks waiting for the frame before's fence. */
     readonly gpuBehind: boolean;
 }
@@ -129,6 +139,8 @@ export class ShaderGuard {
     /** Whether the last step was a step up, so the next step down lengthens the run before one. */
     private steppedUp = false;
     private ignoring = 0;
+    /** Whether the last frame measured waited over {@link LONG_FRAME_MS} for its tick. */
+    private lastLongWait = false;
     private halfTick = false;
     private code: RenderQualityCode | undefined;
     private current: RenderQuality;
@@ -271,11 +283,15 @@ export class ShaderGuard {
         }
 
         const { intervalMs, gpuBehind } = sample;
-        if (gpuBehind && intervalMs > LONG_FRAME_MS && !this.pastedBanned && sources.pastedOnScreen()) {
+        const waitMs = sample.waitMs ?? 0;
+        const longWait = waitMs > LONG_FRAME_MS;
+        const long = (gpuBehind && intervalMs > LONG_FRAME_MS) || (longWait && this.lastLongWait);
+        this.lastLongWait = longWait;
+        if (long && !this.pastedBanned && sources.pastedOnScreen()) {
             this.pastedBanned = true;
             this.resetRuns();
             this.step("guard.long-frame");
-        } else if (gpuBehind && intervalMs > SLOW_FRAME_MS) {
+        } else if ((gpuBehind && intervalMs > SLOW_FRAME_MS) || waitMs > SLOW_FRAME_MS) {
             this.slowFrame(intervalMs, sources.claimed());
         } else if (intervalMs <= SLOW_FRAME_MS) {
             // A slow frame the GPU kept up with is the CPU's, and counts neither for nor against
@@ -396,6 +412,7 @@ export class ShaderGuard {
     private resetRuns(): void {
         this.slowRun = 0;
         this.fastRun = 0;
+        this.lastLongWait = false;
     }
 }
 
@@ -569,13 +586,18 @@ function linear(channel: number): number {
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-/** How often the flashing check reads the canvas back, in milliseconds (about 10 times a second). */
-export const FLASH_SAMPLE_MS = 100;
+/**
+ * How many readbacks may wait on their fences at once. The check samples every frame drawn, so a
+ * strobe at any rate the canvas can show is seen (at 10 samples a second a 10 Hz strobe read as
+ * steady); a GPU that finishes frames late keeps a few in flight instead of skipping frames.
+ */
+const FLASH_IN_FLIGHT = 3;
 
 /**
  * Reads a {@link FLASH_GRID}-square downsample of a WebGL 2 canvas back without stalling: the
  * frame is blitted (resolved first when the canvas is multisampled) into a small target, read into
  * a pixel buffer, and fenced; the bytes are fetched on a later frame, once the fence signalled.
+ * Up to {@link FLASH_IN_FLIGHT} captures wait at once, each in its own buffer.
  *
  * ponytail: WebGL 2 only; on WebGPU pasted shaders are not checked for flashing. A mapAsync
  * readback of the swap chain would add it.
@@ -583,8 +605,10 @@ export const FLASH_SAMPLE_MS = 100;
 export class FlashReadback {
     private small: { fbo: WebGLFramebuffer; rb: WebGLRenderbuffer } | null = null;
     private resolve: { fbo: WebGLFramebuffer; rb: WebGLRenderbuffer; w: number; h: number } | null = null;
-    private buffer: WebGLBuffer | null = null;
-    private pending: { fence: WebGLSync; at: number } | null = null;
+    /** Pixel buffers no capture is using. */
+    private readonly free: WebGLBuffer[] = [];
+    /** The captures waiting on their fences, oldest first. */
+    private readonly pending: { fence: WebGLSync; at: number; buffer: WebGLBuffer }[] = [];
     private readonly bytes = new Uint8Array(FLASH_GRID * FLASH_GRID * 4);
 
     /**
@@ -594,11 +618,11 @@ export class FlashReadback {
     constructor(private readonly gl: WebGL2RenderingContext) {}
 
     /**
-     * Whether a capture waits on its fence.
-     * @returns True while one does.
+     * Whether no further capture can start until one is collected.
+     * @returns True while {@link FLASH_IN_FLIGHT} captures wait.
      */
     get waiting(): boolean {
-        return this.pending !== null;
+        return this.pending.length >= FLASH_IN_FLIGHT;
     }
 
     /**
@@ -608,7 +632,7 @@ export class FlashReadback {
      */
     capture(at: number): void {
         const { gl } = this;
-        if (this.pending !== null || gl.isContextLost()) {
+        if (this.waiting || gl.isContextLost()) {
             return;
         }
 
@@ -633,13 +657,15 @@ export class FlashReadback {
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, small);
             gl.blitFramebuffer(0, 0, width, height, 0, 0, FLASH_GRID, FLASH_GRID, gl.COLOR_BUFFER_BIT, gl.LINEAR);
             gl.bindFramebuffer(gl.READ_FRAMEBUFFER, small);
-            this.buffer ??= gl.createBuffer();
-            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
+            const buffer = this.free.pop() ?? gl.createBuffer();
+            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
             gl.bufferData(gl.PIXEL_PACK_BUFFER, this.bytes.byteLength, gl.STREAM_READ);
             gl.readPixels(0, 0, FLASH_GRID, FLASH_GRID, gl.RGBA, gl.UNSIGNED_BYTE, 0);
             const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-            if (fence !== null) {
-                this.pending = { fence, at };
+            if (fence === null) {
+                this.free.push(buffer);
+            } else {
+                this.pending.push({ fence, at, buffer });
             }
         } finally {
             gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pack);
@@ -652,31 +678,36 @@ export class FlashReadback {
     }
 
     /**
-     * The last capture's bytes, once its fence signalled; never waits.
-     * @returns The downsample and when it was drawn, or null while it is not ready.
+     * The oldest capture's bytes, once its fence signalled; never waits. Call it until it answers
+     * null to take every capture ready, in the order drawn. The bytes are overwritten by the next
+     * call.
+     * @returns The downsample and when it was drawn, or null while none is ready.
      */
     collect(): { rgba: Uint8Array; at: number } | null {
-        const { gl, pending } = this;
-        if (pending === null) {
+        const { gl } = this;
+        const oldest = this.pending.at(0);
+        if (oldest === undefined) {
             return null;
         }
 
         if (gl.isContextLost()) {
-            this.pending = null;
+            this.pending.length = 0;
+            this.free.length = 0;
             return null;
         }
 
-        if (gl.getSyncParameter(pending.fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
+        if (gl.getSyncParameter(oldest.fence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
             return null;
         }
 
-        gl.deleteSync(pending.fence);
-        this.pending = null;
+        gl.deleteSync(oldest.fence);
+        this.pending.shift();
         const pack = gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) as WebGLBuffer | null;
-        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, oldest.buffer);
         gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.bytes);
         gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pack);
-        return { rgba: this.bytes, at: pending.at };
+        this.free.push(oldest.buffer);
+        return { rgba: this.bytes, at: oldest.at };
     }
 
     /** Release the targets, the buffer and a pending fence. */
@@ -693,15 +724,19 @@ export class FlashReadback {
             }
         }
 
-        if (this.pending !== null) {
-            gl.deleteSync(this.pending.fence);
+        for (const { fence, buffer } of this.pending) {
+            gl.deleteSync(fence);
+            gl.deleteBuffer(buffer);
         }
 
-        gl.deleteBuffer(this.buffer);
+        for (const buffer of this.free) {
+            gl.deleteBuffer(buffer);
+        }
+
         this.small = null;
         this.resolve = null;
-        this.pending = null;
-        this.buffer = null;
+        this.pending.length = 0;
+        this.free.length = 0;
     }
 
     /**

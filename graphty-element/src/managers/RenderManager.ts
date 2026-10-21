@@ -42,14 +42,7 @@ import { type LazyShaderHost, lendScenePasted } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
-import {
-    FLASH_SAMPLE_MS,
-    FlashCounter,
-    FlashReadback,
-    QUALITY_LEVELS,
-    RenderTargetBudget,
-    ShaderGuard,
-} from "./ShaderGuard";
+import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
  * Configuration options for RenderManager
@@ -634,8 +627,14 @@ export class RenderManager implements Manager {
     private lastDrawAt = Number.NaN;
     /** Whether a tick waited for the GPU since the last frame drawn. */
     private waitedForGpu = false;
+    /**
+     * When the loop's own work last ended, by `performance.now()`: the end of the last frame drawn
+     * or of a tick skipped for half rate. The time from it to the next frame drawn is time the
+     * loop only waited for its tick, which in Chromium is the GPU catching up.
+     */
+    private workEndedAt = Number.NaN;
     /** The flashing check's readback and counter, made when a moving pasted shader first draws. */
-    private flashCheck: { readback: FlashReadback; counter: FlashCounter; next: number } | null = null;
+    private flashCheck: { readback: FlashReadback; counter: FlashCounter } | null = null;
     /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
@@ -902,11 +901,13 @@ export class RenderManager implements Manager {
 
         this.updateCallback = updateCallback;
         this.renderLoopActive = true;
+        this.lastDrawAt = Number.NaN;
 
         this.engine.runRenderLoop(() => {
             // A held frame is skipped whole: no update, no draw. The loop itself keeps ticking so
             // nothing has to be restarted, and a tick that does nothing costs nothing.
             if (this.frameHolds > 0) {
+                this.lastDrawAt = Number.NaN;
                 return;
             }
 
@@ -923,6 +924,7 @@ export class RenderManager implements Manager {
             // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is.
             if (this.shaderGuard.skipTick()) {
                 this.skippedMs += this.engine.getDeltaTime();
+                this.workEndedAt = performance.now();
                 return;
             }
 
@@ -931,6 +933,7 @@ export class RenderManager implements Manager {
             const drawAt = performance.now();
             const drewBefore = this.lastDrawAt;
             const gpuWasBehind = this.waitedForGpu;
+            const waitMs = drawAt - this.workEndedAt;
             this.lastDrawAt = Number.NaN;
             this.waitedForGpu = false;
 
@@ -955,7 +958,7 @@ export class RenderManager implements Manager {
                 }
 
                 // The frame before this one, measured now that its GPU wait is known.
-                this.measureFrame(drawAt - drewBefore, gpuWasBehind);
+                this.measureFrame(drawAt - drewBefore, waitMs, gpuWasBehind);
 
                 // Cleared BEFORE the frame, so anything the frame itself announces asks for the
                 // next one.
@@ -966,6 +969,7 @@ export class RenderManager implements Manager {
                 this.fenceFrame();
                 this.noteDrawnFrom();
                 this.lastDrawAt = drawAt;
+                this.workEndedAt = performance.now();
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 this.eventManager.emitGraphError(null, err, "other", {
@@ -986,15 +990,16 @@ export class RenderManager implements Manager {
     };
 
     /**
-     * Hand the frame guard the frame drawn before this one: the time between the two, and whether
-     * the loop waited for its fence. Only frames drawn back to back count (a rest, a hold or a
+     * Hand the frame guard the frame drawn before this one: the time between the two, how much of
+     * it the loop only waited for its tick, and whether it waited for the frame's fence. Only frames drawn back to back count (a rest, a hold or a
      * held draw in between makes the interval mean nothing), and only once shaders draw. A frame
      * that compiled a shader is left out.
      * @param intervalMs - Milliseconds since the frame before started; NaN when it was not the
      *     tick before.
+     * @param waitMs - Milliseconds since the loop's own work last ended.
      * @param gpuBehind - Whether the loop waited for the frame before's fence.
      */
-    private measureFrame(intervalMs: number, gpuBehind: boolean): void {
+    private measureFrame(intervalMs: number, waitMs: number, gpuBehind: boolean): void {
         if (!this.shaderGuard.watching || Number.isNaN(intervalMs)) {
             return;
         }
@@ -1004,13 +1009,13 @@ export class RenderManager implements Manager {
             return;
         }
 
-        this.shaderGuard.frame({ intervalMs, gpuBehind });
+        this.shaderGuard.frame({ intervalMs, waitMs, gpuBehind });
     }
 
     /**
      * The flashing check (WCAG 2.3.1, design section 4.6): while a moving pasted shader draws,
-     * about ten times a second read a 16 x 16 downsample of the frame just drawn back without
-     * waiting, and freeze those shaders' time once the canvas flashed more than 3 times in a
+     * read a 16 x 16 downsample of every frame drawn back without waiting (sampled any slower, a
+     * strobe near the sampling rate reads as steady), and freeze those shaders' time once the canvas flashed more than 3 times in a
      * second. WebGL 2 only.
      * @param at - When the frame was drawn.
      */
@@ -1021,9 +1026,8 @@ export class RenderManager implements Manager {
         }
 
         const check = this.flashCheck;
-        if (check !== null) {
-            const sample = check.readback.collect();
-            if (sample !== null && check.counter.add(sample.rgba, sample.at)) {
+        for (let sample = check?.readback.collect(); check && sample; sample = check.readback.collect()) {
+            if (check.counter.add(sample.rgba, sample.at)) {
                 const moving = guard.movingPasted();
                 if (moving.length > 0) {
                     guard.flashed(moving);
@@ -1033,16 +1037,11 @@ export class RenderManager implements Manager {
             }
         }
 
-        if (at < (check?.next ?? 0) || check?.readback.waiting === true || guard.movingPasted().length === 0) {
+        if (guard.movingPasted().length === 0) {
             return;
         }
 
-        this.flashCheck ??= {
-            readback: new FlashReadback(this.engine._gl),
-            counter: new FlashCounter(),
-            next: 0,
-        };
-        this.flashCheck.next = at + FLASH_SAMPLE_MS;
+        this.flashCheck ??= { readback: new FlashReadback(this.engine._gl), counter: new FlashCounter() };
         this.flashCheck.readback.capture(at);
     }
 

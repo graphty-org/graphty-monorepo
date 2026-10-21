@@ -4402,15 +4402,17 @@ export interface SessionShaders {
     approve(id: string): Promise<ShaderAddResult>;
     // (undocumented)
     availability(id: string): ShaderAvailability;
-    check(text: ShaderText, options?: {
-        readonly kind?: ShaderKind;
+    check(text: ShaderText, options?: ShaderAddOptions & {
         readonly compile?: boolean;
     }): Promise<ShaderAddResult>;
     // (undocumented)
     list(): readonly ProjectShader[];
     remove(id: string): Promise<void>;
     replace(id: string, text: ShaderText): Promise<ShaderAddResult>;
-    source(id: string): Promise<ShaderText>;
+    source(id: string, options?: {
+        readonly params?: ShaderParams;
+        readonly duplicate?: boolean;
+    }): Promise<ShaderText>;
     // (undocumented)
     status(id: string): ShaderStatus;
     thumbnail(id: string, params?: ShaderParams): Promise<Blob>;

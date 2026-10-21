@@ -241,7 +241,7 @@ describe("Paste shader on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         const body = async (shader: string): Promise<string> => {
-            const parsed = parseShaderText(await session.shaders.source(shader));
+            const parsed = parseShaderText(await session.shaders.source(shader, { duplicate: true }));
             assert.isTrue(parsed.ok);
             return parsed.ok ? parsed.registration.glsl : "";
         };

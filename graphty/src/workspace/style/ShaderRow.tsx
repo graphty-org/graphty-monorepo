@@ -133,7 +133,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
         writeShown(ctx, slot, entry.id, !shown).catch(fail("changed"));
     };
     const copyText = (): void => {
-        copyShaderText(ctx.session, entry.id)
+        copyShaderText(ctx.session, entry.id, paramsOf(ctx, slot, entry.id))
             .then(() => {
                 store.set({ announcement: `${name} copied` });
             })
@@ -144,7 +144,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             ? undefined
             : (): void => {
                   ctx.session.shaders
-                      .source(entry.id)
+                      .source(entry.id, { duplicate: true, params: paramsOf(ctx, slot, entry.id) })
                       .then((text) => {
                           onPaste({ text, duplicateOf: entry.id });
                       })

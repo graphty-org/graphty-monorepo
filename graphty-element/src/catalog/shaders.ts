@@ -216,7 +216,9 @@ export type ShaderProblemCode =
     | "shader.program-cap"
     | "shader.param-unused"
     | "shader.effect-cap"
-    | "shader.boundary-cap";
+    | "shader.boundary-cap"
+    | "shader.apply-target"
+    | "shader.no-data";
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {

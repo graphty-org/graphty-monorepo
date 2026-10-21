@@ -440,6 +440,94 @@ describe("session.shaders", () => {
         });
     });
 
+    it("checks as add does: compiles on the canvas and reports every problem, not the first", async () => {
+        const { session: s } = await session();
+        await s.shaders.add(TINT);
+        const problem: ShaderProblem = { code: "shader.compile", params: { line: 11, column: 1, message: "x" } };
+        shadersControllerOf(s)?.attach(fakeHost({ problem }));
+        const other = TINT.replace("* amount", "* amount * 0.5");
+        const checked = await s.shaders.check(other);
+        assert.deepEqual(checked.ok ? [] : checked.problems.map((each) => each.code), [
+            "shader.id-taken",
+            "shader.compile",
+        ]);
+        // What check passes, add passes; what it refuses, add refuses.
+        const renamed = await s.shaders.check(other, { onTaken: "rename" });
+        assert.deepEqual(renamed, { ok: false, problems: [problem] });
+        assert.deepEqual(await s.shaders.add(other, { onTaken: "rename" }), renamed);
+        // Asked not to compile, it stops after the static checks.
+        assert.isTrue((await s.shaders.check(other, { onTaken: "rename", compile: false })).ok);
+    });
+
+    it("names a missing or wrong entry function, not a missing header", async () => {
+        const { session: s } = await session();
+        const codes = async (text: string, kind?: "node-surface"): Promise<string[]> => {
+            const checked = await s.shaders.check(text, kind === undefined ? {} : { kind });
+            return checked.ok ? [] : checked.problems.map((each) => each.code);
+        };
+        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n"), ["shader.entry-signature"]);
+        assert.deepEqual(await codes("vec4 shade(Node n) { return n.color; }\n"), ["shader.entry-signature"]);
+        assert.deepEqual(await codes("vec4 paint(NodeInput n) { return n.color; }\n"), ["shader.entry-missing"]);
+        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n", "node-surface"), [
+            "shader.entry-signature",
+        ]);
+        // A node body with no kind is still a body whose header would say which kind it is.
+        assert.deepEqual(await codes("vec4 shade(NodeInput n) { return n.color; }\n"), ["shader.header-missing"]);
+    });
+
+    it("answers a shader applied to a layer of the other target with a problem, writing nothing", async () => {
+        const { session: s } = await session();
+        const edges = await s.styles.add({
+            name: "Lines",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#888888" },
+        });
+        const steps = s.history.steps.length;
+        const added = await s.shaders.add(TINT, { apply: { layer: edges.id } });
+        assert.deepEqual(added, {
+            ok: false,
+            problems: [{ code: "shader.apply-target", params: { layer: edges.id, target: "edge" } }],
+        });
+        assert.lengthOf(s.shaders.list(), 0);
+        assert.strictEqual(s.history.steps.length, steps);
+        assert.isFalse((await s.shaders.check(TINT, { apply: { layer: edges.id } })).ok);
+    });
+
+    it("copies the reader's values as the defaults, keeping a preset's id; a duplicate gets a user id", async () => {
+        const { session: s, layer } = await session();
+        const text = await s.shaders.source("uncertainty-aura", { params: { tint: 0.9, visible: false } });
+        assert.include(text, '"id": "uncertainty-aura"');
+        assert.include(text, '"default": 0.9');
+        const checked = await s.shaders.check(text);
+        assert.deepEqual(checked.ok ? checked.sameAs : checked.problems, {
+            id: "uncertainty-aura",
+            params: { tint: 0.9 },
+        });
+
+        // Pasted back, it is the preset with those values: nothing is added to the project.
+        const added = await s.shaders.add(text, { apply: { layer } });
+        assert.isTrue(added.ok && added.descriptor.id === "uncertainty-aura");
+        assert.lengthOf(s.shaders.list(), 0);
+        assert.deepEqual(JSON.parse(JSON.stringify(s.styles.get(layer)?.set?.["node.effects"])), {
+            "uncertainty-aura": { tint: 0.9 },
+        });
+
+        const duplicate = await s.shaders.source("uncertainty-aura", { duplicate: true });
+        assert.include(duplicate, '"id": "user/uncertainty-aura"');
+        // A project shader's copy carries the values too.
+        await s.shaders.add(TINT);
+        assert.include(await s.shaders.source("user/tint", { params: { amount: 0.2 } }), '"default": 0.2');
+        assert.strictEqual(await s.shaders.source("user/tint"), TINT);
+    });
+
+    it("says a background that tints by groups has nothing to tint by when no layer draws a boundary", async () => {
+        const { session: s, layer } = await session();
+        assert.deepEqual(s.shaders.status("nebula").problem, { code: "shader.no-data", params: { input: "members" } });
+        await s.styles.update(layer, { boundary: { shader: "metaball-hull" } });
+        assert.isUndefined(s.shaders.status("nebula").problem);
+    });
+
     it("answers the quality the settings ask for with no host", async () => {
         const { session: s } = await session();
         const controller = shadersControllerOf(s);

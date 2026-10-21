@@ -62,7 +62,7 @@ export type ShaderState = "ready" | "compiling" | "failed" | "held" | "off" | "s
 export interface ShaderStatus {
     /** What it is doing. */
     readonly state: ShaderState;
-    /** Why it is failed, held, off or still. */
+    /** Why it is failed, held, off or still, or what it draws without (`shader.no-data`). */
     readonly problem?: ShaderProblem;
 }
 
@@ -94,7 +94,12 @@ export interface ShaderAddOptions {
     readonly kind?: ShaderKind;
     /** When the header's id is taken: refuse (the default) or add under the next free id. */
     readonly onTaken?: "refuse" | "rename";
-    /** Also write the shader to this layer, as its surface or an added effect, in the same undoable step. */
+    /**
+     * Also write the shader to this layer, as its surface or an added effect, in the same undoable
+     * step. A layer that paints the other target (a node shader on an edge layer) is refused with
+     * `shader.apply-target`. Effects are keyed by id, so an effect this layer and a layer beneath
+     * it both add draws once, its parameters merged by name with the upper layer's winning.
+     */
     readonly apply?: { readonly layer: LayerId };
 }
 
@@ -135,17 +140,17 @@ export interface SessionShaders {
      */
     add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
     /**
-     * Check shader text without writing anything; compile and test it only when asked.
+     * Check shader text as `add` would, without writing anything: what `check` passes, `add` with
+     * the same options passes, and every problem found is reported, not only the first. Text that
+     * names a shader of the catalog with its body unchanged (a copy from `source`) passes with
+     * `sameAs`, as `add` takes it.
      * @param text - The shader text.
-     * @param options - Its kind, and whether to compile it on the canvas.
-     * @param options.kind - The kind of a header-less body.
-     * @param options.compile - Also compile it and run its test frame on the canvas.
+     * @param options - The options `add` would be given, and whether to compile.
+     * @param options.compile - Compile it and run its test frame on the canvas. Default true when a
+     *   canvas is attached; with none only the static checks run.
      * @returns What the checks found.
      */
-    check(
-        text: ShaderText,
-        options?: { readonly kind?: ShaderKind; readonly compile?: boolean },
-    ): Promise<ShaderAddResult>;
+    check(text: ShaderText, options?: ShaderAddOptions & { readonly compile?: boolean }): Promise<ShaderAddResult>;
     /**
      * Replace a project shader's text, keeping its id. One undoable step.
      * @param id - The project shader.
@@ -160,17 +165,23 @@ export interface SessionShaders {
      */
     remove(id: string): Promise<void>;
     /**
-     * A shader's text, presets and registered shaders too (their id given the `user/` namespace,
-     * so the text can be pasted back as a copy).
+     * A shader's text, presets and registered shaders too. The text keeps the shader's id, so it
+     * pastes back (`add`, `check`) as that shader with its values; `duplicate` gives it the `user/`
+     * namespace instead, so it is added as a new shader to edit.
      * @param id - Any shader the catalog lists.
+     * @param options - What to write.
+     * @param options.params - Parameter values the copy carries as its defaults, such as the ones a
+     *   layer sets; a name the shader does not declare, or a value of the wrong type, is skipped.
+     * @param options.duplicate - Give a preset or a registered shader a `user/` id.
      * @returns The text.
      */
-    source(id: string): Promise<ShaderText>;
+    source(id: string, options?: { readonly params?: ShaderParams; readonly duplicate?: boolean }): Promise<ShaderText>;
     /** @returns The project's shaders, in the order they were added. */
     list(): readonly ProjectShader[];
     /**
      * @param id - Any shader the catalog lists.
-     * @returns Whether it draws now, and if not, why.
+     * @returns Whether it draws now, and if not, why. A background that reads the graph's groups
+     *   while no layer draws a boundary draws, and says so with `shader.no-data`.
      */
     status(id: string): ShaderStatus;
     /**
@@ -357,6 +368,8 @@ interface ReadText {
     readonly hash: string;
     readonly bodyLine: number;
     readonly descriptor: ShaderDescriptor;
+    /** The catalog shader whose bare id its header named, read under a `user/` id. */
+    readonly copyOf?: string;
 }
 
 /** The session-side controller behind `session.shaders`. */
@@ -493,29 +506,37 @@ function differingDefaults(text: ShaderDescriptor, known: ShaderDescriptor): Sha
  * The patch that writes a shader to a layer: its surface, an added effect, or its boundary.
  * @param spec - The layer.
  * @param descriptor - The shader.
+ * @param params - Parameter values to write with it.
  * @returns The patch.
  * @throws A `GraphtyError` with `E_SHADER_KIND` for a background, which no layer draws.
  */
-function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor): Partial<LayerSpec> {
+function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: ShaderParams = {}): Partial<LayerSpec> {
     const set = { ...(spec.set ?? {}) } as Record<string, unknown>;
+    const given = Object.keys(params).length > 0;
+    const surface = (side: "node" | "edge"): void => {
+        set[`${side}.shader`] = descriptor.id;
+        if (given) {
+            set[`${side}.shaderParams`] = { ...(set[`${side}.shaderParams`] as object), [descriptor.id]: params };
+        }
+    };
     switch (descriptor.kind) {
         case "node-surface":
         case "node-sprite":
-            set["node.shader"] = descriptor.id;
+            surface("node");
             break;
         case "edge-surface":
-            set["edge.shader"] = descriptor.id;
+            surface("edge");
             break;
         case "node-effect":
         case "edge-effect": {
             const channel = descriptor.kind === "node-effect" ? "node.effects" : "edge.effects";
             const effects = Object.assign(Object.create(null) as Record<string, unknown>, set[channel]);
-            effects[descriptor.id] = true;
+            effects[descriptor.id] = given ? params : true;
             set[channel] = effects;
             break;
         }
         case "boundary":
-            return { boundary: { shader: descriptor.id } };
+            return { boundary: { shader: descriptor.id, ...(given ? { params } : {}) } };
         default:
             throw new GraphtyError({
                 code: "E_SHADER_KIND",
@@ -526,6 +547,44 @@ function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor): Partial<Laye
     }
 
     return { set: set };
+}
+
+/**
+ * Whether a layer paints the target a shader of this kind draws on.
+ * @param spec - The layer.
+ * @param layer - Its id.
+ * @param kind - The shader's kind.
+ * @returns `shader.apply-target` when it paints the other one, else null.
+ */
+function applyTargetProblem(spec: LayerSpec, layer: LayerId, kind: ShaderKind): ShaderProblem | null {
+    const channel = [...Object.keys(spec.set ?? {}), ...Object.keys(spec.encode ?? {})].find((name) =>
+        /^(node|edge)\./.test(name),
+    );
+    const target = spec.target ?? (channel === undefined ? undefined : channel.slice(0, 4));
+    const wants = kind.startsWith("edge") ? "edge" : "node";
+    // A background is refused by `applyPatch` (`E_SHADER_KIND`): no layer draws one.
+    if (kind === "background" || target === undefined || target === wants) {
+        return null;
+    }
+
+    return { code: "shader.apply-target", params: { layer, target } };
+}
+
+/**
+ * A shader written as text under an id, with parameter values as its defaults.
+ * @param descriptor - The shader.
+ * @param glsl - Its body.
+ * @param id - The id to write.
+ * @param params - Values to write as defaults; a name it does not declare, or a value of another type, is skipped.
+ * @returns The text.
+ */
+function copyText(descriptor: ShaderDescriptor, glsl: string, id: string, params: ShaderParams): ShaderText {
+    const { origin: _origin, hash: _hash, thumbnail: _thumbnail, ...facts } = descriptor;
+    const defaults = facts.params.map((param) => {
+        const value = Object.hasOwn(params, param.name) ? params[param.name] : undefined;
+        return value !== undefined && typeof value === typeof param.default ? { ...param, default: value } : param;
+    });
+    return formatShaderText({ descriptor: { ...facts, id, params: defaults }, glsl });
 }
 
 /**
@@ -616,11 +675,40 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 result = details?.problems ?? [{ code: "shader.id-invalid", params: { id: id ?? "" } }];
             }
         } else {
-            result = parsed.problems;
+            result = catalogCopy(text, kind, id, parsed.problems) ?? parsed.problems;
         }
 
         read.set(key, result);
         return result;
+    };
+
+    /**
+     * Text whose header names a preset's bare id, which pasted text may not take: a copy from
+     * `source`, read under the `user/` id a duplicate would have.
+     * @param text - The text.
+     * @param kind - The kind of a header-less body.
+     * @param id - An id the caller gives it, which leaves the header alone.
+     * @param problems - What parsing found.
+     * @returns The copy read, or undefined when the text is not one.
+     */
+    const catalogCopy = (
+        text: string,
+        kind: ShaderKind | undefined,
+        id: string | undefined,
+        problems: readonly ShaderProblem[],
+    ): ReadText | undefined => {
+        const named = problems.length === 1 && problems[0].code === "shader.id-invalid" ? problems[0].params.id : "";
+        if (id !== undefined || typeof named !== "string" || !/^[a-z0-9-]+$/.test(named)) {
+            return undefined;
+        }
+
+        if (shaderDescriptor(named) === undefined) {
+            return undefined;
+        }
+
+        const renamedText = text.replace(new RegExp(`("id"\\s*:\\s*)"${named}"`), `$1"user/${named}"`);
+        const copy = renamedText === text ? undefined : readText(renamedText, kind);
+        return copy === undefined || Array.isArray(copy) ? undefined : { ...(copy as ReadText), copyOf: named };
     };
 
     /**
@@ -726,7 +814,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         }
 
         if (host === null) {
-            return { state: "not-checked" };
+            return noDataStatus(shader.descriptor) ?? { state: "not-checked" };
         }
 
         if (shader.descriptor.webgpu === "none" && host.renderer === "webgpu") {
@@ -742,7 +830,28 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "failed", problem: result };
         }
 
-        return drawnStatusOf(shader.descriptor, shader.hash, true) ?? { state: "ready" };
+        return (
+            drawnStatusOf(shader.descriptor, shader.hash, true) ?? noDataStatus(shader.descriptor) ?? { state: "ready" }
+        );
+    };
+
+    /**
+     * A background that reads the graph's groups (`members`) while no layer draws a boundary: it
+     * draws as if there were none, and says so.
+     * @param descriptor - The shader's facts.
+     * @returns The status, or null when it has what it reads.
+     */
+    const noDataStatus = (descriptor: ShaderDescriptor): ShaderStatus | null => {
+        if (descriptor.kind !== "background" || !descriptor.reads.includes("members")) {
+            return null;
+        }
+
+        return styles.list().some((layer) => layer.boundary !== undefined)
+            ? null
+            : {
+                  state: host === null ? "not-checked" : "ready",
+                  problem: { code: "shader.no-data", params: { input: "members" } },
+              };
     };
 
     /**
@@ -932,18 +1041,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return;
         }
 
-        const layer = styles.get(apply);
-        if (layer === undefined) {
-            throw new GraphtyError({
-                code: "E_UNKNOWN_LAYER",
-                message: `There is no style layer with the id "${apply}".`,
-                source: "style",
-                target: { kind: "layer", id: apply },
-                details: { id: apply },
-            });
-        }
-
-        const patch = applyPatch(layer, shader.descriptor);
+        const patch = applyPatch(applyLayer(apply), shader.descriptor);
         await dispatcher.transaction(
             `Add the shader ${id}`,
             async (tx) => {
@@ -954,89 +1052,219 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         );
     };
 
-    const api: SessionShaders = {
-        add(text, options = {}) {
-            if (state().shaders.size >= PROJECT_SHADER_LIMIT) {
-                return Promise.resolve({
-                    ok: false,
-                    problems: [
-                        {
-                            code: "shader.too-many",
-                            params: { count: state().shaders.size, limit: PROJECT_SHADER_LIMIT },
-                        },
-                    ],
-                });
+    /**
+     * The layer `apply` names.
+     * @param id - Its id.
+     * @returns The layer.
+     * @throws A `GraphtyError` with `E_UNKNOWN_LAYER` when there is none.
+     */
+    const applyLayer = (id: LayerId): LayerSpec => {
+        const layer = styles.get(id);
+        if (layer === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_LAYER",
+                message: `There is no style layer with the id "${id}".`,
+                source: "style",
+                target: { kind: "layer", id },
+                details: { id },
+            });
+        }
+
+        return layer;
+    };
+
+    /**
+     * Whether `apply` names a layer of the target a shader draws on.
+     * @param kind - The shader's kind.
+     * @param options - The options.
+     * @returns The problems: none, or `shader.apply-target`.
+     */
+    const targetProblems = (kind: ShaderKind, options: ShaderAddOptions): ShaderProblem[] => {
+        const layer = options.apply?.layer;
+        const problem = layer === undefined ? null : applyTargetProblem(applyLayer(layer), layer, kind);
+        return problem === null ? [] : [problem];
+    };
+
+    /**
+     * The checks `add` and `check` share past parsing, synchronous so a held add stays one dispatch:
+     * the project's limit, the layer's target, a taken id, and content the settings refuse.
+     * @param read - The text, read.
+     * @param text - The text as given.
+     * @param options - The options.
+     * @returns The shader (renamed when asked) and every problem found.
+     */
+    const admit = (
+        read: ReadText,
+        text: string,
+        options: ShaderAddOptions,
+    ): { readonly shader: ReadText; readonly problems: ShaderProblem[] } => {
+        const problems: ShaderProblem[] = [];
+        const { size } = state().shaders;
+        if (size >= PROJECT_SHADER_LIMIT) {
+            problems.push({ code: "shader.too-many", params: { count: size, limit: PROJECT_SHADER_LIMIT } });
+        }
+
+        problems.push(...targetProblems(read.descriptor.kind, options));
+        let shader = read;
+        const wanted = shader.descriptor.id;
+        if (taken(wanted, shader.text)) {
+            const free = freeId(wanted, (candidate) => taken(candidate));
+            if (options.onTaken === "rename") {
+                shader = readText(read.copyOf === undefined ? text : read.text, options.kind, free) as ReadText;
+            } else {
+                problems.push({ code: "shader.id-taken", params: { id: wanted, free } });
+            }
+        }
+
+        if (options.source === "content" && settings.untrusted === "refuse" && !trusted(shader.hash)) {
+            problems.push({ code: "shader.held", params: { id: shader.descriptor.id } });
+        }
+
+        return { shader, problems };
+    };
+
+    /**
+     * The catalog shader a text is an unchanged copy of: its header names a preset or a registered
+     * shader, and its body is that shader's.
+     * @param shader - The text, read.
+     * @returns The shader's id and the values the copy carries, or undefined.
+     */
+    const copyOfCatalog = async (
+        shader: ReadText,
+    ): Promise<{ readonly id: string; readonly params: ShaderParams } | undefined> => {
+        const id = shader.copyOf ?? shader.descriptor.id;
+        const descriptor = state().shaders.has(id) ? undefined : shaderDescriptor(id);
+        if (descriptor === undefined || descriptor.origin === "pasted") {
+            return undefined;
+        }
+
+        const body = registeredShaderSource(id)?.glsl ?? (await presetBody(id));
+        return body?.trim() === shader.registration.glsl.trim()
+            ? { id, params: differingDefaults(shader.descriptor, descriptor) }
+            : undefined;
+    };
+
+    /**
+     * Whether a text names a catalog shader, so `add` and `check` must ask whether it is a copy.
+     * @param shader - The text, read.
+     * @returns True when it does.
+     */
+    const namesCatalog = (shader: ReadText): boolean =>
+        shader.copyOf !== undefined ||
+        (!state().shaders.has(shader.descriptor.id) && shaderDescriptor(shader.descriptor.id) !== undefined);
+
+    /**
+     * Add a copy of a catalog shader: nothing joins the project; with `apply`, the catalog shader
+     * and the copy's values are written to the layer.
+     * @param copy - The catalog shader and the values.
+     * @param copy.id - The catalog shader.
+     * @param copy.params - The values the copy carries.
+     * @param options - The options.
+     * @returns What adding found.
+     */
+    const addCopy = async (
+        copy: { readonly id: string; readonly params: ShaderParams },
+        options: ShaderAddOptions,
+    ): Promise<ShaderAddResult> => {
+        const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
+        const problems = targetProblems(descriptor.kind, options);
+        if (problems.length > 0) {
+            return { ok: false, problems };
+        }
+
+        const layer = options.apply?.layer;
+        if (layer !== undefined) {
+            const patch = applyPatch(applyLayer(layer), descriptor, copy.params);
+            await dispatcher.dispatch({ op: "style.patch", action: "update", id: layer, patch });
+        }
+
+        return { ok: true, descriptor, sameAs: copy };
+    };
+
+    /**
+     * Add text that is not a copy of a catalog shader.
+     * @param read - The text, read.
+     * @param text - The text as given.
+     * @param options - The options.
+     * @returns What adding found.
+     */
+    const addNew = (read: ReadText, text: string, options: ShaderAddOptions): Promise<ShaderAddResult> => {
+        const { shader, problems } = admit(read, text, options);
+        if (problems.length > 0) {
+            return Promise.resolve({ ok: false, problems });
+        }
+
+        const content = options.source === "content";
+        // Content that is not trusted is written at once, held: nothing of it runs, so there is
+        // nothing to compile. Kept synchronous up to the dispatch, so an AI command's
+        // transaction takes it as one of its members.
+        if (content && !trusted(shader.hash)) {
+            const done = write(shader, options.apply?.layer);
+            return done.then(() => passed(shader));
+        }
+
+        const { id } = shader.descriptor;
+        return fullCheck(shader, !trusted(shader.hash)).then(async (problem) => {
+            if (problem !== null) {
+                return { ok: false, problems: [problem] };
             }
 
+            if (!content) {
+                approved.add(shader.hash);
+            }
+
+            await write(shader, options.apply?.layer);
+            if (!content) {
+                publish("shader:approved", { id, hash: shader.hash });
+            }
+
+            return passed(shader);
+        });
+    };
+
+    const api: SessionShaders = {
+        add(text, options = {}) {
             const first = readText(text, options.kind);
             if (Array.isArray(first)) {
                 return Promise.resolve({ ok: false, problems: first as readonly ShaderProblem[] });
             }
 
-            let shader = first as ReadText;
-            const wanted = shader.descriptor.id;
-            if (taken(wanted, shader.text)) {
-                const free = freeId(wanted, (candidate) => taken(candidate));
-                if (options.onTaken !== "rename") {
-                    return Promise.resolve({
-                        ok: false,
-                        problems: [{ code: "shader.id-taken", params: { id: wanted, free } }],
-                    });
-                }
-
-                shader = readText(text, options.kind, free) as ReadText;
+            const read = first as ReadText;
+            // ponytail: a copy of a catalog shader is decided after its body loads, so a held add of one
+            // is not synchronous; every other add is.
+            if (namesCatalog(read)) {
+                return copyOfCatalog(read).then((copy) =>
+                    copy === undefined ? addNew(read, text, options) : addCopy(copy, options),
+                );
             }
 
-            const content = options.source === "content";
-            if (content && settings.untrusted === "refuse" && !trusted(shader.hash)) {
-                return Promise.resolve({
-                    ok: false,
-                    problems: [{ code: "shader.held", params: { id: shader.descriptor.id } }],
-                });
-            }
-
-            // Content that is not trusted is written at once, held: nothing of it runs, so there is
-            // nothing to compile. Kept synchronous up to the dispatch, so an AI command's
-            // transaction takes it as one of its members.
-            if (content && !trusted(shader.hash)) {
-                const done = write(shader, options.apply?.layer);
-                return done.then(() => passed(shader));
-            }
-
-            const { id } = shader.descriptor;
-            return fullCheck(shader, !trusted(shader.hash)).then(async (problem) => {
-                if (problem !== null) {
-                    return { ok: false, problems: [problem] };
-                }
-
-                if (!content) {
-                    approved.add(shader.hash);
-                }
-
-                await write(shader, options.apply?.layer);
-                if (!content) {
-                    publish("shader:approved", { id, hash: shader.hash });
-                }
-
-                return passed(shader);
-            });
+            return addNew(read, text, options);
         },
 
         async check(text, options = {}) {
-            const result = readText(text, options.kind);
-            if (Array.isArray(result)) {
-                return { ok: false, problems: result as readonly ShaderProblem[] };
+            const first = readText(text, options.kind);
+            if (Array.isArray(first)) {
+                return { ok: false, problems: first as readonly ShaderProblem[] };
             }
 
-            const shader = result as ReadText;
-            if (options.compile === true) {
+            const read = first as ReadText;
+            const copy = namesCatalog(read) ? await copyOfCatalog(read) : undefined;
+            if (copy !== undefined) {
+                const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
+                const problems = targetProblems(descriptor.kind, options);
+                return problems.length > 0 ? { ok: false, problems } : { ok: true, descriptor, sameAs: copy };
+            }
+
+            const { shader, problems } = admit(read, text, options);
+            const held = options.source === "content" && !trusted(shader.hash);
+            if ((options.compile ?? host !== null) && !held) {
                 const problem = await fullCheck(shader, !trusted(shader.hash));
                 if (problem !== null) {
-                    return { ok: false, problems: [problem] };
+                    problems.push(problem);
                 }
             }
 
-            return passed(shader);
+            return problems.length > 0 ? { ok: false, problems } : passed(shader);
         },
 
         async replace(id, text) {
@@ -1069,10 +1297,14 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             await dispatcher.dispatch({ op: "shader.set", id, text: null });
         },
 
-        async source(id) {
+        async source(id, options = {}) {
+            const params = options.params ?? {};
             const entry = state().shaders.get(id);
             if (entry !== undefined) {
-                return entry.text;
+                const shader = projectShader(id);
+                return shader === undefined || Object.keys(params).length === 0
+                    ? entry.text
+                    : copyText(shader.descriptor, shader.registration.glsl, id, params);
             }
 
             const descriptor = shaderDescriptor(id);
@@ -1082,8 +1314,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const name = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
-            const { origin: _origin, hash: _hash, thumbnail: _thumbnail, ...facts } = descriptor;
-            return formatShaderText({ descriptor: { ...facts, id: `user/${name}` }, glsl: body });
+            return copyText(descriptor, body, options.duplicate === true ? `user/${name}` : id, params);
         },
 
         list() {
@@ -1125,11 +1356,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return { state: "failed", problem: { code: "shader.unknown", params: { id } } };
             }
 
-            if (host === null) {
-                return { state: "not-checked" };
-            }
-
-            return drawnStatusOf(descriptor, "", false) ?? { state: "ready" };
+            const drawn = host === null ? null : drawnStatusOf(descriptor, "", false);
+            return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
         },
 
         availability(id) {
@@ -1203,7 +1431,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
             // A catalog shader is read under its text's own `user/` id: a bare preset id is not one a
             // pasted text may take, and the picture does not depend on the id.
-            const text = shader === undefined ? await api.source(id) : undefined;
+            const text = shader === undefined ? await api.source(id, { duplicate: true }) : undefined;
             const drawn = shader ?? (text === undefined ? undefined : (readText(text) as ReadText));
             if (drawn === undefined || Array.isArray(drawn)) {
                 throw unknownShader(id, []);

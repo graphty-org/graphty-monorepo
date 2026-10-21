@@ -621,10 +621,20 @@ function readHeaderless(text: string, kind: ShaderKind | undefined): ShaderTextR
     const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(text);
     const input = entry?.[1];
     const settled = kind ?? (input === undefined ? undefined : UNAMBIGUOUS_INPUT[input]);
-    if (input === undefined || !ENTRY_INPUTS.includes(input) || settled === undefined) {
-        return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
+    if (settled === undefined) {
+        // A node or edge body needs a header (or a kind) to say which kind it is; anything else
+        // is missing its entry function or has the wrong one.
+        if (input !== undefined && ENTRY_INPUTS.includes(input)) {
+            return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
+        }
+
+        const named = /\bshade\s*\(/.exec(text);
+        const at = placeOf(text, named?.index ?? 0);
+        const code = named === null ? "shader.entry-missing" : "shader.entry-signature";
+        return { ok: false, problems: [{ code, params: { line: at.line, column: at.column, expected: "shade" } }] };
     }
 
+    // With the kind settled, the body checks report a missing or a wrong entry function.
     return finishText({ id: "user/shader", plainName: "Shader", kind: settled, params: [] }, text, {
         line: 1,
         column: 1,

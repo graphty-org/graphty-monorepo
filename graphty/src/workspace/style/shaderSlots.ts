@@ -512,10 +512,11 @@ export function unbindParam(ctx: RowContext, slot: ShaderSlot, id: string, param
  * click's permission while the element reads it.
  * @param session - the element's session.
  * @param id - the shader.
+ * @param params - the values the row sets, which the copy carries as its defaults.
  * @returns when it is copied.
  */
-export async function copyShaderText(session: GraphSession, id: string): Promise<void> {
-    const text = session.shaders.source(id);
+export async function copyShaderText(session: GraphSession, id: string, params: Params = {}): Promise<void> {
+    const text = session.shaders.source(id, { params });
     if (typeof ClipboardItem !== "undefined" && typeof navigator.clipboard.write === "function") {
         const blob = text.then((each) => new Blob([each], { type: "text/plain" }));
         await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);

@@ -99,7 +99,7 @@ export function PasteShaderDialog({ ctx, slot, init, onClose }: Readonly<PasteSh
             return undefined;
         }
         const timer = setTimeout(() => {
-            void session.shaders.check(text, { kind }).then((checked) => {
+            void session.shaders.check(text, { kind, onTaken: "rename" }).then((checked) => {
                 if (textNow.current === text) {
                     setResult(checked);
                 }
@@ -131,7 +131,7 @@ export function PasteShaderDialog({ ctx, slot, init, onClose }: Readonly<PasteSh
     const add = async (): Promise<void> => {
         setAdding(true);
         try {
-            const checked = await session.shaders.check(text, { kind });
+            const checked = await session.shaders.check(text, { kind, onTaken: "rename" });
             if (!checked.ok) {
                 setResult(checked);
                 return;

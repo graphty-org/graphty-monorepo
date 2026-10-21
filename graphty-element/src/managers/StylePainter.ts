@@ -1,5 +1,4 @@
 import cloneDeep from "lodash/cloneDeep.js";
-import defaultsDeep from "lodash/defaultsDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
@@ -75,6 +74,76 @@ const NOTHING: readonly number[] = Object.freeze([]);
 
 /** Keys that would write to an object's prototype instead of the object. */
 const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Whether a value is something {@link fillDefaults} merges into rather than over: what lodash's
+ * `isObject` calls an object, so arrays and functions count.
+ * @param value - Any value.
+ * @returns True for an object or a function.
+ */
+function isMergeable(value: unknown): value is Record<string, unknown> {
+    return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+/**
+ * A copy of a default the style being built did not hold: plain objects and arrays are copied all
+ * the way down, anything else is shared, as lodash's merge shares it.
+ * @param value - The default.
+ * @returns The copy.
+ */
+function copyDefault(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(copyDefault);
+    }
+
+    if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+        const copy: Record<string, unknown> = {};
+        for (const key of Object.keys(value)) {
+            copy[key] = copyDefault((value as Record<string, unknown>)[key]);
+        }
+
+        return copy;
+    }
+
+    return value;
+}
+
+/**
+ * Fill out a style being built from a base, in place: `defaultsDeep(bag, cloneDeep(base))` in
+ * one pass.
+ *
+ * WHY NOT LODASH. It ran once per element on every repaint, and its general merge (a stack for
+ * cycles, a customizer call per key, a whole clone of the base before it started) cost about
+ * 110 microseconds an edge on a phone-class CPU: all 36,906 edges of the airline-routes dataset
+ * took four seconds in one frame. This copies only what the bag does not already hold.
+ *
+ * The same rules: a value the bag holds (anything but `undefined`) wins, two objects are merged
+ * key by key, and a default the bag lacks is copied in fresh, so no painted style shares an
+ * object with the base or with another element's style.
+ * @param bag - The style being built.
+ * @param base - The defaults.
+ * @returns The bag.
+ */
+export function fillDefaults<T>(bag: Record<string, unknown>, base: T): T {
+    for (const key of Object.keys(base as object)) {
+        if (UNSAFE_KEYS.has(key)) {
+            continue;
+        }
+
+        const fallback = (base as Record<string, unknown>)[key];
+        const held = bag[key];
+
+        if (held === undefined) {
+            if (fallback !== undefined || !(key in bag)) {
+                bag[key] = copyDefault(fallback);
+            }
+        } else if (isMergeable(held) && isMergeable(fallback)) {
+            fillDefaults(held, fallback);
+        }
+    }
+
+    return bag as T;
+}
 
 /**
  * Write one value at a dotted path, building the objects on the way.
@@ -531,7 +600,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 
     return {
         meshKey: key.join(""),
-        style: defaultsDeep(bag, cloneDeep(NODE_BASE)) as NodeStyleConfig,
+        style: fillDefaults(bag, NODE_BASE),
         color: filled ? null : color,
     };
 }
@@ -560,7 +629,7 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 
     return {
         meshKey: identity,
-        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig)),
+        style: foldEdgeAlpha(spellEdgeColours(fillDefaults(bag, EDGE_BASE))),
     };
 }
 

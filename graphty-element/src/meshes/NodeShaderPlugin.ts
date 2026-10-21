@@ -154,7 +154,7 @@ export class NodeShaderPlugin extends MaterialPluginBase {
 
         // The material's own block carries the scene members, written on every draw (the material
         // uploads its block at the end of each bind), so a frozen material sees the time move.
-        this.runtime.uniforms.copyInto(uniformBuffer);
+        this.runtime.uniforms.copyInto(uniformBuffer, this.shader.hash);
         uniformBuffer.setTexture(this.data.paramSampler, this.data.paramTexture);
         uniformBuffer.setTexture(this.data.stateSampler, this.data.stateTexture);
     }

@@ -969,6 +969,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shaderSettings: exempt(
                 "The reader's shader preferences and trust, never saved in a project file and never read from one.",
             ),
+            renderQuality: READ,
             lighting: VIEW_SETTING,
             autoRotate: VIEW_SETTING,
             fitInsets: VIEW_SETTING,
@@ -2720,7 +2721,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
+            shaderGuard: RENDER,
         },
+    },
+    {
+        name: "ShaderGuard",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "RenderTargetBudget",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashCounter",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashReadback",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "DefaultGraphContext",

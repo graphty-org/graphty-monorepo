@@ -41,7 +41,15 @@ export const BATCH_ATTRIBUTES = [
 export const BATCH_FLOATS = BATCH_ATTRIBUTES.length * 4;
 
 /** The batch's plain uniforms beside the scene block. */
-export const BATCH_UNIFORMS = ["world", "view", "projection", "graphty_resolution", "graphty_reach"] as const;
+export const BATCH_UNIFORMS = [
+    "world",
+    "view",
+    "projection",
+    "graphty_resolution",
+    "graphty_reach",
+    "graphty_effectCap",
+    "graphty_freeze",
+] as const;
 
 /** The mesh path's two instanced attributes: the varying parameters, then the meta of the batch. */
 export const MESH_ATTRIBUTES = ["graphtyShaderA", "graphtyShaderB"] as const;
@@ -97,9 +105,10 @@ float graphty_bit(float bits, float bit) {
  * @param meta - The meta `vec4` expression (seed, row, bits, state row).
  * @param timesFromSlot - An expression of a `vec2` (entered, exited) stamps to use instead of the
  *     state row's, for effects, which enter and exit per effect; null to read the row.
+ * @param time - The expression of the time the shader sees.
  * @returns The GLSL.
  */
-function stateInput(meta: string, timesFromSlot: string | null): string {
+function stateInput(meta: string, timesFromSlot: string | null, time = "graphty_scene_time.x"): string {
     const nodesPerRow = STATE_NODES_PER_ROW.toFixed(1);
     return `
     float graphty_srow = ${meta}.w;
@@ -117,7 +126,7 @@ function stateInput(meta: string, timesFromSlot: string | null): string {
     graphty_in.sinceEntered = graphty_since(graphty_times.x, 10000.0);
     graphty_in.sinceExited = graphty_since(graphty_times.y, -1.0);
     graphty_in.sinceChanged = graphty_since(graphty_s1.y, -1.0);
-    graphty_in.time = graphty_scene_time.x;`;
+    graphty_in.time = ${time};`;
 }
 
 /** A program the element builds for a batch: its two stages and what it declares. */
@@ -144,8 +153,13 @@ function batchVertex(role: BatchRole): string {
         role === "effect"
             ? "graphty_reach"
             : `max(max(1.0, graphtyDeco0.y), max(graphtyDeco1.y > 0.5 ? ${RING_OUTER.toFixed(2)} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
-    // Effects on nodes under 3 px on screen are not drawn (section 5).
+    // Effects on nodes under 3 px on screen are not drawn, and an effect's square is cropped to
+    // the quality level's cap (section 5): its look stays the size it is, its edges are cut.
     const tooSmall = role === "effect" ? "vPixelSize < 3.0 ||" : "";
+    const cap =
+        role === "effect"
+            ? "min(1.0, graphty_effectCap / max(2.0 * radius * graphty_reach * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6), 1e-6))"
+            : "1.0";
     return `precision highp float;
 attribute vec3 position;
 ${BATCH_ATTRIBUTES.map((name) => `attribute vec4 ${name};`).join("\n")}
@@ -154,6 +168,7 @@ uniform mat4 view;
 uniform mat4 projection;
 uniform vec2 graphty_resolution;
 uniform float graphty_reach;
+uniform float graphty_effectCap;
 varying vec2 vUV;
 varying vec3 vViewPos;
 varying vec4 vColor;
@@ -166,10 +181,10 @@ varying float vPixelSize;
 void main() {
     float radius = graphtyCenter.w * length(world[0].xyz);
     vec4 center = view * world * vec4(graphtyCenter.xyz, 1.0);
-    vec2 corner = position.xy * ${extent};
+    vec4 clipCenter = projection * center;
+    vec2 corner = position.xy * ${extent} * ${cap};
     vec4 at = center + vec4(corner * radius, 0.0, 0.0);
     gl_Position = projection * at;
-    vec4 clipCenter = projection * center;
     vPixelSize = radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6);
     if (${tooSmall} radius <= 0.0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -261,6 +276,7 @@ varying vec4 vDeco1;
 varying float vRadius;
 varying float vPixelSize;
 uniform mat4 view;
+uniform float graphty_freeze;
 ${effect ? "" : BILLBOARD_DECORATION}
 ${paramGlobals(params)}
 #line 1
@@ -277,7 +293,7 @@ ${surface}
     graphty_in.color = vColor;
     graphty_in.size = vRadius;
     graphty_in.pixelSize = vPixelSize;
-${stateInput("vMeta", effect ? "vDeco0.xy" : null)}
+${stateInput("vMeta", effect ? "vDeco0.xy" : null, "graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x")}
     vec4 graphty_out = graphty_u_shade(graphty_in);
 ${finish}
 }

@@ -514,6 +514,9 @@ export type {
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 export type {
     ProjectShader,
+    RenderQuality,
+    RenderQualityChange,
+    RenderQualityCode,
     SessionShaders,
     ShaderAddOptions,
     ShaderAddResult,

@@ -216,6 +216,58 @@ export interface ShaderSettings {
     readonly trustedHashes?: readonly string[];
 }
 
+/**
+ * Why the render quality is not what the settings ask for: the frame guard stepped it down
+ * after a second of slow frames the GPU was behind on (`guard.slow-gpu`), paused shader motion
+ * at the bottom of its ladder (`guard.paused`), turned pasted shaders off after one very long
+ * frame drawn with one on screen (`guard.long-frame`), or stepped back up after a run of fast
+ * frames (`guard.recovered`).
+ *
+ * OPEN UNION: members may be added in a minor release; handle unknown members.
+ * @since 3.36.0
+ */
+export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
+
+/**
+ * How much shader work the element does now (design/rendering/shader-styles.md section 5): read as
+ * `element.renderQuality`, announced as `graphty-render-quality`. A graph that names no shader is
+ * drawn the same at every level.
+ * @since 3.36.0
+ */
+export interface RenderQuality {
+    /** The level `Q()`, the shader render targets and the effect caps follow. */
+    readonly level: "low" | "medium" | "high";
+    /**
+     * How shader motion runs: at full rate, at half rate (the guard), paused (the guard), or
+     * still (the reader's `motion` setting or the platform's reduced-motion preference).
+     */
+    readonly motion: "on" | "half" | "paused" | "still";
+    /** Whether shaders pasted into the project draw; presets and registered shaders always do. */
+    readonly pasted: "on" | "off";
+    /** Why it differs from the settings; absent when it does not. */
+    readonly code?: RenderQualityCode;
+}
+
+/** A change of {@link RenderQuality}, as `graphty-render-quality` announces it. @since 3.36.0 */
+export interface RenderQualityChange {
+    /** The quality before. */
+    readonly from: RenderQuality;
+    /** The quality now. */
+    readonly to: RenderQuality;
+    /** What changed it. */
+    readonly code: RenderQualityCode;
+}
+
+/** The settings the host draws by, resolved from {@link ShaderSettings}. */
+export interface HostRenderSettings {
+    /** The quality level the settings ask for, `"auto"` resolved. */
+    readonly quality: "low" | "medium" | "high";
+    /** Whether shaders move. */
+    readonly motion: "system" | "on" | "off";
+    /** Whether the frame guard may step quality down. */
+    readonly guard: boolean;
+}
+
 /** One shader entry handed to the host to compile, test or draw. */
 export interface HostShader {
     /** The shader's id. */
@@ -226,6 +278,8 @@ export interface HostShader {
     readonly registration: ShaderRegistration;
     /** The 1-based line of the text its body starts on, so a driver's line maps back. */
     readonly bodyLine: number;
+    /** Whether it was pasted into the project, rather than a preset or a registered shader. */
+    readonly pasted?: boolean;
 }
 
 /**
@@ -253,8 +307,22 @@ export interface ShaderHost {
      * @returns A PNG.
      */
     thumbnail(shader: HostShader, params: ShaderParams): Promise<Blob>;
-    /** The quality level `Q()` reads, chosen from the settings. */
-    setQuality(level: "low" | "medium" | "high"): void;
+    /**
+     * Draw by the reader's settings: the quality level, motion and the frame guard.
+     * @param settings - The settings, `"auto"` resolved.
+     */
+    configure(settings: HostRenderSettings): void;
+    /** The quality drawn now. */
+    readonly quality: RenderQuality;
+    /**
+     * Listen for the quality changing on its own (the frame guard), and for shaders being frozen
+     * because they flashed.
+     * @param listener - Called with the change, or null when only the flashing set changed.
+     * @returns Stops listening.
+     */
+    onRender(listener: (change: RenderQualityChange | null) => void): () => void;
+    /** The text hashes whose time was frozen because their output flashed. */
+    readonly flashing: ReadonlySet<string>;
     /**
      * Listen for the GPU being lost while the page was visible.
      * @param listener - Called with the hashes of the shaders drawn in the last 2 seconds.
@@ -272,7 +340,7 @@ export interface ShadersSources {
     /** The style stack, for `apply` and for counting the layers naming a shader. */
     readonly styles: SessionStylesApi;
     /** Publishes a session event. */
-    readonly publish: <K extends "shader:status" | "shader:held" | "shader:approved">(
+    readonly publish: <K extends "shader:status" | "shader:held" | "shader:approved" | "render:quality">(
         event: K,
         detail: SessionEventMap[K],
     ) => void;
@@ -307,6 +375,8 @@ export interface ShadersController {
     configure(settings: ShaderSettings): void;
     /** The settings in force. */
     readonly settings: ShaderSettings;
+    /** How much shader work is done now; with no host, what the settings ask for. */
+    readonly renderQuality: RenderQuality;
     /** The host lent now, or null. */
     readonly host: ShaderHost | null;
     /** The project's shaders as the catalog lists them. */
@@ -668,7 +738,47 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "compiling" };
         }
 
-        return result === null ? { state: "ready" } : { state: "failed", problem: result };
+        if (result !== null) {
+            return { state: "failed", problem: result };
+        }
+
+        return drawnStatusOf(shader.descriptor, shader.hash, true) ?? { state: "ready" };
+    };
+
+    /**
+     * How a shader that may draw is drawn now: off by the frame guard (pasted shaders only),
+     * frozen because it flashed, or still because motion is paused or switched off.
+     * @param descriptor - The shader's facts.
+     * @param hash - Its text hash.
+     * @param pasted - Whether it is one of the project's own.
+     * @returns The status, or null when it draws as it was written.
+     */
+    const drawnStatusOf = (descriptor: ShaderDescriptor, hash: string, pasted: boolean): ShaderStatus | null => {
+        if (host === null) {
+            return null;
+        }
+
+        const { quality } = host;
+        if (pasted && quality.pasted === "off") {
+            return { state: "off", problem: { code: "shader.guard-off", params: { level: quality.level } } };
+        }
+
+        if (pasted && host.flashing.has(hash)) {
+            return { state: "still", problem: { code: "shader.flashing", params: { id: descriptor.id } } };
+        }
+
+        const { loop, enter, exit, change } = descriptor.motion;
+        const moves = loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0;
+        if (moves && (quality.motion === "paused" || quality.motion === "still")) {
+            let reason = settings.motion === "off" ? "setting" : "system";
+            if (quality.motion === "paused") {
+                reason = "guard";
+            }
+
+            return { state: "still", problem: { code: "shader.still", params: { reason } } };
+        }
+
+        return null;
     };
 
     /**
@@ -1004,11 +1114,16 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return statusOf(shader);
             }
 
-            if (shaderDescriptor(id) === undefined) {
+            const descriptor = shaderDescriptor(id);
+            if (descriptor === undefined) {
                 return { state: "failed", problem: { code: "shader.unknown", params: { id } } };
             }
 
-            return { state: host === null ? "not-checked" : "ready" };
+            if (host === null) {
+                return { state: "not-checked" };
+            }
+
+            return drawnStatusOf(descriptor, "", false) ?? { state: "ready" };
         },
 
         availability(id) {
@@ -1105,8 +1220,15 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             host = next;
             compiled.clear();
             if (next !== null) {
-                next.setQuality(qualityOf(settings));
-                stopLost = next.onLost((hashes) => {
+                next.configure(renderSettingsOf(settings));
+                const stopRender = next.onRender((change) => {
+                    if (change !== null) {
+                        publish("render:quality", change);
+                    }
+
+                    refresh();
+                });
+                const stopLostOnly = next.onLost((hashes) => {
                     // Only pasted texts are quarantined: presets and registered shaders are the
                     // page's own code, and turning them off would not make the page safer.
                     const pasted = new Set([...state().shaders.keys()].map((id) => projectShader(id)?.hash));
@@ -1120,6 +1242,10 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     compiled.clear();
                     refresh();
                 });
+                stopLost = (): void => {
+                    stopRender();
+                    stopLostOnly();
+                };
             }
 
             refresh();
@@ -1129,11 +1255,19 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 ...next,
                 ...(next.trustedHashes === undefined ? {} : { trustedHashes: Object.freeze([...next.trustedHashes]) }),
             });
-            host?.setQuality(qualityOf(settings));
+            host?.configure(renderSettingsOf(settings));
             refresh();
         },
         get settings() {
             return settings;
+        },
+        get renderQuality() {
+            if (host !== null) {
+                return host.quality;
+            }
+
+            const motion = settings.motion === "off" ? "still" : "on";
+            return Object.freeze({ level: qualityOf(settings), motion, pasted: "on" });
         },
         get host() {
             return host;
@@ -1144,8 +1278,15 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         async drawable(id) {
             const project = projectShader(id);
             if (project !== undefined) {
-                return statusOf(project).state === "ready"
-                    ? { id, hash: project.hash, registration: project.registration, bodyLine: project.bodyLine }
+                const { state: now } = statusOf(project);
+                return now === "ready" || now === "still"
+                    ? {
+                          id,
+                          hash: project.hash,
+                          registration: project.registration,
+                          bodyLine: project.bodyLine,
+                          pasted: true,
+                      }
                     : null;
             }
 
@@ -1154,12 +1295,19 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return null;
             }
 
-            const glsl = registeredShaderSource(id)?.glsl ?? (await presetBody(id));
+            const source = registeredShaderSource(id);
+            const glsl = source?.glsl ?? (await presetBody(id));
             if (glsl === undefined) {
                 return null;
             }
 
-            return { id, hash: sha256Hex(`${id}\n${glsl}`), registration: { descriptor, glsl }, bodyLine: 1 };
+            const lowDetail = source?.lowDetail;
+            return {
+                id,
+                hash: sha256Hex(`${id}\n${glsl}`),
+                registration: { descriptor, glsl, ...(lowDetail === undefined ? {} : { lowDetail }) },
+                bodyLine: 1,
+            };
         },
         descriptors() {
             return [...state().shaders.keys()].flatMap((id) => {
@@ -1176,6 +1324,15 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     return controller;
+}
+
+/**
+ * The settings the host draws by.
+ * @param settings - The reader's settings.
+ * @returns The quality with `"auto"` resolved, the motion and whether the guard runs.
+ */
+function renderSettingsOf(settings: ShaderSettings): HostRenderSettings {
+    return { quality: qualityOf(settings), motion: settings.motion ?? "system", guard: settings.guard !== false };
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { wantsLowDetail } from "../managers/ShaderGuard";
 import type { HostShader } from "../session/shaders";
 import { BATCH_ATTRIBUTES, BATCH_FLOATS, batchProgram, type BatchRole } from "../shaders/runtime/nodePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
@@ -104,9 +105,6 @@ export class NodeBillboardBatch {
         const { descriptor, glsl } = shader.registration;
         this.loops = motionOf(descriptor.motion).loop !== undefined;
         this.name = `graphtyNode${role}${shader.hash.slice(0, 24)}`;
-        const program = batchProgram(role, descriptor, glsl);
-        ShaderStore.ShadersStore[`${this.name}VertexShader`] = program.vertex;
-        ShaderStore.ShadersStore[`${this.name}FragmentShader`] = program.fragment;
 
         this.mesh = new Mesh(this.name, scene);
         const quad = new VertexData();
@@ -121,36 +119,10 @@ export class NodeBillboardBatch {
             this.mesh.parent = graphRoot;
         }
 
-        this.material = new ShaderMaterial(
-            this.name,
-            scene,
-            { vertex: this.name, fragment: this.name },
-            {
-                attributes: [...program.attributes],
-                uniforms: [...program.uniforms],
-                uniformBuffers: [...program.uniformBuffers],
-                samplers: [...program.samplers],
-                needAlphaBlending: true,
-            },
-        );
-        this.material.backFaceCulling = false;
-        this.material.setUniformBuffer(SCENE_BLOCK, runtime.uniforms.buffer);
-        this.material.setFloat("graphty_reach", descriptor.reach ?? 1);
-        this.configureMaterial(this.material);
-        this.bindTextures();
+        this.material = this.buildMaterial(this.name, glsl);
         this.stopData = data.onRebuilt(() => {
             this.bindTextures();
         });
-        this.material.onBindObservable.add(() => {
-            const engine = scene.getEngine();
-            this.material.setVector2(
-                "graphty_resolution",
-                new Vector2(engine.getRenderWidth(), engine.getRenderHeight()),
-            );
-        });
-        // See CustomLineRenderer: a ShaderMaterial re-derives its defines on every readiness check,
-        // and everything set on it later is a uniform.
-        this.material.blockDirtyMechanism = true;
         this.mesh.material = this.material;
         this.bindBuffers();
 
@@ -162,6 +134,158 @@ export class NodeBillboardBatch {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+    }
+
+    /**
+     * Build and configure one material of this batch's program from a body.
+     * @param name - Its name in Babylon's shader store.
+     * @param glsl - The body.
+     * @returns The material.
+     */
+    private buildMaterial(name: string, glsl: string): ShaderMaterial {
+        const scene = this.mesh.getScene();
+        const { descriptor } = this.shader.registration;
+        const program = batchProgram(this.role, descriptor, glsl);
+        ShaderStore.ShadersStore[`${name}VertexShader`] = program.vertex;
+        ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
+        const material = new ShaderMaterial(
+            name,
+            scene,
+            { vertex: name, fragment: name },
+            {
+                attributes: [...program.attributes],
+                uniforms: [...program.uniforms],
+                uniformBuffers: [...program.uniformBuffers],
+                samplers: [...program.samplers],
+                needAlphaBlending: true,
+            },
+        );
+        material.backFaceCulling = false;
+        material.setUniformBuffer(SCENE_BLOCK, this.runtime.uniforms.buffer);
+        material.setFloat("graphty_reach", descriptor.reach ?? 1);
+        this.configureMaterial(material);
+        material.setTexture(this.data.paramSampler, this.data.paramTexture);
+        material.setTexture(this.data.stateSampler, this.data.stateTexture);
+        material.onBindObservable.add(() => {
+            const engine = scene.getEngine();
+            material.setVector2("graphty_resolution", new Vector2(engine.getRenderWidth(), engine.getRenderHeight()));
+            material.setFloat("graphty_effectCap", this.runtime.uniforms.effectCap);
+            material.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(this.shader.hash));
+        });
+        // See CustomLineRenderer: a ShaderMaterial re-derives its defines on every readiness check,
+        // and everything set on it later is a uniform.
+        material.blockDirtyMechanism = true;
+        return material;
+    }
+
+    /** The cheap program's material, once asked for; see {@link chooseDetail}. */
+    private lowMaterial: { material: ShaderMaterial; ready: boolean } | null = null;
+    /** The camera's view and projection when the batch last looked, to see it come to rest. */
+    private readonly cameraWas = new Float32Array(32);
+    /** Whether the camera moved since the detail was last chosen. */
+    private cameraMoved = true;
+
+    /**
+     * Choose the level of detail when the camera comes to rest (design section 5): a heavy
+     * surface with a cheap program draws it for the whole batch while the median node on screen is
+     * under 12 px. The program drawing keeps drawing until the other one compiled.
+     */
+    private chooseDetail(): void {
+        const { lowDetail } = this.shader.registration;
+        const camera = this.mesh.getScene().activeCamera;
+        if (lowDetail === undefined || this.role === "effect" || camera === null || this.liveCount === 0) {
+            return;
+        }
+
+        const view = camera.getViewMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
+        let moved = false;
+        for (let i = 0; i < 16; i++) {
+            moved ||=
+                this.cameraWas[i] !== Math.fround(view[i]) || this.cameraWas[16 + i] !== Math.fround(projection[i]);
+            this.cameraWas[i] = view[i];
+            this.cameraWas[16 + i] = projection[i];
+        }
+
+        if (moved) {
+            this.cameraMoved = true;
+            return;
+        }
+
+        if (!this.cameraMoved) {
+            return;
+        }
+
+        this.cameraMoved = false;
+        const low = wantsLowDetail(this.pixelSizes(view, projection));
+        if (!low) {
+            this.useMaterial(this.material);
+            return;
+        }
+
+        if (this.lowMaterial === null) {
+            const entry = { material: this.buildMaterial(`${this.name}low`, lowDetail), ready: false };
+            this.lowMaterial = entry;
+            void entry.material.forceCompilationAsync(this.mesh).then(
+                () => {
+                    entry.ready = true;
+                    // Chosen again on the next frame, from where the camera is then.
+                    this.cameraMoved = true;
+                    this.checkMotionNextFrame();
+                },
+                () => undefined,
+            );
+            return;
+        }
+
+        if (this.lowMaterial.ready) {
+            this.useMaterial(this.lowMaterial.material);
+        }
+    }
+
+    /**
+     * Draw with a material, asking a graph drawn on demand for the frame that shows it.
+     * @param material - The material.
+     */
+    private useMaterial(material: ShaderMaterial): void {
+        if (this.mesh.material !== material) {
+            this.mesh.material = material;
+            this.checkMotionNextFrame();
+        }
+    }
+
+    /**
+     * Each live slot's drawn radius on screen, in pixels, as the vertex stage computes it.
+     * @param view - The camera's view matrix.
+     * @param projection - Its projection matrix.
+     * @returns The sizes.
+     */
+    private pixelSizes(view: ArrayLike<number>, projection: ArrayLike<number>): Float32Array {
+        const world = this.mesh.getWorldMatrix();
+        const scale = Math.hypot(world.m[0], world.m[1], world.m[2]);
+        const height = this.mesh.getEngine().getRenderHeight();
+        const sizes: number[] = [];
+        for (let i = 0; i < this.highWater; i++) {
+            if (Number.isNaN(this.speeds[i])) {
+                continue;
+            }
+
+            const at = i * BATCH_FLOATS;
+            Vector3.TransformCoordinatesFromFloatsToRef(
+                this.slots[at],
+                this.slots[at + 1],
+                this.slots[at + 2],
+                world,
+                scratchCenter,
+            );
+            const viewZ = view[2] * scratchCenter.x + view[6] * scratchCenter.y + view[10] * scratchCenter.z + view[14];
+            const w = projection[11] * viewZ + projection[15];
+            sizes.push(
+                (this.slots[at + 3] * scale * Math.abs(projection[5]) * 0.5 * height) / Math.max(Math.abs(w), 1e-6),
+            );
+        }
+
+        return Float32Array.from(sizes);
     }
 
     /**
@@ -291,6 +415,7 @@ export class NodeBillboardBatch {
         }
 
         this.updateMotion();
+        this.chooseDetail();
     }
 
     /** Drop the mesh, its material, the buffer, the claim and the per-frame upload. */
@@ -304,11 +429,20 @@ export class NodeBillboardBatch {
         this.stopData();
         this.releaseMotion?.();
         this.releaseMotion = null;
+        const drawn = this.mesh.material;
         this.mesh.dispose(false, true);
+        for (const material of [this.material, this.lowMaterial?.material]) {
+            if (material !== undefined && material !== drawn) {
+                material.dispose();
+            }
+        }
+
         this.buffer?.dispose();
         this.buffer = null;
-        Reflect.deleteProperty(ShaderStore.ShadersStore, `${this.name}VertexShader`);
-        Reflect.deleteProperty(ShaderStore.ShadersStore, `${this.name}FragmentShader`);
+        for (const name of [this.name, `${this.name}low`]) {
+            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}VertexShader`);
+            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}FragmentShader`);
+        }
     }
 
     /**
@@ -410,8 +544,10 @@ export class NodeBillboardBatch {
 
     /** Hand the data textures to the material. */
     private bindTextures(): void {
-        this.material.setTexture(this.data.paramSampler, this.data.paramTexture);
-        this.material.setTexture(this.data.stateSampler, this.data.stateTexture);
+        for (const material of [this.material, this.lowMaterial?.material]) {
+            material?.setTexture(this.data.paramSampler, this.data.paramTexture);
+            material?.setTexture(this.data.stateSampler, this.data.stateTexture);
+        }
     }
 
     /** Hand the slots to the mesh as instanced attributes. */

@@ -37,9 +37,17 @@ export class SceneUniforms {
     private readonly epoch = performance.now();
     private claims = 0;
     private observer: Observer<Scene> | null = null;
+    /** Releases the scene's every-frame claim, held while a claim is and motion runs. */
+    private releaseFrames: (() => void) | null = null;
     private quality: keyof typeof QUALITY_LEVEL = "high";
+    /** Whether shader motion runs: false while it is paused or still. */
+    private moving = true;
     /** The time the buffer last held, in seconds. */
     private time = 0;
+    /** The time each frozen shader (by text hash) stands at. */
+    private readonly frozen = new Map<string, number>();
+    /** The largest square an effect draws on, in screen pixels across. */
+    effectCap = 512;
 
     /**
      * Build the buffer for a scene.
@@ -73,7 +81,53 @@ export class SceneUniforms {
      * @returns Seconds, wrapped as the buffer wraps them.
      */
     now(): number {
+        if (!this.moving) {
+            // Half a period before the time held: every timed animation stamped now reads as long
+            // finished, so it shows its end state rather than playing.
+            return (this.time + TIME_PERIOD / 2) % TIME_PERIOD;
+        }
+
         return ((performance.now() - this.epoch) / 1000) % TIME_PERIOD;
+    }
+
+    /**
+     * Whether something holds a motion claim, paused or not.
+     * @returns True while one does.
+     */
+    get claimed(): boolean {
+        return this.claims > 0;
+    }
+
+    /**
+     * Run or stop shader motion. Stopped (paused by the frame guard, or still by the reader's or
+     * the platform's setting), the time stands where it is, claims ask for no frame, and timed
+     * animations started from now show their end state.
+     * @param moving - Whether motion runs.
+     */
+    setMoving(moving: boolean): void {
+        if (this.moving !== moving) {
+            this.moving = moving;
+            this.follow();
+        }
+    }
+
+    /**
+     * Freeze one shader's time where it stands now: for a shader whose output flashed.
+     * @param hash - The shader's text hash.
+     */
+    freeze(hash: string): void {
+        if (!this.frozen.has(hash)) {
+            this.frozen.set(hash, this.time);
+        }
+    }
+
+    /**
+     * The time a frozen shader stands at.
+     * @param hash - Its text hash.
+     * @returns Seconds, or -1 when it is not frozen.
+     */
+    frozenTime(hash: string): number {
+        return this.frozen.get(hash) ?? -1;
     }
 
     /**
@@ -102,9 +156,11 @@ export class SceneUniforms {
      * material's own block, which a material plugin fills on every draw instead of binding this
      * buffer beside the material's.
      * @param target - The buffer.
+     * @param hash - The text hash of the shader drawn with it, so a frozen one gets its own time.
      */
-    copyInto(target: Pick<UniformBuffer, "updateFloat4">): void {
-        target.updateFloat4("graphty_scene_time", this.time, QUALITY_LEVEL[this.quality], 0, 0);
+    copyInto(target: Pick<UniformBuffer, "updateFloat4">, hash?: string): void {
+        const frozen = hash === undefined ? undefined : this.frozen.get(hash);
+        target.updateFloat4("graphty_scene_time", frozen ?? this.time, QUALITY_LEVEL[this.quality], 0, 0);
         // The key light of the studio lighting, toward the camera's upper right, in view space.
         target.updateFloat4("graphty_scene_lightDir", LIGHT.x, LIGHT.y, LIGHT.z, 0);
         target.updateFloat4("graphty_scene_lightColor", 1, 1, 1, 0);
@@ -117,11 +173,8 @@ export class SceneUniforms {
      * @returns Releases the claim. Calling it twice is a no-op.
      */
     claimMotion(): () => void {
-        const release = animatesEveryFrame(this.scene);
         this.claims++;
-        this.observer ??= this.scene.onBeforeRenderObservable.add(() => {
-            this.write((performance.now() - this.epoch) / 1000);
-        });
+        this.follow();
         let released = false;
 
         return () => {
@@ -130,13 +183,25 @@ export class SceneUniforms {
             }
 
             released = true;
-            release();
             this.claims--;
-            if (this.claims === 0 && this.observer !== null) {
-                this.scene.onBeforeRenderObservable.remove(this.observer);
-                this.observer = null;
-            }
+            this.follow();
         };
+    }
+
+    /** Hold the frame observer and the every-frame claim while a claim is held and motion runs. */
+    private follow(): void {
+        const run = this.claims > 0 && this.moving;
+        if (run && this.observer === null) {
+            this.releaseFrames = animatesEveryFrame(this.scene);
+            this.observer = this.scene.onBeforeRenderObservable.add(() => {
+                this.write((performance.now() - this.epoch) / 1000);
+            });
+        } else if (!run && this.observer !== null) {
+            this.scene.onBeforeRenderObservable.remove(this.observer);
+            this.observer = null;
+            this.releaseFrames?.();
+            this.releaseFrames = null;
+        }
     }
 
     /** Release the buffer and the frame observer. */
@@ -144,6 +209,8 @@ export class SceneUniforms {
         if (this.observer !== null) {
             this.scene.onBeforeRenderObservable.remove(this.observer);
             this.observer = null;
+            this.releaseFrames?.();
+            this.releaseFrames = null;
         }
 
         this.buffer.dispose();

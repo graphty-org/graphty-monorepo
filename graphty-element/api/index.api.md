@@ -2516,6 +2516,7 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -4869,6 +4870,7 @@ export class RenderManager implements Manager {
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
+    readonly shaderGuard: ShaderGuard;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {
@@ -4877,6 +4879,24 @@ export class RenderManager implements Manager {
         gpuBehind: number;
     };
 }
+
+// @public
+export interface RenderQuality {
+    readonly code?: RenderQualityCode;
+    readonly level: "low" | "medium" | "high";
+    readonly motion: "on" | "half" | "paused" | "still";
+    readonly pasted: "on" | "off";
+}
+
+// @public
+export interface RenderQualityChange {
+    readonly code: RenderQualityCode;
+    readonly from: RenderQuality;
+    readonly to: RenderQuality;
+}
+
+// @public
+export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
 
 export { ReplayFetch }
 

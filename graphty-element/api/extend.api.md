@@ -2389,6 +2389,7 @@ export interface ShaderRegistration {
         readonly motion?: ShaderMotionInput;
     };
     readonly glsl: string;
+    readonly lowDetail?: string;
     readonly wgsl?: string;
 }
 

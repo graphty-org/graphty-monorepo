@@ -405,9 +405,29 @@ export class NodeShaderDrawing {
         // A project shader that becomes drawable (approved, compiled) draws on the nodes waiting.
         this.stopStatus = session.on("shader:status", ({ id, state }) => {
             const known = this.known.get(id);
-            if (known !== undefined && known.shader === null && state === "ready") {
+            const drawable = state === "ready" || state === "still";
+            if (known !== undefined && known.shader === null && drawable) {
                 known.shader = undefined;
                 this.wake(known);
+            } else if (known?.shader !== undefined && known.shader !== null && !drawable) {
+                // Turned off (the frame guard, a lost context): the nodes drawing it draw what
+                // the layers beneath paint, and draw it again once it is ready.
+                known.shader = null;
+                for (const entry of this.entries.values()) {
+                    if (entry.surface?.id === id || entry.meshShader === id || entry.effects.has(id)) {
+                        known.waiting.add(entry.node);
+                    }
+                }
+
+                const waiting = [...known.waiting];
+                const repaint = REPAINTS.get(this.scene);
+                if (repaint === undefined) {
+                    for (const node of waiting) {
+                        node.refreshShaderPaint();
+                    }
+                } else {
+                    repaint(waiting);
+                }
             }
         });
         scene.onDisposeObservable.addOnce(() => {
@@ -631,6 +651,37 @@ export class NodeShaderDrawing {
         }
 
         return { entrances, slots, meshPath };
+    }
+
+    /**
+     * The pasted shaders drawn now, for the frame guard and the flashing check: whether any is,
+     * and the text hashes of those that move by themselves.
+     * @returns Whether a pasted shader draws, and the moving ones' hashes.
+     */
+    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
+        let any = false;
+        const moving = new Set<string>();
+        const note = (shader: HostShader): void => {
+            any = true;
+            const { loop, enter, exit, change } = motionOf(shader.registration.descriptor.motion);
+            if (loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0) {
+                moving.add(shader.hash);
+            }
+        };
+        for (const { batch, ready } of this.batches.values()) {
+            if (ready === true && !batch.disposed && batch.liveCount > 0 && batch.shader.pasted === true) {
+                note(batch.shader);
+            }
+        }
+
+        for (const entry of this.entries.values()) {
+            const shader = entry.meshShader === null ? undefined : this.known.get(entry.meshShader)?.shader;
+            if (shader?.pasted === true) {
+                note(shader);
+            }
+        }
+
+        return { any, moving: [...moving] };
     }
 
     /** Release every batch, texture, claim and listener. */
@@ -939,9 +990,15 @@ export class NodeShaderDrawing {
         }
 
         const data = this.data as NodeShaderData;
+        /** Effects whose shader may not draw now: dropped at once, with no exit. */
+        const dropped = new Set<string>();
         for (const [id, values] of wanted) {
             const shader = this.resolved(id, entry.node);
             if (shader?.registration.descriptor.kind !== "node-effect") {
+                if (shader === null && this.known.get(id)?.shader === null) {
+                    dropped.add(id);
+                }
+
                 continue;
             }
 
@@ -972,12 +1029,12 @@ export class NodeShaderDrawing {
         }
 
         for (const [id, slot] of entry.effects) {
-            if (wanted.has(id) || slot.exitEnds > 0) {
+            if ((wanted.has(id) && !dropped.has(id)) || (slot.exitEnds > 0 && !dropped.has(id))) {
                 continue;
             }
 
             const exit = motionOf(this.known.get(id)?.shader?.registration.descriptor.motion).exit ?? 0;
-            if (exit > 0 && look.drawn && this.runtime !== null) {
+            if (exit > 0 && look.drawn && this.runtime !== null && !dropped.has(id)) {
                 // Kept drawing while its exit plays.
                 slot.exited = this.runtime.uniforms.now();
                 slot.exitEnds = performance.now() + exit * 1000;

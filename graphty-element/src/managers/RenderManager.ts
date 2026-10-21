@@ -33,6 +33,7 @@ import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
+import { FLASH_SAMPLE_MS, FlashCounter, FlashReadback, ShaderGuard } from "./ShaderGuard";
 
 /**
  * Configuration options for RenderManager
@@ -359,6 +360,17 @@ export class RenderManager implements Manager {
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
+     * The shader quality levels and the frame guard. It measures only once shaders draw (a host
+     * lent it its sources), so a graph that names no shader draws exactly as before.
+     */
+    readonly shaderGuard = new ShaderGuard();
+    /** When the last frame drawn started, by `performance.now()`; NaN when the tick before did not draw. */
+    private lastDrawAt = Number.NaN;
+    /** Whether a tick waited for the GPU since the last frame drawn. */
+    private waitedForGpu = false;
+    /** The flashing check's readback and counter, made when a moving pasted shader first draws. */
+    private flashCheck: { readback: FlashReadback; counter: FlashCounter; next: number } | null = null;
+    /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
      * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
@@ -411,6 +423,8 @@ export class RenderManager implements Manager {
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
         this.drawOwed = true;
+        this.shaderGuard.ignore();
+        this.flashCheck = null;
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
         }
@@ -508,6 +522,7 @@ export class RenderManager implements Manager {
             // and both fire a resize.
             this.applyPixelRatio();
             this.engine.resize();
+            this.shaderGuard.ignore();
         };
         this.pixelRatio = this.config.pixelRatio ?? 1;
         this.applyPixelRatio();
@@ -554,6 +569,7 @@ export class RenderManager implements Manager {
 
             // Start listening for resize events
             window.addEventListener("resize", this.resizeHandler);
+            document.addEventListener("visibilitychange", this.ignoreForGuard);
 
             // Emit success event
             this.eventManager.emit("render-initialized", {
@@ -576,6 +592,9 @@ export class RenderManager implements Manager {
 
         // Remove resize listener
         window.removeEventListener("resize", this.resizeHandler);
+        document.removeEventListener("visibilitychange", this.ignoreForGuard);
+        this.flashCheck?.readback.dispose();
+        this.flashCheck = null;
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
@@ -624,11 +643,23 @@ export class RenderManager implements Manager {
             if (this.gpuBehind()) {
                 this.skippedMs += this.engine.getDeltaTime();
                 this.ticks.gpuBehind++;
+                this.waitedForGpu = true;
+                return;
+            }
+
+            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is.
+            if (this.shaderGuard.skipTick()) {
+                this.skippedMs += this.engine.getDeltaTime();
                 return;
             }
 
             const frameMs = this.engine.getDeltaTime() + this.skippedMs;
             this.skippedMs = 0;
+            const drawAt = performance.now();
+            const drewBefore = this.lastDrawAt;
+            const gpuWasBehind = this.waitedForGpu;
+            this.lastDrawAt = Number.NaN;
+            this.waitedForGpu = false;
 
             try {
                 // Call update callback
@@ -650,13 +681,18 @@ export class RenderManager implements Manager {
                     return;
                 }
 
+                // The frame before this one, measured now that its GPU wait is known.
+                this.measureFrame(drawAt - drewBefore, gpuWasBehind);
+
                 // Cleared BEFORE the frame, so anything the frame itself announces asks for the
                 // next one.
                 this.drawOwed = false;
                 this.scene.render();
                 this.ticks.drawn++;
+                this.checkFlashing(drawAt);
                 this.fenceFrame();
                 this.noteDrawnFrom();
+                this.lastDrawAt = drawAt;
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 this.eventManager.emitGraphError(null, err, "other", {
@@ -669,6 +705,72 @@ export class RenderManager implements Manager {
                 reportCaught(error);
             }
         });
+    }
+
+    /** A visibility change: the next frames say nothing about the shaders drawn. */
+    private readonly ignoreForGuard = (): void => {
+        this.shaderGuard.ignore();
+    };
+
+    /**
+     * Hand the frame guard the frame drawn before this one: the time between the two, and whether
+     * the loop waited for its fence. Only frames drawn back to back count (a rest, a hold or a
+     * held draw in between makes the interval mean nothing), and only once shaders draw. A frame
+     * that compiled a shader is left out.
+     * @param intervalMs - Milliseconds since the frame before started; NaN when it was not the
+     *     tick before.
+     * @param gpuBehind - Whether the loop waited for the frame before's fence.
+     */
+    private measureFrame(intervalMs: number, gpuBehind: boolean): void {
+        if (!this.shaderGuard.watching || Number.isNaN(intervalMs)) {
+            return;
+        }
+
+        if (!this.engine.areAllEffectsReady()) {
+            this.shaderGuard.ignore();
+            return;
+        }
+
+        this.shaderGuard.frame({ intervalMs, gpuBehind });
+    }
+
+    /**
+     * The flashing check (WCAG 2.3.1, design section 4.6): while a moving pasted shader draws,
+     * about ten times a second read a 16 x 16 downsample of the frame just drawn back without
+     * waiting, and freeze those shaders' time once the canvas flashed more than 3 times in a
+     * second. WebGL 2 only.
+     * @param at - When the frame was drawn.
+     */
+    private checkFlashing(at: number): void {
+        const guard = this.shaderGuard;
+        if (!guard.watching || !(this.engine instanceof Engine) || this.engine.webGLVersion < 2) {
+            return;
+        }
+
+        const check = this.flashCheck;
+        if (check !== null) {
+            const sample = check.readback.collect();
+            if (sample !== null && check.counter.add(sample.rgba, sample.at)) {
+                const moving = guard.movingPasted();
+                if (moving.length > 0) {
+                    guard.flashed(moving);
+                }
+
+                check.counter = new FlashCounter();
+            }
+        }
+
+        if (at < (check?.next ?? 0) || check?.readback.waiting === true || guard.movingPasted().length === 0) {
+            return;
+        }
+
+        this.flashCheck ??= {
+            readback: new FlashReadback(this.engine._gl),
+            counter: new FlashCounter(),
+            next: 0,
+        };
+        this.flashCheck.next = at + FLASH_SAMPLE_MS;
+        this.flashCheck.readback.capture(at);
     }
 
     /**

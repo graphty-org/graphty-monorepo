@@ -240,6 +240,12 @@ export interface ShaderRegistration {
     readonly glsl: string;
     /** An optional native WebGPU body (`webgpu: "native"`). */
     readonly wgsl?: string;
+    /**
+     * An optional cheaper GLSL body with the same entry and parameters, for a heavy surface: the
+     * element draws it for a whole batch while the median node on screen is under 12 px, chosen
+     * each time the camera comes to rest. Checked as `glsl` is.
+     */
+    readonly lowDetail?: string;
 }
 
 /**

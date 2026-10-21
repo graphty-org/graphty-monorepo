@@ -30,6 +30,7 @@ interface RegisteredShader {
     readonly descriptor: ShaderDescriptor;
     readonly glsl: string;
     readonly wgsl?: string;
+    readonly lowDetail?: string;
 }
 
 const registry = createPluginRegistry<RegisteredShader, ShaderDescriptor>({
@@ -96,7 +97,7 @@ function admit(
         refuse("", "descriptor", [{ code: "shader.header-key", params: { key: "descriptor" } }]);
     }
 
-    const { descriptor: given, glsl, wgsl } = registration;
+    const { descriptor: given, glsl, wgsl, lowDetail } = registration;
     const { webgpu, cost, thumbnail, ...facts } = given;
     const native = webgpu === "native";
     if ((native && typeof wgsl !== "string") || (cost !== undefined && !["light", "medium", "heavy"].includes(cost))) {
@@ -123,6 +124,17 @@ function admit(
         refuse(given.id, "glsl", checked.problems);
     }
 
+    if (lowDetail !== undefined) {
+        const cheap = typeof lowDetail === "string" ? checkShaderBody(lowDetail, read.kind).problems : null;
+        if (cheap === null || cheap.length > 0) {
+            refuse(
+                given.id,
+                "lowDetail",
+                cheap ?? [{ code: "shader.entry-missing", params: { kind: read.kind, expected: "shade" } }],
+            );
+        }
+    }
+
     const descriptor: ShaderDescriptor = Object.freeze({
         ...read,
         ...(typeof thumbnail === "string" ? { thumbnail } : {}),
@@ -133,7 +145,12 @@ function admit(
         origin,
     });
 
-    return { descriptor, glsl, ...(wgsl === undefined ? {} : { wgsl }) };
+    return {
+        descriptor,
+        glsl,
+        ...(wgsl === undefined ? {} : { wgsl }),
+        ...(lowDetail === undefined ? {} : { lowDetail }),
+    };
 }
 
 /**
@@ -253,12 +270,18 @@ export function shaderIdsOf(kinds: readonly ShaderKind[]): readonly string[] {
  * @param id - The id.
  * @returns Its GLSL and optional WGSL body, or undefined when nothing registered that id.
  */
-export function registeredShaderSource(id: string): { readonly glsl: string; readonly wgsl?: string } | undefined {
+export function registeredShaderSource(
+    id: string,
+): { readonly glsl: string; readonly wgsl?: string; readonly lowDetail?: string } | undefined {
     const entry = registry.byId(id);
 
     return entry === undefined
         ? undefined
-        : { glsl: entry.glsl, ...(entry.wgsl === undefined ? {} : { wgsl: entry.wgsl }) };
+        : {
+              glsl: entry.glsl,
+              ...(entry.wgsl === undefined ? {} : { wgsl: entry.wgsl }),
+              ...(entry.lowDetail === undefined ? {} : { lowDetail: entry.lowDetail }),
+          };
 }
 
 /**

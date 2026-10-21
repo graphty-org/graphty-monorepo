@@ -15,6 +15,7 @@ import { assert, describe, it } from "vitest";
 
 import type { ShaderProblem } from "../../src/catalog/shaders";
 import type { LayerSpec, StyleDocument } from "../../src/catalog/types";
+import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
 import { sha256Hex } from "../../src/utils/sha256";
@@ -54,6 +55,9 @@ const MARBLES: LayerSpec = {
 /** A stand-in host. */
 interface FakeHost extends ShaderHost {
     readonly checked: HostShader[];
+    /** The frame guard the host draws by, as the element's render loop holds one. */
+    readonly guard: ShaderGuard;
+    readonly flashing: Set<string>;
     lose(hashes: readonly string[]): void;
 }
 
@@ -67,7 +71,10 @@ interface FakeHost extends ShaderHost {
 function fakeHost(options: { problem?: ShaderProblem | null; crashMarked?: readonly string[] } = {}): FakeHost {
     const listeners = new Set<(hashes: readonly string[]) => void>();
     const checked: HostShader[] = [];
+    const guard = new ShaderGuard();
     return {
+        guard,
+        flashing: new Set(),
         renderer: "webgl",
         crashMarked: new Set(options.crashMarked),
         checked,
@@ -76,7 +83,13 @@ function fakeHost(options: { problem?: ShaderProblem | null; crashMarked?: reado
             return Promise.resolve(options.problem ?? null);
         },
         thumbnail: () => Promise.resolve(new Blob([])),
-        setQuality: () => undefined,
+        configure: (settings) => {
+            guard.configure(settings);
+        },
+        get quality() {
+            return guard.quality;
+        },
+        onRender: (listener) => guard.onChange(listener),
         onLost: (listener) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -345,5 +358,82 @@ describe("session.shaders", () => {
         const { session: s, layer } = await session();
         await s.shaders.add(TINT, { apply: { layer } });
         assert.strictEqual(s.shaders.list()[0].usedBy, 1);
+    });
+
+    it("reports a moving shader still under reduced motion, and why", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        await s.shaders.add(RING);
+        await s.shaders.add(TINT);
+        assert.strictEqual(s.shaders.status("user/ring").state, "ready");
+
+        // The platform asks for reduced motion and the reader left motion on "system".
+        host.guard.setSystemStill(true);
+        assert.deepEqual(s.shaders.status("user/ring"), {
+            state: "still",
+            problem: { code: "shader.still", params: { reason: "system" } },
+        });
+        // A shader that never moves is unaffected.
+        assert.strictEqual(s.shaders.status("user/tint").state, "ready");
+        // A still shader still draws.
+        assert.isNotNull(await shadersControllerOf(s)?.drawable("user/ring"));
+
+        shadersControllerOf(s)?.configure({ motion: "on" });
+        assert.strictEqual(s.shaders.status("user/ring").state, "ready");
+        shadersControllerOf(s)?.configure({ motion: "off" });
+        assert.deepEqual(s.shaders.status("user/ring").problem, {
+            code: "shader.still",
+            params: { reason: "setting" },
+        });
+    });
+
+    it("turns pasted shaders off when the guard does, publishes the change, and back on", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        const controller = shadersControllerOf(s);
+        controller?.attach(host);
+        await s.shaders.add(TINT);
+        const changes: string[] = [];
+        s.on("render:quality", ({ code, to }) => changes.push(`${code}:${to.pasted}`));
+        host.guard.lend({
+            claimed: () => true,
+            pastedOnScreen: () => true,
+            movingPasted: () => [],
+            freeze: () => undefined,
+        });
+        host.guard.frame({ intervalMs: 300, gpuBehind: true });
+
+        assert.deepEqual(changes, ["guard.long-frame:off"]);
+        assert.deepEqual(s.shaders.status("user/tint"), {
+            state: "off",
+            problem: { code: "shader.guard-off", params: { level: "high" } },
+        });
+        assert.isNull(await controller?.drawable("user/tint"));
+        assert.strictEqual(controller?.renderQuality.pasted, "off");
+
+        // Changing the settings starts the guard again.
+        controller?.configure({ quality: "high" });
+        assert.strictEqual(s.shaders.status("user/tint").state, "ready");
+    });
+
+    it("reports a shader frozen for flashing as still", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        await s.shaders.add(RING);
+        host.flashing.add(sha256Hex(RING));
+        host.guard.announce();
+        assert.deepEqual(s.shaders.status("user/ring"), {
+            state: "still",
+            problem: { code: "shader.flashing", params: { id: "user/ring" } },
+        });
+    });
+
+    it("answers the quality the settings ask for with no host", async () => {
+        const { session: s } = await session();
+        const controller = shadersControllerOf(s);
+        controller?.configure({ quality: "low", motion: "off" });
+        assert.deepEqual({ ...controller?.renderQuality }, { level: "low", motion: "still", pasted: "on" });
     });
 });

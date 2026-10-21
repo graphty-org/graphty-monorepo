@@ -3195,6 +3195,24 @@ export function removeAutosave(key: string, id: string, options?: AutosaveLookup
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
 
 // @public
+export interface RenderQuality {
+    readonly code?: RenderQualityCode;
+    readonly level: "low" | "medium" | "high";
+    readonly motion: "on" | "half" | "paused" | "still";
+    readonly pasted: "on" | "off";
+}
+
+// @public
+export interface RenderQualityChange {
+    readonly code: RenderQualityCode;
+    readonly from: RenderQuality;
+    readonly to: RenderQuality;
+}
+
+// @public
+export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
+
+// @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";
 
 // @public
@@ -4270,6 +4288,7 @@ export interface SessionEventMap {
         readonly cause: HistoryCause;
     };
     "project:status": ProjectStatus;
+    "render:quality": RenderQualityChange;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
     "selection:hover-changed": {

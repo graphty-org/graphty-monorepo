@@ -866,7 +866,7 @@ export class Graph implements GraphContext {
         const { lane } = dispatcherOf(this.session);
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
-        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene));
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
@@ -1733,7 +1733,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         // A new engine: its shaders compile again there.
-        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene));
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);

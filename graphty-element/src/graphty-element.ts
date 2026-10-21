@@ -70,7 +70,7 @@ import {
 } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
-import { shadersControllerOf, type ShaderSettings } from "./session/shaders";
+import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./session/shaders";
 import type { ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
@@ -493,16 +493,17 @@ export class Graphty extends LitElement {
 
     /**
      * Mirror the session's shader events onto the DOM as `graphty-shader-status`,
-     * `graphty-shader-held` and `graphty-shader-approved`.
+     * `graphty-shader-held`, `graphty-shader-approved` and `graphty-render-quality`.
      * @param session - The session to watch.
      * @param session.on - Its event subscription.
-     * @returns Unsubscribes all three.
+     * @returns Unsubscribes all four.
      */
     #mirrorShaderEvents(session: { on: GraphSession["on"] }): () => void {
         const names = {
             "shader:status": "graphty-shader-status",
             "shader:held": "graphty-shader-held",
             "shader:approved": "graphty-shader-approved",
+            "render:quality": "graphty-render-quality",
         } as const;
         const offs = (Object.keys(names) as (keyof typeof names)[]).map((event) =>
             session.on(event, (detail) => {
@@ -2561,6 +2562,31 @@ export class Graphty extends LitElement {
         const oldValue = this.shaderSettings;
         shadersControllerOf(this.session)?.configure(value ?? {});
         this.requestUpdate("shaderSettings", oldValue);
+    }
+
+    /**
+     * How much shader work the element does now: the quality level `Q()`, shader render targets
+     * and effect squares follow, whether shader motion runs at full rate, at half rate, paused or
+     * still, and whether pasted shaders draw.
+     * @remarks
+     * It starts at `shaderSettings.quality` and changes on its own when the frame guard steps
+     * down on a GPU that falls behind, or back up after a run of fast frames; each such change
+     * fires `graphty-render-quality` with `{ from, to, code }`. `shaderSettings.guard: false` keeps
+     * it at the setting. A graph that names no shader draws the same at every level.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * element.addEventListener("graphty-render-quality", () => {
+     *     chip.textContent = element.renderQuality.level;
+     * });
+     * ```
+     * @returns The quality now
+     */
+    get renderQuality(): RenderQuality {
+        return (
+            shadersControllerOf(this.session)?.renderQuality ??
+            Object.freeze({ level: "high", motion: "on", pasted: "on" } as const)
+        );
     }
 
     /**

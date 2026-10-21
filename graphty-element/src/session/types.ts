@@ -76,7 +76,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { SessionShaders, ShaderStatus } from "./shaders";
+import type { RenderQualityChange, SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
@@ -2082,6 +2082,14 @@ export interface SessionEventMap {
      * @since 3.36.0
      */
     "shader:approved": { readonly id: string; readonly hash: string };
+    /**
+     * The frame guard changed how much shader work the element does: it stepped quality down,
+     * paused motion or turned pasted shaders off on a GPU that fell behind, or stepped back up.
+     * Mirrored on the element as `graphty-render-quality`; the quality now is
+     * `element.renderQuality`.
+     * @since 3.36.0
+     */
+    "render:quality": RenderQualityChange;
 }
 
 /**

@@ -12,7 +12,9 @@
 import type { Scene } from "@babylonjs/core";
 
 import type { ShaderParams, ShaderProblem } from "../catalog/shaders";
-import type { HostShader, ShaderHost } from "../session/shaders";
+import { QUALITY_LEVELS, ShaderGuard } from "../managers/ShaderGuard";
+import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import type { HostShader, RenderQualityChange, ShaderHost } from "../session/shaders";
 import { readCrashMarker } from "./crashMarker";
 import type { ShaderRuntime } from "./runtime";
 
@@ -30,15 +32,45 @@ export interface LazyShaderHost extends ShaderHost {
 /**
  * The shader host of a graph's scene.
  * @param scene - The scene.
+ * @param guard - The frame guard of the scene's render loop, whose quality the shaders draw at.
  * @returns The host. Nothing is loaded or built until it is asked to compile or draw.
  */
-export function createLazyShaderHost(scene: Scene): LazyShaderHost {
+export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new ShaderGuard()): LazyShaderHost {
     const crashMarked = readCrashMarker();
     const listeners = new Set<(hashes: readonly string[]) => void>();
-    let quality: "low" | "medium" | "high" = "high";
+    const renderListeners = new Set<(change: RenderQualityChange | null) => void>();
+    /** The text hashes frozen because their output flashed. */
+    const flashing = new Set<string>();
     let loading: Promise<ShaderRuntime> | null = null;
     let loaded: ShaderRuntime | null = null;
     let disposed = false;
+
+    /** Draw the loaded runtime at the guard's quality. */
+    const apply = (): void => {
+        if (loaded === null) {
+            return;
+        }
+
+        const { level, motion } = guard.quality;
+        loaded.uniforms.setQuality(level);
+        loaded.uniforms.setMoving(motion === "on" || motion === "half");
+        loaded.uniforms.effectCap = QUALITY_LEVELS[level].effectCap;
+    };
+
+    const stopGuard = guard.onChange((change) => {
+        apply();
+        for (const listener of renderListeners) {
+            listener(change);
+        }
+    });
+
+    // `motion: "system"` follows the platform's reduced-motion preference, as it changes.
+    const reduced = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const onReduced = (): void => {
+        guard.setSystemStill(reduced?.matches);
+    };
+    reduced?.addEventListener("change", onReduced);
+    onReduced();
 
     const runtime = (): Promise<ShaderRuntime> => {
         if (disposed) {
@@ -52,13 +84,27 @@ export function createLazyShaderHost(scene: Scene): LazyShaderHost {
                 throw new Error("The graph was disposed.");
             }
 
-            built.uniforms.setQuality(quality);
             built.onLost((hashes) => {
                 for (const listener of listeners) {
                     listener(hashes);
                 }
             });
             loaded = built;
+            apply();
+            guard.lend({
+                claimed: () => built.uniforms.claimed,
+                pastedOnScreen: () => NodeShaderDrawing.peek(scene)?.pastedDrawn().any === true,
+                movingPasted: () =>
+                    (NodeShaderDrawing.peek(scene)?.pastedDrawn().moving ?? []).filter((hash) => !flashing.has(hash)),
+                freeze: (hashes) => {
+                    for (const hash of hashes) {
+                        flashing.add(hash);
+                        built.uniforms.freeze(hash);
+                    }
+
+                    guard.announce();
+                },
+            });
             return built;
         });
         return loading;
@@ -74,9 +120,21 @@ export function createLazyShaderHost(scene: Scene): LazyShaderHost {
         check: (shader: HostShader): Promise<ShaderProblem | null> => runtime().then((built) => built.check(shader)),
         thumbnail: (shader: HostShader, params: ShaderParams): Promise<Blob> =>
             runtime().then((built) => built.thumbnail(shader, params)),
-        setQuality(level) {
-            quality = level;
-            loaded?.uniforms.setQuality(level);
+        configure(settings) {
+            guard.configure(settings);
+            apply();
+        },
+        get quality() {
+            return guard.quality;
+        },
+        get flashing() {
+            return flashing;
+        },
+        onRender(listener) {
+            renderListeners.add(listener);
+            return () => {
+                renderListeners.delete(listener);
+            };
         },
         onLost(listener) {
             listeners.add(listener);
@@ -86,6 +144,10 @@ export function createLazyShaderHost(scene: Scene): LazyShaderHost {
         },
         dispose() {
             disposed = true;
+            stopGuard();
+            guard.lend(null);
+            reduced?.removeEventListener("change", onReduced);
+            renderListeners.clear();
             listeners.clear();
             loaded?.dispose();
             loaded = null;

@@ -62,9 +62,6 @@ const VISIBLE_WINDOW_MS = 2000;
 /** How long after a compile or a test frame the crash marker waits before it lets the hash go. */
 const CALM_MS = 500;
 
-/** The largest square an effect draws on, at high quality, in screen pixels. */
-const EFFECT_SQUARE_CAP = 512;
-
 /**
  * The parameter values of one test variant.
  * @param params - The parameters.
@@ -442,7 +439,8 @@ export class ShaderRuntime {
     private areaOf(shader: HostShader): number {
         const { kind } = shader.registration.descriptor;
         if (kind === "node-effect" || kind === "edge-effect") {
-            return EFFECT_SQUARE_CAP * EFFECT_SQUARE_CAP;
+            // The largest square an effect draws on at the quality level now.
+            return this.uniforms.effectCap * this.uniforms.effectCap;
         }
 
         return Math.max(1, this.engine.getRenderWidth() * this.engine.getRenderHeight());

@@ -478,6 +478,10 @@ describe("loops and the active-mesh freeze", () => {
             [{ name: "Pulse", target: "node", selector: { match: "everything" }, set: { "node.shader": "e3/pulse" } }],
         );
         await until(element, "the first node draws on the impostor batch", () => batchHolds(element, 1));
+        // The loop must keep running for this to measure anything. A software GPU drawing 10,000
+        // impostors falls behind, and the frame guard would (rightly) step down to half rate and
+        // then pause shader motion, which releases the claim this test watches.
+        element.shaderSettings = { guard: false };
         await element.session.data.addNodes(nodes.slice(1));
         await operationQueueOf(element.graph).waitForCompletion();
         const scene = element.graph.getScene();

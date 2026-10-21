@@ -293,15 +293,17 @@ export function placeOf(text: string, offset: number, origin: BodyOrigin = { lin
 }
 
 /**
- * The first character a shader text may not hold: anything outside printable ASCII, tab and the
- * line ends.
+ * The first character a shader text may not hold: anything outside printable ASCII, tab, LF and
+ * CRLF. A lone carriage return is refused: ANGLE ends a line (and a `//` comment) there and the
+ * checker does not, so it would hide code from the checks.
  * @param text - The text.
  * @returns Its offset, or -1 when every character is allowed.
  */
 export function firstNonAscii(text: string): number {
     for (let index = 0; index < text.length; index++) {
         const code = text.charCodeAt(index);
-        if (code > 0x7e || (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d)) {
+        const loneReturn = code === 0x0d && text.charCodeAt(index + 1) !== 0x0a;
+        if (loneReturn || code > 0x7e || (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d)) {
             return index;
         }
     }
@@ -1259,6 +1261,13 @@ export function checkShaderBody(
     const ascii = firstNonAscii(body);
     if (ascii !== -1) {
         return failed([problemAt("shader.not-ascii", placeOf(body, ascii, origin))]);
+    }
+
+    // A backslash is a line continuation to the driver, even at the end of a `//` comment, where it
+    // pulls the next line into the comment and hides it from the checker. GLSL has no other use for one.
+    const backslash = body.indexOf("\\");
+    if (backslash !== -1) {
+        return failed([problemAt("shader.preprocessor", placeOf(body, backslash, origin))]);
     }
 
     const { tokens, problem } = tokenize(body, origin);

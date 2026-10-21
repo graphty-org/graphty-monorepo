@@ -123,6 +123,38 @@ describe("each unsafe construct is refused with its code, line and column", () =
         assert.isAbove(Number(problem.params.column), 30);
     });
 
+    it("refuses a lone carriage return, which ends a // comment for the driver", () => {
+        // The checker would read the rest of the line as the comment; ANGLE reads a loop and a reserved name.
+        const body =
+            "vec4 shade(NodeInput n) {\n    // x\r while (true) {} float y = gl_FragCoord.x;\n    return vec4(1.0);\n}";
+        assertAt(firstProblem(text(body)), "shader.not-ascii", BODY_LINE + 1, 9);
+    });
+
+    it("accepts CRLF line ends", () => {
+        const body = "vec4 shade(NodeInput n) {\n    // x\n    return vec4(1.0);\n}";
+        const result = parseShaderText(text(body).replaceAll("\n", "\r\n"));
+        assert.isTrue(result.ok, result.ok ? "" : JSON.stringify(result.problems));
+    });
+
+    it("refuses a backslash in a // comment, which joins the next line in the driver", () => {
+        // The checker sees one loop and a block comment; the driver, which joins each line after a
+        // trailing backslash into the comment, sees three nested loops of 128 steps.
+        const loop = "for (int i = 0; i < 128; i++) {";
+        const first = `    ${loop} // \\`;
+        const body = [
+            "vec4 shade(NodeInput n) {",
+            "    float x = 0.0;",
+            first,
+            "    } /*",
+            `    ${loop} ${loop} x += 0.1; } } }`,
+            "    // \\",
+            "    */",
+            "    return vec4(x);",
+            "}",
+        ].join("\n");
+        assertAt(firstProblem(text(body)), "shader.preprocessor", BODY_LINE + 2, first.indexOf("\\") + 1);
+    });
+
     it("refuses a byte outside ASCII", () => {
         const body = "vec4 shade(NodeInput n) {\n    return vec4(1.0); // caf\u00E9\n}";
         assertAt(firstProblem(text(body)), "shader.not-ascii", BODY_LINE + 1, 29);

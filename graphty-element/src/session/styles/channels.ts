@@ -73,6 +73,7 @@ import {
     NodeBorderPositions,
     NodeBorderStyles,
     NodeLabelFits,
+    NodeMeshDetails,
     NodeShapes,
     NodeSizeModes,
     type NodeStyleConfig,
@@ -258,6 +259,12 @@ export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/**
+ * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
+ * @since 3.36.0
+ */
+export type NodeMeshDetailValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
+
 /** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
 export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
 
@@ -364,6 +371,7 @@ export interface ChannelValues {
     "node.haloScale": number;
     "node.haloOpacity": number;
     "node.wireframe": boolean;
+    "node.meshDetail": NodeMeshDetailValue;
     "node.flat": boolean;
     "node.unlit": boolean;
     "node.marker": never;
@@ -673,6 +681,23 @@ export type ChannelValueKind =
     /** Effects by id, merged by id then by parameter. @since 3.36.0 */
     | "shaderEffects";
 
+/**
+ * Whether a value is the whole number an "enum" channel with a `min` takes beside its words: a
+ * segment count for `node.meshDetail`.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @returns True for a whole number from `min` up on such a channel.
+ */
+export function isEnumCount(descriptor: ChannelDescriptor, value: unknown): value is number {
+    return (
+        descriptor.accepts === "enum" &&
+        descriptor.min !== undefined &&
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= descriptor.min
+    );
+}
+
 /** One channel: what it paints, what it accepts, and what the renderer really does with it. */
 export interface ChannelDescriptor {
     /** The channel's name, which is its identity everywhere. */
@@ -705,7 +730,11 @@ export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     /** Every value it accepts, when `accepts` is "enum". */
     readonly values?: readonly string[];
-    /** The smallest value the renderer draws, when `accepts` is "number". */
+    /**
+     * The smallest value the renderer draws, when `accepts` is "number". On an "enum" channel it
+     * says the channel also takes a whole number from `min` up beside its `values`: a segment count
+     * beside `node.meshDetail`'s "full" and "low" (since 3.36.0).
+     */
     readonly min?: number;
     /**
      * Whether `min` itself is refused, so a value must be above it: a node of size 0 draws nothing,
@@ -2280,6 +2309,26 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "boolean",
         stylePath: "effect.wireframe",
         renderable: true,
+    },
+    "node.meshDetail": {
+        channel: "node.meshDetail",
+        target: "node",
+        plainName: "Node Mesh Detail",
+        shortName: "Mesh detail",
+        group: "shape",
+        default: "full",
+        accepts: "enum",
+        values: NodeMeshDetails.options,
+        min: 1,
+        stylePath: "shape.detail",
+        renderable: true,
+        caveat:
+            'How finely a round shape is tessellated. "full" draws the shape\'s own mesh; "low" draws a ' +
+            "sphere as an icosphere of one subdivision and every other round shape (cylinder, cone, " +
+            "capsule, torus, torus knot, icosphere) with 8 segments around; a whole number is the segment " +
+            "count (an icosphere's subdivisions). Shapes drawn with flat faces (box, the polyhedra, goldberg, " +
+            "geodesic, the flat shapes) and registered shapes look the same either way. A wireframe draws " +
+            "every triangle, so a low-detail mesh is what makes a wireframe sphere read as a clean globe.",
     },
     "node.flat": {
         channel: "node.flat",

@@ -632,6 +632,7 @@ export type Channel =
     | "node.haloScale"
     | "node.haloOpacity"
     | "node.wireframe"
+    | "node.meshDetail"
     | "node.flat"
     | "node.unlit"
     | "node.marker"

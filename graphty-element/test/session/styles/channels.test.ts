@@ -79,6 +79,7 @@ const DECLARED = [
     "node.haloScale",
     "node.haloOpacity",
     "node.wireframe",
+    "node.meshDetail",
     "node.flat",
     "node.unlit",
     "node.marker",
@@ -342,8 +343,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-four node channels and one hundred and thirty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 154);
+    it("splits into one hundred and fifty-five node channels and one hundred and thirty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 155);
         assert.strictEqual(channelsFor("edge").length, 135);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

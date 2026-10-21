@@ -80,6 +80,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
+    // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.
+    "node.meshDetail": "mesh",
     "node.flat": "mesh",
     "node.unlit": "mesh",
     // Width, height, depth and flatness are baked into the source mesh like the size. A border is

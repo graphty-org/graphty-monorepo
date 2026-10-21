@@ -619,6 +619,7 @@ const CARD_COVERS: readonly Channel[] = [
     "node.flat",
     "node.unlit",
     "node.wireframe",
+    "node.meshDetail",
 ];
 
 /**

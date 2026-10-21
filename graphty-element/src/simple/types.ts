@@ -489,4 +489,6 @@ export interface ShaderDefinition {
     readonly bloom?: boolean;
     /** Boundaries: a splatted field or one sphere per group. Default `"field"`. */
     readonly form?: "field" | "sphere";
+    /** Field boundaries: the number parameter that sets each member's kernel radius, in member radii. */
+    readonly reachParam?: string;
 }

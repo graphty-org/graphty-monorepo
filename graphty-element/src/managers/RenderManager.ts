@@ -521,7 +521,13 @@ class ShaderScene {
             return;
         }
 
-        this.background ??= new module.BackgroundPass(this.scene, runtime, this.guard, this.budget);
+        this.background ??= new module.BackgroundPass(
+            this.scene,
+            runtime,
+            this.guard,
+            this.budget,
+            (count) => this.boundary?.tints(count) ?? [],
+        );
         const color = Color4.FromHexString(wanted.color ?? DEFAULT_BACKGROUND_COLOR);
         await this.background.show(shader, wanted.params, [color.r, color.g, color.b, 1]);
     }

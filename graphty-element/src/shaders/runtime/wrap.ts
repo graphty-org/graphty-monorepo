@@ -378,7 +378,8 @@ function sampleInput(kind: ShaderKind): string {
     graphty_in.uv = vUV;
     graphty_in.viewDir = normalize(vec3(vUV * 2.0 - 1.0, 1.0));
     graphty_in.resolution = graphty_sampleSize.xy;
-    graphty_in.time = ${time};`;
+    graphty_in.time = ${time};
+    graphty_in.groupTint = vec4(0.0);`;
         default:
             return `
     graphty_BoundaryInput graphty_in;

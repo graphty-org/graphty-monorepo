@@ -63,6 +63,7 @@ struct BackgroundInput {
     vec3 viewDir;
     vec2 resolution;
     float time;
+    vec4 groupTint;
 };
 struct BoundaryInput {
     vec2 uv;

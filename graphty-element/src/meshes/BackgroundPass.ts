@@ -23,17 +23,34 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
+import { inferShaderReads } from "../catalog/shaderGlsl";
 import { motionOf, type ShaderParams } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { RenderTargetBudget, ShaderGuard } from "../managers/ShaderGuard";
 import type { HostShader } from "../session/shaders";
-import { backgroundProgram } from "../shaders/runtime/scenePrograms";
+import {
+    BACKGROUND_TINTS,
+    backgroundProgram,
+    TINT_COLOR_UNIFORMS,
+    TINT_UNIFORMS,
+} from "../shaders/runtime/scenePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { uniformValueOf } from "../shaders/runtime/wrap";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
 /** The background layer's name; the boundary layer is kept after it. */
 export const BACKGROUND_LAYER = "graphty-background-shader";
+
+/** One boundary group that tints a background (`BackgroundInput.groupTint`), as drawn on the canvas. */
+export interface BackgroundTint {
+    /** Its center, -1..1 across the canvas, y up. */
+    readonly x: number;
+    readonly y: number;
+    /** Its radius, in canvas heights from the center to the top. */
+    readonly radius: number;
+    /** Its color, 0..1. */
+    readonly color: readonly [number, number, number];
+}
 
 /** The fastest the background target is drawn again, frames a second, by quality level. */
 const BACKGROUND_FPS = { low: 15, medium: 30, high: 30 } as const;
@@ -43,7 +60,8 @@ export class BackgroundPass {
     private readonly renderer: EffectRenderer;
     private readonly layer: Layer;
     private readonly observer: Observer<Scene>;
-    private program: { readonly shader: HostShader; readonly effect: SceneEffect } | null = null;
+    private program: { readonly shader: HostShader; readonly effect: SceneEffect; readonly tinted: boolean } | null =
+        null;
     /** Counts show and hide calls, so a compile that finishes after a newer call is dropped. */
     private showing = 0;
     private params: ShaderParams | undefined;
@@ -54,6 +72,9 @@ export class BackgroundPass {
     private drawnAt = Number.NEGATIVE_INFINITY;
     /** The camera's view and projection the target was last drawn with. */
     private readonly drawnWith = new Float32Array(32);
+    /** The tints the target was last drawn with: per tint x, y, radius, weight, r, g, b, 0. */
+    private readonly tintsDrawn = new Float32Array(BACKGROUND_TINTS * 8);
+    private readonly tintsNow = new Float32Array(BACKGROUND_TINTS * 8);
     private dirty = true;
     /** How many times the target was drawn, for tests and tools. */
     draws = 0;
@@ -64,12 +85,15 @@ export class BackgroundPass {
      * @param runtime - The shader runtime, for the scene uniforms and motion claims.
      * @param guard - The frame guard, for the quality level and the target size.
      * @param budget - The scene's shader render-target budget.
+     * @param tints - The largest boundary groups on screen, at most the count asked for, largest
+     *     first, read before each frame.
      */
     constructor(
         private readonly scene: Scene,
         private readonly runtime: ShaderRuntime,
         private readonly guard: ShaderGuard,
         private readonly budget: RenderTargetBudget,
+        private readonly tints: (count: number) => readonly BackgroundTint[] = () => [],
     ) {
         const engine = scene.getEngine();
         this.renderer = new EffectRenderer(engine);
@@ -131,7 +155,8 @@ export class BackgroundPass {
         }
 
         this.program?.effect.dispose();
-        this.program = { shader, effect };
+        // Only a shader that reads the groups (`groupTint`) is drawn again when they move.
+        this.program = { shader, effect, tinted: inferShaderReads(glsl).includes("members") };
         this.follow();
         this.runtime.noteDrawn([shader.hash]);
         return true;
@@ -207,6 +232,21 @@ export class BackgroundPass {
         this.scene.onAfterRenderObservable.addOnce(release);
     }
 
+    /**
+     * Read the tinting groups into {@link tintsNow}.
+     * @returns Whether they differ from the ones the target was last drawn with.
+     */
+    private readTints(): boolean {
+        const now = this.tintsNow;
+        now.fill(0);
+        this.tints(BACKGROUND_TINTS)
+            .slice(0, BACKGROUND_TINTS)
+            .forEach((tint, i) => {
+                now.set([tint.x, tint.y, tint.radius, 1, ...tint.color, 0], i * 8);
+            });
+        return now.some((value, i) => value !== this.tintsDrawn[i]);
+    }
+
     /** Release the target and its bytes. */
     private dropTarget(): void {
         if (this.target !== null) {
@@ -269,12 +309,14 @@ export class BackgroundPass {
         const now = performance.now();
         const fps = BACKGROUND_FPS[this.guard.quality.level];
         const due = this.moves() && now - this.drawnAt >= 1000 / fps - 1;
-        if (!this.dirty && !cameraMoved && !due) {
+        const tintsMoved = program.tinted && this.readTints();
+        if (!this.dirty && !cameraMoved && !due && !tintsMoved) {
             return;
         }
 
         this.drawnWith.set(view.m, 0);
         this.drawnWith.set(projection.m, 16);
+        this.tintsDrawn.set(this.tintsNow);
         this.drawnAt = now;
         this.dirty = false;
         this.draw(program.shader, program.effect, target, view.multiply(projection).invert());
@@ -305,6 +347,11 @@ export class BackgroundPass {
             program.setVector2("graphty_resolution", new Vector2(size.width, size.height));
             program.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(shader.hash));
             program.setFloat4("graphty_fallback", ...this.fallback);
+            const tints = this.tintsDrawn;
+            TINT_UNIFORMS.forEach((name, i) => {
+                program.setFloat4(name, tints[i * 8], tints[i * 8 + 1], tints[i * 8 + 2], tints[i * 8 + 3]);
+                program.setFloat4(TINT_COLOR_UNIFORMS[i], tints[i * 8 + 4], tints[i * 8 + 5], tints[i * 8 + 6], 0);
+            });
             setParams(program, shader.registration.descriptor.params, this.params);
         });
         try {

@@ -42,7 +42,7 @@ import {
     Viewport,
 } from "@babylonjs/core";
 
-import { motionOf } from "../catalog/shaders";
+import { motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { QUALITY_LEVELS, type RenderTargetBudget, type ShaderGuard } from "../managers/ShaderGuard";
@@ -57,7 +57,7 @@ import {
 } from "../shaders/runtime/scenePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { uniformValueOf } from "../shaders/runtime/wrap";
-import { BACKGROUND_LAYER } from "./BackgroundPass";
+import { BACKGROUND_LAYER, type BackgroundTint } from "./BackgroundPass";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
 /** The boundary layer's name. */
@@ -281,6 +281,37 @@ export class BoundaryPass {
     }
 
     /**
+     * How many member kernels the last frame splatted into the field targets, for tests and tools:
+     * a field boundary costs one kernel per member, never a pass over the members per pixel.
+     * @returns The count.
+     */
+    splats(): number {
+        return this.fields.reduce((sum, field) => sum + field.count, 0);
+    }
+
+    /**
+     * The largest groups drawn last frame, largest first, for a background that tints by them.
+     * @param count - How many.
+     * @returns Each group's place on the canvas and its members' mean color.
+     */
+    tints(count: number): BackgroundTint[] {
+        const engine = this.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        return this.placed
+            .flatMap((placed) => placed.groups)
+            .sort((a, b) => b.discs.length - a.discs.length)
+            .slice(0, count)
+            .map(({ box, color }) => ({
+                x: (box[0] + box[2]) / width - 1,
+                y: (box[1] + box[3]) / height - 1,
+                // The group's half extent, widened so the gas glows around it.
+                radius: (Math.max(box[2] - box[0], box[3] - box[1]) / height) * 1.5,
+                color: [color[0], color[1], color[2]],
+            }));
+    }
+
+    /**
      * The pasted shaders drawn, for the frame guard and the flashing check.
      * @returns Whether a pasted shader draws, and the moving ones' hashes.
      */
@@ -443,7 +474,7 @@ export class BoundaryPass {
             const { descriptor } = shader.registration;
             const sphere = descriptor.form === "sphere";
             const nest = 1 + NEST_STEP * (top - depth);
-            const reach = (descriptor.reach ?? DEFAULT_BOUNDARY_REACH) * nest;
+            const reach = kernelReach(descriptor, layer.boundary.params) * nest;
             const groups: PlacedGroup[] = [];
             layer.groups.forEach((group, index) => {
                 const members = group.members.flatMap((id) => {
@@ -824,6 +855,28 @@ export function orderLayers(scene: Scene): void {
     const order = [BACKGROUND_LAYER, BOUNDARY_LAYER];
     const rank = (name: string): number => (order.includes(name) ? order.indexOf(name) : order.length);
     scene.layers.sort((a, b) => rank(a.name) - rank(b.name));
+}
+
+/**
+ * A field boundary's kernel radius, in member radii: the value of the parameter its `reachParam`
+ * names (clamped to that parameter's range), else its `reach`, else the default.
+ * @param descriptor - The shader's catalog facts.
+ * @param params - The layer's parameter values over the defaults.
+ * @returns The radius.
+ */
+export function kernelReach(
+    descriptor: Pick<ShaderDescriptor, "params" | "reach" | "reachParam">,
+    params: ShaderParams | undefined,
+): number {
+    const named = descriptor.params.find((param) => param.name === descriptor.reachParam);
+    if (named !== undefined) {
+        const value = uniformValueOf(named, params?.[named.name])[0];
+        const min = typeof named.min === "number" ? named.min : 0;
+        const max = typeof named.max === "number" ? named.max : Infinity;
+        return Math.max(Math.min(value, max), min, 1e-3);
+    }
+
+    return descriptor.reach ?? DEFAULT_BOUNDARY_REACH;
 }
 
 /**

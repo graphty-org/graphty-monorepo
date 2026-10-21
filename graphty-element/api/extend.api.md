@@ -2367,6 +2367,7 @@ export interface ShaderDefinition {
     readonly name?: string;
     readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
     readonly reach?: number;
+    readonly reachParam?: string;
 }
 
 // @public
@@ -2383,6 +2384,7 @@ export interface ShaderDescriptor {
     readonly params: readonly ShaderParamDescriptor[];
     readonly plainName: string;
     readonly reach?: number;
+    readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
     readonly thumbnail?: string;

@@ -138,6 +138,12 @@ export interface ShaderDescriptor {
     readonly blend?: "over" | "add";
     /** Boundaries: a splatted field or one sphere per group. Absent means `"field"`. */
     readonly form?: "field" | "sphere";
+    /**
+     * Boundaries of form `"field"`: the number parameter whose value is each member's kernel
+     * radius, in member radii, in place of `reach`, so a reader can grow or shrink the blobs.
+     * @since 3.36.0
+     */
+    readonly reachParam?: string;
     /** Pasted shaders: the SHA-256 of the text. */
     readonly hash?: string;
 }

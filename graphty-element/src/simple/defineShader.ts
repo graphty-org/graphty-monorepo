@@ -82,6 +82,7 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
                     ...(definition.blend === undefined ? {} : { blend: definition.blend }),
                     ...(definition.bloom === undefined ? {} : { bloom: definition.bloom }),
                     ...(definition.form === undefined ? {} : { form: definition.form }),
+                    ...(definition.reachParam === undefined ? {} : { reachParam: definition.reachParam }),
                 },
                 glsl: definition.glsl,
             },

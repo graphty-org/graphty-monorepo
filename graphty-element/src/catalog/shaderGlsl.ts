@@ -151,6 +151,7 @@ export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
     "fieldGradient",
     "group",
     "depth",
+    "groupTint",
 ]);
 
 /**
@@ -1325,7 +1326,7 @@ const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
     [/\.hovered\b/, "hovered"],
     [/\.pinned\b/, "pinned"],
     [/\.since(?:Entered|Exited|Changed|Selected|Hovered|Pinned)\b/, "times"],
-    [/\.(?:field|fieldGradient|group)\b/, "members"],
+    [/\.(?:field|fieldGradient|group|groupTint)\b/, "members"],
 ];
 
 /**

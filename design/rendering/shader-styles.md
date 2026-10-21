@@ -362,6 +362,7 @@ export interface ShaderDescriptor {
     readonly reach?: number; // effects: the drawn square is reach x the radius, 1 to 6, default 1
     readonly blend?: "over" | "add"; // effects and boundaries, default "over"
     readonly form?: "field" | "sphere"; // boundaries, default "field" (section 4.2)
+    readonly reachParam?: string; // field boundaries: the number parameter that is the kernel radius, in member radii
     readonly hash?: string; // pasted shaders: SHA-256 of the text
 }
 
@@ -626,7 +627,7 @@ vec4 shade(NodeInput n) {
 
 Header keys: `id` (`<namespace>/<name>`, lowercase letters, digits and hyphens, at most 40 in
 all), `name` (the plain name), `kind`, `motion` (`ShaderMotion` or `"still"` / `"loop"`), `params`
-(the fields of `ShaderParamDescriptor`, as JSON), `reach`, `blend`, `form`, `bloom`, `requires`,
+(the fields of `ShaderParamDescriptor`, as JSON), `reach`, `reachParam`, `blend`, `form`, `bloom`, `requires`,
 `reads` (optional; inferred from the body), and `webgpu`:
 
 - `"translate"` (the default): the GLSL runs on the WebGPU renderer through the translation the
@@ -708,7 +709,11 @@ struct EdgeInput {
     float sinceChanged;
     float time;
 };
-struct BackgroundInput { vec2 uv; vec3 viewDir; vec2 resolution; float time; };
+struct BackgroundInput {
+    vec2 uv; vec3 viewDir; vec2 resolution; float time;
+    vec4 groupTint;      // the color of the largest boundary groups near this pixel (soft discs around
+                         //   the 4 largest groups on screen), alpha its weight; 0 with no boundary layer
+};
 struct BoundaryInput {
     vec2 uv;             // the pixel, 0..1 across the canvas
     float field;         // form "field": the members' summed density here (the element splats it)

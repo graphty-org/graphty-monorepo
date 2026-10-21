@@ -2080,6 +2080,7 @@ export interface ShaderDescriptor {
     readonly params: readonly ShaderParamDescriptor[];
     readonly plainName: string;
     readonly reach?: number;
+    readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
     readonly thumbnail?: string;

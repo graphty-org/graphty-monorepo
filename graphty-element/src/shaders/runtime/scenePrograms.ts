@@ -46,6 +46,15 @@ export const BOUNDARY_UNIFORMS = [
     "graphty_freeze",
 ] as const;
 
+/** How many boundary groups tint a background: the largest ones on screen. */
+export const BACKGROUND_TINTS = 4;
+
+/** Each tinting group's place (x, y on the canvas, -1..1; its radius in canvas heights; its weight). */
+export const TINT_UNIFORMS = Array.from({ length: BACKGROUND_TINTS }, (_, i) => `graphty_tint${String(i)}`);
+
+/** Each tinting group's color. */
+export const TINT_COLOR_UNIFORMS = Array.from({ length: BACKGROUND_TINTS }, (_, i) => `graphty_tintColor${String(i)}`);
+
 /** The splat program's instanced attributes. */
 export const SPLAT_ATTRIBUTES = [
     // the member's center in graph-root space, and its kernel radius
@@ -78,6 +87,7 @@ uniform vec3 graphty_eye;
 uniform vec2 graphty_resolution;
 uniform float graphty_freeze;
 uniform vec4 graphty_fallback;
+${[...TINT_UNIFORMS, ...TINT_COLOR_UNIFORMS].map((name) => `uniform vec4 ${name};`).join("\n")}
 varying vec2 vUV;
 ${paramDeclarations(params)}
 #line 1
@@ -94,6 +104,21 @@ ${mainPrelude(params)}
     graphty_in.viewDir = normalize(graphty_b.xyz / graphty_b.w - graphty_eye);
     graphty_in.resolution = graphty_resolution;
     graphty_in.time = graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x;
+    // The largest boundary groups' colors, each a soft disc around its group on the canvas.
+    vec3 graphty_tint = vec3(0.0);
+    float graphty_tintWeight = 0.0;
+    vec2 graphty_aspect = vec2(graphty_resolution.x / max(graphty_resolution.y, 1.0), 1.0);
+${TINT_UNIFORMS.map(
+    (name, i) => `    {
+        vec2 d = (graphty_ndc - ${name}.xy) * graphty_aspect;
+        float w = ${name}.w * exp(-dot(d, d) / max(${name}.z * ${name}.z, 1e-4));
+        graphty_tint += ${TINT_COLOR_UNIFORMS[i]}.rgb * w;
+        graphty_tintWeight += w;
+    }`,
+).join("\n")}
+    graphty_in.groupTint = graphty_tintWeight > 0.0
+        ? vec4(graphty_tint / graphty_tintWeight, clamp(graphty_tintWeight, 0.0, 1.0))
+        : vec4(0.0);
     vec4 graphty_out = graphty_u_shade(graphty_in);
     if (graphty_bad(graphty_out)) {
         graphty_out = graphty_fallback;
@@ -113,6 +138,8 @@ ${mainPrelude(params)}
             "graphty_resolution",
             "graphty_freeze",
             "graphty_fallback",
+            ...TINT_UNIFORMS,
+            ...TINT_COLOR_UNIFORMS,
             ...params.map((param) => `graphty_p_${param.name}`),
         ],
         uniformBuffers: [SCENE_BLOCK],

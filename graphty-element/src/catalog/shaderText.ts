@@ -74,6 +74,7 @@ const HEADER_KEYS: ReadonlySet<string> = new Set([
     "motion",
     "params",
     "reach",
+    "reachParam",
     "blend",
     "form",
     "bloom",
@@ -508,6 +509,16 @@ function finishDescriptor(
         extras[key] = raw[key];
     }
 
+    const { reachParam } = raw;
+    if (reachParam !== undefined) {
+        const named = params.find((param) => param.name === reachParam);
+        if (named === undefined || (named.type !== "number" && named.type !== "integer")) {
+            return [{ code: "shader.header-key", params: { key: "reachParam" } }];
+        }
+
+        extras.reachParam = reachParam;
+    }
+
     return {
         id,
         plainName:
@@ -755,7 +766,7 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         header.motion = motion;
     }
 
-    for (const key of ["reach", "blend", "form", "bloom", "requires", "reads", "webgpu"] as const) {
+    for (const key of ["reach", "reachParam", "blend", "form", "bloom", "requires", "reads", "webgpu"] as const) {
         if (descriptor[key] !== undefined) {
             header[key] = descriptor[key];
         }

@@ -5656,9 +5656,9 @@ export class RenderManager implements Manager {
 // @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
+    readonly heavy: "on" | "off";
     readonly level: "low" | "medium" | "high";
     readonly motion: "on" | "half" | "paused" | "still";
-    readonly pasted: "on" | "off";
 }
 
 // @public

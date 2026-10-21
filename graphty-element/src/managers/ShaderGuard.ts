@@ -14,11 +14,12 @@
  * a slow GPU shows as a long wait and the fence has always signalled by then. A slow frame spent
  * in the loop's own work is the CPU's -- a 10,000-node layout step -- and changes nothing. The
  * ladder, one rung per second of GPU-bound frames over 50 ms measured while a shader holds a motion
- * claim: high, medium, low, loops at half rate, pasted shaders off, all shader motion paused. A
- * GPU-bound frame over 250 ms with a pasted shader on screen turns pasted shaders off at once --
+ * claim: high, medium, low, loops at half rate, heavy shaders off, all shader motion paused. A
+ * GPU-bound frame over 250 ms with a heavy shader on screen turns heavy shaders off at once --
  * one the fence held, or two waits in a row, since one long wait can be the page's own script --
- * and they stay off until the settings change. After a sustained run of fast frames the guard steps
- * back up one rung, never above the setting.
+ * and they stay off until the settings change. A shader is judged by its cost and its motion, never
+ * by where it came from: a heavy preset steps off exactly as a heavy pasted shader does. After a
+ * sustained run of fast frames the guard steps back up one rung, never above the setting.
  *
  * Also here: the render-target memory budget, the level-of-detail choice, and the flashing check
  * (a 16 x 16 downsample of the canvas read back asynchronously, WCAG 2.3.1).
@@ -60,7 +61,7 @@ export const SLOW_FRAME_MS = 50;
 /** How long the slow frames must last before one step down, in milliseconds. */
 export const STEP_DOWN_AFTER_MS = 1000;
 
-/** One frame this long, the GPU behind and a pasted shader on screen, turns pasted shaders off. */
+/** One frame this long, the GPU behind and a heavy shader on screen, turns heavy shaders off. */
 export const LONG_FRAME_MS = 250;
 
 /** A frame the GPU kept up with, drawn within this, is fast (a 30 Hz display's frames count). */
@@ -86,14 +87,14 @@ export const LOW_DETAIL_BELOW_PX = 12;
 const RUNGS: readonly {
     readonly level: QualityLevel;
     readonly motion: "on" | "half" | "paused";
-    readonly pasted: "on" | "off";
+    readonly heavy: "on" | "off";
 }[] = [
-    { level: "high", motion: "on", pasted: "on" },
-    { level: "medium", motion: "on", pasted: "on" },
-    { level: "low", motion: "on", pasted: "on" },
-    { level: "low", motion: "half", pasted: "on" },
-    { level: "low", motion: "half", pasted: "off" },
-    { level: "low", motion: "paused", pasted: "off" },
+    { level: "high", motion: "on", heavy: "on" },
+    { level: "medium", motion: "on", heavy: "on" },
+    { level: "low", motion: "on", heavy: "on" },
+    { level: "low", motion: "half", heavy: "on" },
+    { level: "low", motion: "half", heavy: "off" },
+    { level: "low", motion: "paused", heavy: "off" },
 ];
 
 /** One frame drawn, as `RenderManager` measured it. */
@@ -114,10 +115,10 @@ export interface FrameSample {
 export interface GuardSources {
     /** Whether a shader holds a motion claim, so the loop draws every frame because of shaders. */
     claimed(): boolean;
-    /** Whether a pasted shader is drawn now. */
-    pastedOnScreen(): boolean;
-    /** The text hashes of the pasted shaders drawn now that move by themselves and are not frozen. */
-    movingPasted(): readonly string[];
+    /** Whether a heavy shader (cost `"heavy"`, any origin) is drawn now. */
+    heavyOnScreen(): boolean;
+    /** The text hashes of the shaders drawn now, of any origin, that move by themselves and are not frozen. */
+    movingShaders(): readonly string[];
     /**
      * Freeze shaders' time because the canvas flashed while they drew.
      * @param hashes - Their text hashes.
@@ -131,8 +132,8 @@ export class ShaderGuard {
     private systemStill = false;
     private start = 0;
     private rung = 0;
-    /** Set by one long frame with a pasted shader on screen; lifted when the settings change. */
-    private pastedBanned = false;
+    /** Set by one long frame with a heavy shader on screen; lifted when the settings change. */
+    private heavyBanned = false;
     private slowRun = 0;
     private fastRun = 0;
     private stepUpAfter = STEP_UP_AFTER_MS;
@@ -169,12 +170,12 @@ export class ShaderGuard {
     }
 
     /**
-     * The pasted shaders drawn now that move by themselves and are not frozen, for the flashing
-     * check.
+     * The shaders drawn now, of any origin, that move by themselves and are not frozen, for the
+     * flashing check.
      * @returns Their text hashes.
      */
-    movingPasted(): readonly string[] {
-        return this.sources?.movingPasted() ?? [];
+    movingShaders(): readonly string[] {
+        return this.sources?.movingShaders() ?? [];
     }
 
     /**
@@ -187,14 +188,14 @@ export class ShaderGuard {
 
     /**
      * Draw by the reader's settings. Starts the ladder again at the setting's level and lifts a
-     * long frame's ban on pasted shaders.
+     * long frame's ban on heavy shaders.
      * @param settings - The settings.
      */
     configure(settings: HostRenderSettings): void {
         this.settings = settings;
         this.start = RUNGS.findIndex((rung) => rung.level === settings.quality);
         this.rung = this.start;
-        this.pastedBanned = false;
+        this.heavyBanned = false;
         this.code = undefined;
         this.resetRuns();
         this.stepUpAfter = STEP_UP_AFTER_MS;
@@ -287,8 +288,8 @@ export class ShaderGuard {
         const longWait = waitMs > LONG_FRAME_MS;
         const long = (gpuBehind && intervalMs > LONG_FRAME_MS) || (longWait && this.lastLongWait);
         this.lastLongWait = longWait;
-        if (long && !this.pastedBanned && sources.pastedOnScreen()) {
-            this.pastedBanned = true;
+        if (long && !this.heavyBanned && sources.heavyOnScreen()) {
+            this.heavyBanned = true;
             this.resetRuns();
             this.step("guard.long-frame");
         } else if ((gpuBehind && intervalMs > SLOW_FRAME_MS) || waitMs > SLOW_FRAME_MS) {
@@ -369,7 +370,7 @@ export class ShaderGuard {
      * @param code - Why.
      */
     private step(code: RenderQualityCode): void {
-        this.code = this.rung === this.start && !this.pastedBanned ? undefined : code;
+        this.code = this.rung === this.start && !this.heavyBanned ? undefined : code;
         this.update(code);
     }
 
@@ -380,7 +381,7 @@ export class ShaderGuard {
     private update(code: RenderQualityCode | null): void {
         const from = this.current;
         const to = this.compute();
-        if (from.level === to.level && from.motion === to.motion && from.pasted === to.pasted) {
+        if (from.level === to.level && from.motion === to.motion && from.heavy === to.heavy) {
             return;
         }
 
@@ -399,11 +400,11 @@ export class ShaderGuard {
         const rung = RUNGS[this.rung];
         const still = this.settings.motion === "off" || (this.settings.motion === "system" && this.systemStill);
         const motion = still ? "still" : rung.motion;
-        const pasted = this.pastedBanned ? "off" : rung.pasted;
+        const heavy = this.heavyBanned ? "off" : rung.heavy;
         return Object.freeze({
             level: rung.level,
             motion,
-            pasted,
+            heavy,
             ...(this.code === undefined ? {} : { code: this.code }),
         });
     }
@@ -599,7 +600,7 @@ const FLASH_IN_FLIGHT = 3;
  * a pixel buffer, and fenced; the bytes are fetched on a later frame, once the fence signalled.
  * Up to {@link FLASH_IN_FLIGHT} captures wait at once, each in its own buffer.
  *
- * ponytail: WebGL 2 only; on WebGPU pasted shaders are not checked for flashing. A mapAsync
+ * ponytail: WebGL 2 only; on WebGPU shaders are not checked for flashing. A mapAsync
  * readback of the swap chain would add it.
  */
 export class FlashReadback {

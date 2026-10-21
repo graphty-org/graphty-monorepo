@@ -48,6 +48,8 @@ interface RegisteredShader {
     readonly given: { readonly cost: boolean; readonly reads: boolean; readonly motion: boolean };
     /** The bodies, once loaded and checked. */
     loaded?: Promise<LoadedShaderSource>;
+    /** The same bodies, once that promise has settled, for callers that cannot wait. */
+    ready?: LoadedShaderSource;
     /** Why a loaded body was refused, once it was. */
     failed?: ShaderProblem;
 }
@@ -332,11 +334,12 @@ async function loadEntry(entry: RegisteredShader): Promise<LoadedShaderSource> {
         checkBody(descriptor.id, "lowDetail", lowDetail, descriptor);
     }
 
-    return {
+    entry.ready = {
         glsl,
         ...(entry.wgsl === undefined ? {} : { wgsl: entry.wgsl }),
         ...(lowDetail === undefined ? {} : { lowDetail }),
     };
+    return entry.ready;
 }
 
 /**
@@ -361,6 +364,25 @@ export function loadShaderSource(id: string): Promise<LoadedShaderSource> | unde
         throw error;
     });
     return entry.loaded;
+}
+
+/**
+ * A registered shader's bodies without waiting: given as strings, or loaded already.
+ * @param id - The id.
+ * @returns The bodies, or undefined when a loader has not run yet or no registration has that id.
+ */
+export function shaderSourceNow(id: string): LoadedShaderSource | undefined {
+    const entry = builtIns.get(id) ?? registry.byId(id);
+    if (entry === undefined || entry.ready !== undefined) {
+        return entry?.ready;
+    }
+
+    const { glsl, lowDetail, wgsl } = entry;
+    if (typeof glsl !== "string" || (lowDetail !== undefined && typeof lowDetail !== "string")) {
+        return undefined;
+    }
+
+    return { glsl, ...(wgsl === undefined ? {} : { wgsl }), ...(lowDetail === undefined ? {} : { lowDetail }) };
 }
 
 /**

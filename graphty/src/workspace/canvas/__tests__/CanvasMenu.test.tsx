@@ -50,7 +50,7 @@ function standIn(
         layout: { dimension: "3d" },
     } as unknown as GraphSession;
     const element = {
-        renderQuality: { level: "high", motion, pasted: "on" },
+        renderQuality: { level: "high", motion, heavy: "on" },
         elementAt: () => {
             if (hit === null) {
                 return null;

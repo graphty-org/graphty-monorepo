@@ -23,6 +23,7 @@ import {
     shaderDescriptor,
     shaderDescriptors,
     shaderLoadProblem,
+    shaderSourceNow,
 } from "../catalog/shaderRegistry";
 import {
     drawingOf,
@@ -47,6 +48,12 @@ import type { SessionEventMap } from "./types";
 
 /** The most shaders one project holds. */
 export const PROJECT_SHADER_LIMIT = 64;
+
+/** The side of a drawn thumbnail, in pixels. */
+export const SHADER_THUMBNAIL_SIZE = 128;
+
+/** The time a thumbnail is drawn at when the shader's preview names none, in seconds. */
+const THUMBNAIL_TIME = 0.8;
 
 /**
  * What a shader of the project is doing now.
@@ -211,13 +218,25 @@ export interface SessionShaders {
      */
     approve(id: string): Promise<ShaderAddResult>;
     /**
-     * A still picture of the shader on a sample node, edge or patch, drawn in this element's
-     * engine. Refused with `E_UNSUPPORTED` with no canvas, or for a held shader.
+     * A still picture of a shader, for a gallery tile or a row. A shader that supplies
+     * `descriptor.thumbnail` (every preset does, and any registrant may) gets that picture, never
+     * drawn again; a project's own text is always drawn. Any other is drawn in this element's engine, framed by what it draws on: a node
+     * look fills 80% of the tile, a card is the card, an effect reaches around a small gray node,
+     * an edge is one curved edge between two dots, a group outline goes around five dots, and a
+     * background fills the tile. The parameters and the time come from `descriptor.preview`, under
+     * `params`. The element caches each picture by the shader's text, the values, the size and the
+     * canvas color, so asking again draws nothing.
+     *
+     * Nothing is drawn, and the code never runs, for a shader that is held (`shader.held`), turned
+     * off after the GPU was lost under it (`shader.quarantined`) or failed (its problem), or when
+     * there is no canvas (`shader.no-canvas`): the result is then that coded fact, for the
+     * application to show a neutral tile.
      * @param id - Any shader the catalog lists.
-     * @param params - Parameter values over its defaults.
-     * @returns A PNG.
+     * @param params - Parameter values over its preview's and its defaults.
+     * @returns The picture (a PNG when drawn), or why there is none.
+     * @throws A `GraphtyError` with `E_UNKNOWN_SHADER` for an id nothing holds.
      */
-    thumbnail(id: string, params?: ShaderParams): Promise<Blob>;
+    thumbnail(id: string, params?: ShaderParams): Promise<Blob | ShaderProblem>;
 }
 
 /**
@@ -244,7 +263,7 @@ export interface ShaderSettings {
 /**
  * Why the render quality is not what the settings ask for: the frame guard stepped it down
  * after a second of slow frames the GPU was behind on (`guard.slow-gpu`), paused shader motion
- * at the bottom of its ladder (`guard.paused`), turned pasted shaders off after one very long
+ * at the bottom of its ladder (`guard.paused`), turned heavy shaders off after one very long
  * frame drawn with one on screen (`guard.long-frame`), or stepped back up after a run of fast
  * frames (`guard.recovered`).
  *
@@ -267,8 +286,11 @@ export interface RenderQuality {
      * still (the reader's `motion` setting or the platform's reduced-motion preference).
      */
     readonly motion: "on" | "half" | "paused" | "still";
-    /** Whether shaders pasted into the project draw; presets and registered shaders always do. */
-    readonly pasted: "on" | "off";
+    /**
+     * Whether heavy shaders (cost `"heavy"`) draw, whatever their origin: presets, registered
+     * and pasted shaders alike. The guard's lowest steps turn them off.
+     */
+    readonly heavy: "on" | "off";
     /** Why it differs from the settings; absent when it does not. */
     readonly code?: RenderQualityCode;
 }
@@ -303,8 +325,8 @@ export interface HostShader {
     readonly registration: LoadedRegistration;
     /** The 1-based line of the text its body starts on, so a driver's line maps back. */
     readonly bodyLine: number;
-    /** Whether it was pasted into the project, rather than a preset or a registered shader. */
-    readonly pasted?: boolean;
+    /** Whether it costs `"heavy"`, so the frame guard's lowest steps turn it off. */
+    readonly heavy?: boolean;
 }
 
 /**
@@ -326,12 +348,15 @@ export interface ShaderHost {
      */
     check(shader: HostShader): Promise<ShaderProblem | null>;
     /**
-     * Draw a still picture of a shader.
+     * Draw a still picture of a shader, framed by what it draws on.
      * @param shader - The shader.
      * @param params - Parameter values over its defaults.
+     * @param time - The time of the frame, in seconds.
      * @returns A PNG.
      */
-    thumbnail(shader: HostShader, params: ShaderParams): Promise<Blob>;
+    thumbnail(shader: HostShader, params: ShaderParams, time: number): Promise<Blob>;
+    /** The canvas color the pictures are drawn against, so a cached one is not reused on another. */
+    readonly theme?: string;
     /**
      * Draw by the reader's settings: the quality level, motion and the frame guard.
      * @param settings - The settings, `"auto"` resolved.
@@ -600,15 +625,26 @@ function applyTargetProblem(spec: LayerSpec, layer: LayerId, drawsOn: ShaderTarg
  * @param glsl - Its body.
  * @param id - The id to write.
  * @param params - Values to write as defaults; a name it does not declare, or a value of another type, is skipped.
+ * @param lowDetail - Its low-detail body, written as `shadeFar`.
  * @returns The text.
  */
-function copyText(descriptor: ShaderDescriptor, glsl: string, id: string, params: ShaderParams): ShaderText {
+function copyText(
+    descriptor: ShaderDescriptor,
+    glsl: string,
+    id: string,
+    params: ShaderParams,
+    lowDetail?: string,
+): ShaderText {
     const { origin: _origin, hash: _hash, thumbnail: _thumbnail, ...facts } = descriptor;
     const defaults = facts.params.map((param) => {
         const value = Object.hasOwn(params, param.name) ? params[param.name] : undefined;
         return value !== undefined && typeof value === typeof param.default ? { ...param, default: value } : param;
     });
-    return formatShaderText({ descriptor: { ...facts, id, params: defaults }, glsl });
+    return formatShaderText({
+        descriptor: { ...facts, id, params: defaults },
+        glsl,
+        ...(lowDetail === undefined ? {} : { lowDetail }),
+    });
 }
 
 /**
@@ -658,6 +694,10 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     const published = new Map<string, string>();
     /** The ids last seen held, so `shader:held` names only newcomers. */
     let heldBefore = new Set<string>();
+    /** The text hash of each preset and registered shader drawn, by id: what the guard sees of it. */
+    const catalogHashes = new Map<string, string>();
+    /** The thumbnails drawn or supplied, by what they show (see `thumbnailKey`). */
+    const thumbnails = new Map<string, Promise<Blob | ShaderProblem>>();
 
     let host: ShaderHost | null = null;
     let stopLost: (() => void) | null = null;
@@ -789,6 +829,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 approved.add(sha256Hex(text));
             }
         },
+        embedded: (layers) => registeredTexts(layers),
+        pageOwns: (id) => !state().shaders.has(id) && shaderDescriptor(id)?.origin === "registered",
     });
 
     /**
@@ -858,9 +900,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "failed", problem: result };
         }
 
-        return (
-            drawnStatusOf(shader.descriptor, shader.hash, true) ?? noDataStatus(shader.descriptor) ?? { state: "ready" }
-        );
+        return drawnStatusOf(shader.descriptor, shader.hash) ?? noDataStatus(shader.descriptor) ?? { state: "ready" };
     };
 
     /**
@@ -883,24 +923,24 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
-     * How a shader that may draw is drawn now: off by the frame guard (pasted shaders only),
-     * frozen because it flashed, or still because motion is paused or switched off.
+     * How a shader that may draw is drawn now, decided by its cost and its motion, never by where
+     * it came from: off by the frame guard (heavy shaders), frozen because it flashed, or still
+     * because motion is paused or switched off.
      * @param descriptor - The shader's facts.
      * @param hash - Its text hash.
-     * @param pasted - Whether it is one of the project's own.
      * @returns The status, or null when it draws as it was written.
      */
-    const drawnStatusOf = (descriptor: ShaderDescriptor, hash: string, pasted: boolean): ShaderStatus | null => {
+    const drawnStatusOf = (descriptor: ShaderDescriptor, hash: string): ShaderStatus | null => {
         if (host === null) {
             return null;
         }
 
         const { quality } = host;
-        if (pasted && quality.pasted === "off") {
+        if (descriptor.cost === "heavy" && quality.heavy === "off") {
             return { state: "off", problem: { code: "shader.guard-off", params: { level: quality.level } } };
         }
 
-        if (pasted && host.flashing.has(hash)) {
+        if (host.flashing.has(hash)) {
             return { state: "still", problem: { code: "shader.flashing", params: { id: descriptor.id } } };
         }
 
@@ -917,6 +957,55 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
         return null;
     };
+
+    /**
+     * What a preset or a registered shader is doing: failed to load, off after the GPU was lost
+     * under it, or drawn as {@link drawnStatusOf} says.
+     * @param descriptor - Its facts.
+     * @returns Its status.
+     */
+    const catalogStatus = (descriptor: ShaderDescriptor): ShaderStatus => {
+        const failed = shaderLoadProblem(descriptor.id);
+        if (failed !== undefined) {
+            return { state: "failed", problem: failed };
+        }
+
+        const hash = catalogHashes.get(descriptor.id);
+        if (hash !== undefined && quarantined.has(hash)) {
+            return { state: "off", problem: { code: "shader.quarantined", params: { id: descriptor.id } } };
+        }
+
+        const drawn = host === null ? null : drawnStatusOf(descriptor, hash ?? "");
+        return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
+    };
+
+    /**
+     * The text of every page-registered shader the layers name, so a saved look carries it.
+     * ponytail: a registration whose body is a loader is carried once that body has loaded (the
+     * first time it draws); its load is started here, so the next save has it.
+     * @param layers - The layers being saved.
+     * @returns The ids and texts.
+     */
+    function registeredTexts(layers: readonly LayerSpec[]): { readonly id: string; readonly text: string }[] {
+        const texts: { id: string; text: string }[] = [];
+        const ids = new Set(layers.flatMap((layer) => [...idsNamedBy(layer)]));
+        for (const id of ids) {
+            const descriptor = state().shaders.has(id) ? undefined : shaderDescriptor(id);
+            if (descriptor?.origin !== "registered") {
+                continue;
+            }
+
+            const source = shaderSourceNow(id);
+            if (source === undefined) {
+                void loadShaderSource(id)?.catch(() => undefined);
+            } else if (source.wgsl === undefined) {
+                // A native WGSL body cannot be written as text, the one documented exception.
+                texts.push({ id, text: copyText(descriptor, source.glsl, id, {}, source.lowDetail) });
+            }
+        }
+
+        return texts;
+    }
 
     /**
      * Start compiling one project shader when it may run (a host, a trusted text, not quarantined)
@@ -938,8 +1027,22 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     }
 
     /**
+     * Publish a shader's status when it changed.
+     * @param id - The shader.
+     * @param status - Its status now.
+     */
+    function publishStatus(id: string, status: ShaderStatus): void {
+        const key = JSON.stringify(status);
+        if (published.get(id) !== key) {
+            published.set(id, key);
+            publish("shader:status", { id, ...status });
+        }
+    }
+
+    /**
      * Bring every project shader's status up to date: start compiling the ones that may run,
-     * and publish what changed.
+     * and publish what changed -- for the presets and registered shaders drawn too, which the
+     * frame guard, the flashing check and a lost GPU turn off or freeze as they do pasted ones.
      */
     function refresh(): void {
         const held = new Set<string>();
@@ -956,15 +1059,18 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 held.add(id);
             }
 
-            const key = JSON.stringify(status);
-            if (published.get(id) !== key) {
-                published.set(id, key);
-                publish("shader:status", { id, ...status });
+            publishStatus(id, status);
+        }
+
+        for (const id of catalogHashes.keys()) {
+            const descriptor = ids.has(id) ? undefined : shaderDescriptor(id);
+            if (descriptor !== undefined) {
+                publishStatus(id, catalogStatus(descriptor));
             }
         }
 
         for (const id of published.keys()) {
-            if (!ids.has(id)) {
+            if (!ids.has(id) && !catalogHashes.has(id)) {
                 published.delete(id);
             }
         }
@@ -1395,13 +1501,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return { state: "failed", problem: { code: "shader.unknown", params: { id } } };
             }
 
-            const failed = shaderLoadProblem(id);
-            if (failed !== undefined) {
-                return { state: "failed", problem: failed };
-            }
-
-            const drawn = host === null ? null : drawnStatusOf(descriptor, "", false);
-            return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
+            return catalogStatus(descriptor);
         },
 
         availability(id) {
@@ -1458,39 +1558,94 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return passed(shader);
         },
 
-        async thumbnail(id, params = {}) {
-            if (host === null) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: "A shader's thumbnail is drawn on the element's canvas, and this session has none.",
-                    source: "style",
-                    details: { id, reason: "no-canvas" },
-                });
+        thumbnail(id, params = {}) {
+            const project = projectShader(id);
+            const descriptor = project?.descriptor ?? shaderDescriptor(id);
+            if (descriptor === undefined) {
+                return Promise.reject(
+                    unknownShader(id, [...state().shaders.keys(), ...shaderDescriptors().map((each) => each.id)]),
+                );
             }
 
-            const shader = projectShader(id);
-            if (shader !== undefined && !trusted(shader.hash)) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `The shader "${id}" is held, so it is not drawn until it is approved.`,
-                    source: "style",
-                    details: { id, code: "shader.held" },
-                });
+            // A supplied picture is the picture: fetched once, never drawn. Only the page's own
+            // shaders supply one; a project's text is drawn, so text that arrived in a file never
+            // makes the page fetch a URL it names.
+            if (project === undefined && descriptor.thumbnail !== undefined) {
+                return cached(`url\u0000${descriptor.thumbnail}`, () =>
+                    suppliedPicture(descriptor.thumbnail as string),
+                );
             }
 
-            // A catalog shader is read under its text's own `user/` id: a bare preset id is not one a
-            // pasted text may take, and the picture does not depend on the id.
-            const text = shader === undefined ? await api.source(id, { duplicate: true }) : undefined;
-            const drawn = shader ?? (text === undefined ? undefined : (readText(text) as ReadText));
-            if (drawn === undefined || Array.isArray(drawn)) {
-                throw unknownShader(id, []);
+            // Held, failed, or off for a reason other than the frame guard's (quarantined, or a body
+            // this renderer cannot run): its code is not run for a picture either.
+            const status = project === undefined ? catalogStatus(descriptor) : statusOf(project);
+            const refused =
+                status.state === "held" ||
+                status.state === "failed" ||
+                (status.state === "off" && status.problem?.code !== "shader.guard-off");
+            if (refused) {
+                return Promise.resolve(status.problem ?? { code: "shader.held", params: { id } });
             }
 
-            return host.thumbnail(
-                { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
-                params,
-            );
+            const drawer = host;
+            if (drawer === null) {
+                return Promise.resolve({ code: "shader.no-canvas", params: { id } });
+            }
+
+            const values = { ...descriptor.preview?.params, ...params };
+            const time = descriptor.preview?.time ?? THUMBNAIL_TIME;
+            return drawnFor(id, project).then((drawn) => {
+                const key = [drawn.hash, SHADER_THUMBNAIL_SIZE, drawer.theme ?? "", time, stableJson(values)].join(
+                    "\u0000",
+                );
+                return cached(key, () =>
+                    drawer.thumbnail(
+                        { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
+                        values,
+                        time,
+                    ),
+                );
+            });
         },
+    };
+
+    /**
+     * A thumbnail from the cache, or made once and kept; one that fails is forgotten, so asking
+     * again tries again.
+     * @param key - What it shows.
+     * @param make - Makes it.
+     * @returns The thumbnail.
+     */
+    const cached = (key: string, make: () => Promise<Blob | ShaderProblem>): Promise<Blob | ShaderProblem> => {
+        let made = thumbnails.get(key);
+        if (made === undefined) {
+            made = make();
+            thumbnails.set(key, made);
+            made.catch(() => thumbnails.delete(key));
+        }
+
+        return made;
+    };
+
+    /**
+     * The shader a thumbnail draws: a project shader as the project holds it; a preset or a
+     * registered shader read from its text under its own `user/` id, since a bare preset id is not
+     * one a text may take and the picture does not depend on the id.
+     * @param id - The shader.
+     * @param project - It, when the project holds it.
+     * @returns It, read.
+     */
+    const drawnFor = async (id: string, project: ReadText | undefined): Promise<ReadText> => {
+        if (project !== undefined) {
+            return project;
+        }
+
+        const read = readText(await api.source(id, { duplicate: true }));
+        if (Array.isArray(read)) {
+            throw unknownShader(id, []);
+        }
+
+        return read as ReadText;
     };
 
     const controller: ShadersController = {
@@ -1514,13 +1669,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     refresh();
                 });
                 const stopLostOnly = next.onLost((hashes) => {
-                    // Only pasted texts are quarantined: presets and registered shaders are the
-                    // page's own code, and turning them off would not make the page safer.
-                    const pasted = new Set([...state().shaders.keys()].map((id) => projectShader(id)?.hash));
+                    // Every shader drawn when the GPU was lost is turned off, whatever its origin:
+                    // a preset can hang a driver as surely as a pasted text. A project shader comes
+                    // back with `approve`; a preset or a registered shader with the next page.
                     for (const hash of hashes) {
-                        if (pasted.has(hash)) {
-                            quarantined.add(hash);
-                        }
+                        quarantined.add(hash);
                     }
 
                     // The context comes back without any compiled program.
@@ -1552,7 +1705,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const motion = settings.motion === "off" ? "still" : "on";
-            return Object.freeze({ level: qualityOf(settings), motion, pasted: "on" });
+            return Object.freeze({ level: qualityOf(settings), motion, heavy: "on" });
         },
         get host() {
             return host;
@@ -1570,7 +1723,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                           hash: project.hash,
                           registration: project.registration,
                           bodyLine: project.bodyLine,
-                          pasted: true,
+                          heavy: project.descriptor.cost === "heavy",
                       }
                     : null;
             }
@@ -1588,11 +1741,24 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const { glsl, lowDetail } = source;
+            const hash = sha256Hex(`${id}\n${glsl}`);
+            catalogHashes.set(id, hash);
+            const now = catalogStatus(descriptor);
+            // Recorded as published, so the first refresh after it does not announce it again.
+            if (!published.has(id)) {
+                published.set(id, JSON.stringify(now));
+            }
+
+            if (now.state === "off" || now.state === "failed") {
+                return null;
+            }
+
             return {
                 id,
-                hash: sha256Hex(`${id}\n${glsl}`),
+                hash,
                 registration: { descriptor, glsl, ...(lowDetail === undefined ? {} : { lowDetail }) },
                 bodyLine: 1,
+                heavy: descriptor.cost === "heavy",
             };
         },
         descriptors() {
@@ -1610,6 +1776,38 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     return controller;
+}
+
+/**
+ * A value as JSON with its keys sorted, so two equal parameter sets key one cache entry.
+ * @param values - The values.
+ * @returns The JSON.
+ */
+function stableJson(values: ShaderParams): string {
+    return JSON.stringify(
+        Object.keys(values)
+            .sort()
+            .map((key) => [key, values[key]]),
+    );
+}
+
+/**
+ * A picture a shader supplied, fetched.
+ * @param url - Its URL.
+ * @returns The picture.
+ */
+async function suppliedPicture(url: string): Promise<Blob> {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new GraphtyError({
+            code: "E_FETCH_FAILED",
+            message: `The shader's thumbnail at ${url} could not be fetched (${String(response.status)}).`,
+            source: "style",
+            details: { url, status: response.status },
+        });
+    }
+
+    return response.blob();
 }
 
 /**

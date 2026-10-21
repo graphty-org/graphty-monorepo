@@ -333,14 +333,14 @@ export class BoundaryPass {
     }
 
     /**
-     * The pasted shaders drawn, for the frame guard and the flashing check.
-     * @returns Whether a pasted shader draws, and the moving ones' hashes.
+     * The shaders drawn, of any origin, for the frame guard and the flashing check.
+     * @returns Whether a heavy shader draws, and the moving ones' hashes.
      */
-    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
-        const pasted = this.placed.filter((placed) => placed.shader.pasted === true && placed.groups.length > 0);
+    guardedDrawn(): { readonly heavy: boolean; readonly moving: readonly string[] } {
+        const drawn = this.placed.filter((placed) => placed.groups.length > 0);
         return {
-            any: pasted.length > 0,
-            moving: pasted.filter((placed) => movesWith(placed)).map((placed) => placed.shader.hash),
+            heavy: drawn.some((placed) => placed.shader.heavy === true),
+            moving: drawn.filter((placed) => movesWith(placed)).map((placed) => placed.shader.hash),
         };
     }
 

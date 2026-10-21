@@ -39,7 +39,7 @@ import {
 } from "@babylonjs/core";
 
 import type { ShaderParamDescriptor, ShaderParams, ShaderProblem } from "../../catalog/shaders";
-import type { HostShader } from "../../session/shaders";
+import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
 import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
@@ -54,7 +54,7 @@ const TEST_SIZES = [4, 64, 256] as const;
 const TEST_TIMES = [0, 1.7, 13.3] as const;
 
 /** The thumbnail's size, in pixels. */
-const THUMBNAIL_SIZE = 128;
+const THUMBNAIL_SIZE = SHADER_THUMBNAIL_SIZE;
 
 /** How long a page must have been visible before a lost context counts against a shader. */
 const VISIBLE_WINDOW_MS = 2000;
@@ -151,12 +151,14 @@ export class ShaderRuntime {
     }
 
     /**
-     * Draw a still picture of a shader on its sample square.
+     * Draw a still picture of a shader on its sample square, framed by what it draws on (see
+     * `sampleProgram`).
      * @param shader - The shader.
      * @param params - Parameter values over its defaults.
+     * @param time - The time of the frame, in seconds.
      * @returns A PNG.
      */
-    thumbnail(shader: HostShader, params: ShaderParams): Promise<Blob> {
+    thumbnail(shader: HostShader, params: ShaderParams, time: number): Promise<Blob> {
         return this.enqueue(async () => {
             this.mark(shader.hash);
             try {
@@ -165,7 +167,7 @@ export class ShaderRuntime {
                     throw new Error(String(compiled.params.message));
                 }
 
-                return await this.picture(compiled, shader, params);
+                return await this.picture(compiled, shader, params, time);
             } finally {
                 this.calm(shader.hash);
             }
@@ -464,15 +466,16 @@ export class ShaderRuntime {
      * @param effect - The compiled program.
      * @param shader - The shader.
      * @param params - Parameter values over the defaults.
+     * @param time - The time, in seconds.
      * @returns A PNG.
      */
-    private async picture(effect: Effect, shader: HostShader, params: ShaderParams): Promise<Blob> {
+    private async picture(effect: Effect, shader: HostShader, params: ShaderParams, time: number): Promise<Blob> {
         const { target } = this.surface();
         const resting = this.uniforms.currentTime;
         let pixels: Uint8Array;
         try {
             this.engine.bindFramebuffer(target, undefined, undefined, undefined, true);
-            this.draw(effect, shader, THUMBNAIL_SIZE, params, 0.8);
+            this.draw(effect, shader, THUMBNAIL_SIZE, params, time);
             const read = await this.engine.readPixels(0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, false);
             pixels = new Uint8Array(read.buffer, read.byteOffset, read.byteLength);
             this.engine.unBindFramebuffer(target);

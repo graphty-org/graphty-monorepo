@@ -183,16 +183,16 @@ export class BackgroundPass {
     }
 
     /**
-     * The pasted shader drawn, for the frame guard and the flashing check.
-     * @returns Whether a pasted shader draws, and its hash when it moves.
+     * The shader drawn, of any origin, for the frame guard and the flashing check.
+     * @returns Whether it is heavy, and its hash when it moves.
      */
-    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
+    guardedDrawn(): { readonly heavy: boolean; readonly moving: readonly string[] } {
         const { shader } = this;
-        if (shader?.pasted !== true) {
-            return { any: false, moving: [] };
+        if (shader === null || shader === undefined) {
+            return { heavy: false, moving: [] };
         }
 
-        return { any: true, moving: this.moves() ? [shader.hash] : [] };
+        return { heavy: shader.heavy === true, moving: this.moves() ? [shader.hash] : [] };
     }
 
     /** Release the target, the layer, the program and the observer. */

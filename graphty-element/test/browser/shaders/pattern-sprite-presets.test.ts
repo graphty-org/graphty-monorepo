@@ -13,7 +13,12 @@ import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../src/catalog/shaderRegistry";
-import { drawingOf, type ShaderParamDescriptor, type ShaderParams } from "../../../src/catalog/shaders";
+import {
+    drawingOf,
+    type ShaderParamDescriptor,
+    type ShaderParams,
+    type ShaderProblem,
+} from "../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { operationQueueOf } from "../../../src/Graph";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
@@ -132,7 +137,8 @@ function pointOf(element: Graphty, id: string, radii: number): Point {
  * @param png - The image.
  * @returns Its pixels.
  */
-async function pixelsOf(png: Blob): Promise<Uint8ClampedArray> {
+async function pixelsOf(png: Blob | ShaderProblem): Promise<Uint8ClampedArray> {
+    assert.instanceOf(png, Blob, JSON.stringify(png));
     const bitmap = await createImageBitmap(png);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
@@ -180,8 +186,23 @@ vec4 shade(${input} n) {
     return bad ? vec4(1.0, 0.0, 1.0, 1.0) : c;
 }
 `;
-    const { origin: _origin, ...facts } = descriptor;
+    // Without the preset's own picture, so the thumbnail is drawn from the probe's code.
+    const { origin: _origin, thumbnail: _thumbnail, ...facts } = descriptor;
     registerShader({ descriptor: { ...facts, id }, glsl: wrapped });
+    return id;
+}
+
+/**
+ * Register a copy of a preset without its supplied picture, so its thumbnail is drawn.
+ * @param presetId - The preset.
+ * @returns The copy's id.
+ */
+function drawnCopyOf(presetId: string): string {
+    const preset = PATTERN_SPRITE_PRESETS.find((each) => each.descriptor.id === patternPresetId(presetId));
+    assert.isDefined(preset);
+    const { origin: _origin, thumbnail: _thumbnail, ...facts } = preset.descriptor;
+    const id = `copy/${presetId}`;
+    registerShader({ descriptor: { ...facts, id }, glsl: preset.body });
     return id;
 }
 
@@ -226,7 +247,7 @@ describe("the pattern, state and sprite presets, in the element's own sample pro
 
     it("draws the sticker's three finishes apart", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], []);
-        const id = patternPresetId("icon-sticker");
+        const id = drawnCopyOf("icon-sticker");
         const [none, shiny, holographic] = await Promise.all(
             ["none", "shiny", "holographic"].map(async (finish) =>
                 pixelsOf(await element.session.shaders.thumbnail(id, { finish })),

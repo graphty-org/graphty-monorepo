@@ -225,6 +225,7 @@ describe("shaders in the element's engine", () => {
         assert.isTrue(added.ok, JSON.stringify(added));
         assert.strictEqual(element.session.shaders.status("user/tint").state, "ready");
         const thumbnail = await element.session.shaders.thumbnail("user/tint");
+        assert.instanceOf(thumbnail, Blob);
         assert.strictEqual(thumbnail.type, "image/png");
         assert.isAbove(thumbnail.size, 100);
     });

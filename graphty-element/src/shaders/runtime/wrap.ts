@@ -369,8 +369,22 @@ const SAMPLE_FALLBACK: Readonly<Record<ShaderDrawing, string>> = {
     group: "vec4(0.0)",
 };
 
+/** A gray the sample's stand-in node and dots are drawn in, lit a little from the front. */
+const SAMPLE_GRAY = "vec4(vec3(0.62) * (0.6 + 0.4 * graphty_z), 1.0)";
+
+/** The sample's five group members, in the tile's 0..1 space. */
+const GROUP_MEMBERS = ["0.33, 0.42", "0.5, 0.33", "0.67, 0.44", "0.41, 0.6", "0.6, 0.62"] as const;
+
 /**
- * The statements of the sample `main` that fill the input for a drawing.
+ * The statements of the sample `main` that fill the input for a drawing, framed the way its
+ * thumbnail shows it (the test frame draws the same square):
+ *
+ * - a node look: one node filling 80% of the tile;
+ * - a card: the card, filling the tile;
+ * - a node effect: a small gray node, the frame reaching to the effect's reach (at least 1.5 radii);
+ * - an edge: one curved edge between two gray dots;
+ * - a group: the outline around five gray dots;
+ * - a background: the whole tile.
  * @param kind - The drawing.
  * @returns The GLSL.
  */
@@ -379,10 +393,18 @@ function sampleInput(kind: ShaderDrawing): string {
     switch (kind) {
         case "node-look":
         case "node-card":
-        case "node-effect":
+        case "node-effect": {
+            let frame = "1.0";
+            if (kind === "node-look") {
+                frame = "(1.0 / 0.8)";
+            } else if (kind === "node-effect") {
+                frame = "max(graphty_sampleReach, 1.5)";
+            }
+
             return `
     graphty_NodeInput graphty_in;
-    vec2 graphty_uv = (vUV * 2.0 - 1.0) * graphty_sampleReach;
+    float graphty_frame = ${frame};
+    vec2 graphty_uv = (vUV * 2.0 - 1.0) * graphty_frame;
     float graphty_r2 = dot(graphty_uv, graphty_uv);
     ${kind === "node-look" ? "if (graphty_r2 > 1.0) { gl_FragColor = vec4(0.0); return; }" : ""}
     float graphty_z = sqrt(max(1.0 - graphty_r2, 0.0));
@@ -392,7 +414,7 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.viewDir = vec3(0.0, 0.0, 1.0);
     graphty_in.color = graphty_sampleColor;
     graphty_in.size = 1.0;
-    graphty_in.pixelSize = graphty_sampleSize.x * 0.5 / graphty_sampleReach;
+    graphty_in.pixelSize = graphty_sampleSize.x * 0.5 / graphty_frame;
     graphty_in.seed = 0.37;
     graphty_in.selected = 0.0;
     graphty_in.hovered = 0.0;
@@ -404,17 +426,28 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.sinceExited = -1.0;
     graphty_in.sinceChanged = -1.0;
     graphty_in.time = ${time};`;
+        }
         case "edge-look":
         case "edge-effect":
+            // A circular arc from (0.16, 0.42) to (0.84, 0.42) about (0.5, 0.1), bowed upward.
             return `
     graphty_EdgeInput graphty_in;
-    graphty_in.t = vUV.x;
-    graphty_in.side = vUV.y * 2.0 - 1.0;
-    graphty_in.lengthPx = graphty_sampleSize.x;
-    graphty_in.widthPx = graphty_sampleSize.y;
+    vec2 graphty_d = vUV - vec2(0.5, 0.1);
+    float graphty_radius = length(vec2(0.34, 0.32));
+    float graphty_a0 = atan(0.32, -0.34);
+    float graphty_a1 = atan(0.32, 0.34);
+    float graphty_t = (graphty_a0 - atan(graphty_d.y, graphty_d.x)) / (graphty_a0 - graphty_a1);
+    float graphty_half = 0.045 * max(graphty_sampleReach, 1.0);
+    float graphty_side = (length(graphty_d) - graphty_radius) / graphty_half;
+    bool graphty_onEdge = graphty_t >= 0.0 && graphty_t <= 1.0 && abs(graphty_side) <= 1.0;
+    float graphty_z = 1.0;
+    graphty_in.t = clamp(graphty_t, 0.0, 1.0);
+    graphty_in.side = clamp(graphty_side, -1.0, 1.0);
+    graphty_in.lengthPx = graphty_radius * (graphty_a0 - graphty_a1) * graphty_sampleSize.x;
+    graphty_in.widthPx = 2.0 * graphty_half * graphty_sampleSize.x;
     graphty_in.sourceColor = graphty_sampleColor;
     graphty_in.targetColor = vec4(graphty_sampleColor.bgr, graphty_sampleColor.a);
-    graphty_in.color = mix(graphty_in.sourceColor, graphty_in.targetColor, vUV.x);
+    graphty_in.color = mix(graphty_in.sourceColor, graphty_in.targetColor, graphty_in.t);
     graphty_in.seed = 0.37;
     graphty_in.selected = 0.0;
     graphty_in.hovered = 0.0;
@@ -432,17 +465,22 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.resolution = graphty_sampleSize.xy;
     graphty_in.time = ${time};
     graphty_in.groupTint = vec4(0.0);`;
-        default:
+        default: {
+            const members = GROUP_MEMBERS.map((at, i) => `vec2 graphty_c${String(i)} = vec2(${at});`).join("\n    ");
+            const kernels = GROUP_MEMBERS.map(
+                (_, i) =>
+                    `vec2 graphty_d${String(i)} = vUV - graphty_c${String(i)}; float graphty_k${String(i)} = exp(-dot(graphty_d${String(i)}, graphty_d${String(i)}) * 60.0);`,
+            ).join("\n    ");
+            const sum = GROUP_MEMBERS.map((_, i) => `graphty_k${String(i)}`).join(" + ");
+            const gradient = GROUP_MEMBERS.map((_, i) => `graphty_d${String(i)} * graphty_k${String(i)}`).join(" + ");
             return `
     graphty_GroupInput graphty_in;
-    vec2 graphty_c0 = vec2(0.38, 0.45); vec2 graphty_c1 = vec2(0.62, 0.55); vec2 graphty_c2 = vec2(0.5, 0.32);
-    vec2 graphty_d0 = vUV - graphty_c0; vec2 graphty_d1 = vUV - graphty_c1; vec2 graphty_d2 = vUV - graphty_c2;
-    float graphty_k0 = exp(-dot(graphty_d0, graphty_d0) * 60.0);
-    float graphty_k1 = exp(-dot(graphty_d1, graphty_d1) * 60.0);
-    float graphty_k2 = exp(-dot(graphty_d2, graphty_d2) * 60.0);
+    ${members}
+    ${kernels}
+    float graphty_z = 1.0;
     graphty_in.uv = vUV;
-    graphty_in.field = graphty_k0 + graphty_k1 + graphty_k2;
-    graphty_in.fieldGradient = -120.0 * (graphty_d0 * graphty_k0 + graphty_d1 * graphty_k1 + graphty_d2 * graphty_k2);
+    graphty_in.field = ${sum};
+    graphty_in.fieldGradient = -120.0 * (${gradient});
     vec2 graphty_s = (vUV - vec2(0.5)) / 0.35;
     float graphty_sr = dot(graphty_s, graphty_s);
     graphty_in.normal = graphty_sr < 1.0 ? vec3(graphty_s, -sqrt(1.0 - graphty_sr)) : vec3(0.0);
@@ -451,6 +489,32 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.group = 0.0;
     graphty_in.depth = 0.0;
     graphty_in.time = ${time};`;
+        }
+    }
+}
+
+/**
+ * The statements after the shader ran that frame its result: the gray node under an effect's
+ * disc, the dots at an edge's ends, the group's members over its outline.
+ * @param kind - The drawing.
+ * @returns The GLSL.
+ */
+function sampleFinish(kind: ShaderDrawing): string {
+    switch (kind) {
+        case "node-effect":
+            return `    if (graphty_r2 < 1.0) { graphty_out = ${SAMPLE_GRAY}; }`;
+        case "edge-look":
+        case "edge-effect":
+            return `    if (!graphty_onEdge) { graphty_out = vec4(0.0); }
+    if (min(length(vUV - vec2(0.16, 0.42)), length(vUV - vec2(0.84, 0.42))) < 0.06) { graphty_out = ${SAMPLE_GRAY}; }`;
+        case "group": {
+            const near = GROUP_MEMBERS.map((_, i) => `length(graphty_d${String(i)})`).reduce(
+                (a, b) => `min(${a}, ${b})`,
+            );
+            return `    if (${near} < 0.035) { graphty_out = ${SAMPLE_GRAY}; }`;
+        }
+        default:
+            return "";
     }
 }
 
@@ -561,6 +625,7 @@ ${sampleInput(kind)}
     if (graphty_bad(graphty_out)) {
         graphty_out = ${SAMPLE_FALLBACK[kind]};
     }
+${sampleFinish(kind)}
 
     gl_FragColor = graphty_out;
 }

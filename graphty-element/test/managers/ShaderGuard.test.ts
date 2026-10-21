@@ -23,18 +23,18 @@ import type { RenderQualityChange } from "../../src/session/shaders";
  * @param options.quality - The setting's level.
  * @param options.guard - Whether the guard runs.
  * @param options.claimed - Whether a shader holds a motion claim.
- * @param options.pasted - Whether a pasted shader is on screen.
+ * @param options.heavy - Whether a pasted shader is on screen.
  * @returns The guard and the changes it announced.
  */
 function guarded(
-    options: { quality?: "low" | "medium" | "high"; guard?: boolean; claimed?: boolean; pasted?: boolean } = {},
+    options: { quality?: "low" | "medium" | "high"; guard?: boolean; claimed?: boolean; heavy?: boolean } = {},
 ): { guard: ShaderGuard; changes: (RenderQualityChange | null)[]; sources: GuardSources } {
     const guard = new ShaderGuard();
     guard.configure({ quality: options.quality ?? "high", motion: "on", guard: options.guard ?? true });
     const sources: GuardSources = {
         claimed: () => options.claimed ?? true,
-        pastedOnScreen: () => options.pasted ?? false,
-        movingPasted: () => [],
+        heavyOnScreen: () => options.heavy ?? false,
+        movingShaders: () => [],
         freeze: () => undefined,
     };
     guard.lend(sources);
@@ -74,7 +74,7 @@ describe("the frame guard", () => {
         frames(guard, 13, 80, true);
         assert.strictEqual(guard.quality.motion, "half", "at low, loops run at half rate");
         frames(guard, 13, 80, true);
-        assert.strictEqual(guard.quality.pasted, "off", "then pasted shaders turn off");
+        assert.strictEqual(guard.quality.heavy, "off", "then heavy shaders turn off");
         frames(guard, 13, 80, true);
         assert.strictEqual(guard.quality.motion, "paused", "then all shader motion pauses");
         assert.strictEqual(changes.at(-1)?.code, "guard.paused");
@@ -95,7 +95,7 @@ describe("the frame guard", () => {
     });
 
     it("changes nothing for slow frames spent in the loop's own work, however long", () => {
-        const { guard, changes } = guarded({ pasted: true });
+        const { guard, changes } = guarded({ heavy: true });
         for (let i = 0; i < 200; i++) {
             guard.frame({ intervalMs: 300, waitMs: 10, gpuBehind: false });
         }
@@ -103,20 +103,20 @@ describe("the frame guard", () => {
         assert.lengthOf(changes, 0);
     });
 
-    it("turns pasted shaders off after two long waits in a row, not after one", () => {
-        const { guard } = guarded({ pasted: true });
+    it("turns heavy shaders off after two long waits in a row, not after one", () => {
+        const { guard } = guarded({ heavy: true });
         guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
         guard.frame({ intervalMs: 16, waitMs: 6, gpuBehind: false });
-        assert.strictEqual(guard.quality.pasted, "on", "one long wait can be the page's own script");
+        assert.strictEqual(guard.quality.heavy, "on", "one long wait can be the page's own script");
         guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
         guard.frame({ intervalMs: 300, waitMs: 290, gpuBehind: false });
-        assert.strictEqual(guard.quality.pasted, "off");
+        assert.strictEqual(guard.quality.heavy, "off");
     });
 
     it("changes nothing for slow frames the GPU kept up with: a CPU-bound layout", () => {
         const { guard, changes } = guarded();
         frames(guard, 200, 80, false);
-        assert.deepEqual({ ...guard.quality }, { level: "high", motion: "on", pasted: "on" });
+        assert.deepEqual({ ...guard.quality }, { level: "high", motion: "on", heavy: "on" });
         assert.lengthOf(changes, 0);
     });
 
@@ -126,35 +126,35 @@ describe("the frame guard", () => {
         assert.lengthOf(changes, 0);
     });
 
-    it("turns pasted shaders off at once on one 300 ms frame with one on screen, until the settings change", () => {
-        const { guard, changes } = guarded({ pasted: true });
+    it("turns heavy shaders off at once on one 300 ms frame with one on screen, until the settings change", () => {
+        const { guard, changes } = guarded({ heavy: true });
         guard.frame({ intervalMs: 300, gpuBehind: true });
-        assert.strictEqual(guard.quality.pasted, "off");
-        assert.strictEqual(guard.quality.level, "high", "only pasted shaders turn off");
+        assert.strictEqual(guard.quality.heavy, "off");
+        assert.strictEqual(guard.quality.level, "high", "only heavy shaders turn off");
         assert.strictEqual(changes[0]?.code, "guard.long-frame");
 
         frames(guard, 1000, 16, false);
-        assert.strictEqual(guard.quality.pasted, "off", "fast frames do not bring them back");
+        assert.strictEqual(guard.quality.heavy, "off", "fast frames do not bring them back");
 
         guard.configure({ quality: "high", motion: "on", guard: true });
-        assert.strictEqual(guard.quality.pasted, "on");
+        assert.strictEqual(guard.quality.heavy, "on");
     });
 
-    it("leaves pasted shaders on for a long frame with none on screen, or one the CPU spent", () => {
-        const none = guarded({ pasted: false });
+    it("leaves heavy shaders on for a long frame with none on screen, or one the CPU spent", () => {
+        const none = guarded({ heavy: false });
         none.guard.frame({ intervalMs: 300, gpuBehind: true });
-        assert.strictEqual(none.guard.quality.pasted, "on");
-        const cpu = guarded({ pasted: true });
+        assert.strictEqual(none.guard.quality.heavy, "on");
+        const cpu = guarded({ heavy: true });
         cpu.guard.frame({ intervalMs: 300, gpuBehind: false });
-        assert.strictEqual(cpu.guard.quality.pasted, "on");
+        assert.strictEqual(cpu.guard.quality.heavy, "on");
     });
 
     it("changes nothing with guard: false", () => {
-        const { guard, changes } = guarded({ guard: false, pasted: true });
+        const { guard, changes } = guarded({ guard: false, heavy: true });
         guard.frame({ intervalMs: 300, gpuBehind: true });
         frames(guard, 200, 80, true);
         assert.lengthOf(changes, 0);
-        assert.deepEqual({ ...guard.quality }, { level: "high", motion: "on", pasted: "on" });
+        assert.deepEqual({ ...guard.quality }, { level: "high", motion: "on", heavy: "on" });
     });
 
     it("steps back up after a sustained run of fast frames, never above the setting", () => {
@@ -182,13 +182,13 @@ describe("the frame guard", () => {
     });
 
     it("leaves the frames after a resize, a visibility change, a compile or a restore out", () => {
-        const { guard } = guarded({ pasted: true });
+        const { guard } = guarded({ heavy: true });
         guard.ignore();
         guard.frame({ intervalMs: 300, gpuBehind: true });
         guard.frame({ intervalMs: 300, gpuBehind: true });
-        assert.strictEqual(guard.quality.pasted, "on");
+        assert.strictEqual(guard.quality.heavy, "on");
         guard.frame({ intervalMs: 300, gpuBehind: true });
-        assert.strictEqual(guard.quality.pasted, "off");
+        assert.strictEqual(guard.quality.heavy, "off");
     });
 
     it("measures nothing until shaders draw", () => {

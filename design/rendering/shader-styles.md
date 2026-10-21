@@ -971,9 +971,11 @@ over the limit between the end of its own work and the next tick, or when the ex
 `fenceFrame` / `gpuBehind` fence held it. The wait is the main signal: Chromium does not run the
 next animation frame until the GPU has caught up, so on a slow GPU the fence has always signalled
 by the next tick (measured on SwiftShader: the fence alone flagged no frame). After a second of
-GPU-bound frames over 50 ms, one quality level; at low, loops run at half rate, then pasted shaders
-turn off, then all shader motion pauses. A GPU-bound frame over 250 ms while a pasted shader is on
-screen turns pasted shaders off at once: one the fence held, or two such waits in a row, because a
+GPU-bound frames over 50 ms, one quality level; at low, loops run at half rate, then heavy shaders
+turn off, then all shader motion pauses. A GPU-bound frame over 250 ms while a heavy shader is on
+screen turns heavy shaders off at once (decided by cost and motion, not origin: a heavy preset
+turns off as a heavy pasted shader does, and the flashing check and GPU-loss quarantine cover
+every shader too): one the fence held, or two such waits in a row, because a
 single long wait can be the page's own script. After a sustained run of fast frames
 the level steps back up, never above the setting. Each step updates `graph.renderQuality`, fires
 `render-quality` (`guard.slow-gpu`, `guard.paused`, `guard.recovered`) and reports
@@ -1338,7 +1340,7 @@ material; Select all on 500 nodes with a reticle layer plays at most 64 entrance
 recovery, `renderQuality`), level-of-detail program selection, the render-target budget, the
 flashing readback. Acceptance: forcing GPU-bound 80 ms frames steps quality down and fires
 `render-quality`; CPU-bound slow frames (a 10,000-node layout) change nothing; a 300 ms frame with
-a pasted shader on screen turns pasted shaders off at once; `guard: false` changes nothing;
+a heavy shader on screen turns heavy shaders off at once; `guard: false` changes nothing;
 reduced motion reports `shader.still`; a test shader that flashes 6 times a second is frozen with
 `shader.flashing`.
 

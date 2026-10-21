@@ -3229,9 +3229,9 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 // @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
+    readonly heavy: "on" | "off";
     readonly level: "low" | "medium" | "high";
     readonly motion: "on" | "half" | "paused" | "still";
-    readonly pasted: "on" | "off";
 }
 
 // @public
@@ -4434,7 +4434,7 @@ export interface SessionShaders {
     }): Promise<ShaderText>;
     // (undocumented)
     status(id: string): ShaderStatus;
-    thumbnail(id: string, params?: ShaderParams): Promise<Blob>;
+    thumbnail(id: string, params?: ShaderParams): Promise<Blob | ShaderProblem>;
 }
 
 // @public

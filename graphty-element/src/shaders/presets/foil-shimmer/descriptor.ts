@@ -16,7 +16,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "foil-shimmer",
     plainName: "Foil shimmer",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Iridescent"]),
     params: Object.freeze([
         Object.freeze({ name: "foil", plainName: "Foil", type: "number", default: 0.9, min: 0, max: 1, primary: true }),
@@ -24,7 +24,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "bandWidth", plainName: "Band width", type: "number", default: 0.18, min: 0.02, max: 1 }),
         Object.freeze({ name: "sparkle", plainName: "Sparkle", type: "number", default: 1.2, min: 0, max: 3 }),
     ]),
-    reads: Object.freeze(["color"] as const),
+    reads: Object.freeze(["color", "light"] as const),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "sweepSpeed" }) }),
     cost: "light",
     origin: "element",

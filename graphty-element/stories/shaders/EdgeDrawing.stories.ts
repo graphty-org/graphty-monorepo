@@ -40,7 +40,7 @@ const FIBER: ShaderDefinition = {
 /** A soft glow three times the line's width, brightest at the line, with a glint near the target. */
 const GLOW: ShaderDefinition = {
     id: "demo/glow",
-    role: "effect",
+    place: "along",
     reach: 3,
     params: { glow: { type: "number", default: 0.7, min: 0, max: 2 } },
     glsl: `vec4 shade(EdgeInput e) {

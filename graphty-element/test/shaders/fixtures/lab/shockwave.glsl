@@ -2,7 +2,7 @@
 {
     "id": "lab/shockwave",
     "name": "Shockwave",
-    "role": "effect",
+    "place": "around",
     "params": [
         {
             "name": "ringColor",

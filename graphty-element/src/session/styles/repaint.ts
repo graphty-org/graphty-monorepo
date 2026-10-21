@@ -897,7 +897,7 @@ function writePainted(channel: PreparedChannel, index: number, painted: unknown)
  */
 function dropCardUnderShape(shaders: ChannelColumn, index: number): void {
     const id = readColumn(shaders, index);
-    if (typeof id === "string" && shaderDescriptor(id)?.geometry === "card") {
+    if (typeof id === "string" && shaderDescriptor(id)?.place === "replace") {
         clearColumn(shaders, index);
     }
 }

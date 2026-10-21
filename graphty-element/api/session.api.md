@@ -3056,11 +3056,10 @@ export interface ProjectSaveReport {
 
 // @public
 export interface ProjectShader {
-    readonly geometry?: ShaderGeometry;
     readonly hash: string;
     readonly id: string;
+    readonly place?: ShaderPlace;
     readonly plainName: string;
-    readonly role: ShaderRole;
     readonly state: ShaderState;
     readonly target: ShaderTarget;
     readonly usedBy: number;
@@ -4678,6 +4677,7 @@ export interface ShaderAddOptions {
     readonly onTaken?: "refuse" | "rename";
     readonly place?: ShaderPlace;
     readonly source?: "reader" | "content";
+    readonly target?: ShaderTarget;
 }
 
 // @public

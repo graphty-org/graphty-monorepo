@@ -39,12 +39,12 @@ beforeAll(() => {
     });
     defineShader({
         id: "e3/sticker",
-        geometry: "card",
+        place: "replace",
         glsl: "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 1.0); }",
     });
     defineShader({
         id: "e3/spin",
-        role: "effect",
+        place: "around",
         reach: 2,
         params: { speed: { type: "number", default: 1, min: 0, max: 4 } },
         motion: { loop: { speedParam: "speed" } },
@@ -55,9 +55,9 @@ beforeAll(() => {
     });
     defineShader({
         id: "e3/reticle",
-        role: "effect",
+        place: "around",
         reach: 1.6,
-        motion: { enter: 0.55 },
+        params: { entering: { by: "since.matched", domain: [0, 0.55] } },
         glsl: `vec4 shade(NodeInput n) {
             float t = clamp(n.sinceEntered / 0.55, 0.0, 1.0);
             float ring = smoothstep(0.08, 0.0, abs(length(n.uv) - mix(1.6, 1.3, t)));

@@ -2,7 +2,7 @@
 {
     "id": "lab/edge-glow",
     "name": "edge-glow",
-    "role": "effect",
+    "place": "along",
     "params": [
         {
             "name": "glow",

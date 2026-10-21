@@ -327,10 +327,6 @@
 }
 
 /* The trigger chip gives way before the name does: the name says which shader it is. */
-.ws-shader-trigger {
-    flex: 0 8 auto;
-    min-width: 28px;
-}
 
 /* The gallery: search, then two columns of tiles, each its still picture and name. */
 .ws-gallery {

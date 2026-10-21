@@ -38,7 +38,7 @@ import {
     Viewport,
 } from "@babylonjs/core";
 
-import type { ShaderParamDescriptor, ShaderParams, ShaderProblem } from "../../catalog/shaders";
+import { type ShaderParamDescriptor, type ShaderParams, type ShaderProblem, slotRoleOf } from "../../catalog/shaders";
 import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
@@ -434,12 +434,12 @@ export class ShaderRuntime {
     }
 
     /**
-     * The most pixels a shader of this target and role can cover on this canvas.
+     * The most pixels a shader of this target and place can cover on this canvas.
      * @param shader - The shader.
      * @returns The pixel count.
      */
     private areaOf(shader: HostShader): number {
-        if (shader.registration.descriptor.role === "effect") {
+        if (slotRoleOf(shader.registration.descriptor) === "effect") {
             // The largest square an effect draws on at the quality level now.
             return this.uniforms.effectCap * this.uniforms.effectCap;
         }
@@ -486,7 +486,7 @@ export class ShaderRuntime {
         }
 
         const drawn = shader.registration.descriptor;
-        const premultiplied = drawn.role === "effect" || drawn.target === "group";
+        const premultiplied = slotRoleOf(drawn) === "effect" || drawn.target === "group";
         return pngOf(pixels, THUMBNAIL_SIZE, premultiplied);
     }
 

@@ -34,7 +34,7 @@ beforeAll(() => {
     });
     defineShader({
         id: "e5/glow",
-        role: "effect",
+        place: "along",
         reach: 3,
         glsl: `vec4 shade(EdgeInput e) {
             float a = 1.0 - smoothstep(0.0, 3.0, abs(e.side));
@@ -43,8 +43,8 @@ beforeAll(() => {
     });
     defineShader({
         id: "e5/fade",
-        role: "effect",
-        motion: { exit: 0.5 },
+        place: "along",
+        params: { exiting: { by: "since.unmatched", domain: [0, 0.5] } },
         glsl: `vec4 shade(EdgeInput e) {
             float a = e.sinceExited < 0.0 ? 1.0 : clamp(1.0 - e.sinceExited / 0.5, 0.0, 1.0);
             return vec4(0.0, 0.0, a, a);
@@ -52,7 +52,7 @@ beforeAll(() => {
     });
     defineShader({
         id: "e5/still",
-        role: "effect",
+        place: "along",
         glsl: "vec4 shade(EdgeInput e) { return vec4(0.0, 0.0, 1.0, 1.0); }",
     });
 });

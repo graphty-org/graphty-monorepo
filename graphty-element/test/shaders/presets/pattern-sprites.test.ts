@@ -38,8 +38,8 @@ const TABLE: Readonly<
 > = {
     "colorblind-patterns": {
         name: "Patterns",
-        kind: "node-look",
-        reads: ["color"],
+        kind: "node-paint",
+        reads: ["color", "light"],
         motion: {},
         cost: "light",
         params: [
@@ -51,8 +51,8 @@ const TABLE: Readonly<
     },
     "foil-shimmer": {
         name: "Foil shimmer",
-        kind: "node-look",
-        reads: ["color"],
+        kind: "node-paint",
+        reads: ["color", "light"],
         motion: { loop: { speedParam: "sweepSpeed" } },
         cost: "light",
         params: [
@@ -64,9 +64,9 @@ const TABLE: Readonly<
     },
     hologram: {
         name: "Hologram",
-        kind: "node-look",
+        kind: "node-paint",
         reads: ["color", "times"],
-        motion: { loop: { speedParam: "flicker" }, enter: 0.9, exit: 0.6 },
+        motion: { loop: { speedParam: "flicker" } },
         cost: "light",
         params: [
             ["holoColor", "color", "#38e8ff", undefined, undefined, undefined, true],
@@ -78,9 +78,9 @@ const TABLE: Readonly<
     },
     frost: {
         name: "Frost",
-        kind: "node-look",
-        reads: ["color", "times"],
-        motion: { enter: 2, exit: 1 },
+        kind: "node-paint",
+        reads: ["color", "times", "light"],
+        motion: {},
         cost: "medium",
         params: [
             ["frostColor", "color", "#d8f2ff", undefined, undefined, undefined, true],
@@ -90,7 +90,7 @@ const TABLE: Readonly<
     },
     "icon-sticker": {
         name: "Sticker",
-        kind: "node-card",
+        kind: "node-replace",
         reads: ["color"],
         motion: { loop: { speedParam: "finishSpeed" } },
         cost: "light",
@@ -104,7 +104,7 @@ const TABLE: Readonly<
     },
     mandala: {
         name: "Mandala",
-        kind: "node-card",
+        kind: "node-replace",
         reads: ["size"],
         motion: { loop: { speedParam: "spin" } },
         cost: "medium",

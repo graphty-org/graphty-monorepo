@@ -2,7 +2,7 @@
 {
     "id": "lab/icon-sticker",
     "name": "Sticker",
-    "geometry": "card",
+    "place": "replace",
     "params": [
         {
             "name": "icon",

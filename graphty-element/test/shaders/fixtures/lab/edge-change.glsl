@@ -2,7 +2,7 @@
 {
     "id": "lab/edge-change",
     "name": "edge-change",
-    "role": "effect",
+    "place": "along",
     "params": [
         {
             "name": "flashColor",

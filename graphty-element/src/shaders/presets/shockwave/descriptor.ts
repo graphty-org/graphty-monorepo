@@ -10,7 +10,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "shockwave",
     plainName: "Shockwave",
     target: "node",
-    role: "effect",
+    place: "around",
     categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "ringColor", plainName: "Color", type: "color", default: "#9fd8ff", primary: true },
@@ -18,7 +18,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         { name: "chroma", plainName: "Color split", type: "number", default: 1, min: 0, max: 4 },
     ]),
     reads: Object.freeze<ShaderInput[]>(["times"]),
-    motion: Object.freeze({ enter: 0.7 }),
+    motion: Object.freeze({}),
     cost: "medium",
     origin: "element",
     webgpu: "translate",

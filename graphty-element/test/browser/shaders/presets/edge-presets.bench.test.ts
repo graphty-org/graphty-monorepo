@@ -71,7 +71,7 @@ async function mountWide(kind: ShaderDrawing, shader: string, params: ShaderPara
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode("2d");
     const set =
-        kind === "edge-look"
+        kind === "edge-paint"
             ? { "edge.shader": shader, "edge.shaderParams": { [shader]: params } }
             : { "edge.effects": { [shader]: params } };
     await element.session.styles.add({
@@ -147,14 +147,14 @@ describe.each(QUALITIES)("the edge presets' cost at %s quality", (quality) => {
             });
             defineShader({
                 id: "bench/flat-effect",
-                role: "effect",
+                place: "along",
                 glsl: "vec4 shade(EdgeInput e) { return vec4(e.color.rgb * 0.5, 0.5); }",
             });
         }
 
-        flat["edge-look"] = await frameMs("edge-look", "bench/flat-edge", {}, quality);
-        flat["edge-effect"] = await frameMs("edge-effect", "bench/flat-effect", {}, quality);
-        report[`flat@${quality}`] = { ms: Math.max(flat["edge-look"], flat["edge-effect"]) };
+        flat["edge-paint"] = await frameMs("edge-paint", "bench/flat-edge", {}, quality);
+        flat["edge-along"] = await frameMs("edge-along", "bench/flat-effect", {}, quality);
+        report[`flat@${quality}`] = { ms: Math.max(flat["edge-paint"], flat["edge-along"]) };
     });
 
     it.each(EDGE_PRESETS.map(({ descriptor }) => [descriptor.id, descriptor] as const))(

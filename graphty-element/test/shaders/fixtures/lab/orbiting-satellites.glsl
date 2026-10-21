@@ -2,7 +2,7 @@
 {
     "id": "lab/orbiting-satellites",
     "name": "Satellites",
-    "role": "effect",
+    "place": "around",
     "params": [
         {
             "name": "moons",

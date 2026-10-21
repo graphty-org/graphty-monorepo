@@ -360,11 +360,11 @@ function paramAssignment(param: ShaderParamDescriptor): string {
 
 /** What the sample program draws for a pixel whose result is not a number: the color beneath. */
 const SAMPLE_FALLBACK: Readonly<Record<ShaderDrawing, string>> = {
-    "node-look": "graphty_in.color",
-    "node-card": "graphty_in.color",
-    "node-effect": "vec4(0.0)",
-    "edge-look": "graphty_in.color",
-    "edge-effect": "vec4(0.0)",
+    "node-paint": "graphty_in.color",
+    "node-replace": "graphty_in.color",
+    "node-square": "vec4(0.0)",
+    "edge-paint": "graphty_in.color",
+    "edge-along": "vec4(0.0)",
     background: "vec4(0.0, 0.0, 0.0, 1.0)",
     group: "vec4(0.0)",
 };
@@ -391,13 +391,13 @@ const GROUP_MEMBERS = ["0.33, 0.42", "0.5, 0.33", "0.67, 0.44", "0.41, 0.6", "0.
 function sampleInput(kind: ShaderDrawing): string {
     const time = "graphty_scene_time.x";
     switch (kind) {
-        case "node-look":
-        case "node-card":
-        case "node-effect": {
+        case "node-paint":
+        case "node-replace":
+        case "node-square": {
             let frame = "1.0";
-            if (kind === "node-look") {
+            if (kind === "node-paint") {
                 frame = "(1.0 / 0.8)";
-            } else if (kind === "node-effect") {
+            } else if (kind === "node-square") {
                 frame = "max(graphty_sampleReach, 1.5)";
             }
 
@@ -406,7 +406,7 @@ function sampleInput(kind: ShaderDrawing): string {
     float graphty_frame = ${frame};
     vec2 graphty_uv = (vUV * 2.0 - 1.0) * graphty_frame;
     float graphty_r2 = dot(graphty_uv, graphty_uv);
-    ${kind === "node-look" ? "if (graphty_r2 > 1.0) { gl_FragColor = vec4(0.0); return; }" : ""}
+    ${kind === "node-paint" ? "if (graphty_r2 > 1.0) { gl_FragColor = vec4(0.0); return; }" : ""}
     float graphty_z = sqrt(max(1.0 - graphty_r2, 0.0));
     graphty_in.uv = graphty_uv;
     graphty_in.local = vec3(graphty_uv, -graphty_z);
@@ -427,8 +427,8 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.sinceChanged = -1.0;
     graphty_in.time = ${time};`;
         }
-        case "edge-look":
-        case "edge-effect":
+        case "edge-paint":
+        case "edge-along":
             // A circular arc from (0.16, 0.42) to (0.84, 0.42) about (0.5, 0.1), bowed upward.
             return `
     graphty_EdgeInput graphty_in;
@@ -501,10 +501,10 @@ function sampleInput(kind: ShaderDrawing): string {
  */
 function sampleFinish(kind: ShaderDrawing): string {
     switch (kind) {
-        case "node-effect":
+        case "node-square":
             return `    if (graphty_r2 < 1.0) { graphty_out = ${SAMPLE_GRAY}; }`;
-        case "edge-look":
-        case "edge-effect":
+        case "edge-paint":
+        case "edge-along":
             return `    if (!graphty_onEdge) { graphty_out = vec4(0.0); }
     if (min(length(vUV - vec2(0.16, 0.42)), length(vUV - vec2(0.84, 0.42))) < 0.06) { graphty_out = ${SAMPLE_GRAY}; }`;
         case "group": {
@@ -604,7 +604,7 @@ export function paramGlobals(params: readonly ShaderParamDescriptor[]): string {
  * @returns The program.
  */
 export function sampleProgram(
-    descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry" | "params">,
+    descriptor: Pick<ShaderDescriptor, "target" | "place" | "params">,
     body: string,
 ): WrappedProgram {
     const { params } = descriptor;

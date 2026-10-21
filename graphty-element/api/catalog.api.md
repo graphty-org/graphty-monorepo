@@ -356,7 +356,7 @@ export interface ChannelDescriptor {
     readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
-    readonly shaderPlace?: ShaderPlace;
+    readonly shaderSlot?: ShaderSlot;
     readonly shortName: string;
     readonly step?: number;
     readonly stylePath: string;
@@ -382,7 +382,7 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba | Shade
 
 // @public
 export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing"
-/** A shader id from the catalog, for the place `shaderPlace` names, or `"none"`. @since 3.36.0 */
+/** A shader id from the catalog, for the slot `shaderSlot` names, or `"none"`. @since 3.36.0 */
 | "shader"
 /** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
 | "shaderParams"
@@ -1708,9 +1708,7 @@ export function parseScope(value: unknown): Scope;
 export function parseSetDefinition(value: unknown): SetDefinition;
 
 // @public
-export function parseShaderText(text: ShaderText, options?: {
-    readonly place?: ShaderPlace;
-}): ShaderTextResult;
+export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): ShaderTextResult;
 
 // @public
 export type Path = string;
@@ -2093,10 +2091,20 @@ export type SetOperand = Scope | {
 };
 
 // @public
+export type ShaderClock = "since.selected" | "since.deselected" | "since.hovered" | "since.unhovered" | "since.pinned" | "since.unpinned" | "since.added" | "since.changed" | "since.matched" | "since.unmatched";
+
+// @public
+export interface ShaderClockBinding {
+    readonly by: ShaderClock;
+    readonly domain: readonly [number, number];
+    readonly range?: readonly [number, number] | readonly [string, string];
+}
+
+// @public
 export type ShaderCost = "light" | "medium" | "heavy";
 
 // @public
-export function shaderCovers(descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry" | "reads">): readonly Channel[];
+export function shaderCovers(descriptor: Pick<ShaderDescriptor, "target" | "place" | "reads">): readonly Channel[];
 
 // @public
 export interface ShaderDescriptor {
@@ -2105,20 +2113,20 @@ export interface ShaderDescriptor {
     readonly categories?: readonly string[];
     readonly cost: ShaderCost;
     readonly form?: "field" | "sphere";
-    readonly geometry?: ShaderGeometry;
     readonly hash?: string;
     readonly id: string;
-    readonly minPixels?: number;
+    readonly minSize?: number;
     readonly motion: ShaderMotion;
     readonly origin: ShaderOrigin;
     readonly params: readonly ShaderParamDescriptor[];
+    readonly place?: ShaderPlace;
+    readonly places?: readonly ShaderPlace[];
     readonly plainName: string;
     readonly preview?: ShaderPreview;
     readonly reach?: number;
     readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
-    readonly role: ShaderRole;
     readonly target: ShaderTarget;
     readonly thumbnail?: string;
     readonly webgpu: ShaderWebGpu;
@@ -2126,9 +2134,6 @@ export interface ShaderDescriptor {
 
 // @public
 export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
-
-// @public
-export type ShaderGeometry = "shape" | "card";
 
 // @public
 export interface ShaderGlyph {
@@ -2139,13 +2144,10 @@ export interface ShaderGlyph {
 }
 
 // @public
-export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members";
+export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members" | "light";
 
 // @public
 export interface ShaderMotion {
-    readonly change?: number;
-    readonly enter?: number;
-    readonly exit?: number;
     readonly loop?: {
         readonly speedParam?: string;
     };
@@ -2184,10 +2186,7 @@ export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
 export type ShaderParamSets = Readonly<Record<string, ShaderParams | number | string | boolean>>;
 
 // @public
-export interface ShaderPlace {
-    readonly role: ShaderRole;
-    readonly target: ShaderTarget;
-}
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
 
 // @public
 export interface ShaderPreview {
@@ -2198,17 +2197,16 @@ export interface ShaderPreview {
 // @public
 export interface ShaderProblem {
     readonly code: ShaderProblemCode;
-    readonly params: Readonly<Record<string, string | number>>;
+    readonly params: Readonly<Record<string, string | number | readonly string[]>>;
 }
 
 // @public
-export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.effect-cap" | "shader.boundary-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas";
+export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.effect-cap" | "shader.boundary-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas";
 
 // @public
 export interface ShaderRegistration {
-    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target" | "role"> & {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target"> & {
         readonly target?: ShaderTarget;
-        readonly role?: ShaderRole;
         readonly cost?: ShaderCost;
         readonly reads?: readonly ShaderInput[];
         readonly webgpu?: ShaderWebGpu;
@@ -2223,7 +2221,15 @@ export interface ShaderRegistration {
 export type ShaderRequirement = "webgl2";
 
 // @public
-export type ShaderRole = "look" | "effect";
+export interface ShaderSlot {
+    // (undocumented)
+    readonly role: ShaderSlotRole;
+    // (undocumented)
+    readonly target: ShaderTarget;
+}
+
+// @public
+export type ShaderSlotRole = "look" | "effect";
 
 // @public
 export type ShaderSource = string | (() => Promise<string>);
@@ -2236,8 +2242,7 @@ export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;
 
 // @public
 export interface ShaderTemplatePlace {
-    readonly geometry?: ShaderGeometry;
-    readonly role: ShaderRole;
+    readonly place?: ShaderPlace;
     readonly target: ShaderTarget;
 }
 
@@ -2245,12 +2250,17 @@ export interface ShaderTemplatePlace {
 export type ShaderText = string;
 
 // @public
+export interface ShaderTextOptions {
+    readonly place?: ShaderPlace;
+    readonly target?: ShaderTarget;
+}
+
+// @public
 export type ShaderTextResult = {
     readonly ok: true;
     readonly registration: ShaderRegistration & {
         readonly descriptor: ShaderRegistration["descriptor"] & {
             readonly target: ShaderTarget;
-            readonly role: ShaderRole;
         };
         readonly glsl: string;
         readonly lowDetail?: string;

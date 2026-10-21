@@ -10,7 +10,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "orbiting-satellites",
     plainName: "Satellites",
     target: "node",
-    role: "effect",
+    place: "around",
     categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "moons", plainName: "Moons", type: "integer", default: 3, min: 1, max: 12, varies: true },

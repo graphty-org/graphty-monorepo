@@ -13,7 +13,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "soap-bubble",
     plainName: "Soap bubble",
     target: "group",
-    role: "look",
+    place: "group",
     categories: Object.freeze(["Bubble"]),
     form: "sphere",
     // The bubble clears its outermost members by 2.5 of their radii.
@@ -34,7 +34,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "clarity", plainName: "Clarity", type: "number", default: 0.75, min: 0, max: 1 }),
         Object.freeze({ name: "shine", plainName: "Shine", type: "number", default: 1.2, min: 0.2, max: 3 }),
     ]),
-    reads: Object.freeze<ShaderInput[]>(["members"]),
+    reads: Object.freeze<ShaderInput[]>(["members", "light"]),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "swirl" }) }),
     cost: "heavy",
     origin: "element",

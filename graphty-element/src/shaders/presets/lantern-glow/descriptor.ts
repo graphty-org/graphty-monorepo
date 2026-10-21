@@ -12,7 +12,7 @@ export const LANTERN_GLOW: ShaderDescriptor = Object.freeze({
     id: "lantern-glow",
     plainName: "Lantern glow",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Light"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         {
@@ -30,7 +30,7 @@ export const LANTERN_GLOW: ShaderDescriptor = Object.freeze({
         { name: "flicker", plainName: "Flicker", type: "number", default: 0.3, min: 0, max: 1 },
         { name: "bloom", plainName: "Bloom", type: "number", default: 0.7, min: 0, max: 3 },
     ]),
-    reads: Object.freeze<ShaderInput[]>(["color"]),
+    reads: Object.freeze<ShaderInput[]>(["color", "light"]),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "flicker" }) }),
     cost: "heavy",
     origin: "element",

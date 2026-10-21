@@ -13,7 +13,7 @@
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderDescriptor, ShaderRole } from "../../catalog/shaders";
+import type { ShaderDescriptor, ShaderSlotRole } from "../../catalog/shaders";
 import { EDGE_JOIN_FRAGMENT_SHADER, EDGE_STATE_BITS } from "../../meshes/edgeJoinShader";
 import { PARAM_TEXTURE } from "./nodeLayout";
 import { paramLocals } from "./nodePrograms";
@@ -40,7 +40,7 @@ export interface EdgeShaderProgram {
  * @returns The program.
  */
 export function edgeShaderProgram(
-    role: ShaderRole,
+    role: ShaderSlotRole,
     descriptor: Pick<ShaderDescriptor, "params">,
     body: string,
 ): EdgeShaderProgram {

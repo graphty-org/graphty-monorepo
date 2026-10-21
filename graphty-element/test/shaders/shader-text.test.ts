@@ -28,7 +28,7 @@ const FIXTURES = fileURLToPath(new URL("fixtures/lab/", import.meta.url));
  * @returns The text.
  */
 function text(body: string, header: Record<string, unknown> = {}): string {
-    const json = JSON.stringify({ id: "test/case", name: "Case", role: "effect", params: [], ...header }, null, 4);
+    const json = JSON.stringify({ id: "test/case", name: "Case", place: "around", params: [], ...header }, null, 4);
 
     return `/* graphty-shader 1\n${json}\n*/\n${body}`;
 }
@@ -116,7 +116,7 @@ describe("each unsafe construct is refused with its code, line and column", () =
 
     it("ends the header at a comment end inside a header string, which is a header problem", () => {
         const source =
-            '/* graphty-shader 1\n{ "id": "test/case", "name": "a */ b", "role": "effect" }\n*/\nvec4 shade(NodeInput n) { return vec4(1.0); }';
+            '/* graphty-shader 1\n{ "id": "test/case", "name": "a */ b", "place": "around" }\n*/\nvec4 shade(NodeInput n) { return vec4(1.0); }';
         const problem = firstProblem(source);
         assert.strictEqual(problem.code, "shader.header-json");
         assert.strictEqual(problem.params.line, 2);
@@ -229,17 +229,23 @@ describe("each unsafe construct is refused with its code, line and column", () =
 describe("the header", () => {
     const body = "vec4 shade(NodeInput n) { return vec4(tint, 1.0); }";
 
-    it("refuses unknown keys, a bare id, an unknown role and bad parameters", () => {
+    it("refuses unknown keys, a bare id, an unknown place, the removed role and bad parameters", () => {
         assert.deepEqual(firstProblem(text(body, { colour: 1 })), {
             code: "shader.header-key",
             params: { key: "colour" },
         });
         assert.strictEqual(firstProblem(text(body, { id: "marble" })).code, "shader.id-invalid");
-        assert.deepEqual(firstProblem(text(body, { role: "glow" })), {
+        assert.deepEqual(firstProblem(text(body, { place: "glow" })), {
             code: "shader.header-key",
-            params: { key: "role" },
+            params: { key: "place" },
         });
-        assert.deepEqual(firstProblem(text(body, { kind: "node-effect" })), {
+        for (const removed of [{ role: "effect" }, { geometry: "card" }, { minPixels: 24 }]) {
+            assert.deepEqual(firstProblem(text(body, removed)), {
+                code: "shader.header-key",
+                params: { key: Object.keys(removed)[0] },
+            });
+        }
+        assert.deepEqual(firstProblem(text(body, { kind: "node-square" })), {
             code: "shader.header-key",
             params: { key: "kind" },
         });
@@ -287,16 +293,15 @@ describe("the header", () => {
         assert.strictEqual(result.ok && result.registration.descriptor.plainName, "Ring");
     });
 
-    it("takes a body with no header: the entry says its target, the place its role", () => {
+    it("takes a body with no header: the entry says its target, the options its place", () => {
         const result = parseShaderText("vec4 shade(BackgroundInput b) { return vec4(b.uv, 0.0, 1.0); }");
         assert.isTrue(result.ok);
         assert.strictEqual(result.ok && result.registration.descriptor.target, "background");
-        const look = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }");
-        assert.strictEqual(look.ok && look.registration.descriptor.role, "look");
-        const effect = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }", {
-            place: { target: "node", role: "effect" },
-        });
-        assert.strictEqual(effect.ok && effect.registration.descriptor.role, "effect");
+        assert.isUndefined(result.ok ? result.registration.descriptor.place : "refused", "the background has none");
+        const paint = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }");
+        assert.strictEqual(paint.ok && paint.registration.descriptor.place, "paint");
+        const over = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }", { place: "over" });
+        assert.strictEqual(over.ok && over.registration.descriptor.place, "over");
     });
 });
 
@@ -323,10 +328,10 @@ describe("formatShaderText", () => {
                 id: "acme/ring",
                 plainName: "Ring",
                 target: "node",
-                role: "effect",
+                place: "around",
                 reach: 2,
                 blend: "add",
-                motion: { loop: { speedParam: "speed" }, enter: 0.5 },
+                motion: { loop: { speedParam: "speed" } },
                 params: [
                     { name: "speed", plainName: "Pace", type: "number", default: 1, min: 0, max: 4, varies: true },
                 ],

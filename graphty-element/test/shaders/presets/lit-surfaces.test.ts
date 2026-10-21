@@ -18,14 +18,24 @@ type Row = readonly [name: string, type: string, def: number | string, min?: num
 /** Section 7.1, transcribed: name, reads, motion's speed parameter, cost, parameters. */
 const TABLE: Readonly<Record<string, { name: string; reads: string[]; speed?: string; cost: string; params: Row[] }>> =
     {
-        "matcap-ink": { name: "Ink", reads: ["color"], cost: "light", params: [["tint", "number", 0.8, 0, 1, true]] },
-        "clear-glass": {
-            name: "Clear glass",
-            reads: ["color"],
+        "matcap-ink": {
+            name: "Ink",
+            reads: ["color", "light"],
             cost: "light",
             params: [["tint", "number", 0.8, 0, 1, true]],
         },
-        pearl: { name: "Pearl", reads: ["color"], cost: "light", params: [["tint", "number", 0.8, 0, 1, true]] },
+        "clear-glass": {
+            name: "Clear glass",
+            reads: ["color", "light"],
+            cost: "light",
+            params: [["tint", "number", 0.8, 0, 1, true]],
+        },
+        pearl: {
+            name: "Pearl",
+            reads: ["color", "light"],
+            cost: "light",
+            params: [["tint", "number", 0.8, 0, 1, true]],
+        },
         "toon-outline": {
             name: "Toon outline",
             reads: ["color", "shape"],
@@ -50,7 +60,7 @@ const TABLE: Readonly<Record<string, { name: string; reads: string[]; speed?: st
         },
         "frosted-glass": {
             name: "Frosted glass",
-            reads: ["color"],
+            reads: ["color", "light"],
             cost: "medium",
             params: [
                 ["frost", "number", 0.6, 0, 1, true],
@@ -71,7 +81,7 @@ const TABLE: Readonly<Record<string, { name: string; reads: string[]; speed?: st
         },
         "anodized-steel": {
             name: "Anodized steel",
-            reads: ["color"],
+            reads: ["color", "light"],
             cost: "medium",
             params: [
                 ["film", "number", 500, 100, 1200, true],
@@ -96,7 +106,7 @@ describe("the lit-surface presets", () => {
         (id, { descriptor }: { descriptor: ShaderDescriptor }) => {
             const row = TABLE[id];
             assert.strictEqual(descriptor.plainName, row.name);
-            assert.strictEqual(drawingOf(descriptor), "node-look");
+            assert.strictEqual(drawingOf(descriptor), "node-paint");
             assert.strictEqual(descriptor.origin, "element");
             assert.strictEqual(descriptor.cost, row.cost);
             assert.deepEqual([...descriptor.reads], row.reads);

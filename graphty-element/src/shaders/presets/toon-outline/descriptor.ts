@@ -12,7 +12,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "toon-outline",
     plainName: "Toon outline",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Drawn"]),
     params: Object.freeze([
         Object.freeze({

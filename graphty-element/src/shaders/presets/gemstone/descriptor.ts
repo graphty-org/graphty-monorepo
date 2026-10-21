@@ -12,7 +12,7 @@ export const GEMSTONE: ShaderDescriptor = Object.freeze({
     id: "gemstone",
     plainName: "Gemstone",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Sparkle"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "facets", plainName: "Facets", type: "integer", default: 22, min: 6, max: 64, primary: true },
@@ -21,7 +21,7 @@ export const GEMSTONE: ShaderDescriptor = Object.freeze({
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1, min: 0, max: 3, varies: true },
         { name: "turn", plainName: "Turn", type: "number", default: 0.15, min: 0, max: 2 },
     ]),
-    reads: Object.freeze<ShaderInput[]>(["color"]),
+    reads: Object.freeze<ShaderInput[]>(["color", "light"]),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "turn" }) }),
     cost: "heavy",
     origin: "element",

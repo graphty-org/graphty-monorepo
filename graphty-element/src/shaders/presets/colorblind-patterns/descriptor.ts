@@ -58,7 +58,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "colorblind-patterns",
     plainName: "Patterns",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Pattern"]),
     params: Object.freeze([
         Object.freeze({
@@ -83,7 +83,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "contrast", plainName: "Contrast", type: "number", default: 0.7, min: 0, max: 1 }),
         Object.freeze({ name: "rotate", plainName: "Rotate", type: "number", default: 0, min: 0, max: 3.14 }),
     ]),
-    reads: Object.freeze(["color"] as const),
+    reads: Object.freeze(["color", "light"] as const),
     motion: Object.freeze({}),
     cost: "light",
     origin: "element",

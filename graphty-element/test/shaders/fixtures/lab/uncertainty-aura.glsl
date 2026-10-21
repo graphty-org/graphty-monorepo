@@ -2,7 +2,7 @@
 {
     "id": "lab/uncertainty-aura",
     "name": "Aura",
-    "role": "effect",
+    "place": "around",
     "params": [
         {
             "name": "intensity",

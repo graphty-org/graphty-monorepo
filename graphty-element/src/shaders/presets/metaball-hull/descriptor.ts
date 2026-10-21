@@ -14,7 +14,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "metaball-hull",
     plainName: "Hull",
     target: "group",
-    role: "look",
+    place: "group",
     categories: Object.freeze(["Blob"]),
     form: "field",
     // Each member's kernel radius, in member radii, is the blob radius.

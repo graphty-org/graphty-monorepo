@@ -14,7 +14,7 @@ import { afterAll, assert, describe, it } from "vitest";
 
 import { checkShaderBody, inferShaderReads } from "../../../src/catalog/shaderGlsl";
 import { clearRegisteredShadersForTesting, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
-import { drawingOf } from "../../../src/catalog/shaders";
+import { drawingOf, timingOf } from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { NODE_EFFECT_PRESETS, presetId } from "../../../stories/shaders/nodeEffectPresets";
 
@@ -58,7 +58,7 @@ const TABLE: Readonly<Record<string, Expected>> = {
     },
     "lock-on-reticle": {
         name: "Reticle",
-        motion: { loop: { speedParam: "spin" }, enter: 0.55, exit: 0.3 },
+        motion: { loop: { speedParam: "spin" } },
         cost: "light",
         params: [
             ["hudColor", "color", "#5cffb0", undefined, undefined, P],
@@ -83,7 +83,7 @@ const TABLE: Readonly<Record<string, Expected>> = {
     },
     shockwave: {
         name: "Shockwave",
-        motion: { enter: 0.7 },
+        motion: {},
         cost: "medium",
         params: [
             ["ringColor", "color", "#9fd8ff", undefined, undefined, P],
@@ -93,7 +93,7 @@ const TABLE: Readonly<Record<string, Expected>> = {
     },
     "change-flash": {
         name: "Change flash",
-        motion: { change: 1.5 },
+        motion: {},
         cost: "light",
         params: [
             ["flashColor", "color", "#e8f4ff", undefined, undefined, P],
@@ -111,7 +111,7 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
 
         it("is one of the design's node effects, frozen, from the element", () => {
             assert.isDefined(expected, `${id} is in section 7.3`);
-            assert.strictEqual(drawingOf(descriptor), "node-effect");
+            assert.strictEqual(drawingOf(descriptor), "node-square");
             assert.strictEqual(descriptor.origin, "element");
             assert.strictEqual(descriptor.plainName, expected.name);
             assert.isTrue(Object.isFrozen(descriptor));
@@ -164,7 +164,7 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
         it("ends every timed motion by the seconds its motion claims", () => {
             // A timed motion holds frames only for its seconds; whatever it draws at that moment is
             // the picture that stays. So each body's timed part must name its own end.
-            const { enter, change } = descriptor.motion;
+            const { enter, change } = timingOf(descriptor);
             if (enter !== undefined && !descriptor.motion.loop) {
                 assert.include(body, `age > ${String(enter)}`, "the entrance draws nothing after it ends");
             }

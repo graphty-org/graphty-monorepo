@@ -2,7 +2,7 @@
 {
     "id": "lab/fiber-packets",
     "name": "fiber-packets",
-    "role": "effect",
+    "place": "along",
     "params": [
         {
             "name": "packets",

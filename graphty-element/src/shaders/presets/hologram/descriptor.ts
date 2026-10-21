@@ -17,7 +17,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "hologram",
     plainName: "Hologram",
     target: "node",
-    role: "look",
+    place: "paint",
     categories: Object.freeze(["Iridescent"]),
     params: Object.freeze([
         Object.freeze({
@@ -33,7 +33,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "gridLines", plainName: "Grid lines", type: "integer", default: 8, min: 2, max: 16 }),
     ]),
     reads: Object.freeze(["color", "times"] as const),
-    motion: Object.freeze({ loop: Object.freeze({ speedParam: "flicker" }), enter: 0.9, exit: 0.6 }),
+    motion: Object.freeze({ loop: Object.freeze({ speedParam: "flicker" }) }),
     cost: "light",
     origin: "element",
     webgpu: "translate",

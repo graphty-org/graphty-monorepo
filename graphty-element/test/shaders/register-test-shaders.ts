@@ -30,15 +30,15 @@ export function registerTestShaders(): void {
     });
     defineShader({
         id: "acme/sticker",
-        geometry: "card",
+        place: "replace",
         params: { icon: { type: "integer", default: 0, min: 0, max: 11, varies: true } },
         glsl: NODE_COLOR,
     });
-    defineShader({ id: "acme/mandala", geometry: "card", glsl: NODE_SIZE });
+    defineShader({ id: "acme/mandala", place: "replace", glsl: NODE_SIZE });
     for (const name of ["aura", "ring", "orbit", "spark", "flash"]) {
         defineShader({
             id: `acme/${name}`,
-            role: "effect",
+            place: "around",
             params: { intensity: { type: "number", default: 1, min: 0, max: 2, varies: true } },
             glsl: NODE_COLOR,
         });

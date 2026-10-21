@@ -121,11 +121,11 @@ export function PasteShaderDialog({
             return undefined;
         }
         const timer = setTimeout(() => {
-            // Text with no role of its own takes the section's; text that names another place keeps it.
-            const here = parseShaderText(text, { place: shaderPlaceOf(kinds[0] ?? "node-effect") });
+            // Text with no place of its own takes the section's; text that names another place keeps it.
+            const here = parseShaderText(text, shaderPlaceOf(kinds[0] ?? "node-effect"));
             const read = here.ok ? here : parseShaderText(text);
             setHeaderKind(read.ok ? shaderSlotKindOf(read.registration.descriptor) : undefined);
-            void session.shaders.check(text, { place: shaderPlaceOf(kind), onTaken: "rename" }).then((checked) => {
+            void session.shaders.check(text, { ...shaderPlaceOf(kind), onTaken: "rename" }).then((checked) => {
                 if (textNow.current === text) {
                     setResult(checked);
                 }
@@ -171,7 +171,7 @@ export function PasteShaderDialog({
     const add = async (): Promise<void> => {
         setAdding(true);
         try {
-            const checked = await session.shaders.check(text, { place: shaderPlaceOf(kind), onTaken: "rename" });
+            const checked = await session.shaders.check(text, { ...shaderPlaceOf(kind), onTaken: "rename" });
             if (!checked.ok) {
                 setResult(checked);
                 return;
@@ -188,7 +188,7 @@ export function PasteShaderDialog({
                 close(true);
                 return;
             }
-            const added = await session.shaders.add(text, { place: shaderPlaceOf(kind), onTaken: "rename" });
+            const added = await session.shaders.add(text, { ...shaderPlaceOf(kind), onTaken: "rename" });
             if (!added.ok) {
                 setResult(added);
                 return;

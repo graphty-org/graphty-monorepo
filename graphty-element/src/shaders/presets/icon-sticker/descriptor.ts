@@ -94,8 +94,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "icon-sticker",
     plainName: "Sticker",
     target: "node",
-    role: "look",
-    geometry: "card",
+    place: "replace",
     categories: Object.freeze(["Card"]),
     params: Object.freeze([
         Object.freeze({

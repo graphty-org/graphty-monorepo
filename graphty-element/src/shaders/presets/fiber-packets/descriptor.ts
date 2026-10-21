@@ -13,7 +13,7 @@ export const FIBER_PACKETS: ShaderDescriptor = Object.freeze({
     id: "fiber-packets",
     plainName: "Light packets",
     target: "edge",
-    role: "effect",
+    place: "along",
     categories: Object.freeze(["Flow"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "packets", plainName: "Packets", type: "integer", default: 3, min: 1, max: 6, primary: true },

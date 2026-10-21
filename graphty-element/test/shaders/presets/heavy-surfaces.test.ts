@@ -103,9 +103,10 @@ describe("the heavy and glowing surface presets", () => {
     it.each(TABLE.map((row) => [row.descriptor.id, row] as const))("%s matches the design's table", (_id, row) => {
         const { descriptor } = row;
         assert.strictEqual(descriptor.plainName, row.name);
-        assert.strictEqual(drawingOf(descriptor), "node-look");
+        assert.strictEqual(drawingOf(descriptor), "node-paint");
         assert.strictEqual(descriptor.origin, "element");
-        assert.deepEqual([...descriptor.reads], ["color"]);
+        // Every one is lit by the scene, so a gallery can say it reacts to the light.
+        assert.deepEqual([...descriptor.reads], ["color", "light"]);
         assert.strictEqual(descriptor.cost, row.cost);
         assert.strictEqual(descriptor.bloom === true, row.bloom);
         assert.deepEqual(descriptor.motion, row.speed === undefined ? {} : { loop: { speedParam: row.speed } });
@@ -139,14 +140,14 @@ describe("the heavy and glowing surface presets", () => {
                 id,
             );
             const body = await SHADER_PRESET_BODIES[id]();
-            assert.deepEqual(checkShaderBody(body, "node-look").problems, []);
+            assert.deepEqual(checkShaderBody(body, "node-paint").problems, []);
             if (Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id)) {
                 const low = await SHADER_PRESET_LOW_DETAIL[id]();
-                const cheap = checkShaderBody(low, "node-look");
+                const cheap = checkShaderBody(low, "node-paint");
                 assert.deepEqual(cheap.problems, []);
                 assert.isBelow(
                     cheap.cost,
-                    checkShaderBody(body, "node-look").cost,
+                    checkShaderBody(body, "node-paint").cost,
                     "the small-size program is cheaper",
                 );
             }

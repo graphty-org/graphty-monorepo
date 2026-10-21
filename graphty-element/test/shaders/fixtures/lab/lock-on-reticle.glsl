@@ -2,7 +2,7 @@
 {
     "id": "lab/lock-on-reticle",
     "name": "Reticle",
-    "role": "effect",
+    "place": "around",
     "params": [
         {
             "name": "hudColor",

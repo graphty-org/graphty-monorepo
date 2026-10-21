@@ -19,9 +19,10 @@ const LAYOUT_ID = "force";
 const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
 
 /**
- * The workspace's View menu offers VR and AR, so the element draws no XR buttons on the canvas.
+ * The workspace's View menu offers VR and AR, so XR is on (graphty-element leaves it off unless a
+ * page asks) and the element draws no XR buttons of its own on the canvas.
  */
-const XR_CONFIG = { ui: { enabled: false } } as const;
+const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 
 /** Props for ElementHost. */
 interface ElementHostProps {

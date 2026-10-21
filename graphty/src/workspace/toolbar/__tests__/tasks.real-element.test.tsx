@@ -318,6 +318,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             }
         });
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+        // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
+        // missing mode is the browser's answer, never "disabled".
+        const { reasons } = session.capabilities.xr;
+        assert.notEqual(reasons.vr, "disabled");
+        assert.notEqual(reasons.ar, "disabled");
 
         await userEvent.click(twoD);
         await waitFor(() => {

@@ -279,7 +279,7 @@ registerSource(
             params: [],
             credentials: [{ name: "token", kind: "bearer", required: true }],
         },
-        records: () => ({ nodes: [{ id: "a" }] }),
+        records: () => Promise.resolve({ nodes: [{ id: "a" }] }),
     }),
 );
 

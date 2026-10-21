@@ -81,6 +81,16 @@ export const PICK_FIELD = 0.5;
 /** The camera mask nothing draws with but the field targets, so the main camera skips the splats. */
 const SPLAT_MASK = 0x10000000;
 
+/** Floats per splat: one end and the radius, the other end, the channel mask. */
+const SPLAT_STRIDE = 12;
+
+/**
+ * A spanning-tree edge whose members are farther apart than this many kernel radii gets a
+ * connector: closer, the two members' kernels alone sum past 1.1 at the midpoint, above any
+ * outline level a hull draws at, so they already melt into one shape.
+ */
+const CONNECT_PAST = 1;
+
 /** A square of two triangles, -1..1. */
 const QUAD_POSITIONS = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
 const QUAD_INDICES = [0, 1, 2, 0, 2, 3];
@@ -120,6 +130,8 @@ interface PlacedGroup {
     readonly color: readonly [number, number, number, number];
     /** Field: its members' discs on screen, render pixels (x, y, r) per member. */
     readonly discs: Float32Array;
+    /** Field: its connectors on screen, render pixels (x0, y0, x1, y1, r) per connector. */
+    readonly bridges: Float32Array;
     /** Sphere: its sphere on screen, render pixels; field: its box's center and half size. */
     readonly circle: { readonly x: number; readonly y: number; readonly r: number };
     /** Its box on screen, render pixels: x0, y0, x1, y1 (y up from the bottom). */
@@ -146,6 +158,16 @@ interface FieldTarget {
     splats: Float32Array;
     buffer: Buffer | null;
     count: number;
+    /** How many of the splats are members, the rest connectors. */
+    members: number;
+}
+
+/** A group's spanning tree, kept until one of its members moves. */
+interface GroupTree {
+    /** The members' places it was built from: x, y, z per member. */
+    readonly at: Float32Array;
+    /** Its edges, two member indices each. */
+    readonly edges: Uint32Array;
 }
 
 /** Scratch, so laying out a frame allocates no vectors. */
@@ -187,12 +209,18 @@ export class BoundaryPass {
     private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
     private fieldBytes: { readonly key: string; readonly release: () => void } | null = null;
     private groups: readonly BoundaryLayerGroups[] = [];
+    /** Per boundary layer, whether it shares the level of the layer beneath; see {@link levelJoins}. */
+    private joins: readonly boolean[] = [];
     private stale = true;
     private placed: readonly PlacedLayer[] = [];
     private releaseMotion: (() => void) | null = null;
     private disposed = false;
+    /** Each field group's spanning tree, by layer and group. */
+    private trees = new Map<string, GroupTree>();
     /** How many frames drew boundaries, for tests and tools. */
     draws = 0;
+    /** How many spanning trees were built, for tests and tools: one per group whose members moved. */
+    treesBuilt = 0;
 
     /**
      * Start drawing a scene's boundaries.
@@ -271,7 +299,7 @@ export class BoundaryPass {
             const placed = this.placed[i];
             let best: { key: BoundaryGroupKey; score: number } | null = null;
             for (const group of placed.groups) {
-                const score = placed.sphere ? sphereScore(group, px, py) : fieldAt(group.discs, px, py);
+                const score = placed.sphere ? sphereScore(group, px, py) : fieldAt(group.discs, px, py, group.bridges);
                 if (score >= (placed.sphere ? 0 : PICK_FIELD) && (best === null || score > best.score)) {
                     best = { key: group.key, score };
                 }
@@ -307,7 +335,58 @@ export class BoundaryPass {
      * @returns The count.
      */
     splats(): number {
-        return this.fields.reduce((sum, field) => sum + field.count, 0);
+        return this.fields.reduce((sum, field) => sum + field.members, 0);
+    }
+
+    /**
+     * How many connectors the last frame splatted, for tests and tools: one per spanning-tree edge
+     * whose members' kernels alone would leave a gap.
+     * @returns The count.
+     */
+    connectors(): number {
+        return this.fields.reduce((sum, field) => sum + field.count - field.members, 0);
+    }
+
+    /**
+     * One field group's field as the GPU holds it, for tests and tools: what its shader reads.
+     * @param layer - The layer.
+     * @param key - The group's key.
+     * @returns The field's size, its values per texel (rows from the bottom) and the members'
+     * centers in texels; null for a group not drawn last frame or not drawn from a field.
+     */
+    async fieldOf(
+        layer: string,
+        key: BoundaryGroupKey,
+    ): Promise<{ width: number; height: number; values: Float32Array; centers: Float32Array } | null> {
+        const group = this.placed.find((placed) => placed.layer === layer)?.groups.find((each) => each.key === key);
+        const field = group === undefined || group.slot < 0 ? undefined : this.fields[Math.floor(group.slot / 4)];
+        if (group === undefined || field === undefined) {
+            return null;
+        }
+
+        const { width, height } = field.texture.getSize();
+        field.texture.render();
+        const data = await field.texture.readPixels();
+        if (data === null) {
+            return null;
+        }
+
+        // An 8-bit field holds a quarter of the sum; a half-float one is read back as floats.
+        const scale = data instanceof Uint8Array ? 1 / (255 * BYTE_FIELD_SCALE) : 1;
+        const texels = data as Uint8Array | Float32Array;
+        const values = new Float32Array(width * height);
+        for (let i = 0; i < values.length; i++) {
+            values[i] = texels[i * 4 + (group.slot % 4)] * scale;
+        }
+
+        const toField = width / this.scene.getEngine().getRenderWidth();
+        const centers = new Float32Array((group.discs.length / 3) * 2);
+        for (let i = 0; i < centers.length / 2; i++) {
+            centers[i * 2] = group.discs[i * 3] * toField;
+            centers[i * 2 + 1] = group.discs[i * 3 + 1] * toField;
+        }
+
+        return { width, height, values, centers };
     }
 
     /**
@@ -430,6 +509,7 @@ export class BoundaryPass {
         if (this.stale) {
             this.stale = false;
             this.groups = this.sources.boundaries();
+            this.joins = levelJoins(this.groups);
         }
 
         const camera = this.scene.activeCamera;
@@ -479,19 +559,31 @@ export class BoundaryPass {
         const world = root?.getWorldMatrix();
         const rootScale = world === undefined ? 1 : Math.hypot(world.m[0], world.m[1], world.m[2]);
 
-        const drawable = this.groups.flatMap((layer) => {
+        // Sibling layers of one shader share a level, as the groups of one layer do (see levelJoins).
+        let level = -1;
+        let below = -2;
+        const drawable = this.groups.flatMap((layer, i) => {
             const shader = this.shaderOf(layer.boundary.shader);
             const effect = shader === null ? null : this.effectOf(shader);
-            return shader === null || effect === null ? [] : [{ layer, shader, effect }];
+            if (shader === null || effect === null) {
+                return [];
+            }
+
+            level += this.joins[i] && below === i - 1 ? 0 : 1;
+            below = i;
+            return [{ layer, shader, effect, depth: level }];
         });
-        const top = drawable.length - 1;
+        const top = level;
         for (const field of this.fields) {
             field.count = 0;
+            field.members = 0;
         }
+
+        const trees = new Map<string, GroupTree>();
 
         let slot = 0;
         const out: PlacedLayer[] = [];
-        drawable.forEach(({ layer, shader, effect }, depth) => {
+        drawable.forEach(({ layer, shader, effect, depth }) => {
             const { descriptor } = shader.registration;
             const sphere = descriptor.form === "sphere";
             const nest = 1 + NEST_STEP * (top - depth);
@@ -543,6 +635,7 @@ export class BoundaryPass {
                         index,
                         color,
                         discs,
+                        bridges: new Float32Array(0),
                         circle: { x: screen.x, y: screen.y, r },
                         box: [screen.x - r, screen.y - r, screen.x + r, screen.y + r],
                         slot: -1,
@@ -550,6 +643,8 @@ export class BoundaryPass {
                     return;
                 }
 
+                const tree = this.treeOf(`${layer.layer}\u0000${String(group.key)}`, members, trees);
+                const { bridges, ends } = connectorsOf(tree.edges, members, discs, reach);
                 let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
                 for (let i = 0; i < members.length; i++) {
                     const r = discs[i * 3 + 2];
@@ -561,12 +656,13 @@ export class BoundaryPass {
                     ];
                 }
 
-                this.splat(slot, members, reach);
+                this.splat(slot, members, reach, ends);
                 groups.push({
                     key: group.key,
                     index,
                     color,
                     discs,
+                    bridges,
                     circle: { x: (box[0] + box[2]) / 2, y: (box[1] + box[3]) / 2, r: 0 },
                     box,
                     slot,
@@ -580,7 +676,38 @@ export class BoundaryPass {
             this.upload(field);
         }
 
+        this.trees = trees;
         return out;
+    }
+
+    /**
+     * A group's spanning tree, built again only when one of its members moved.
+     * @param key - The group's layer and key.
+     * @param members - Its members.
+     * @param next - The trees kept for the next frame.
+     * @returns The tree.
+     */
+    private treeOf(key: string, members: readonly BoundaryMember[], next: Map<string, GroupTree>): GroupTree {
+        const known = this.trees.get(key);
+        let same = known?.at.length === members.length * 3;
+        for (let i = 0; same && i < members.length; i++) {
+            const at = known?.at as Float32Array;
+            const { x, y, z } = members[i];
+            same = at[i * 3] === Math.fround(x) && at[i * 3 + 1] === Math.fround(y) && at[i * 3 + 2] === Math.fround(z);
+        }
+
+        let tree = known;
+        if (tree === undefined || !same) {
+            const at = new Float32Array(members.length * 3);
+            members.forEach(({ x, y, z }, i) => {
+                at.set([x, y, z], i * 3);
+            });
+            tree = { at, edges: spanningTree(at) };
+            this.treesBuilt++;
+        }
+
+        next.set(key, tree);
+        return tree;
     }
 
     /**
@@ -622,11 +749,12 @@ export class BoundaryPass {
      * @param slot - The group's slot: target x 4 + channel.
      * @param members - Its members.
      * @param reach - The kernel radius, in member radii.
+     * @param ends - The connectors: the two members' indices of each.
      */
-    private splat(slot: number, members: readonly BoundaryMember[], reach: number): void {
+    private splat(slot: number, members: readonly BoundaryMember[], reach: number, ends: readonly number[]): void {
         const field = this.fieldTarget(Math.floor(slot / 4));
         const channel = slot % 4;
-        const needed = (field.count + members.length) * 8;
+        const needed = (field.count + members.length + ends.length / 2) * SPLAT_STRIDE;
         if (field.splats.length < needed) {
             const grown = new Float32Array(Math.max(needed, field.splats.length * 2));
             grown.set(field.splats);
@@ -635,11 +763,21 @@ export class BoundaryPass {
             field.buffer = null;
         }
 
-        for (const member of members) {
-            const at = field.count * 8;
-            field.splats.set([member.x, member.y, member.z, member.radius * reach, 0, 0, 0, 0], at);
-            field.splats[at + 4 + channel] = 1;
+        const put = (a: BoundaryMember, b: BoundaryMember, radius: number): void => {
+            const at = field.count * SPLAT_STRIDE;
+            field.splats.set([a.x, a.y, a.z, radius, b.x, b.y, b.z, 0, 0, 0, 0, 0], at);
+            field.splats[at + 8 + channel] = 1;
             field.count++;
+        };
+        for (const member of members) {
+            put(member, member, member.radius * reach);
+        }
+
+        field.members += members.length;
+        for (let i = 0; i < ends.length; i += 2) {
+            const a = members[ends[i]];
+            const b = members[ends[i + 1]];
+            put(a, b, Math.min(a.radius, b.radius) * reach);
         }
     }
 
@@ -672,7 +810,7 @@ export class BoundaryPass {
         const size = this.fieldSize();
         const texture = sceneTarget(this.scene, `graphty-boundary-field-${String(index)}`, size.size, size.halfFloat);
         texture.renderList = [mesh];
-        field = { texture, mesh, splats: new Float32Array(64), buffer: null, count: 0 };
+        field = { texture, mesh, splats: new Float32Array(SPLAT_STRIDE * 8), buffer: null, count: 0, members: 0 };
         this.fields[index] = field;
         return field;
     }
@@ -683,9 +821,11 @@ export class BoundaryPass {
      */
     private upload(field: FieldTarget): void {
         if (field.buffer === null) {
-            field.buffer = new Buffer(this.scene.getEngine(), field.splats, true, 8, false, true);
+            field.buffer = new Buffer(this.scene.getEngine(), field.splats, true, SPLAT_STRIDE, false, true);
             SPLAT_ATTRIBUTES.forEach((name, i) => {
-                field.mesh.setVerticesBuffer((field.buffer as Buffer).createVertexBuffer(name, i * 4, 4, 8, true));
+                field.mesh.setVerticesBuffer(
+                    (field.buffer as Buffer).createVertexBuffer(name, i * 4, 4, SPLAT_STRIDE, true),
+                );
             });
         } else {
             field.buffer.update(field.splats);
@@ -890,6 +1030,33 @@ export function orderLayers(scene: Scene): void {
 }
 
 /**
+ * Per boundary layer, whether it shares the level of the layer beneath it: it names the same
+ * shader as that layer and none of its members is in that level already. So a folder of community
+ * layers, each with its own outline of one shader, draws its outlines side by side at one size,
+ * as one layer grouping by community would; a layer over a subset of a level's nodes (a
+ * subcommunity) starts a level above it, which draws smaller, so the level beneath rings it.
+ * @param layers - The boundary layers, bottom first.
+ * @returns One flag per layer; the first is false.
+ */
+export function levelJoins(layers: readonly BoundaryLayerGroups[]): boolean[] {
+    let level = new Set<NodeId>();
+    return layers.map((layer, i) => {
+        const members = layer.groups.flatMap((group) => group.members);
+        const joins =
+            i > 0 && layer.boundary.shader === layers[i - 1].boundary.shader && members.every((id) => !level.has(id));
+        if (!joins) {
+            level = new Set();
+        }
+
+        for (const id of members) {
+            level.add(id);
+        }
+
+        return joins;
+    });
+}
+
+/**
  * A field boundary's kernel radius, in member radii: the value of the parameter its `reachParam`
  * names (clamped to that parameter's range), else its `reach`, else the default.
  * @param descriptor - The shader's catalog facts.
@@ -928,23 +1095,116 @@ function movesWith(placed: PlacedLayer): boolean {
 }
 
 /**
- * The summed kernel of a group's discs at a point, as the field target holds it.
+ * The summed kernel of a group's discs and connectors at a point, as the field target holds it.
  * @param discs - x, y, r per member, render pixels.
  * @param px - The point's x.
  * @param py - Its y, from the bottom.
+ * @param bridges - x0, y0, x1, y1, r per connector, render pixels.
  * @returns The field there.
  */
-export function fieldAt(discs: Float32Array, px: number, py: number): number {
+export function fieldAt(discs: Float32Array, px: number, py: number, bridges?: Float32Array): number {
     let sum = 0;
-    for (let i = 0; i < discs.length; i += 3) {
-        const r = discs[i + 2];
-        const d2 = ((px - discs[i]) ** 2 + (py - discs[i + 1]) ** 2) / (r * r);
+    const add = (d2: number): void => {
         if (d2 < 1) {
             sum += (1 - d2) * (1 - d2);
         }
+    };
+    for (let i = 0; i < discs.length; i += 3) {
+        const r = discs[i + 2];
+        add(((px - discs[i]) ** 2 + (py - discs[i + 1]) ** 2) / (r * r));
+    }
+
+    for (let i = 0; bridges !== undefined && i < bridges.length; i += 5) {
+        const [x0, y0, x1, y1, r] = bridges.subarray(i, i + 5);
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / Math.max(dx * dx + dy * dy, 1e-9)));
+        add(((px - x0 - t * dx) ** 2 + (py - y0 - t * dy) ** 2) / (r * r));
     }
 
     return sum;
+}
+
+/**
+ * A minimum spanning tree over points, by Prim's method on the complete graph of their distances.
+ * @param at - x, y, z per point.
+ * @returns Its edges, two point indices each: n - 1 edges for n points.
+ */
+export function spanningTree(at: Float32Array): Uint32Array {
+    // ponytail: O(n^2), fine for a group drawn as one outline (it runs only when a member moved);
+    // a k-d tree or a Delaunay graph if groups of many thousands move every frame.
+    const n = at.length / 3;
+    const edges = new Uint32Array(Math.max(0, n - 1) * 2);
+    const best = new Float64Array(n).fill(Infinity);
+    const from = new Uint32Array(n);
+    const done = new Uint8Array(n);
+    let current = 0;
+    for (let added = 0; added < n - 1; added++) {
+        done[current] = 1;
+        let next = -1;
+        for (let j = 0; j < n; j++) {
+            if (done[j] === 1) {
+                continue;
+            }
+
+            const d =
+                (at[j * 3] - at[current * 3]) ** 2 +
+                (at[j * 3 + 1] - at[current * 3 + 1]) ** 2 +
+                (at[j * 3 + 2] - at[current * 3 + 2]) ** 2;
+            if (d < best[j]) {
+                best[j] = d;
+                from[j] = current;
+            }
+
+            if (next < 0 || best[j] < best[next]) {
+                next = j;
+            }
+        }
+
+        edges[added * 2] = from[next];
+        edges[added * 2 + 1] = next;
+        current = next;
+    }
+
+    return edges;
+}
+
+/**
+ * The connectors of a group: its spanning tree's edges whose members are too far apart for their
+ * own kernels to meet.
+ * @param edges - The tree's edges.
+ * @param members - The members.
+ * @param discs - Their discs on screen, x, y, r per member.
+ * @param reach - The kernel radius, in member radii.
+ * @returns Each connector on screen (x0, y0, x1, y1, r), and its two members' indices.
+ */
+function connectorsOf(
+    edges: Uint32Array,
+    members: readonly BoundaryMember[],
+    discs: Float32Array,
+    reach: number,
+): { bridges: Float32Array; ends: number[] } {
+    const ends: number[] = [];
+    const screen: number[] = [];
+    for (let e = 0; e < edges.length; e += 2) {
+        const i = edges[e];
+        const j = edges[e + 1];
+        const a = members[i];
+        const b = members[j];
+        const apart = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+        if (apart > Math.min(a.radius, b.radius) * reach * CONNECT_PAST) {
+            ends.push(i, j);
+            screen.push(
+                discs[i * 3],
+                discs[i * 3 + 1],
+                discs[j * 3],
+                discs[j * 3 + 1],
+                Math.min(discs[i * 3 + 2], discs[j * 3 + 2]),
+            );
+        }
+    }
+
+    return { bridges: new Float32Array(screen), ends };
 }
 
 /**

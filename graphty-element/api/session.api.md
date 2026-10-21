@@ -5267,7 +5267,7 @@ export interface UnboundLayer {
 export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
-export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.param-unused" | "shader.effect-cap" | "edge.lift-needs-flat-layout";
+export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.param-unused" | "shader.effect-cap" | "shader.boundary-cap" | "edge.lift-needs-flat-layout";
 
 // @public
 export interface UnknownRulePath {

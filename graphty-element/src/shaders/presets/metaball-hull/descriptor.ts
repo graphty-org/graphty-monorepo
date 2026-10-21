@@ -33,7 +33,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
             primary: true,
         }),
         Object.freeze({ name: "blobRadius", plainName: "Blob radius", type: "number", default: 7, min: 2, max: 25 }),
-        Object.freeze({ name: "threshold", plainName: "Threshold", type: "number", default: 1, min: 0.05, max: 1.5 }),
+        Object.freeze({ name: "threshold", plainName: "Threshold", type: "number", default: 0.5, min: 0.05, max: 1.5 }),
         Object.freeze({ name: "breathe", plainName: "Breathe", type: "number", default: 0, min: 0, max: 1 }),
         Object.freeze({
             name: "fillOpacity",

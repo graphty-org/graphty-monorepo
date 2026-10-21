@@ -61,7 +61,7 @@ const TABLE: Readonly<
         params: [
             ["look", "enum", "goo", undefined, undefined, true],
             ["blobRadius", "number", 7, 2, 25],
-            ["threshold", "number", 1, 0.05, 1.5],
+            ["threshold", "number", 0.5, 0.05, 1.5],
             ["breathe", "number", 0, 0, 1],
             ["fillOpacity", "number", 0.55, 0, 1],
             ["outline", "number", 2.5, 0, 8],

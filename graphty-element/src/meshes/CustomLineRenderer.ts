@@ -119,7 +119,9 @@ export class CustomLineRenderer {
         // We need to register in both because ShaderMaterial might use either one
         const globalShaderStore =
             typeof window !== "undefined" &&
-            (window as typeof globalThis & { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect.ShadersStore;
+            // `unknown` first: babylonjs-gltf2interface (a dependency of @babylonjs/loaders) declares a
+            // global `BABYLON` namespace of glTF types, which this shape does not overlap.
+            (window as unknown as { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect.ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
         // Vertex Shader: Screen-space width expansion

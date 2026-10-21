@@ -36,8 +36,32 @@ interface ProjectFileState {
      */
     writeFailed: boolean;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
-    pending: { file: File; handle?: FileSystemFileHandle; recentId?: string } | null;
+    pending: PendingFile | null;
 }
+
+/** Where a file being opened came from, and what to do when graphty-element reads it as data. */
+export interface FileSource {
+    /** Its handle, where the browser keeps them. */
+    handle?: FileSystemFileHandle;
+    /** Its Recent projects entry, when opened from there. */
+    recentId?: string;
+    /** The new project's name until the file names it, when it opens from the start screen. */
+    name?: string;
+    /**
+     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
+     * project; `fresh` when it opens a new project from the start screen.
+     */
+    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
+}
+
+/** A file waiting to open, and whether it opens a new project from the start screen. */
+interface PendingFile extends FileSource {
+    file: File;
+    fresh?: boolean;
+}
+
+/** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
+const DATA_REFUSALS: ReadonlySet<string> = new Set(["E_UNKNOWN_FORMAT", "E_PARSE_FAILED"]);
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
 
@@ -345,17 +369,23 @@ export function closeProject(ctx: CommandContext): void {
 async function openInSession(
     ctx: CommandContext,
     session: GraphSession,
-    pending: NonNullable<ProjectFileState["pending"]>,
+    pending: PendingFile,
     discard: boolean,
 ): Promise<void> {
     const { workspace } = ctx;
-    const { file, handle, recentId } = pending;
+    const { file, handle, recentId, onData, fresh = false } = pending;
     if (!discard && fileState(workspace).writeFailed) {
         askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
         return;
     }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
+        if (report.opened === "graph" && onData !== undefined) {
+            // A data file: imported the way the caller imports one, not as the element's draft.
+            report.draft?.dispose();
+            await onData(ctx, fresh);
+            return;
+        }
         if (report.opened !== "project") {
             workspace.set({ notice: { message: `Added ${file.name} to this project` } });
             return;
@@ -378,36 +408,34 @@ async function openInSession(
             askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
             return;
         }
+        if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
+            // A data file the element could not read: the data import says why, in its own words.
+            await onData(ctx, fresh);
+            return;
+        }
         workspace.set({ notice: { message: problemSentence(file.name, error) } });
     }
 }
 
 /**
- * Opens a project file: inside an open project it opens in its place (asking first over unsaved
- * changes); from the start screen it opens a project whose element reads the file once it is up.
+ * Opens a file through graphty-element's `project.open`, which decides what it is: inside an open
+ * project a project file opens in its place (asking first over unsaved changes); from the start
+ * screen it opens a project whose element reads the file once it is up. A data file goes to
+ * `source.onData`.
  * @param ctx - the command context.
  * @param file - the file.
- * @param handle - its handle, where the browser keeps them.
- * @param recentId - its Recent projects entry, when opened from there.
+ * @param source - its handle, its Recent projects entry, and how to import it as data.
  */
-async function openProjectFile(
-    ctx: CommandContext,
-    file: File,
-    handle?: FileSystemFileHandle,
-    recentId?: string,
-): Promise<void> {
-    const pending = {
-        file,
-        ...(handle === undefined ? {} : { handle }),
-        ...(recentId === undefined ? {} : { recentId }),
-    };
+export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
+    const { name = file.name, ...from } = source;
+    const pending: PendingFile = { file, ...from };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = pending;
+    fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: file.name, id: newProjectId(state) },
+        project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,
@@ -470,7 +498,7 @@ export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<R
         if (file === null) {
             return "missing";
         }
-        await openProjectFile(ctx, file, handle, entry.id);
+        await openProjectFile(ctx, file, { handle, recentId: entry.id });
         return "opened";
     });
 }
@@ -488,7 +516,10 @@ export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise
         if (located === undefined) {
             return "cancelled";
         }
-        await openProjectFile(ctx, located.file, located.handle, entry.id);
+        await openProjectFile(ctx, located.file, {
+            ...(located.handle === undefined ? {} : { handle: located.handle }),
+            recentId: entry.id,
+        });
         return "opened";
     });
 }

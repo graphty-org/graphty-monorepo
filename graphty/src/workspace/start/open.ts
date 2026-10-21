@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
@@ -247,13 +248,25 @@ export function addGraph({ workspace, session }: CommandContext, name: string, l
 }
 
 /**
- * Opens dropped or picked files (see {@link addSource}).
+ * Opens dropped or picked files. One file goes through graphty-element's `project.open`, which
+ * decides what it is: a saved project opens as the project (in place of the open one, asking
+ * first over unsaved changes), and a data file loads as any source does (see {@link addSource}).
+ * Two files are a node file and an edge file.
  * @param ctx - the command context.
  * @param files - the files; nothing happens without one.
  */
 export function openFiles(ctx: CommandContext, files: readonly File[]): void {
-    if (files.length > 0) {
-        addSource(ctx, incomingFiles(files));
+    const incoming = files.length > 0 ? incomingFiles(files) : undefined;
+    if (files.length === 1 && incoming !== undefined) {
+        void openProjectFile(ctx, files[0], {
+            name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
+            onData: (next) => {
+                addSource(next, incoming);
+                return Promise.resolve();
+            },
+        });
+    } else if (incoming !== undefined) {
+        addSource(ctx, incoming);
     }
     if (files.length > 2) {
         // A load reads one node file and one edge file; the rest are named, not dropped silently.

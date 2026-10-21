@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { type ExtractedStyles, extractStyles, type StyleRule } from "../../src/styles/internal.js";
+import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import { editJsonNodeFill } from "./formats/json.js";
 import {
     checkHostileBlocks,
@@ -96,16 +97,18 @@ function split<T extends { readonly name: string }>(
  * The largest member of a generated series, by the smaller member whose rules are the same kinds: its round trip
  * writes, reads back and compares every element, and leaves the checks that do not grow with the graph (the fixed
  * point, the outside edit, the hostile blocks) to the smaller one, which saves nine whole exports and imports.
- * DOT's random-10000 is not here: it has a self-loop and a parallel pair, which Graphviz draws bent, and random-1000
- * has neither.
+ * DOT's random-10000 has a self-loop and a parallel pair, which Graphviz draws bent, and random-1000 has neither, so
+ * its smaller member is a cut of it that keeps them.
  */
 const SCALE_POINTS: ReadonlyMap<string, string> = new Map([
     ["graphml/generated/scale-5000.graphml.gz", "graphml/generated/scale-500.graphml.gz"],
     ["gexf/generated/random-all-6000.gexf.gz", "gexf/generated/random-all-600.gexf"],
+    [RANDOM_10000, RANDOM_10000_CUT],
 ]);
 
 /**
- * What kinds of rules styles have: each rule's target, role, the properties it sets and the kind of each mapping.
+ * What kinds of rules styles have: each rule's target, role, the properties it sets and the kind of each mapping
+ * (sorted: a mapping's properties come in the order the file's elements first give them).
  * @param ex - the styles
  * @returns one line per rule
  */
@@ -114,6 +117,7 @@ function ruleKinds(ex: ExtractedStyles | null): string[] {
         (r) =>
             `${r.target} ${r.role} set ${Object.keys(r.set ?? {}).join(",")} map ${Object.entries(r.map ?? {})
                 .map(([p, m]) => `${p}=${m?.kind ?? ""}`)
+                .sort()
                 .join(",")}`,
     );
 }
@@ -154,7 +158,7 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
         it.each(writes.pass)("%s writes styles that read back as the same rules and values", (_name, input) =>
             write(input),
         );
-        it.each(inputs.map((input) => [input.name, input] as const))(
+        it.each(inputs.filter((input) => !SCALE_POINTS.has(input.name)).map((input) => [input.name, input] as const))(
             "%s ignores a hostile graphty.styles block in the written file",
             async (_input, input) => {
                 const loaded = await input.load();

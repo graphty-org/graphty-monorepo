@@ -102,6 +102,20 @@ function listParam(value: unknown, name: string, report: ImportReportBuilder): r
 }
 
 /**
+ * A query without the semicolons at its end, which `CALL { ... }` refuses.
+ * @param query - the query, trimmed
+ * @returns it without them
+ */
+function withoutTrailingSemicolons(query: string): string {
+    let end = query.length;
+    while (end > 0 && query[end - 1] === ";") {
+        end--;
+    }
+
+    return query.slice(0, end);
+}
+
+/**
  * The transport a load uses: the params' choice, else the endpoint's scheme, else the preset's.
  * @param params - the params
  * @param ctx - the context
@@ -256,7 +270,9 @@ class Reader {
         let capped = rows !== null;
         try {
             result = await this.transport.run(
-                rows === null ? query : `CALL {\n${query.trim().replace(/;+$/, "")}\n}\nRETURN * LIMIT ${String(rows)}`,
+                rows === null
+                    ? query
+                    : `CALL {\n${withoutTrailingSemicolons(query.trim())}\n}\nRETURN * LIMIT ${String(rows)}`,
                 parameters,
             );
         } catch (err) {

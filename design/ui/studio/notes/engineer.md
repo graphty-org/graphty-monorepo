@@ -17,6 +17,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0y. (2026-10-20) Undo across a file opened over itself redraws from the layers. Mechanism: undoing
+a replacing load puts the old graph back as a new builder whose walk from the old rows is all
+INVALID (`GraphStore.takeBack`), so `walkNodeRemap`/`walkEdgeRemap` left every render node and edge
+with no row; `DataManager.reconcile` kept the render objects (same ids in both graphs) and only
+adopted their records. Every later repaint walks nodes by `node.index`, so none was ever drawn
+again: an undone color, label or ring stayed. Fix: `reconcile` puts a kept render object back on
+its store row and queues it on the painter (`placeKept`). Element only, no API change. Test:
+`test/browser/undo-across-replace-redraws.test.ts` (fails without: drawn #00aa00, want #6366f1);
+21 history/undo browser files pass. Walks on a fresh build,
+`design/ui/studio/tmp/r1-dry2-undo-after-replace-redraws/`: color 14 (green after undoing the
+load), 15 (v01 indigo after undoing the fill); label 13 (Lucy Grant label after Replace), 15 (gone
+after two undos), 17 (Everything > Label name: 24 labels, row "24 labels, 0 hidden"), 21 (first
+find pick after a Replace draws its ring). Lesson: when the drawing and the tree disagree after an
+undo, check the render object's row (`node.index`) before the style pass.
 0x. (2026-10-20) A layer made from a selection takes its conditions before it has a look. A
 one-kind row from `styles.addRow` with no look was admitted empty (18f1cae069) but carries no `row`
 id, so its first `update`/`updateMany` that changed only the selector or name was re-checked as a
@@ -54,39 +68,9 @@ reads its summary group's rank name (fails without: "1" for "Group 2"). Walk on 
 swatch = key's Group 3), 08 (Javert's row: Group 3; Napoleon Group 6 in row and inspector), 09
 (sorted by Louvain, smallest group first, groups contiguous). Lesson: before adding app code that
 words an element value, look for a neutral fact the element already returns beside it.
-0u. (2026-10-20) Re-walked the renamed-halo and replace-keeps-picked-ties fixes on a fresh build
-(65f41f6b15), `design/ui/studio/tmp/r1-dry1-recheck-project-renamed-halo-channel/`: no regression.
-Both study projects open with their look by every route (Open a file, main menu, Control+O over an
-open project, drop, keyboard-only); the Selected layer reads Halo size 1.45. Hand-picked layers
-survive Control+O > Replace: CSV ties by ordinal (`t45a-replace/` 19, Undo 20 and Redo 22 keep 8),
-GraphML edges by file id and nodes (`t38-replace/` 14, 22). Two OLD defects seen on the way, the
-same on the frozen build 7d87760756 (`t45a-frozen-compare/` 16, 17), not from these diffs: (a)
-after Replace with a rule edge layer (kind is family) the key card closes and its toolbar button
-goes off, while an ids layer's key stays; (b) Undo of that Replace leaves the rule layer's count at
-0 while the 8 ties stay red (`t45a-success/` 23, 24). Lesson: compare a surprise against the frozen
-build on the same route before calling it a regression.
-0t. (2026-10-20) A replacing load keeps a hand-picked edge layer on the same edges. A session edge
-id is a counter that never rewinds, so Replace with the same CSV (no file edge ids) left an `ids`
-layer naming dead ids (matched 0). Fix in `data.import`'s execute (`session/commands/data.ts`):
-before the load, `pickedEdges` reads each unlocked `{match:"ids"}` layer's edges as stable members
-(file id, else ordinal among its pair's edges); after it, `repickEdges` binds them in the new
-snapshot and dispatches `style.patch update` inline, so the remap is in the import's own step and
-one Undo takes both back. The session hands the identity in as `services.edgeIdentity`
-(`GraphSession.ts`, next to `edgeMember`; `edgeRowsOf` from `notes/status.ts`). Node ids are file
-ids and need no remap. Internal only, no public API. Test:
-`graphty-element/test/session/replace-keeps-picked-edges.test.ts` (fails without: matched 0).
-Walk on a fresh build: `design/ui/studio/tmp/r1-dry1-replace-keeps-picked-ties/walk/` 13 (before)
-and 17/18 (after Replace: "8 edges" 8, red, width 24) and 19 (Undo keeps 8). Not re-walked: the
-T45A success path (it has no replacing load, so this code is not on it). Still open beside it: a
-note pinned to a CSV edge has the same dead-id problem on Replace.
-0s. (2026-10-20) A saved style document reads a renamed channel under its new name:
-`readRenamedChannels` in `graphty-element/src/session/styles/channels.ts` (a table, old name ->
-new) runs on each layer in `planTemplate` (StylesApi), so `project.open` and `applyTemplate` both
-get it. Any future channel rename adds one row there, or every saved project loses its whole look
-(one unknown channel refuses the whole style member). Checked on a fresh build: both study
-projects open with no lost part (`design/ui/studio/tmp/r1-dry1-project-renamed-halo-channel/`).
 
-1. Older Top-of-mind entries, in full: 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
+1. Older Top-of-mind entries, in full: 2026-10-20 0s-0u (renamed channel in a saved document, replace keeps
+   hand-picked edge layers, their re-walk; `git show 4a008f063f:design/ui/studio/notes/engineer.md`); 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
    and 0; still open from them: Tree folder "Select layers" box, discard note wrap, run fields
    in a rule); 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
    `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
@@ -193,6 +177,10 @@ projects open with no lost part (`design/ui/studio/tmp/r1-dry1-project-renamed-h
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-20) Worked: a scratch copy of the failing browser test that logs `node.index`, the
+  snapshot index, `painter.nodePaint(index)` and `node.drawnFill` found the stale row in one run
+  (index 4294967295 while the paint was right). `node.drawnFill` is the drawn color for tests.
 
 - (2026-10-20) Worked, in real.mjs: Shift+T opens the table with focus on the grid's first
   header; `--wheel x,y,<delta>` on the grid scrolls it to a far row. Did not work: a python

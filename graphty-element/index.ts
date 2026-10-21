@@ -152,7 +152,7 @@ export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./sr
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
-export type { ElementAtResult } from "./src/catalog/types";
+export type { BoundaryAtResult, ElementAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 

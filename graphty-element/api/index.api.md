@@ -4,6 +4,7 @@
 
 ```ts
 
+import { AbstractEngine } from '@babylonjs/core';
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { AwsCredentials } from '@graphty/graph-io';
@@ -36,6 +37,7 @@ import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
+import { GlowLayer } from '@babylonjs/core';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
@@ -114,6 +116,7 @@ import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
+import { UniformBuffer } from '@babylonjs/core';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
@@ -430,6 +433,16 @@ export const BLUE_ORANGE_COLORS: readonly ["#2166ac", "#4393c3", "#92c5de", "#d1
 
 // @public
 export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"];
+
+// @public
+export interface BoundaryAtResult {
+    // (undocumented)
+    readonly group: string | number | boolean | null;
+    // (undocumented)
+    readonly kind: "boundary";
+    // (undocumented)
+    readonly layer: LayerId;
+}
 
 // @public
 export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
@@ -1905,6 +1918,10 @@ export class Graph implements GraphContext {
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
+    boundaryAt(point: {
+        x: number;
+        y: number;
+    }): BoundaryAtResult | null;
     // (undocumented)
     camera: CameraManager;
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
@@ -2177,6 +2194,11 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+}, z.core.$strict>, z.ZodObject<{
+    backgroundType: z.ZodLiteral<"shader">;
+    shader: z.ZodString;
+    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
 }, z.core.$strict>], "backgroundType">;
 
 // @public
@@ -2349,6 +2371,10 @@ export class Graphty extends LitElement {
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
+    boundaryAt(point: {
+        x: number;
+        y: number;
+    }): BoundaryAtResult | null;
     get cameraPlaced(): boolean;
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
@@ -3766,6 +3792,8 @@ class Node_2 {
     mesh: AbstractMesh;
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get paintedColor(): Rgba | null;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -4861,6 +4889,8 @@ export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
     applyLighting(lighting: Lighting): void;
+    // @internal
+    bindShaderScene(sources: ShaderSceneSources): void;
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
@@ -4876,11 +4906,15 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    // @internal
+    pickBoundary(x: number, y: number): BoundaryPick | null;
     requestFrame(): void;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
     readonly shaderGuard: ShaderGuard;
+    // @internal
+    shaderPasses(): ReturnType<ShaderScene["passes"]>;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {

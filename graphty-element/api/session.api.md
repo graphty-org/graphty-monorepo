@@ -285,6 +285,12 @@ export interface BindingStop {
 }
 
 // @public
+export interface BoundaryClick {
+    readonly group: string | number | boolean | null;
+    readonly layer: LayerId;
+}
+
+// @public
 export interface BrowserProjects {
     get(id: string): Promise<File | undefined>;
     list(): Promise<StoredProject[]>;
@@ -4262,6 +4268,7 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 // @public
 export interface SessionEventMap {
+    "canvas:boundary-click": BoundaryClick;
     "canvas:element-click": {
         readonly node: NodeId_2;
     } | {

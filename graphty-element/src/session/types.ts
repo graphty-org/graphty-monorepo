@@ -38,6 +38,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    LayerId,
     LayoutId,
     MeasurementDeclaration,
     Path,
@@ -1928,6 +1929,18 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 /**
+ * A click on a group boundary a style layer draws (`LayerSpec.boundary`): its layer, and the
+ * group's `groupBy` value (null for a layer drawing one boundary).
+ * @since 3.36.0
+ */
+export interface BoundaryClick {
+    /** The layer whose boundary was clicked. */
+    readonly layer: LayerId;
+    /** The group's `groupBy` value; null for a layer drawing one boundary. */
+    readonly group: string | number | boolean | null;
+}
+
+/**
  * What a session publishes to whoever is watching it.
  *
  * A map rather than a bare handler, so that the events arriving with the layout, the camera and
@@ -1982,6 +1995,13 @@ export interface SessionEventMap {
      * @since 3.33.0
      */
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
+    /**
+     * A click landed on a group boundary a style layer draws (`LayerSpec.boundary`), and on no
+     * node or edge: the layer, and the group's `groupBy` value (null for a layer drawing one
+     * boundary). The topmost boundary under the pointer is the one reported.
+     * @since 3.36.0
+     */
+    "canvas:boundary-click": BoundaryClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -2968,6 +2988,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `canvas:boundary-click`; the renderer calls it for a click on a group boundary.
+     * @param target - The boundary's layer and group.
+     */
+    boundaryClick(target: BoundaryClick): void;
 }
 
 /**

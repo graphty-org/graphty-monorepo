@@ -20,7 +20,7 @@ import type {
 } from "./autosave/types";
 import type { ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, BoundaryAtResult, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type {
     FitInsets,
     GraphBackgroundConfig,
@@ -4792,6 +4792,25 @@ export class Graphty extends LitElement {
      */
     elementAt(point: { x: number; y: number }): ElementAtResult | null {
         return this.#graph.elementAt(point);
+    }
+
+    /**
+     * The group boundary under a point on the element: the outline or sphere a style layer's
+     * `boundary` draws around a group of its nodes, as a click there would see it. Only where no
+     * node and no edge is (`elementAt` answers those), the topmost boundary layer first.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "boundary", layer, group }`, or `null` when no boundary is there.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * const hit = element.boundaryAt({ x: 200, y: 150 });
+     * if (hit !== null) console.log("community", hit.group, "of layer", hit.layer);
+     * ```
+     */
+    boundaryAt(point: { x: number; y: number }): BoundaryAtResult | null {
+        return this.#graph.boundaryAt(point);
     }
 
     // ============================================================================

@@ -1,0 +1,875 @@
+/**
+ * @file Group boundaries (design/rendering/shader-styles.md sections 3.2, 4.2 and 5): one shape
+ * around each group of a boundary layer's nodes, drawn behind the graph, nested when several
+ * boundary layers stack.
+ *
+ * - **Form `"field"`** (metaball hulls): each member's kernel `(1 - d^2)^2`, of radius `reach` x
+ *   its drawn radius, is splatted additively into one channel of a field target, four groups to a
+ *   target, at most {@link FIELD_TARGETS} targets. The cost is members x kernel area, never
+ *   pixels x members. The shader then reads the field and its gradient on the group's box.
+ * - **Form `"sphere"`** (soap bubbles): one sphere per group, around its members' centroid.
+ *
+ * **Nesting.** Boundary layers are numbered bottom up (`BoundaryInput.depth`); a lower layer's
+ * kernels and spheres are drawn larger, so a community layer's outline rings the outlines of a
+ * subcommunity layer above it. Lower layers are drawn first.
+ *
+ * **Every frame drawn, nothing at rest.** The members' places are read before each frame the
+ * scene draws, so the boundaries follow a running layout; a graph drawn on demand that is not
+ * moving draws no frame and the pass costs nothing.
+ *
+ * **Picking is on the CPU**, from the same kernels and spheres projected on screen: a point inside
+ * a group's field contour or sphere picks `{ layer, group }`, the topmost layer first.
+ *
+ * Loaded with the shader runtime, never by a graph that names no shader.
+ */
+
+import {
+    Buffer,
+    Color4,
+    Constants,
+    EffectRenderer,
+    Layer,
+    type Matrix,
+    Mesh,
+    type Observer,
+    type RenderTargetTexture,
+    type Scene,
+    ShaderMaterial,
+    ShaderStore,
+    type TransformNode,
+    Vector3,
+    VertexData,
+    Viewport,
+} from "@babylonjs/core";
+
+import { motionOf } from "../catalog/shaders";
+import type { NodeId } from "../catalog/types";
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { QUALITY_LEVELS, type RenderTargetBudget, type ShaderGuard } from "../managers/ShaderGuard";
+import type { HostShader } from "../session/shaders";
+import type { BoundaryGroupKey, BoundaryLayerGroups } from "../session/styles/StylesApi";
+import {
+    boundaryProgram,
+    FIELD_SAMPLERS,
+    FIELD_TARGETS,
+    SPLAT_ATTRIBUTES,
+    splatProgram,
+} from "../shaders/runtime/scenePrograms";
+import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
+import { SCENE_BLOCK, uniformValueOf } from "../shaders/runtime/wrap";
+import { BACKGROUND_LAYER } from "./BackgroundPass";
+import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
+
+/** The boundary layer's name. */
+export const BOUNDARY_LAYER = "graphty-boundary-shader";
+
+/** A boundary kernel's radius when its shader names no `reach`, in member radii. */
+export const DEFAULT_BOUNDARY_REACH = 3;
+
+/** How much larger each boundary layer beneath the top one draws, per layer of nesting. */
+export const NEST_STEP = 0.35;
+
+/** A field target's size, as a fraction of the boundary target's. */
+const FIELD_SCALE = 0.5;
+
+/** An 8-bit field stores a quarter of the summed kernel, so four overlaps fit before it clips. */
+const BYTE_FIELD_SCALE = 0.25;
+
+/** The summed kernel a point must reach to pick a field boundary. */
+export const PICK_FIELD = 0.5;
+
+/** The camera mask nothing draws with but the field targets, so the main camera skips the splats. */
+const SPLAT_MASK = 0x10000000;
+
+/** A square of two triangles, -1..1. */
+const QUAD_POSITIONS = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
+const QUAD_INDICES = [0, 1, 2, 0, 2, 3];
+
+/** A member as the pass reads it before each frame. */
+export interface BoundaryMember {
+    /** Its center in graph-root space. */
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    /** Its drawn radius, graph-root units. */
+    readonly radius: number;
+    /** Its resolved color, 0..1, alpha the opacity. */
+    readonly color: readonly [number, number, number, number];
+}
+
+/** What the pass reads from its graph. */
+export interface BoundarySources {
+    /** The boundary layers the stack draws, bottom first. */
+    readonly boundaries: () => readonly BoundaryLayerGroups[];
+    /** A drawn node's place, size and color; undefined for one not drawn. */
+    readonly member: (id: NodeId) => BoundaryMember | undefined;
+    /** A boundary shader the element may draw, or null (unknown, held, failed, off). */
+    readonly shader: (id: string) => Promise<HostShader | null>;
+}
+
+/** What a pick on a boundary found. */
+export interface BoundaryPick {
+    readonly layer: string;
+    readonly group: BoundaryGroupKey;
+}
+
+/** One group as it was laid out for the last frame. */
+interface PlacedGroup {
+    readonly key: BoundaryGroupKey;
+    readonly index: number;
+    readonly color: readonly [number, number, number, number];
+    /** Field: its members' discs on screen, render pixels (x, y, r) per member. */
+    readonly discs: Float32Array;
+    /** Sphere: its sphere on screen, render pixels; field: its box's center and half size. */
+    readonly circle: { readonly x: number; readonly y: number; readonly r: number };
+    /** Its box on screen, render pixels: x0, y0, x1, y1 (y up from the bottom). */
+    readonly box: readonly [number, number, number, number];
+    /** Field: target x 4 + channel. */
+    readonly slot: number;
+}
+
+/** One boundary layer as it was laid out for the last frame. */
+interface PlacedLayer {
+    readonly layer: string;
+    readonly shader: HostShader;
+    readonly effect: SceneEffect;
+    readonly params: BoundaryLayerGroups["boundary"]["params"];
+    readonly sphere: boolean;
+    readonly depth: number;
+    readonly groups: readonly PlacedGroup[];
+}
+
+/** A field target and the splat mesh only it draws. */
+interface FieldTarget {
+    readonly texture: RenderTargetTexture;
+    readonly mesh: Mesh;
+    splats: Float32Array;
+    buffer: Buffer | null;
+    count: number;
+}
+
+/** Scratch, so laying out a frame allocates no vectors. */
+const scratch = new Vector3();
+const projected = new Vector3();
+
+/** The boundaries of one scene. */
+export class BoundaryPass {
+    private readonly renderer: EffectRenderer;
+    private readonly layer: Layer;
+    private readonly observer: Observer<Scene>;
+    /** Each shader by id: its resolution, then null (cannot draw) or the shader. */
+    private readonly shaders = new Map<string, HostShader | null | "resolving">();
+    /** Each compiled program by text hash and form. */
+    private readonly effects = new Map<string, { effect: SceneEffect; ready: boolean | undefined }>();
+    private readonly splatMaterial: ShaderMaterial;
+    private readonly fields: FieldTarget[] = [];
+    private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
+    private fieldBytes: { readonly key: string; readonly release: () => void } | null = null;
+    private groups: readonly BoundaryLayerGroups[] = [];
+    private stale = true;
+    private placed: readonly PlacedLayer[] = [];
+    private releaseMotion: (() => void) | null = null;
+    private disposed = false;
+    /** How many frames drew boundaries, for tests and tools. */
+    draws = 0;
+
+    /**
+     * Start drawing a scene's boundaries.
+     * @param scene - The scene.
+     * @param sources - The graph's boundary layers, members and shaders.
+     * @param runtime - The shader runtime, for the scene uniforms and motion claims.
+     * @param guard - The frame guard, for the quality level and the target size.
+     * @param budget - The scene's shader render-target budget.
+     */
+    constructor(
+        private readonly scene: Scene,
+        private readonly sources: BoundarySources,
+        private readonly runtime: ShaderRuntime,
+        private readonly guard: ShaderGuard,
+        private readonly budget: RenderTargetBudget,
+    ) {
+        const engine = scene.getEngine();
+        this.renderer = new EffectRenderer(engine);
+        this.layer = new Layer(BOUNDARY_LAYER, null, scene, true);
+        this.layer.alphaBlendingMode = Constants.ALPHA_PREMULTIPLIED;
+        this.layer.isEnabled = false;
+        orderLayers(scene);
+
+        const program = splatProgram();
+        ShaderStore.ShadersStore.graphtyBoundarySplatVertexShader = program.vertex;
+        ShaderStore.ShadersStore.graphtyBoundarySplatFragmentShader = program.fragment;
+        this.splatMaterial = new ShaderMaterial(
+            "graphty-boundary-splat",
+            scene,
+            { vertex: "graphtyBoundarySplat", fragment: "graphtyBoundarySplat" },
+            {
+                attributes: [...program.attributes],
+                uniforms: [...program.uniforms],
+                needAlphaBlending: true,
+            },
+        );
+        this.splatMaterial.backFaceCulling = false;
+        this.splatMaterial.disableDepthWrite = true;
+        this.splatMaterial.alphaMode = Constants.ALPHA_ONEONE_ONEONE;
+        this.splatMaterial.onBindObservable.add(() => {
+            this.splatMaterial.setFloat("graphty_scale", this.fieldSize().halfFloat ? 1 : BYTE_FIELD_SCALE);
+        });
+
+        this.observer = scene.onBeforeRenderObservable.add(() => {
+            this.frame();
+        });
+    }
+
+    /** Read the boundary layers again before the next frame: the stack, the data or a run changed. */
+    invalidate(): void {
+        this.stale = true;
+        this.requestFrame();
+    }
+
+    /**
+     * Resolve a shader again: its status changed (approved, failed, turned off).
+     * @param id - The shader's id.
+     */
+    forget(id: string): void {
+        this.shaders.delete(id);
+        this.invalidate();
+    }
+
+    /**
+     * The boundary under a point, the topmost layer first.
+     * @param x - CSS pixels from the canvas's left edge.
+     * @param y - CSS pixels from the canvas's top edge.
+     * @returns The layer and group, or null.
+     */
+    pick(x: number, y: number): BoundaryPick | null {
+        const engine = this.scene.getEngine();
+        const scaling = engine.getHardwareScalingLevel();
+        const px = x / scaling;
+        const py = engine.getRenderHeight() - y / scaling;
+        for (let i = this.placed.length - 1; i >= 0; i--) {
+            const placed = this.placed[i];
+            let best: { key: BoundaryGroupKey; score: number } | null = null;
+            for (const group of placed.groups) {
+                const score = placed.sphere ? sphereScore(group, px, py) : fieldAt(group.discs, px, py);
+                if (score >= (placed.sphere ? 0 : PICK_FIELD) && (best === null || score > best.score)) {
+                    best = { key: group.key, score };
+                }
+            }
+
+            if (best !== null) {
+                return { layer: placed.layer, group: best.key };
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What the pass drew last, for tests and tools.
+     * @returns Per layer drawn: its id, its groups' keys and its depth.
+     */
+    drawn(): readonly {
+        readonly layer: string;
+        readonly depth: number;
+        readonly groups: readonly BoundaryGroupKey[];
+    }[] {
+        return this.placed.map((placed) => ({
+            layer: placed.layer,
+            depth: placed.depth,
+            groups: placed.groups.map((group) => group.key),
+        }));
+    }
+
+    /**
+     * The pasted shaders drawn, for the frame guard and the flashing check.
+     * @returns Whether a pasted shader draws, and the moving ones' hashes.
+     */
+    pastedDrawn(): { readonly any: boolean; readonly moving: readonly string[] } {
+        const pasted = this.placed.filter((placed) => placed.shader.pasted === true && placed.groups.length > 0);
+        return {
+            any: pasted.length > 0,
+            moving: pasted.filter((placed) => movesWith(placed)).map((placed) => placed.shader.hash),
+        };
+    }
+
+    /** Release every target, mesh, program and observer. */
+    dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+
+        this.disposed = true;
+        this.scene.onBeforeRenderObservable.remove(this.observer);
+        this.releaseMotion?.();
+        this.releaseMotion = null;
+        for (const { effect } of this.effects.values()) {
+            effect.dispose();
+        }
+
+        this.effects.clear();
+        this.dropTargets();
+        this.splatMaterial.dispose();
+        this.layer.dispose();
+        this.renderer.dispose();
+    }
+
+    /** Ask a graph drawn on demand for one frame. */
+    private requestFrame(): void {
+        const release = animatesEveryFrame(this.scene);
+        this.scene.onAfterRenderObservable.addOnce(release);
+    }
+
+    /**
+     * A shader by id once resolved, starting its resolution the first time.
+     * @param id - The id.
+     * @returns The shader, or null while it cannot draw.
+     */
+    private shaderOf(id: string): HostShader | null {
+        const known = this.shaders.get(id);
+        if (known === undefined) {
+            this.shaders.set(id, "resolving");
+            void this.sources.shader(id).then(
+                (shader) => {
+                    if (this.shaders.get(id) === "resolving") {
+                        this.shaders.set(id, shader?.registration.descriptor.kind === "boundary" ? shader : null);
+                        this.requestFrame();
+                    }
+                },
+                () => {
+                    this.shaders.set(id, null);
+                },
+            );
+            return null;
+        }
+
+        return known === "resolving" ? null : known;
+    }
+
+    /**
+     * A shader's compiled program, compiling it the first time.
+     * @param shader - The shader.
+     * @returns The program once compiled, else null.
+     */
+    private effectOf(shader: HostShader): SceneEffect | null {
+        const { descriptor, glsl } = shader.registration;
+        const key = `${shader.hash}|${descriptor.form ?? "field"}`;
+        const known = this.effects.get(key);
+        if (known !== undefined) {
+            return known.ready === true ? known.effect : null;
+        }
+
+        const effect = sceneEffect(
+            this.scene.getEngine(),
+            `graphtyBoundary${shader.hash.slice(0, 24)}${descriptor.form === "sphere" ? "s" : "f"}`,
+            boundaryProgram(descriptor, glsl),
+        );
+        const entry: { effect: SceneEffect; ready: boolean | undefined } = { effect, ready: undefined };
+        this.effects.set(key, entry);
+        void effect.ready.then((ok) => {
+            entry.ready = ok;
+            this.runtime.noteDrawn([shader.hash]);
+            this.requestFrame();
+        });
+        return null;
+    }
+
+    /** Before each frame: lay the groups out, splat the fields and draw the boundaries. */
+    private frame(): void {
+        if (this.stale) {
+            this.stale = false;
+            this.groups = this.sources.boundaries();
+        }
+
+        const camera = this.scene.activeCamera;
+        const placed = camera === null ? [] : this.layOut();
+        this.placed = placed;
+        this.follow();
+        const drawsAny = placed.some((layer) => layer.groups.length > 0);
+        const target = drawsAny ? this.sizedTargets() : null;
+        this.layer.isEnabled = target !== null;
+        if (target === null) {
+            return;
+        }
+
+        for (const field of this.fields) {
+            if (field.count > 0) {
+                field.texture.render();
+            }
+        }
+
+        this.composite(target, placed);
+        this.draws++;
+    }
+
+    /** Hold a motion claim while a drawn boundary loops with a speed that is not 0. */
+    private follow(): void {
+        const moves = this.placed.some((placed) => placed.groups.length > 0 && movesWith(placed));
+        if (moves && this.releaseMotion === null) {
+            this.releaseMotion = this.runtime.uniforms.claimMotion();
+        } else if (!moves && this.releaseMotion !== null) {
+            this.releaseMotion();
+            this.releaseMotion = null;
+        }
+    }
+
+    /**
+     * Lay out every drawable boundary layer for this frame: members' places on screen, each
+     * group's box, sphere and field slot, and the splats of the field targets.
+     * @returns The layers, bottom first.
+     */
+    private layOut(): PlacedLayer[] {
+        const engine = this.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const transform = this.scene.getTransformMatrix();
+        const scaleY = Math.abs(this.scene.activeCamera?.getProjectionMatrix().m[5] ?? 1);
+        const root = this.scene.getTransformNodeByName("graph-root") as TransformNode | null;
+        const world = root?.getWorldMatrix();
+        const rootScale = world === undefined ? 1 : Math.hypot(world.m[0], world.m[1], world.m[2]);
+
+        const drawable = this.groups.flatMap((layer) => {
+            const shader = this.shaderOf(layer.boundary.shader);
+            const effect = shader === null ? null : this.effectOf(shader);
+            return shader === null || effect === null ? [] : [{ layer, shader, effect }];
+        });
+        const top = drawable.length - 1;
+        for (const field of this.fields) {
+            field.count = 0;
+        }
+
+        let slot = 0;
+        const out: PlacedLayer[] = [];
+        drawable.forEach(({ layer, shader, effect }, depth) => {
+            const { descriptor } = shader.registration;
+            const sphere = descriptor.form === "sphere";
+            const nest = 1 + NEST_STEP * (top - depth);
+            const reach = (descriptor.reach ?? DEFAULT_BOUNDARY_REACH) * nest;
+            const groups: PlacedGroup[] = [];
+            layer.groups.forEach((group, index) => {
+                const members = group.members.flatMap((id) => {
+                    const member = this.sources.member(id);
+                    return member === undefined ? [] : [member];
+                });
+                if (members.length === 0 || (!sphere && slot >= FIELD_TARGETS * 4)) {
+                    return;
+                }
+
+                const color: [number, number, number, number] = [0, 0, 0, 0];
+                const discs = new Float32Array(members.length * 3);
+                let cx = 0;
+                let cy = 0;
+                let cz = 0;
+                members.forEach((member, i) => {
+                    for (let c = 0; c < 4; c++) {
+                        color[c] += member.color[c] / members.length;
+                    }
+
+                    cx += member.x / members.length;
+                    cy += member.y / members.length;
+                    cz += member.z / members.length;
+                    const screen = this.toScreen(member, transform, world, width, height);
+                    discs[i * 3] = screen.x;
+                    discs[i * 3 + 1] = screen.y;
+                    discs[i * 3 + 2] = (member.radius * rootScale * reach * scaleY * 0.5 * height) / screen.w;
+                });
+
+                if (sphere) {
+                    let radius = 0;
+                    for (const member of members) {
+                        radius = Math.max(
+                            radius,
+                            Math.hypot(member.x - cx, member.y - cy, member.z - cz) +
+                                member.radius * (1 + reach * 0.25),
+                        );
+                    }
+
+                    radius *= nest;
+                    const screen = this.toScreen({ x: cx, y: cy, z: cz }, transform, world, width, height);
+                    const r = (radius * rootScale * scaleY * 0.5 * height) / screen.w;
+                    groups.push({
+                        key: group.key,
+                        index,
+                        color,
+                        discs,
+                        circle: { x: screen.x, y: screen.y, r },
+                        box: [screen.x - r, screen.y - r, screen.x + r, screen.y + r],
+                        slot: -1,
+                    });
+                    return;
+                }
+
+                let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+                for (let i = 0; i < members.length; i++) {
+                    const r = discs[i * 3 + 2];
+                    box = [
+                        Math.min(box[0], discs[i * 3] - r),
+                        Math.min(box[1], discs[i * 3 + 1] - r),
+                        Math.max(box[2], discs[i * 3] + r),
+                        Math.max(box[3], discs[i * 3 + 1] + r),
+                    ];
+                }
+
+                this.splat(slot, members, reach);
+                groups.push({
+                    key: group.key,
+                    index,
+                    color,
+                    discs,
+                    circle: { x: (box[0] + box[2]) / 2, y: (box[1] + box[3]) / 2, r: 0 },
+                    box,
+                    slot,
+                });
+                slot++;
+            });
+            out.push({ layer: layer.layer, shader, effect, params: layer.boundary.params, sphere, depth, groups });
+        });
+
+        for (const field of this.fields) {
+            this.upload(field);
+        }
+
+        return out;
+    }
+
+    /**
+     * A point in graph-root space on screen.
+     * @param at - The point.
+     * @param at.x - X.
+     * @param at.y - Y.
+     * @param at.z - Z.
+     * @param transform - The camera's view-projection.
+     * @param world - The graph root's world matrix.
+     * @param width - The drawing buffer's width.
+     * @param height - Its height.
+     * @returns Render pixels from the bottom-left corner, and the clip w.
+     */
+    private toScreen(
+        at: { readonly x: number; readonly y: number; readonly z: number },
+        transform: Matrix,
+        world: Matrix | undefined,
+        width: number,
+        height: number,
+    ): { x: number; y: number; w: number } {
+        scratch.set(at.x, at.y, at.z);
+        if (world !== undefined) {
+            Vector3.TransformCoordinatesToRef(scratch, world, scratch);
+        }
+
+        const { m } = transform;
+        const w = scratch.x * m[3] + scratch.y * m[7] + scratch.z * m[11] + m[15];
+        Vector3.TransformCoordinatesToRef(scratch, transform, projected);
+        return {
+            x: (projected.x * 0.5 + 0.5) * width,
+            y: (projected.y * 0.5 + 0.5) * height,
+            w: Math.max(Math.abs(w), 1e-6),
+        };
+    }
+
+    /**
+     * Add one group's members to its field target's splats.
+     * @param slot - The group's slot: target x 4 + channel.
+     * @param members - Its members.
+     * @param reach - The kernel radius, in member radii.
+     */
+    private splat(slot: number, members: readonly BoundaryMember[], reach: number): void {
+        const field = this.fieldTarget(Math.floor(slot / 4));
+        const channel = slot % 4;
+        const needed = (field.count + members.length) * 8;
+        if (field.splats.length < needed) {
+            const grown = new Float32Array(Math.max(needed, field.splats.length * 2));
+            grown.set(field.splats);
+            field.splats = grown;
+            field.buffer?.dispose();
+            field.buffer = null;
+        }
+
+        for (const member of members) {
+            const at = field.count * 8;
+            field.splats.set([member.x, member.y, member.z, member.radius * reach, 0, 0, 0, 0], at);
+            field.splats[at + 4 + channel] = 1;
+            field.count++;
+        }
+    }
+
+    /**
+     * A field target's splat mesh, made the first time.
+     * @param index - The target's index.
+     * @returns The target.
+     */
+    private fieldTarget(index: number): FieldTarget {
+        let field = this.fields[index] as FieldTarget | undefined;
+        if (field !== undefined) {
+            return field;
+        }
+
+        const mesh = new Mesh(`graphty-boundary-splat-${String(index)}`, this.scene);
+        const quad = new VertexData();
+        quad.positions = QUAD_POSITIONS;
+        quad.indices = QUAD_INDICES;
+        quad.applyToMesh(mesh);
+        mesh.isPickable = false;
+        mesh.doNotSyncBoundingInfo = true;
+        mesh.alwaysSelectAsActiveMesh = true;
+        mesh.layerMask = SPLAT_MASK;
+        mesh.material = this.splatMaterial;
+        const root = this.scene.getTransformNodeByName("graph-root");
+        if (root) {
+            mesh.parent = root;
+        }
+
+        const size = this.fieldSize();
+        const texture = sceneTarget(this.scene, `graphty-boundary-field-${String(index)}`, size.size, size.halfFloat);
+        texture.renderList = [mesh];
+        field = { texture, mesh, splats: new Float32Array(64), buffer: null, count: 0 };
+        this.fields[index] = field;
+        return field;
+    }
+
+    /**
+     * Upload a field target's splats and set how many draw.
+     * @param field - The target.
+     */
+    private upload(field: FieldTarget): void {
+        if (field.buffer === null) {
+            field.buffer = new Buffer(this.scene.getEngine(), field.splats, true, 8, false, true);
+            SPLAT_ATTRIBUTES.forEach((name, i) => {
+                field.mesh.setVerticesBuffer((field.buffer as Buffer).createVertexBuffer(name, i * 4, 4, 8, true));
+            });
+        } else {
+            field.buffer.update(field.splats);
+        }
+
+        field.mesh.forcedInstanceCount = field.count;
+        field.mesh.setEnabled(field.count > 0);
+    }
+
+    /**
+     * The field targets' size and texel type at the quality level now.
+     * @returns The size and whether texels are 16-bit floats.
+     */
+    private fieldSize(): { size: { width: number; height: number }; halfFloat: boolean } {
+        const engine = this.scene.getEngine();
+        const target = this.guard.targetSize(engine.getRenderWidth(), engine.getRenderHeight());
+        const halfFloat = QUALITY_LEVELS[this.guard.quality.level].halfFloat && engine.getCaps().textureHalfFloatRender;
+        return {
+            size: {
+                width: Math.max(1, Math.round(target.width * FIELD_SCALE)),
+                height: Math.max(1, Math.round(target.height * FIELD_SCALE)),
+            },
+            halfFloat,
+        };
+    }
+
+    /**
+     * The boundary target and the field targets at the size the quality level asks for, remade
+     * when that changed; null when the render-target budget has no room.
+     * @returns The boundary target.
+     */
+    private sizedTargets(): RenderTargetTexture | null {
+        const engine = this.scene.getEngine();
+        const size = this.guard.targetSize(engine.getRenderWidth(), engine.getRenderHeight());
+        const field = this.fieldSize();
+        const fieldKey = `${String(field.size.width)}x${String(field.size.height)}|${String(field.halfFloat)}|${String(this.fields.length)}`;
+        for (const each of this.fields) {
+            const held = each.texture.getSize();
+            if (held.width !== field.size.width || held.height !== field.size.height) {
+                each.texture.resize(field.size);
+            }
+        }
+
+        if (this.fieldBytes?.key !== fieldKey) {
+            this.fieldBytes?.release();
+            this.fieldBytes = null;
+            const release = this.budget.reserve(targetBytes(field.size, field.halfFloat) * this.fields.length);
+            if (release === null) {
+                return null;
+            }
+
+            this.fieldBytes = { key: fieldKey, release };
+        }
+
+        const held = this.target?.texture.getSize();
+        if (this.target !== null && held?.width === size.width && held.height === size.height) {
+            return this.target.texture;
+        }
+
+        if (this.target !== null) {
+            this.layer.texture = null;
+            this.target.texture.dispose();
+            this.target.release();
+            this.target = null;
+        }
+
+        const release = this.budget.reserve(targetBytes(size, false));
+        if (release === null) {
+            return null;
+        }
+
+        const texture = sceneTarget(this.scene, "graphty-boundary-target", size, false);
+        this.target = { texture, release };
+        this.layer.texture = texture;
+        return texture;
+    }
+
+    /** Release every target and its bytes. */
+    private dropTargets(): void {
+        for (const field of this.fields) {
+            field.texture.dispose();
+            field.mesh.dispose();
+            field.buffer?.dispose();
+        }
+
+        this.fields.length = 0;
+        this.fieldBytes?.release();
+        this.fieldBytes = null;
+        if (this.target !== null) {
+            this.layer.texture = null;
+            this.target.texture.dispose();
+            this.target.release();
+            this.target = null;
+        }
+    }
+
+    /**
+     * Draw every group into the boundary target, lowest layer first, each premultiplied over what
+     * is beneath it, on its own box.
+     * @param target - The boundary target.
+     * @param placed - The layers laid out for this frame.
+     */
+    private composite(target: RenderTargetTexture, placed: readonly PlacedLayer[]): void {
+        const engine = this.scene.getEngine();
+        const wrapperTarget = target.renderTarget;
+        if (wrapperTarget === null) {
+            return;
+        }
+
+        const size = target.getSize();
+        const width = engine.getRenderWidth();
+        const toTarget = size.width / width;
+        const field = this.fieldSize();
+        engine.bindFramebuffer(wrapperTarget, undefined, undefined, undefined, true);
+        engine.clear(new Color4(0, 0, 0, 0), true, false, false);
+        this.renderer.saveStates();
+        try {
+            for (const layer of placed) {
+                const { effect, shader } = layer;
+                for (const group of layer.groups) {
+                    const x0 = Math.max(0, Math.floor(group.box[0] * toTarget));
+                    const y0 = Math.max(0, Math.floor(group.box[1] * toTarget));
+                    const x1 = Math.min(size.width, Math.ceil(group.box[2] * toTarget));
+                    const y1 = Math.min(size.height, Math.ceil(group.box[3] * toTarget));
+                    if (x1 <= x0 || y1 <= y0) {
+                        continue;
+                    }
+
+                    this.renderer.setViewport(
+                        new Viewport(
+                            x0 / size.width,
+                            y0 / size.height,
+                            (x1 - x0) / size.width,
+                            (y1 - y0) / size.height,
+                        ),
+                    );
+                    this.renderer.applyEffectWrapper(effect.wrapper);
+                    engine.setAlphaMode(Constants.ALPHA_PREMULTIPLIED);
+                    const program = effect.wrapper.effect;
+                    this.runtime.uniforms.buffer.bindToEffect(program, SCENE_BLOCK);
+                    program.setFloat4("graphty_resolution", size.width, size.height, 1 / toTarget, 0);
+                    program.setFloat4(
+                        "graphty_fieldTexel",
+                        1 / field.size.width,
+                        1 / field.size.height,
+                        width / field.size.width,
+                        field.halfFloat ? 1 : 1 / BYTE_FIELD_SCALE,
+                    );
+                    program.setFloat4(
+                        "graphty_sphere",
+                        group.circle.x * toTarget,
+                        group.circle.y * toTarget,
+                        Math.max(group.circle.r * toTarget, 1e-3),
+                        layer.sphere ? 1 : 0,
+                    );
+                    program.setFloat4("graphty_groupColor", ...group.color);
+                    program.setFloat4("graphty_groupInfo", group.index, layer.depth, Math.max(group.slot, 0), 0);
+                    program.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(shader.hash));
+                    if (!layer.sphere) {
+                        FIELD_SAMPLERS.forEach((name, i) => {
+                            const texture = (this.fields[i] ?? this.fields[0]) as FieldTarget | undefined;
+                            if (texture !== undefined) {
+                                program.setTexture(name, texture.texture);
+                            }
+                        });
+                    }
+
+                    setParams(program, shader.registration.descriptor.params, layer.params);
+                    this.renderer.draw();
+                }
+
+                this.runtime.noteDrawn([shader.hash]);
+            }
+        } finally {
+            this.renderer.restoreStates();
+            engine.setAlphaMode(Constants.ALPHA_DISABLE);
+            engine.unBindFramebuffer(wrapperTarget);
+        }
+    }
+}
+
+/**
+ * Keep the scene's background layers in order: the background shader first, the boundaries next,
+ * every other layer after them.
+ * @param scene - The scene.
+ */
+export function orderLayers(scene: Scene): void {
+    const order = [BACKGROUND_LAYER, BOUNDARY_LAYER];
+    const rank = (name: string): number => (order.includes(name) ? order.indexOf(name) : order.length);
+    scene.layers.sort((a, b) => rank(a.name) - rank(b.name));
+}
+
+/**
+ * Whether a laid-out layer's shader moves by itself: it loops and its speed is not 0.
+ * @param placed - The layer.
+ * @returns True when it does.
+ */
+function movesWith(placed: PlacedLayer): boolean {
+    const { motion, params } = placed.shader.registration.descriptor;
+    const { loop } = motionOf(motion);
+    if (loop === undefined) {
+        return false;
+    }
+
+    const speed = params.find((param) => param.name === loop.speedParam);
+    return speed === undefined || uniformValueOf(speed, placed.params?.[speed.name])[0] !== 0;
+}
+
+/**
+ * The summed kernel of a group's discs at a point, as the field target holds it.
+ * @param discs - x, y, r per member, render pixels.
+ * @param px - The point's x.
+ * @param py - Its y, from the bottom.
+ * @returns The field there.
+ */
+export function fieldAt(discs: Float32Array, px: number, py: number): number {
+    let sum = 0;
+    for (let i = 0; i < discs.length; i += 3) {
+        const r = discs[i + 2];
+        const d2 = ((px - discs[i]) ** 2 + (py - discs[i + 1]) ** 2) / (r * r);
+        if (d2 < 1) {
+            sum += (1 - d2) * (1 - d2);
+        }
+    }
+
+    return sum;
+}
+
+/**
+ * How far inside a group's sphere a point is: 1 at its center, 0 on its rim, below 0 outside.
+ * @param group - The group.
+ * @param px - The point's x.
+ * @param py - Its y, from the bottom.
+ * @returns The score.
+ */
+function sphereScore(group: PlacedGroup, px: number, py: number): number {
+    const { x, y, r } = group.circle;
+    return r <= 0 ? -1 : 1 - Math.hypot(px - x, py - y) / r;
+}

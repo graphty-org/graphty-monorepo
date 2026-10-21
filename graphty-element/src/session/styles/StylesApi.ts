@@ -76,7 +76,7 @@
  */
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
-import { isShaderId } from "../../catalog/shaders";
+import { isShaderId, type LayerBoundary } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -4944,7 +4944,116 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     PAINTING.set(api, painting);
+    BOUNDARIES.set(api, () => boundaryGroups(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
     return api;
+}
+
+/** The most boundary groups one graph draws, across every layer (`shader.boundary-cap`). */
+export const BOUNDARY_GROUP_CAP = 32;
+
+/** A group's key: its `groupBy` value, or null for a layer drawing one boundary. */
+export type BoundaryGroupKey = string | number | boolean | null;
+
+/** One boundary layer as it draws: its groups and their members, bottom layer first. */
+export interface BoundaryLayerGroups {
+    /** The layer. */
+    readonly layer: LayerId;
+    /** Its boundary member. */
+    readonly boundary: LayerBoundary;
+    /** Its groups, in the order their values were first seen. */
+    readonly groups: readonly { readonly key: BoundaryGroupKey; readonly members: readonly NodeId[] }[];
+    /** How many groups the cap left out. */
+    readonly left: number;
+}
+
+/** Each stack's boundary reader, by the API that owns it; see {@link boundariesOf}. */
+const BOUNDARIES = new WeakMap<SessionStylesApi, () => readonly BoundaryLayerGroups[]>();
+
+/**
+ * The boundaries a stack draws now: every enabled node layer with a `boundary` member, its
+ * matched nodes grouped by `groupBy`. A node without a `groupBy` value is in no group. At most
+ * {@link BOUNDARY_GROUP_CAP} groups across the whole stack, lowest layers first.
+ * @param api - A stack {@link createStylesApi} built (anything else draws none).
+ * @returns The boundary layers, bottom first.
+ */
+export function boundariesOf(api: object): readonly BoundaryLayerGroups[] {
+    return BOUNDARIES.get(api as SessionStylesApi)?.() ?? [];
+}
+
+/**
+ * A group key from a read value: primitives as they are, anything else as text.
+ * @param value - The value.
+ * @returns The key, or undefined for no value.
+ */
+function groupKeyOf(value: unknown): BoundaryGroupKey | undefined {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? value
+        : JSON.stringify(value);
+}
+
+/**
+ * The boundary groups of a painting stack.
+ * @param stack - The stack as it paints, bottom first.
+ * @param sources - The stack's sources, for the graph's nodes and their values.
+ * @param nodeIndex - A node's index by id.
+ * @returns The boundary layers.
+ */
+function boundaryGroups(
+    stack: readonly CompiledLayer[],
+    sources: StylesSources,
+    nodeIndex: (id: NodeId) => number | undefined,
+): readonly BoundaryLayerGroups[] {
+    const layers = stack.filter(
+        (entry) => entry.layer.enabled && entry.layer.target === "node" && entry.layer.boundary !== undefined,
+    );
+    if (layers.length === 0) {
+        return [];
+    }
+
+    const nodes = [...(sources.resolveScope?.(WHOLE_GRAPH).nodes ?? [])];
+    let room = BOUNDARY_GROUP_CAP;
+    return layers.map(({ layer, selector }) => {
+        const boundary = layer.boundary as LayerBoundary;
+        const groups = new Map<BoundaryGroupKey, NodeId[]>();
+        const dropped = new Set<BoundaryGroupKey>();
+        for (const id of nodes) {
+            const index = nodeIndex(id);
+            if (index === undefined || (selector.test !== null && !selector.test(index))) {
+                continue;
+            }
+
+            const key =
+                boundary.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, boundary.groupBy));
+            if (key === undefined) {
+                continue;
+            }
+
+            let members = groups.get(key);
+            if (members === undefined) {
+                if (room === 0) {
+                    dropped.add(key);
+                    continue;
+                }
+
+                room--;
+                members = [];
+                groups.set(key, members);
+            }
+
+            members.push(id);
+        }
+
+        return Object.freeze({
+            layer: layer.id,
+            boundary,
+            groups: Object.freeze([...groups].map(([key, members]) => ({ key, members }))),
+            left: dropped.size,
+        });
+    });
 }
 
 /** Each stack's {@link paintingOf} view, by the API that owns it. */

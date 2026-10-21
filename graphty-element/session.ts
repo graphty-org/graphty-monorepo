@@ -64,6 +64,7 @@ import { englishReading, type ReadingOptions, type RunResult } from "./src/sessi
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    BoundaryClick,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,

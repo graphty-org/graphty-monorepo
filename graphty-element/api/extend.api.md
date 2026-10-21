@@ -1916,6 +1916,8 @@ class Node_2 {
     mesh: AbstractMesh;
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get paintedColor(): Rgba | null;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;

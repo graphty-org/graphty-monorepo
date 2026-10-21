@@ -61,6 +61,18 @@ export type EdgeId = string;
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
 
+/**
+ * What `element.boundaryAt(point)` finds under a point: a group boundary a style layer draws
+ * (`LayerSpec.boundary`), by its layer and group, the topmost boundary layer first. `group` is the
+ * group's `groupBy` value, null for a layer drawing one boundary.
+ * @since 3.36.0
+ */
+export interface BoundaryAtResult {
+    readonly kind: "boundary";
+    readonly layer: LayerId;
+    readonly group: string | number | boolean | null;
+}
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 

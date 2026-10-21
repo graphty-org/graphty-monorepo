@@ -253,6 +253,7 @@ export function publishedGraphSettings(): string[] {
 export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "background.color": at("Graph settings, Canvas, Background color"),
     "background.skybox": at("Graph settings, Canvas, Background image"),
+    "background.shader": NOT_PLACED,
     "selection.color": at("Selected row, Effects, Halo"),
     "selection.scale": at("Selected row, Effects, Halo settings"),
     "selection.opacity": at("Selected row, Effects, Halo settings"),

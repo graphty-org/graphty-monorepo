@@ -100,7 +100,15 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, EdgeId, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type {
+    AlgorithmKey,
+    BoundaryAtResult,
+    EdgeId,
+    ElementAtResult,
+    FormatId,
+    Scope,
+    ScopeInput,
+} from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -867,6 +875,31 @@ export class Graph implements GraphContext {
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        // The background shader, group boundaries and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
@@ -4037,7 +4070,17 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
-        if (edgeId !== undefined) {
+        const boundary = edgeId === undefined ? this.renderManager.pickBoundary(x, y) : null;
+        if (boundary !== null) {
+            if (!secondary) {
+                this.selectionManager.deselect();
+                if (this.session.selection.edges.length > 0) {
+                    this.session.selection.clear();
+                }
+            }
+
+            this.session.boundaryClick(boundary);
+        } else if (edgeId !== undefined) {
             if (!(secondary && this.session.selection.edges.includes(edgeId))) {
                 const add = event.shiftKey === true;
                 this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
@@ -4900,6 +4943,23 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(point.x, point.y);
         return edgeId === undefined ? null : { kind: "edge", id: edgeId };
+    }
+
+    /**
+     * The group boundary under a point, where no node and no edge is; see
+     * `Graphty.boundaryAt`.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "boundary", layer, group }`, or `null` when no boundary is there.
+     */
+    boundaryAt(point: { x: number; y: number }): BoundaryAtResult | null {
+        if (this.elementAt(point) !== null) {
+            return null;
+        }
+
+        const hit = this.renderManager.pickBoundary(point.x, point.y);
+        return hit === null ? null : { kind: "boundary", layer: hit.layer, group: hit.group };
     }
 
     /**

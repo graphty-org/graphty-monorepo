@@ -13,14 +13,36 @@ const GraphBackgroundSkybox = z.strictObject({
     data: ImageData,
 });
 
+/** A shader parameter name: a GLSL identifier with no `__`, so no key reaches a prototype. */
+const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+const GraphBackgroundShader = z.strictObject({
+    backgroundType: z.literal("shader"),
+    /** A background shader id: a preset (`"nebula"`), a registered or a pasted shader. */
+    shader: z.string().min(1).max(81),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+    /** Drawn until the shader draws, and whenever it cannot (held, failed, turned off). */
+    color: ColorStyle.optional(),
+});
+
 /**
- * What the graph is drawn against: a flat colour, or a photo-dome skybox built from an image.
+ * What the graph is drawn against: a flat colour, a photo-dome skybox built from an image, or a
+ * background shader.
  *
  * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
- * the skybox's `data` is an image URL or a base64 PNG. It is the shape `element.background` and
- * `graph.setBackground()` take.
+ * the skybox's `data` is an image URL or a base64 PNG. A shader background names a shader of kind
+ * `background` (`{ backgroundType: "shader", shader: "nebula" }`), drawn behind every node and
+ * label at 30 frames a second or fewer; its `color` is drawn until the shader draws. It is the
+ * shape `element.background` and `graph.setBackground()` take.
  */
-export const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
+export const GraphBackground = z.discriminatedUnion("backgroundType", [
+    GraphBackgroundColor,
+    GraphBackgroundSkybox,
+    GraphBackgroundShader,
+]);
 
 /** The graph background as it parses. See {@link GraphBackground}. */
 export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;

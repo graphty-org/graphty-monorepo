@@ -49,6 +49,7 @@ export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
 export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
+    BoundaryClick,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,

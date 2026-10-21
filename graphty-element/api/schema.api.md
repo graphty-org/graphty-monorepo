@@ -788,6 +788,11 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+}, z.core.$strict>, z.ZodObject<{
+    backgroundType: z.ZodLiteral<"shader">;
+    shader: z.ZodString;
+    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
 }, z.core.$strict>], "backgroundType">;
 
 // @public

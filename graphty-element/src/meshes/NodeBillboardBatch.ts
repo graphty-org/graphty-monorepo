@@ -22,6 +22,7 @@ import type { HostShader } from "../session/shaders";
 import { BATCH_ATTRIBUTES, BATCH_FLOATS, batchProgram, type BatchRole } from "../shaders/runtime/nodePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { SCENE_BLOCK } from "../shaders/runtime/wrap";
+import { noteBloomMesh } from "./BloomPass";
 import { batchUploadFrames } from "./FrameRoster";
 import type { NodeShaderData } from "./NodeShaderDrawing";
 
@@ -125,6 +126,9 @@ export class NodeBillboardBatch {
         });
         this.mesh.material = this.material;
         this.bindBuffers();
+        if (descriptor.bloom === true) {
+            noteBloomMesh(scene, this.mesh);
+        }
 
         this.ready = this.material.forceCompilationAsync(this.mesh).then(
             () => !this.gone,

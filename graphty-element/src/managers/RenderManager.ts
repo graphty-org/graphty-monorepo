@@ -23,17 +23,33 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
+import { shaderDescriptor } from "../catalog/shaderRegistry";
+import type { NodeId } from "../catalog/types";
 import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
+import type { BackgroundPass } from "../meshes/BackgroundPass";
+import type { BloomPass } from "../meshes/BloomPass";
+import type { BoundaryMember, BoundaryPass, BoundaryPick } from "../meshes/BoundaryPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
+import { idsNamedBy, shadersControllerOf } from "../session/shaders";
+import { boundariesOf } from "../session/styles/StylesApi";
+import type { GraphSession, SessionEventMap } from "../session/types";
+import { type LazyShaderHost, lendScenePasted } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
-import { FLASH_SAMPLE_MS, FlashCounter, FlashReadback, ShaderGuard } from "./ShaderGuard";
+import {
+    FLASH_SAMPLE_MS,
+    FlashCounter,
+    FlashReadback,
+    QUALITY_LEVELS,
+    RenderTargetBudget,
+    ShaderGuard,
+} from "./ShaderGuard";
 
 /**
  * Configuration options for RenderManager
@@ -342,6 +358,250 @@ const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyD
     flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
 };
 
+/** What the scene's shader passes read from the graph; see {@link RenderManager.bindShaderScene}. */
+export interface ShaderSceneSources {
+    /** The graph's session: its style stack and its shaders. */
+    readonly session: GraphSession;
+    /** A drawn node's place, size and color; undefined for one not drawn. */
+    readonly member: (id: NodeId) => BoundaryMember | undefined;
+}
+
+/** A background shader the graph asks for. */
+type ShaderBackground = Extract<GraphBackgroundConfig, { backgroundType: "shader" }>;
+
+/** The session events after which the boundary layers may draw other groups or members. */
+const BOUNDARY_EVENTS = [
+    "style:changed",
+    "history:changed",
+    "project:changed",
+    "run:changed",
+    "set:changed",
+    "visibility:changed",
+    "selection:changed",
+    "selection:hover-changed",
+] as const satisfies readonly (keyof SessionEventMap)[];
+
+/**
+ * The scene-level shader passes of one graph: the background shader, the group boundaries and
+ * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
+ * that names no shader loads none of them.
+ */
+class ShaderScene {
+    private background: BackgroundPass | null = null;
+    private boundary: BoundaryPass | null = null;
+    private bloom: BloomPass | null = null;
+    private wanted: ShaderBackground | null = null;
+    /** Counts background requests, so a slow resolution never draws over a newer one. */
+    private backgroundTicket = 0;
+    private boundaryLoading = false;
+    private readonly budget: RenderTargetBudget;
+    private readonly stops: (() => void)[] = [];
+    private disposed = false;
+
+    /**
+     * Start following a graph's styles and shaders.
+     * @param scene - The scene.
+     * @param guard - The frame guard, for the quality level.
+     * @param sources - The graph.
+     */
+    constructor(
+        private readonly scene: Scene,
+        private readonly guard: ShaderGuard,
+        private readonly sources: ShaderSceneSources,
+    ) {
+        this.budget = new RenderTargetBudget(() => QUALITY_LEVELS[guard.quality.level].targetBudgetBytes);
+        const { session } = sources;
+        for (const event of BOUNDARY_EVENTS) {
+            this.stops.push(
+                session.on(event, () => {
+                    this.sync();
+                }),
+            );
+        }
+
+        this.stops.push(
+            session.on("shader:status", ({ id }) => {
+                this.boundary?.forget(id);
+                if (this.wanted?.shader === id) {
+                    void this.showBackground();
+                }
+
+                this.sync();
+            }),
+        );
+        lendScenePasted(scene, () => {
+            const background = this.background?.pastedDrawn();
+            const boundary = this.boundary?.pastedDrawn();
+            return {
+                any: background?.any === true || boundary?.any === true,
+                moving: [...(background?.moving ?? []), ...(boundary?.moving ?? [])],
+            };
+        });
+        this.sync();
+    }
+
+    /**
+     * Draw a background shader, or stop drawing one.
+     * @param wanted - The background, or null for none.
+     */
+    setBackground(wanted: ShaderBackground | null): void {
+        this.wanted = wanted;
+        void this.showBackground();
+    }
+
+    /**
+     * The boundary under a point.
+     * @param x - CSS pixels from the canvas's left edge.
+     * @param y - CSS pixels from the canvas's top edge.
+     * @returns The layer and group, or null.
+     */
+    boundaryAt(x: number, y: number): BoundaryPick | null {
+        return this.boundary?.pick(x, y) ?? null;
+    }
+
+    /**
+     * The passes allocated now, for tests and tools.
+     * @returns Each pass, or null.
+     */
+    passes(): {
+        readonly background: BackgroundPass | null;
+        readonly boundary: BoundaryPass | null;
+        readonly bloom: BloomPass | null;
+    } {
+        return { background: this.background, boundary: this.boundary, bloom: this.bloom };
+    }
+
+    /** Release every pass and listener. */
+    dispose(): void {
+        this.disposed = true;
+        for (const stop of this.stops.splice(0)) {
+            stop();
+        }
+
+        lendScenePasted(this.scene, () => ({ any: false, moving: [] }));
+        this.background?.dispose();
+        this.background = null;
+        this.boundary?.dispose();
+        this.boundary = null;
+        this.bloom?.dispose();
+        this.bloom = null;
+    }
+
+    /**
+     * The session's shader host, which loads the shader runtime.
+     * @returns The host, or null when none is attached.
+     */
+    private host(): LazyShaderHost | null {
+        return (shadersControllerOf(this.sources.session)?.host as LazyShaderHost | null | undefined) ?? null;
+    }
+
+    /** Resolve the background shader asked for and draw it, or draw the clear color. */
+    private async showBackground(): Promise<void> {
+        const ticket = ++this.backgroundTicket;
+        const { wanted } = this;
+        const controller = shadersControllerOf(this.sources.session);
+        const host = this.host();
+        if (wanted === null || controller === undefined || host === null) {
+            this.background?.dispose();
+            this.background = null;
+            return;
+        }
+
+        const [shader, runtime, module] = await Promise.all([
+            controller.drawable(wanted.shader),
+            host.runtime(),
+            import("../meshes/BackgroundPass"),
+        ]);
+        if (ticket !== this.backgroundTicket || this.disposed) {
+            return;
+        }
+
+        if (shader?.registration.descriptor.kind !== "background") {
+            this.background?.hide();
+            return;
+        }
+
+        this.background ??= new module.BackgroundPass(this.scene, runtime, this.guard, this.budget);
+        const color = Color4.FromHexString(wanted.color ?? DEFAULT_BACKGROUND_COLOR);
+        await this.background.show(shader, wanted.params, [color.r, color.g, color.b, 1]);
+    }
+
+    /** Allocate or release the boundary and bloom passes as the style stack now asks. */
+    private sync(): void {
+        const { session } = this.sources;
+        const layers = session.styles.list().filter((layer) => layer.enabled);
+        const wantsBoundary = layers.some((layer) => layer.target === "node" && layer.boundary !== undefined);
+        if (wantsBoundary) {
+            this.boundary?.invalidate();
+            void this.loadBoundary();
+        } else if (this.boundary !== null) {
+            this.boundary.dispose();
+            this.boundary = null;
+        }
+
+        const project = shadersControllerOf(session)?.descriptors() ?? [];
+        const bloomy = (id: string): boolean =>
+            (shaderDescriptor(id) ?? project.find((descriptor) => descriptor.id === id))?.bloom === true;
+        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer)].some(bloomy));
+        if (wantsBloom) {
+            void this.loadBloom();
+        } else if (this.bloom !== null) {
+            this.bloom.dispose();
+            this.bloom = null;
+        }
+    }
+
+    /** Load and allocate the boundary pass, once. */
+    private async loadBoundary(): Promise<void> {
+        const controller = shadersControllerOf(this.sources.session);
+        const host = this.host();
+        if (this.boundary !== null || this.boundaryLoading || controller === undefined || host === null) {
+            return;
+        }
+
+        this.boundaryLoading = true;
+        try {
+            const [runtime, module] = await Promise.all([host.runtime(), import("../meshes/BoundaryPass")]);
+            if (this.disposed || this.boundary !== null) {
+                return;
+            }
+
+            const { session, member } = this.sources;
+            this.boundary = new module.BoundaryPass(
+                this.scene,
+                {
+                    boundaries: () => boundariesOf(session.styles),
+                    member,
+                    shader: (id) => controller.drawable(id),
+                },
+                runtime,
+                this.guard,
+                this.budget,
+            );
+            // Asked again now it exists: the stack may have changed while it loaded.
+            this.sync();
+        } finally {
+            this.boundaryLoading = false;
+        }
+    }
+
+    /** Load and allocate the bloom pass, once. */
+    private async loadBloom(): Promise<void> {
+        if (this.bloom !== null) {
+            return;
+        }
+
+        const module = await import("../meshes/BloomPass");
+        if (this.disposed || this.bloom !== null) {
+            return;
+        }
+
+        this.bloom = module.BloomPass.of(this.scene, this.guard.quality.level);
+        // Released at once if the stack stopped naming a bloom shader while it loaded.
+        this.sync();
+    }
+}
+
 /**
  * Manages Babylon.js scene, engine, and render loop
  */
@@ -447,6 +707,10 @@ export class RenderManager implements Manager {
     private readonly resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
+    /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
+    private shaderBackground: ShaderBackground | null = null;
+    /** The scene-level shader passes, once {@link bindShaderScene} gave them a graph. */
+    private shaderScene: ShaderScene | null = null;
 
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
@@ -604,6 +868,9 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("webglcontextlost", this.dropFence);
         this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
+
+        this.shaderScene?.dispose();
+        this.shaderScene = null;
 
         // Dispose camera system
         this.camera.dispose();
@@ -1095,7 +1362,8 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background: a clear colour, or a photo-dome skybox.
+     * Draw the graph against a background: a clear colour, a photo-dome skybox, or a background
+     * shader drawn over the clear colour once it compiled (its `color` is the clear colour).
      *
      * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
@@ -1104,6 +1372,8 @@ export class RenderManager implements Manager {
      * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
      */
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
+        this.shaderBackground = background.backgroundType === "shader" ? background : null;
+        this.shaderScene?.setBackground(this.shaderBackground);
         if (background.backgroundType === "skybox") {
             const url = background.data;
             if (this.dome?.url === url) {
@@ -1122,6 +1392,39 @@ export class RenderManager implements Manager {
         this.dome?.dome.dispose();
         this.dome = null;
         this.setBackgroundColor(background.color ?? DEFAULT_BACKGROUND_COLOR);
+    }
+
+    /**
+     * Give the scene-level shaders (the background shader, group boundaries, the shared bloom)
+     * their graph. Until it is called none of them draws; a background shader asked for before
+     * is drawn then.
+     * @param sources - The graph's session and its nodes' places.
+     * @internal
+     */
+    bindShaderScene(sources: ShaderSceneSources): void {
+        this.shaderScene?.dispose();
+        this.shaderScene = new ShaderScene(this.scene, this.shaderGuard, sources);
+        this.shaderScene.setBackground(this.shaderBackground);
+    }
+
+    /**
+     * The group boundary under a point, by its layer and group.
+     * @param x - CSS pixels from the canvas's left edge.
+     * @param y - CSS pixels from the canvas's top edge.
+     * @returns The boundary, or null.
+     * @internal
+     */
+    pickBoundary(x: number, y: number): BoundaryPick | null {
+        return this.shaderScene?.boundaryAt(x, y) ?? null;
+    }
+
+    /**
+     * The scene-level shader passes allocated now, for tests and tools.
+     * @returns Each pass, or null.
+     * @internal
+     */
+    shaderPasses(): ReturnType<ShaderScene["passes"]> {
+        return this.shaderScene?.passes() ?? { background: null, boundary: null, bloom: null };
     }
 
     /**

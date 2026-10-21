@@ -6,6 +6,7 @@ import type { HostShader } from "../session/shaders";
 import { edgeShaderProgram } from "../shaders/runtime/edgePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { SCENE_BLOCK } from "../shaders/runtime/wrap";
+import { noteBloomMesh } from "./BloomPass";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import type { NodeShaderData } from "./NodeShaderDrawing";
@@ -125,6 +126,9 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
     ) {
         super(mesh, scene, retire);
         this.loops = motionOf(shader.registration.descriptor.motion).loop !== undefined;
+        if (shader.registration.descriptor.bloom === true) {
+            noteBloomMesh(scene, mesh);
+        }
         const material = mesh.material as ShaderMaterial;
         this.stopData = data.onRebuilt(() => {
             material.setTexture(data.paramSampler, data.paramTexture);

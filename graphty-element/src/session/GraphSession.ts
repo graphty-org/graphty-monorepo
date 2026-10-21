@@ -170,6 +170,7 @@ import {
 import { paintingOf } from "./styles/StylesApi";
 import type {
     AccelerationControllerLike,
+    BoundaryClick,
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
@@ -1030,6 +1031,14 @@ class Session implements ElementSession {
             "canvas:element-click",
             "node" in target ? { node: target.node } : { edge: target.edge },
         );
+    }
+
+    /**
+     * Publishes `canvas:boundary-click`.
+     * @param target - The boundary's layer and group.
+     */
+    boundaryClick(target: BoundaryClick): void {
+        publish(this.watchers, "canvas:boundary-click", { layer: target.layer, group: target.group });
     }
 
     /**

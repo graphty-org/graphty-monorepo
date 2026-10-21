@@ -444,7 +444,7 @@ function bodyLineOf(text: string, body: string): number {
  * @param spec - The layer.
  * @returns The ids.
  */
-function idsNamedBy(spec: LayerSpec): Set<string> {
+export function idsNamedBy(spec: LayerSpec): Set<string> {
     const ids = new Set<string>();
     const set = (spec.set ?? {}) as Record<string, unknown>;
     for (const channel of ["node.shader", "edge.shader"]) {

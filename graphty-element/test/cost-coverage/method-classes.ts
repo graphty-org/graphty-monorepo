@@ -294,6 +294,10 @@ export const MUTATING: readonly string[] = [
     "VisibilityApi.set",
     "VisibilityApi.setSteps",
     "VisibilityApi.setWindow",
+    "SessionShaders.add",
+    "SessionShaders.approve",
+    "SessionShaders.remove",
+    "SessionShaders.replace",
 ];
 
 export const READ_ONLY: readonly string[] = [
@@ -944,6 +948,12 @@ export const READ_ONLY: readonly string[] = [
     "SessionGraphStore.getSnapshot",
     "SessionGraphStore.undirected",
     "SessionHistory.cancel",
+    "SessionShaders.availability",
+    "SessionShaders.check",
+    "SessionShaders.list",
+    "SessionShaders.source",
+    "SessionShaders.status",
+    "SessionShaders.thumbnail",
     "SessionStylesApi.compiled",
     "SetsApi.containing",
     "SetsApi.get",

@@ -417,12 +417,28 @@ export function isStorableCredential(credential: Credential): boolean {
  * @category Network sources
  */
 export type StorableCredential =
-    | { readonly kind: "basic"; readonly username: string; readonly password: string }
-    | { readonly kind: "bearer"; readonly token: string }
     | {
+          /** A user name and password, sent as HTTP Basic authentication. */
+          readonly kind: "basic";
+          /** The user name. */
+          readonly username: string;
+          /** The password. */
+          readonly password: string;
+      }
+    | {
+          /** A bearer token, sent in the Authorization header. */
+          readonly kind: "bearer";
+          /** The token. */
+          readonly token: string;
+      }
+    | {
+          /** An API key, sent in a header or a query parameter. */
           readonly kind: "api-key";
+          /** The header that carries the key, or null when a query parameter does. */
           readonly header: string | null;
+          /** The query parameter that carries the key, or null when a header does. */
           readonly query: string | null;
+          /** The key. */
           readonly value: string;
       };
 

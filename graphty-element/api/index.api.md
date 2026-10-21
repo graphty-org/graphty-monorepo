@@ -142,7 +142,7 @@ export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy;
 export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
 
 // @public
-export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE";
+export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED";
 
 // @public
 export type AccelerationPolicy = "auto" | "off" | "required";
@@ -3214,6 +3214,21 @@ export type GraphtyErrorCode =
 * installs the optional peer package, or drops back to `auto` and accepts the CPU path.
 */
 | "E_NO_ACCELERATOR"
+/**
+* No accelerator factory is registered, so the element never looked for a GPU. Usually
+* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
+* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* through `capabilities.acceleration`; a registration that arrives later switches
+* acceleration on without the consumer doing anything.
+*/
+| "E_NO_ACCELERATOR_REGISTERED"
+/**
+* A registered accelerator factory threw while setting up, with an error that is not one of
+* the other acceleration codes -- a module of the backend that failed to load, or a defect in
+* the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
+* the CPU path runs.
+*/
+| "E_ACCELERATOR_FAILED"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through

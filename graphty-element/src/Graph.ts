@@ -133,7 +133,14 @@ import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshe
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import {
+    alongRay,
+    nodeActionManagerOf,
+    nodePointerRosterOf,
+    pickAsDrawn,
+    pickNodeId,
+    pointerEventTime,
+} from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -3809,7 +3816,8 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const ray = this.scene.createPickingRay(x, y, null, null);
+            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {

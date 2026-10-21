@@ -12,7 +12,7 @@
  * share it if both on at once ever measures too costly on an iPad.
  */
 
-import { GlowLayer, type Mesh, type Scene } from "@babylonjs/core";
+import { type AbstractMesh, GlowLayer, type Mesh, type Observer, type Scene } from "@babylonjs/core";
 
 import { QUALITY_LEVELS, type QualityLevel } from "../managers/ShaderGuard";
 
@@ -27,6 +27,12 @@ const BLOOM_KERNEL = { low: 24, medium: 40, high: 64 } as const;
 
 /** How bright the added bloom is. */
 const BLOOM_INTENSITY = 1.2;
+
+/**
+ * The canvas luminance (0..1, Rec. 709) above which the bloom is not drawn: it is added light, so
+ * on a light canvas it only washes the graph out.
+ */
+const LIGHT_CANVAS = 0.5;
 
 /** The rendering group the bloom is added after: the graph's own, so labels stay over it. */
 const GRAPH_RENDERING_GROUP = 0;
@@ -62,6 +68,12 @@ export class BloomPass {
     readonly glow: GlowLayer;
     /** The meshes drawn into it. */
     private readonly included = new Set<Mesh>();
+    /**
+     * The bloom map's render list: exactly {@link included}. Without one the glow layer's target
+     * walks every mesh of the scene each frame to find the few it draws.
+     */
+    private readonly renderList: AbstractMesh[] = [];
+    private readonly canvasObserver: Observer<Scene>;
     private disposed = false;
 
     /**
@@ -81,9 +93,21 @@ export class BloomPass {
             excludeByDefault: true,
         });
         this.glow.intensity = BLOOM_INTENSITY;
+        this.glow.mainTexture.renderList = this.renderList;
         for (const mesh of BLOOM_MESHES.get(scene) ?? []) {
             this.include(mesh);
         }
+
+        this.followCanvas();
+        this.canvasObserver = scene.onBeforeRenderObservable.add(() => {
+            this.followCanvas();
+        });
+    }
+
+    /** Draw the bloom only on a dark canvas. */
+    private followCanvas(): void {
+        const { r, g, b } = this.scene.clearColor;
+        this.glow.isEnabled = 0.2126 * r + 0.7152 * g + 0.0722 * b <= LIGHT_CANVAS;
     }
 
     /**
@@ -121,8 +145,16 @@ export class BloomPass {
         }
 
         this.included.add(mesh);
+        this.renderList.push(mesh);
         this.glow.addIncludedOnlyMesh(mesh);
         this.glow.referenceMeshToUseItsOwnMaterial(mesh);
+        mesh.onDisposeObservable.addOnce(() => {
+            this.included.delete(mesh);
+            const at = this.renderList.indexOf(mesh);
+            if (at >= 0) {
+                this.renderList.splice(at, 1);
+            }
+        });
     }
 
     /** Release the glow layer and its textures. */
@@ -132,6 +164,7 @@ export class BloomPass {
         }
 
         this.disposed = true;
+        this.scene.onBeforeRenderObservable.remove(this.canvasObserver);
         PASSES.delete(this.scene);
         this.glow.dispose();
     }

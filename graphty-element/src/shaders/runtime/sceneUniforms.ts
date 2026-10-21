@@ -42,6 +42,10 @@ export class SceneUniforms {
     private quality: keyof typeof QUALITY_LEVEL = "high";
     /** Whether shader motion runs: false while it is paused or still. */
     private moving = true;
+    /** Whether a frame asked for by {@link tick} is still to be drawn. */
+    private ticking = false;
+    /** How many {@link holdTicks} holds are held. */
+    private tickers = 0;
     /** The time the buffer last held, in seconds. */
     private time = 0;
     /** The time each frozen shader (by text hash) stands at. */
@@ -107,7 +111,46 @@ export class SceneUniforms {
      * @returns True while one does.
      */
     get claimed(): boolean {
-        return this.claims > 0;
+        return this.claims > 0 || this.ticking;
+    }
+
+    /**
+     * Say that something moves at its own rate (a background drawn 30 times a second) rather than
+     * on every frame: the time advances on each frame a {@link tick} asks for, and no frame is
+     * asked for otherwise.
+     * @returns Releases the hold. Calling it twice is a no-op.
+     */
+    holdTicks(): () => void {
+        this.tickers++;
+        this.follow();
+        let released = false;
+
+        return () => {
+            if (released) {
+                return;
+            }
+
+            released = true;
+            this.tickers--;
+            this.follow();
+        };
+    }
+
+    /**
+     * Ask for one frame of motion for a {@link holdTicks} holder: the time advances to now on that
+     * frame, and a graph drawn on demand draws it. Nothing while motion is stopped.
+     */
+    tick(): void {
+        if (!this.moving || this.ticking) {
+            return;
+        }
+
+        this.ticking = true;
+        const release = animatesEveryFrame(this.scene);
+        this.scene.onAfterRenderObservable.addOnce(() => {
+            this.ticking = false;
+            release();
+        });
     }
 
     /**
@@ -214,18 +257,29 @@ export class SceneUniforms {
         };
     }
 
-    /** Hold the frame observer and the every-frame claim while a claim is held and motion runs. */
+    /**
+     * Hold the frame observer while a claim or a tick hold is held and motion runs, and the
+     * every-frame claim while a claim is. The observer advances the time on every frame a claim
+     * holds and on each frame a tick asked for.
+     */
     private follow(): void {
-        const run = this.claims > 0 && this.moving;
+        const run = (this.claims > 0 || this.tickers > 0) && this.moving;
         if (run && this.observer === null) {
-            this.releaseFrames = animatesEveryFrame(this.scene);
             this.observer = this.scene.onBeforeRenderObservable.add(() => {
-                this.write((performance.now() - this.epoch) / 1000);
+                if (this.claims > 0 || this.ticking) {
+                    this.write((performance.now() - this.epoch) / 1000);
+                }
             });
         } else if (!run && this.observer !== null) {
             this.scene.onBeforeRenderObservable.remove(this.observer);
             this.observer = null;
-            this.releaseFrames?.();
+        }
+
+        const frames = this.claims > 0 && this.moving;
+        if (frames && this.releaseFrames === null) {
+            this.releaseFrames = animatesEveryFrame(this.scene);
+        } else if (!frames && this.releaseFrames !== null) {
+            this.releaseFrames();
             this.releaseFrames = null;
         }
     }

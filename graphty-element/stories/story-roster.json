@@ -173,6 +173,7 @@
         "Shaders/Node Drawing::ThreePaths",
         "Shaders/Node Effects::Aura",
         "Shaders/Node Effects::AuraAndSatellites",
+        "Shaders/Node Effects::AuraOverTheCap",
         "Shaders/Node Effects::ChangeFlash",
         "Shaders/Node Effects::Reticle",
         "Shaders/Node Effects::ReticleAtRest",

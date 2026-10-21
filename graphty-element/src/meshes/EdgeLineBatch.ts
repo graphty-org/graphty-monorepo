@@ -463,6 +463,7 @@ export class EdgeLineBatch {
             this.staticBuffer?.update(this.statics);
         }
 
+        const placed = this.dirty;
         if (this.dirty) {
             this.dirty = false;
             if (this.buffer) {
@@ -472,11 +473,14 @@ export class EdgeLineBatch {
             }
         }
 
-        this.afterFlush();
+        this.afterFlush(placed);
     }
 
-    /** Run after each frame's upload; a shader batch takes or releases its frame claim here. */
-    protected afterFlush(): void {
+    /**
+     * Run after each frame's upload; a shader batch takes or releases its frame claim here.
+     * @param _placed - Whether a slot was placed, hidden or released since the last upload.
+     */
+    protected afterFlush(_placed: boolean): void {
         // A plain line has no motion of its own.
     }
 

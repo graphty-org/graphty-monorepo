@@ -153,13 +153,25 @@ function batchVertex(role: BatchRole): string {
         role === "effect"
             ? "graphty_reach"
             : `max(max(1.0, graphtyDeco0.y), max(graphtyDeco1.y > 0.5 ? ${RING_OUTER.toFixed(2)} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
-    // Effects on nodes under 3 px on screen are not drawn, and an effect's square is cropped to
-    // the quality level's cap (section 5): its look stays the size it is, its edges are cut.
+    // Effects on nodes under 3 px on screen are not drawn. An effect's square is no wider than the
+    // quality level's cap (section 5) round a node of up to a third of it; round a bigger node only
+    // the band beyond the radius is held to the cap's share. Past it the square shrinks and the
+    // fragment stage squeezes the effect's look into it (vFit), so its own falloff still reaches
+    // zero at the square's edge.
     const tooSmall = role === "effect" ? "vPixelSize < 3.0 ||" : "";
-    const cap =
+    const fit =
         role === "effect"
-            ? "min(1.0, graphty_effectCap / max(2.0 * radius * graphty_reach * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6), 1e-6))"
+            ? "min(1.0, (1.0 + 0.5 * graphty_effectCap / max(radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6), 1e-6) * (graphty_reach - 1.0) / graphty_reach) / graphty_reach)"
             : "1.0";
+    // An effect's square sits at the node's front, one radius toward the camera, so the edges that
+    // meet the node (they end at its surface) never hide it while a nearer node still does; in
+    // perspective it is scaled back to the place and size it has at the node's center.
+    const place =
+        role === "effect"
+            ? `float graphty_k = projection[3][3] > 0.5 ? 1.0 : max(center.z - radius, 1e-3) / max(center.z, 1e-3);
+    vec4 at = vec4((center.xy + corner * radius) * graphty_k, center.z - radius, 1.0);
+    vFit = vec2(${extent} * graphty_fit, ${extent});`
+            : "vec4 at = center + vec4(corner * radius, 0.0, 0.0);";
     return `precision highp float;
 attribute vec3 position;
 ${BATCH_ATTRIBUTES.map((name) => `attribute vec4 ${name};`).join("\n")}
@@ -178,12 +190,14 @@ varying vec4 vDeco0;
 varying vec4 vDeco1;
 varying float vRadius;
 varying float vPixelSize;
+${role === "effect" ? "varying vec2 vFit;" : ""}
 void main() {
     float radius = graphtyCenter.w * length(world[0].xyz);
     vec4 center = view * world * vec4(graphtyCenter.xyz, 1.0);
     vec4 clipCenter = projection * center;
-    vec2 corner = position.xy * ${extent} * ${cap};
-    vec4 at = center + vec4(corner * radius, 0.0, 0.0);
+    float graphty_fit = ${fit};
+    vec2 corner = position.xy * ${extent} * graphty_fit;
+    ${place}
     gl_Position = projection * at;
     vPixelSize = radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6);
     if (${tooSmall} radius <= 0.0) {
@@ -237,11 +251,22 @@ export function batchProgram(
 ): BatchProgram {
     const { params } = descriptor;
     const effect = role === "effect";
+    // An effect draws round the node, never over its own fill; squeezed to the cap (vFit: the
+    // square's half width and the effect's reach, in radii), the ring from the radius out is
+    // mapped onto the reach, so the look keeps its node-sized middle and all of its falloff.
     const surface = effect
         ? `
-    graphty_in.uv = vUV;
-    float graphty_z = sqrt(max(1.0 - dot(vUV, vUV), 0.0));
-    graphty_in.normal = vec3(vUV, -graphty_z);`
+    float graphty_r = length(vUV);
+    if (graphty_r < 1.0) { discard; }
+    vec2 graphty_uv = vUV;
+    if (vFit.x < vFit.y) {
+        float graphty_to = vFit.x > 1.0
+            ? 1.0 + (graphty_r - 1.0) * (vFit.y - 1.0) / (vFit.x - 1.0)
+            : graphty_r * vFit.y / max(vFit.x, 1e-6);
+        graphty_uv *= graphty_to / graphty_r;
+    }
+    graphty_in.uv = graphty_uv;
+    graphty_in.normal = vec3(graphty_uv, 0.0);`
         : `
     float graphty_d = length(vUV);
     vec4 graphty_deco = graphty_decoration(graphty_d);
@@ -275,6 +300,7 @@ varying vec4 vDeco0;
 varying vec4 vDeco1;
 varying float vRadius;
 varying float vPixelSize;
+${effect ? "varying vec2 vFit;" : ""}
 uniform mat4 view;
 uniform float graphty_freeze;
 ${effect ? "" : BILLBOARD_DECORATION}

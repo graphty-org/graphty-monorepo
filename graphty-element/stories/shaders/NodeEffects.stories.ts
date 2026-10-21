@@ -15,6 +15,9 @@
  *   **Aura and satellites** puts both on one layer, each with its own binding.
  * - **Shockwave**: on a Selected layer; the play function's click sets it off.
  * - **Change flash**: on every node; the play function changes one node's data and it flashes.
+ * - **Aura over the cap**: medium quality, and the middle node big enough that its aura's square
+ *   is wider than the 256 px an effect may draw on there: the aura is squeezed into the square,
+ *   its haze still fading out before the square's edge, never cut off square.
  *
  * In a visual capture, motion is switched off with the reader's own setting
  * (`shaderSettings.motion`), so the picture is the same on every run: loops are drawn still and
@@ -64,12 +67,19 @@ type EffectLayer = (shader: string, params: ShaderParams) => LayerSpec;
  * @param layers - The effect layers.
  * @param options - Options.
  * @param options.selected - Nodes selected before the effect layers are added.
+ * @param options.quality - The shader quality, when the story pins one.
  * @returns The element.
  */
-function render(layers: readonly LayerSpec[], options: { selected?: readonly string[] } = {}): Element {
+function render(
+    layers: readonly LayerSpec[],
+    options: { selected?: readonly string[]; quality?: "low" | "medium" | "high" } = {},
+): Element {
     const element: Graphty = document.createElement("graphty-element");
-    if (isVisualCapture()) {
-        element.shaderSettings = { motion: "off" };
+    if (isVisualCapture() || options.quality !== undefined) {
+        element.shaderSettings = {
+            ...(isVisualCapture() ? { motion: "off" as const } : {}),
+            ...(options.quality === undefined ? {} : { quality: options.quality }),
+        };
     }
 
     element.background = { backgroundType: "color", color: "#0d1117" };
@@ -390,3 +400,38 @@ export const ChangeFlash = effectStory("change-flash", effectLayer("Change flash
         await untilFrames("the flash ends and the graph rests", () => everyFrameAnimationsOn(frames) === 0);
     },
 });
+
+/**
+ * Medium quality caps an effect's square at 256 px. The middle node is drawn big enough that its
+ * aura (three radii out) would need far more: the aura is squeezed to fit, still fading to nothing
+ * before the square's edge rather than cut into a square tile.
+ */
+export const AuraOverTheCap: Story = {
+    name: "Aura over the cap",
+    render: () => {
+        const aura = presetId("uncertainty-aura");
+        return render(
+            [
+                {
+                    name: "Big",
+                    target: "node",
+                    selector: { match: "ids", nodes: [TARGET] },
+                    set: { "node.size": 4.5 },
+                },
+                {
+                    name: "Aura",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.effects": { [aura]: { intensity: 1.6 } } },
+                },
+            ],
+            { quality: "medium" },
+        );
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+        const scene = await drawn(canvasElement, "Shaders/Node Effects Aura over the cap");
+        await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
+        await untilFrames("every node carries the aura", () => batchHolds(scene, NODES.length));
+    },
+};

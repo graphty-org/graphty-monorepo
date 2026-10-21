@@ -4,9 +4,8 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 import {
     Buffer,
     Constants,
-    Frustum,
+    type Matrix,
     Mesh,
-    type Plane,
     type Scene,
     ShaderMaterial,
     ShaderStore,
@@ -25,6 +24,7 @@ import { SCENE_BLOCK } from "../shaders/runtime/wrap";
 import { noteBloomMesh } from "./BloomPass";
 import { batchUploadFrames } from "./FrameRoster";
 import type { NodeShaderData } from "./NodeShaderDrawing";
+import { ViewWatch } from "./viewWatch";
 
 /** Slots a new batch starts with, before the first doubling. */
 const INITIAL_SLOTS = 32;
@@ -85,6 +85,11 @@ export class NodeBillboardBatch {
     private readonly stopFlush: () => void;
     private readonly stopData: () => void;
     private releaseMotion: (() => void) | null = null;
+    /** The camera's planes for the on-screen test, and whether a loop was on screen by them. */
+    private readonly view = new ViewWatch();
+    private loopOnScreen = false;
+    /** Whether a slot was written since the on-screen test last walked them. */
+    private slotsChanged = true;
     private readonly loops: boolean;
     private readonly name: string;
 
@@ -415,6 +420,7 @@ export class NodeBillboardBatch {
 
         if (this.dirty) {
             this.dirty = false;
+            this.slotsChanged = true;
             this.buffer?.update(this.slots);
         }
 
@@ -462,16 +468,28 @@ export class NodeBillboardBatch {
             }
         }
 
-        if (!this.loops) {
+        const camera = this.mesh.getScene().activeCamera;
+        if (!this.loops || camera === null) {
             return false;
         }
 
-        const planes = this.frustum();
-        if (planes === null) {
-            return false;
-        }
-
+        // The walk is redone only when a slot, the camera or the graph's transform changed.
         const world = this.mesh.getWorldMatrix();
+        if (this.view.moved(camera, world) || this.slotsChanged) {
+            this.slotsChanged = false;
+            this.loopOnScreen = this.anyLoopOnScreen(world);
+        }
+
+        return this.loopOnScreen;
+    }
+
+    /**
+     * Whether a slot with a moving loop is on screen, by the planes {@link view} holds.
+     * @param world - The mesh's world matrix.
+     * @returns True when one is.
+     */
+    private anyLoopOnScreen(world: Matrix): boolean {
+        const { planes } = this.view;
         const scale = Math.hypot(world.m[0], world.m[1], world.m[2]);
         for (let i = 0; i < this.highWater; i++) {
             const speed = this.speeds[i];
@@ -502,15 +520,6 @@ export class NodeBillboardBatch {
      */
     protected reachOf(): number {
         return 2;
-    }
-
-    /**
-     * The active camera's frustum planes.
-     * @returns The planes, or null with no camera.
-     */
-    private frustum(): Plane[] | null {
-        const camera = this.mesh.getScene().activeCamera;
-        return camera === null ? null : Frustum.GetPlanes(camera.getTransformationMatrix());
     }
 
     /**

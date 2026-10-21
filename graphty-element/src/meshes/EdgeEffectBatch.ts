@@ -1,4 +1,4 @@
-import { Frustum, type Mesh, type Scene, type ShaderMaterial, ShaderStore, Vector3 } from "@babylonjs/core";
+import { type Matrix, type Mesh, type Scene, type ShaderMaterial, ShaderStore, Vector3 } from "@babylonjs/core";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -10,6 +10,14 @@ import { noteBloomMesh } from "./BloomPass";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import type { NodeShaderData } from "./NodeShaderDrawing";
+import { ViewWatch } from "./viewWatch";
+
+/**
+ * The transparent-pass order of an edge shader's line (Babylon draws a lower `alphaIndex` first):
+ * before every node shader effect, which keeps the default, so an effect round a node is drawn
+ * over the edges that meet it.
+ */
+const EDGE_SHADER_ALPHA_INDEX = 1e9;
 
 /** What an edge shader batch draws on. */
 export type EdgeShaderRole = "surface" | "effect";
@@ -71,6 +79,7 @@ export function shadedLineMesh(
         },
         scene,
     );
+    mesh.alphaIndex = EDGE_SHADER_ALPHA_INDEX;
     const material = mesh.material as ShaderMaterial;
     material.setUniformBuffer(SCENE_BLOCK, runtime.uniforms.buffer);
     material.setTexture(data.paramSampler, data.paramTexture);
@@ -104,6 +113,11 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
     private until = new Float64Array(32);
     private releaseMotion: (() => void) | null = null;
     private checkPending = false;
+    /** The camera's planes for the on-screen test, and whether a loop was on screen by them. */
+    private readonly view = new ViewWatch();
+    private loopOnScreen = false;
+    /** Whether a slot's place or speed changed since the on-screen test last walked them. */
+    private slotsChanged = true;
     private readonly loops: boolean;
     private readonly stopData: () => void;
     /** The scene's shared data textures, which this batch's material borrows and never owns. */
@@ -149,7 +163,11 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
      */
     setSpeed(index: number, speed: number): void {
         this.fit(index);
-        this.speeds[index] = speed;
+        if (this.speeds[index] !== speed) {
+            this.speeds[index] = speed;
+            this.slotsChanged = true;
+        }
+
         this.checkMotionNextFrame();
     }
 
@@ -190,7 +208,8 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         return this.releaseMotion !== null;
     }
 
-    protected override afterFlush(): void {
+    protected override afterFlush(placed: boolean): void {
+        this.slotsChanged ||= placed;
         const needed = !this.disposed && this.needsMotion();
         if (needed && this.releaseMotion === null) {
             this.releaseMotion = this.runtime.uniforms.claimMotion();
@@ -204,6 +223,7 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         this.fit(index);
         this.speeds[index] = Number.NaN;
         this.until[index] = 0;
+        this.slotsChanged = true;
     }
 
     /**
@@ -224,8 +244,24 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
             return false;
         }
 
-        const planes = Frustum.GetPlanes(camera.getTransformationMatrix());
+        // The walk is redone only when a slot, the camera or the graph's transform changed.
         const world = this.mesh.getWorldMatrix();
+        if (this.view.moved(camera, world) || this.slotsChanged) {
+            this.slotsChanged = false;
+            this.loopOnScreen = this.anyLoopOnScreen(count, world);
+        }
+
+        return this.loopOnScreen;
+    }
+
+    /**
+     * Whether a piece with a moving loop is on screen, by the planes {@link view} holds.
+     * @param count - How many slots to look at.
+     * @param world - The mesh's world matrix.
+     * @returns True when one is.
+     */
+    private anyLoopOnScreen(count: number, world: Matrix): boolean {
+        const { planes } = this.view;
         for (let i = 0; i < count; i++) {
             const speed = this.speeds[i];
             if (Number.isNaN(speed) || speed === 0) {
@@ -318,7 +354,7 @@ export class EdgeEffectBatch extends ShadedEdgeBatch {
         return this.exits.size;
     }
 
-    protected override afterFlush(): void {
+    protected override afterFlush(placed: boolean): void {
         const now = performance.now();
         for (const [index, ends] of [...this.exits]) {
             if (ends <= now) {
@@ -330,6 +366,6 @@ export class EdgeEffectBatch extends ShadedEdgeBatch {
             }
         }
 
-        super.afterFlush();
+        super.afterFlush(placed);
     }
 }

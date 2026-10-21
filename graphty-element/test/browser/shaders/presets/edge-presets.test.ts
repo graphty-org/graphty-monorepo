@@ -26,7 +26,7 @@ import type { LayerSpec } from "../../../../src/catalog/types";
 import type { Edge } from "../../../../src/Edge";
 import { operationQueueOf } from "../../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../../src/managers/everyFrameAnimations";
-import { BLOOM_LAYER } from "../../../../src/meshes/BloomPass";
+import { BLOOM_LAYER, BloomPass } from "../../../../src/meshes/BloomPass";
 import { EdgeEffectBatch } from "../../../../src/meshes/EdgeEffectBatch";
 import { EdgeShaderDrawing } from "../../../../src/meshes/EdgeShaderDrawing";
 import { EDGE_PRESETS, presetId } from "../../../../stories/shaders/edgePresets";
@@ -475,6 +475,38 @@ describe("the shared bloom", () => {
         await until(element, "the bloom pass is allocated", () =>
             scene.effectLayers.some((layer) => layer.name === BLOOM_LAYER),
         );
+    });
+
+    it("draws only the meshes it blooms, and only on a dark canvas", async () => {
+        const element = await mounted(
+            TWO_NODES,
+            [{ source: "a", target: "b" }],
+            [
+                LINE,
+                {
+                    name: "Effect",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.effects": { [presetId("comet-tracers")]: true } },
+                },
+            ],
+        );
+        const scene = element.graph.getScene();
+        await until(element, "the bloom pass is allocated", () => BloomPass.peek(scene) !== undefined);
+        const pass = BloomPass.peek(scene);
+        assert.isDefined(pass);
+        // An explicit list: without one the bloom map walks every mesh of the scene each frame.
+        const list = pass.glow.mainTexture.renderList ?? [];
+        await until(element, "the bloom map lists the comets", () => list.length > 0);
+        assert.isTrue(
+            list.every((mesh) => mesh.name.startsWith("edge-effect|")),
+            "holding only the meshes drawing a bloom shader",
+        );
+
+        element.background = { backgroundType: "color", color: "#ffffff" };
+        await until(element, "on a light canvas the added light is off", () => !pass.glow.isEnabled);
+        element.background = { backgroundType: "color", color: "#0d1117" };
+        await until(element, "on a dark canvas it is on", () => pass.glow.isEnabled);
     });
 });
 

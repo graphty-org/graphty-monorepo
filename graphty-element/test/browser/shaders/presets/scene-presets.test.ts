@@ -174,6 +174,25 @@ async function showing(
 }
 
 /**
+ * Wait for chances of the element's render loop to draw (a tick that drew or rested), asking the
+ * scene for nothing: a frame observer would itself be something the loop draws for.
+ * @param element - The element.
+ * @param chances - How many.
+ * @returns How many of them drew a frame.
+ */
+async function loopChances(element: Graphty, chances: number): Promise<number> {
+    const { ticks } = (element.graph as unknown as { renderManager: { ticks: { drawn: number; rested: number } } })
+        .renderManager;
+    const start = ticks.drawn + ticks.rested;
+    const drawnBefore = ticks.drawn;
+    while (ticks.drawn + ticks.rested - start < chances) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    return ticks.drawn - drawnBefore;
+}
+
+/**
  * Point the element at a preset's parameters again and wait for the drawing.
  * @param element - The element.
  * @param id - The shader.
@@ -367,10 +386,35 @@ describe("the scene presets on a real element", () => {
         assert.isDefined(speed);
         const element = await showing(shader, descriptor.kind, { [speed]: 1 });
         const scene = element.graph.getScene();
-        await drawnFrames(scene, 3);
-        assert.isAbove(everyFrameAnimationsOn(scene), 0, "it keeps the frames coming");
+        const pass = passesOf(element).background;
+        if (pass === null) {
+            // A boundary moves on every frame it draws.
+            await drawnFrames(scene, 3);
+            assert.isAbove(everyFrameAnimationsOn(scene), 0, "it keeps the frames coming");
+            await setParams(element, shader, descriptor.kind, { [speed]: 0 });
+            assert.strictEqual(everyFrameAnimationsOn(scene), 0, "at speed 0 it rests");
+            return;
+        }
+
+        // Watched passively, over the render loop's chances to draw: a background is drawn again
+        // at its own rate (30 a second), asking only for the frames of its own ticks. It holds no
+        // claim on every display frame, which drew the whole graph on each of them.
+        const { draws } = pass;
+        let unclaimed = 0;
+        for (let chance = 0; chance < 60; chance++) {
+            await loopChances(element, 1);
+            unclaimed += everyFrameAnimationsOn(scene) === 0 ? 1 : 0;
+        }
+
+        assert.isAbove(pass.draws - draws, 3, "it keeps moving");
+        assert.isAbove(unclaimed, 30, "between its ticks it asks for no frame");
+
         await setParams(element, shader, descriptor.kind, { [speed]: 0 });
-        assert.strictEqual(everyFrameAnimationsOn(scene), 0, "at speed 0 it rests");
+        await drawnFrames(scene, 2);
+        const still = pass.draws;
+        await loopChances(element, 20);
+        assert.strictEqual(pass.draws, still, "at speed 0 it rests");
+        assert.strictEqual(everyFrameAnimationsOn(scene), 0, "and asks for no frame");
     });
 
     it("the hull is still by default", async () => {

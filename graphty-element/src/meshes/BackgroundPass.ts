@@ -67,7 +67,10 @@ export class BackgroundPass {
     private params: ShaderParams | undefined;
     private fallback: readonly [number, number, number, number] = [0, 0, 0, 1];
     private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
-    private releaseMotion: (() => void) | null = null;
+    /** The timer that asks for the next background tick while the shader moves. */
+    private tickTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Releases the tick hold, held while the shader moves. */
+    private releaseTicks: (() => void) | null = null;
     /** When the target was last drawn, by `performance.now()`. */
     private drawnAt = Number.NEGATIVE_INFINITY;
     /** The camera's view and projection the target was last drawn with. */
@@ -197,8 +200,13 @@ export class BackgroundPass {
         this.scene.onBeforeRenderObservable.remove(this.observer);
         this.program?.effect.dispose();
         this.program = null;
-        this.releaseMotion?.();
-        this.releaseMotion = null;
+        if (this.tickTimer !== null) {
+            clearTimeout(this.tickTimer);
+            this.tickTimer = null;
+        }
+
+        this.releaseTicks?.();
+        this.releaseTicks = null;
         this.dropTarget();
         this.layer.dispose();
         this.renderer.dispose();
@@ -224,15 +232,18 @@ export class BackgroundPass {
         return speed === undefined || uniformValueOf(speed, this.params?.[speed.name])[0] !== 0;
     }
 
-    /** Show the layer while a shader draws, and hold a motion claim while it moves. */
+    /**
+     * Show the layer while a shader draws, and hold a tick hold while it moves: it asks for the
+     * frames of its own ticks ({@link nextTick}), never for every frame.
+     */
     private follow(): void {
         this.layer.isEnabled = this.shader !== null && this.target !== null;
         const moves = this.moves();
-        if (moves && this.releaseMotion === null) {
-            this.releaseMotion = this.runtime.uniforms.claimMotion();
-        } else if (!moves && this.releaseMotion !== null) {
-            this.releaseMotion();
-            this.releaseMotion = null;
+        if (moves && this.releaseTicks === null) {
+            this.releaseTicks = this.runtime.uniforms.holdTicks();
+        } else if (!moves && this.releaseTicks !== null) {
+            this.releaseTicks();
+            this.releaseTicks = null;
         }
 
         this.dirty = true;
@@ -323,7 +334,12 @@ export class BackgroundPass {
 
         const now = performance.now();
         const fps = BACKGROUND_FPS[this.guard.quality.level];
-        const due = this.moves() && now - this.drawnAt >= 1000 / fps - 1;
+        const moves = this.moves();
+        const due = moves && now - this.drawnAt >= 1000 / fps - 1;
+        if (moves) {
+            this.nextTick(fps, due ? now : this.drawnAt);
+        }
+
         const tintsMoved = program.tinted && this.readTints();
         if (!this.dirty && !cameraMoved && !due && !tintsMoved) {
             return;
@@ -335,6 +351,27 @@ export class BackgroundPass {
         this.drawnAt = now;
         this.dirty = false;
         this.draw(program.shader, program.effect, target, view.multiply(projection).invert());
+    }
+
+    /**
+     * Ask for the frame of the next background tick, one tick after the last draw. A moving
+     * background asks only for the frames it draws in, never for every frame: on a graph drawn on
+     * demand the rest of the graph is drawn again 30 times a second, not 60 or 120.
+     * @param fps - The background's rate.
+     * @param from - When the last tick was drawn, by `performance.now()`.
+     */
+    private nextTick(fps: number, from: number): void {
+        if (this.tickTimer !== null) {
+            return;
+        }
+
+        const wait = Math.max(0, from + 1000 / fps - performance.now());
+        this.tickTimer = setTimeout(() => {
+            this.tickTimer = null;
+            if (this.moves()) {
+                this.runtime.uniforms.tick();
+            }
+        }, wait);
     }
 
     /**

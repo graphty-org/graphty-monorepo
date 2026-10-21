@@ -2,7 +2,7 @@
 {
     "id": "lab/lock-on-reticle",
     "name": "Reticle",
-    "kind": "node-effect",
+    "role": "effect",
     "params": [
         {
             "name": "hudColor",

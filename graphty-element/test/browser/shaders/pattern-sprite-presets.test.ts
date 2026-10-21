@@ -13,7 +13,7 @@ import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../src/catalog/shaderRegistry";
-import type { ShaderParamDescriptor, ShaderParams } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderParamDescriptor, type ShaderParams } from "../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { operationQueueOf } from "../../../src/Graph";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
@@ -172,7 +172,7 @@ const NAN_MARK = [255, 0, 255] as const;
 function probeOf(index: number): string {
     const { descriptor, body } = PATTERN_SPRITE_PRESETS[index];
     const id = `probe/${descriptor.id}`;
-    const input = descriptor.kind.startsWith("node") ? "NodeInput" : "EdgeInput";
+    const input = drawingOf(descriptor).startsWith("node") ? "NodeInput" : "EdgeInput";
     const wrapped = `${body.replace(/\bshade\s*\(/, "presetShade(")}
 vec4 shade(${input} n) {
     vec4 c = presetShade(n);

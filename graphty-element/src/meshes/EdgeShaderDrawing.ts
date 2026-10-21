@@ -17,7 +17,7 @@
 
 import type { Scene } from "@babylonjs/core";
 
-import { motionOf, type ShaderKind, type ShaderParamDescriptor, type ShaderParams } from "../catalog/shaders";
+import { motionOf, type ShaderParamDescriptor, type ShaderParams } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
 import type { GraphSession } from "../session/types";
@@ -381,9 +381,16 @@ export class EdgeShaderDrawing {
         line: ShadedLineOptions,
     ): EdgeLineBatch | null {
         const shader = this.shader(id, edge);
-        const wanted: ShaderKind = role === "surface" ? "edge-surface" : "edge-effect";
+        const wanted = role === "surface" ? "look" : "effect";
         const { renderer, runtime, textures: data } = this;
-        if (shader?.registration.descriptor.kind !== wanted || renderer === null || runtime === null || data === null) {
+        if (
+            shader === null ||
+            shader.registration.descriptor.target !== "edge" ||
+            shader.registration.descriptor.role !== wanted ||
+            renderer === null ||
+            runtime === null ||
+            data === null
+        ) {
             return null;
         }
 

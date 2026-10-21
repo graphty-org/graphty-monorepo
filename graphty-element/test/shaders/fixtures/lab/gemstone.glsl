@@ -2,7 +2,6 @@
 {
     "id": "lab/gemstone",
     "name": "Gemstone",
-    "kind": "node-surface",
     "params": [
         {
             "name": "facets",

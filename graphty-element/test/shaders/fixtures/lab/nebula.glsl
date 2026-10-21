@@ -2,7 +2,6 @@
 {
     "id": "lab/nebula",
     "name": "Nebula",
-    "kind": "background",
     "params": [
         {
             "name": "gasA",

@@ -9,7 +9,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "uncertainty-aura",
     plainName: "Aura",
-    kind: "node-effect",
+    target: "node",
+    role: "effect",
+    categories: Object.freeze(["Data"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         {
             name: "intensity",

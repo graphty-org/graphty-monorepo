@@ -38,6 +38,8 @@ import {
 } from "@babylonjs/core";
 
 import {
+    drawingOf,
+    drawnShaderParams,
     motionOf,
     type ShaderEffects,
     type ShaderParamDescriptor,
@@ -512,16 +514,16 @@ export class NodeShaderDrawing {
             return null;
         }
 
-        const { kind } = shader.registration.descriptor;
-        if (kind === "node-surface" && !round) {
+        const kind = drawingOf(shader.registration.descriptor);
+        if (kind === "node-look" && !round) {
             return this.renderer !== null && !this.scene.getEngine().isWebGPU ? "mesh" : null;
         }
 
-        if (kind !== "node-surface" && kind !== "node-sprite") {
+        if (kind !== "node-look" && kind !== "node-card") {
             return null;
         }
 
-        const role = kind === "node-sprite" ? "sprite" : "impostor";
+        const role = kind === "node-card" ? "sprite" : "impostor";
         return this.batchFor(role, shader, node) === null ? null : role;
     }
 
@@ -1065,7 +1067,7 @@ export class NodeShaderDrawing {
         }
 
         const { descriptor } = known.registration;
-        const values = look.style?.params?.[id];
+        const values = drawnShaderParams(look.style?.params, id);
         const row = data.paramRow(id, descriptor.params, values);
         const params = this.varying(descriptor.params, values);
         const meta: [number, number, number, number] = [entry.seed, row, entry.bits, entry.row];
@@ -1186,7 +1188,11 @@ export class NodeShaderDrawing {
         dropped: Set<string>,
     ): void {
         const shader = this.resolved(id, entry.node);
-        if (shader?.registration.descriptor.kind !== "node-effect") {
+        if (
+            shader === null ||
+            shader.registration.descriptor.target !== "node" ||
+            shader.registration.descriptor.role !== "effect"
+        ) {
             if (shader === null && this.known.get(id)?.shader === null) {
                 dropped.add(id);
             }
@@ -1526,7 +1532,7 @@ export class NodeShaderDrawing {
             }
 
             const { descriptor } = shader.registration;
-            const values = entry.look.style?.params?.[shader.id];
+            const values = drawnShaderParams(entry.look.style?.params, shader.id);
             if (this.speedOf(descriptor, values, this.varying(descriptor.params, values)) === 0) {
                 continue;
             }

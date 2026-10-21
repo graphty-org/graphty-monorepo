@@ -2,7 +2,6 @@
 {
     "id": "lab/colorblind-patterns",
     "name": "Patterns",
-    "kind": "node-surface",
     "params": [
         {
             "name": "pattern",

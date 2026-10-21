@@ -2,7 +2,7 @@
 {
     "id": "lab/icon-sticker",
     "name": "Sticker",
-    "kind": "node-sprite",
+    "geometry": "card",
     "params": [
         {
             "name": "icon",

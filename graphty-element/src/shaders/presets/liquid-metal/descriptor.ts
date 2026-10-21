@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "liquid-metal",
     plainName: "Liquid metal",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Metal"]),
     params: Object.freeze([
         Object.freeze({ name: "speed", plainName: "Speed", type: "number", default: 0.3, min: 0, max: 2 }),
         Object.freeze({

@@ -79,17 +79,17 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
-// Shaders as catalog data: the kinds, the descriptor `session.catalog.shaders()` lists, the maps
-// a layer writes, the channels each kind covers, and the shader text format read and written with
-// no DOM.
+// Shaders as catalog data: targets and roles, the descriptor `session.catalog.shaders()` lists,
+// the maps a layer writes, the channels a shader covers, the shader text format read and written
+// with no DOM, and a working template for each place.
 export type {
     LayerBoundary,
     ShaderCost,
     ShaderDescriptor,
     ShaderEffects,
+    ShaderGeometry,
     ShaderGlyph,
     ShaderInput,
-    ShaderKind,
     ShaderMotion,
     ShaderMotionInput,
     ShaderOrigin,
@@ -97,15 +97,21 @@ export type {
     ShaderParamDescriptor,
     ShaderParams,
     ShaderParamSets,
+    ShaderPlace,
+    ShaderPreview,
     ShaderProblem,
     ShaderProblemCode,
     ShaderRegistration,
     ShaderRequirement,
+    ShaderRole,
+    ShaderSource,
+    ShaderTarget,
     ShaderText,
     ShaderTextResult,
     ShaderWebGpu,
 } from "./src/catalog/shaders";
-export { SHADER_KIND_COVERS, SHADER_KINDS, shaderCovers } from "./src/catalog/shaders";
+export { shaderCovers } from "./src/catalog/shaders";
+export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
 export { formatShaderText, parseShaderText } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { ShaderParamAddress } from "./src/catalog/types";

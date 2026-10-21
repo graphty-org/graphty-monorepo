@@ -2,7 +2,6 @@
 {
     "id": "lab/clear-glass",
     "name": "Clear glass",
-    "kind": "node-surface",
     "params": [
         {
             "name": "tint",

@@ -682,7 +682,7 @@ const DOOR_LAYER: LayerSpec = {
 /** The rows of `StylesApi`, shared with the element's wider form of it. */
 /** A shader the doors add, replace and remove. */
 const DOOR_SHADER = `/* graphty-shader 1
-{ "id": "user/door", "name": "Door", "kind": "node-surface" }
+{ "id": "user/door", "name": "Door" }
 */
 vec4 shade(NodeInput n) { return n.color; }
 `;

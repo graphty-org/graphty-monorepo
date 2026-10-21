@@ -2,7 +2,7 @@
 {
     "id": "lab/orbiting-satellites",
     "name": "Satellites",
-    "kind": "node-effect",
+    "role": "effect",
     "params": [
         {
             "name": "moons",

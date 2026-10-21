@@ -6,7 +6,7 @@
  * THE COST BOUND IS THE GATE. A body that runs too long trips the GPU watchdog and loses every
  * context in the browser, and on an iPad the tab with it. So every loop must have a constant trip
  * count of at most 128, nothing may recurse, and the product of trip counts along every path of
- * the call graph times the operations under them stays inside a budget per kind. A body that
+ * the call graph times the operations under them stays inside a budget per drawing. A body that
  * passes here can still fail to compile; that is the driver's to say, later.
  *
  * Positions are 1-based lines and columns in the text the body came from: `lineOffset` and
@@ -16,7 +16,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderCost, ShaderInput, ShaderKind, ShaderProblem, ShaderProblemCode } from "./shaders";
+import type { ShaderCost, ShaderDrawing, ShaderInput, ShaderProblem, ShaderProblemCode, ShaderTarget } from "./shaders";
 
 /** The most text a body may hold, in bytes. */
 export const SHADER_BODY_LIMIT = 16_384;
@@ -31,18 +31,18 @@ export const SHADER_ARRAY_LIMIT = 256;
 export const SHADER_NESTING_LIMIT = 64;
 
 /**
- * The cost budget per kind: operations per pixel, loops and calls multiplied out. A background or
- * a boundary covers the whole canvas once; a node or edge kind covers many small areas, so its
+ * The cost budget per drawing: operations per pixel, loops and calls multiplied out. A background
+ * or a group outline covers the whole canvas once; a node or edge covers many small areas, so its
  * budget per pixel is the same.
  */
-const COST_BUDGET: Readonly<Record<ShaderKind, number>> = {
-    "node-surface": 400_000,
-    "node-sprite": 120_000,
+const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
+    "node-look": 400_000,
+    "node-card": 120_000,
     "node-effect": 120_000,
-    "edge-surface": 60_000,
+    "edge-look": 60_000,
     "edge-effect": 60_000,
     background: 60_000,
-    boundary: 60_000,
+    group: 60_000,
 };
 
 /**
@@ -96,23 +96,37 @@ export const SHADER_HELPERS: readonly string[] = Object.freeze([
     "canvasColor",
 ]);
 
-/** The input struct of each kind's entry function. */
-const ENTRY_INPUT: Readonly<Record<ShaderKind, string>> = {
-    "node-surface": "NodeInput",
-    "node-sprite": "NodeInput",
-    "node-effect": "NodeInput",
-    "edge-surface": "EdgeInput",
-    "edge-effect": "EdgeInput",
+/** The input struct of each target's entry function. */
+const ENTRY_INPUT: Readonly<Record<ShaderTarget, string>> = {
+    node: "NodeInput",
+    edge: "EdgeInput",
+    group: "GroupInput",
     background: "BackgroundInput",
-    boundary: "BoundaryInput",
 };
+
+/** The target of each entry input struct. */
+const TARGET_OF_INPUT: Readonly<Record<string, ShaderTarget>> = {
+    NodeInput: "node",
+    EdgeInput: "edge",
+    GroupInput: "group",
+    BackgroundInput: "background",
+};
+
+/**
+ * The target of the drawing.
+ * @param drawing - The drawing.
+ * @returns What it draws on.
+ */
+function targetOf(drawing: ShaderDrawing): ShaderTarget {
+    return drawing === "background" || drawing === "group" ? drawing : (drawing.split("-")[0] as ShaderTarget);
+}
 
 /** The parameter name the documentation gives each input. */
 const ENTRY_NAME: Readonly<Record<string, string>> = {
     NodeInput: "n",
     EdgeInput: "e",
     BackgroundInput: "b",
-    BoundaryInput: "g",
+    GroupInput: "g",
 };
 
 /** The input structs and every field they carry: names a parameter may not take. */
@@ -120,7 +134,7 @@ export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
     "NodeInput",
     "EdgeInput",
     "BackgroundInput",
-    "BoundaryInput",
+    "GroupInput",
     "uv",
     "local",
     "normal",
@@ -1296,16 +1310,17 @@ export function costClassOf(cost: number): ShaderCost {
 
 /**
  * Check the entry function's signature.
- * @param kind - The shader's kind.
+ * @param drawing - The shader's drawing, whose target decides the entry's input.
  * @param walk - The walk.
  * @param origin - Where the body starts, for a missing entry.
  */
-function checkEntry(kind: ShaderKind, walk: Walk, origin: BodyOrigin): void {
-    const input = ENTRY_INPUT[kind];
+function checkEntry(drawing: ShaderDrawing, walk: Walk, origin: BodyOrigin): void {
+    const target = targetOf(drawing);
+    const input = ENTRY_INPUT[target];
     const expected = `vec4 shade(${input} ${ENTRY_NAME[input]})`;
     const entry = walk.functions.get("shade");
     if (entry === undefined) {
-        walk.problems.push(problemAt("shader.entry-missing", origin, { kind, expected }));
+        walk.problems.push(problemAt("shader.entry-missing", origin, { target, expected }));
         return;
     }
 
@@ -1317,18 +1332,18 @@ function checkEntry(kind: ShaderKind, walk: Walk, origin: BodyOrigin): void {
         params[0] === input &&
         entry.params.at(-1)?.kind === "id";
     if (!signed) {
-        walk.fail("shader.entry-signature", entry.at, { kind, expected });
+        walk.fail("shader.entry-signature", entry.at, { target, expected });
     }
 }
 
 /**
  * Check a body against every static rule, in order, stopping after the first step with problems.
  * @param body - The GLSL body.
- * @param kind - The shader's kind, which decides the entry function and the budget.
+ * @param drawing - The shader's drawing, which decides the entry function and the budget.
  * @param origin - Where the body starts in the text it came from.
  * @returns The problems, and the cost bound and class when there are none.
  */
-export function checkShaderBody(body: string, kind: ShaderKind, origin: BodyOrigin = TEXT_START): BodyCheck {
+export function checkShaderBody(body: string, drawing: ShaderDrawing, origin: BodyOrigin = TEXT_START): BodyCheck {
     const failed = (problems: readonly ShaderProblem[]): BodyCheck => ({ problems, cost: 0, costClass: "heavy" });
     const bytes = body.length;
     if (bytes > SHADER_BODY_LIMIT) {
@@ -1368,21 +1383,21 @@ export function checkShaderBody(body: string, kind: ShaderKind, origin: BodyOrig
         return failed(walk.problems);
     }
 
-    checkEntry(kind, walk, origin);
+    checkEntry(drawing, walk, origin);
     if (walk.problems.length > 0) {
         return failed(walk.problems);
     }
 
-    return costCheck(kind, walk);
+    return costCheck(drawing, walk);
 }
 
 /**
  * The last step: the cost bound and the unrolled size.
- * @param kind - The shader's kind.
+ * @param drawing - The shader's drawing.
  * @param walk - The walk.
  * @returns The verdict.
  */
-function costCheck(kind: ShaderKind, walk: Walk): BodyCheck {
+function costCheck(drawing: ShaderDrawing, walk: Walk): BodyCheck {
     const all = costs(walk);
     const entry = walk.functions.get("shade");
     if (walk.problems.length > 0 || entry === undefined) {
@@ -1396,7 +1411,7 @@ function costCheck(kind: ShaderKind, walk: Walk): BodyCheck {
     }
 
     const { cost, iterations } = all.get("shade") ?? { cost: 0, iterations: 1 };
-    const limit = COST_BUDGET[kind];
+    const limit = COST_BUDGET[drawing];
     if (iterations > SHADER_ITERATION_LIMIT) {
         walk.fail("shader.too-costly", entry.at, { iterations, limit: SHADER_ITERATION_LIMIT });
     } else if (cost > limit) {
@@ -1429,4 +1444,26 @@ export function inferShaderReads(body: string): readonly ShaderInput[] {
     const code = body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
 
     return READ_FIELDS.filter(([pattern]) => pattern.test(code)).map(([, input]) => input);
+}
+
+/**
+ * Whether a body animates on its own: it reads its input's `time` field (`n.time`, `e.time`,
+ * `g.time`, `b.time`). A parameter or a local named `time` is never a field access, so it never
+ * counts.
+ * @param body - The GLSL body.
+ * @returns True when it does.
+ */
+export function readsShaderTime(body: string): boolean {
+    return /\.\s*time\b/.test(body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""));
+}
+
+/**
+ * The target a body's entry function names, from its input struct.
+ * @param body - The GLSL body.
+ * @returns The target, or undefined when no `vec4 shade(<Input> ...)` names a known input.
+ */
+export function entryTargetOf(body: string): ShaderTarget | undefined {
+    const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""));
+
+    return entry === null || !Object.hasOwn(TARGET_OF_INPUT, entry[1]) ? undefined : TARGET_OF_INPUT[entry[1]];
 }

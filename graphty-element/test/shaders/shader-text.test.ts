@@ -28,7 +28,7 @@ const FIXTURES = fileURLToPath(new URL("fixtures/lab/", import.meta.url));
  * @returns The text.
  */
 function text(body: string, header: Record<string, unknown> = {}): string {
-    const json = JSON.stringify({ id: "test/case", name: "Case", kind: "node-effect", params: [], ...header }, null, 4);
+    const json = JSON.stringify({ id: "test/case", name: "Case", role: "effect", params: [], ...header }, null, 4);
 
     return `/* graphty-shader 1\n${json}\n*/\n${body}`;
 }
@@ -116,7 +116,7 @@ describe("each unsafe construct is refused with its code, line and column", () =
 
     it("ends the header at a comment end inside a header string, which is a header problem", () => {
         const source =
-            '/* graphty-shader 1\n{ "id": "test/case", "name": "a */ b", "kind": "node-effect" }\n*/\nvec4 shade(NodeInput n) { return vec4(1.0); }';
+            '/* graphty-shader 1\n{ "id": "test/case", "name": "a */ b", "role": "effect" }\n*/\nvec4 shade(NodeInput n) { return vec4(1.0); }';
         const problem = firstProblem(source);
         assert.strictEqual(problem.code, "shader.header-json");
         assert.strictEqual(problem.params.line, 2);
@@ -208,15 +208,19 @@ describe("each unsafe construct is refused with its code, line and column", () =
         assertAt(firstProblem(text(reserved)), "shader.reserved", BODY_LINE, 39);
     });
 
-    it("refuses a body without the entry of its kind, or with the wrong signature", () => {
+    it("refuses a body without an entry function, or with the wrong signature", () => {
         assert.deepEqual(firstProblem(text("float f() { return 1.0; }")).params, {
             line: BODY_LINE,
             column: 1,
-            kind: "node-effect",
+            target: "node",
             expected: "vec4 shade(NodeInput n)",
         });
         assert.strictEqual(
-            firstProblem(text("vec4 shade(EdgeInput e) { return vec4(1.0); }")).code,
+            firstProblem(text("vec4 shade(NodeThing n) { return vec4(1.0); }")).code,
+            "shader.entry-signature",
+        );
+        assert.strictEqual(
+            firstProblem(text("vec3 shade(NodeInput n) { return vec3(1.0); }")).code,
             "shader.entry-signature",
         );
     });
@@ -225,19 +229,29 @@ describe("each unsafe construct is refused with its code, line and column", () =
 describe("the header", () => {
     const body = "vec4 shade(NodeInput n) { return vec4(tint, 1.0); }";
 
-    it("refuses unknown keys, a bare id, an unknown kind and bad parameters", () => {
+    it("refuses unknown keys, a bare id, an unknown role and bad parameters", () => {
         assert.deepEqual(firstProblem(text(body, { colour: 1 })), {
             code: "shader.header-key",
             params: { key: "colour" },
         });
         assert.strictEqual(firstProblem(text(body, { id: "marble" })).code, "shader.id-invalid");
-        assert.strictEqual(firstProblem(text(body, { kind: "node-glow" })).code, "shader.kind-unknown");
+        assert.deepEqual(firstProblem(text(body, { role: "glow" })), {
+            code: "shader.header-key",
+            params: { key: "role" },
+        });
+        assert.deepEqual(firstProblem(text(body, { kind: "node-effect" })), {
+            code: "shader.header-key",
+            params: { key: "kind" },
+        });
         const protoParam = { params: [{ name: "__proto__", type: "number", default: 1 }] };
         assert.deepEqual(firstProblem(text(body, protoParam)).params, { param: "__proto__", field: "name" });
         const outside = { params: [{ name: "speed", type: "number", default: 5, min: 0, max: 4 }] };
         assert.deepEqual(firstProblem(text(body, outside)).params, { param: "speed", field: "default" });
         const helper = { params: [{ name: "noise", type: "number", default: 1 }] };
-        assert.deepEqual(firstProblem(text(body, helper)).params, { param: "noise", field: "name" });
+        assert.deepEqual(firstProblem(text(body, helper)), {
+            code: "shader.reserved",
+            params: { name: "noise", param: "noise" },
+        });
         const many = {
             params: Array.from({ length: 17 }, (_, at) => ({ name: `p${String(at)}`, type: "number", default: 0 })),
         };
@@ -273,12 +287,16 @@ describe("the header", () => {
         assert.strictEqual(result.ok && result.registration.descriptor.plainName, "Ring");
     });
 
-    it("takes a body with no header when its entry says its kind", () => {
+    it("takes a body with no header: the entry says its target, the place its role", () => {
         const result = parseShaderText("vec4 shade(BackgroundInput b) { return vec4(b.uv, 0.0, 1.0); }");
         assert.isTrue(result.ok);
-        assert.strictEqual(result.ok && result.registration.descriptor.kind, "background");
-        assert.strictEqual(parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }").ok, false);
-        assert.isTrue(parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }", { kind: "node-sprite" }).ok);
+        assert.strictEqual(result.ok && result.registration.descriptor.target, "background");
+        const look = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }");
+        assert.strictEqual(look.ok && look.registration.descriptor.role, "look");
+        const effect = parseShaderText("vec4 shade(NodeInput n) { return vec4(1.0); }", {
+            place: { target: "node", role: "effect" },
+        });
+        assert.strictEqual(effect.ok && effect.registration.descriptor.role, "effect");
     });
 });
 
@@ -304,7 +322,8 @@ describe("formatShaderText", () => {
             descriptor: {
                 id: "acme/ring",
                 plainName: "Ring",
-                kind: "node-effect",
+                target: "node",
+                role: "effect",
                 reach: 2,
                 blend: "add",
                 motion: { loop: { speedParam: "speed" }, enter: 0.5 },
@@ -322,7 +341,7 @@ describe("formatShaderText", () => {
     it("refuses a registration with a WGSL body, which text cannot carry", () => {
         try {
             formatShaderText({
-                descriptor: { id: "acme/x", plainName: "X", kind: "background", params: [] },
+                descriptor: { id: "acme/x", plainName: "X", params: [] },
                 glsl: "",
                 wgsl: "fn main() {}",
             });

@@ -2,7 +2,6 @@
 {
     "id": "lab/foil-shimmer",
     "name": "Foil shimmer",
-    "kind": "node-surface",
     "params": [
         {
             "name": "foil",

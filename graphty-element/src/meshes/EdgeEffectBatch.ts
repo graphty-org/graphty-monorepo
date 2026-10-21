@@ -61,7 +61,7 @@ export function shadedLineMesh(
 ): Mesh {
     const { descriptor, glsl } = shader.registration;
     const name = `graphtyEdge${role}${shader.hash.slice(0, 24)}`;
-    const program = edgeShaderProgram(role === "surface" ? "edge-surface" : "edge-effect", descriptor, glsl);
+    const program = edgeShaderProgram(role === "surface" ? "look" : "effect", descriptor, glsl);
     ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
     let blend: "combine" | "premultiplied" | "add" = "combine";
     if (role === "effect") {

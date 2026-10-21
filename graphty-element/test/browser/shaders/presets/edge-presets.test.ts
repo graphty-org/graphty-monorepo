@@ -17,6 +17,7 @@ import { afterAll, afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../../src/catalog/shaderRegistry";
 import {
+    drawingOf,
     motionOf,
     type ShaderDescriptor,
     type ShaderParamDescriptor,
@@ -228,7 +229,7 @@ vec4 shade(EdgeInput e) {
  * @returns The `set` of the layer.
  */
 function setOf(descriptor: ShaderDescriptor, id: string, params: ShaderParams): Record<string, unknown> {
-    return descriptor.kind === "edge-surface"
+    return drawingOf(descriptor) === "edge-look"
         ? { "edge.shader": id, "edge.shaderParams": { [id]: params } }
         : { "edge.effects": { [id]: params } };
 }

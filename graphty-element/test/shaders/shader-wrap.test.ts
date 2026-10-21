@@ -83,7 +83,7 @@ describe("the shader wrapper", () => {
     });
 
     it("writes a program that numbers the body from line 1 and guards NaN on the exponent bits", () => {
-        const program = sampleProgram({ kind: "node-surface", params: [SPEED] }, BODY);
+        const program = sampleProgram({ target: "node", role: "look", params: [SPEED] }, BODY);
         const lines = program.fragment.split("\n");
         const start = lines.indexOf("#line 1");
         assert.isAbove(start, 0);

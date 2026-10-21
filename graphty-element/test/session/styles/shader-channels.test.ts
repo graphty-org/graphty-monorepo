@@ -7,6 +7,7 @@
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
+import type { ShaderParams } from "../../../src/catalog/shaders";
 import type { LayerSpec, ShaderParamAddress } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createGraphSession, type GraphSession } from "../../../src/session";
@@ -194,11 +195,15 @@ describe("parameters belong to their shader", () => {
 
         assert.strictEqual(shader, "acme/marble");
         assert.deepEqual(
-            { ...sets[shader] },
+            { ...(sets[shader] as object) },
             { twist: 4 },
             "only the drawn shader's set applies, and it holds no speed",
         );
-        assert.deepEqual({ ...sets["acme/lantern"] }, { speed: 3 }, "the lantern's set stays under its own id");
+        assert.deepEqual(
+            { ...(sets["acme/lantern"] as object) },
+            { speed: 3 },
+            "the lantern's set stays under its own id",
+        );
         assert.isNull(Object.getPrototypeOf(sets), "merged maps have no prototype");
         assert.deepInclude(session.styles.counts(lanterns.id).undrawn, {
             code: "shader.param-unused",
@@ -213,7 +218,7 @@ describe("parameters belong to their shader", () => {
         await session.styles.add(everything("Base", { "node.shaderParams": { "acme/marble": { twist: 1, spin: 1 } } }));
         await session.styles.add(everything("Top", { "node.shaderParams": { "acme/marble": { spin: 2 } } }));
         assert.deepEqual(
-            { ...session.styles.explain({ node: "n1" }).merged["node.shaderParams"]?.["acme/marble"] },
+            { ...(session.styles.explain({ node: "n1" }).merged["node.shaderParams"]?.["acme/marble"] as object) },
             {
                 twist: 1,
                 spin: 2,
@@ -383,7 +388,9 @@ describe("a parameter bound per element", () => {
         });
         await session.styles.settled();
         const spins = ["n0", "n3"].map(
-            (id) => session.styles.explain({ node: id }).merged["node.shaderParams"]?.["acme/marble"]?.spin,
+            (id) =>
+                (session.styles.explain({ node: id }).merged["node.shaderParams"]?.["acme/marble"] as ShaderParams)
+                    ?.spin,
         );
         assert.deepEqual(spins, [0, 2]);
         session.dispose();
@@ -418,7 +425,7 @@ describe("a parameter bound per element", () => {
         });
         await session.styles.settled();
         const icon = (id: string): unknown =>
-            session.styles.explain({ node: id }).merged["node.shaderParams"]?.["acme/sticker"]?.icon;
+            (session.styles.explain({ node: id }).merged["node.shaderParams"]?.["acme/sticker"] as ShaderParams)?.icon;
         assert.deepEqual(["a", "b", "c"].map(icon), [0, 1, 0]);
 
         // A new value arriving first in element order still takes the next number.

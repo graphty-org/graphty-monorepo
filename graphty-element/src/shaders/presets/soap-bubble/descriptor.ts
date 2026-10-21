@@ -12,7 +12,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "soap-bubble",
     plainName: "Soap bubble",
-    kind: "boundary",
+    target: "group",
+    role: "look",
+    categories: Object.freeze(["Bubble"]),
     form: "sphere",
     // The bubble clears its outermost members by 2.5 of their radii.
     reach: 6,

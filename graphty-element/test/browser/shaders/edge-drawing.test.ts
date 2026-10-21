@@ -30,12 +30,11 @@ const cleanups: (() => void)[] = [];
 beforeAll(() => {
     defineShader({
         id: "e5/red",
-        kind: "edge-surface",
         glsl: "vec4 shade(EdgeInput e) { return vec4(1.0, 0.0, 0.0, 1.0); }",
     });
     defineShader({
         id: "e5/glow",
-        kind: "edge-effect",
+        role: "effect",
         reach: 3,
         glsl: `vec4 shade(EdgeInput e) {
             float a = 1.0 - smoothstep(0.0, 3.0, abs(e.side));
@@ -44,7 +43,7 @@ beforeAll(() => {
     });
     defineShader({
         id: "e5/fade",
-        kind: "edge-effect",
+        role: "effect",
         motion: { exit: 0.5 },
         glsl: `vec4 shade(EdgeInput e) {
             float a = e.sinceExited < 0.0 ? 1.0 : clamp(1.0 - e.sinceExited / 0.5, 0.0, 1.0);
@@ -53,7 +52,7 @@ beforeAll(() => {
     });
     defineShader({
         id: "e5/still",
-        kind: "edge-effect",
+        role: "effect",
         glsl: "vec4 shade(EdgeInput e) { return vec4(0.0, 0.0, 1.0, 1.0); }",
     });
 });

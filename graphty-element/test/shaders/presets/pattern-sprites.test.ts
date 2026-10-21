@@ -11,7 +11,7 @@ import { afterAll, assert, describe, it } from "vitest";
 
 import { checkShaderBody } from "../../../src/catalog/shaderGlsl";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
-import type { ShaderDescriptor, ShaderMotion } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor, type ShaderMotion } from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { createGraphSession } from "../../../src/session";
 import { PATTERN_SPRITE_PRESETS, patternPresetId } from "../../../stories/shaders/patternSpritePresets";
@@ -38,7 +38,7 @@ const TABLE: Readonly<
 > = {
     "colorblind-patterns": {
         name: "Patterns",
-        kind: "node-surface",
+        kind: "node-look",
         reads: ["color"],
         motion: {},
         cost: "light",
@@ -51,7 +51,7 @@ const TABLE: Readonly<
     },
     "foil-shimmer": {
         name: "Foil shimmer",
-        kind: "node-surface",
+        kind: "node-look",
         reads: ["color"],
         motion: { loop: { speedParam: "sweepSpeed" } },
         cost: "light",
@@ -64,7 +64,7 @@ const TABLE: Readonly<
     },
     hologram: {
         name: "Hologram",
-        kind: "node-surface",
+        kind: "node-look",
         reads: ["color", "times"],
         motion: { loop: { speedParam: "flicker" }, enter: 0.9, exit: 0.6 },
         cost: "light",
@@ -78,7 +78,7 @@ const TABLE: Readonly<
     },
     frost: {
         name: "Frost",
-        kind: "node-surface",
+        kind: "node-look",
         reads: ["color", "times"],
         motion: { enter: 2, exit: 1 },
         cost: "medium",
@@ -90,7 +90,7 @@ const TABLE: Readonly<
     },
     "icon-sticker": {
         name: "Sticker",
-        kind: "node-sprite",
+        kind: "node-card",
         reads: ["color"],
         motion: { loop: { speedParam: "finishSpeed" } },
         cost: "light",
@@ -104,7 +104,7 @@ const TABLE: Readonly<
     },
     mandala: {
         name: "Mandala",
-        kind: "node-sprite",
+        kind: "node-card",
         reads: ["size"],
         motion: { loop: { speedParam: "spin" } },
         cost: "medium",
@@ -134,7 +134,7 @@ describe("the pattern, state and sprite presets", () => {
         (id, { descriptor }: { descriptor: ShaderDescriptor }) => {
             const row = TABLE[id];
             assert.strictEqual(descriptor.plainName, row.name);
-            assert.strictEqual(descriptor.kind, row.kind);
+            assert.strictEqual(drawingOf(descriptor), row.kind);
             assert.strictEqual(descriptor.origin, "element");
             assert.strictEqual(descriptor.cost, row.cost);
             assert.deepEqual([...descriptor.reads], row.reads);
@@ -206,7 +206,7 @@ describe("the pattern, state and sprite presets", () => {
             assert.isFalse(Array.isArray(read), JSON.stringify(read));
             assert.isString(thumbnail);
 
-            const checked = checkShaderBody(body, descriptor.kind);
+            const checked = checkShaderBody(body, drawingOf(descriptor));
             assert.deepEqual(checked.problems, []);
             assert.isAtMost(
                 ORDER.indexOf(checked.costClass),
@@ -276,7 +276,10 @@ describe('a pattern or an icon bound with the "index" scale', () => {
         });
         await session.styles.settled();
         const valueOf = (node: string): unknown =>
-            session.styles.explain({ node }).merged["node.shaderParams"]?.[id]?.[param];
+            (
+                session.styles.explain({ node }).merged["node.shaderParams"]?.[id] as
+                    Record<string, unknown> | undefined
+            )?.[param];
         assert.deepEqual(["a", "b", "c"].map(valueOf), [0, 1, 0]);
 
         // New groups, one of them sorting before every old one, arrive ahead of the old nodes.

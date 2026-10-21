@@ -12,7 +12,17 @@
  * Types only: nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderKind, ShaderMotionInput } from "../catalog/shaders";
+import type {
+    ShaderCost,
+    ShaderGeometry,
+    ShaderInput,
+    ShaderMotionInput,
+    ShaderPreview,
+    ShaderRequirement,
+    ShaderRole,
+    ShaderSource,
+    ShaderTarget,
+} from "../catalog/shaders";
 import type { OptionDescriptor, OptionType, PaletteDescriptor, SuggestedName } from "../catalog/types";
 
 // =============================================================================================
@@ -461,34 +471,58 @@ export type ShaderParamShorthand =
       });
 
 /**
- * What defineShader takes.
+ * What defineShader takes. Every key but `glsl` and `target` is also a key of the shader text
+ * header, spelled the same.
  * @since 3.36.0
  */
 export interface ShaderDefinition {
     /** `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash. Saved in documents. */
     readonly id: string;
-    /** What it draws on. */
-    readonly kind: ShaderKind;
     /**
-     * The body: `vec4 shade(NodeInput n)` (or the entry of its kind) and its helpers. Each
-     * parameter is a global of its GLSL type: a number a `float`, an integer an `int`, a color a
-     * `vec3`.
+     * The body: `vec4 shade(NodeInput n)` (or `EdgeInput e`, `GroupInput g`, `BackgroundInput b`,
+     * which says what it draws on) and its helpers, or a function that loads it the first time
+     * something draws it. Each parameter is a global of its GLSL type: a number a `float`, an
+     * integer an `int`, a boolean a `bool`, a color a `vec3`.
      */
-    readonly glsl: string;
-    /** What pickers show. Default: the name part of the id in sentence case. */
+    readonly glsl: ShaderSource;
+    /** What it draws on. Default: read from the body's entry; required when `glsl` is a loader. */
+    readonly target?: ShaderTarget;
+    /** A look (replaces how its target is painted) or an effect. Default: an effect when `reach` is given, else a look. */
+    readonly role?: ShaderRole;
+    /** Node looks: on the node's shape (the default), or a `"card"` drawn in its place. */
+    readonly geometry?: ShaderGeometry;
+    /** What pickers show (the descriptor's `plainName`). Default: the name part of the id in sentence case. */
     readonly name?: string;
     /** Its parameters, keyed by name, in the order a form shows them. */
     readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
-    /** How it moves. Default `"still"`. */
+    /** How it moves. Default: `"loop"` when the body reads its input's `time` field, else `"still"`. */
     readonly motion?: ShaderMotionInput;
     /** Effects: the drawn square is `reach` times the radius, 1 to 6. */
     readonly reach?: number;
-    /** Effects and boundaries: how the result combines. Default `"over"`. */
+    /** Effects: the smallest on-screen radius, in CSS pixels, it is drawn at. */
+    readonly minPixels?: number;
+    /** Effects and group outlines: how the result combines. Default `"over"`. */
     readonly blend?: "over" | "add";
     /** Whether it contributes to the shared bloom pass. */
     readonly bloom?: boolean;
-    /** Boundaries: a splatted field or one sphere per group. Default `"field"`. */
+    /** Group outlines: a splatted field or one sphere per group. Default `"field"`. */
     readonly form?: "field" | "sphere";
-    /** Field boundaries: the number parameter that sets each member's kernel radius, in member radii. */
+    /** Field group outlines: the number parameter that sets each member's kernel radius, in member radii. */
     readonly reachParam?: string;
+    /** A cheaper body with the same entry, drawn while nodes are small; in shader text, `shadeFar`. */
+    readonly lowDetail?: ShaderSource;
+    /** Where a gallery may file it, such as `"Glass"`. */
+    readonly categories?: readonly string[];
+    /** The frame its thumbnail is drawn from: parameter values and a time in seconds. */
+    readonly preview?: ShaderPreview;
+    /** An image URL of a still picture. Default: the element draws one from the shader. */
+    readonly thumbnail?: string;
+    /** Default: the static checker's class. */
+    readonly cost?: ShaderCost;
+    /** Default: inferred from the fields the body reads. */
+    readonly reads?: readonly ShaderInput[];
+    /** What it needs from the device. */
+    readonly requires?: readonly ShaderRequirement[];
+    /** How it runs on the WebGPU renderer: translated (the default), or not at all. */
+    readonly webgpu?: "translate" | "none";
 }

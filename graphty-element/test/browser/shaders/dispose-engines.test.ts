@@ -18,7 +18,7 @@ import { operationQueueOf } from "../../../src/Graph";
 
 /** A node surface that compiles. */
 const SHADER = `/* graphty-shader 1
-{ "id": "user/half", "name": "Half", "kind": "node-surface" }
+{ "id": "user/half", "name": "Half" }
 */
 vec4 shade(NodeInput n) {
     return vec4(n.color.rgb * 0.5, n.color.a);

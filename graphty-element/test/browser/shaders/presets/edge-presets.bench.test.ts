@@ -20,7 +20,7 @@ import { commands } from "vitest/browser";
 
 import type { Graphty } from "../../../../index.js";
 import { shaderDescriptor } from "../../../../src/catalog/shaderRegistry";
-import type { ShaderKind, ShaderParams } from "../../../../src/catalog/shaders";
+import { drawingOf, type ShaderDrawing, type ShaderParams } from "../../../../src/catalog/shaders";
 import { operationQueueOf } from "../../../../src/Graph";
 import { LONG_FRAME_MS } from "../../../../src/managers/ShaderGuard";
 import { EdgeShaderDrawing } from "../../../../src/meshes/EdgeShaderDrawing";
@@ -51,7 +51,7 @@ afterEach(() => {
  * @param params - Its parameters.
  * @returns The element.
  */
-async function mountWide(kind: ShaderKind, shader: string, params: ShaderParams): Promise<Graphty> {
+async function mountWide(kind: ShaderDrawing, shader: string, params: ShaderParams): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "800px";
@@ -71,7 +71,7 @@ async function mountWide(kind: ShaderKind, shader: string, params: ShaderParams)
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode("2d");
     const set =
-        kind === "edge-surface"
+        kind === "edge-look"
             ? { "edge.shader": shader, "edge.shaderParams": { [shader]: params } }
             : { "edge.effects": { [shader]: params } };
     await element.session.styles.add({
@@ -106,7 +106,7 @@ async function mountWide(kind: ShaderKind, shader: string, params: ShaderParams)
  * @returns Milliseconds per frame.
  */
 async function frameMs(
-    kind: ShaderKind,
+    kind: ShaderDrawing,
     shader: string,
     params: ShaderParams,
     quality: (typeof QUALITIES)[number],
@@ -137,25 +137,24 @@ afterAll(async () => {
 });
 
 describe.each(QUALITIES)("the edge presets' cost at %s quality", (quality) => {
-    const flat: Partial<Record<ShaderKind, number>> = {};
+    const flat: Partial<Record<ShaderDrawing, number>> = {};
 
     beforeAll(async () => {
         if (shaderDescriptor("bench/flat-edge") === undefined) {
             defineShader({
                 id: "bench/flat-edge",
-                kind: "edge-surface",
                 glsl: "vec4 shade(EdgeInput e) { return e.color; }",
             });
             defineShader({
                 id: "bench/flat-effect",
-                kind: "edge-effect",
+                role: "effect",
                 glsl: "vec4 shade(EdgeInput e) { return vec4(e.color.rgb * 0.5, 0.5); }",
             });
         }
 
-        flat["edge-surface"] = await frameMs("edge-surface", "bench/flat-edge", {}, quality);
+        flat["edge-look"] = await frameMs("edge-look", "bench/flat-edge", {}, quality);
         flat["edge-effect"] = await frameMs("edge-effect", "bench/flat-effect", {}, quality);
-        report[`flat@${quality}`] = { ms: Math.max(flat["edge-surface"], flat["edge-effect"]) };
+        report[`flat@${quality}`] = { ms: Math.max(flat["edge-look"], flat["edge-effect"]) };
     });
 
     it.each(EDGE_PRESETS.map(({ descriptor }) => [descriptor.id, descriptor] as const))(
@@ -166,8 +165,8 @@ describe.each(QUALITIES)("the edge presets' cost at %s quality", (quality) => {
                     .filter((param) => typeof param.max === "number")
                     .map((param) => [param.name, param.max as number]),
             );
-            const ms = await frameMs(descriptor.kind, presetId(id), highest, quality);
-            const ratio = ms / (flat[descriptor.kind] ?? ms);
+            const ms = await frameMs(drawingOf(descriptor), presetId(id), highest, quality);
+            const ratio = ms / (flat[drawingOf(descriptor)] ?? ms);
             report[`${id}@${quality}`] = { ms, ratio };
             assert.isAtMost(ratio, CLASS_LIMIT[descriptor.cost], `${id} costs ${ratio.toFixed(2)}x the flat shader`);
             assert.isAtMost(ms, LONG_FRAME_MS, `${id} takes ${ms.toFixed(1)} ms a frame filling the canvas`);

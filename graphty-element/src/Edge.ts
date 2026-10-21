@@ -4,7 +4,7 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import { motionOf, type ShaderEffects, type ShaderParamSets } from "./catalog/shaders";
+import { drawnShaderParams, motionOf, type ShaderEffects, type ShaderParamSets } from "./catalog/shaders";
 import {
     type AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -1476,7 +1476,7 @@ export class Edge {
         }
 
         const look = this.staticLook(style, shader === null ? EDGE_NEVER : this.surfaceEntered);
-        const values = surface === null ? undefined : block?.params?.[surface];
+        const values = surface === null ? undefined : drawnShaderParams(block?.params, surface);
         this.lineStatic =
             shader !== null && drawing !== null ? drawing.staticValues(look, shader, values) : edgeStaticValues(look);
         this.lineSpeed = shader !== null && drawing !== null ? drawing.speedOf(shader, values) : 0;

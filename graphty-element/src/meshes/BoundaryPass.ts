@@ -9,7 +9,7 @@
  *   pixels x members. The shader then reads the field and its gradient on the group's box.
  * - **Form `"sphere"`** (soap bubbles): one sphere per group, around its members' centroid.
  *
- * **Nesting.** Boundary layers are numbered bottom up (`BoundaryInput.depth`); a lower layer's
+ * **Nesting.** Boundary layers are numbered bottom up (`GroupInput.depth`); a lower layer's
  * kernels and spheres are drawn larger, so a community layer's outline rings the outlines of a
  * subcommunity layer above it. Lower layers are drawn first.
  *
@@ -383,7 +383,7 @@ export class BoundaryPass {
             void this.sources.shader(id).then(
                 (shader) => {
                     if (this.shaders.get(id) === "resolving") {
-                        this.shaders.set(id, shader?.registration.descriptor.kind === "boundary" ? shader : null);
+                        this.shaders.set(id, shader?.registration.descriptor.target === "group" ? shader : null);
                         this.requestFrame();
                     }
                 },

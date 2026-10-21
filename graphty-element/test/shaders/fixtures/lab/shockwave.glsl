@@ -2,7 +2,7 @@
 {
     "id": "lab/shockwave",
     "name": "Shockwave",
-    "kind": "node-effect",
+    "role": "effect",
     "params": [
         {
             "name": "ringColor",

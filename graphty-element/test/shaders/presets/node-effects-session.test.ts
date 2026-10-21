@@ -7,6 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { drawingOf } from "../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createGraphSession, type GraphSession } from "../../../src/session";
@@ -57,7 +58,7 @@ describe("the node-effect presets in the style stack", () => {
     it("lists all five in the catalog under their bare ids", () => {
         const ids = createGraphSession()
             .catalog.shaders()
-            .filter((descriptor) => descriptor.kind === "node-effect")
+            .filter((descriptor) => drawingOf(descriptor) === "node-effect")
             .map((descriptor) => descriptor.id);
         assert.includeMembers(ids, [
             "uncertainty-aura",

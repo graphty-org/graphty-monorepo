@@ -17,7 +17,7 @@ ${STUDIO}
 const float TAU = 6.28318531;
 const float PI = 3.14159265;
 
-vec4 shade(BoundaryInput g) {
+vec4 shade(GroupInput g) {
     vec3 n = g.normal;
     vec3 rd = vec3(0.0, 0.0, 1.0);
     float ndv = max(-n.z, 0.0);

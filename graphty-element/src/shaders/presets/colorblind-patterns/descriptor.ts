@@ -57,7 +57,9 @@ const PATTERNS: readonly ShaderParamChoice[] = Object.freeze(
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "colorblind-patterns",
     plainName: "Patterns",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Pattern"]),
     params: Object.freeze([
         Object.freeze({
             name: "pattern",

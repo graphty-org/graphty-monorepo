@@ -21,31 +21,51 @@ import type { ShaderDefinition } from "./types";
 /** A color written as a bare string. */
 const BARE_COLOR = /^#[\da-fA-F]{6}$/;
 
+/** The keys a definition hands to the descriptor as they are. */
+const FACTS = [
+    "target",
+    "role",
+    "geometry",
+    "motion",
+    "reach",
+    "minPixels",
+    "blend",
+    "bloom",
+    "form",
+    "reachParam",
+    "categories",
+    "preview",
+    "thumbnail",
+    "cost",
+    "reads",
+    "requires",
+    "webgpu",
+] as const;
+
 /**
  * The optional catalog facts a definition gives, leaving out each one it does not.
  * @param definition - The definition.
- * @returns Its motion, reach, blend, bloom, form and reach parameter, where given.
+ * @returns Those facts.
  */
-function optionalFacts(
-    definition: ShaderDefinition,
-): Partial<Pick<ShaderDefinition, "motion" | "reach" | "blend" | "bloom" | "form" | "reachParam">> {
-    return {
-        ...(definition.motion === undefined ? {} : { motion: definition.motion }),
-        ...(definition.reach === undefined ? {} : { reach: definition.reach }),
-        ...(definition.blend === undefined ? {} : { blend: definition.blend }),
-        ...(definition.bloom === undefined ? {} : { bloom: definition.bloom }),
-        ...(definition.form === undefined ? {} : { form: definition.form }),
-        ...(definition.reachParam === undefined ? {} : { reachParam: definition.reachParam }),
-    };
+function optionalFacts(definition: ShaderDefinition): Partial<Pick<ShaderDefinition, (typeof FACTS)[number]>> {
+    const facts: Record<string, unknown> = {};
+    for (const key of FACTS) {
+        if (definition[key] !== undefined) {
+            facts[key] = definition[key];
+        }
+    }
+
+    return facts;
 }
 
 /**
- * Register a shader from its kind, its GLSL body and its parameters in short form.
+ * Register a shader from its GLSL body and its parameters in short form. What it draws on is read
+ * from the body's entry function (`shade(NodeInput n)` draws on nodes); it is a look unless it
+ * declares `role: "effect"` or a `reach`.
  *
  * ```ts
  * defineShader({
  *     id: "acme/pulse-ring",
- *     kind: "node-effect",
  *     reach: 2,
  *     params: { tint: "#ffaa00", speed: { type: "number", default: 1, min: 0, max: 4, varies: true } },
  *     motion: "loop",
@@ -55,7 +75,7 @@ function optionalFacts(
  *     }`,
  * });
  * ```
- * @param definition - The id, the kind, the body, and optionally a name, parameters and motion.
+ * @param definition - The id, the body, and optionally a name, parameters and the other catalog facts.
  * @param options - Whether a different shader under a taken id throws instead of replacing it.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` naming the member at fault, or with
  *   `E_DUPLICATE_PLUGIN` for an id the element ships.
@@ -67,7 +87,7 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
             "defineShader",
             undefined,
             "definition",
-            `the definition must be an object such as { id: "acme/glow", kind: "node-effect", glsl: "..." }; got ${describeValue(definition)}.`,
+            `the definition must be an object such as { id: "acme/glow", glsl: "vec4 shade(NodeInput n) { ... }" }; got ${describeValue(definition)}.`,
         );
     }
 
@@ -93,11 +113,11 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
                 descriptor: {
                     id,
                     plainName: typeof definition.name === "string" ? definition.name : sentenceCase(id.split("/")[1]),
-                    kind: definition.kind,
                     params,
                     ...optionalFacts(definition),
                 },
                 glsl: definition.glsl,
+                ...(definition.lowDetail === undefined ? {} : { lowDetail: definition.lowDetail }),
             },
             options,
         );

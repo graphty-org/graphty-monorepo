@@ -2387,40 +2387,56 @@ export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldS
 export interface ShaderDefinition {
     readonly blend?: "over" | "add";
     readonly bloom?: boolean;
+    readonly categories?: readonly string[];
+    readonly cost?: ShaderCost;
     readonly form?: "field" | "sphere";
-    readonly glsl: string;
+    readonly geometry?: ShaderGeometry;
+    readonly glsl: ShaderSource;
     readonly id: string;
-    readonly kind: ShaderKind;
+    readonly lowDetail?: ShaderSource;
+    readonly minPixels?: number;
     readonly motion?: ShaderMotionInput;
     readonly name?: string;
     readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    readonly preview?: ShaderPreview;
     readonly reach?: number;
     readonly reachParam?: string;
+    readonly reads?: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly role?: ShaderRole;
+    readonly target?: ShaderTarget;
+    readonly thumbnail?: string;
+    readonly webgpu?: "translate" | "none";
 }
 
 // @public
 export interface ShaderDescriptor {
     readonly blend?: "over" | "add";
     readonly bloom?: boolean;
+    readonly categories?: readonly string[];
     readonly cost: ShaderCost;
     readonly form?: "field" | "sphere";
+    readonly geometry?: ShaderGeometry;
     readonly hash?: string;
     readonly id: string;
-    readonly kind: ShaderKind;
+    readonly minPixels?: number;
     readonly motion: ShaderMotion;
     readonly origin: ShaderOrigin;
     readonly params: readonly ShaderParamDescriptor[];
     readonly plainName: string;
+    readonly preview?: ShaderPreview;
     readonly reach?: number;
     readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
+    readonly role: ShaderRole;
+    readonly target: ShaderTarget;
     readonly thumbnail?: string;
     readonly webgpu: ShaderWebGpu;
 }
 
 // @public
-export type ShaderKind = "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+export type ShaderGeometry = "shape" | "card";
 
 // @public
 export type ShaderParamShorthand = number | boolean | string | (Exclude<OptionShorthand, number | string | boolean> & {
@@ -2429,16 +2445,49 @@ export type ShaderParamShorthand = number | boolean | string | (Exclude<OptionSh
 });
 
 // @public
+export interface ShaderPlace {
+    readonly role: ShaderRole;
+    readonly target: ShaderTarget;
+}
+
+// @public
+export interface ShaderPreview {
+    readonly params?: ShaderParams;
+    readonly time?: number;
+}
+
+// @public
 export interface ShaderRegistration {
-    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash"> & {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target" | "role"> & {
+        readonly target?: ShaderTarget;
+        readonly role?: ShaderRole;
         readonly cost?: ShaderCost;
         readonly reads?: readonly ShaderInput[];
         readonly webgpu?: ShaderWebGpu;
         readonly motion?: ShaderMotionInput;
     };
-    readonly glsl: string;
-    readonly lowDetail?: string;
+    readonly glsl: ShaderSource;
+    readonly lowDetail?: ShaderSource;
     readonly wgsl?: string;
+}
+
+// @public
+export type ShaderRole = "look" | "effect";
+
+// @public
+export type ShaderSource = string | (() => Promise<string>);
+
+// @public
+export type ShaderTarget = "node" | "edge" | "group" | "background";
+
+// @public
+export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;
+
+// @public
+export interface ShaderTemplatePlace {
+    readonly geometry?: ShaderGeometry;
+    readonly role: ShaderRole;
+    readonly target: ShaderTarget;
 }
 
 // @public

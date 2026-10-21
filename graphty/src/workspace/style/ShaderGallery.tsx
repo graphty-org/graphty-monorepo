@@ -1,10 +1,18 @@
 import { ContextMenu } from "@graphty/compact-mantine";
-import type { ShaderDescriptor, ShaderKind } from "@graphty/graphty-element/catalog";
+import type { ShaderDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
-import { HEAVY_TIP, HEAVY_WORD, layersWord, shaderMatches, shaderProblemWords } from "./words";
+import {
+    HEAVY_TIP,
+    HEAVY_WORD,
+    layersWord,
+    shaderMatches,
+    shaderProblemWords,
+    type ShaderSlotKind,
+    shaderSlotKindOf,
+} from "./words";
 
 /** The gallery's columns, which Up and Down move across. */
 const COLUMNS = 2;
@@ -50,7 +58,7 @@ export interface GalleryChoice {
 interface ShaderGalleryProps {
     readonly session: GraphSession;
     /** The kinds of shader the row takes. */
-    readonly kinds: readonly ShaderKind[];
+    readonly kinds: readonly ShaderSlotKind[];
     /** Its search box's name. */
     readonly label: string;
     /** Choices before the shaders (Plain, Wireframe), picked by their value. */
@@ -100,7 +108,7 @@ export function ShaderGallery({
     const [stop, setStop] = useState<string | null>(null);
     const shaders = session.catalog
         .shaders()
-        .filter((descriptor) => kinds.includes(descriptor.kind) && shaderMatches(descriptor, query));
+        .filter((descriptor) => kinds.includes(shaderSlotKindOf(descriptor)) && shaderMatches(descriptor, query));
     const shown = choices.filter((choice) => shaderMatches({ id: choice.value, plainName: choice.label }, query));
     const own = shaders.filter((descriptor) => descriptor.origin !== "pasted");
     const pasted = shaders.filter((descriptor) => descriptor.origin === "pasted");

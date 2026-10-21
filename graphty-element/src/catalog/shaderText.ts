@@ -4,10 +4,14 @@
  *
  * ```glsl
  * /* graphty-shader 1
- * { "id": "user/pulse-ring", "name": "Pulse ring", "kind": "node-effect", "params": [...] }
+ * { "id": "user/pulse-ring", "name": "Pulse ring", "role": "effect", "params": [...] }
  * \/
  * vec4 shade(NodeInput n) { ... }
  * ```
+ *
+ * The target is read from the entry function's input (`shade(NodeInput n)` draws on nodes); no
+ * header key names it. An optional second entry, `vec4 shadeFar(<Input> x)`, is the low-detail
+ * body.
  *
  * One text form, used for paste, copy, style documents and docs, so a shader survives a clipboard,
  * a chat or a forum post. The header is checked against a strict schema, the body against the
@@ -22,22 +26,26 @@ import { sentenceCase } from "../simple/definition";
 import {
     type BodyOrigin,
     checkShaderBody,
+    entryTargetOf,
     firstNonAscii,
     GLSL_RESERVED,
     placeOf,
+    readsShaderTime,
     SHADER_HELPERS,
     SHADER_STRUCT_NAMES,
 } from "./shaderGlsl";
 import {
+    drawingOf,
     isShaderId,
     isShaderParamName,
     motionOf,
-    SHADER_KINDS,
-    type ShaderKind,
     type ShaderMotion,
     type ShaderParamDescriptor,
+    type ShaderPlace,
     type ShaderProblem,
     type ShaderRegistration,
+    type ShaderRole,
+    type ShaderTarget,
     type ShaderText,
     type ShaderTextResult,
 } from "./shaders";
@@ -66,11 +74,17 @@ const PARAM_TYPES: ReadonlySet<string> = new Set(["number", "integer", "boolean"
 /** The parameter types `encode` may bind per element. */
 const VARYING_TYPES: ReadonlySet<string> = new Set(["number", "integer", "color"]);
 
-/** The keys a header may carry; `id` and `kind` are required. */
+/** The keys a header may carry; `id` is required. */
 const HEADER_KEYS: ReadonlySet<string> = new Set([
     "id",
     "name",
-    "kind",
+    "role",
+    "geometry",
+    "minPixels",
+    "categories",
+    "preview",
+    "cost",
+    "thumbnail",
     "motion",
     "params",
     "reach",
@@ -274,8 +288,12 @@ function readParam(raw: unknown, index: number): ShaderParamDescriptor | ShaderP
     }
 
     const { name, type } = raw;
-    if (!isShaderParamName(name) || isReservedParam(name)) {
+    if (!isShaderParamName(name)) {
         return paramProblem(label, "name");
+    }
+
+    if (isReservedParam(name)) {
+        return { code: "shader.reserved", params: { name, param: name } };
     }
 
     if (typeof type !== "string" || !PARAM_TYPES.has(type)) {
@@ -453,14 +471,43 @@ const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
     requires: (value) => Array.isArray(value) && value.every((entry) => entry === "webgl2"),
     reads: (value) => Array.isArray(value) && value.every((entry) => INPUTS.has(entry as string)),
     webgpu: (value) => value === "translate" || value === "none",
+    role: (value) => value === "look" || value === "effect",
+    geometry: (value) => value === "shape" || value === "card",
+    minPixels: (value) => typeof value === "number" && value >= 0 && value <= 512,
+    categories: (value) =>
+        Array.isArray(value) &&
+        value.length <= 8 &&
+        value.every((entry) => typeof entry === "string" && entry !== "" && cleanName(entry) === entry),
+    preview: isPreview,
+    cost: (value) => value === "light" || value === "medium" || value === "heavy",
+    thumbnail: (value) => typeof value === "string" && value.length <= 4096,
+    target: (value) => value === "node" || value === "edge" || value === "group" || value === "background",
 };
+
+/**
+ * Whether a value is a preview: optional parameter values and an optional time in seconds.
+ * @param value - Anything.
+ * @returns True when it is one.
+ */
+function isPreview(value: unknown): boolean {
+    if (!isRecord(value) || Object.keys(value).some((key) => key !== "params" && key !== "time")) {
+        return false;
+    }
+
+    const { params, time } = value;
+    const values =
+        params === undefined ||
+        (isRecord(params) &&
+            Object.values(params).every((entry) => ["number", "string", "boolean"].includes(typeof entry)));
+    return values && (time === undefined || (typeof time === "number" && time >= 0 && time <= 3600));
+}
 
 /** A descriptor's catalog facts, before the element fills in what is left out. */
 export type ShaderRegistrationDescriptor = ShaderRegistration["descriptor"];
 
 /**
  * Check the catalog facts of a shader, written as a header or handed to `registerShader`.
- * @param raw - The facts: `id`, `kind`, a name, and the optional keys.
+ * @param raw - The facts: `id`, a name, and the optional keys.
  * @param nameKey - Where the name is written: `name` in a header, `plainName` in a registration.
  * @param namespaced - Whether the id must carry a namespace.
  * @returns The descriptor, or the problems.
@@ -470,23 +517,14 @@ export function readShaderDescriptor(
     nameKey: "name" | "plainName",
     namespaced: boolean,
 ): ShaderRegistrationDescriptor | ShaderProblem[] {
-    const problems: ShaderProblem[] = [];
-    for (const key of ["id", "kind"]) {
-        if (raw[key] === undefined) {
-            problems.push({ code: "shader.header-key", params: { key } });
-        }
-    }
-
-    if (problems.length > 0) {
-        return problems;
+    if (raw.id === undefined) {
+        return [{ code: "shader.header-key", params: { key: "id" } }];
     }
 
     if (!isShaderId(raw.id, namespaced)) {
-        return [{ code: "shader.id-invalid", params: { id: String(raw.id) } }];
-    }
-
-    if (!SHADER_KINDS.includes(raw.kind as ShaderKind)) {
-        return [{ code: "shader.kind-unknown", params: { kind: String(raw.kind) } }];
+        return [
+            { code: "shader.id-invalid", params: { id: typeof raw.id === "string" ? raw.id : JSON.stringify(raw.id) } },
+        ];
     }
 
     const params = readParams(raw.params);
@@ -498,7 +536,7 @@ export function readShaderDescriptor(
 }
 
 /**
- * Check the rest of a descriptor once its id, kind and parameters are sound.
+ * Check the rest of a descriptor once its id and parameters are sound.
  * @param raw - The facts.
  * @param nameKey - Where the name is written.
  * @param params - The checked parameters.
@@ -549,9 +587,8 @@ function finishDescriptor(
             typeof name === "string" && cleanName(name) !== ""
                 ? cleanName(name)
                 : sentenceCase(id.split("/").at(-1) ?? id),
-        kind: raw.kind as ShaderKind,
         params,
-        ...(Object.keys(motion).length === 0 ? {} : { motion }),
+        ...(raw.motion === undefined ? {} : { motion }),
         ...extras,
     };
 }
@@ -626,72 +663,277 @@ function parseHeaderJson(text: string, split: Split): { value: unknown } | Shade
     }
 }
 
-/** The kind a header-less body's entry function names, when only one kind takes that input. */
-const UNAMBIGUOUS_INPUT: Readonly<Record<string, ShaderKind>> = {
-    BackgroundInput: "background",
-    BoundaryInput: "boundary",
-};
-
-/** Every entry input type. */
-const ENTRY_INPUTS: ReadonlySet<string> = new Set(["NodeInput", "EdgeInput", "BackgroundInput", "BoundaryInput"]);
+/** What a parsed registration's descriptor always carries. */
+type SettledDescriptor = ShaderRegistrationDescriptor & { readonly target: ShaderTarget; readonly role: ShaderRole };
 
 /**
- * Read a body with no header: its kind comes from the caller or from its entry function's input.
- * @param text - The text.
- * @param kind - The kind the caller says it is.
- * @returns The registration, or the problems.
+ * The target and role of a shader, and the problems that rule it out.
+ *
+ * The target is read from the entry function's input; a declared one (registration only) must
+ * agree. The role, in order: a declared role; an effect when `reach` is given on a node or edge;
+ * the place's role; a look.
+ * @param descriptor - The checked facts.
+ * @param body - The body, when it is known.
+ * @param place - Where the shader is being added, if anywhere.
+ * @returns The settled descriptor, or the problems.
  */
-function readHeaderless(text: string, kind: ShaderKind | undefined): ShaderTextResult {
-    const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(text);
-    const input = entry?.[1];
-    const settled = kind ?? (input === undefined ? undefined : UNAMBIGUOUS_INPUT[input]);
-    if (settled === undefined) {
-        // A node or edge body needs a header (or a kind) to say which kind it is; anything else
-        // is missing its entry function or has the wrong one.
-        if (input !== undefined && ENTRY_INPUTS.has(input)) {
-            return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
-        }
-
-        const named = /\bshade\s*\(/.exec(text);
-        const at = placeOf(text, named?.index ?? 0);
-        const code = named === null ? "shader.entry-missing" : "shader.entry-signature";
-        return { ok: false, problems: [{ code, params: { line: at.line, column: at.column, expected: "shade" } }] };
+export function settleShaderPlace(
+    descriptor: ShaderRegistrationDescriptor,
+    body: string | undefined,
+    place?: ShaderPlace,
+): SettledDescriptor | ShaderProblem[] {
+    const found = body === undefined ? undefined : entryTargetOf(body);
+    const declared = descriptor.target;
+    if (found !== undefined && declared !== undefined && found !== declared) {
+        return [{ code: "shader.target-mismatch", params: { expected: declared, found } }];
     }
 
-    // With the kind settled, the body checks report a missing or a wrong entry function.
-    return finishText({ id: "user/shader", plainName: "Shader", kind: settled, params: [] }, text, {
-        line: 1,
-        column: 1,
-    });
+    if (found !== undefined && place !== undefined && found !== place.target) {
+        return [{ code: "shader.target-mismatch", params: { expected: place.target, found } }];
+    }
+
+    const target = found ?? declared ?? place?.target ?? "node";
+    const sided = target === "node" || target === "edge";
+    const implied = sided && descriptor.reach !== undefined ? "effect" : undefined;
+    const named = descriptor.role ?? implied;
+    if (named !== undefined && place !== undefined && named !== place.role) {
+        return [{ code: "shader.target-mismatch", params: { expected: place.role, found: named } }];
+    }
+
+    const role = named ?? place?.role ?? "look";
+    const fault = placeFault(descriptor, target, role);
+    if (fault !== null) {
+        return [{ code: "shader.header-key", params: { key: fault } }];
+    }
+
+    return { ...descriptor, target, role };
 }
 
 /**
- * Check the body and complete the registration.
+ * The key that does not fit where a shader draws: an effect on a group or the background, a
+ * geometry on anything but a node look, a minimum size on anything but an effect.
+ * @param descriptor - The facts.
+ * @param target - What it draws on.
+ * @param role - Its role.
+ * @returns The key at fault, or null.
+ */
+function placeFault(descriptor: ShaderRegistrationDescriptor, target: ShaderTarget, role: ShaderRole): string | null {
+    if (role === "effect" && (target === "group" || target === "background")) {
+        return "role";
+    }
+
+    if (descriptor.geometry !== undefined && (target !== "node" || role !== "look")) {
+        return "geometry";
+    }
+
+    return descriptor.minPixels !== undefined && role !== "effect" ? "minPixels" : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The low-detail entry
+// ---------------------------------------------------------------------------------------------
+
+/** One top-level declaration of a body: its text, and its name when it is a function. */
+interface Declaration {
+    readonly text: string;
+    readonly start: number;
+    readonly function?: string;
+}
+
+/**
+ * Split a body into its top-level declarations, each with the comments before it. A declaration
+ * ends at a `;` or a `}` at depth 0.
+ * @param body - The GLSL body.
+ * @returns The declarations, in order, covering the whole body.
+ */
+function declarationsOf(body: string): Declaration[] {
+    const found: Declaration[] = [];
+    let depth = 0;
+    let start = 0;
+    let at = 0;
+    while (at < body.length) {
+        if (body.startsWith("//", at)) {
+            const end = body.indexOf("\n", at);
+            at = end === -1 ? body.length : end;
+            continue;
+        }
+
+        if (body.startsWith("/*", at)) {
+            const end = body.indexOf("*/", at + 2);
+            at = end === -1 ? body.length : end + 2;
+            continue;
+        }
+
+        const char = body[at];
+        at++;
+        if (char === "{") {
+            depth++;
+        } else if (char === "}") {
+            depth--;
+        }
+
+        if (depth === 0 && (char === ";" || char === "}")) {
+            const text = body.slice(start, at);
+            const name = char === "}" ? /\b(\w+)\s*\([^)]*\)\s*\{/.exec(text)?.[1] : undefined;
+            found.push({ text, start, ...(name === undefined ? {} : { function: name }) });
+            start = at;
+        }
+    }
+
+    if (start < body.length) {
+        found.push({ text: body.slice(start), start });
+    }
+
+    return found;
+}
+
+/**
+ * The same text with one declaration's characters turned to spaces, its line breaks kept, so
+ * every line after it keeps its number.
+ * @param body - The body.
+ * @param declaration - The declaration to blank.
+ * @returns The body.
+ */
+function blank(body: string, declaration: Declaration): string {
+    const end = declaration.start + declaration.text.length;
+    return body.slice(0, declaration.start) + declaration.text.replaceAll(/[^\n]/g, " ") + body.slice(end);
+}
+
+/**
+ * Split a text's body into the near body and the far one, when it holds a `shadeFar` entry: the
+ * near body without `shadeFar`, and the far body without `shade` and with `shadeFar` named
+ * `shade`. Both keep every shared helper and every line number.
+ * @param body - The body.
+ * @returns The two bodies; `far` is undefined when there is no `shadeFar`.
+ */
+function splitFar(body: string): { readonly near: string; readonly far?: string } {
+    const declarations = declarationsOf(body);
+    const far = declarations.find((declaration) => declaration.function === "shadeFar");
+    if (far === undefined) {
+        return { near: body };
+    }
+
+    const near = blank(body, far);
+    const shade = declarations.find((declaration) => declaration.function === "shade");
+    const farBody = (shade === undefined ? body : blank(body, shade)).replace(/\bshadeFar(\s*\()/, "shade$1");
+    return { near: `${near.trimEnd()}\n`, far: farBody };
+}
+
+/**
+ * A declaration with its comments removed and its white space collapsed, to compare two.
+ * @param text - The declaration.
+ * @returns Its normalized text.
+ */
+function normalized(text: string): string {
+    return text
+        .replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
+        .replaceAll(/\s+/g, " ")
+        .trim();
+}
+
+/**
+ * A normalized function declaration's signature: everything before its body.
+ * @param text - The normalized declaration.
+ * @returns The signature, or the whole text when it has no body.
+ */
+function signatureOf(text: string): string {
+    const open = text.indexOf("{");
+    return open === -1 ? text : text.slice(0, open).trim();
+}
+
+/**
+ * One body holding both entries: the near body, then every declaration of the far body that the
+ * near one does not already hold, with its `shade` named `shadeFar`.
+ * @param id - The shader, for a refusal.
+ * @param near - The near body.
+ * @param far - The far body.
+ * @returns The joined body.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the two define one function differently.
+ */
+function joinFar(id: string, near: string, far: string): string {
+    const nearDeclarations = declarationsOf(near).map((declaration) => normalized(declaration.text));
+    const held = new Set(nearDeclarations);
+    const signatures = new Set(nearDeclarations.map(signatureOf));
+    const added: string[] = [];
+    for (const declaration of declarationsOf(far)) {
+        const text = normalized(declaration.text);
+        if (text === "" || text === ";" || held.has(text)) {
+            continue;
+        }
+
+        if (declaration.function !== undefined && declaration.function !== "shade") {
+            if (signatures.has(signatureOf(text))) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `Shader text cannot hold "${id}": its low-detail body defines ${declaration.function} differently.`,
+                    source: "style",
+                    details: { id, field: "lowDetail", function: declaration.function },
+                });
+            }
+        }
+
+        const kept = declaration.text.replace(/^\s+/, "");
+        added.push(declaration.function === "shade" ? kept.replace(/\bshade(\s*\()/, "shadeFar$1") : kept);
+    }
+
+    return `${near.trimEnd()}\n\n${added.join("\n")}\n`;
+}
+
+/**
+ * Check the body (and the far body) and complete the registration: its target and role settled,
+ * its motion inferred when the header gives none.
  * @param descriptor - The checked descriptor.
  * @param body - The body.
  * @param origin - Where the body starts in the text.
+ * @param place - Where the shader is being added, if anywhere.
  * @returns The result.
  */
-function finishText(descriptor: ShaderRegistrationDescriptor, body: string, origin: BodyOrigin): ShaderTextResult {
-    const checked = checkShaderBody(body, descriptor.kind, origin);
-    if (checked.problems.length > 0) {
-        return { ok: false, problems: checked.problems };
+function finishText(
+    descriptor: ShaderRegistrationDescriptor,
+    body: string,
+    origin: BodyOrigin,
+    place: ShaderPlace | undefined,
+): ShaderTextResult {
+    const { near, far } = splitFar(body);
+    const settled = settleShaderPlace(descriptor, near, place);
+    if (Array.isArray(settled)) {
+        return { ok: false, problems: settled };
     }
 
-    return { ok: true, registration: { descriptor, glsl: body } };
+    const drawing = drawingOf(settled);
+    for (const part of far === undefined ? [near] : [near, far]) {
+        const checked = checkShaderBody(part, drawing, origin);
+        if (checked.problems.length > 0) {
+            return { ok: false, problems: checked.problems };
+        }
+    }
+
+    const motion = settled.motion ?? (readsShaderTime(near) ? "loop" : undefined);
+    return {
+        ok: true,
+        registration: {
+            descriptor: { ...settled, ...(motion === undefined ? {} : { motion: motionOf(motion) }) },
+            glsl: near,
+            ...(far === undefined ? {} : { lowDetail: far }),
+        },
+    };
 }
 
 /**
  * Read and check shader text: its header against a strict schema, then its body against the
  * static rules. Nothing is registered or drawn.
- * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone whose entry
- *   function says its kind (or whose kind `options.kind` gives).
- * @param options - The kind of a header-less body whose entry function does not settle it.
- * @param options.kind - That kind.
+ *
+ * The target is read from the entry function's input. The role is the header's `role`; else an
+ * effect when the header gives `reach`; else the role of `options.place`; else a look. Text whose
+ * signature names another target than the place's, or whose role is another than the place's, is
+ * refused with `shader.target-mismatch` (`{ expected, found }`).
+ * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone.
+ * @param options - Where the shader is being added.
+ * @param options.place - That place: its target and role.
  * @returns The registration the text describes, or every problem the first failing step found.
  * @since 3.36.0
  */
-export function parseShaderText(text: ShaderText, options?: { readonly kind?: ShaderKind }): ShaderTextResult {
+export function parseShaderText(text: ShaderText, options?: { readonly place?: ShaderPlace }): ShaderTextResult {
     if (typeof text !== "string") {
         return { ok: false, problems: [{ code: "shader.header-missing", params: {} }] };
     }
@@ -702,9 +944,10 @@ export function parseShaderText(text: ShaderText, options?: { readonly kind?: Sh
         return { ok: false, problems: [{ code: "shader.not-ascii", params: { line: at.line, column: at.column } }] };
     }
 
+    const place = options?.place;
     const split = splitHeader(text);
     if (split === null) {
-        return readHeaderless(text, options?.kind);
+        return finishText({ id: "user/shader", plainName: "Shader", params: [] }, text, { line: 1, column: 1 }, place);
     }
 
     const parsed = parseHeaderJson(text, split);
@@ -732,7 +975,7 @@ export function parseShaderText(text: ShaderText, options?: { readonly kind?: Sh
         return { ok: false, problems: descriptor };
     }
 
-    return finishText(descriptor, split.body, placeOf(text, split.bodyOffset));
+    return finishText(descriptor, split.body, placeOf(text, split.bodyOffset), place);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -762,13 +1005,17 @@ function paramEntry(param: ShaderParamDescriptor): Record<string, unknown> {
 /**
  * A motion as a header writes it: the shorthand where there is one.
  * @param motion - The motion, or its shorthand.
- * @returns What the header carries, or undefined for a still shader.
+ * @returns What the header carries, or undefined when the motion is left to be inferred.
  */
 function motionEntry(motion: ShaderRegistrationDescriptor["motion"]): unknown {
+    if (motion === undefined) {
+        return undefined;
+    }
+
     const value = motionOf(motion);
     const keys = Object.keys(value);
     if (keys.length === 0) {
-        return undefined;
+        return "still";
     }
 
     return keys.length === 1 && value.loop !== undefined && Object.keys(value.loop).length === 0 ? "loop" : value;
@@ -793,8 +1040,29 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         });
     }
 
-    const { descriptor } = registration;
-    const header: Record<string, unknown> = { id: descriptor.id, name: descriptor.plainName, kind: descriptor.kind };
+    const { descriptor, glsl, lowDetail } = registration;
+    if (typeof glsl !== "string" || (lowDetail !== undefined && typeof lowDetail !== "string")) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: "Shader text is written from loaded bodies: load glsl and lowDetail before formatting.",
+            source: "style",
+            details: { id: descriptor.id, field: typeof glsl === "string" ? "lowDetail" : "glsl" },
+        });
+    }
+
+    const header: Record<string, unknown> = { id: descriptor.id, name: descriptor.plainName };
+    // The role is written whenever the reach would not imply it, so the text never leans on a place.
+    const implied = descriptor.reach !== undefined && (descriptor.target === "node" || descriptor.target === "edge");
+    if (descriptor.role !== undefined && (descriptor.role !== "effect" || !implied)) {
+        header.role = descriptor.role;
+    }
+
+    for (const key of ["geometry", "minPixels", "categories", "preview", "cost", "thumbnail"] as const) {
+        if (descriptor[key] !== undefined) {
+            header[key] = descriptor[key];
+        }
+    }
+
     const motion = motionEntry(descriptor.motion);
     if (motion !== undefined) {
         header.motion = motion;
@@ -807,6 +1075,7 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
     }
 
     header.params = descriptor.params.map(paramEntry);
+    const body = lowDetail === undefined ? glsl : joinFar(descriptor.id, glsl, lowDetail);
 
-    return `/* ${SHADER_TEXT_MAGIC}\n${JSON.stringify(header, null, 4)}\n*/\n${registration.glsl}`;
+    return `/* ${SHADER_TEXT_MAGIC}\n${JSON.stringify(header, null, 4)}\n*/\n${body}`;
 }

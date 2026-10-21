@@ -8,7 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody } from "../../../src/catalog/shaderGlsl";
-import type { ShaderDescriptor } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor } from "../../../src/catalog/shaders";
 import { SHADER_PRESETS } from "../../../src/shaders/presets";
 import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../../src/shaders/presets/bodies";
 import { DEW_DROP } from "../../../src/shaders/presets/dew-drop/descriptor";
@@ -103,7 +103,7 @@ describe("the heavy and glowing surface presets", () => {
     it.each(TABLE.map((row) => [row.descriptor.id, row] as const))("%s matches the design's table", (_id, row) => {
         const { descriptor } = row;
         assert.strictEqual(descriptor.plainName, row.name);
-        assert.strictEqual(descriptor.kind, "node-surface");
+        assert.strictEqual(drawingOf(descriptor), "node-look");
         assert.strictEqual(descriptor.origin, "element");
         assert.deepEqual([...descriptor.reads], ["color"]);
         assert.strictEqual(descriptor.cost, row.cost);
@@ -139,14 +139,14 @@ describe("the heavy and glowing surface presets", () => {
                 id,
             );
             const body = await SHADER_PRESET_BODIES[id]();
-            assert.deepEqual(checkShaderBody(body, "node-surface").problems, []);
+            assert.deepEqual(checkShaderBody(body, "node-look").problems, []);
             if (Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id)) {
                 const low = await SHADER_PRESET_LOW_DETAIL[id]();
-                const cheap = checkShaderBody(low, "node-surface");
+                const cheap = checkShaderBody(low, "node-look");
                 assert.deepEqual(cheap.problems, []);
                 assert.isBelow(
                     cheap.cost,
-                    checkShaderBody(body, "node-surface").cost,
+                    checkShaderBody(body, "node-look").cost,
                     "the small-size program is cheaper",
                 );
             }

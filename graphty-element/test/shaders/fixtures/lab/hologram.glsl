@@ -2,7 +2,6 @@
 {
     "id": "lab/hologram",
     "name": "Hologram",
-    "kind": "node-surface",
     "params": [
         {
             "name": "holoColor",

@@ -2,7 +2,6 @@
 {
     "id": "lab/toon-outline",
     "name": "Toon outline",
-    "kind": "node-surface",
     "params": [
         {
             "name": "bands",

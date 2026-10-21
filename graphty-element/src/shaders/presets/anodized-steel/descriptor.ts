@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "anodized-steel",
     plainName: "Anodized steel",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Metal"]),
     params: Object.freeze([
         Object.freeze({
             name: "film",

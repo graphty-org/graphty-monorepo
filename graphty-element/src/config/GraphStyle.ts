@@ -33,8 +33,8 @@ const GraphBackgroundShader = z.strictObject({
  * background shader.
  *
  * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
- * the skybox's `data` is an image URL or a base64 PNG. A shader background names a shader of kind
- * `background` (`{ backgroundType: "shader", shader: "nebula" }`), drawn behind every node and
+ * the skybox's `data` is an image URL or a base64 PNG. A shader background names a shader that
+ * draws on the background (`{ backgroundType: "shader", shader: "nebula" }`), drawn behind every node and
  * label at 30 frames a second or fewer; its `color` is drawn until the shader draws. It is the
  * shape `element.background` and `graph.setBackground()` take.
  */

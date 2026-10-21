@@ -121,8 +121,7 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
         read: (session) => [...session.data.valueLabels("data.dept")],
     },
     shaders: {
-        change: (session) =>
-            session.shaders.add("vec4 shade(NodeInput n) { return n.color * 0.5; }", { kind: "node-surface" }),
+        change: (session) => session.shaders.add("vec4 shade(NodeInput n) { return n.color * 0.5; }", {}),
         read: (session) => session.shaders.list().map((shader) => [shader.id, shader.hash]),
     },
 };

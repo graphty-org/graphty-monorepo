@@ -2,7 +2,6 @@
 {
     "id": "lab/soap-bubble",
     "name": "soap-bubble",
-    "kind": "boundary",
     "params": [
         {
             "name": "thickness",
@@ -101,7 +100,7 @@ vec4 bubbleShade(vec2 uv, float seed, float hot) {
     return vec4(c, clamp(max(a, pow(1.0 - ndv, 2.0) * hot) * (1.0 + hot * 0.4), 0.0, 1.0));
 }
 
-vec4 shade(BoundaryInput inp) {
+vec4 shade(GroupInput inp) {
     vec4 fragColor = vec4(0.0);
     fragColor = bubbleShade(inp.uv, vSeed, 0.0);
     return fragColor;

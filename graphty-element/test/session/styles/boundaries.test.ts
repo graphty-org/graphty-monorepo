@@ -15,8 +15,7 @@ import { makeSession } from "../helpers";
 beforeAll(() => {
     defineShader({
         id: "e6/hull",
-        kind: "boundary",
-        glsl: "vec4 shade(BoundaryInput g) { return vec4(g.color.rgb, 1.0) * step(0.5, g.field); }",
+        glsl: "vec4 shade(GroupInput g) { return vec4(g.color.rgb, 1.0) * step(0.5, g.field); }",
     });
 });
 

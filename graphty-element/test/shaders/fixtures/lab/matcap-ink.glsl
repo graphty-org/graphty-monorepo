@@ -2,7 +2,6 @@
 {
     "id": "lab/matcap-ink",
     "name": "Ink",
-    "kind": "node-surface",
     "params": [
         {
             "name": "tint",

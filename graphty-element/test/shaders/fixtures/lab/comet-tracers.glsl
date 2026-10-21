@@ -2,7 +2,7 @@
 {
     "id": "lab/comet-tracers",
     "name": "comet-tracers",
-    "kind": "edge-effect",
+    "role": "effect",
     "params": [
         {
             "name": "speed",

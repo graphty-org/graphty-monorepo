@@ -9,7 +9,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "orbiting-satellites",
     plainName: "Satellites",
-    kind: "node-effect",
+    target: "node",
+    role: "effect",
+    categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "moons", plainName: "Moons", type: "integer", default: 3, min: 1, max: 12, varies: true },
         { name: "speed", plainName: "Speed", type: "number", default: 1.5, min: 0, max: 6 },

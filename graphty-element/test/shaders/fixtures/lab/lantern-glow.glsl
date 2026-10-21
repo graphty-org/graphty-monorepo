@@ -2,7 +2,6 @@
 {
     "id": "lab/lantern-glow",
     "name": "Lantern glow",
-    "kind": "node-surface",
     "params": [
         {
             "name": "intensity",

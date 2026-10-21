@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const LANTERN_GLOW: ShaderDescriptor = Object.freeze({
     id: "lantern-glow",
     plainName: "Lantern glow",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Light"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         {
             name: "intensity",

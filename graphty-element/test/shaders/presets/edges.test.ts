@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody, costClassOf, inferShaderReads } from "../../../src/catalog/shaderGlsl";
-import type { ShaderDescriptor, ShaderMotion } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor, type ShaderMotion } from "../../../src/catalog/shaders";
 import { BODY as COMET_TRACERS_BODY } from "../../../src/shaders/presets/comet-tracers/body";
 import { COMET_TRACERS } from "../../../src/shaders/presets/comet-tracers/descriptor";
 import { BODY as EDGE_CHANGE_BODY } from "../../../src/shaders/presets/edge-change/body";
@@ -41,7 +41,7 @@ const TABLE: readonly {
         descriptor: FIBER_OPTIC,
         body: FIBER_OPTIC_BODY,
         name: "Fiber",
-        kind: "edge-surface",
+        kind: "edge-look",
         reads: ["color", "width"],
         motion: {},
         cost: "medium",
@@ -122,7 +122,7 @@ describe("the edge presets", () => {
     it.each(TABLE.map((row) => [row.descriptor.id, row] as const))("%s matches the design's table", (_id, row) => {
         const { descriptor } = row;
         assert.strictEqual(descriptor.plainName, row.name);
-        assert.strictEqual(descriptor.kind, row.kind);
+        assert.strictEqual(drawingOf(descriptor), row.kind);
         assert.strictEqual(descriptor.origin, "element");
         assert.strictEqual(descriptor.webgpu, "translate");
         assert.includeMembers([...descriptor.reads], row.reads);
@@ -155,7 +155,7 @@ describe("the edge presets", () => {
     it.each(TABLE.map((row) => [row.descriptor.id, row] as const))(
         "%s passes the static checks, no costlier than its class, reading only what it declares",
         (_id, row) => {
-            const checked = checkShaderBody(row.body, row.descriptor.kind);
+            const checked = checkShaderBody(row.body, drawingOf(row.descriptor));
             assert.deepEqual(checked.problems, []);
             const classes = ["light", "medium", "heavy"];
             assert.isAtMost(classes.indexOf(costClassOf(checked.cost)), classes.indexOf(row.descriptor.cost));

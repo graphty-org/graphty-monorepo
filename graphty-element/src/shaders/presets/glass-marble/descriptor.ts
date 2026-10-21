@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const GLASS_MARBLE: ShaderDescriptor = Object.freeze({
     id: "glass-marble",
     plainName: "Glass marble",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Glass"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "twist", plainName: "Twist", type: "number", default: 2.2, min: 0, max: 8, primary: true },
         { name: "vanes", plainName: "Ribbons", type: "integer", default: 4, min: 2, max: 10 },

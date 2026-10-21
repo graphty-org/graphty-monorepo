@@ -17,6 +17,7 @@ import {
     SHADER_MOTION_WORDS,
     SHADER_QUALITY_WORDS,
     SHADER_STEP_WORDS,
+    shaderSlotKindOf,
     usedByWords,
 } from "../style/words";
 import { heldShaders, runHeld } from "./heldShaders";
@@ -245,7 +246,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                                             {shader.plainName}
                                         </Text>
                                         <Text size="xs" c="dimmed" truncate>
-                                            {`${SHADER_KIND_WORDS[shader.kind]}, ${usedByWords(shader.usedBy)}`}
+                                            {`${SHADER_KIND_WORDS[shaderSlotKindOf(shader)]}, ${usedByWords(shader.usedBy)}`}
                                         </Text>
                                     </Stack>
                                     <Button

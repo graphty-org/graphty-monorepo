@@ -2,7 +2,6 @@
 {
     "id": "lab/glass-marble",
     "name": "Glass marble",
-    "kind": "node-surface",
     "params": [
         {
             "name": "twist",

@@ -16,7 +16,9 @@ import type { ShaderDescriptor } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "frost",
     plainName: "Frost",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Glass"]),
     params: Object.freeze([
         Object.freeze({
             name: "frostColor",

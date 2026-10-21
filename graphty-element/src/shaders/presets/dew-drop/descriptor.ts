@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DEW_DROP: ShaderDescriptor = Object.freeze({
     id: "dew-drop",
     plainName: "Dew drop",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Glass"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1.6, min: 0, max: 3, primary: true },
         { name: "tint", plainName: "Tint", type: "number", default: 0.75, min: 0, max: 1 },

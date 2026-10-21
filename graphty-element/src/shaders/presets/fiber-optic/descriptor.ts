@@ -12,7 +12,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const FIBER_OPTIC: ShaderDescriptor = Object.freeze({
     id: "fiber-optic",
     plainName: "Fiber",
-    kind: "edge-surface",
+    target: "edge",
+    role: "look",
+    categories: Object.freeze(["Light"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "glass", plainName: "Glass", type: "number", default: 1, min: 0, max: 3, primary: true },
         { name: "hueSpread", plainName: "Hue spread", type: "number", default: 0.6, min: 0, max: 1 },

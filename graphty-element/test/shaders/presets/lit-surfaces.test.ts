@@ -8,7 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody } from "../../../src/catalog/shaderGlsl";
-import type { ShaderDescriptor } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor } from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { LIT_SURFACE_PRESETS } from "../../../stories/shaders/litSurfacePresets";
 
@@ -96,7 +96,7 @@ describe("the lit-surface presets", () => {
         (id, { descriptor }: { descriptor: ShaderDescriptor }) => {
             const row = TABLE[id];
             assert.strictEqual(descriptor.plainName, row.name);
-            assert.strictEqual(descriptor.kind, "node-surface");
+            assert.strictEqual(drawingOf(descriptor), "node-look");
             assert.strictEqual(descriptor.origin, "element");
             assert.strictEqual(descriptor.cost, row.cost);
             assert.deepEqual([...descriptor.reads], row.reads);
@@ -129,7 +129,7 @@ describe("the lit-surface presets", () => {
             assert.isFalse(Array.isArray(read), JSON.stringify(read));
             assert.isString(thumbnail);
 
-            const checked = checkShaderBody(body, descriptor.kind);
+            const checked = checkShaderBody(body, drawingOf(descriptor));
             assert.deepEqual(checked.problems, []);
             assert.isAtMost(
                 ORDER.indexOf(checked.costClass),

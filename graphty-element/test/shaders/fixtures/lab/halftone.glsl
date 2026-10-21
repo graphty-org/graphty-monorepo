@@ -2,7 +2,6 @@
 {
     "id": "lab/halftone",
     "name": "Halftone",
-    "kind": "node-surface",
     "params": [
         {
             "name": "dotScale",

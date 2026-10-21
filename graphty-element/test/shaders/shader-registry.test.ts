@@ -6,7 +6,7 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import { clearRegisteredShadersForTesting, registerShader, shaderDescriptor } from "../../src/catalog/shaderRegistry";
-import { SHADER_KIND_COVERS, shaderCovers } from "../../src/catalog/shaders";
+import { shaderCovers } from "../../src/catalog/shaders";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession } from "../../src/session";
 import { defineShader } from "../../src/simple/defineShader";
@@ -38,7 +38,7 @@ describe("defineShader", () => {
     it("registers a shader from the short form, filling in what was left out", () => {
         defineShader({
             id: "acme/pulse-ring",
-            kind: "node-effect",
+            role: "effect",
             reach: 2,
             params: {
                 tint: "#FFAA00",
@@ -71,7 +71,7 @@ describe("defineShader", () => {
 
     it("refuses a bare id, which is reserved for the element's presets", () => {
         const { code, details } = refusal(() =>
-            defineShader({ id: "marble", kind: "node-surface", glsl: "vec4 shade(NodeInput n) { return n.color; }" }),
+            defineShader({ id: "marble", glsl: "vec4 shade(NodeInput n) { return n.color; }" }),
         );
         assert.strictEqual(code, "E_BAD_COMMAND");
         assert.strictEqual(details.field, "id");
@@ -81,7 +81,6 @@ describe("defineShader", () => {
         const { code, details } = refusal(() =>
             defineShader({
                 id: "acme/forever",
-                kind: "node-surface",
                 glsl: "vec4 shade(NodeInput n) { while (true) {} return n.color; }",
             }),
         );
@@ -94,7 +93,7 @@ describe("defineShader", () => {
 describe("registerShader", () => {
     it("infers what a body reads and lets a registrant state the cost", () => {
         registerShader({
-            descriptor: { id: "acme/tint", plainName: "Tint", kind: "node-surface", params: [], cost: "heavy" },
+            descriptor: { id: "acme/tint", plainName: "Tint", params: [], cost: "heavy" },
             glsl: "vec4 shade(NodeInput n) { return n.color * (1.0 + n.selected) * n.size; }",
         });
 
@@ -108,7 +107,6 @@ describe("registerShader", () => {
                 descriptor: {
                     id: "acme/bad",
                     plainName: "Bad",
-                    kind: "node-surface",
                     params: [{ name: "gl_x", plainName: "X", type: "number", default: 0 }],
                 },
                 glsl: "vec4 shade(NodeInput n) { return n.color; }",
@@ -118,7 +116,7 @@ describe("registerShader", () => {
     });
 
     it("is listed by session.catalog.shaders()", () => {
-        defineShader({ id: "acme/flat", kind: "node-surface", glsl: "vec4 shade(NodeInput n) { return n.color; }" });
+        defineShader({ id: "acme/flat", glsl: "vec4 shade(NodeInput n) { return n.color; }" });
         const session = createGraphSession();
         assert.include(
             session.catalog.shaders().map((descriptor) => descriptor.id),
@@ -129,19 +127,22 @@ describe("registerShader", () => {
 });
 
 describe("what a shader covers", () => {
-    it("is its kind's set, plus color and opacity for a surface that does not read them", () => {
-        assert.include(SHADER_KIND_COVERS["node-sprite"], "node.shape");
-        assert.notInclude(SHADER_KIND_COVERS["node-sprite"], "node.size");
-        assert.deepEqual(SHADER_KIND_COVERS["node-effect"], []);
-        assert.deepEqual(shaderCovers({ kind: "node-surface", reads: ["color", "opacity"] }), [
+    it("follows the target, role and geometry, plus color and opacity for a look that does not read them", () => {
+        const card = shaderCovers({ target: "node", role: "look", geometry: "card", reads: ["color", "opacity"] });
+        assert.include(card, "node.shape");
+        assert.notInclude(card, "node.size");
+        assert.deepEqual(shaderCovers({ target: "node", role: "effect", reads: [] }), []);
+        assert.deepEqual(shaderCovers({ target: "group", role: "look", reads: [] }), []);
+        assert.deepEqual(shaderCovers({ target: "node", role: "look", reads: ["color", "opacity"] }), [
             "node.flat",
             "node.unlit",
             "node.wireframe",
         ]);
         assert.includeMembers(
-            [...shaderCovers({ kind: "node-sprite", reads: ["size"] })],
+            [...shaderCovers({ target: "node", role: "look", geometry: "card", reads: ["size"] })],
             ["node.color", "node.opacity"],
         );
-        assert.include(shaderCovers({ kind: "edge-surface", reads: [] }), "edge.color");
+        assert.include(shaderCovers({ target: "edge", role: "look", reads: [] }), "edge.color");
+        assert.includeMembers([...shaderCovers({ target: "edge", role: "look", reads: ["color"] })], ["edge.style"]);
     });
 });

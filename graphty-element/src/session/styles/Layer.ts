@@ -47,13 +47,13 @@
 
 import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
-import { shaderDescriptor, shaderIdsOf } from "../../catalog/shaderRegistry";
+import { shaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
 import {
     isShaderId,
     isShaderParamName,
     type LayerBoundary,
     type ShaderDescriptor,
-    type ShaderKind,
+    type ShaderPlace,
 } from "../../catalog/shaders";
 import type {
     Binding,
@@ -1344,7 +1344,7 @@ function checkSetChannel(
     const path = `set.${channel}`;
     const descriptor = checkChannel(channel, target, path, log);
 
-    if (descriptor?.shaderKinds !== undefined && value !== undefined) {
+    if (descriptor?.shaderPlace !== undefined && value !== undefined) {
         checkShaderValue(descriptor, value, path, catalog, log);
     } else if (descriptor !== null && value !== undefined) {
         const problem = checkStaticValue(descriptor, value, path);
@@ -1412,38 +1412,39 @@ function isPlainMap(value: unknown): value is Record<string, unknown> {
     return prototype === Object.prototype || prototype === null;
 }
 
+/** The place a layer's boundary takes: a group look. */
+const GROUP_PLACE: ShaderPlace = { target: "group", role: "look" };
+
+/** A place no shader fits, for a channel that names none. */
+const NO_PLACE: ShaderPlace = { target: "background", role: "effect" };
+
 /**
- * Check one shader id against the catalog: it must be listed, and of a kind the place takes.
+ * Check one shader id against the catalog: it must be listed, and for the place it is written to.
  * @param id - The id.
- * @param kinds - The kinds the place takes.
+ * @param place - The target and role the place takes.
  * @param path - Where it sits in the specification.
  * @param log - Where problems are collected.
  * @returns The shader, or null when it was refused.
  */
-function checkShaderRef(
-    id: string,
-    kinds: readonly ShaderKind[],
-    path: string,
-    log: ProblemLog,
-): ShaderDescriptor | null {
+function checkShaderRef(id: string, place: ShaderPlace, path: string, log: ProblemLog): ShaderDescriptor | null {
     const descriptor = shaderDescriptor(id);
     if (descriptor === undefined) {
         report(log, {
             code: "E_UNKNOWN_SHADER",
             message: `There is no shader called "${id}".`,
             path,
-            candidates: shaderIdsOf(kinds),
+            candidates: shaderIdsFor(place),
         });
 
         return null;
     }
 
-    if (!kinds.includes(descriptor.kind)) {
+    if (descriptor.target !== place.target || descriptor.role !== place.role) {
         report(log, {
             code: "E_SHADER_KIND",
-            message: `"${id}" is a ${descriptor.kind} shader, and this takes ${kinds.join(" or ")}.`,
+            message: `"${id}" is a ${descriptor.target} ${descriptor.role}, and this takes a ${place.target} ${place.role}.`,
             path,
-            candidates: shaderIdsOf(kinds),
+            candidates: shaderIdsFor(place),
         });
 
         return null;
@@ -1564,7 +1565,7 @@ function checkParamSet(
 /**
  * Check one entry of a map keyed by shader id: the id's spelling, and against the catalog.
  * @param id - The key.
- * @param kinds - The kinds the place takes.
+ * @param place - The target and role the place takes.
  * @param path - Where the entry sits.
  * @param catalog - Whether to consult the catalog.
  * @param log - Where problems are collected.
@@ -1573,7 +1574,7 @@ function checkParamSet(
  */
 function checkMapKey(
     id: string,
-    kinds: readonly ShaderKind[],
+    place: ShaderPlace,
     path: string,
     catalog: boolean,
     log: ProblemLog,
@@ -1584,7 +1585,7 @@ function checkMapKey(
         return undefined;
     }
 
-    return catalog ? checkShaderRef(id, kinds, path, log) : null;
+    return catalog ? checkShaderRef(id, place, path, log) : null;
 }
 
 /**
@@ -1602,7 +1603,7 @@ function checkShaderValue(
     catalog: boolean,
     log: ProblemLog,
 ): void {
-    const kinds = descriptor.shaderKinds ?? [];
+    const place = descriptor.shaderPlace ?? NO_PLACE;
     if (descriptor.accepts === "shader") {
         if (typeof value !== "string" || (value !== SHADER_NONE && !isShaderId(value))) {
             report(log, {
@@ -1611,7 +1612,7 @@ function checkShaderValue(
                 path,
             });
         } else if (value !== SHADER_NONE && catalog) {
-            checkShaderRef(value, kinds, path, log);
+            checkShaderRef(value, place, path, log);
         }
 
         return;
@@ -1625,7 +1626,13 @@ function checkShaderValue(
 
     const effects = descriptor.accepts === "shaderEffects";
     for (const [id, entry] of Object.entries(value)) {
-        const shader = checkMapKey(id, kinds, `${path}.${id}`, catalog, log);
+        if (!effects && (typeof entry !== "object" || entry === null)) {
+            // A plain { name: value } for whichever shader is drawn: checked as a value only.
+            checkParamValue(null, id, entry, `${path}.${id}`, log);
+            continue;
+        }
+
+        const shader = checkMapKey(id, place, `${path}.${id}`, catalog, log);
         if (shader === undefined || (effects && typeof entry === "boolean")) {
             continue;
         }
@@ -1661,8 +1668,7 @@ function checkParamBinding(
         readsPath(log, binding.by);
     }
 
-    const kinds = descriptor.shaderKinds ?? [];
-    const shader = checkMapKey(address.shader, kinds, path, catalog, log);
+    const shader = checkMapKey(address.shader, descriptor.shaderPlace ?? NO_PLACE, path, catalog, log);
     if (shader === null || shader === undefined) {
         return;
     }
@@ -1701,7 +1707,7 @@ function checkBoundary(spec: LayerSpec, target: SelectorTarget | null, catalog: 
         return;
     }
 
-    const shader = checkMapKey(boundary.shader, ["boundary"], "boundary.shader", catalog, log);
+    const shader = checkMapKey(boundary.shader, GROUP_PLACE, "boundary.shader", catalog, log);
     if (boundary.params !== undefined && shader !== undefined) {
         checkParamSet(shader, boundary.params, "boundary.params", log, false);
     }

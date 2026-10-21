@@ -13,7 +13,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const EDGE_GLOW: ShaderDescriptor = Object.freeze({
     id: "edge-glow",
     plainName: "Edge glow",
-    kind: "edge-effect",
+    target: "edge",
+    role: "effect",
+    categories: Object.freeze(["Light"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "glow", plainName: "Glow", type: "number", default: 0.4, min: 0, max: 2, primary: true },
         { name: "glowWidth", plainName: "Glow width", type: "number", default: 3, min: 0.5, max: 10 },

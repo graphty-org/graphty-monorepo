@@ -115,6 +115,40 @@ describe("Badge - All CSS Values (Browser)", () => {
     });
 });
 
+describe("Badge - danger and warning text (Browser)", () => {
+    /**
+     * The contrast of two opaque or translucent sRGB colors over white, as WCAG computes it.
+     * @param fg - the text color, as computed
+     * @param bg - the ground color, as computed
+     * @returns the ratio
+     */
+    function contrast(fg: string, bg: string): number {
+        const parse = (c: string): number[] => (c.match(/[\d.]+/g) ?? []).map(Number);
+        const [br, bgr, bb, ba = 1] = parse(bg);
+        const ground = [br, bgr, bb].map((v) => v * ba + 255 * (1 - ba));
+        const lum = (rgb: number[]): number => {
+            const [r, g, b] = rgb.map((v) => {
+                const c = v / 255;
+                return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const [l1, l2] = [lum(parse(fg).slice(0, 3)), lum(ground)].sort((a, b) => b - a);
+        return (l1 + 0.05) / (l2 + 0.05);
+    }
+
+    it.each(["red", "yellow", "orange"] as const)("a light %s badge reads at 4.5:1 or better", (color) => {
+        const el = root(
+            <Badge color={color} variant="light">
+                1 missing
+            </Badge>,
+            ".mantine-Badge-root",
+        );
+        const s = getComputedStyle(el);
+        expect(contrast(s.color, s.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
 describe("Pill - All CSS Values (Browser)", () => {
     const pill = (): Element => root(<Pill>Tag</Pill>, ".mantine-Pill-root");
 

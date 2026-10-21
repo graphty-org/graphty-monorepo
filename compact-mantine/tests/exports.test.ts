@@ -385,6 +385,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "Toolbar",
     "ToolButton",
     "ToolGroup",
+    "useRovingFocus",
 
     // Panel rows and the two atoms they are built from
     "ActionRow",

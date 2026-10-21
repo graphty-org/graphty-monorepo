@@ -170,8 +170,11 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
 
     const currentText = String(current);
     const numberValue = numeric && currentText !== "" ? parse(currentText) : Number.NaN;
+    // An empty field steps from the default its placeholder shows, never from its minimum.
+    const shownDefault = numeric && placeholder !== undefined ? parse(placeholder) : Number.NaN;
     const number = useNumberField({
         value: Number.isNaN(numberValue) ? null : numberValue,
+        origin: Number.isNaN(shownDefault) ? undefined : shownDefault,
         display: currentText,
         onCommit: (next, event) => {
             setCurrent(next, event);

@@ -18,6 +18,18 @@ const BADGE_TOKENS: Record<string, Record<string, string>> = {
     light: { "--badge-bg": "var(--cm-bg-selected)", "--badge-color": "var(--cm-text-onselected)" },
 };
 
+/**
+ * The text a light or outline badge draws in when it is given a danger or warning color: dark
+ * enough to pass 4.5:1 on its own tint, where Mantine's raw red.6 (about 3:1) and yellow.6 (about
+ * 1.8:1) do not (WCAG 1.4.3).
+ */
+const TONE_TEXT: Record<string, string> = {
+    // The danger text token is 4.1:1 on red's tint in light; Mantine's red.9 is 4.8:1 there.
+    red: "light-dark(var(--mantine-color-red-9), var(--cm-text-danger))",
+    orange: "var(--cm-text-warning)",
+    yellow: "var(--cm-text-warning)",
+};
+
 /** The Text sizes that are a Figma type role: sm is body, xs is caption (spec 2.3). */
 const TEXT_ROLE_VARS: Record<string, Record<string, string>> = {
     sm: { "--cm-text-fw": String(CM_TYPE.body.fontWeight), "--cm-text-ls": CM_TYPE.body.letterSpacing },
@@ -59,6 +71,9 @@ export const displayComponentExtensions = {
                 ...(props?.color
                     ? {}
                     : { ...BADGE_TOKENS[props?.variant ?? "outline"], "--badge-bd": "0 solid transparent" }),
+                ...((props?.variant ?? "outline") !== "filled" && TONE_TEXT[String(props?.color)] !== undefined
+                    ? { "--badge-color": TONE_TEXT[String(props?.color)] }
+                    : {}),
             },
         }),
     }),

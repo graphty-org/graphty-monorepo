@@ -50,6 +50,27 @@ describe("ComboInput", () => {
         expect(onChange).toHaveBeenCalledWith(24, expect.anything());
     });
 
+    it("an empty numeric field steps from the default its placeholder shows, not from its minimum", async () => {
+        const onChange = vi.fn();
+        renderCombo(
+            <ComboInput
+                label="Turn"
+                numeric
+                value=""
+                placeholder="0"
+                min={-360}
+                max={360}
+                options={[]}
+                onChange={onChange}
+            />,
+        );
+        await userEvent.click(screen.getByRole("textbox", { name: "Turn" }));
+        await userEvent.keyboard("{ArrowUp}");
+        expect(onChange).toHaveBeenLastCalledWith(1, expect.anything());
+        await userEvent.keyboard("{ArrowDown}");
+        expect(onChange).toHaveBeenLastCalledWith(-1, expect.anything());
+    });
+
     it("a numeric field steps with the arrows while the list is closed", async () => {
         const onChange = vi.fn();
         renderCombo(<ComboInput label="Font size" numeric defaultValue={12} options={SIZES} onChange={onChange} />);

@@ -1,4 +1,4 @@
-import { Button } from "@mantine/core";
+import { Button, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
@@ -26,6 +26,12 @@ export interface FileDropProps {
     multiple?: boolean;
     /** Nothing can be chosen or dropped. */
     disabled?: boolean;
+    /**
+     * Files are being read: a press or a drop is ignored, but the buttons stay focusable and keep
+     * focus (`aria-disabled`), and the zone is `aria-busy`, so a keyboard reader is not dropped to
+     * the page while the files it chose load.
+     */
+    busy?: boolean;
     /**
      * The files the reader chose or dropped, never an empty list. A folder chosen with the folder
      * button gives every file in it, each with its `webkitRelativePath`. A drop also hands over its
@@ -63,8 +69,10 @@ export function FileDrop(props: FileDropProps): React.JSX.Element {
         accept,
         multiple = true,
         disabled = false,
+        busy = false,
         onFiles,
     } = props;
+    const refuses = disabled || busy;
     const files = useRef<HTMLInputElement>(null);
     const folder = useRef<HTMLInputElement>(null);
     const [over, setOver] = useState(false);
@@ -85,8 +93,9 @@ export function FileDrop(props: FileDropProps): React.JSX.Element {
             className="cm-file-drop"
             data-over={over || undefined}
             data-disabled={disabled || undefined}
+            aria-busy={busy || undefined}
             onDragOver={(event) => {
-                if (disabled) {
+                if (refuses) {
                     return;
                 }
                 // Without this the browser opens the dropped file instead.
@@ -99,7 +108,8 @@ export function FileDrop(props: FileDropProps): React.JSX.Element {
                 }
             }}
             onDrop={(event) => {
-                if (disabled) {
+                if (refuses) {
+                    event.preventDefault();
                     return;
                 }
                 event.preventDefault();
@@ -110,29 +120,41 @@ export function FileDrop(props: FileDropProps): React.JSX.Element {
                 }
             }}
         >
-            <Button
-                size="compact-xs"
-                variant="default"
-                disabled={disabled}
-                leftSection={<UiGlyph name="upload" />}
-                aria-label={chooseName}
-                title={chooseName}
-                onClick={() => files.current?.click()}
-            >
-                {chooseLabel}
-            </Button>
-            {folderLabel !== undefined && (
+            <Tooltip label={chooseName ?? chooseLabel}>
                 <Button
                     size="compact-xs"
                     variant="default"
                     disabled={disabled}
-                    leftSection={<UiGlyph name="folder" />}
-                    aria-label={folderName}
-                    title={folderName}
-                    onClick={() => folder.current?.click()}
+                    aria-disabled={busy || undefined}
+                    leftSection={<UiGlyph name="upload" />}
+                    aria-label={chooseName}
+                    onClick={() => {
+                        if (!refuses) {
+                            files.current?.click();
+                        }
+                    }}
                 >
-                    {folderLabel}
+                    {chooseLabel}
                 </Button>
+            </Tooltip>
+            {folderLabel !== undefined && (
+                <Tooltip label={folderName ?? folderLabel}>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        disabled={disabled}
+                        aria-disabled={busy || undefined}
+                        leftSection={<UiGlyph name="folder" />}
+                        aria-label={folderName}
+                        onClick={() => {
+                            if (!refuses) {
+                                folder.current?.click();
+                            }
+                        }}
+                    >
+                        {folderLabel}
+                    </Button>
+                </Tooltip>
             )}
             <input ref={files} type="file" hidden tabIndex={-1} accept={accept} multiple={multiple} onChange={take} />
             {folderLabel !== undefined && (

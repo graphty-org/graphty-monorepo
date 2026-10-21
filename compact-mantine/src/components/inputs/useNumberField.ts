@@ -30,6 +30,11 @@ interface NumberFieldOptions {
     max?: number;
     /** one arrow press; Shift moves ten */
     step?: number;
+    /**
+     * What an empty field steps from: the default it shows in its place. Without it an empty
+     * field steps from `min`, then from 0.
+     */
+    origin?: number;
     /** decimal places a committed value is rounded to */
     decimalScale?: number;
     /** refuses every edit */
@@ -89,7 +94,19 @@ interface NumberField {
  * @returns the input props and the scrub callbacks
  */
 export function useNumberField(options: NumberFieldOptions): NumberField {
-    const { value, display, onCommit, parse, suffix, min, max, step = 1, decimalScale, locked = false } = options;
+    const {
+        value,
+        display,
+        onCommit,
+        parse,
+        suffix,
+        min,
+        max,
+        step = 1,
+        decimalScale,
+        locked = false,
+        origin,
+    } = options;
     const format = options.format ?? String;
     const [draft, setDraftState] = useState<string | null>(null);
     // Mirrored in a ref: a handler that clears the draft and then commits (a blur in the same
@@ -188,7 +205,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                 }
             } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.preventDefault();
-                const base = (draftRef.current !== null ? read(draftRef.current) : null) ?? value ?? min ?? 0;
+                const base = (draftRef.current !== null ? read(draftRef.current) : null) ?? value ?? origin ?? min ?? 0;
                 const delta = (event.key === "ArrowUp" ? step : -step) * (event.shiftKey ? 10 : 1);
                 const next = settle(base + delta);
                 setDraft(null);
@@ -196,6 +213,13 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                 if (next !== value) {
                     onCommit(next, event);
                 }
+                // The new value stays selected, so what is typed next replaces it.
+                const input = event.currentTarget;
+                requestAnimationFrame(() => {
+                    if (document.activeElement === input) {
+                        input.select();
+                    }
+                });
             }
         },
         onFocus: (event) => {

@@ -504,8 +504,11 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
 
         const numberText = hidesValue ? "" : valueText;
         const numberValue = valueText === "" || mixed ? Number.NaN : parseNumber(valueText);
+        // An empty field steps from the default its placeholder shows, never from its minimum.
+        const shownDefault = placeholderText === undefined || mixed ? Number.NaN : parseNumber(placeholderText);
         const numberField = useNumberField({
             value: Number.isNaN(numberValue) ? null : numberValue,
+            origin: Number.isNaN(shownDefault) ? undefined : shownDefault,
             display: numberText,
             onCommit: (next, event) => {
                 setValue(next, event);
@@ -850,13 +853,24 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
         }
 
         if (offersChoices) {
+            // The footer action's choice, while it holds the field, is the value in force.
+            let selectValue: string | null = hidesValue || valueText === "" ? null : valueText;
+            if (footerAction?.selectedLabel !== undefined && !hidesValue) {
+                selectValue = LISTBOX_FOOTER_VALUE;
+            }
             return (
                 <Select
                     {...common}
                     data={
                         footerAction === undefined
                             ? data
-                            : [...data, { value: LISTBOX_FOOTER_VALUE, label: footerAction.label }]
+                            : [
+                                  ...data,
+                                  {
+                                      value: LISTBOX_FOOTER_VALUE,
+                                      label: footerAction.selectedLabel ?? footerAction.label,
+                                  },
+                              ]
                     }
                     renderOption={
                         optionGlyphs === undefined && footerAction === undefined
@@ -876,9 +890,14 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                                       </span>
                                   )
                     }
-                    value={hidesValue || valueText === "" ? null : valueText}
+                    value={selectValue}
                     onChange={(next) => {
-                        if (next === LISTBOX_FOOTER_VALUE) {
+                        // Taking the footer again while it holds the value deselects it in
+                        // Mantine's terms: it is the action once more, never a cleared field.
+                        if (
+                            next === LISTBOX_FOOTER_VALUE ||
+                            (next === null && footerAction?.selectedLabel !== undefined)
+                        ) {
                             footerAction?.onSelect();
                             return;
                         }

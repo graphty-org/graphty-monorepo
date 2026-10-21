@@ -267,6 +267,8 @@ const css = `
 }
 .cm-popout-tabs { flex: 1; min-width: 0; }
 .cm-popout-actions { display: flex; align-items: center; }
+/* A back arrow before the title: the title then starts right after it. */
+.cm-popout-lead + .cm-popout-title { padding-inline-start: 0; }
 /* The 24px close button, 8px from the top and from the end. */
 .cm-popout-close,
 .cm-modal-close {

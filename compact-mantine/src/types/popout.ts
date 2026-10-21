@@ -48,6 +48,12 @@ interface PopoutHeaderAction {
      * `preventDefault`, or find the element that was activated.
      */
     onClick: ActivationHandler;
+    /**
+     * Where the button sits: `"end"` with the others, before the close button, or `"start"`,
+     * before the title -- a back arrow to the panel this one replaced.
+     * @default "end"
+     */
+    placement?: "start" | "end";
 }
 
 /**

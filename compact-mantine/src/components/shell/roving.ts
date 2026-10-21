@@ -7,7 +7,7 @@ import { ensureCompactStyles } from "../../theme/global-styles";
 const ITEM_SELECTOR = 'button, input[type="radio"], [role="radio"]';
 
 /** The handlers and ref a roving container spreads onto its root. */
-interface RovingFocus<T extends HTMLElement> {
+export interface RovingFocus<T extends HTMLElement> {
     ref: RefObject<T | null>;
     onFocus: (event: FocusEvent<T>) => void;
     onKeyDown: (event: KeyboardEvent<T>) => void;
@@ -21,11 +21,19 @@ interface RovingFocus<T extends HTMLElement> {
  * radio is focused, not changed, by them.
  * @param orientation - which arrows move
  * @param startAt - where focus first lands: the selected item ("pressed") or the first ("first")
+ * @param wrap - whether an arrow at the last item goes to the first (a toolbar); false stops at
+ *   the edges, as a grid of tiles does (WAI-ARIA grid)
  * @returns the ref and handlers for the container
+ * @example
+ * ```tsx
+ * const roving = useRovingFocus<HTMLDivElement>("horizontal", "pressed", false);
+ * <div ref={roving.ref} role="group" onKeyDown={roving.onKeyDown} onFocus={roving.onFocus}>...</div>
+ * ```
  */
 export function useRovingFocus<T extends HTMLElement>(
     orientation: "horizontal" | "vertical",
     startAt: "pressed" | "first" = "pressed",
+    wrap = true,
 ): RovingFocus<T> {
     const ref = useRef<T>(null);
     const current = useRef<HTMLElement | null>(null);
@@ -87,7 +95,8 @@ export function useRovingFocus<T extends HTMLElement>(
             return;
         }
         event.preventDefault();
-        let next = (index + (event.key === forward ? 1 : -1) + all.length) % all.length;
+        const moved = index + (event.key === forward ? 1 : -1);
+        let next = wrap ? (moved + all.length) % all.length : Math.min(Math.max(moved, 0), all.length - 1);
         if (event.key === "Home") {
             next = 0;
         } else if (event.key === "End") {

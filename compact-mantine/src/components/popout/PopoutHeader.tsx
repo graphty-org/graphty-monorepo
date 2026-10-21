@@ -52,9 +52,18 @@ export function PopoutHeader({
         style?: React.CSSProperties;
         [key: string]: unknown;
     };
+    const leading = actions.filter((action) => action.placement === "start");
+    const trailing = actions.filter((action) => action.placement !== "start");
+    const buttons = (list: typeof actions): JSX.Element[] =>
+        list.map((action) => (
+            <ActionIcon key={action.id} variant="subtle" onClick={action.onClick} aria-label={action.label}>
+                {action.icon}
+            </ActionIcon>
+        ));
 
     return (
         <Box data-testid="popout-header" className="cm-popout-header" {...restDragProps} style={dragStyle}>
+            {leading.length > 0 ? <div className="cm-popout-actions cm-popout-lead">{buttons(leading)}</div> : null}
             {config.variant === "title" ? (
                 <h2 id={titleId} data-testid="popout-header-title" className="cm-popout-title">
                     {config.title}
@@ -89,15 +98,7 @@ export function PopoutHeader({
                 </>
             )}
 
-            {actions.length > 0 ? (
-                <div className="cm-popout-actions">
-                    {actions.map((action) => (
-                        <ActionIcon key={action.id} variant="subtle" onClick={action.onClick} aria-label={action.label}>
-                            {action.icon}
-                        </ActionIcon>
-                    ))}
-                </div>
-            ) : null}
+            {trailing.length > 0 ? <div className="cm-popout-actions">{buttons(trailing)}</div> : null}
 
             <CloseButton
                 data-testid="popout-header-close"

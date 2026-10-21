@@ -96,4 +96,30 @@ describe("PanelField footerAction", () => {
             expect(onSelect).toHaveBeenCalledTimes(1);
         });
     });
+
+    it("shows what the action chose as the field's value, checked in the list, and Enter takes it again", async () => {
+        const onSelect = vi.fn();
+        const onChange = vi.fn();
+        await renderThemed(
+            <PanelField
+                label="Shape"
+                value={null}
+                onChange={onChange}
+                data={SHAPES}
+                footerAction={{ label: "Model...", glyph: DOT, onSelect, selectedLabel: "police" }}
+            />,
+        );
+        const field = screen.getByRole("combobox", { name: /^Shape/ });
+        expect(field).toHaveValue("police");
+        expect(field.getAttribute("placeholder") ?? "").toBe("");
+        await userEvent.tab();
+        await userEvent.keyboard("{Enter}");
+        const footer = await screen.findByRole("option", { name: "Model..." });
+        expect(footer.getAttribute("aria-selected")).toBe("true");
+        await userEvent.keyboard("{End}{Enter}");
+        await waitFor(() => {
+            expect(onSelect).toHaveBeenCalledTimes(1);
+        });
+        expect(onChange).not.toHaveBeenCalled();
+    });
 });

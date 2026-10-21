@@ -9,6 +9,7 @@ export type { NavRailProps, RailButtonProps } from "./NavRail";
 export { NavRail, RailButton } from "./NavRail";
 export type { QuickAction, QuickActionsProps } from "./QuickActions";
 export { QuickActions } from "./QuickActions";
+export { type RovingFocus, useRovingFocus } from "./roving";
 export type { SecondaryToolbarButtonProps, SecondaryToolbarProps } from "./SecondaryToolbar";
 export { SecondaryToolbar } from "./SecondaryToolbar";
 export type { ShortcutEntry, ShortcutGroup, ShortcutSheetProps, ShortcutSheetTab } from "./ShortcutSheet";

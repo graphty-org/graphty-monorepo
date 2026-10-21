@@ -93,6 +93,7 @@ export {
     Toolbar,
     ToolButton,
     ToolGroup,
+    useRovingFocus,
 } from "./components/shell";
 
 // Panel row exports: the row types a property panel is assembled from, plus the

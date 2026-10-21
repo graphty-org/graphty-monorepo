@@ -778,6 +778,12 @@ export interface ListboxFooterAction {
     glyph?: React.ReactNode;
     /** Called when the reader takes it (Enter, or a click); the list closes. */
     onSelect: () => void;
+    /**
+     * Set while the field holds what this action chose ("police" once Model... chose a model): the
+     * field shows these words as its value, set and not a placeholder, and the list checks this
+     * entry as the choice in force.
+     */
+    selectedLabel?: string;
 }
 
 /**
@@ -789,6 +795,7 @@ export interface ListboxFooterAction {
 export function ListboxFooterOption({ footer }: { footer: ListboxFooterAction }): React.JSX.Element {
     return (
         <span className="cm-listbox-option-content cm-listbox-footer-action" title={footer.label}>
+            {footer.selectedLabel !== undefined && <ListboxCheck />}
             {footer.glyph !== undefined && (
                 <span className="cm-listbox-glyph" aria-hidden="true">
                     {footer.glyph}

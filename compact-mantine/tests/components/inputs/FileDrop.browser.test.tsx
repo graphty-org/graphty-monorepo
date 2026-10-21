@@ -102,4 +102,19 @@ describe("FileDrop", () => {
         });
         expect(onFiles).not.toHaveBeenCalled();
     });
+
+    it("stays a focusable button while busy, ignoring a press, and says the zone is busy", async () => {
+        const onFiles = vi.fn();
+        await renderThemed(<FileDrop label="Model files" chooseLabel="Choose files" busy onFiles={onFiles} />);
+        await userEvent.tab();
+        const button = screen.getByRole("button", { name: "Choose files" });
+        // Not disabled: a disabled button that had focus drops it to the page.
+        expect(document.activeElement).toBe(button);
+        expect(button.hasAttribute("disabled")).toBe(false);
+        expect(button.getAttribute("aria-disabled")).toBe("true");
+        expect(screen.getByRole("group", { name: "Model files" }).getAttribute("aria-busy")).toBe("true");
+        await commands.chooseNextFiles(MODEL);
+        await userEvent.keyboard("{Enter}");
+        expect(onFiles).not.toHaveBeenCalled();
+    });
 });

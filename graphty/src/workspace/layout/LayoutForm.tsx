@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { costLine, optionWords } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import { TransitionRow } from "./TransitionRow";
 
 /** Props for LayoutForm. */
 interface LayoutFormProps {
@@ -234,6 +235,7 @@ export function LayoutForm({
                     }}
                     advanced={seed}
                 />
+                <TransitionRow session={session} />
                 {error === null ? null : (
                     <Text size="xs" c="red" role="alert">
                         {error}

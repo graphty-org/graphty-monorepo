@@ -34,5 +34,5 @@ export const LANTERN_GLOW: ShaderDescriptor = Object.freeze({
     origin: "element",
     webgpu: "translate",
     bloom: true,
-    thumbnail: new URL("thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

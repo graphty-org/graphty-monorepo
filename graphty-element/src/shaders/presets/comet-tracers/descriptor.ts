@@ -32,5 +32,5 @@ export const COMET_TRACERS: ShaderDescriptor = Object.freeze({
     reach: 2,
     blend: "over",
     bloom: true,
-    thumbnail: new URL("thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

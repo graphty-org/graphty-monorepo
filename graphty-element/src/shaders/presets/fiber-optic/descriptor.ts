@@ -22,5 +22,5 @@ export const FIBER_OPTIC: ShaderDescriptor = Object.freeze({
     cost: "medium",
     origin: "element",
     webgpu: "translate",
-    thumbnail: new URL("thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

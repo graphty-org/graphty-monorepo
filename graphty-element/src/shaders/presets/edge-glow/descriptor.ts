@@ -28,5 +28,5 @@ export const EDGE_GLOW: ShaderDescriptor = Object.freeze({
     reach: 6,
     blend: "over",
     bloom: true,
-    thumbnail: new URL("thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

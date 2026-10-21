@@ -4,7 +4,9 @@
  * Each preset owns a folder, `./<id>/`, holding `descriptor.ts` (catalog data, no GLSL) and
  * `body.ts` (the GLSL string). This file lists the descriptors, one import line per preset, so the
  * catalog loads no GLSL; the renderer loads the bodies when a layer first names a shader
- * (design/rendering/shader-styles.md section 8).
+ * (design/rendering/shader-styles.md section 8). Each `thumb.webp` is a URL with `?no-inline`, so
+ * the build ships it as a file beside the code rather than as base64 inside every entry point that
+ * reaches the catalog: a graph with no shaders downloads no thumbnails.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

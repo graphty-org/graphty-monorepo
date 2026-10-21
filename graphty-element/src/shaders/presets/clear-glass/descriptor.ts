@@ -20,5 +20,5 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     cost: "light",
     origin: "element",
     webgpu: "translate",
-    thumbnail: new URL("./thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

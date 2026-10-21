@@ -28,5 +28,5 @@ export const FIBER_PACKETS: ShaderDescriptor = Object.freeze({
     reach: 1.5,
     blend: "over",
     bloom: true,
-    thumbnail: new URL("thumb.webp", import.meta.url).href,
+    thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

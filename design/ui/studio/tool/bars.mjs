@@ -356,7 +356,8 @@ function ask(dir, req) {
         c.write(JSON.stringify(req) + "\n");
     });
 }
-// the window sizes bar 10 counts at; bars 8 and 9 are measured at the first only
+// the window sizes bar 10 counts at, and (tier 3) bar 6's axe, shared-name, focus and typing checks,
+// each proven at every size by its planted failure; bar 9's words are counted at the first only
 const SIZES = args.includes("--size")
     ? [args[args.indexOf("--size") + 1]]
     : TIER === "3"
@@ -973,10 +974,16 @@ async function walkTier2(base) {
     // what a screen says out loud: its controls' accessible names, and after each move what took
     // focus, what live regions said and the notices shown (real.mjs --sr), by move
     const spoken = {};
-    const seen = { screens: Object.fromEntries(SIZES.map((z) => [z, []])) };
+    // what bar 6 measured, by size: a name is added only once its check ran at that size
+    const per = () => Object.fromEntries(SIZES.map((z) => [z, []]));
+    const seen = { screens: per(), focus: per(), typed: per(), planted: per() };
     for (const size of SIZES)
         for (const w of TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
+            // bar 6's readings at a later size are kept under "<name> at <size>", so a failure there
+            // fails the run beside the first size's (bar 8's word counts and the wording check's
+            // vocabulary stay at the first size, where their limits were recorded)
+            const at = (k) => (first ? k : `${k} at ${size}`);
             if (w.only && w.only !== size) continue;
             if (ONLY && !ONLY.includes(w.name)) continue;
             const dir = join(base, `${w.name}-${size}`);
@@ -1013,7 +1020,8 @@ async function walkTier2(base) {
                     if (m.typed) {
                         const t = real(size, "--step", dir, ...m.typed.do);
                         const ok = t.code !== 2 && !MISSED.test(t.out);
-                        if (first) typed[m.typed.as] = ok;
+                        typed[at(m.typed.as)] = ok;
+                        seen.typed[size].push(m.typed.as);
                         if (!ok && m.typed.recover) {
                             const rr = real(size, "--step", dir, ...m.typed.recover);
                             if (rr.code === 2 || MISSED.test(rr.out)) {
@@ -1023,7 +1031,7 @@ async function walkTier2(base) {
                             }
                         }
                     }
-                    if (!m.screen && !m.audit && !(first && (m.focus || m.words || m.scroll))) continue;
+                    if (!m.screen && !m.audit && !m.focus && !(first && (m.words || m.scroll))) continue;
                     const { data } = await ask(dir, { op: "measure" });
                     if (m.plant) {
                         // bar 10: a planted clipped name and a planted code, each found by screen and element
@@ -1039,42 +1047,66 @@ async function walkTier2(base) {
                             );
                         else planted.push(`the raw-string check missed a planted E_BAD_SELECTOR on "${label}"`);
                     }
-                    if (m.screen) seen.screens[size].push(m.screen);
                     if (m.screen || m.audit) {
                         cut[label] = data.cut; // every cut text, each with where it can be read whole
                         raw[label] = data.raw;
                     }
-                    if (!first) continue;
                     if (m.plant) {
-                        // each check must fail on its planted case before its readings are trusted
+                        // each check must fail on its planted case, at every size, before its readings
+                        // there are trusted
+                        const proved = (kind, ok, yes, no) => {
+                            if (ok) {
+                                caught.push(yes);
+                                seen.planted[size].push(kind);
+                            } else planted.push(no);
+                        };
                         const img = (await ask(dir, { op: "measure", plant: "img" })).data;
-                        if (!img.axe.some((v) => v.id === "image-alt" && serious(v)))
-                            planted.push("axe missed an image with no text alternative");
-                        else caught.push(`an image with no text alternative: caught by axe on "${label}"`);
+                        proved(
+                            "axe",
+                            img.axe.some((v) => v.id === "image-alt" && serious(v)),
+                            `an image with no text alternative: caught by axe on "${label}"`,
+                            `axe missed an image with no text alternative on "${label}"`,
+                        );
                         const twins = (await ask(dir, { op: "measure", plant: "twins" })).data;
-                        if (!twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))))
-                            planted.push("the shared-name check missed two buttons called Planted twin");
-                        else caught.push(`two buttons called Planted twin: caught on "${label}"`);
+                        proved(
+                            "shared names",
+                            twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))),
+                            `two buttons called Planted twin: caught on "${label}"`,
+                            `the shared-name check missed two buttons called Planted twin on "${label}"`,
+                        );
                         const blur = (await ask(dir, { op: "measure", plant: "blur" })).data;
-                        if (!blur.focusOnPage) planted.push("the focus check missed focus dropped to the page");
-                        else caught.push(`focus dropped to the page: caught on "${label}"`);
                         if (data.focusOnPage)
-                            planted.push("the focus check reported the page before anything was planted");
+                            planted.push(`the focus check reported the page before anything was planted on "${label}"`);
+                        proved(
+                            "focus",
+                            blur.focusOnPage && !data.focusOnPage,
+                            `focus dropped to the page: caught on "${label}"`,
+                            `the focus check missed focus dropped to the page on "${label}"`,
+                        );
                         if (TIER === "3") {
                             // nothing on the start screen takes text, so typing must not write
                             const t = real(size, "--step", dir, "--type", "Plantedtext", "--expect", "Plantedtext");
-                            if (MISSED.test(t.out)) caught.push(`typing with focus in no field: caught on "${label}"`);
-                            else planted.push(`the typed check missed typing with focus in no field on "${label}"`);
+                            proved(
+                                "typing",
+                                MISSED.test(t.out),
+                                `typing with focus in no field: caught on "${label}"`,
+                                `the typed check missed typing with focus in no field on "${label}"`,
+                            );
                         }
                     }
                     if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
                     if (m.screen) {
-                        screens[m.screen] = data.axe;
-                        names[m.screen] = data.names.shared;
+                        screens[at(m.screen)] = data.axe;
+                        names[at(m.screen)] = data.names.shared;
+                        seen.screens[size].push(m.screen);
                         const k = label.replace(/ at \S+$/, "");
-                        spoken[k] = { names: data.names.all, said: [...(spoken[k]?.said ?? []), ...data.spoken] };
+                        if (first)
+                            spoken[k] = { names: data.names.all, said: [...(spoken[k]?.said ?? []), ...data.spoken] };
                     }
-                    if (m.focus) focus[m.focus] = data.focusOnPage;
+                    if (m.focus) {
+                        focus[at(m.focus)] = data.focusOnPage;
+                        seen.focus[size].push(m.focus);
+                    }
                     if (m.proveFocus) {
                         const b = (await ask(dir, { op: "measure", plant: "blur" })).data;
                         if (b.focusOnPage) caught.push(`focus dropped to the page: caught after "${label}"`);
@@ -1090,6 +1122,10 @@ async function walkTier2(base) {
                                 `the scroll check missed the active option scrolled out of view on "${label}"`,
                             );
                     }
+                    if (!first) {
+                        log.push(`ok   ${label} (${shot})`);
+                        continue;
+                    }
                     if (m.words) words[m.words] = data.words;
                     // a screen whose text is mostly the data's (the samples' descriptions, a file's rows) gives
                     // the wording check its control names only
@@ -1102,8 +1138,9 @@ async function walkTier2(base) {
             }
         }
     if (TIER === "3" && !Object.keys(typed).length) planted.push("the typed check typed into no field");
-    // bar 6's list, measured: a screen, focus action or typing check the walks never reached
-    const walked = { ...seen, focus: Object.keys(focus), typed: Object.keys(typed) };
+    // bar 6's list, measured at every size: a screen, focus action, typing check or planted failure
+    // the walks never reached
+    const walked = seen;
     if (TIER === "3") log.push(...bar6Gaps(walked, SIZES));
     return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed, spoken, walked };
 }

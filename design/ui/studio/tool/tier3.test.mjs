@@ -13,7 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BAR6, bar6Gaps, styleChanges, styleContent } from "./measure.mjs";
+import { BAR6, BAR6_PLANTS, bar6Gaps, styleChanges, styleContent } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, "..");
@@ -106,13 +106,52 @@ test("a briefing points the participant at no study file (the persona's hypothes
     assert.doesNotMatch(text, /study\/hypotheses|hypotheses file/, "the briefing points at team files");
 });
 
-test("the bars walk's bar 6 list gives a MISS line for each of the five screens and Starts with", () => {
-    const sizes = ["1440x900", "900x700"];
-    const all = {
-        screens: Object.fromEntries(sizes.map((z) => [z, [...BAR6.screens]])),
-        focus: [...BAR6.focus],
-        typed: [...BAR6.typed],
+// round 1's tool dry run 2: four persona files ended in stray markup, and "Evidence limits" told the
+// study team how to weight the persona's findings; both reached the participant
+test("a briefing holds no stray markup and no note to the study team", () => {
+    for (const [i, [task, p]] of [
+        ["T39A", "Sam"],
+        ["T40A", "Ruth"],
+        ["T47A", "Grace"],
+        ["T48B", "Nadia"],
+        ["T39B", "Dev"],
+        ["T40B", "Maren"],
+        ["T38A", "Alex"],
+        ["T39A", "Tom"],
+        ["T39A", "Elena"],
+    ].entries()) {
+        const dir = join(studio, `tier3/rounds/zz-tool-test/sessions/m${i}`);
+        const r = brief(dir, "--task", task, "--persona", p);
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        const text = readFileSync(join(scratchOf(dir), "briefing.md"), "utf8");
+        assert.doesNotMatch(text, /<\/?(content|invoke)>/, `${p}'s briefing carries markup`);
+        assert.doesNotMatch(
+            text,
+            /Evidence limits|Weight findings|findings about import|finding may rest|finding as a lead|study team/i,
+            `${p}'s briefing carries the team's note`,
+        );
+    }
+});
+
+// every bar 6 check reached at both sizes, as bars.json's "walked" records it
+const SIZES = ["1440x900", "900x700"];
+const fullWalk = () => {
+    const each = (list) => Object.fromEntries(SIZES.map((z) => [z, [...list]]));
+    return {
+        screens: each(BAR6.screens),
+        focus: each(BAR6.focus),
+        typed: each(BAR6.typed),
+        planted: each(BAR6_PLANTS),
     };
+};
+const without = (walk, kind, size, name) => ({
+    ...walk,
+    [kind]: { ...walk[kind], [size]: walk[kind][size].filter((x) => x !== name) },
+});
+
+test("the bars walk's bar 6 list gives a MISS line for each of the five screens and Starts with", () => {
+    const sizes = SIZES;
+    const all = fullWalk();
     assert.deepEqual(bar6Gaps(all, sizes), [], "a walk that reached everything has gaps");
     const added = [
         "the find box, a name typed, its results",
@@ -128,9 +167,35 @@ test("the bars walk's bar 6 list gives a MISS line for each of the five screens 
         );
         assert.deepEqual(gaps, [`MISS ${screen} at 900x700: not walked (bar 6 lists it)`]);
     }
-    const noStarts = bar6Gaps({ ...all, typed: all.typed.filter((t) => t !== "a text card after Starts with") }, sizes);
-    assert.deepEqual(noStarts, ["MISS typing into a text card after Starts with: not checked (bar 6 lists it)"]);
-    assert.equal(bar6Gaps({}, sizes).length, 2 * BAR6.screens.length + BAR6.focus.length + BAR6.typed.length);
+    const noStarts = bar6Gaps(without(all, "typed", "1440x900", "a text card after Starts with"), sizes);
+    assert.deepEqual(noStarts, [
+        "MISS typing into a text card after Starts with at 1440x900: not checked (bar 6 lists it)",
+    ]);
+    assert.equal(
+        bar6Gaps({}, sizes).length,
+        2 * (BAR6.screens.length + BAR6.focus.length + BAR6.typed.length + BAR6_PLANTS.length),
+    );
+});
+
+// tool dry run 2 of round 1: the walk recorded every screen at 900 x 700 while measuring only bar 10
+// there, so axe, shared names, focus and typing at 900 x 700 were never read and the gate passed
+test("bar 6 is checked at 900 x 700 too: each check left out or unproven there is a MISS line", () => {
+    const all = fullWalk();
+    assert.deepEqual(bar6Gaps(without(all, "focus", "900x700", "adding a layer"), SIZES), [
+        "MISS focus after adding a layer at 900x700: not checked (bar 6 lists it)",
+    ]);
+    assert.deepEqual(bar6Gaps(without(all, "typed", "900x700", "a new Shape line"), SIZES), [
+        "MISS typing into a new Shape line at 900x700: not checked (bar 6 lists it)",
+    ]);
+    for (const c of BAR6_PLANTS)
+        assert.deepEqual(bar6Gaps(without(all, "planted", "900x700", c), SIZES), [
+            `MISS the ${c} check at 900x700: its planted failure was not caught`,
+        ]);
+    // the old record (focus and typed one list, measured at the first size only) leaves 900 x 700 out
+    const old = { ...all, focus: [...BAR6.focus], typed: [...BAR6.typed] };
+    assert.ok(
+        bar6Gaps(old, SIZES).includes("MISS focus after adding a layer at 900x700: not checked (bar 6 lists it)"),
+    );
 });
 
 // The gate on a planted tier 3 round: a frozen-build walk is any commit whose app code is the
@@ -147,12 +212,7 @@ test("the gate holds a half only with its walks by half folder, and a bars run t
     const bars = async (name, over = {}, spoken = { "the start screen": { names: ["Open a file"] } }) => {
         const d = join(rd, name);
         await mkdir(d, { recursive: true });
-        const sizes = ["1440x900", "900x700"];
-        const walked = {
-            screens: Object.fromEntries(sizes.map((z) => [z, [...BAR6.screens]])),
-            focus: [...BAR6.focus],
-            typed: [...BAR6.typed],
-        };
+        const walked = fullWalk();
         await writeFile(
             join(d, "bars.json"),
             JSON.stringify({
@@ -229,20 +289,18 @@ test("the gate holds a half only with its walks by half folder, and a bars run t
         );
         await refused(
             "a bars run missing a bar 6 screen",
-            () =>
-                bars("bars-light", {
-                    walked: {
-                        screens: { "1440x900": BAR6.screens.slice(1), "900x700": [...BAR6.screens] },
-                        focus: [...BAR6.focus],
-                        typed: [...BAR6.typed],
-                    },
-                }),
+            () => bars("bars-light", { walked: without(fullWalk(), "screens", "1440x900", "the start screen") }),
             /bars-light\/bars\.json leaves out 1 of bar 6's checks, the first: MISS the start screen at 1440x900/,
         );
         await refused(
             "a bars run with a MISS line",
             () => bars("bars", { log: ["ok   a", "MISS a text card at 900x700: an earlier move missed"] }),
             /bars\.json has 1 MISS lines/,
+        );
+        await refused(
+            "a bars run whose focus check was never proven at 900 x 700",
+            () => bars("bars", { walked: without(fullWalk(), "planted", "900x700", "focus") }),
+            /bars\/bars\.json leaves out 1 of bar 6's checks, the first: MISS the focus check at 900x700/,
         );
         await refused("a bars run that wrote no spoken.json", () => rm(join(rd, "bars/spoken.json")), /no spoken text/);
         await refused(

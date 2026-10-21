@@ -379,7 +379,16 @@ above 4 the gate refuses to run (exit 2). Every command that launches a browser 
 slot (it runs its session process through the gate), `--prove` runs the gate itself for each browser
 it starts, and `--step`, `--end` and `--brief` launch no browser, so all five are called directly;
 wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
-second.
+second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take a slot, and its tier
+1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
+`bars.mjs` command through without a slot (wrapped, it used to hold one idle slot for the whole run).
+
+Waiting starts are served first come, first served: each waiter takes a ticket in the pool's
+`queue/` folder, named by when it asked, and only the oldest live ticket may take the next free
+slot; a waiter that was killed leaves a ticket the next waiter removes. `node --test
+design/ui/studio/tool/with-browser.test.mjs` checks the order, the dead waiter and the `bars.mjs`
+pass-through with no browser. Commands that take the machine's slots without this script (the
+pre-push gate's browser shards) do not queue; they take a slot when they find one free.
 
 **A start that must not wait in the background.** A start that waits longer than the caller's
 shell call allows is moved to the background, and an agent whose turn then ends never comes back
@@ -443,7 +452,10 @@ node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>] [--scheme dar
 For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--scheme dark|light]
 [--record-limits]` measures only tier 3's screens, walked from the empty start page by clicking as
 a first-time user would ("Open a file", Samples): every screen, focus action and typing check
-bar 6 of `../tier3/criteria.md` lists, at 1440 x 900 and 900 x 700. That list is `BAR6` in
+bar 6 of `../tier3/criteria.md` lists, at 1440 x 900 and 900 x 700: axe, shared names, focus and
+typing are read at both sizes (each result past the first size is keyed "<name> at 900x700"), and
+each of those four checks must catch its planted failure at both sizes, or its readings there are
+not trusted and the gate refuses the run. That list is `BAR6` in
 `measure.mjs`; whatever of it the walks did not reach is a `MISS` line ("not walked (bar 6 lists
 it)"), as is every step that missed or was refused. It checks bar 8 (axe, shared names, focus kept
 after each action, a value typed with no click written after adding a text card, choosing "Starts

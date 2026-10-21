@@ -525,17 +525,24 @@ export const BAR6 = {
     typed: ["a new text card", "a text card after Starts with", "a new Color line", "a new Shape line"],
 };
 
-// What a bars run left out of bar 6, one MISS line each: a screen not measured at one of the sizes,
-// a focus action not checked, a typing check not made. seen: { screens: { <size>: [names] }, focus:
-// [names], typed: [names] }
+// What a bars run left out of bar 6, one MISS line each, at every size: a screen not measured (axe
+// and shared names), a focus action not checked, a typing check not made, and a check whose planted
+// failure was not caught there. seen: { screens, focus, typed, planted }, each { <size>: [names] }.
+// Until 2026-10-21 focus and typed were one list and every check but bar 10's ran at the first size
+// only, while the screens were still recorded as walked at 900 x 700 (tool dry run 2, round 1)
+export const BAR6_PLANTS = ["axe", "shared names", "focus", "typing"];
 export function bar6Gaps(seen, sizes) {
     const out = [];
-    for (const size of sizes)
+    for (const size of sizes) {
+        const has = (k, n) => Array.isArray(seen[k]?.[size]) && seen[k][size].includes(n);
         for (const s of BAR6.screens)
-            if (!seen.screens?.[size]?.includes(s)) out.push(`MISS ${s} at ${size}: not walked (bar 6 lists it)`);
-    for (const f of BAR6.focus)
-        if (!seen.focus?.includes(f)) out.push(`MISS focus after ${f}: not checked (bar 6 lists it)`);
-    for (const t of BAR6.typed)
-        if (!seen.typed?.includes(t)) out.push(`MISS typing into ${t}: not checked (bar 6 lists it)`);
+            if (!has("screens", s)) out.push(`MISS ${s} at ${size}: not walked (bar 6 lists it)`);
+        for (const f of BAR6.focus)
+            if (!has("focus", f)) out.push(`MISS focus after ${f} at ${size}: not checked (bar 6 lists it)`);
+        for (const t of BAR6.typed)
+            if (!has("typed", t)) out.push(`MISS typing into ${t} at ${size}: not checked (bar 6 lists it)`);
+        for (const c of BAR6_PLANTS)
+            if (!has("planted", c)) out.push(`MISS the ${c} check at ${size}: its planted failure was not caught`);
+    }
     return out;
 }

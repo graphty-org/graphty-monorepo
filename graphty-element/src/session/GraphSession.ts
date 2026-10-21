@@ -1621,20 +1621,34 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
         }
     }
 
-    for (const run of runs.list()) {
-        for (const field of run.fields) {
-            if (field.kind === target) {
-                // A field declared by its algorithm names the run as "$" until bound to this one.
-                paths.push(bindResultPath(field.path, run.id));
-            }
-        }
-    }
+    paths.push(...resultPaths(runs, target));
 
     // An edge's endpoints are answered from the snapshot, whichever keys its record arrived with.
     if (target === "edge") {
         for (const endpoint of ["data.source", "data.target"]) {
             if (!paths.includes(endpoint)) {
                 paths.push(endpoint);
+            }
+        }
+    }
+
+    return paths;
+}
+
+/**
+ * Every path the runs publish for one kind of element.
+ * @param runs - The runs.
+ * @param target - Whether the asking layer paints nodes or edges.
+ * @returns The paths, in run order.
+ */
+function resultPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
+    const paths: Path[] = [];
+
+    for (const run of runs.list()) {
+        for (const field of run.fields) {
+            if (field.kind === target) {
+                // A field declared by its algorithm names the run as "$" until bound to this one.
+                paths.push(bindResultPath(field.path, run.id));
             }
         }
     }
@@ -1661,7 +1675,13 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
             noteFieldOf(path) !== undefined ||
             (target === "node" && computedOf(path) !== undefined) ||
             answersFileStyle(fileStyles(), path, target) ||
-            answerablePaths(data, runs, target).includes(path),
+            // Every attribute's path, and an edge's endpoints, are `data.` paths. Anything else is a
+            // run's, so it is looked up without describing the attributes: that walks every
+            // record, and a run's own suggested layer is checked just after the run has moved the
+            // tick the description is cached on (3,214 nodes and 36,906 edges: over 200 ms at a 6x CPU throttle).
+            (path.startsWith("data.")
+                ? answerablePaths(data, runs, target).includes(path)
+                : resultPaths(runs, target).includes(path)),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }

@@ -435,9 +435,9 @@ export function measureArrow(
     };
     const pts = RUNS[end]();
     const tip = pts.at(-1) ?? [0, 0];
-    const back = capBack(pts, outline) ?? tip;
-    let dx = tip[0] - back[0];
-    let dy = tip[1] - back[1];
+    const [back, front] = capRun(pts, outline) ?? [tip, tip];
+    let dx = front[0] - back[0];
+    let dy = front[1] - back[1];
     const len = Math.hypot(dx, dy);
     const box = boxOfPoints(outline);
     if (len < 1e-9 || outline.length === 0) {
@@ -470,37 +470,61 @@ export function measureArrow(
 const END_RUN = 1;
 
 /**
- * An outline's points with each repeat of an earlier one left out: Graphviz closes a polygon by repeating its first
- * point, and the repeat would pull its middle toward that corner.
- * @param outline - the points
- * @returns the points, each once
+ * The centroid of a closed outline's area (shoelace), which a point repeated or a side sampled more finely than
+ * another does not move.
+ * @param outline - the outline's points, in drawing order
+ * @returns the centroid, or null for an outline of no area
  */
-const distinctPoints = (outline: readonly Pt[]): Pt[] =>
-    outline.filter((p, i) => outline.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+function areaCentroid(outline: readonly Pt[]): Pt | null {
+    let [a, x, y] = [0, 0, 0];
+    for (let i = 0; i < outline.length; i++) {
+        const [p, q] = [outline[i], outline[(i + 1) % outline.length]];
+        const cross = p[0] * q[1] - q[0] * p[1];
+        a += cross;
+        x += (p[0] + q[0]) * cross;
+        y += (p[1] + q[1]) * cross;
+    }
+    return Math.abs(a) < 1e-9 ? null : [x / (3 * a), y / (3 * a)];
+}
 
 /**
- * The point a line's end direction under a cap is read from. A cap drawn on beyond the line's end (its middle ahead
- * of it) points along the line's tangent there, as Graphviz sets an arrowhead on its spline's end: the last point at
- * least END_RUN behind the end. A cap the line runs into lies along the line's last stretch, and points along the
- * chord over it, as vis-network aims its arrowhead from a point an arrow's length back on the curve: the last point at
- * least the cap's size (its box's longer side) behind the end. An edge's curve is read as many short steps (128 by
- * arc length), so a chord from a share of its points back runs tens of degrees off on a spline that bends near its end
- * (`dot-profile` main->fclose: 25 degrees, which read Graphviz's triangle as half an arrow).
+ * The run of a line a cap on its end is read along, as the points it runs from and to. A cap drawn on beyond the
+ * line's end (three quarters of its length or more ahead of it; Graphviz may set its back a pen's width behind the
+ * end) points along the line's tangent there, as Graphviz sets an arrowhead on its spline's end: from the last point
+ * at least END_RUN behind the end to the end. A cap the line runs into, or under, lies along the line where the cap
+ * is, and points along the chord across it, as vis-network aims its arrowhead from a point a share of the curve back:
+ * from half the cap's size (its box's longer side) before the line's point nearest the cap's middle to as far after
+ * it, or the end. That chord also passes over a last step the line takes back under a dot centered on its end
+ * (graphty's dot on a curved vis-network edge, `vis-network-specimen-mappings-bypass` edge-default) and over a line
+ * vis-network runs on past its arrowhead to the node's middle (`json-vis-unix` 3 BSD -> 4 BSD). An edge's curve is read
+ * as many short steps (128 by arc length), so a chord from a share of its points back runs tens of degrees off on a
+ * spline that bends near its end (`dot-profile` main->fclose: 25 degrees, which read Graphviz's triangle as half an
+ * arrow).
  * @param pts - the line, its end last
  * @param outline - the cap's points
- * @returns the point, or undefined for no line
+ * @returns the run, or undefined for no line
  */
-function capBack(pts: readonly Pt[], outline: readonly Pt[]): Pt | undefined {
+function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefined {
     const end = pts.at(-1);
     const near = endBack(pts, END_RUN);
-    if (end === undefined || near === undefined || outline.length === 0) {
-        return near;
+    if (end === undefined || near === undefined) {
+        return undefined;
     }
-    const cap = distinctPoints(outline);
-    const [ux, uy] = [end[0] - near[0], end[1] - near[1]];
-    const ahead = cap.reduce((sum, [x, y]) => sum + (x - end[0]) * ux + (y - end[1]) * uy, 0) >= 0;
+    const len = Math.hypot(end[0] - near[0], end[1] - near[1]);
+    const along = outline.map(
+        ([x, y]) => ((x - end[0]) * (end[0] - near[0]) + (y - end[1]) * (end[1] - near[1])) / len,
+    );
+    if (outline.length === 0 || !(len > 0) || Math.max(...along) >= 0.75 * (Math.max(...along) - Math.min(...along))) {
+        return [near, end];
+    }
     const box = boxOfPoints(outline);
-    return ahead ? near : endBack(pts, Math.max(bw(box), bh(box), END_RUN));
+    const half = Math.max(bw(box), bh(box), END_RUN) / 2;
+    const mid = areaCentroid(outline) ?? [cx(box), cy(box)];
+    const gap = pts.map(([x, y]) => Math.hypot(x - mid[0], y - mid[1]));
+    const at = gap.indexOf(Math.min(...gap));
+    const before = endBack(pts.slice(0, at + 1), half) ?? pts[0];
+    const after = endBack([...pts.slice(at)].reverse(), half) ?? end;
+    return [before, after];
 }
 
 /**
@@ -528,8 +552,9 @@ const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
 /**
  * The axis of a pointed cap symmetric about the line from a point through its tip: the unit direction from the point
  * to the cap's farthest point from it, when every point away from that tip lies well behind it (a box's or a tee's two
- * front corners do not) and the cap's middle (the mean of its points) lies on that line, within CAP_AXIS_AGREE.
- * @param pts - the cap's points, each once
+ * front corners do not, nor an inverted triangle's or a crow's) and the cap's middle (the centroid of its area, which
+ * a repeated closing point does not move) lies on that line, within CAP_AXIS_AGREE.
+ * @param pts - the cap's points
  * @param end - the point
  * @returns the direction, or null for a cap that is not so
  */
@@ -546,12 +571,10 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
     const pointed = pts.every(
         (p, i) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) <= 0.25 * length || along[i] <= reach - 0.25 * length,
     );
-    const mid: Pt = [
-        pts.reduce((sum, p) => sum + p[0], 0) / pts.length - end[0],
-        pts.reduce((sum, p) => sum + p[1], 0) / pts.length - end[1],
-    ];
-    const off = Math.abs(Math.atan2(mid[1] * axis[0] - mid[0] * axis[1], mid[0] * axis[0] + mid[1] * axis[1]));
-    return pointed && off <= CAP_AXIS_AGREE ? axis : null;
+    const mid = areaCentroid(pts);
+    const off =
+        mid === null ? Math.PI : Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
+    return pointed && Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
 }
 
 /**
@@ -560,11 +583,11 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
  * from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4` (34 on a short arc
  * between large nodes, `gexf-graphology-rio` ncs337->ncs291), and Graphviz draws the arrowhead of an edge whose `pos`
  * names an end point (`e,x,y`, `s,x,y`) from the spline's end to that point, at any angle to the spline
- * (`dot-specimen-edges-lines-p11` pos-arrow-both-points: 65 degrees). The axis is from the line's end through the
- * cap's tip when the cap is pointed and symmetric about that axis (`pointedAxis`), it lies ahead of the line's end (a
- * back corner may poke behind it by under a third of its length), and the line three quarters of its length behind
- * its end lies behind it and outside it;
- * otherwise -- half an arrow, a box, a cap the line runs into -- the line's end direction.
+ * (`dot-specimen-edges-lines-p11` pos-arrow-both-points: 65 degrees). The axis is from the line's end through the cap's
+ * tip when the cap is pointed and symmetric about that axis (`pointedAxis`), it lies ahead of the line's end (a back
+ * corner may poke behind it by under a third of its length), and the line three quarters of its length behind its end
+ * lies behind it and outside it; otherwise -- half an arrow, a box, a tee, a cap the line runs into -- along the line
+ * where the cap is (`capRun`).
  * @param outline - the cap's drawn points
  * @param line - the line, its end last
  * @param dir - the line's unit end direction
@@ -572,19 +595,21 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
  */
 function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
     const end = line.at(-1);
-    const pts = distinctPoints(outline);
-    const axis = end === undefined ? null : pointedAxis(pts, end);
-    if (end === undefined || axis === null) {
+    if (end === undefined) {
         return dir;
     }
-    const along = pts.map(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1]);
+    const axis = pointedAxis(outline, end);
+    if (axis === null) {
+        return dir;
+    }
+    const along = outline.map(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1]);
     const length = Math.max(...along) - Math.min(...along);
     // three quarters of its length back: inside a cap the line runs into, outside one drawn on from where it stops,
     // even where the cap's back sits a little behind the line's end (Graphviz moves an arrowhead back by part of a
     // wide pen: 1.8 px on `dot-specimen-edges-lines-p11`)
     const behind = endBack(line, 0.75 * length) ?? end;
     const before = (behind[0] - end[0]) * axis[0] + (behind[1] - end[1]) * axis[1] < 0;
-    return Math.min(...along) >= -0.3 * length && before && !inPolygon(behind, pts) ? axis : dir;
+    return Math.min(...along) >= -0.3 * length && before && !inPolygon(behind, outline) ? axis : dir;
 }
 
 /**
@@ -658,16 +683,17 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
 export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "source" | "target"): Pt[] {
     const pts = end === "target" ? [...path] : [...path].reverse();
     const last = pts.at(-1);
-    const back = capBack(pts, outline);
-    if (last === undefined || back === undefined || outline.length === 0) {
+    const run = capRun(pts, outline);
+    if (last === undefined || run === undefined || outline.length === 0) {
         return [...path];
     }
-    const len = Math.hypot(last[0] - back[0], last[1] - back[1]);
+    const [back, front] = run;
+    const len = Math.hypot(front[0] - back[0], front[1] - back[1]);
     if (len < 1e-9) {
         return [...path];
     }
-    const dx = (last[0] - back[0]) / len;
-    const dy = (last[1] - back[1]) / len;
+    const dx = (front[0] - back[0]) / len;
+    const dy = (front[1] - back[1]) / len;
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved
@@ -942,8 +968,8 @@ function middleAxis(path: readonly Pt[]): [Pt, Pt] {
 }
 
 /**
- * The signed distances of a stroke's points from the line through one end's last run of a path (over the stroke's
- * size, `capBack`).
+ * The signed distances of a stroke's points from the line through one end of a path, along the run a cap there is read
+ * along (`capRun`).
  * @param stroke - the stroke's points
  * @param path - the line, source end first
  * @param end - which end
@@ -951,7 +977,10 @@ function middleAxis(path: readonly Pt[]): [Pt, Pt] {
  */
 function offAxis(stroke: readonly Pt[], path: readonly Pt[], end: "source" | "target"): number[] | null {
     const pts = end === "target" ? path : [...path].reverse();
-    const [a, b] = [capBack(pts, stroke) ?? pts[0], pts.at(-1) ?? pts[0]];
+    // the line through its end, along the run the stroke is read along
+    const b = pts.at(-1) ?? pts[0];
+    const [from, to] = capRun(pts, stroke) ?? [b, b];
+    const a: Pt = [b[0] - (to[0] - from[0]), b[1] - (to[1] - from[1])];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 1e-9) {
         return null;

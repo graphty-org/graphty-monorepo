@@ -761,7 +761,7 @@ function DataTableInner<TRow extends object>(
                 (column.getCanSort() ? 4 + PANEL_GRID.CHEVRON : 0) +
                 (config.menu === undefined || config.menu === null ? 0 : 32 - (compact ? 4 : 16)) +
                 (config.icon === undefined || config.icon === null ? 0 : 20);
-            let widest = textWidth(config.header, fonts.header) + headerPad;
+            let widest = Math.max(textWidth(config.header, fonts.header) + headerPad, config.minWidth ?? 0);
             for (const row of rows) {
                 widest = Math.max(
                     widest,

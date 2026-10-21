@@ -68,6 +68,11 @@ export interface DataTableColumn<TRow extends object> {
     cell?: (row: TRow) => React.ReactNode;
     /** How wide the column is drawn, in pixels. Defaults to the width of one field in a property panel. */
     width?: number;
+    /**
+     * With `columnSizing: "content"`, the narrowest the column is drawn, in pixels: room for what a
+     * header carries beyond its name (icons, a badge). Ignored when `width` is set.
+     */
+    minWidth?: number;
     /** How the column's contents line up. Defaults to `"start"`; use `"end"` for numbers. */
     align?: DataTableAlign;
     /** Whether the column's header sorts the table. Defaults to `true`. */

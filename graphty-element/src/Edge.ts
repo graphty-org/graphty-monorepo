@@ -27,7 +27,6 @@ import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
-    bendPoints,
     bezierThroughControls,
     centerArc,
     crossingOf,

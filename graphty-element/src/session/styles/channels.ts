@@ -56,8 +56,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderEffects, ShaderKind, ShaderParams, ShaderParamSets } from "../../catalog/shaders";
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
+import type { ShaderEffects, ShaderKind, ShaderParams, ShaderParamSets } from "../../catalog/shaders";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {

@@ -7,7 +7,7 @@ import {
     type Observer,
     type Scene,
     type TransformNode,
-    type Vector3,
+    Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
@@ -1318,6 +1318,7 @@ export class UpdateManager implements Manager {
             // Always update edges to handle manual node dragging
             // Edges have built-in dirty tracking, so they won't do unnecessary work
             this.updateEdges();
+            this.frameTransition();
 
             // Handle zoom to fit if requested; a running transition frames where it lands, once
             // it has landed, rather than the moving picture.
@@ -1347,6 +1348,7 @@ export class UpdateManager implements Manager {
         // Update nodes and edges
         this.updateNodes();
         this.updateEdges();
+        this.frameTransition();
 
         // Handle zoom to fit if needed
         if (framing && transitionsOf(this.layoutManager)?.active !== true) {
@@ -1517,6 +1519,30 @@ export class UpdateManager implements Manager {
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
+
+    /** Set while a layout transition runs with a framing owed: the camera follows the move. */
+    private framingTransition = false;
+
+    /**
+     * While a layout transition moves the nodes and the camera owes a framing, frame the move
+     * every frame: the old layout's box eased into the new one's, grown to take in every node on
+     * its way. The request itself is left for the frame after the move, which then frames the
+     * same box it ended on, so the camera never jumps when the move ends.
+     */
+    private frameTransition(): void {
+        const transitions = transitionsOf(this.layoutManager);
+        if (transitions?.active !== true) {
+            this.framingTransition = false;
+            return;
+        }
+
+        this.framingTransition ||= this.willZoomToFit();
+        const box = this.framingTransition ? this.measure() : undefined;
+        if (box !== undefined) {
+            const { min, max } = transitions.framing(box);
+            this.camera.zoomToBoundingBox(new Vector3(min.x, min.y, min.z), new Vector3(max.x, max.y, max.z));
+        }
     }
 
     /**

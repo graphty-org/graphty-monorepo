@@ -1255,7 +1255,7 @@ accepting `source` and `target` (gradient edges:
 | `swirl`           | Swirl              | `turns`: number, 0.5, -2..2                                                                               |
 | `fade-through`    | Fade through       | none                                                                                                      |
 | `collapse-bloom`  | Collapse and bloom | `hold`: number, 0.1, 0..0.5 (of the duration)                                                             |
-| `particle-morph`  | Particle morph     | `particles`: integer, 8, 1..32 per node (capped at 60,000 in all and by quality); `curl`: number, 1, 0..3 |
+| `particle-morph`  | Particle morph     | `particles`: integer, 24, 1..32 per node (capped at 60,000 in all and by quality); `curl`: number, 1, 0..3 |
 
 Every transition's duration is `layoutTransition.seconds` (default 0.8).
 

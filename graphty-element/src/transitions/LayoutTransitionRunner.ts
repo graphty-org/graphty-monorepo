@@ -20,6 +20,7 @@ import type { Edge } from "../Edge";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { RenderQuality } from "../session/shaders";
 import { ParticleDrawable } from "./ParticleDrawable";
+import { easeInOut } from "./presets/glide";
 import { type RegisteredTransition, transitionById, type TransitionNode } from "./registry";
 
 /** A transition's duration when `seconds` is not set. */
@@ -31,7 +32,12 @@ const STILL = 1e-6;
 /** What the runner moves: the part of a node it reads and writes. */
 export interface TransitionSubject {
     readonly index: number;
-    readonly mesh: { readonly position: Vec3; computeWorldMatrix(force?: boolean): unknown };
+    readonly mesh: {
+        readonly position: Vec3;
+        /** The mesh's scale: a particle transition shrinks the node while its cloud is in flight. */
+        readonly scaling?: { readonly x: number; setAll(value: number): unknown };
+        computeWorldMatrix(force?: boolean): unknown;
+    };
     readonly drawnRadius: number;
     readonly paintedColor: { r: number; g: number; b: number; a: number } | null;
     setMeshPosition(x: number, y: number, z: number): void;
@@ -65,6 +71,16 @@ interface Mover {
     /** Where it was drawn on the last frame. */
     readonly drawn: { x: number; y: number; z: number };
     readonly info: TransitionNode;
+    /** The mesh's scale before the move, which a shrunken node is put back to. */
+    readonly scale: number;
+    /** How far along its own way the node was drawn on the last frame, 0..1. */
+    travel: number;
+}
+
+/** A box, corner to corner. */
+export interface TransitionBox {
+    readonly min: Vec3;
+    readonly max: Vec3;
 }
 
 /** A transition taken: what moves, and how. */
@@ -198,6 +214,36 @@ function extentOf(movers: Iterable<Mover>): number {
     return points.reduce((far, at) => Math.max(far, Math.hypot(at.x - mid.x, at.y - mid.y, at.z - mid.z)), 0);
 }
 
+/**
+ * How far along its own way a node is drawn: the share of the distance from where it left to
+ * where it lands. A node that does not move follows the transition's clock.
+ * @param mover - The move, with this frame's drawn place.
+ * @param t - The transition's progress, 0..1.
+ * @returns 0 where it left, 1 where it lands.
+ */
+function travelOf(mover: Mover, t: number): number {
+    const { from, to, drawn } = mover;
+    const way = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+    if (way < STILL) {
+        return t;
+    }
+
+    return Math.min(1, Math.hypot(drawn.x - from.x, drawn.y - from.y, drawn.z - from.z) / way);
+}
+
+/**
+ * The scale a node is drawn at this frame under a particle transition. The node gives way to its
+ * cloud: gone at the height of the burst, whole where it left and where it lands.
+ *
+ * ponytail: `layoutBehavior.node.depthIndependentSize` rescales every node after the move and so
+ * keeps them whole; a scale both multiply into, if that pairing is ever wanted.
+ * @param mover - The move.
+ * @returns The scale.
+ */
+function drawnScale(mover: Mover): number {
+    return mover.scale * (1 - Math.sin(Math.PI * mover.travel)) ** 3;
+}
+
 /** The graph's layout transition: idle until a layout changes with `layoutTransition` set. */
 export class LayoutTransitionRunner {
     private state: (TransitionSnapshot & { start: number | null }) | null = null;
@@ -286,6 +332,8 @@ export class LayoutTransitionRunner {
                     hopFromSelection: hops?.get(node),
                     distanceFromCenter: distances[i] / farthest,
                 }),
+                scale: node.mesh.scaling?.x ?? 1,
+                travel: 0,
             });
         });
 
@@ -351,7 +399,51 @@ export class LayoutTransitionRunner {
         mover.drawn.x = drawn.x;
         mover.drawn.y = drawn.y;
         mover.drawn.z = drawn.z;
+        mover.travel = t >= 1 ? 1 : travelOf(mover, t);
+        if (state.transition.descriptor.drawable === "particles") {
+            node.mesh.scaling?.setAll(drawnScale(mover));
+        }
+
         return drawn;
+    }
+
+    /**
+     * The box a framing camera frames this frame while the nodes move: the box measured on the
+     * picture, grown to take in where the nodes are on their way, eased from where they left to
+     * where they land. It starts as the old layout's box and ends as the new one's, so the camera
+     * neither loses a node mid-move nor jumps when the move ends.
+     * @param measured - The box measured on the drawn picture, nodes and labels.
+     * @returns The box to frame; `measured` itself when nothing moves.
+     */
+    framing(measured: TransitionBox): TransitionBox {
+        const { state } = this;
+        if (state?.start === null || state === null) {
+            return measured;
+        }
+
+        const e = easeInOut(Math.min(1, Math.max(0, (this.now - state.start) / state.durationMs)));
+        // Copied coordinate by coordinate: a Babylon vector keeps them behind getters.
+        const min = { x: measured.min.x, y: measured.min.y, z: measured.min.z };
+        const max = { x: measured.max.x, y: measured.max.y, z: measured.max.z };
+        for (const axis of ["x", "y", "z"] as const) {
+            // The centers' box where it left, where it lands and where it is drawn.
+            const box = { from: [Infinity, -Infinity], to: [Infinity, -Infinity], drawn: [Infinity, -Infinity] };
+            for (const mover of state.movers.values()) {
+                for (const key of ["from", "to", "drawn"] as const) {
+                    box[key][0] = Math.min(box[key][0], mover[key][axis]);
+                    box[key][1] = Math.max(box[key][1], mover[key][axis]);
+                }
+            }
+
+            // The measured box already reaches past the drawn centers by the nodes and labels; it
+            // grows by however far the eased box is past them.
+            const low = box.from[0] + (box.to[0] - box.from[0]) * e;
+            const high = box.from[1] + (box.to[1] - box.from[1]) * e;
+            min[axis] += Math.min(0, low - box.drawn[0]);
+            max[axis] += Math.max(0, high - box.drawn[1]);
+        }
+
+        return { min, max };
     }
 
     /** After every node of the frame is placed: the move ends once its last frame is drawn. */
@@ -378,7 +470,7 @@ export class LayoutTransitionRunner {
 
         // Built after the first frame of the move has placed every node, so it knows where they go.
         this.drawable ??= this.startDrawable(state);
-        this.drawable?.update(Math.max(0, t), this.now / 1000, state.movers.entries());
+        this.drawable?.update(this.now / 1000, state.movers.entries());
     }
 
     /**
@@ -397,10 +489,16 @@ export class LayoutTransitionRunner {
         }
 
         const moved: [TransitionSubject, Mover][] = [];
+        const shrinks = state.transition.descriptor.drawable === "particles";
         for (const [node, mover] of state.movers) {
             const { drawn, to } = mover;
             if (drawn.x !== to.x || drawn.y !== to.y || drawn.z !== to.z) {
                 node.setMeshPosition(to.x, to.y, to.z);
+                if (shrinks) {
+                    // Picked at its whole size, not shrunk into its cloud.
+                    node.mesh.scaling?.setAll(mover.scale);
+                }
+
                 // Forced: between two frames Babylon keeps the world matrix of the last frame
                 // drawn, so a pick would still see the node where it is drawn.
                 node.mesh.computeWorldMatrix(true);
@@ -411,8 +509,13 @@ export class LayoutTransitionRunner {
         try {
             return pick();
         } finally {
-            for (const [node, { drawn }] of moved) {
+            for (const [node, mover] of moved) {
+                const { drawn } = mover;
                 node.setMeshPosition(drawn.x, drawn.y, drawn.z);
+                if (shrinks) {
+                    node.mesh.scaling?.setAll(drawnScale(mover));
+                }
+
                 node.mesh.computeWorldMatrix(true);
             }
         }
@@ -420,6 +523,12 @@ export class LayoutTransitionRunner {
 
     /** Stop moving: nodes are drawn where their layout puts them from the next frame. */
     end(): void {
+        if (this.state?.transition.descriptor.drawable === "particles") {
+            for (const [node, mover] of this.state.movers) {
+                node.mesh.scaling?.setAll(mover.scale);
+            }
+        }
+
         this.state = null;
         this.drawable?.dispose();
         this.drawable = null;

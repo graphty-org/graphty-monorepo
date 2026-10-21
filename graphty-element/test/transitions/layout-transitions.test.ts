@@ -128,9 +128,20 @@ describe("the layoutTransition setting", () => {
     });
 });
 
+/** A point. */
+interface Vec {
+    x: number;
+    y: number;
+    z: number;
+}
+
 /** A node the runner can move, recording where it was drawn. */
 class FakeNode implements TransitionSubject {
-    readonly mesh: { position: { x: number; y: number; z: number }; computeWorldMatrix: () => void };
+    readonly mesh: {
+        position: { x: number; y: number; z: number };
+        scaling: { x: number; setAll: (value: number) => void };
+        computeWorldMatrix: () => void;
+    };
     readonly drawnRadius = 1;
     readonly paintedColor = null;
     writes = 0;
@@ -146,7 +157,13 @@ class FakeNode implements TransitionSubject {
         x: number,
         y: number,
     ) {
-        this.mesh = { position: { x, y, z: 0 }, computeWorldMatrix: () => undefined };
+        const scaling = {
+            x: 1,
+            setAll: (value: number): void => {
+                scaling.x = value;
+            },
+        };
+        this.mesh = { position: { x, y, z: 0 }, scaling, computeWorldMatrix: () => undefined };
     }
 
     setMeshPosition(x: number, y: number, z: number): void {
@@ -178,6 +195,7 @@ describe("LayoutTransitionRunner", () => {
             [c, 20],
         ] as const) {
             node.mesh.position = { x, y: 0, z: 0 };
+            node.mesh.scaling.x = 1;
         }
 
         registerTransition(LINEAR);
@@ -304,6 +322,83 @@ describe("LayoutTransitionRunner", () => {
         assert.notStrictEqual(info[0].seed, info[1].seed);
     });
 
+    it("shrinks a node into its particle cloud on its way, whole for a pick and once it lands", () => {
+        registerTransition({ ...LINEAR, descriptor: { id: "test/cloud", plainName: "Cloud" }, drawable: "particles" });
+        config = { transition: "test/cloud", seconds: 1 };
+        const subject = runner();
+        // No scene to draw a cloud in; the shrink is the runner's, the cloud the drawable's.
+        vi.spyOn(subject as unknown as { startDrawable: () => null }, "startDrawable").mockReturnValue(null);
+        subject.begin(subject.snapshot());
+        frame(subject, [[a, 10]]);
+        assert.closeTo(a.mesh.scaling.x, 1, 1e-9, "whole where it leaves");
+        now += 500;
+        frame(subject, [[a, 10]]);
+        assert.isBelow(a.mesh.scaling.x, 0.01, "gone half way, at the height of the burst");
+        assert.strictEqual(
+            subject.atLayout(() => a.mesh.scaling.x),
+            1,
+            "picked at its whole size",
+        );
+        assert.isBelow(a.mesh.scaling.x, 0.01, "and shrunk again after the pick");
+        now += 500;
+        frame(subject, [[a, 10]]);
+        assert.isFalse(subject.active);
+        assert.strictEqual(a.mesh.scaling.x, 1, "whole once it lands");
+    });
+
+    it("leaves a node's scale alone under a transition with no cloud", () => {
+        const subject = runner();
+        subject.begin(subject.snapshot());
+        frame(subject, [[a, 10]]);
+        now += 500;
+        frame(subject, [[a, 10]]);
+        assert.strictEqual(a.mesh.scaling.x, 1);
+    });
+
+    it("frames the old layout's box eased into the new one's, never less than the picture", () => {
+        const subject = runner();
+        subject.begin(subject.snapshot());
+        // a, b, c leave a row along x (0..20) for a column along y (0..40), a lagging behind.
+        const targets = (): [FakeNode, number][] => [
+            [a, 0],
+            [b, 20],
+            [c, 40],
+        ];
+        frame(subject, targets());
+        const measured = (): { min: Vec; max: Vec } => {
+            const nodes = [a, b, c].map((node) => node.mesh.position);
+            const low = (axis: "x" | "y" | "z"): number => Math.min(...nodes.map((at) => at[axis]));
+            const high = (axis: "x" | "y" | "z"): number => Math.max(...nodes.map((at) => at[axis]));
+            return {
+                min: { x: low("x") - 1, y: low("y") - 1, z: low("z") - 1 },
+                max: { x: high("x") + 1, y: high("y") + 1, z: high("z") + 1 },
+            };
+        };
+        assert.deepEqual(subject.framing(measured()), measured(), "the old layout's box as it leaves");
+
+        // Half way, with c held back where it left: the eased box reaches y = 20 + 1, past every
+        // node drawn, and still covers c at y = 0.
+        now += 500;
+        subject.beginPass();
+        for (const [node, y] of targets()) {
+            const at = node === c ? { x: 20, y: 0, z: 0 } : subject.place(node, { x: node.mesh.position.x, y, z: 0 });
+            node.setMeshPosition(at.x, at.y, at.z ?? 0);
+        }
+
+        const half = subject.framing(measured());
+        assert.closeTo(half.max.y, 21, 1e-9, "the eased box, grown by the measured margin");
+        assert.isAtMost(half.min.y, measured().min.y);
+        assert.isAtLeast(half.max.x, measured().max.x);
+        subject.endPass();
+
+        // Landed: the new layout's box, which the camera's own framing then frames too.
+        now += 499.999;
+        frame(subject, targets());
+        const end = subject.framing(measured());
+        assert.closeTo(end.max.y, measured().max.y, 1e-3);
+        assert.closeTo(end.min.y, measured().min.y, 1e-3);
+    });
+
     it("keeps drawing where the layout puts a node when move throws or returns NaN", () => {
         registerTransition({
             descriptor: { id: "test/broken", plainName: "Broken" },
@@ -318,7 +413,7 @@ describe("LayoutTransitionRunner", () => {
 
 describe("particlesPerNode", () => {
     it("caps the cloud by quality, and draws none past one per node", () => {
-        assert.strictEqual(particlesPerNode(100, undefined, "high"), 8);
+        assert.strictEqual(particlesPerNode(100, undefined, "high"), 24, "the lab's dense burst");
         assert.strictEqual(particlesPerNode(100, 64, "high"), 32);
         assert.strictEqual(particlesPerNode(5000, 32, "high"), 12);
         assert.strictEqual(particlesPerNode(5000, 32, "low"), 3);

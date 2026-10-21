@@ -3,9 +3,10 @@
  * node bursts into a cloud of particles that streams through curl noise around where the node is
  * drawn and gathers again as it lands (ported from the shader lab's particle morph).
  *
- * One mesh draws every particle: a quad, instanced, with the particle's random numbers and color
- * uploaded once and the node centers once per frame. The CPU writes only the centers; the burst,
- * the stream and the fade are in the vertex shader, driven by the transition's progress.
+ * One mesh draws every particle: a quad, instanced, with the particle's random numbers, color and
+ * node radius uploaded once, and each node's center and how far along its way it is once per
+ * frame. The burst, the stream and the fade are in the vertex shader, driven by that travel, so a
+ * cloud is widest as its node (which the runner shrinks meanwhile) is smallest.
  *
  * Bounded for small GPUs: at most 60,000 particles at high quality, 30,000 at medium and 15,000 at
  * low, fewer per node on a large graph, none when even one per node would pass the cap. The mesh,
@@ -24,8 +25,8 @@ export const PARTICLE_CAPS: Readonly<Record<RenderQuality["level"], number>> = O
     high: 60_000,
 });
 
-/** Particles per node when the transition does not say. */
-const DEFAULT_PER_NODE = 8;
+/** Particles per node when the transition does not say: the lab's dense burst. */
+const DEFAULT_PER_NODE = 24;
 /** The most particles per node. */
 const MAX_PER_NODE = 32;
 
@@ -40,7 +41,6 @@ attribute vec4 pColor;
 uniform mat4 world;
 uniform mat4 view;
 uniform mat4 projection;
-uniform float progress;
 uniform float time;
 uniform float curl;
 uniform float flatView;
@@ -85,12 +85,11 @@ vec3 curlNoise(vec3 p) {
 }
 
 void main() {
-    // Each particle leaves and lands a little apart from its neighbors, so the cloud sweeps.
-    float delay = (pInfo.x * 0.6 + pInfo.y * 0.4) * 0.3;
-    float u = clamp((progress - delay) / 0.7, 0.0, 1.0);
+    // The node's own travel, 0..1; each particle a little apart from its neighbors.
+    float u = clamp(pCenter.w + (pInfo.y - 0.5) * 0.12, 0.0, 1.0);
     float spread = sin(3.14159265 * u);
     vec3 base = pCenter.xyz;
-    float r = max(pCenter.w, 0.01);
+    float r = max(pColor.w, 0.01);
     vec3 off = (hash33(pInfo.yzw * 97.0) - 0.5) * 2.0;
     // The stream is sized by the graph, not the node: across a layout 100 units wide a node of
     // radius 1 would otherwise stream a cloud too small to see.
@@ -100,12 +99,12 @@ void main() {
         off.z = 0.0;
         flow.z = 0.0;
     }
-    vec3 p = base + off * (r * (0.6 + spread * 3.0) + span * 0.03 * spread) + flow * curl * span * 0.25 * spread;
+    vec3 p = base + off * (r * (0.6 + spread * 4.0) + span * 0.03 * spread) + flow * curl * span * 0.25 * spread;
     vec4 at = view * world * vec4(p, 1.0);
-    float size = max(r * 0.45, span * 0.012) * (0.35 + 0.65 * pInfo.w);
+    float size = max(r * 0.7, span * 0.015) * (0.35 + 0.65 * pInfo.w);
     gl_Position = projection * (at + vec4(position.xy * size, 0.0, 0.0));
     vQuad = position.xy;
-    vColor = pColor;
+    vColor = vec4(pColor.rgb, 1.0);
     vAlpha = smoothstep(0.0, 0.25, spread);
 }
 `;
@@ -121,8 +120,9 @@ void main() {
     if (r2 > 1.0 || vAlpha <= 0.0) {
         discard;
     }
-    float a = exp(-r2 * 4.0) * vAlpha;
-    vec3 c = mix(vColor.rgb, vec3(1.0), exp(-r2 * 16.0) * 0.35);
+    // A bright core in a soft halo; drawn over the scene, so it shows on a light background too.
+    float a = min(1.0, exp(-r2 * 3.0) * vAlpha * 1.2);
+    vec3 c = mix(min(vColor.rgb * 1.2, vec3(1.0)), vec3(1.0), exp(-r2 * 16.0) * 0.6);
     gl_FragColor = vec4(c * a, a);
 }
 `;
@@ -136,6 +136,8 @@ export interface ParticleNode {
 /** What the drawing needs from a node's move. */
 export interface ParticleMover {
     readonly drawn: Vec3;
+    /** How far along its own way the node is drawn, 0 where it left to 1 where it lands. */
+    readonly travel: number;
 }
 
 /**
@@ -203,6 +205,8 @@ export class ParticleDrawable {
             const next = random(i + 1);
             const seed = next();
             const color = node.paintedColor ?? { r: 255, g: 255, b: 255, a: 1 };
+            // Taken once: the runner shrinks the node while its cloud is out.
+            const radius = Math.max(node.drawnRadius, 0.05);
             for (let k = 0; k < this.per; k++) {
                 const at = (i * this.per + k) * 8;
                 const tint = 0.85 + next() * 0.4;
@@ -212,7 +216,7 @@ export class ParticleDrawable {
                         Math.min(1, (color.r / 255) * tint),
                         Math.min(1, (color.g / 255) * tint),
                         Math.min(1, (color.b / 255) * tint),
-                        1,
+                        radius,
                     ],
                     at + 4,
                 );
@@ -240,7 +244,7 @@ export class ParticleDrawable {
             { vertex: NAME, fragment: NAME },
             {
                 attributes: ["position", "pCenter", "pInfo", "pColor"],
-                uniforms: ["world", "view", "projection", "progress", "time", "curl", "flatView", "extent"],
+                uniforms: ["world", "view", "projection", "time", "curl", "flatView", "extent"],
                 needAlphaBlending: true,
             },
         );
@@ -250,7 +254,6 @@ export class ParticleDrawable {
         material.setFloat("curl", Math.min(3, Math.max(0, options.curl ?? 1)));
         material.setFloat("flatView", scene.activeCamera?.mode === 1 ? 1 : 0);
         material.setFloat("extent", options.extent);
-        material.setFloat("progress", 0);
         material.setFloat("time", 0);
         mesh.material = material;
 
@@ -266,7 +269,7 @@ export class ParticleDrawable {
         this.material = material;
         this.centerBuffer = centerBuffer;
         this.staticBuffer = staticBuffer;
-        this.update(0, 0, movers);
+        this.update(0, movers);
     }
 
     /**
@@ -279,31 +282,28 @@ export class ParticleDrawable {
 
     /**
      * Follow the nodes for one frame.
-     * @param progress - The transition's progress, 0..1.
      * @param time - Seconds, for the stream's drift.
      * @param movers - Every moving node and its move, in the order the cloud was built with.
      */
-    update(progress: number, time: number, movers: Iterable<readonly [ParticleNode, ParticleMover]>): void {
+    update(time: number, movers: Iterable<readonly [ParticleNode, ParticleMover]>): void {
         if (this.centerBuffer === null || this.material === null) {
             return;
         }
 
         let i = 0;
-        for (const [node, { drawn }] of movers) {
-            const radius = Math.max(node.drawnRadius, 0.05);
+        for (const [, { drawn, travel }] of movers) {
             for (let k = 0; k < this.per; k++) {
                 const at = (i * this.per + k) * 4;
                 this.centers[at] = drawn.x;
                 this.centers[at + 1] = drawn.y;
                 this.centers[at + 2] = drawn.z;
-                this.centers[at + 3] = radius;
+                this.centers[at + 3] = travel;
             }
 
             i++;
         }
 
         this.centerBuffer.update(this.centers);
-        this.material.setFloat("progress", progress);
         this.material.setFloat("time", time);
     }
 

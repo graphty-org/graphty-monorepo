@@ -41,7 +41,7 @@ const TABLE: Readonly<Record<string, readonly [string, unknown, unknown][]>> = {
     "fade-through": [],
     "collapse-bloom": [["hold", 0.1, [0, 0.5]]],
     "particle-morph": [
-        ["particles", 8, [1, 32]],
+        ["particles", 24, [1, 32]],
         ["curl", 1, [0, 3]],
     ],
 };

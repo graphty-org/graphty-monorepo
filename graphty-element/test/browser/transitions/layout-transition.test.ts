@@ -256,6 +256,42 @@ describe("layout transitions", () => {
         await until(element, "the cloud is drawn while the nodes move", cloud);
         const mesh = scene.meshes.find((each) => each.name === "graphtyTransitionParticles");
         assert.strictEqual((mesh as { forcedInstanceCount?: number }).forcedInstanceCount, 8, "4 per node");
+        const a = nodeOf(element, "a");
+        await until(element, "node a gives way to its cloud on its way", () => a.mesh.scaling.x < 0.5);
         await until(element, "the cloud is gone once they land", () => !cloud());
+        assert.strictEqual(a.mesh.scaling.x, 1, "node a is whole once it lands");
+    });
+
+    it("keeps every node on the canvas while they move, and does not jump the camera when they land", async () => {
+        const element = await mounted();
+        const scene = element.graph.getScene();
+        await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 0.6 } });
+        // The row is ten times as wide as the graph was: framed only once it lands, the nodes
+        // leave the canvas on their way, and the camera then jumps out to the new layout.
+        await element.graph.setLayout("e7-row", { gap: 80 });
+        const runner = transitionsOf(element.graph.getLayoutManager());
+        const zoom = (): number => scene.activeCamera?.orthoTop ?? Number.NaN;
+        let last = zoom();
+        let moved = 0;
+        for (let i = 0; i < 600 && runner?.active !== false; i++) {
+            await drawnFrames(scene, 1);
+            if (runner?.active !== true) {
+                break;
+            }
+
+            last = zoom();
+            moved++;
+            for (const id of ["a", "b"]) {
+                const at = element.worldToScreen(nodeOf(element, id).mesh.position);
+                assert.isTrue(
+                    at.x >= 0 && at.x <= WIDTH && at.y >= 0 && at.y <= HEIGHT,
+                    `node ${id} is on the canvas on frame ${String(moved)} of the move`,
+                );
+            }
+        }
+
+        assert.isAbove(moved, 1, "the move was drawn over several frames");
+        await drawnFrames(scene, 2);
+        assert.closeTo(zoom() / last, 1, 0.1, "the camera frames the landed layout as the move ended on it");
     });
 });

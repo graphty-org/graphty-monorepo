@@ -21,7 +21,7 @@ export const PARTICLE_MORPH: TransitionRegistration = {
         id: "particle-morph",
         plainName: "Particle morph",
         params: [
-            { name: "particles", plainName: "Particles", type: "integer", default: 8, min: 1, max: 32 },
+            { name: "particles", plainName: "Particles", type: "integer", default: 24, min: 1, max: 32 },
             { name: "curl", plainName: "Curl", type: "number", default: 1, min: 0, max: 3 },
         ],
     },

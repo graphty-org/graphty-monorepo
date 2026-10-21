@@ -2,7 +2,6 @@
 {
     "id": "lab/fiber-optic",
     "name": "Fiber",
-    "kind": "edge-surface",
     "params": [
         {
             "name": "glass",

@@ -74,7 +74,6 @@ describe.each(QUALITIES)("the lit-surface presets' cost at %s quality", (quality
         if (shaderDescriptor("bench/flat") === undefined) {
             defineShader({
                 id: "bench/flat",
-                kind: "node-surface",
                 glsl: "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 1.0); }",
             });
         }

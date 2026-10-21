@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DISCO_BALL: ShaderDescriptor = Object.freeze({
     id: "disco-ball",
     plainName: "Disco ball",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Sparkle"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "facets", plainName: "Tiles", type: "integer", default: 22, min: 6, max: 64, primary: true },
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1, min: 0, max: 3, varies: true },

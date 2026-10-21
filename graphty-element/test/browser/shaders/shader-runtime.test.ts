@@ -31,7 +31,7 @@ const TINT = `/* graphty-shader 1
 {
     "id": "user/tint",
     "name": "Tint",
-    "kind": "node-surface",
+    "role": "look",
     "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }]
 }
 */

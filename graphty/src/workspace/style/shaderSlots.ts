@@ -9,7 +9,6 @@
 import type {
     ShaderDescriptor,
     ShaderEffects,
-    ShaderKind,
     ShaderParams as Params,
     ShaderParamSets,
 } from "@graphty/graphty-element/catalog";
@@ -18,7 +17,14 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
-import { effectOffWords, MATERIAL_WORDS, SHADER_ROW_WORDS, SHADER_STEP_WORDS } from "./words";
+import {
+    effectOffWords,
+    MATERIAL_WORDS,
+    SHADER_ROW_WORDS,
+    SHADER_STEP_WORDS,
+    type ShaderSlotKind,
+    shaderSlotKindOf,
+} from "./words";
 
 /** What one value on a layer writes; undefined takes the channel off the layer. */
 type Writes = Partial<Record<Channel, ChannelValue | undefined>>;
@@ -34,7 +40,7 @@ export interface ShaderSlot {
     /** The map the parameters land in: `<target>.shaderParams`, or the effects map itself. */
     readonly params: Channel;
     /** The kinds of shader the section takes. */
-    readonly kinds: readonly ShaderKind[];
+    readonly kinds: readonly ShaderSlotKind[];
     /** The label column's word: Material, Sprite, Surface, Effect. */
     readonly word: string;
 }
@@ -46,7 +52,7 @@ export interface ShaderSlot {
  * @param kinds - the kinds the section takes.
  * @returns the slot, or undefined for a section with no shaders.
  */
-export function slotOf(target: "node" | "edge", kinds: readonly ShaderKind[] | undefined): ShaderSlot | undefined {
+export function slotOf(target: "node" | "edge", kinds: readonly ShaderSlotKind[] | undefined): ShaderSlot | undefined {
     const [kind] = kinds ?? [];
     if (kind === undefined) {
         return undefined;
@@ -129,7 +135,7 @@ export function shaderEntries(ctx: RowContext, slot: ShaderSlot): ShaderEntry[] 
     }
     const value = lineIn(ctx, slot.channel)?.value;
     const descriptor = typeof value === "string" ? shaderOf(ctx, value) : undefined;
-    if (descriptor !== undefined && slot.kinds.includes(descriptor.kind)) {
+    if (descriptor !== undefined && slot.kinds.includes(shaderSlotKindOf(descriptor))) {
         return [{ key: `${slot.channel}:${descriptor.id}`, id: descriptor.id, descriptor }];
     }
     if (slot.role !== "material") {
@@ -432,7 +438,8 @@ export function paramsOf(ctx: RowContext, slot: ShaderSlot, id: string): Params 
         }
         return Object.fromEntries(Object.entries(value).filter(([key]) => key !== "visible"));
     }
-    return paramSetsOf(ctx, slot.params)[id] ?? {};
+    const set = paramSetsOf(ctx, slot.params)[id];
+    return typeof set === "object" ? set : {};
 }
 
 /**
@@ -469,7 +476,8 @@ export async function writeParam(
         return;
     }
     const sets = paramSetsOf(ctx, slot.params);
-    const next = apply(sets[id] ?? {});
+    const held = sets[id];
+    const next = apply(typeof held === "object" ? held : {});
     const rest = withoutSet(sets, id) ?? {};
     await writeRow(
         ctx,
@@ -535,7 +543,7 @@ export function bindingsOf(ctx: RowContext, slot: ShaderSlot, id: string): Recor
 }
 
 /** An effect a row was copied with, for Paste on another layer's Effects. */
-let copied: { readonly kinds: readonly ShaderKind[]; readonly id: string; readonly params: Params } | null = null;
+let copied: { readonly kinds: readonly ShaderSlotKind[]; readonly id: string; readonly params: Params } | null = null;
 
 /**
  * What a slot adds to its section's "+": the gallery (opened by the section) for effects and the
@@ -649,7 +657,8 @@ export function pickerChoices(ctx: RowContext, slot: ShaderSlot): PickerChoice[]
     return ctx.session.catalog
         .shaders()
         .filter(
-            (descriptor) => slot.kinds.includes(descriptor.kind) && ctx.session.shaders.availability(descriptor.id).ok,
+            (descriptor) =>
+                slot.kinds.includes(shaderSlotKindOf(descriptor)) && ctx.session.shaders.availability(descriptor.id).ok,
         )
         .map((descriptor) => ({
             value: `${SHADER_CHOICE}${descriptor.id}`,

@@ -27,7 +27,6 @@ import { eventWaitingDecorator, waitForGraphSettled } from "../helpers";
 /** A glass fiber: a bright core over the line's color, darker toward its sides, faint bands along it. */
 const FIBER: ShaderDefinition = {
     id: "demo/fiber",
-    kind: "edge-surface",
     params: { bands: { type: "number", default: 9, min: 0, max: 40 } },
     glsl: `vec4 shade(EdgeInput e) {
         float across = abs(e.side);
@@ -41,7 +40,7 @@ const FIBER: ShaderDefinition = {
 /** A soft glow three times the line's width, brightest at the line, with a glint near the target. */
 const GLOW: ShaderDefinition = {
     id: "demo/glow",
-    kind: "edge-effect",
+    role: "effect",
     reach: 3,
     params: { glow: { type: "number", default: 0.7, min: 0, max: 2 } },
     glsl: `vec4 shade(EdgeInput e) {

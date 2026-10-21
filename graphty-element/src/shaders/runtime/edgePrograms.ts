@@ -13,7 +13,7 @@
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderDescriptor, ShaderKind } from "../../catalog/shaders";
+import type { ShaderDescriptor, ShaderRole } from "../../catalog/shaders";
 import { EDGE_JOIN_FRAGMENT_SHADER, EDGE_STATE_BITS } from "../../meshes/edgeJoinShader";
 import { PARAM_TEXTURE } from "./nodeLayout";
 import { paramLocals } from "./nodePrograms";
@@ -33,21 +33,21 @@ export interface EdgeShaderProgram {
 
 /**
  * The fragment stage that draws one edge shader on the line's pieces.
- * @param kind - An edge surface (straight alpha, replacing the line's color) or an edge effect
+ * @param role - An edge look (straight alpha, replacing the line's color) or an edge effect
  *     (premultiplied, over the line).
  * @param descriptor - The shader's catalog facts.
  * @param body - Its GLSL body.
  * @returns The program.
  */
 export function edgeShaderProgram(
-    kind: Extract<ShaderKind, "edge-surface" | "edge-effect">,
+    role: ShaderRole,
     descriptor: Pick<ShaderDescriptor, "params">,
     body: string,
 ): EdgeShaderProgram {
     const { params } = descriptor;
     const period = TIME_PERIOD.toFixed(1);
     const finish =
-        kind === "edge-surface"
+        role === "look"
             ? `    if (graphty_bad(graphty_out)) { graphty_out = graphty_in.color; }
     return vec4(graphty_out.rgb, graphty_out.a * coverage);`
             : `    if (graphty_bad(graphty_out)) { graphty_out = vec4(0.0); }

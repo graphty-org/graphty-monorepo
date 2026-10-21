@@ -23,7 +23,13 @@
  */
 
 import { tokenize } from "../../catalog/shaderGlsl";
-import type { ShaderDescriptor, ShaderKind, ShaderParamDescriptor, ShaderProblem } from "../../catalog/shaders";
+import {
+    drawingOf,
+    type ShaderDescriptor,
+    type ShaderDrawing,
+    type ShaderParamDescriptor,
+    type ShaderProblem,
+} from "../../catalog/shaders";
 import { GLSL_HELPERS, GLSL_STRUCTS } from "./glsl";
 
 export { uniformValueOf } from "./nodeLayout";
@@ -353,32 +359,32 @@ function paramAssignment(param: ShaderParamDescriptor): string {
 }
 
 /** What the sample program draws for a pixel whose result is not a number: the color beneath. */
-const SAMPLE_FALLBACK: Readonly<Record<ShaderKind, string>> = {
-    "node-surface": "graphty_in.color",
-    "node-sprite": "graphty_in.color",
+const SAMPLE_FALLBACK: Readonly<Record<ShaderDrawing, string>> = {
+    "node-look": "graphty_in.color",
+    "node-card": "graphty_in.color",
     "node-effect": "vec4(0.0)",
-    "edge-surface": "graphty_in.color",
+    "edge-look": "graphty_in.color",
     "edge-effect": "vec4(0.0)",
     background: "vec4(0.0, 0.0, 0.0, 1.0)",
-    boundary: "vec4(0.0)",
+    group: "vec4(0.0)",
 };
 
 /**
- * The statements of the sample `main` that fill the input for a kind.
- * @param kind - The kind.
+ * The statements of the sample `main` that fill the input for a drawing.
+ * @param kind - The drawing.
  * @returns The GLSL.
  */
-function sampleInput(kind: ShaderKind): string {
+function sampleInput(kind: ShaderDrawing): string {
     const time = "graphty_scene_time.x";
     switch (kind) {
-        case "node-surface":
-        case "node-sprite":
+        case "node-look":
+        case "node-card":
         case "node-effect":
             return `
     graphty_NodeInput graphty_in;
     vec2 graphty_uv = (vUV * 2.0 - 1.0) * graphty_sampleReach;
     float graphty_r2 = dot(graphty_uv, graphty_uv);
-    ${kind === "node-surface" ? "if (graphty_r2 > 1.0) { gl_FragColor = vec4(0.0); return; }" : ""}
+    ${kind === "node-look" ? "if (graphty_r2 > 1.0) { gl_FragColor = vec4(0.0); return; }" : ""}
     float graphty_z = sqrt(max(1.0 - graphty_r2, 0.0));
     graphty_in.uv = graphty_uv;
     graphty_in.local = vec3(graphty_uv, -graphty_z);
@@ -398,7 +404,7 @@ function sampleInput(kind: ShaderKind): string {
     graphty_in.sinceExited = -1.0;
     graphty_in.sinceChanged = -1.0;
     graphty_in.time = ${time};`;
-        case "edge-surface":
+        case "edge-look":
         case "edge-effect":
             return `
     graphty_EdgeInput graphty_in;
@@ -428,7 +434,7 @@ function sampleInput(kind: ShaderKind): string {
     graphty_in.groupTint = vec4(0.0);`;
         default:
             return `
-    graphty_BoundaryInput graphty_in;
+    graphty_GroupInput graphty_in;
     vec2 graphty_c0 = vec2(0.38, 0.45); vec2 graphty_c1 = vec2(0.62, 0.55); vec2 graphty_c2 = vec2(0.5, 0.32);
     vec2 graphty_d0 = vUV - graphty_c0; vec2 graphty_d1 = vUV - graphty_c1; vec2 graphty_d2 = vUV - graphty_c2;
     float graphty_k0 = exp(-dot(graphty_d0, graphty_d0) * 60.0);
@@ -533,8 +539,12 @@ export function paramGlobals(params: readonly ShaderParamDescriptor[]): string {
  * @param body - Its GLSL body, as written.
  * @returns The program.
  */
-export function sampleProgram(descriptor: Pick<ShaderDescriptor, "kind" | "params">, body: string): WrappedProgram {
-    const { kind, params } = descriptor;
+export function sampleProgram(
+    descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry" | "params">,
+    body: string,
+): WrappedProgram {
+    const { params } = descriptor;
+    const kind = drawingOf(descriptor);
     const fragment = `${fragmentPrelude()}
 uniform vec4 graphty_sampleColor;
 uniform vec4 graphty_sampleSize;

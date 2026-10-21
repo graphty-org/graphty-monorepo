@@ -2,7 +2,6 @@
 {
     "id": "lab/metaball-hull",
     "name": "metaball-hull",
-    "kind": "boundary",
     "params": [
         {
             "name": "look",
@@ -64,7 +63,7 @@
 */
 // The lab's metaball hulls as a boundary: the element splats the members' kernels into the field
 // this reads (g.field, g.fieldGradient), so the lab's texture taps become the field's values.
-vec4 shade(BoundaryInput g) {
+vec4 shade(GroupInput g) {
     float v = g.field;
     vec3 col = g.color.rgb;
     float grad = max(length(g.fieldGradient), 1e-5);

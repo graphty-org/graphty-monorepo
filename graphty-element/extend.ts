@@ -92,7 +92,17 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/shaderRegistry";
-export type { ShaderDescriptor, ShaderKind, ShaderRegistration } from "./src/catalog/shaders";
+export type {
+    ShaderDescriptor,
+    ShaderGeometry,
+    ShaderPlace,
+    ShaderPreview,
+    ShaderRegistration,
+    ShaderRole,
+    ShaderSource,
+    ShaderTarget,
+} from "./src/catalog/shaders";
+export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
 
 // ---------------------------------------------------------------------------------------------
 // Layout transition: how nodes travel from one layout to the next, on the CPU

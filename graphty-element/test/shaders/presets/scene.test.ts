@@ -9,7 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody, inferShaderReads } from "../../../src/catalog/shaderGlsl";
-import type { ShaderDescriptor } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor } from "../../../src/catalog/shaders";
 import { formatShaderText, parseShaderText, readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { kernelReach } from "../../../src/meshes/BoundaryPass";
 import { SCENE_PRESETS } from "../../../stories/shaders/scenePresets";
@@ -40,7 +40,7 @@ const TABLE: Readonly<
     },
     "soap-bubble": {
         name: "Soap bubble",
-        kind: "boundary",
+        kind: "group",
         form: "sphere",
         speed: "swirl",
         cost: "heavy",
@@ -54,7 +54,7 @@ const TABLE: Readonly<
     },
     "metaball-hull": {
         name: "Hull",
-        kind: "boundary",
+        kind: "group",
         form: "field",
         speed: "breathe",
         cost: "medium",
@@ -84,7 +84,7 @@ describe("the scene presets", () => {
     it.each(cases)("%s: its descriptor matches section 7.5", (id, { descriptor }: { descriptor: ShaderDescriptor }) => {
         const row = TABLE[id];
         assert.strictEqual(descriptor.plainName, row.name);
-        assert.strictEqual(descriptor.kind, row.kind);
+        assert.strictEqual(drawingOf(descriptor), row.kind);
         assert.strictEqual(descriptor.form, row.form);
         assert.strictEqual(descriptor.origin, "element");
         assert.strictEqual(descriptor.cost, row.cost);
@@ -126,7 +126,7 @@ describe("the scene presets", () => {
         assert.isFalse(Array.isArray(read), JSON.stringify(read));
         assert.isString(thumbnail);
 
-        const checked = checkShaderBody(body, descriptor.kind);
+        const checked = checkShaderBody(body, drawingOf(descriptor));
         assert.deepEqual(checked.problems, []);
         assert.isAtMost(
             ORDER.indexOf(checked.costClass),
@@ -148,11 +148,10 @@ describe("the scene presets", () => {
     });
 
     it("let a pasted boundary name its kernel's parameter, and refuse one it does not declare", () => {
-        const body = "vec4 shade(BoundaryInput g) { return vec4(g.field); }";
+        const body = "vec4 shade(GroupInput g) { return vec4(g.field); }";
         const header = (extra: Record<string, unknown>): string =>
             `/* graphty-shader 1\n${JSON.stringify({
                 id: "user/blob",
-                kind: "boundary",
                 params: [{ name: "spread", type: "number", default: 4, min: 1, max: 10 }],
                 ...extra,
             })}\n*/\n${body}`;

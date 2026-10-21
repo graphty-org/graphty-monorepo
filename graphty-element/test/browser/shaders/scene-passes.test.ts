@@ -31,12 +31,10 @@ const cleanups: (() => void)[] = [];
 beforeAll(() => {
     defineShader({
         id: "e6/sky",
-        kind: "background",
         glsl: "vec4 shade(BackgroundInput b) { return vec4(0.0, 0.0, 1.0, 1.0); }",
     });
     defineShader({
         id: "e6/drift",
-        kind: "background",
         motion: { loop: { speedParam: "drift" } },
         params: { drift: { type: "number", default: 0, min: 0, max: 2 } },
         glsl: "vec4 shade(BackgroundInput b) { return vec4(0.0, 0.0, 0.5 + 0.5 * sin(b.time * drift), 1.0); }",
@@ -44,9 +42,8 @@ beforeAll(() => {
     // An outline where the field crosses 0.5: red on the lowest boundary layer, blue above it.
     defineShader({
         id: "e6/outline",
-        kind: "boundary",
         reach: 5,
-        glsl: `vec4 shade(BoundaryInput g) {
+        glsl: `vec4 shade(GroupInput g) {
             float sd = (0.5 - g.field) / max(length(g.fieldGradient), 1e-4);
             float a = 1.0 - smoothstep(1.5, 3.0, abs(sd));
             vec3 c = g.depth < 0.5 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0);
@@ -55,7 +52,6 @@ beforeAll(() => {
     });
     defineShader({
         id: "e6/lantern",
-        kind: "node-surface",
         bloom: true,
         glsl: "vec4 shade(NodeInput n) { return vec4(1.0, 0.8, 0.3, 1.0); }",
     });

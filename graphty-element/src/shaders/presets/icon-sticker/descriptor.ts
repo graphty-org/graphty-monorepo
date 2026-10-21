@@ -93,7 +93,10 @@ const ICONS: readonly ShaderParamChoice[] = Object.freeze(
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "icon-sticker",
     plainName: "Sticker",
-    kind: "node-sprite",
+    target: "node",
+    role: "look",
+    geometry: "card",
+    categories: Object.freeze(["Card"]),
     params: Object.freeze([
         Object.freeze({
             name: "icon",

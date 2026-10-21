@@ -2,7 +2,6 @@
 {
     "id": "lab/pearl",
     "name": "Pearl",
-    "kind": "node-surface",
     "params": [
         {
             "name": "tint",

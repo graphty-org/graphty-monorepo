@@ -12,7 +12,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "nebula",
     plainName: "Nebula",
-    kind: "background",
+    target: "background",
+    role: "look",
+    categories: Object.freeze(["Space"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         Object.freeze({ name: "gasA", plainName: "Deep gas", type: "color", default: "#2a0f4a" }),
         Object.freeze({ name: "gasB", plainName: "Bright gas", type: "color", default: "#d0407a", primary: true }),

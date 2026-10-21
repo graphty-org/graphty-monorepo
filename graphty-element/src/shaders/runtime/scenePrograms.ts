@@ -252,7 +252,7 @@ ${prefixBody(body, params)}
 #line ${String(WRAPPER_LINE)}
 void main() {
 ${mainPrelude(params)}
-    graphty_BoundaryInput graphty_in;
+    graphty_GroupInput graphty_in;
     vec2 graphty_suv = gl_FragCoord.xy / graphty_resolution.xy;
     graphty_in.uv = graphty_suv;
 ${input}

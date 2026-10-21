@@ -2,7 +2,7 @@
 {
     "id": "lab/mandala",
     "name": "Mandala",
-    "kind": "node-sprite",
+    "geometry": "card",
     "params": [
         {
             "name": "folds",

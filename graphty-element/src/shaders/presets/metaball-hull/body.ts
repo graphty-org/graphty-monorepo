@@ -2,7 +2,7 @@
  * @file The GLSL body of the `metaball-hull` preset (design/rendering/shader-styles.md section
  * 7.5), ported from the shader lab's metaball community hulls.
  *
- * The element splats each member's kernel into the group's field (`BoundaryInput.field`), so
+ * The element splats each member's kernel into the group's field (`GroupInput.field`), so
  * nearby members melt into one hull and outliers bud off as droplets. The body turns the field
  * and its screen gradient into a signed distance to the hull, in canvas pixels, and draws one of
  * three looks in the group's mean color: translucent goo with a bright rim and a glint, an
@@ -11,12 +11,12 @@
  * With the owner's change: `breathe` defaults to 0, so a hull is still unless asked to move. A
  * breathing hull swells and shrinks as a whole (the lab varied each member's radius on its own).
  * ponytail: no seam where two groups press together, since a group reads only its own field;
- * give BoundaryInput the strongest other group's field if seams are wanted.
+ * give GroupInput the strongest other group's field if seams are wanted.
  */
 
 /** The body: `shade` and its helpers. */
 export const BODY = `// Hull: a metaball field around each group, as goo, membrane or outline.
-vec4 shade(BoundaryInput g) {
+vec4 shade(GroupInput g) {
     float v = g.field;
     vec3 col = g.color.rgb;
     // Breathing swells and shrinks the hull: a lower level is a fatter hull.

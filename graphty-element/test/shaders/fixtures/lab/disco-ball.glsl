@@ -2,7 +2,6 @@
 {
     "id": "lab/disco-ball",
     "name": "Disco ball",
-    "kind": "node-surface",
     "params": [
         {
             "name": "facets",

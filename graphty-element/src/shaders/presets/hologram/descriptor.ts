@@ -16,7 +16,9 @@ import type { ShaderDescriptor } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "hologram",
     plainName: "Hologram",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Iridescent"]),
     params: Object.freeze([
         Object.freeze({
             name: "holoColor",

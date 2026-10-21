@@ -16,7 +16,7 @@ import { commands } from "vitest/browser";
 
 import type { Graphty } from "../../../../index.js";
 import { registerShader, shaderDescriptor } from "../../../../src/catalog/shaderRegistry";
-import type { ShaderDescriptor, ShaderParams } from "../../../../src/catalog/shaders";
+import { drawingOf, type ShaderDescriptor, type ShaderParams } from "../../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../../src/catalog/types";
 import { operationQueueOf } from "../../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../../src/managers/everyFrameAnimations";
@@ -223,7 +223,7 @@ async function setParams(element: Graphty, id: string, kind: string, params: Sha
 function probeOf(descriptor: ShaderDescriptor, body: string): string {
     const id = `nan-probe/${descriptor.id}`;
     if (shaderDescriptor(id) === undefined) {
-        const input = descriptor.kind === "background" ? "BackgroundInput b" : "BoundaryInput g";
+        const input = drawingOf(descriptor) === "background" ? "BackgroundInput b" : "GroupInput g";
         const arg = input.split(" ")[1];
         const glsl = `${body.replace(`vec4 shade(${input})`, `vec4 presetShade(${input})`)}
 vec4 shade(${input}) {
@@ -328,7 +328,7 @@ const cases = SCENE_PRESETS.map((preset) => [preset.descriptor.id, preset] as co
 
 describe("the scene presets on a real element", () => {
     it.each(cases)("%s compiles and draws", async (id, { descriptor }) => {
-        const element = await showing(presetId(id), descriptor.kind);
+        const element = await showing(presetId(id), drawingOf(descriptor));
         const pixels = await canvasPixels(element);
         await commands.writeFile(`tmp/scene-presets/${id}.png`, await pngOf(pixels), "base64");
         const { rgba } = pixels;
@@ -360,7 +360,7 @@ describe("the scene presets on a real element", () => {
     it.skipIf(ADAPTER === "").each(cases)(
         "%s compiles and draws on the WebGPU renderer",
         async (id, { descriptor }) => {
-            const element = await showing(presetId(id), descriptor.kind, {}, { renderer: "webgpu" });
+            const element = await showing(presetId(id), drawingOf(descriptor), {}, { renderer: "webgpu" });
             assert.strictEqual(element.rendererStatus?.active, "webgpu", "the graph draws with WebGPU");
             await commands.writeFile(
                 `tmp/scene-presets/${id}-webgpu.png`,
@@ -372,9 +372,9 @@ describe("the scene presets on a real element", () => {
 
     it.each(cases)("%s draws every parameter at each end of its range without a NaN", async (id, preset) => {
         const probe = probeOf(preset.descriptor, preset.body);
-        const element = await showing(probe, preset.descriptor.kind);
+        const element = await showing(probe, drawingOf(preset.descriptor));
         for (const [name, params] of rangeEnds(preset.descriptor)) {
-            await setParams(element, probe, preset.descriptor.kind, params);
+            await setParams(element, probe, drawingOf(preset.descriptor), params);
             const { rgba } = await canvasPixels(element);
             assert.strictEqual(magentaPixels(rgba), 0, `${id} at ${name} draws a NaN or an infinity`);
         }
@@ -384,14 +384,14 @@ describe("the scene presets on a real element", () => {
         const shader = presetId(id);
         const speed = descriptor.motion.loop?.speedParam;
         assert.isDefined(speed);
-        const element = await showing(shader, descriptor.kind, { [speed]: 1 });
+        const element = await showing(shader, drawingOf(descriptor), { [speed]: 1 });
         const scene = element.graph.getScene();
         const pass = passesOf(element).background;
         if (pass === null) {
             // A boundary moves on every frame it draws.
             await drawnFrames(scene, 3);
             assert.isAbove(everyFrameAnimationsOn(scene), 0, "it keeps the frames coming");
-            await setParams(element, shader, descriptor.kind, { [speed]: 0 });
+            await setParams(element, shader, drawingOf(descriptor), { [speed]: 0 });
             assert.strictEqual(everyFrameAnimationsOn(scene), 0, "at speed 0 it rests");
             return;
         }
@@ -409,7 +409,7 @@ describe("the scene presets on a real element", () => {
         assert.isAbove(pass.draws - draws, 3, "it keeps moving");
         assert.isAbove(unclaimed, 30, "between its ticks it asks for no frame");
 
-        await setParams(element, shader, descriptor.kind, { [speed]: 0 });
+        await setParams(element, shader, drawingOf(descriptor), { [speed]: 0 });
         await drawnFrames(scene, 2);
         const still = pass.draws;
         await loopChances(element, 20);
@@ -418,7 +418,7 @@ describe("the scene presets on a real element", () => {
     });
 
     it("the hull is still by default", async () => {
-        const element = await showing(presetId("metaball-hull"), "boundary");
+        const element = await showing(presetId("metaball-hull"), "group");
         const scene = element.graph.getScene();
         await drawnFrames(scene, 3);
         assert.strictEqual(everyFrameAnimationsOn(scene), 0);
@@ -524,7 +524,7 @@ describe("the scene presets on a real element", () => {
     });
 
     it.each(cases)("%s at its fastest flashes at most three times a second", async (id, { descriptor }) => {
-        const element = await showing(presetId(id), descriptor.kind, highest(descriptor));
+        const element = await showing(presetId(id), drawingOf(descriptor), highest(descriptor));
         const host = shadersControllerOf(element.session)?.host as LazyShaderHost | null | undefined;
         const uniforms = host?.loaded?.uniforms;
         assert.isDefined(uniforms, "the shader runtime is loaded");

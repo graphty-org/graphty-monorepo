@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const GEMSTONE: ShaderDescriptor = Object.freeze({
     id: "gemstone",
     plainName: "Gemstone",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Sparkle"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "facets", plainName: "Facets", type: "integer", default: 22, min: 6, max: 64, primary: true },
         { name: "ior", plainName: "Refraction", type: "number", default: 2, min: 1.2, max: 2.6 },

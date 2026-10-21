@@ -15,7 +15,9 @@ import type { ShaderDescriptor } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "foil-shimmer",
     plainName: "Foil shimmer",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Iridescent"]),
     params: Object.freeze([
         Object.freeze({ name: "foil", plainName: "Foil", type: "number", default: 0.9, min: 0, max: 1, primary: true }),
         Object.freeze({ name: "sweepSpeed", plainName: "Sweep speed", type: "number", default: 0.35, min: 0, max: 2 }),

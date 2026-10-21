@@ -18,17 +18,23 @@
 import {
     addPastedShaderSource,
     describePastedShader,
-    registeredShaderSource,
+    isRegisteredShader,
+    loadShaderSource,
     shaderDescriptor,
     shaderDescriptors,
+    shaderLoadProblem,
 } from "../catalog/shaderRegistry";
-import type {
-    ShaderDescriptor,
-    ShaderKind,
-    ShaderParams,
-    ShaderProblem,
-    ShaderRegistration,
-    ShaderText,
+import {
+    drawingOf,
+    type ShaderDescriptor,
+    type ShaderGeometry,
+    type ShaderParams,
+    type ShaderPlace,
+    type ShaderProblem,
+    type ShaderRegistration,
+    type ShaderRole,
+    type ShaderTarget,
+    type ShaderText,
 } from "../catalog/shaders";
 import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC } from "../catalog/shaderText";
 import type { LayerId, LayerSpec } from "../catalog/types";
@@ -73,7 +79,11 @@ export interface ProjectShader {
     /** Catalog data: its name. */
     readonly plainName: string;
     /** What it draws on. */
-    readonly kind: ShaderKind;
+    readonly target: ShaderTarget;
+    /** Whether it is a look or an effect. */
+    readonly role: ShaderRole;
+    /** A node look's geometry, when it draws a card in place of the shape. */
+    readonly geometry?: ShaderGeometry;
     /** The SHA-256 of its text, as 64 hex digits. */
     readonly hash: string;
     /** What it is doing. */
@@ -90,8 +100,12 @@ export interface ShaderAddOptions {
      * the element's trust settings say otherwise.
      */
     readonly source?: "reader" | "content";
-    /** The kind, for text whose header does not say (a header-less body). */
-    readonly kind?: ShaderKind;
+    /**
+     * Where the shader is being added. Text that declares no `role` (and no `reach`) takes this
+     * role; text whose entry function draws on another target, or that declares another role, is
+     * refused with `shader.target-mismatch`.
+     */
+    readonly place?: ShaderPlace;
     /** When the header's id is taken: refuse (the default) or add under the next free id. */
     readonly onTaken?: "refuse" | "rename";
     /**
@@ -135,7 +149,7 @@ export interface SessionShaders {
      * the same undoable step. With a canvas attached it is compiled and test-drawn first, and
      * nothing is written unless that passes.
      * @param text - The shader text: GLSL with a `graphty-shader 1` header, or a header-less body.
-     * @param options - Who supplied it, its kind, what to do when its id is taken, where to apply it.
+     * @param options - Who supplied it, where it is added, what to do when its id is taken, where to apply it.
      * @returns The shader, or every problem found.
      */
     add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
@@ -285,8 +299,8 @@ export interface HostShader {
     readonly id: string;
     /** The SHA-256 of its text. */
     readonly hash: string;
-    /** Its registration: the descriptor and the GLSL body. */
-    readonly registration: ShaderRegistration;
+    /** Its registration: the descriptor and the GLSL bodies, loaded. */
+    readonly registration: LoadedRegistration;
     /** The 1-based line of the text its body starts on, so a driver's line maps back. */
     readonly bodyLine: number;
     /** Whether it was pasted into the project, rather than a preset or a registered shader. */
@@ -357,6 +371,14 @@ export interface ShadersSources {
     ) => void;
 }
 
+/** A shader with its descriptor complete and its bodies loaded: what the renderer compiles. */
+export interface LoadedRegistration {
+    readonly descriptor: ShaderRegistration["descriptor"] & Pick<ShaderDescriptor, "target" | "role">;
+    readonly glsl: string;
+    readonly wgsl?: string;
+    readonly lowDetail?: string;
+}
+
 /** What a text read into: the registration, its hash, where its body starts, its descriptor. */
 interface ReadText {
     /**
@@ -364,7 +386,7 @@ interface ReadText {
      * another id -- the same shader written with its header, so it reads back alone.
      */
     readonly text: string;
-    readonly registration: ShaderRegistration;
+    readonly registration: LoadedRegistration;
     readonly hash: string;
     readonly bodyLine: number;
     readonly descriptor: ShaderDescriptor;
@@ -470,7 +492,8 @@ export function idsNamedBy(spec: LayerSpec): Set<string> {
         const map = set[channel];
         if (typeof map === "object" && map !== null) {
             for (const [id, value] of Object.entries(map)) {
-                if (value !== false) {
+                // A plain parameter value in shaderParams is for the drawn shader, not an id.
+                if (value !== false && (typeof value === "object" || channel.endsWith("effects"))) {
                     ids.add(id);
                 }
             }
@@ -519,30 +542,31 @@ function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: Shade
             set[`${side}.shaderParams`] = { ...(set[`${side}.shaderParams`] as object), [descriptor.id]: params };
         }
     };
-    switch (descriptor.kind) {
-        case "node-surface":
-        case "node-sprite":
+    const drawing = drawingOf(descriptor);
+    switch (drawing) {
+        case "node-look":
+        case "node-card":
             surface("node");
             break;
-        case "edge-surface":
+        case "edge-look":
             surface("edge");
             break;
         case "node-effect":
         case "edge-effect": {
-            const channel = descriptor.kind === "node-effect" ? "node.effects" : "edge.effects";
+            const channel = drawing === "node-effect" ? "node.effects" : "edge.effects";
             const effects = Object.assign(Object.create(null) as Record<string, unknown>, set[channel]);
             effects[descriptor.id] = given ? params : true;
             set[channel] = effects;
             break;
         }
-        case "boundary":
+        case "group":
             return { boundary: { shader: descriptor.id, ...(given ? { params } : {}) } };
         default:
             throw new GraphtyError({
                 code: "E_SHADER_KIND",
-                message: `"${descriptor.id}" is a ${descriptor.kind} shader, which no style layer draws.`,
+                message: `"${descriptor.id}" draws on the ${descriptor.target}, which no style layer draws.`,
                 source: "style",
-                details: { id: descriptor.id, kind: descriptor.kind, expected: ["node-surface", "node-sprite"] },
+                details: { id: descriptor.id, target: descriptor.target, expected: ["node", "edge", "group"] },
             });
     }
 
@@ -550,20 +574,20 @@ function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: Shade
 }
 
 /**
- * Whether a layer paints the target a shader of this kind draws on.
+ * Whether a layer paints the target a shader draws on.
  * @param spec - The layer.
  * @param layer - Its id.
- * @param kind - The shader's kind.
+ * @param drawsOn - What the shader draws on.
  * @returns `shader.apply-target` when it paints the other one, else null.
  */
-function applyTargetProblem(spec: LayerSpec, layer: LayerId, kind: ShaderKind): ShaderProblem | null {
+function applyTargetProblem(spec: LayerSpec, layer: LayerId, drawsOn: ShaderTarget): ShaderProblem | null {
     const channel = [...Object.keys(spec.set ?? {}), ...Object.keys(spec.encode ?? {})].find((name) =>
         /^(node|edge)\./.test(name),
     );
     const target = spec.target ?? (channel === undefined ? undefined : channel.slice(0, 4));
-    const wants = kind.startsWith("edge") ? "edge" : "node";
+    const wants = drawsOn === "edge" ? "edge" : "node";
     // A background is refused by `applyPatch` (`E_SHADER_KIND`): no layer draws one.
-    if (kind === "background" || target === undefined || target === wants) {
+    if (drawsOn === "background" || target === undefined || target === wants) {
         return null;
     }
 
@@ -609,7 +633,7 @@ function freeId(id: string, taken: (candidate: string) => boolean): string {
  * @param id - The id.
  * @returns The registration, renamed.
  */
-function renamed(registration: ShaderRegistration, id: string): ShaderRegistration {
+function renamed(registration: LoadedRegistration, id: string): LoadedRegistration {
     return { ...registration, descriptor: { ...registration.descriptor, id } };
 }
 
@@ -643,24 +667,28 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     /**
      * Read a text: parse, hash, describe. Cached by text.
      * @param text - The text.
-     * @param kind - The kind of a header-less body.
+     * @param place - Where it is being added, which supplies a role the text leaves out.
      * @param id - An id to give it in place of its header's.
      * @returns What it read into, or the problems.
      */
-    const readText = (text: string, kind?: ShaderKind, id?: string): ReadText | readonly ShaderProblem[] => {
-        const key = `${kind ?? ""}\u0000${id ?? ""}\u0000${text}`;
+    const readText = (text: string, place?: ShaderPlace, id?: string): ReadText | readonly ShaderProblem[] => {
+        const key = `${place === undefined ? "" : `${place.target} ${place.role}`}\u0000${id ?? ""}\u0000${text}`;
         const cached = read.get(key);
         if (cached !== undefined) {
             return cached;
         }
 
-        const parsed = parseShaderText(text, kind === undefined ? undefined : { kind });
+        const parsed = parseShaderText(text, place === undefined ? undefined : { place });
         let result: ReadText | readonly ShaderProblem[];
         if (parsed.ok) {
             const registration = id === undefined ? parsed.registration : renamed(parsed.registration, id);
             const headed =
                 text.includes(SHADER_TEXT_MAGIC) && registration.descriptor.id === parsed.registration.descriptor.id;
-            const stored = headed ? text : formatShaderText(registration);
+            // A role the place supplied is written into the stored text, so it reads back the same
+            // with no place: a saved project is opened with none.
+            const alone = place === undefined ? parsed : parseShaderText(text);
+            const keepsRole = alone.ok && alone.registration.descriptor.role === registration.descriptor.role;
+            const stored = headed && keepsRole ? text : formatShaderText(registration);
             const hash = sha256Hex(stored);
             try {
                 result = {
@@ -675,7 +703,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 result = details?.problems ?? [{ code: "shader.id-invalid", params: { id: id ?? "" } }];
             }
         } else {
-            result = catalogCopy(text, kind, id, parsed.problems) ?? parsed.problems;
+            result = catalogCopy(text, place, id, parsed.problems) ?? parsed.problems;
         }
 
         read.set(key, result);
@@ -686,14 +714,14 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * Text whose header names a preset's bare id, which pasted text may not take: a copy from
      * `source`, read under the `user/` id a duplicate would have.
      * @param text - The text.
-     * @param kind - The kind of a header-less body.
+     * @param place - Where it is being added.
      * @param id - An id the caller gives it, which leaves the header alone.
      * @param problems - What parsing found.
      * @returns The copy read, or undefined when the text is not one.
      */
     const catalogCopy = (
         text: string,
-        kind: ShaderKind | undefined,
+        place: ShaderPlace | undefined,
         id: string | undefined,
         problems: readonly ShaderProblem[],
     ): ReadText | undefined => {
@@ -707,7 +735,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         }
 
         const renamedText = text.replace(new RegExp(String.raw`("id"\s*:\s*)"${named}"`), `$1"user/${named}"`);
-        const copy = renamedText === text ? undefined : readText(renamedText, kind);
+        const copy = renamedText === text ? undefined : readText(renamedText, place);
         return copy === undefined || Array.isArray(copy) ? undefined : { ...(copy as ReadText), copyOf: named };
     };
 
@@ -842,7 +870,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @returns The status, or null when it has what it reads.
      */
     const noDataStatus = (descriptor: ShaderDescriptor): ShaderStatus | null => {
-        if (descriptor.kind !== "background" || !descriptor.reads.includes("members")) {
+        if (descriptor.target !== "background" || !descriptor.reads.includes("members")) {
             return null;
         }
 
@@ -981,9 +1009,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         shader: ReadText,
     ): Promise<{ readonly id: string; readonly params: ShaderParams } | undefined> => {
         for (const descriptor of shaderDescriptors()) {
-            const body =
-                registeredShaderSource(descriptor.id)?.glsl ??
-                (descriptor.origin === "element" ? await presetBody(descriptor.id) : undefined);
+            const body = await bodyOf(descriptor.id);
             if (body?.trim() === shader.registration.glsl.trim()) {
                 return { id: descriptor.id, params: differingDefaults(shader.descriptor, descriptor) };
             }
@@ -1084,13 +1110,13 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
     /**
      * Whether `apply` names a layer of the target a shader draws on.
-     * @param kind - The shader's kind.
+     * @param drawsOn - What the shader draws on.
      * @param options - The options.
      * @returns The problems: none, or `shader.apply-target`.
      */
-    const targetProblems = (kind: ShaderKind, options: ShaderAddOptions): ShaderProblem[] => {
+    const targetProblems = (drawsOn: ShaderTarget, options: ShaderAddOptions): ShaderProblem[] => {
         const layer = options.apply?.layer;
-        const problem = layer === undefined ? null : applyTargetProblem(applyLayer(layer), layer, kind);
+        const problem = layer === undefined ? null : applyTargetProblem(applyLayer(layer), layer, drawsOn);
         return problem === null ? [] : [problem];
     };
 
@@ -1113,13 +1139,13 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             problems.push({ code: "shader.too-many", params: { count: size, limit: PROJECT_SHADER_LIMIT } });
         }
 
-        problems.push(...targetProblems(read.descriptor.kind, options));
+        problems.push(...targetProblems(read.descriptor.target, options));
         let shader = read;
         const wanted = shader.descriptor.id;
         if (taken(wanted, shader.text)) {
             const free = freeId(wanted, (candidate) => taken(candidate));
             if (options.onTaken === "rename") {
-                shader = readText(read.copyOf === undefined ? text : read.text, options.kind, free) as ReadText;
+                shader = readText(read.copyOf === undefined ? text : read.text, options.place, free) as ReadText;
             } else {
                 problems.push({ code: "shader.id-taken", params: { id: wanted, free } });
             }
@@ -1147,7 +1173,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return undefined;
         }
 
-        const body = registeredShaderSource(id)?.glsl ?? (await presetBody(id));
+        const body = await bodyOf(id);
         return body?.trim() === shader.registration.glsl.trim()
             ? { id, params: differingDefaults(shader.descriptor, descriptor) }
             : undefined;
@@ -1176,7 +1202,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         options: ShaderAddOptions,
     ): Promise<ShaderAddResult> => {
         const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
-        const problems = targetProblems(descriptor.kind, options);
+        const problems = targetProblems(descriptor.target, options);
         if (problems.length > 0) {
             return { ok: false, problems };
         }
@@ -1233,7 +1259,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
     const api: SessionShaders = {
         add(text, options = {}) {
-            const first = readText(text, options.kind);
+            const first = readText(text, options.place);
             if (Array.isArray(first)) {
                 return Promise.resolve({ ok: false, problems: first as readonly ShaderProblem[] });
             }
@@ -1251,7 +1277,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         },
 
         async check(text, options = {}) {
-            const first = readText(text, options.kind);
+            const first = readText(text, options.place);
             if (Array.isArray(first)) {
                 return { ok: false, problems: first as readonly ShaderProblem[] };
             }
@@ -1260,7 +1286,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             const copy = namesCatalog(read) ? await copyOfCatalog(read) : undefined;
             if (copy !== undefined) {
                 const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
-                const problems = targetProblems(descriptor.kind, options);
+                const problems = targetProblems(descriptor.target, options);
                 return problems.length > 0 ? { ok: false, problems } : { ok: true, descriptor, sameAs: copy };
             }
 
@@ -1281,7 +1307,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 throw unknownShader(id, [...state().shaders.keys()]);
             }
 
-            const result = readText(text, projectShader(id)?.descriptor.kind, id);
+            const result = readText(text, placeOf(projectShader(id)?.descriptor), id);
             if (Array.isArray(result)) {
                 return { ok: false, problems: result as readonly ShaderProblem[] };
             }
@@ -1317,7 +1343,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const descriptor = shaderDescriptor(id);
-            const body = registeredShaderSource(id)?.glsl ?? (await presetBody(id));
+            const body = await bodyOf(id);
             if (descriptor === undefined || body === undefined) {
                 throw unknownShader(id, [...state().shaders.keys(), ...shaderDescriptors().map((each) => each.id)]);
             }
@@ -1342,7 +1368,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                         Object.freeze({
                             id,
                             plainName: shader.descriptor.plainName,
-                            kind: shader.descriptor.kind,
+                            target: shader.descriptor.target,
+                            role: shader.descriptor.role,
+                            ...(shader.descriptor.geometry === undefined
+                                ? {}
+                                : { geometry: shader.descriptor.geometry }),
                             hash: shader.hash,
                             state: statusOf(shader).state,
                             usedBy: counts.get(id) ?? 0,
@@ -1365,6 +1395,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return { state: "failed", problem: { code: "shader.unknown", params: { id } } };
             }
 
+            const failed = shaderLoadProblem(id);
+            if (failed !== undefined) {
+                return { state: "failed", problem: failed };
+            }
+
             const drawn = host === null ? null : drawnStatusOf(descriptor, "", false);
             return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
         },
@@ -1377,6 +1412,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
             if (descriptor.webgpu === "none" && host?.renderer === "webgpu") {
                 return { ok: false, problem: { code: "shader.webgpu-unsupported", params: {} } };
+            }
+
+            const failed = shaderLoadProblem(id);
+            if (failed !== undefined) {
+                return { ok: false, problem: failed };
             }
 
             const shader = projectShader(id);
@@ -1535,18 +1575,19 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     : null;
             }
 
+            const known = shaderDescriptor(id);
+            if (known === undefined || (known.webgpu === "none" && host?.renderer === "webgpu")) {
+                return null;
+            }
+
+            const source = await loadShaderSource(id)?.catch(() => undefined);
+            // A loaded body fills in what its registration left out, so read the descriptor again.
             const descriptor = shaderDescriptor(id);
-            if (descriptor === undefined || (descriptor.webgpu === "none" && host?.renderer === "webgpu")) {
+            if (source === undefined || descriptor === undefined) {
                 return null;
             }
 
-            const source = registeredShaderSource(id);
-            const glsl = source?.glsl ?? (await presetBody(id));
-            if (glsl === undefined) {
-                return null;
-            }
-
-            const lowDetail = source === undefined ? await presetLowDetail(id) : source.lowDetail;
+            const { glsl, lowDetail } = source;
             return {
                 id,
                 hash: sha256Hex(`${id}\n${glsl}`),
@@ -1597,23 +1638,25 @@ function qualityOf(settings: ShaderSettings): RenderQuality["level"] {
 }
 
 /**
- * A preset's GLSL body, loaded on first use.
- * @param id - The preset.
- * @returns Its body, or undefined when no preset has that id.
+ * The body of a preset or a registered shader, loaded on first use.
+ * @param id - The shader.
+ * @returns Its body, or undefined when it is neither, or its body does not load or check.
  */
-async function presetBody(id: string): Promise<string | undefined> {
-    const { SHADER_PRESET_BODIES } = await import("../shaders/presets/bodies");
-    return Object.hasOwn(SHADER_PRESET_BODIES, id) ? SHADER_PRESET_BODIES[id]() : undefined;
+async function bodyOf(id: string): Promise<string | undefined> {
+    if (!isRegisteredShader(id)) {
+        return undefined;
+    }
+
+    return (await loadShaderSource(id)?.catch(() => undefined))?.glsl;
 }
 
 /**
- * A heavy preset's small-size program, loaded on first use.
- * @param id - The preset.
- * @returns Its cheaper body, or undefined when the preset has none.
+ * The place a project shader was added for, so a replacement text keeps it.
+ * @param descriptor - The shader's descriptor, if the project holds it.
+ * @returns Its target and role, or undefined.
  */
-async function presetLowDetail(id: string): Promise<string | undefined> {
-    const { SHADER_PRESET_LOW_DETAIL } = await import("../shaders/presets/bodies");
-    return Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id) ? SHADER_PRESET_LOW_DETAIL[id]() : undefined;
+function placeOf(descriptor: ShaderDescriptor | undefined): ShaderPlace | undefined {
+    return descriptor === undefined ? undefined : { target: descriptor.target, role: descriptor.role };
 }
 
 /**

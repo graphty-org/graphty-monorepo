@@ -15,7 +15,7 @@ import {
     NODE_SHAPE_DESCRIPTORS,
     type ShaderDescriptor,
     type ShaderInput,
-    type ShaderKind,
+    type ShaderPlace,
     type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
@@ -54,7 +54,7 @@ export interface SectionSpec {
      * The kinds of shader the section's shader channel takes here: a sprite in Shape, a surface in
      * Rendering (its Material row), an edge surface in Line, effects in Effects.
      */
-    readonly shaderKinds?: readonly ShaderKind[];
+    readonly shaderKinds?: readonly ShaderSlotKind[];
 }
 
 /**
@@ -1124,8 +1124,71 @@ export function firstStyleWords(nodes: number, edges: number): string {
     return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
 
+/**
+ * The panel's own names for the places a shader goes, by the element's target, role and (for a
+ * node look) geometry: the keys of the word tables below.
+ */
+export type ShaderSlotKind =
+    "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+
+/**
+ * The panel's name for where a shader goes.
+ * @param descriptor - the shader's target, role and geometry.
+ * @returns the slot kind.
+ */
+export function shaderSlotKindOf(descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry">): ShaderSlotKind {
+    switch (descriptor.target) {
+        case "group":
+            return "boundary";
+        case "background":
+            return "background";
+        case "edge":
+            return descriptor.role === "effect" ? "edge-effect" : "edge-surface";
+        default:
+            if (descriptor.role === "effect") {
+                return "node-effect";
+            }
+            return descriptor.geometry === "card" ? "node-sprite" : "node-surface";
+    }
+}
+
+/**
+ * The element's place for one of the panel's slot kinds.
+ * @param kind - the slot kind.
+ * @returns its target and role.
+ */
+export function shaderPlaceOf(kind: ShaderSlotKind): ShaderPlace {
+    switch (kind) {
+        case "boundary":
+            return { target: "group", role: "look" };
+        case "background":
+            return { target: "background", role: "look" };
+        case "edge-surface":
+            return { target: "edge", role: "look" };
+        case "edge-effect":
+            return { target: "edge", role: "effect" };
+        case "node-effect":
+            return { target: "node", role: "effect" };
+        default:
+            return { target: "node", role: "look" };
+    }
+}
+
+/**
+ * The slot kinds a channel's shader place takes: a node look is a material or a sprite.
+ * @param place - the channel's place, if it names shaders.
+ * @returns the slot kinds.
+ */
+export function slotKindsOf(place: ShaderPlace | undefined): readonly ShaderSlotKind[] | undefined {
+    if (place === undefined) {
+        return undefined;
+    }
+    const kind = shaderSlotKindOf(place);
+    return kind === "node-surface" ? ["node-surface", "node-sprite"] : [kind];
+}
+
 /** What a shader row is called in its label column and its "+" item, by the kind it holds. */
-export const SHADER_ROW_WORDS: Readonly<Record<ShaderKind, string>> = {
+export const SHADER_ROW_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
     "node-surface": "Material",
     "node-sprite": "Sprite",
     "node-effect": "Effect",
@@ -1291,7 +1354,7 @@ export function effectOffWords(name: string): string {
 }
 
 /** The paste dialog's Kind select: each kind of shader a style layer draws, by name. */
-export const SHADER_KIND_WORDS: Readonly<Record<ShaderKind, string>> = {
+export const SHADER_KIND_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
     "node-surface": "Node material",
     "node-sprite": "Node sprite",
     "node-effect": "Node effect",
@@ -1330,8 +1393,10 @@ export function pasteProblemWords(problem: ShaderProblem): string {
             return `Header is not JSON${said}`;
         case "shader.header-key":
             return `Header key "${String(p.key)}"`;
-        case "shader.kind-unknown":
-            return `Unknown kind "${String(p.kind)}"`;
+        case "shader.target-mismatch":
+            return ["look", "effect"].includes(String(p.found))
+                ? `Written as ${String(p.found) === "look" ? "a look" : "an effect"}`
+                : `Written for ${String(p.found)}s`;
         case "shader.id-invalid":
             return `Bad id "${String(p.id)}"`;
         case "shader.id-taken":
@@ -1397,7 +1462,7 @@ export function materialBlockedWords(sprite: string): string {
 }
 
 /** Where each kind of shader is set, which the paste dialog names for a kind its section does not take. */
-export const SHADER_HOME_WORDS: Readonly<Record<ShaderKind, string>> = {
+export const SHADER_HOME_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
     "node-surface": "Goes in Node > Rendering",
     "node-sprite": "Goes in Node > Shape",
     "node-effect": "Goes in Node > Effects",

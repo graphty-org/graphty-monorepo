@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "matcap-ink",
     plainName: "Ink",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Drawn"]),
     params: Object.freeze([
         Object.freeze({ name: "tint", plainName: "Tint", type: "number", default: 0.8, min: 0, max: 1, primary: true }),
     ]),

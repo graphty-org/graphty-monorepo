@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "pearl",
     plainName: "Pearl",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Iridescent"]),
     params: Object.freeze([
         Object.freeze({ name: "tint", plainName: "Tint", type: "number", default: 0.8, min: 0, max: 1, primary: true }),
     ]),

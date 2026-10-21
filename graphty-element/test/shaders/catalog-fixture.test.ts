@@ -17,6 +17,7 @@ import { assert, describe, it } from "vitest";
 
 import { checkShaderBody } from "../../src/catalog/shaderGlsl";
 import { shaderDescriptors } from "../../src/catalog/shaderRegistry";
+import { drawingOf } from "../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../src/catalog/shaderText";
 import { createGraphSession } from "../../src/session";
 import { SHADER_PRESETS } from "../../src/shaders/presets";
@@ -185,9 +186,10 @@ describe("the shader presets", () => {
         assert.sameMembers(Object.keys(SHADER_PRESET_BODIES), ids);
     });
 
-    it("has a small-size program only for listed heavy surfaces", () => {
-        const heavy = SHADER_PRESETS.filter((preset) => preset.cost === "heavy" && preset.kind === "node-surface");
-        assert.includeMembers(
+    // The registry hands every heavy node look a low-detail loader, so the two lists must agree.
+    it("has a small-size program for exactly the heavy node looks", () => {
+        const heavy = SHADER_PRESETS.filter((preset) => preset.cost === "heavy" && drawingOf(preset) === "node-look");
+        assert.sameMembers(
             heavy.map((preset) => preset.id),
             Object.keys(SHADER_PRESET_LOW_DETAIL),
         );
@@ -216,10 +218,10 @@ describe("the shader presets", () => {
             assert.isAtMost(preset.params.filter((param) => param.varies === true).length, 4, "more than 4 varying");
 
             const body = await SHADER_PRESET_BODIES[id]();
-            const checked = checkShaderBody(body, preset.kind);
+            const checked = checkShaderBody(body, drawingOf(preset));
             assert.deepEqual(checked.problems, []);
             if (Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id)) {
-                assert.deepEqual(checkShaderBody(await SHADER_PRESET_LOW_DETAIL[id](), preset.kind).problems, []);
+                assert.deepEqual(checkShaderBody(await SHADER_PRESET_LOW_DETAIL[id](), drawingOf(preset)).problems, []);
             }
 
             assert.isString(thumbnail, "a preset ships a thumbnail");

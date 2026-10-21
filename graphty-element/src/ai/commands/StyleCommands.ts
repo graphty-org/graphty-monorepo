@@ -385,8 +385,8 @@ export const findAndStyleNodes: GraphCommand = {
                 };
             }
 
-            const { id, kind } = added.descriptor;
-            if (kind === "node-effect") {
+            const { id, role } = added.descriptor;
+            if (role === "effect") {
                 set["node.effects"] = { [id]: true };
             } else {
                 set["node.shader"] = id;

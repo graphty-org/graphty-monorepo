@@ -14,6 +14,7 @@ import { afterAll, assert, describe, it } from "vitest";
 
 import { checkShaderBody, inferShaderReads } from "../../../src/catalog/shaderGlsl";
 import { clearRegisteredShadersForTesting, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
+import { drawingOf } from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { NODE_EFFECT_PRESETS, presetId } from "../../../stories/shaders/nodeEffectPresets";
 
@@ -110,7 +111,7 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
 
         it("is one of the design's node effects, frozen, from the element", () => {
             assert.isDefined(expected, `${id} is in section 7.3`);
-            assert.strictEqual(descriptor.kind, "node-effect");
+            assert.strictEqual(drawingOf(descriptor), "node-effect");
             assert.strictEqual(descriptor.origin, "element");
             assert.strictEqual(descriptor.plainName, expected.name);
             assert.isTrue(Object.isFrozen(descriptor));
@@ -150,7 +151,7 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
         });
 
         it("has a body that passes the static checks, no heavier than it declares, reading what it says", () => {
-            const checked = checkShaderBody(body, descriptor.kind);
+            const checked = checkShaderBody(body, drawingOf(descriptor));
             assert.deepEqual(checked.problems, []);
             assert.isAtMost(
                 COST_ORDER.indexOf(checked.costClass),

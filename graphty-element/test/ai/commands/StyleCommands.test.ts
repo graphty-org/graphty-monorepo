@@ -182,7 +182,7 @@ describe("StyleCommands", () => {
 
     describe("shader text from a model", () => {
         const TEXT = `/* graphty-shader 1
-{ "id": "user/glow", "name": "Glow", "kind": "node-surface" }
+{ "id": "user/glow", "name": "Glow" }
 */
 vec4 shade(NodeInput n) { return n.color * 1.2; }
 `;

@@ -2,7 +2,6 @@
 {
     "id": "lab/frost",
     "name": "Frost",
-    "kind": "node-surface",
     "params": [
         {
             "name": "frostColor",

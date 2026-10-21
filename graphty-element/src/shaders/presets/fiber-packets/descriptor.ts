@@ -12,7 +12,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const FIBER_PACKETS: ShaderDescriptor = Object.freeze({
     id: "fiber-packets",
     plainName: "Light packets",
-    kind: "edge-effect",
+    target: "edge",
+    role: "effect",
+    categories: Object.freeze(["Flow"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "packets", plainName: "Packets", type: "integer", default: 3, min: 1, max: 6, primary: true },
         { name: "speed", plainName: "Speed", type: "number", default: 1.2, min: 0, max: 4, varies: true },

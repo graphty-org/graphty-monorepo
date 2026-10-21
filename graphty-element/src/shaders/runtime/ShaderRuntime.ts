@@ -432,13 +432,12 @@ export class ShaderRuntime {
     }
 
     /**
-     * The most pixels a shader of this kind can cover on this canvas.
+     * The most pixels a shader of this target and role can cover on this canvas.
      * @param shader - The shader.
      * @returns The pixel count.
      */
     private areaOf(shader: HostShader): number {
-        const { kind } = shader.registration.descriptor;
-        if (kind === "node-effect" || kind === "edge-effect") {
+        if (shader.registration.descriptor.role === "effect") {
             // The largest square an effect draws on at the quality level now.
             return this.uniforms.effectCap * this.uniforms.effectCap;
         }
@@ -483,8 +482,8 @@ export class ShaderRuntime {
             this.engine.wipeCaches(true);
         }
 
-        const { kind } = shader.registration.descriptor;
-        const premultiplied = kind === "node-effect" || kind === "edge-effect" || kind === "boundary";
+        const drawn = shader.registration.descriptor;
+        const premultiplied = drawn.role === "effect" || drawn.target === "group";
         return pngOf(pixels, THUMBNAIL_SIZE, premultiplied);
     }
 

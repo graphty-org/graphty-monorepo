@@ -2,7 +2,7 @@
 {
     "id": "lab/fiber-packets",
     "name": "fiber-packets",
-    "kind": "edge-effect",
+    "role": "effect",
     "params": [
         {
             "name": "packets",

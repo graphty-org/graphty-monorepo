@@ -431,7 +431,7 @@ describe("shader rows on the real element", () => {
         const { session, element } = await mountElement();
         const text = [
             "/* graphty-shader 1",
-            '{ "id": "user/ring", "name": "Ring", "kind": "node-effect", "reach": 2 }',
+            '{ "id": "user/ring", "name": "Ring", "role": "effect", "reach": 2 }',
             "*/",
             "vec4 shade(NodeInput n) { float r = step(abs(length(n.uv) - 0.8), 0.05); return vec4(r, r, r, r); }",
         ].join("\n");

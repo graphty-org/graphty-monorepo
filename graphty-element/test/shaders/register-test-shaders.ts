@@ -15,7 +15,6 @@ const NODE_SIZE = "vec4 shade(NodeInput n) { return vec4(vec3(n.size), 1.0); }";
 export function registerTestShaders(): void {
     defineShader({
         id: "acme/marble",
-        kind: "node-surface",
         params: {
             twist: { type: "number", default: 2.2, min: 0, max: 8, primary: true },
             spin: { type: "number", default: 0.25, min: 0, max: 2, varies: true },
@@ -26,21 +25,20 @@ export function registerTestShaders(): void {
     });
     defineShader({
         id: "acme/lantern",
-        kind: "node-surface",
         params: { speed: { type: "number", default: 1, min: 0, max: 4 } },
         glsl: NODE_COLOR,
     });
     defineShader({
         id: "acme/sticker",
-        kind: "node-sprite",
+        geometry: "card",
         params: { icon: { type: "integer", default: 0, min: 0, max: 11, varies: true } },
         glsl: NODE_COLOR,
     });
-    defineShader({ id: "acme/mandala", kind: "node-sprite", glsl: NODE_SIZE });
+    defineShader({ id: "acme/mandala", geometry: "card", glsl: NODE_SIZE });
     for (const name of ["aura", "ring", "orbit", "spark", "flash"]) {
         defineShader({
             id: `acme/${name}`,
-            kind: "node-effect",
+            role: "effect",
             params: { intensity: { type: "number", default: 1, min: 0, max: 2, varies: true } },
             glsl: NODE_COLOR,
         });
@@ -48,11 +46,10 @@ export function registerTestShaders(): void {
 
     defineShader({
         id: "acme/hull",
-        kind: "boundary",
         params: { outline: 2.5 },
-        glsl: "vec4 shade(BoundaryInput g) { return g.color * g.field; }",
+        glsl: "vec4 shade(GroupInput g) { return g.color * g.field; }",
     });
-    defineShader({ id: "acme/fiber", kind: "edge-surface", glsl: "vec4 shade(EdgeInput e) { return e.color; }" });
+    defineShader({ id: "acme/fiber", glsl: "vec4 shade(EdgeInput e) { return e.color; }" });
 }
 
 /** Forget them. */

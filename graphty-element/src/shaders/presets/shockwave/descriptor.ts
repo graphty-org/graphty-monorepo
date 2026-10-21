@@ -9,7 +9,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "shockwave",
     plainName: "Shockwave",
-    kind: "node-effect",
+    target: "node",
+    role: "effect",
+    categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "ringColor", plainName: "Color", type: "color", default: "#9fd8ff", primary: true },
         { name: "ringGlow", plainName: "Glow", type: "number", default: 0.9, min: 0, max: 1.5 },

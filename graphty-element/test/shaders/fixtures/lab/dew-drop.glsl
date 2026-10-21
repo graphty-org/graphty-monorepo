@@ -2,7 +2,6 @@
 {
     "id": "lab/dew-drop",
     "name": "Dew drop",
-    "kind": "node-surface",
     "params": [
         {
             "name": "sparkle",

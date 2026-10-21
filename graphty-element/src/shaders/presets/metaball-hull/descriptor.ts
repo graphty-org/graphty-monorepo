@@ -13,7 +13,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "metaball-hull",
     plainName: "Hull",
-    kind: "boundary",
+    target: "group",
+    role: "look",
+    categories: Object.freeze(["Blob"]),
     form: "field",
     // Each member's kernel radius, in member radii, is the blob radius.
     reachParam: "blobRadius",

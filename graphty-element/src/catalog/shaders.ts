@@ -1,9 +1,9 @@
 /**
- * @file Shaders as catalog data: the kinds, the descriptor a catalog lists, the parameter maps a
- * style layer writes, and the channels a shader of each kind covers.
+ * @file Shaders as catalog data: targets and roles, the descriptor a catalog lists, the parameter
+ * maps a style layer writes, and the channels a shader covers.
  *
  * A shader is a small GPU program that decides the color of each pixel of something drawn. Here it
- * is only data: an id, a kind, the parameters it declares and the facts the element and an editor
+ * is only data: an id, a target and a role, the parameters it declares and the facts the element and an editor
  * read. The GLSL text is checked in `./shaderText` and kept by `./shaderRegistry`; drawing it is
  * the renderer's (design/rendering/shader-styles.md).
  *
@@ -13,32 +13,79 @@
 import type { Channel, OptionDescriptor } from "./types";
 
 /**
- * What a shader draws on and what it does to the drawing beneath it.
- *
- * - `node-surface`: the pixels of the node's own shape, lit by the scene.
- * - `node-sprite`: a flat picture facing the camera, drawn in place of the shape.
- * - `node-effect`: a second drawing around or over the node.
- * - `edge-surface`: the pixels of the edge's line.
- * - `edge-effect`: light that travels along an edge of any route.
- * - `background`: the whole canvas behind the graph.
- * - `boundary`: one shape around each group of a layer's nodes.
+ * What a shader draws on: a node, an edge, a group of nodes, or the canvas behind the graph. Shader
+ * text never names it: it is read from the entry function's input, `shade(NodeInput n)`,
+ * `shade(EdgeInput e)`, `shade(GroupInput g)` or `shade(BackgroundInput b)`.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
-export type ShaderKind =
-    "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+export type ShaderTarget = "node" | "edge" | "group" | "background";
 
-/** Every shader kind, in the order above. @since 3.36.0 */
-export const SHADER_KINDS: readonly ShaderKind[] = Object.freeze([
-    "node-surface",
-    "node-sprite",
-    "node-effect",
-    "edge-surface",
-    "edge-effect",
-    "background",
-    "boundary",
-]);
+/**
+ * Whether a shader replaces how its target is painted (`"look"`: one per node or edge, the topmost
+ * layer's wins) or is drawn on or around it (`"effect"`: effects stack). Groups and the background
+ * take looks only.
+ *
+ * OPEN UNION: members may be added in a minor release; handle unknown members.
+ * @since 3.36.0
+ */
+export type ShaderRole = "look" | "effect";
+
+/**
+ * Where a shader is added: what it draws on and its role. Supplies the role of shader text that
+ * does not declare one (`parseShaderText(text, { place })`).
+ * @since 3.36.0
+ */
+export interface ShaderPlace {
+    /** What it draws on. */
+    readonly target: ShaderTarget;
+    /** Its role there. */
+    readonly role: ShaderRole;
+}
+
+/**
+ * How a node look is drawn: on the node's own shape (`"shape"`, the default), or as a flat card
+ * facing the camera in place of the shape (`"card"`), which covers every shape channel.
+ * @since 3.36.0
+ */
+export type ShaderGeometry = "shape" | "card";
+
+/**
+ * The frame a shader's thumbnail is drawn from: its parameters and the time, in seconds.
+ * @since 3.36.0
+ */
+export interface ShaderPreview {
+    /** Parameter values, over the defaults. */
+    readonly params?: ShaderParams;
+    /** The time of the frame, in seconds. */
+    readonly time?: number;
+}
+
+/**
+ * The seven drawings the renderer tells apart: a target, a role and, for a node look, its
+ * geometry. Internal; nothing public names it.
+ */
+export type ShaderDrawing =
+    "node-look" | "node-card" | "node-effect" | "edge-look" | "edge-effect" | "background" | "group";
+
+/**
+ * The drawing a shader asks the renderer for.
+ * @param descriptor - Its target, role and geometry.
+ * @returns The drawing.
+ */
+export function drawingOf(descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry">): ShaderDrawing {
+    const { target, role } = descriptor;
+    if (target === "group" || target === "background") {
+        return target;
+    }
+
+    if (role === "effect") {
+        return `${target}-effect`;
+    }
+
+    return target === "node" && descriptor.geometry === "card" ? "node-card" : `${target}-look`;
+}
 
 /**
  * What a shader takes from the layers beneath and from element state. `times` is the entered,
@@ -138,8 +185,21 @@ export interface ShaderDescriptor {
     readonly id: string;
     /** Catalog data: the default name. */
     readonly plainName: string;
-    /** What it draws on. */
-    readonly kind: ShaderKind;
+    /** What it draws on, read from the entry function's input. */
+    readonly target: ShaderTarget;
+    /** Whether it replaces how its target is painted or is drawn on or around it. */
+    readonly role: ShaderRole;
+    /** Node looks: on the node's shape (absent means `"shape"`), or a card in its place. */
+    readonly geometry?: ShaderGeometry;
+    /**
+     * Effects: the smallest on-screen radius, in CSS pixels, the effect is drawn at, so its detail
+     * survives a far camera. Absent means it scales with the node.
+     */
+    readonly minPixels?: number;
+    /** Catalog data: where a gallery may file it, such as `"Glass"`. An application orders them. */
+    readonly categories?: readonly string[];
+    /** The frame its thumbnail is drawn from. */
+    readonly preview?: ShaderPreview;
     /** Its parameters, in declaration order. */
     readonly params: readonly ShaderParamDescriptor[];
     /** What it takes from the layers beneath and from element state. */
@@ -152,7 +212,7 @@ export interface ShaderDescriptor {
     readonly origin: ShaderOrigin;
     /** How it runs on the WebGPU renderer. */
     readonly webgpu: ShaderWebGpu;
-    /** An image URL of a still picture; presets ship one. */
+    /** An image URL of a still picture; presets supply one, and any registrant may. */
     readonly thumbnail?: string;
     /** What it needs from the device. */
     readonly requires?: readonly ShaderRequirement[];
@@ -177,8 +237,36 @@ export interface ShaderDescriptor {
 /** One shader's fixed parameter values, keyed by the parameter ids its catalog entry declares. @since 3.36.0 */
 export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
 
-/** Parameter values per shader id: only the drawn shader's set applies. @since 3.36.0 */
-export type ShaderParamSets = Readonly<Record<string, ShaderParams>>;
+/**
+ * The parameter values a layer writes to `node.shaderParams` or `edge.shaderParams`: plain
+ * `{ name: value }` entries for whichever shader is drawn (`{ hot: "#ff0000" }`), or a set per
+ * shader id (`{ "acme/heat": { hot: "#ff0000" } }`), of which only the drawn shader's applies. A
+ * higher layer wins per parameter; values the layer leaves out keep the defaults.
+ * @since 3.36.0
+ */
+export type ShaderParamSets = Readonly<Record<string, ShaderParams | number | string | boolean>>;
+
+/**
+ * The parameter values for the drawn shader from a merged `shaderParams` map: its plain
+ * `{ name: value }` entries, then the drawn shader's own set over them.
+ * @param sets - The merged map.
+ * @param id - The drawn shader.
+ * @returns Its values, or undefined when the map holds none for it.
+ */
+export function drawnShaderParams(sets: ShaderParamSets | undefined, id: string): ShaderParams | undefined {
+    if (sets === undefined) {
+        return undefined;
+    }
+
+    const plain = Object.entries(sets).filter(([, value]) => typeof value !== "object");
+    const ownEntry = sets[id];
+    const own = typeof ownEntry === "object" ? ownEntry : undefined;
+    if (plain.length === 0) {
+        return own;
+    }
+
+    return { ...(Object.fromEntries(plain) as ShaderParams), ...own };
+}
 
 /**
  * Effects by id: `true` turns one on with its defaults, `false` switches off one a layer beneath
@@ -212,7 +300,6 @@ export type ShaderProblemCode =
     | "shader.header-missing"
     | "shader.header-json"
     | "shader.header-key"
-    | "shader.kind-unknown"
     | "shader.id-invalid"
     | "shader.id-taken"
     | "shader.param-invalid"
@@ -233,7 +320,7 @@ export type ShaderProblemCode =
     | "shader.over-budget"
     | "shader.webgpu-unsupported"
     | "shader.unknown"
-    | "shader.kind-mismatch"
+    | "shader.target-mismatch"
     | "shader.held"
     | "shader.quarantined"
     | "shader.flashing"
@@ -255,31 +342,48 @@ export interface ShaderProblem {
 }
 
 /**
+ * A shader body: its GLSL text, or a function that loads it the first time something draws it.
+ * @since 3.36.0
+ */
+export type ShaderSource = string | (() => Promise<string>);
+
+/**
  * A shader as `registerShader` takes it: its catalog facts and its GLSL body.
  * @since 3.36.0
  */
 export interface ShaderRegistration {
     /** The catalog facts. The element fills in what is left out. */
-    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash"> & {
-        /** Default: the static checker's class. */
+    readonly descriptor: Omit<
+        ShaderDescriptor,
+        "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target" | "role"
+    > & {
+        /**
+         * What it draws on. Default: read from the body's entry function; required when `glsl` is
+         * a loader, whose body is not read until something draws it.
+         */
+        readonly target?: ShaderTarget;
+        /** Default: `"effect"` when `reach` is given (nodes and edges), else `"look"`. */
+        readonly role?: ShaderRole;
+        /** Default: the static checker's class (`"heavy"` until a loader's body is read). */
         readonly cost?: ShaderCost;
         /** Default: inferred from the body. */
         readonly reads?: readonly ShaderInput[];
         /** Default `"translate"`. */
         readonly webgpu?: ShaderWebGpu;
-        /** Default `"still"`. */
+        /** Default: `"loop"` when the body reads its input's `time` field, else `"still"`. */
         readonly motion?: ShaderMotionInput;
     };
-    /** The GLSL body: `shade` and its helpers. */
-    readonly glsl: string;
+    /** The GLSL body, `shade` and its helpers, or a function that loads it. */
+    readonly glsl: ShaderSource;
     /** An optional native WebGPU body (`webgpu: "native"`). */
     readonly wgsl?: string;
     /**
-     * An optional cheaper GLSL body with the same entry and parameters, for a heavy surface: the
+     * An optional cheaper GLSL body with the same entry and parameters, for a heavy look: the
      * element draws it for a whole batch while the median node on screen is under 12 px, chosen
-     * each time the camera comes to rest. Checked as `glsl` is.
+     * each time the camera comes to rest. Checked as `glsl` is. In shader text it is the entry
+     * `vec4 shadeFar(...)`.
      */
-    readonly lowDetail?: string;
+    readonly lowDetail?: ShaderSource;
 }
 
 /**
@@ -291,11 +395,21 @@ export type ShaderText = string; // NOSONAR(S6564): a published, documented name
 
 /** What `parseShaderText` answers. @since 3.36.0 */
 export type ShaderTextResult =
-    | { readonly ok: true; readonly registration: ShaderRegistration }
+    | {
+          readonly ok: true;
+          readonly registration: ShaderRegistration & {
+              readonly descriptor: ShaderRegistration["descriptor"] & {
+                  readonly target: ShaderTarget;
+                  readonly role: ShaderRole;
+              };
+              readonly glsl: string;
+              readonly lowDetail?: string;
+          };
+      }
     | { readonly ok: false; readonly problems: readonly ShaderProblem[] };
 
-/** The channels the shape rows draw, which a sprite draws instead. */
-const SPRITE_COVERS: readonly Channel[] = [
+/** The channels the shape rows draw, which a card draws instead. */
+const CARD_COVERS: readonly Channel[] = [
     "node.shape",
     "node.width",
     "node.height",
@@ -312,41 +426,48 @@ const SPRITE_COVERS: readonly Channel[] = [
 ];
 
 /**
- * The channels a shader of each kind covers: what is no longer drawn on an element the shader is
- * drawn on, whichever layer wrote it. On top of these, a surface or sprite whose `reads` lacks
- * `"color"` also covers `node.color` (an edge surface, `edge.color`), and one whose `reads` lacks
- * `"opacity"` covers `node.opacity` (`edge.opacity`): see {@link shaderCovers}.
- * @since 3.36.0
- */
-export const SHADER_KIND_COVERS: Readonly<Record<ShaderKind, readonly Channel[]>> = Object.freeze({
-    "node-surface": Object.freeze<Channel[]>(["node.flat", "node.unlit", "node.wireframe"]),
-    "node-sprite": Object.freeze([...SPRITE_COVERS]),
-    "node-effect": Object.freeze<Channel[]>([]),
-    "edge-surface": Object.freeze<Channel[]>(["edge.style", "edge.patternCount"]),
-    "edge-effect": Object.freeze<Channel[]>([]),
-    background: Object.freeze<Channel[]>([]),
-    boundary: Object.freeze<Channel[]>([]),
-});
-
-/**
- * Every channel one shader covers on an element it is drawn on: its kind's set, plus the color and
- * opacity of the element when it does not read them.
+ * Every channel one shader covers on an element it is drawn on: what is no longer drawn there,
+ * whichever layer beneath wrote it.
+ *
+ * - A card covers every shape channel.
+ * - A node look covers flat, unlit and wireframe.
+ * - An edge look covers `edge.style` and `edge.patternCount`.
+ * - A look that does not read `"color"` also covers the color, and one that does not read
+ *   `"opacity"` the opacity.
+ * - Effects, group and background shaders cover nothing.
+ *
+ * A card and a shape follow "the topmost layer wins": a `node.shape` on a layer above the card's
+ * draws the shape on those nodes, and the card is not drawn there.
  * @param descriptor - The shader.
  * @returns The covered channels.
  * @since 3.36.0
  */
-export function shaderCovers(descriptor: Pick<ShaderDescriptor, "kind" | "reads">): readonly Channel[] {
-    const own = SHADER_KIND_COVERS[descriptor.kind] as readonly Channel[] | undefined;
-    const covered = [...(own ?? [])];
-    const prefix = descriptor.kind === "edge-surface" ? "edge" : "node";
-    if (descriptor.kind === "node-surface" || descriptor.kind === "node-sprite" || descriptor.kind === "edge-surface") {
-        if (!descriptor.reads.includes("color")) {
-            covered.push(`${prefix}.color`);
-        }
+export function shaderCovers(
+    descriptor: Pick<ShaderDescriptor, "target" | "role" | "geometry" | "reads">,
+): readonly Channel[] {
+    const drawing = drawingOf(descriptor);
+    let covered: Channel[];
+    switch (drawing) {
+        case "node-card":
+            covered = [...CARD_COVERS];
+            break;
+        case "node-look":
+            covered = ["node.flat", "node.unlit", "node.wireframe"];
+            break;
+        case "edge-look":
+            covered = ["edge.style", "edge.patternCount"];
+            break;
+        default:
+            return [];
+    }
 
-        if (!descriptor.reads.includes("opacity")) {
-            covered.push(`${prefix}.opacity`);
-        }
+    const prefix = descriptor.target;
+    if (!descriptor.reads.includes("color")) {
+        covered.push(`${prefix}.color` as Channel);
+    }
+
+    if (!descriptor.reads.includes("opacity")) {
+        covered.push(`${prefix}.opacity` as Channel);
     }
 
     return covered;

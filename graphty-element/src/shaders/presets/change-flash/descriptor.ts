@@ -9,7 +9,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "change-flash",
     plainName: "Change flash",
-    kind: "node-effect",
+    target: "node",
+    role: "effect",
+    categories: Object.freeze(["Change"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "flashColor", plainName: "Color", type: "color", default: "#e8f4ff", primary: true },
         { name: "glint", plainName: "Glint", type: "number", default: 1, min: 0, max: 3 },

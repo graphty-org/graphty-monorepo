@@ -16,7 +16,10 @@ import type { ShaderDescriptor } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "mandala",
     plainName: "Mandala",
-    kind: "node-sprite",
+    target: "node",
+    role: "look",
+    geometry: "card",
+    categories: Object.freeze(["Card"]),
     params: Object.freeze([
         Object.freeze({
             name: "folds",

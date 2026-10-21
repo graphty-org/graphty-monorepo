@@ -11,7 +11,9 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "toon-outline",
     plainName: "Toon outline",
-    kind: "node-surface",
+    target: "node",
+    role: "look",
+    categories: Object.freeze(["Drawn"]),
     params: Object.freeze([
         Object.freeze({
             name: "bands",

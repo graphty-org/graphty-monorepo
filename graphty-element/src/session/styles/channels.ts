@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import type { ShaderEffects, ShaderKind, ShaderParams, ShaderParamSets } from "../../catalog/shaders";
+import type { ShaderEffects, ShaderParams, ShaderParamSets, ShaderPlace } from "../../catalog/shaders";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
@@ -666,7 +666,7 @@ export type ChannelValueKind =
     | "enum"
     | "labelStyle"
     | "nothing"
-    /** A shader id from the catalog, of the kinds `shaderKinds` lists, or `"none"`. @since 3.36.0 */
+    /** A shader id from the catalog, for the place `shaderPlace` names, or `"none"`. @since 3.36.0 */
     | "shader"
     /** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
     | "shaderParams"
@@ -779,11 +779,11 @@ export interface ChannelDescriptor {
      */
     readonly modifies?: Channel;
     /**
-     * The kinds of shader the channel names, on a shader channel: what a picker offers for it.
-     * Absent on every other channel.
+     * The target and role of the shaders the channel names, on a shader channel: what a picker
+     * offers for it. Absent on every other channel.
      * @since 3.36.0
      */
-    readonly shaderKinds?: readonly ShaderKind[];
+    readonly shaderPlace?: ShaderPlace;
 }
 
 /**
@@ -1940,21 +1940,15 @@ type ShaderChannelName = "shader" | "shaderParams" | "effects";
 /**
  * The three shader channels of one target.
  * @param target - Nodes or edges.
- * @param drawn - The kinds `shader` and `shaderParams` name.
- * @param effects - The kinds `effects` names.
- * @returns The channels, keyed by name.
+ * @returns The channels, keyed by name: `shader` and `shaderParams` name looks, `effects` effects.
  */
-function shaderChannels<T extends "node" | "edge">(
-    target: T,
-    drawn: readonly ShaderKind[],
-    effects: readonly ShaderKind[],
-): Record<`${T}.${ShaderChannelName}`, ChannelDescriptor> {
+function shaderChannels<T extends "node" | "edge">(target: T): Record<`${T}.${ShaderChannelName}`, ChannelDescriptor> {
     const title = target === "node" ? "Node" : "Edge";
     const row = (
         name: ShaderChannelName,
         accepts: ChannelValueKind,
         plainName: string,
-        kinds: readonly ShaderKind[],
+        role: ShaderPlace["role"],
     ): ChannelDescriptor => ({
         channel: `${target}.${name}` as Channel,
         target,
@@ -1967,14 +1961,14 @@ function shaderChannels<T extends "node" | "edge">(
         stylePath: `shader.${SHADER_STYLE_FIELD[name]}`,
         renderable: true,
         caveat: SHADER_CAVEAT,
-        shaderKinds: kinds,
+        shaderPlace: { target, role },
         ...(name === "shader" ? { off: SHADER_NONE, default: SHADER_NONE } : {}),
     });
 
     return {
-        [`${target}.shader`]: row("shader", "shader", "Shader", drawn),
-        [`${target}.shaderParams`]: row("shaderParams", "shaderParams", "Shader parameters", drawn),
-        [`${target}.effects`]: row("effects", "shaderEffects", "Effects", effects),
+        [`${target}.shader`]: row("shader", "shader", "Shader", "look"),
+        [`${target}.shaderParams`]: row("shaderParams", "shaderParams", "Shader parameters", "look"),
+        [`${target}.effects`]: row("effects", "shaderEffects", "Effects", "effect"),
     } as Record<`${T}.${ShaderChannelName}`, ChannelDescriptor>;
 }
 
@@ -3784,8 +3778,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         ...labelFieldChannels("edge")["edge.labelBackground"],
         ...LOOK_AND_VISIBILITY["edge.labelBackground"],
     },
-    ...shaderChannels("node", ["node-surface", "node-sprite"], ["node-effect"]),
-    ...shaderChannels("edge", ["edge-surface"], ["edge-effect"]),
+    ...shaderChannels("node"),
+    ...shaderChannels("edge"),
     "edge.taper": {
         channel: "edge.taper",
         target: "edge",
@@ -4061,15 +4055,32 @@ function mergeParams(held: unknown, over: object): Record<string, unknown> {
  * @returns The merged map, a fresh object with no prototype.
  */
 export function mergeShaderParams(held: unknown, over: object): ShaderParamSets {
-    if (typeof held !== "object" || held === null) {
+    const entries = Object.entries(over);
+    const flat = entries.filter(([, value]) => typeof value !== "object" || value === null);
+    if ((typeof held !== "object" || held === null) && flat.length === 0) {
         // Nothing beneath: the layer's own map, which preparation already made prototype-free.
         return over as ShaderParamSets;
     }
 
-    const merged = Object.create(null) as Record<string, ShaderParams>;
-    Object.assign(merged, held);
+    const merged = Object.create(null) as Record<string, ShaderParams | number | string | boolean>;
+    if (typeof held === "object" && held !== null) {
+        Object.assign(merged, held);
+    }
 
-    for (const [id, params] of Object.entries(over)) {
+    // A plain `{ name: value }` is for whichever shader is drawn: it stays a plain entry, and is
+    // written over every shader's set beneath, so the higher layer still wins per parameter.
+    const record = merged as Record<string, unknown>;
+    for (const [name, value] of flat) {
+        for (const [id, set] of Object.entries(record)) {
+            if (typeof set === "object" && set !== null) {
+                record[id] = mergeParams(set, { [name]: value });
+            }
+        }
+
+        record[name] = value;
+    }
+
+    for (const [id, params] of entries) {
         if (typeof params === "object" && params !== null) {
             merged[id] = mergeParams(merged[id], params) as ShaderParams;
         }

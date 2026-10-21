@@ -65,7 +65,7 @@ struct BackgroundInput {
     float time;
     vec4 groupTint;
 };
-struct BoundaryInput {
+struct GroupInput {
     vec2 uv;
     float field;
     vec2 fieldGradient;

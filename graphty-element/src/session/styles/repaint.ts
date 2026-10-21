@@ -56,6 +56,7 @@
  */
 
 import { withLabelLook } from "../../catalog/label-looks";
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
@@ -889,6 +890,19 @@ function writePainted(channel: PreparedChannel, index: number, painted: unknown)
 }
 
 /**
+ * A shape painted over a card: the topmost layer's is drawn, so a card a lower layer wrote on
+ * this element is taken back. A look that paints the shape (not a card) stays.
+ * @param shaders - The `node.shader` column.
+ * @param index - The element.
+ */
+function dropCardUnderShape(shaders: ChannelColumn, index: number): void {
+    const id = readColumn(shaders, index);
+    if (typeof id === "string" && shaderDescriptor(id)?.geometry === "card") {
+        clearColumn(shaders, index);
+    }
+}
+
+/**
  * The combine a binding asks for, ready for the pass.
  * @param descriptor - The channel.
  * @param binding - The binding.
@@ -1605,6 +1619,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
         let current = 0;
         const readCurrent = (path: Path): unknown => elements.value(current, path);
+        // A card and a shape follow "the topmost layer wins" (see dropCardUnderShape).
+        const shapes = store.columns.get("node.shape");
+        const shaders = store.columns.get("node.shader");
 
         /**
          * Paint one element: every channel of the layer. Built once per layer, not per element.
@@ -1612,6 +1629,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
          */
         const paintOne = (index: number): void => {
             current = index;
+            let shaderHere = false;
 
             // Indexed rather than `for ... of`, which would allocate an iterator per element
             // for a list whose length was settled when the layer was prepared.
@@ -1636,6 +1654,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
 
                 writePainted(channel, index, painted);
+                if (channel.column === shaders) {
+                    shaderHere = true;
+                } else if (channel.column === shapes && shaders !== undefined && !shaderHere) {
+                    dropCardUnderShape(shaders, index);
+                }
             }
         };
 

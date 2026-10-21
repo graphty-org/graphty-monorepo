@@ -35,7 +35,13 @@
  */
 
 import { shaderDescriptor } from "../../catalog/shaderRegistry";
-import { shaderCovers, type ShaderEffects, type ShaderParamSets } from "../../catalog/shaders";
+import {
+    shaderCovers,
+    type ShaderDescriptor,
+    type ShaderEffects,
+    type ShaderParamSets,
+    type ShaderPlace,
+} from "../../catalog/shaders";
 import type {
     Channel,
     ChannelValue,
@@ -115,9 +121,10 @@ export interface ChannelExplanation {
      */
     readonly fact?: CodedFact<ChannelRefusalCode>;
     /**
-     * The layer whose shader is drawn instead of this channel on this element: a sprite draws in
-     * place of the shape, a surface in place of the material (see `SHADER_KIND_COVERS`). Absent
-     * when the channel is drawn.
+     * The layer whose shader is drawn instead of this channel on this element: a card draws in
+     * place of the shape, a look in place of the material (see `shaderCovers`). A card and a shape
+     * follow "the topmost layer wins", so a shape on a layer above the card's is drawn and is not
+     * covered. Absent when the channel is drawn.
      * @since 3.36.0
      */
     readonly coveredBy?: LayerId;
@@ -339,7 +346,7 @@ export interface ChannelCovers {
  * | --- | --- |
  * | `caption.noArrow` | `channel`: the caption channel; `arrow`: the arrow channel at that end (`edge.arrowHead`, `edge.arrowTail`), which is `"none"` on those edges -- an undirected graph draws no head until a layer sets one; `count`: how many edges |
  * | `shader.unknown` | `channel` (or `"boundary"`); `shader`: an id the catalog does not list, so what lies beneath is drawn; `count` |
- * | `shader.kind-mismatch` | `channel`; `shader`; `kind`: its kind, which that channel does not take; `count` |
+ * | `shader.target-mismatch` | `channel` (or `"boundary"`); `shader`; `expected`, `found`: the target that channel takes and the shader's, or when the targets agree, the role it takes and the shader's; `count` |
  * | `shader.param-unused` | `shader`, `param`: a parameter set for a shader not drawn on those elements; `count` |
  * | `shader.effect-cap` | `left`: the most effects left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
  * | `edge.lift-needs-flat-layout` | `count`: how many edges the layer lifts that are drawn flat, because the view is not a flat layout in 3D (`edge.lift` rises out of a flat layout's plane, so it draws only there) |
@@ -350,7 +357,7 @@ export interface ChannelCovers {
 export type UndrawnCode =
     | "caption.noArrow"
     | "shader.unknown"
-    | "shader.kind-mismatch"
+    | "shader.target-mismatch"
     | "shader.param-unused"
     | "shader.effect-cap"
     | "edge.lift-needs-flat-layout";
@@ -732,7 +739,8 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
     const painted = new Map<LayerId, Painting>();
     const order: Painting[] = [];
 
-    paintOne(prepareStack(sources), at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
+    const stack = prepareStack(sources);
+    paintOne(stack, at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
         const { channel } = prepared;
         // Label styles stack field by field, as the repaint stacks them, and a label field
         // channel lands in its label style: `merged` is what the canvas draws.
@@ -771,7 +779,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         values: Object.freeze({ ...painting.values }),
     }));
 
-    const covering = coveringShader(at.target, merged, (channel) => winners.get(channel)?.layer.id);
+    const covering = coveringShader(at.target, merged, (channel) => winners.get(channel)?.layer.id, ranksOf(stack));
     const channels: ChannelExplanation[] = [];
     for (const channel of CHANNELS) {
         const winner = winners.get(channel);
@@ -838,6 +846,7 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
     const tallies = new Map<Channel, Tally>();
     const totals = { node: 0, edge: 0 };
     const winners = new Map<Channel, { layerId: LayerId; value: unknown }>();
+    const rankOf = ranksOf(stack);
 
     const read = (target: SelectorTarget, indices: Iterable<number>): void => {
         const columns = columnsFor(sources.elements, target);
@@ -846,10 +855,13 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
             totals[target]++;
             winners.clear();
             const shader = { value: undefined as unknown, layerId: undefined as LayerId | undefined };
+            let shapeLayer: LayerId | undefined;
             paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
                 if (prepared.channel === `${target}.shader`) {
                     shader.value = result;
                     shader.layerId = layer.id;
+                } else if (prepared.channel === "node.shape") {
+                    shapeLayer = layer.id;
                 }
 
                 if (only === undefined || prepared.channel === only) {
@@ -860,7 +872,12 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
                     winners.set(prepared.channel, { layerId: layer.id, value });
                 }
             });
-            const covering = coveringShader(target, { [`${target}.shader`]: shader.value }, () => shader.layerId);
+            const covering = coveringShader(
+                target,
+                { [`${target}.shader`]: shader.value },
+                (channel) => (channel === "node.shape" ? shapeLayer : shader.layerId),
+                rankOf,
+            );
 
             for (const [channel, { layerId, value }] of winners) {
                 let tally = tallies.get(channel);
@@ -1002,13 +1019,16 @@ function countAdjustments(
  * @param target - Nodes or edges.
  * @param values - What the element is painted, read for `<target>.shader`.
  * @param winnerOf - The layer that won a channel.
+ * @param rankOf - A layer's place in the stack, bottom first.
  * @returns The covering layer and its channels, or null when no shader that covers anything is
- *   drawn (none, "none", an id the catalog does not list, or one of the wrong kind).
+ *   drawn (none, "none", an id the catalog does not list, one for another place, or a card under
+ *   a shape a higher layer sets).
  */
 function coveringShader(
     target: SelectorTarget,
     values: Readonly<Record<string, unknown>>,
     winnerOf: (channel: Channel) => LayerId | undefined,
+    rankOf: (layerId: LayerId) => number,
 ): { readonly layerId: LayerId; readonly covers: readonly Channel[] } | null {
     const channel: Channel = `${target}.shader`;
     const id = values[channel];
@@ -1018,9 +1038,55 @@ function coveringShader(
         return null;
     }
 
-    const kinds = CHANNEL_DESCRIPTORS[channel].shaderKinds ?? [];
+    const place = CHANNEL_DESCRIPTORS[channel].shaderPlace;
+    if (place === undefined || placeMismatch(place, descriptor) !== null) {
+        return null;
+    }
 
-    return kinds.includes(descriptor.kind) ? { layerId, covers: shaderCovers(descriptor) } : null;
+    // A card and a shape: the topmost layer's is drawn.
+    const shape = descriptor.geometry === "card" ? winnerOf("node.shape") : undefined;
+    if (shape !== undefined && rankOf(shape) > rankOf(layerId)) {
+        return null;
+    }
+
+    return { layerId, covers: shaderCovers(descriptor) };
+}
+
+/**
+ * How a shader differs from the place it is written to.
+ * @param place - The target and role the place takes.
+ * @param descriptor - The shader.
+ * @returns `{ expected, found }`: the targets when they differ, else the roles when they differ;
+ *   null when it fits.
+ */
+function placeMismatch(
+    place: ShaderPlace,
+    descriptor: Pick<ShaderDescriptor, "target" | "role">,
+): { readonly expected: string; readonly found: string } | null {
+    if (descriptor.target !== place.target) {
+        return { expected: place.target, found: descriptor.target };
+    }
+
+    return descriptor.role === place.role ? null : { expected: place.role, found: descriptor.role };
+}
+
+/** Each prepared stack's rank lookup, built once per stack. */
+const RANKS = new WeakMap<readonly StackEntry[], (layerId: LayerId) => number>();
+
+/**
+ * Each layer's place in the stack, bottom first.
+ * @param stack - The stack.
+ * @returns A lookup; a layer not in the stack ranks below every one.
+ */
+function ranksOf(stack: readonly StackEntry[]): (layerId: LayerId) => number {
+    let lookup = RANKS.get(stack);
+    if (lookup === undefined) {
+        const ranks = new Map(stack.map(({ entry }, index) => [entry.layer.id, index]));
+        lookup = (layerId) => ranks.get(layerId) ?? -1;
+        RANKS.set(stack, lookup);
+    }
+
+    return lookup;
 }
 
 /** What one walk over one element found, for {@link countWins}. */
@@ -1091,7 +1157,7 @@ function countWins(
 ): void {
     const found = walkWins(stack, at, columns, layerId);
     const { painted, others, perChannel } = tallies;
-    const covering = coveringShader(at.target, found.values, (channel) => found.winners.get(channel));
+    const covering = coveringShader(at.target, found.values, (channel) => found.winners.get(channel), ranksOf(stack));
     const cover = (channel: Channel, by: LayerId): void => {
         if (by !== layerId) {
             others.set(by, (others.get(by) ?? 0) + 1);
@@ -1148,8 +1214,12 @@ function checkShaderId(tally: ShaderFactTally, channel: Channel, id: string): vo
     const descriptor = shaderDescriptor(id);
     if (descriptor === undefined) {
         countFact(tally, "shader.unknown", { channel, shader: id });
-    } else if (!(CHANNEL_DESCRIPTORS[channel].shaderKinds ?? []).includes(descriptor.kind)) {
-        countFact(tally, "shader.kind-mismatch", { channel, shader: id, kind: descriptor.kind });
+    } else {
+        const place = CHANNEL_DESCRIPTORS[channel].shaderPlace;
+        const mismatch = place === undefined ? null : placeMismatch(place, descriptor);
+        if (mismatch !== null) {
+            countFact(tally, "shader.target-mismatch", { channel, shader: id, ...mismatch });
+        }
     }
 }
 
@@ -1182,7 +1252,7 @@ function shaderTally(target: SelectorTarget): {
             }
 
             for (const [set, values_] of Object.entries((own[params] as ShaderParamSets | undefined) ?? {})) {
-                if (set !== values[shader]) {
+                if (set !== values[shader] && typeof values_ === "object") {
                     for (const param of Object.keys(values_)) {
                         countFact(tally, "shader.param-unused", { shader: set, param });
                     }
@@ -1255,19 +1325,18 @@ function captionTally(directed: boolean): {
  * @returns The facts.
  */
 function boundaryFactsOf(boundary: string | undefined, matched: number): CodedFact<UndrawnCode>[] {
-    return boundary === undefined || matched === 0 || shaderDescriptor(boundary)?.kind === "boundary"
-        ? []
-        : [
-              {
-                  code: shaderDescriptor(boundary) === undefined ? "shader.unknown" : "shader.kind-mismatch",
-                  params: {
-                      channel: "boundary",
-                      shader: boundary,
-                      ...(shaderDescriptor(boundary) === undefined ? {} : { kind: shaderDescriptor(boundary)?.kind }),
-                      count: matched,
-                  },
-              },
-          ];
+    const descriptor = boundary === undefined ? undefined : shaderDescriptor(boundary);
+    const mismatch = descriptor === undefined ? null : placeMismatch({ target: "group", role: "look" }, descriptor);
+    if (boundary === undefined || matched === 0 || (descriptor !== undefined && mismatch === null)) {
+        return [];
+    }
+
+    return [
+        {
+            code: descriptor === undefined ? "shader.unknown" : "shader.target-mismatch",
+            params: { channel: "boundary", shader: boundary, ...mismatch, count: matched },
+        },
+    ];
 }
 
 /**

@@ -509,7 +509,7 @@ class ShaderScene {
             return;
         }
 
-        if (shader?.registration.descriptor.kind !== "background") {
+        if (shader?.registration.descriptor.target !== "background") {
             this.background?.hide();
             return;
         }

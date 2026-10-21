@@ -20,12 +20,12 @@ import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
 import { sha256Hex } from "../../src/utils/sha256";
 
-/** A node surface with one parameter. */
+/** A node look with one parameter. */
 const TINT = `/* graphty-shader 1
 {
     "id": "user/tint",
     "name": "Tint",
-    "kind": "node-surface",
+    "role": "look",
     "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }]
 }
 */
@@ -36,7 +36,7 @@ vec4 shade(NodeInput n) {
 
 /** A node effect. */
 const RING = `/* graphty-shader 1
-{ "id": "user/ring", "name": "Ring", "kind": "node-effect", "reach": 2, "motion": "loop" }
+{ "id": "user/ring", "name": "Ring", "role": "effect", "reach": 2, "motion": "loop" }
 */
 vec4 shade(NodeInput n) {
     float ring = smoothstep(0.04, 0.0, abs(length(n.uv) - fract(n.time)));
@@ -461,18 +461,19 @@ describe("session.shaders", () => {
 
     it("names a missing or wrong entry function, not a missing header", async () => {
         const { session: s } = await session();
-        const codes = async (text: string, kind?: "node-surface"): Promise<string[]> => {
-            const checked = await s.shaders.check(text, kind === undefined ? {} : { kind });
+        const codes = async (text: string, role?: "look"): Promise<string[]> => {
+            const checked = await s.shaders.check(text, role === undefined ? {} : { place: { target: "node", role } });
             return checked.ok ? [] : checked.problems.map((each) => each.code);
         };
         assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n"), ["shader.entry-signature"]);
         assert.deepEqual(await codes("vec4 shade(Node n) { return n.color; }\n"), ["shader.entry-signature"]);
         assert.deepEqual(await codes("vec4 paint(NodeInput n) { return n.color; }\n"), ["shader.entry-missing"]);
-        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n", "node-surface"), [
+        assert.deepEqual(await codes("vec3 shade(NodeInput n) { return n.color.rgb; }\n", "look"), [
             "shader.entry-signature",
         ]);
-        // A node body with no kind is still a body whose header would say which kind it is.
-        assert.deepEqual(await codes("vec4 shade(NodeInput n) { return n.color; }\n"), ["shader.header-missing"]);
+        // A node body with no header is a node look: its entry says the target, and no place asked
+        // for an effect.
+        assert.deepEqual(await codes("vec4 shade(NodeInput n) { return n.color; }\n"), []);
     });
 
     it("answers a shader applied to a layer of the other target with a problem, writing nothing", async () => {

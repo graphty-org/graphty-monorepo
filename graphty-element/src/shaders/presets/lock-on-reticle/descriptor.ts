@@ -9,7 +9,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     id: "lock-on-reticle",
     plainName: "Reticle",
-    kind: "node-effect",
+    target: "node",
+    role: "effect",
+    categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "hudColor", plainName: "Color", type: "color", default: "#5cffb0", primary: true },
         { name: "spin", plainName: "Spin", type: "number", default: 0.6, min: -3, max: 3 },

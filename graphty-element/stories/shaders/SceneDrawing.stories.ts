@@ -27,7 +27,6 @@ import { eventWaitingDecorator, waitForGraphSettled } from "../helpers";
 /** Domain-warped gas in three colors with dust lanes and two layers of stars, from the view direction. */
 const NEBULA: ShaderDefinition = {
     id: "demo/nebula",
-    kind: "background",
     motion: { loop: { speedParam: "drift" } },
     params: {
         gasA: { type: "color", default: "#2a0f4a" },
@@ -68,7 +67,6 @@ vec4 shade(BackgroundInput b) {
 /** Metaball hulls: a translucent membrane with an iridescent rim, or a clean outline. */
 const HULL: ShaderDefinition = {
     id: "demo/hull",
-    kind: "boundary",
     reach: 4,
     motion: { loop: { speedParam: "breathe" } },
     params: {
@@ -86,7 +84,7 @@ const HULL: ShaderDefinition = {
         outline: { type: "number", default: 2.5, min: 0, max: 8 },
         breathe: { type: "number", default: 0, min: 0, max: 1 },
     },
-    glsl: `vec4 shade(BoundaryInput g) {
+    glsl: `vec4 shade(GroupInput g) {
     float level = threshold * (1.0 + 0.08 * breathe * sin(g.time * 1.3 + g.group * 2.1));
     float slope = max(length(g.fieldGradient), 1e-5);
     float sd = (level - g.field) / slope;
@@ -112,7 +110,6 @@ const HULL: ShaderDefinition = {
 /** A thin-film soap bubble around each group: clear in the middle, bright swirling bands at the rim. */
 const BUBBLE: ShaderDefinition = {
     id: "demo/bubble",
-    kind: "boundary",
     form: "sphere",
     reach: 2,
     motion: { loop: { speedParam: "swirl" } },
@@ -121,7 +118,7 @@ const BUBBLE: ShaderDefinition = {
         swirl: { type: "number", default: 0, min: 0, max: 4 },
         clarity: { type: "number", default: 0.75, min: 0, max: 1 },
     },
-    glsl: `vec4 shade(BoundaryInput g) {
+    glsl: `vec4 shade(GroupInput g) {
     vec3 n = g.normal;
     float facing = clamp(-n.z, 0.0, 1.0);
     float fres = pow(1.0 - facing, 3.0);
@@ -137,7 +134,6 @@ const BUBBLE: ShaderDefinition = {
 /** A paper lantern: a warm glowing core lit from inside, which the shared bloom spreads. */
 const LANTERN: ShaderDefinition = {
     id: "demo/lantern",
-    kind: "node-surface",
     bloom: true,
     params: { warmth: { type: "number", default: 0.7, min: 0, max: 1, primary: true } },
     glsl: `vec4 shade(NodeInput n) {

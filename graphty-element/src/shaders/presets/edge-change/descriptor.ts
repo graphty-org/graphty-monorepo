@@ -16,7 +16,9 @@ import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../..
 export const EDGE_CHANGE: ShaderDescriptor = Object.freeze({
     id: "edge-change",
     plainName: "Edge change",
-    kind: "edge-effect",
+    target: "edge",
+    role: "effect",
+    categories: Object.freeze(["Change"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "flashColor", plainName: "Color", type: "color", default: "#e8f4ff", primary: true },
     ]),

@@ -2,7 +2,7 @@
 {
     "id": "lab/change-flash",
     "name": "Change flash",
-    "kind": "node-effect",
+    "role": "effect",
     "params": [
         {
             "name": "flashColor",

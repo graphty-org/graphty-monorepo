@@ -29,24 +29,22 @@ const cleanups: (() => void)[] = [];
 beforeAll(() => {
     defineShader({
         id: "e3/flat",
-        kind: "node-surface",
         glsl: "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 1.0); }",
     });
     defineShader({
         id: "e3/pulse",
-        kind: "node-surface",
         params: { speed: { type: "number", default: 1, min: 0, max: 4 } },
         motion: { loop: { speedParam: "speed" } },
         glsl: "vec4 shade(NodeInput n) { return vec4(vec3(fract(n.time * speed)), 1.0); }",
     });
     defineShader({
         id: "e3/sticker",
-        kind: "node-sprite",
+        geometry: "card",
         glsl: "vec4 shade(NodeInput n) { return vec4(n.color.rgb, 1.0); }",
     });
     defineShader({
         id: "e3/spin",
-        kind: "node-effect",
+        role: "effect",
         reach: 2,
         params: { speed: { type: "number", default: 1, min: 0, max: 4 } },
         motion: { loop: { speedParam: "speed" } },
@@ -57,7 +55,7 @@ beforeAll(() => {
     });
     defineShader({
         id: "e3/reticle",
-        kind: "node-effect",
+        role: "effect",
         reach: 1.6,
         motion: { enter: 0.55 },
         glsl: `vec4 shade(NodeInput n) {

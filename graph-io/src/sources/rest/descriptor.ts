@@ -49,6 +49,7 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
     defaultEndpoint: "https://api.openalex.org",
     auth: ["api-key"],
     authRequired: "optional",
+    apiKey: { query: "api_key" },
     rateLimit: { requests: 10, perMs: 1000 },
     features: ["expand", "probe", "validate", "page"],
     params: [

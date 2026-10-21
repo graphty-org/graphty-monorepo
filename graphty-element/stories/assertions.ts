@@ -1003,12 +1003,19 @@ export async function assertShapeVariety(scene: Drawn, atLeast: number): Promise
     const geometries = new Set(scene.nodes.map((node) => node.geometryDigest));
     const meshes = new Set(scene.nodes.map((node) => node.geometryKey));
     const shapes = new Set(scene.nodes.map((node) => node.shape));
+    const byGeometry = new Map<string, DrawnNode[]>();
+    for (const node of scene.nodes) {
+        byGeometry.set(node.geometryDigest, [...(byGeometry.get(node.geometryDigest) ?? []), node]);
+    }
+    const shared = [...byGeometry.values()]
+        .filter((group) => group.length > 1)
+        .map((group) => group.map((node) => node.id).join(" = "));
 
     await holds(
         geometries.size >= atLeast,
         `${scene.story}: the story promises ${String(atLeast)} different node shapes and the scene draws ` +
             `${String(geometries.size)} distinct geometries -- spread over ${String(meshes.size)} source meshes ` +
-            `and ${String(shapes.size)} shape names -- ${listed([...shapes])}`,
+            `and ${String(shapes.size)} shape names; these nodes draw the same geometry: ${listed(shared)}`,
     );
 }
 
@@ -1769,6 +1776,53 @@ export async function assertLabelColour(scene: Drawn, hex: string, what: string)
         without.length === 0,
         `${scene.story}: ${String(without.length)} of ${String(labelled.length)} labels are drawn with no ` +
             `${what} anywhere near ${hex} -- ${listed(without)}`,
+    );
+}
+
+/**
+ * WCAG relative luminance of an sRGB colour given as 0..255 channels.
+ * @param rgb - Red, green and blue, 0 to 255.
+ * @returns The luminance, 0 (black) to 1 (white).
+ */
+function luminance(rgb: readonly number[]): number {
+    const [r, g, b] = rgb.map((value) => {
+        const c = value / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Every label on screen draws something that stands out against the canvas behind it.
+ *
+ * READ OFF THE LABEL'S OWN CANVAS AND THE SCENE'S CLEAR COLOUR. A label whose only colour is the
+ * canvas's own -- white letters with no outline or panel on a light canvas -- has ink, so
+ * `assertLabelsDrawn` passes it, and nobody can read it. Some drawn colour (the letters, their
+ * outline or the panel behind them) must reach `minimumContrast` against the background.
+ * @param scene - What the story drew.
+ * @param minimumContrast - The WCAG contrast ratio one drawn colour must reach; 3 is WCAG's floor
+ * for large text and graphics.
+ */
+export async function assertLabelsReadable(scene: Drawn, minimumContrast = 3): Promise<void> {
+    const clear = scene.graph.scene.clearColor;
+    const background = luminance([clear.r, clear.g, clear.b].map((value) => Math.round(value * 255)));
+    const contrast = (hex: string): number => {
+        const lum = luminance([1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)));
+        return (Math.max(lum, background) + 0.05) / (Math.min(lum, background) + 0.05);
+    };
+
+    const labelled = scene.nodes.filter((node) => node.hasLabelMesh);
+
+    await holds(labelled.length > 0, `${scene.story}: no node is drawing a label, so there is nothing to read`);
+
+    const unreadable = labelled
+        .filter((node) => !node.labelColours.some((hex) => contrast(hex) >= minimumContrast))
+        .map((node) => `${node.id} drew [${node.labelColours.join(", ")}]`);
+
+    await holds(
+        unreadable.length === 0,
+        `${scene.story}: ${String(unreadable.length)} of ${String(labelled.length)} labels draw nothing that ` +
+            `reaches ${String(minimumContrast)}:1 against the canvas they sit on -- ${listed(unreadable)}`,
     );
 }
 

@@ -18,7 +18,10 @@ const UUID_IN_URL = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 export interface NdexShareLink {
     /** The params to load the network with. */
-    readonly params: { readonly uuid: string };
+    readonly params: {
+        /** The network's NDEx id. */
+        readonly uuid: string;
+    };
     /** The NDEx server the link points at ("https://www.ndexbio.org/"). */
     readonly endpoint: string;
     /** The link's access key, sent only to that server; absent when the link has none. */

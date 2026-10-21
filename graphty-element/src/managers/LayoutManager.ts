@@ -732,6 +732,9 @@ export class LayoutManager implements Manager {
     /** Each following group's box, from the last {@link placeGroups}. */
     private readonly groupBoxes = new Map<NodeIdType, GroupBox>();
 
+    /** The margin each group in {@link groupBoxes} was padded by, which a group around it keeps too. */
+    private readonly groupPads = new Map<NodeIdType, number>();
+
     /**
      * Strict state: something asked to step the layout while the lane was restoring, which only a
      * forward change may. Refused either way; strict state reports it, because the caller is
@@ -2234,6 +2237,7 @@ export class LayoutManager implements Manager {
         const engine = this.layoutEngine;
         const groups = this.followingGroups();
         this.groupBoxes.clear();
+        this.groupPads.clear();
         if (engine === undefined || groups.length === 0) {
             return;
         }
@@ -2262,7 +2266,9 @@ export class LayoutManager implements Manager {
 
     /**
      * One group's box: its members' extents (an inner group's own box), padded by its largest
-     * member's radius. Remembered in {@link groupBoxes}.
+     * member's radius, or an inner group's margin when that is larger, so a group around another
+     * is drawn around it rather than over it, as a nested Graphviz cluster is. Remembered in
+     * {@link groupBoxes}.
      * @param group - The group.
      * @param byId - Every following group, by id.
      * @param seen - The groups on the way here, so a cycle ends.
@@ -2292,7 +2298,7 @@ export class LayoutManager implements Manager {
                 max[axis] = Math.max(max[axis], c[axis] + h[axis]);
             }
 
-            pad = inner === undefined ? Math.max(pad, extent.half.x) : pad;
+            pad = Math.max(pad, inner === undefined ? extent.half.x : (this.groupPads.get(inner.group) ?? 0));
         }
 
         if (!Number.isFinite(min[0])) {
@@ -2305,6 +2311,7 @@ export class LayoutManager implements Manager {
             half: { x: half(0), y: half(1), z: half(2) },
         };
         this.groupBoxes.set(group.group, box);
+        this.groupPads.set(group.group, pad);
         return box;
     }
 

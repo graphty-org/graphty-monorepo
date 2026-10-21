@@ -1,0 +1,149 @@
+{
+    "about": "The graphology specimen pages: each sheet file drawn by sigma.js with its default settings plus `settings` (a sigma setting is the application's, never part of the file, so a page that varies one shares its first page's file). Written by graph-io/test/fidelity/generators/specimens/graphology.mjs.",
+    "pages": [
+        {
+            "id": "specimen-node-shapes",
+            "file": "specimen-node-shapes.json",
+            "settings": {},
+            "specimens": 8
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "file": "specimen-node-fills-borders.json",
+            "settings": {},
+            "specimens": 21
+        },
+        {
+            "id": "specimen-node-fills-borders-p2",
+            "file": "specimen-node-fills-borders-p2.json",
+            "settings": {},
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p3",
+            "file": "specimen-node-fills-borders-p3.json",
+            "settings": {},
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p4",
+            "file": "specimen-node-fills-borders-p4.json",
+            "settings": {},
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p5",
+            "file": "specimen-node-fills-borders-p5.json",
+            "settings": {},
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p6",
+            "file": "specimen-node-fills-borders-p6.json",
+            "settings": {},
+            "specimens": 28
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "file": "specimen-node-sizes-opacity.json",
+            "settings": {},
+            "specimens": 19
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p2",
+            "file": "specimen-node-sizes-opacity-p2.json",
+            "settings": {},
+            "specimens": 3
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p3",
+            "file": "specimen-node-sizes-opacity-p3.json",
+            "settings": {},
+            "specimens": 7
+        },
+        {
+            "id": "specimen-labels",
+            "file": "specimen-labels.json",
+            "settings": {},
+            "specimens": 15
+        },
+        {
+            "id": "specimen-edges-lines",
+            "file": "specimen-edges-lines.json",
+            "settings": {},
+            "specimens": 25
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "file": "specimen-edges-lines-p2.json",
+            "settings": {},
+            "specimens": 15
+        },
+        {
+            "id": "specimen-arrows",
+            "file": "specimen-arrows.json",
+            "settings": {},
+            "specimens": 8
+        },
+        {
+            "id": "specimen-arrows-p2",
+            "file": "specimen-arrows-p2.json",
+            "settings": {},
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels",
+            "file": "specimen-edge-labels.json",
+            "settings": {},
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "file": "specimen-edge-labels.json",
+            "settings": {
+                "renderEdgeLabels": true
+            },
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels-p3",
+            "file": "specimen-edge-labels.json",
+            "settings": {
+                "renderEdgeLabels": true,
+                "edgeLabelAnchors": "allNodes"
+            },
+            "specimens": 8
+        },
+        {
+            "id": "specimen-images-charts",
+            "file": "specimen-images-charts.json",
+            "settings": {},
+            "specimens": 4
+        }
+    ],
+    "absent": {
+        "specimen-groups": {
+            "reason": "graphology's serialization has nodes, edges and attributes only, and sigma.js draws no groups, clusters or compound nodes.",
+            "doc": "https://graphology.github.io/serialization.html"
+        },
+        "specimen-mappings-bypass": {
+            "reason": "A graphology file carries each element's attributes only; sigma.js's styles and attribute bindings are code in the application, never part of the file, so there is no default, mapping or per-element layer to reach the same values another way.",
+            "doc": "https://www.sigmajs.org/concepts/styles-and-primitives/"
+        }
+    },
+    "quirks": [
+        "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, and so are sigma 4's own display-data names stored as attributes (visibility, shape, opacity, labelColor, labelSize; edge visibility, opacity, path, head), so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
+        "every node competes in the label grid (one label per 100 px screen cell, the largest node's), labeled or not: an unlabeled node hides the label of a smaller node in its cell",
+        "a node drawn smaller than 6 px shows no label (labelRenderedSizeThreshold)",
+        "a label's newline (any ASCII whitespace: the canvas's text preparation) is drawn as a space, on one line; leading and trailing spaces are kept",
+        "a node whose x or y is a string, even a numeric one, makes sigma throw while drawing",
+        "a node's z (a 3D layout's), d3-force's simulation keys (index, vx, vy, fx, fy) and vis-network's physics are ignored: the file is drawn from x and y, y up",
+        "a non-string label (a number or a boolean) or a non-string color (a number) makes sigma throw while drawing, so those specimens are not on the sheets",
+        "colors: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba() with integer channels, the 148 names of HTML_COLORS (any case) and transparent are read; rgb() with a space before ')', percent or decimal channels, hsl(), an unknown name and \"\" are drawn black; a 4-digit hex (#f80c) is read as #f80c00 (red)",
+        "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw no node, but an edge of size 0 or below is drawn minEdgeThickness wide; a numeric string size is read as its number",
+        "an edge without a key (graphology's serialization makes it optional) is drawn like any other, under the key graph.import generates",
+        "edge sizes below 1.7 px are drawn 1.7 px wide (minEdgeThickness); parallel and reciprocal edges are drawn on top of each other (no parallel spread without a parallel path); a self loop is a small circle",
+        "edge labels are drawn only with renderEdgeLabels on, over the line, clipped to the edge's length, and (edgeLabelAnchors nodeLabels) only where both end nodes show their labels; with edgeLabelAnchors allNodes also between unlabeled ends",
+        "@sigma/export-image's temporary renderer reports 'Container has no width' once after the export when edge labels are on; the exported PNG is complete"
+    ]
+}

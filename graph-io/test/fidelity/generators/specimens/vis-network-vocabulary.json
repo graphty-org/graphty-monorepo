@@ -1,0 +1,1057 @@
+{
+    "about": "vis-network's option vocabulary: every node, edge and group option of networkOptions.allOptions (the table its option validator checks options against), the types it accepts and its enumerated values, plus the top-level option groups; read from the pinned vis-network by vis-network.mjs --vocabulary. docValues are values the documentation lists for an option the table types only as a string. vis-network.mjs fails when the live table differs, so a new version shows up as a new or missing specimen.",
+    "program": "vis-network 9.1.9",
+    "doc": "https://visjs.github.io/vis-network/docs/network/",
+    "options": [
+        {
+            "path": "nodes.borderWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.borderWidthSelected",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "nodes.brokenImage",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "nodes.chosen",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.chosen.label",
+            "types": ["boolean", "function"]
+        },
+        {
+            "path": "nodes.chosen.node",
+            "types": ["boolean", "function"]
+        },
+        {
+            "path": "nodes.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.border",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.background",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.highlight",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.highlight.border",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.highlight.background",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.hover",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.hover.border",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.color.hover.background",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.opacity",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "nodes.fixed",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.fixed.x",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.fixed.y",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.font",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.align",
+            "types": ["string"],
+            "docValues": ["center", "left", "right"]
+        },
+        {
+            "path": "nodes.font.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.background",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.strokeWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.strokeColor",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.multi",
+            "types": ["boolean", "string"],
+            "docValues": ["false", "true", "html", "markdown"]
+        },
+        {
+            "path": "nodes.font.bold",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.bold.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.bold.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.bold.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.bold.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.bold.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.boldital",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.boldital.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.boldital.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.boldital.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.boldital.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.boldital.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.ital",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.ital.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.ital.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.ital.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.ital.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.ital.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.mono",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.mono.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.mono.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.font.mono.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.mono.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.font.mono.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.group",
+            "types": ["string", "number", "undefined"]
+        },
+        {
+            "path": "nodes.heightConstraint",
+            "types": ["boolean", "number"]
+        },
+        {
+            "path": "nodes.heightConstraint.minimum",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.heightConstraint.valign",
+            "types": ["string"],
+            "docValues": ["top", "middle", "bottom"]
+        },
+        {
+            "path": "nodes.hidden",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.icon",
+            "types": []
+        },
+        {
+            "path": "nodes.icon.face",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.icon.code",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.icon.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.icon.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.icon.weight",
+            "types": ["string", "number"]
+        },
+        {
+            "path": "nodes.id",
+            "types": ["string", "number"]
+        },
+        {
+            "path": "nodes.image",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.image.selected",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "nodes.image.unselected",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "nodes.imagePadding",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.imagePadding.top",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.imagePadding.right",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.imagePadding.bottom",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.imagePadding.left",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.label",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "nodes.labelHighlightBold",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.level",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "nodes.margin",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.margin.top",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.margin.right",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.margin.bottom",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.margin.left",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.mass",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.physics",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.scaling",
+            "types": []
+        },
+        {
+            "path": "nodes.scaling.min",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.max",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.label",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.scaling.label.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.scaling.label.min",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.label.max",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.label.maxVisible",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.label.drawThreshold",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.scaling.customScalingFunction",
+            "types": ["function"]
+        },
+        {
+            "path": "nodes.shadow",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.shadow.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.shadow.color",
+            "types": ["string"]
+        },
+        {
+            "path": "nodes.shadow.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.shadow.x",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.shadow.y",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.shape",
+            "types": ["string"],
+            "enums": [
+                "custom",
+                "ellipse",
+                "circle",
+                "database",
+                "box",
+                "text",
+                "image",
+                "circularImage",
+                "diamond",
+                "dot",
+                "star",
+                "triangle",
+                "triangleDown",
+                "square",
+                "icon",
+                "hexagon"
+            ]
+        },
+        {
+            "path": "nodes.ctxRenderer",
+            "types": ["function"]
+        },
+        {
+            "path": "nodes.shapeProperties",
+            "types": []
+        },
+        {
+            "path": "nodes.shapeProperties.borderDashes",
+            "types": ["boolean", "array"]
+        },
+        {
+            "path": "nodes.shapeProperties.borderRadius",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.shapeProperties.interpolation",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.shapeProperties.useImageSize",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.shapeProperties.useBorderWithImage",
+            "types": ["boolean"]
+        },
+        {
+            "path": "nodes.shapeProperties.coordinateOrigin",
+            "types": ["string"],
+            "enums": ["center", "top-left"]
+        },
+        {
+            "path": "nodes.size",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.title",
+            "types": ["string", "dom", "undefined"]
+        },
+        {
+            "path": "nodes.value",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "nodes.widthConstraint",
+            "types": ["boolean", "number"]
+        },
+        {
+            "path": "nodes.widthConstraint.minimum",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.widthConstraint.maximum",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.x",
+            "types": ["number"]
+        },
+        {
+            "path": "nodes.y",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows",
+            "types": ["string"],
+            "enums": ["from", "to", "middle"]
+        },
+        {
+            "path": "edges.arrows.to",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.to.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.to.scaleFactor",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.to.type",
+            "types": ["string"],
+            "enums": [
+                "arrow",
+                "bar",
+                "box",
+                "circle",
+                "crow",
+                "curve",
+                "diamond",
+                "image",
+                "inv_curve",
+                "inv_triangle",
+                "triangle",
+                "vee"
+            ]
+        },
+        {
+            "path": "edges.arrows.to.imageHeight",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.to.imageWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.to.src",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.arrows.middle",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.middle.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.middle.scaleFactor",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.middle.type",
+            "types": ["string"],
+            "enums": [
+                "arrow",
+                "bar",
+                "box",
+                "circle",
+                "crow",
+                "curve",
+                "diamond",
+                "image",
+                "inv_curve",
+                "inv_triangle",
+                "triangle",
+                "vee"
+            ]
+        },
+        {
+            "path": "edges.arrows.middle.imageWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.middle.imageHeight",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.middle.src",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.arrows.from",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.from.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.arrows.from.scaleFactor",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.from.type",
+            "types": ["string"],
+            "enums": [
+                "arrow",
+                "bar",
+                "box",
+                "circle",
+                "crow",
+                "curve",
+                "diamond",
+                "image",
+                "inv_curve",
+                "inv_triangle",
+                "triangle",
+                "vee"
+            ]
+        },
+        {
+            "path": "edges.arrows.from.imageWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.from.imageHeight",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrows.from.src",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.endPointOffset",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.endPointOffset.from",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.endPointOffset.to",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.arrowStrikethrough",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.background",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.background.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.background.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.background.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.background.dashes",
+            "types": ["boolean", "array"]
+        },
+        {
+            "path": "edges.chosen",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.chosen.label",
+            "types": ["boolean", "function"]
+        },
+        {
+            "path": "edges.chosen.edge",
+            "types": ["boolean", "function"]
+        },
+        {
+            "path": "edges.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.color.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.color.highlight",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.color.hover",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.color.inherit",
+            "types": ["string", "boolean"],
+            "enums": ["from", "to", "both"]
+        },
+        {
+            "path": "edges.color.opacity",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.dashes",
+            "types": ["boolean", "array"]
+        },
+        {
+            "path": "edges.font",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.face",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.background",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.strokeWidth",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.strokeColor",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.align",
+            "types": ["string"],
+            "enums": ["horizontal", "top", "middle", "bottom"]
+        },
+        {
+            "path": "edges.font.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.multi",
+            "types": ["boolean", "string"],
+            "docValues": ["false", "true", "html", "markdown"]
+        },
+        {
+            "path": "edges.font.bold",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.bold.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.bold.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.bold.face",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.bold.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.bold.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.boldital",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.boldital.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.boldital.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.boldital.face",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.boldital.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.boldital.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.ital",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.ital.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.ital.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.ital.face",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.ital.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.ital.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.mono",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.mono.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.mono.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.font.mono.face",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.mono.mod",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.font.mono.vadjust",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.hidden",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.hoverWidth",
+            "types": ["function", "number"]
+        },
+        {
+            "path": "edges.label",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "edges.labelHighlightBold",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.length",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "edges.physics",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.scaling",
+            "types": []
+        },
+        {
+            "path": "edges.scaling.min",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.max",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.label",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.scaling.label.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.scaling.label.min",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.label.max",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.label.maxVisible",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.label.drawThreshold",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.scaling.customScalingFunction",
+            "types": ["function"]
+        },
+        {
+            "path": "edges.selectionWidth",
+            "types": ["function", "number"]
+        },
+        {
+            "path": "edges.selfReferenceSize",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.selfReference",
+            "types": []
+        },
+        {
+            "path": "edges.selfReference.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.selfReference.angle",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.selfReference.renderBehindTheNode",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.shadow",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.shadow.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.shadow.color",
+            "types": ["string"]
+        },
+        {
+            "path": "edges.shadow.size",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.shadow.x",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.shadow.y",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.smooth",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.smooth.enabled",
+            "types": ["boolean"]
+        },
+        {
+            "path": "edges.smooth.type",
+            "types": ["string"],
+            "enums": [
+                "dynamic",
+                "continuous",
+                "discrete",
+                "diagonalCross",
+                "straightCross",
+                "horizontal",
+                "vertical",
+                "curvedCW",
+                "curvedCCW",
+                "cubicBezier"
+            ]
+        },
+        {
+            "path": "edges.smooth.roundness",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.smooth.forceDirection",
+            "types": ["string", "boolean"],
+            "enums": ["horizontal", "vertical", "none"]
+        },
+        {
+            "path": "edges.title",
+            "types": ["string", "undefined"]
+        },
+        {
+            "path": "edges.width",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.widthConstraint",
+            "types": ["boolean", "number"]
+        },
+        {
+            "path": "edges.widthConstraint.maximum",
+            "types": ["number"]
+        },
+        {
+            "path": "edges.value",
+            "types": ["number", "undefined"]
+        },
+        {
+            "path": "groups.useDefaultGroups",
+            "types": ["boolean"]
+        },
+        {
+            "path": "groups.<name>",
+            "types": ["object"],
+            "about": "a group: any node option, applied to nodes with group <name>"
+        },
+        {
+            "path": "configure",
+            "types": ["object", "boolean", "string", "array", "function"]
+        },
+        {
+            "path": "interaction",
+            "types": ["object"]
+        },
+        {
+            "path": "layout",
+            "types": ["object"]
+        },
+        {
+            "path": "manipulation",
+            "types": ["object", "boolean"]
+        },
+        {
+            "path": "physics",
+            "types": ["object", "boolean"]
+        },
+        {
+            "path": "autoResize",
+            "types": ["boolean"]
+        },
+        {
+            "path": "clickToUse",
+            "types": ["boolean"]
+        },
+        {
+            "path": "locale",
+            "types": ["string"]
+        },
+        {
+            "path": "locales",
+            "types": ["object"]
+        },
+        {
+            "path": "height",
+            "types": ["string"]
+        },
+        {
+            "path": "width",
+            "types": ["string"]
+        }
+    ]
+}

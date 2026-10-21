@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <meta lastmodifieddate="2026-10-18">
+    <creator>graphty gexf-gephi specimen generator</creator>
+    <description>Edge weights of 0 and below: when the smallest weight is 0 or less, Gephi adds |smallest| + 1 to every edge's weight, so they are on a sheet of their own.</description>
+  </meta>
+  <graph mode="static" defaultedgetype="undirected">
+    <nodes>
+      <node id="anchor-nw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-ne">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-sw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-se">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="114" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="190" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-default" label="edge=unset">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="152" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-1-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="338" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-1-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="414" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-1" label="weight=1">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="376" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-4-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="562" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-4-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="638" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-4" label="weight=4">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="600" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-0-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="786" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-0-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="862" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-0" label="weight=0">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="824" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-minus-2-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1010" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-minus-2-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1086" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-minus-2" label="weight=-2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1048" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+    </nodes>
+    <edges>
+      <edge id="default" source="default-s" target="default-t"/>
+      <edge id="weight-1" source="weight-1-s" target="weight-1-t" weight="1">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-4" source="weight-4-s" target="weight-4-t" weight="4">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-0" source="weight-0-s" target="weight-0-t" weight="0">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-minus-2" source="weight-minus-2-s" target="weight-minus-2-t" weight="-2">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

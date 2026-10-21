@@ -2451,6 +2451,7 @@ export const cx2Importer: GraphImporter<Cx2ImportOptions> = Object.freeze({
         const kept: Cx2StyleSource = {
             visualProperties: doc.opaque.get("visualProperties"),
             visualEditorProperties: doc.opaque.get("visualEditorProperties"),
+            weightFrom: resolved.weightFrom,
         };
         report.keepForStyles(kept);
         throwIfAborted(resolved.signal);

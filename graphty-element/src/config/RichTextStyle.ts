@@ -28,6 +28,15 @@ const AttachPosition = z.enum([
     "bottom",
     "bottom-left",
     "bottom-right",
+    // Inside the target against that side or in that corner, as a group's header label.
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
 ]);
 
 const TextAlign = z.enum(["left", "center", "right"]);
@@ -69,17 +78,47 @@ export const RichTextStyle = z.strictObject({
     fontSize: z.number().default(48).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),
+    // How tall the letters (one font size) are drawn in the scene; set, it decides the label's size over size.
+    letterSize: z.number().min(0).optional(),
+    // How wide one line may be drawn in the scene before the words wrap onto the next; unset, a
+    // line is as long as its words.
+    wrapWidth: z.number().min(0).optional(),
+    // Whether a space after each word counts toward wrapWidth; unset, only the words do.
+    wrapTrailingSpace: z.boolean().optional(),
+    // Whether a line wider than wrapWidth is cut to fit with an ellipsis after it, in place of wrapping.
+    wrapEllipsis: z.boolean().optional(),
+    // Whether a line may break between any two letters, not only at its spaces.
+    wrapAnywhere: z.boolean().optional(),
+    // How many blanks a blank between two words counts as against wrapWidth; unset, one.
+    wrapSpaceCount: z.number().min(0).optional(),
+    // Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles.
+    runAlign: z.enum(["baseline", "hanging", "middle"]).optional(),
+    // How far the label is turned, in degrees clockwise on screen, about its own center.
+    rotation: z.number().optional(),
     fontWeight: z.string().default("normal").optional(),
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
+    // Below how many screen pixels tall the letters are drawn the label is hidden; unset, never.
+    minScreenSize: z.number().min(0).optional(),
+    // Whether this node label is hidden where it overlaps a label kept first, and which is kept
+    // first; unset, only the graph's `labels.declutter` behavior hides labels.
+    declutter: z.enum(["degree", "size"]).optional(),
+    // Below how many screen pixels across its node is drawn this node label is hidden; unset, never.
+    minNodeScreenSize: z.number().min(0).optional(),
 
     // Colors
     textColor: ColorStyle.default("#000000").optional(),
+    // How opaque the words are, over their color's own alpha; unset, 1.
+    textOpacity: z.number().min(0).max(1).optional(),
     backgroundColor: AdvancedColorStyle.or(ColorStyle).optional(),
+    // How opaque the background is, over its color's own alpha; unset, 1.
+    backgroundOpacity: z.number().min(0).max(1).optional(),
 
     // Single border (legacy)
     borderWidth: z.number().default(0).optional(),
     borderColor: ColorStyle.default("#000000").optional(),
+    // How opaque the border is, over its color's own alpha; unset, 1.
+    borderOpacity: z.number().min(0).max(1).optional(),
 
     // Multiple borders
     borders: z.array(BorderConfig).optional(),
@@ -101,6 +140,12 @@ export const RichTextStyle = z.strictObject({
     position: Position3D.optional(),
     attachPosition: AttachPosition.optional(),
     attachOffset: z.number().default(0).optional(),
+    // How far the label is moved right and down of where attachPosition puts it, in the scene's units.
+    offsetX: z.number().optional(),
+    offsetY: z.number().optional(),
+    // How far it is moved right and down again, as fractions of its own width and height.
+    shiftX: z.number().optional(),
+    shiftY: z.number().optional(),
 
     // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
     // exactly as before.
@@ -132,6 +177,8 @@ export const RichTextStyle = z.strictObject({
     textOutline: z.boolean().default(false).optional(),
     textOutlineWidth: z.number().default(2).optional(),
     textOutlineColor: ColorStyle.default("#000000").optional(),
+    // How opaque the outline is, over its color's own alpha; unset, 1.
+    textOutlineOpacity: z.number().min(0).max(1).optional(),
     textOutlineJoin: CanvasLineJoin.default("round").optional(),
     textShadow: z.boolean().default(false).optional(),
     textShadowColor: ColorStyle.default("#000000").optional(),
@@ -141,6 +188,9 @@ export const RichTextStyle = z.strictObject({
 
     // Background effects
     backgroundPadding: z.number().default(0).optional(),
+    // How far the panel reaches past the words' line box on every side; set, it replaces the
+    // margins and backgroundPadding.
+    boxPadding: z.number().min(0).optional(),
     panelShadow: z.boolean().default(false).optional(),
     panelShadowColor: ColorStyle.default("rgba(0, 0, 0, 0.3)").optional(),
     panelShadowBlur: z.number().min(0).default(16).optional(),

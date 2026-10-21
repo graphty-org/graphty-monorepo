@@ -1,0 +1,23 @@
+{
+    "sample": "dot-specimen-labels-p2",
+    "file": "graph-io/test/fidelity/specimens/dot/specimen-labels-p2.gv",
+    "sha256": "f9e72afb0cc941d33ecc81f2c3c2793b91bcdd0a6285a8c8b8b1773bb798dedc",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file> (run in the sheet's directory)",
+    "engineSource": "specimen sheet: every node pinned with pos, so neato -n2 draws it where the file says",
+    "standIn": false,
+    "expectedWarnings": [],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 675,
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-labels-p2 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-labels-p2.svg"
+}

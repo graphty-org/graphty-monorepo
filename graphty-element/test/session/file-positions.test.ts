@@ -202,3 +202,25 @@ describe("JSON node positions take the same path as every other format's", () =>
         assert.notStrictEqual(layout, "fixed", "stacked positions are unusable, so a layout is computed");
     });
 });
+
+describe("a file whose groups follow their members", () => {
+    it("keeps the stored drawing when only the groups have no position", async () => {
+        // The compound parent has no position of its own: it is drawn as the box around its
+        // members, so it counts as placed and the members keep their file positions.
+        const doc = JSON.stringify({
+            elements: [
+                { data: { id: "g" } },
+                { data: { id: "a", parent: "g" }, position: { x: -20, y: 0 } },
+                { data: { id: "b", parent: "g" }, position: { x: 20, y: 10 } },
+                { data: { id: "c" }, position: { x: 200, y: 0 } },
+                { data: { id: "ab", source: "a", target: "b" } },
+                { data: { id: "bc", source: "b", target: "c" } },
+            ],
+        });
+        const { session, at } = await loaded("json", doc);
+        assert.strictEqual(session.layout.id, "fixed");
+        assert.deepEqual(at.get("a"), [-20 * SCALE, 0, 0]);
+        assert.deepEqual(at.get("c"), [200 * SCALE, 0, 0]);
+        session.dispose();
+    });
+});

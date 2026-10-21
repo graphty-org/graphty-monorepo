@@ -43,8 +43,8 @@ const scratchB = new Vector3();
  */
 export interface EdgeLineMeta {
     joinedLine?: boolean;
-    /** A dashed or dotted line: its element's length along the line, and `line.patternCount`. */
-    pattern?: { elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: which, its element's length along the line, and `line.patternCount`. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
      * also carries the whole edge's length, and the static values in a buffer of their own.

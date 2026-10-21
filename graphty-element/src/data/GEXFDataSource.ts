@@ -14,8 +14,16 @@ import {
     toRecords,
 } from "./graph-io-import.js";
 
-// GEXF has no additional config currently, so just use the base config
-type GEXFDataSourceConfig = BaseDataSourceConfig;
+/** What the GEXF reader is configured with. */
+interface GEXFDataSourceConfig extends BaseDataSourceConfig {
+    /**
+     * The Gephi Preview settings the file was drawn with, by Gephi's own property names and values
+     * (`{ "edge.curved": "false", "edge.color": "source" }`). Gephi keeps them in its project, not in
+     * the GEXF file, so with `styles: "file"` a file is drawn under Gephi's defaults unless they are
+     * given here. graph-io's `gephiPreview` import option.
+     */
+    gephiPreview?: Readonly<Record<string, string | number | boolean>>;
+}
 
 /** The node record keys the viz values are written under, over an attribute titled like one. */
 const VIZ_KEYS: ReadonlySet<string> = new Set(["position", "color", "size"]);
@@ -468,6 +476,10 @@ function copyAttribute(kind: "node" | "edge", column: Column, row: number, recor
  *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value.
  *
  * An edge that names a node the file never declared is kept, and the node is created for it.
+ *
+ * With `styles: "file"` the file is drawn as Gephi's Preview draws it, under Gephi's default Preview
+ * settings; pass `gephiPreview` (Gephi's property names and values) to draw it under the settings a
+ * Gephi project used: `{ type: "gexf", config: { url, gephiPreview: { "edge.curved": "false" } } }`.
  */
 export class GEXFDataSource extends DataSource {
     static readonly type = "gexf";
@@ -554,6 +566,7 @@ export class GEXFDataSource extends DataSource {
             addMissingNodes: true,
             defaultDirected,
             errorLimit: this.config.errorLimit ?? 100,
+            ...(this.config.gephiPreview === undefined ? {} : { gephiPreview: this.config.gephiPreview }),
         });
     }
 }

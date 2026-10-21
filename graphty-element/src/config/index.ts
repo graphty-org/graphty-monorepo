@@ -1,7 +1,7 @@
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
-export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeStyle } from "./EdgeStyle";
+export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes, EdgeStyle } from "./EdgeStyle";
 export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
@@ -21,7 +21,14 @@ export {
 export type { Lighting } from "./Lighting";
 export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
 export type { NodeStyleConfig } from "./NodeStyle";
-export { defaultNodeStyle, FLAT_NODE_SHAPES, NodeBorderStyles, NodeShapes, NodeStyle } from "./NodeStyle";
+export {
+    defaultNodeStyle,
+    FLAT_NODE_SHAPES,
+    NodeBorderPositions,
+    NodeBorderStyles,
+    NodeShapes,
+    NodeStyle,
+} from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
 export type { StyleSchemaV1 } from "./StyleTemplate";

@@ -215,9 +215,12 @@ export class TwoDCameraController {
         this.camera.position.y = centerY - free.y * orthoSize * viewportAspect;
 
         // Put the camera behind the box and let the far plane reach past it. Babylon's
-        // default 10000 clips a layout that settles tens of thousands of units deep.
+        // default 10000 clips a layout that settles tens of thousands of units deep. The box holds
+        // the nodes, not what hangs in front of them: a text centered over a node stands half the
+        // node's diagonal in front of it, so the camera stands back by the box's width and height
+        // too, or the near plane cuts the texts over a big node away.
         const depth = max.z - min.z;
-        this.camera.position.z = min.z - Math.max(10, depth);
+        this.camera.position.z = min.z - Math.max(10, depth, sizeX, sizeY);
         this.camera.maxZ = Math.max(10000, depth + Math.abs(this.camera.position.z) * 2);
 
         this.updateOrtho(orthoSize);

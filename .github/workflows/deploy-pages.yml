@@ -121,6 +121,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download graph-io-fidelity Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: ./graph-io/fidelity-stories/storybook-static/
+                  run-id: ${{ env.RUN_ID }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download unified docs
               uses: actions/download-artifact@v4
               with:

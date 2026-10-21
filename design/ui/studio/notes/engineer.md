@@ -48,6 +48,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Real bar 8 findings for the round: light theme "Autosave: saved" badge 2.17:1 on every screen;
    target-size on number, has-no-value and node Style tab; scrollable-region-focusable on the
    shape list and find results; start page shares Samples, Docs, GitHub names.
+   0y. (2026-10-21) Re-walk of the bar 8 limits commit (f5ae5c76bb): it changes only
+   `tool/bars-limits.json` and these notes, and no file under graphty/src, graphty-element/src or
+   compact-mantine/src differs between the frozen build 758b8e8081 and it, so no screen renders a
+   changed component and there was nothing to walk or rebuild. Limits only fell (folder of groups
+   72 to 56, two layers 71 to 69) and one new count was added (open picker 99). Its message credits
+   it with the own-file walk's category tick, which is in 894e684aff instead. Lesson: check the
+   diff's paths before starting a browser; a tool-data commit has no route.
    0z. (2026-10-20) Re-walked the two element fixes (empty layer takes a selector, 4a008f063f; undo
    across Replace redraws, e3baf98a84) on graphty/dist, which already held both (built from the tree
    before e3 was committed; `placeKept` is in the bundle), so no rebuild. No regression, each

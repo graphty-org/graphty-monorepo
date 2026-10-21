@@ -61,7 +61,7 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are six kinds, and they are spelled out
+A selector says which elements a layer is about. There are seven kinds, and they are spelled out
 rather than implied:
 
 ```typescript
@@ -71,6 +71,7 @@ rather than implied:
 { match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
+{ match: "hover", reach: "neighbors" }          // the node under the pointer, and its neighbors
 ```
 
 An `ids` selector finds an integer id in either spelling, as every other id lookup does: `["1", "3"]`
@@ -86,6 +87,56 @@ the data a rule set reads, or re-run the run a followed set reads, and the layer
 elements that joined or left without being touched. A set has no colour of its own -- colouring
 one is this layer. A layer naming a set that was removed keeps painting the members the set's
 kept record names, so removing a set never blanks a layer.
+
+### What the pointer is over
+
+`{ match: "hover" }` paints the node under the pointer. With `reach: "neighbors"` it also paints
+that node's neighbors; for an edge layer it paints the edges that touch the hovered node, whatever
+the reach. `invert: true` paints everything else instead -- but only while a node is hovered, so
+the layer paints nothing at rest. That is the usual "fade what this node is not linked to" look:
+
+```typescript
+await session.styles.add({
+    name: "Fade the rest",
+    target: "node",
+    selector: { match: "hover", reach: "neighbors", invert: true },
+    set: { "node.opacity": 0.25 },
+});
+await session.styles.add({
+    name: "Fade the other links",
+    target: "edge",
+    selector: { match: "hover", invert: true },
+    set: { "edge.opacity": 0.15 },
+});
+```
+
+`orSelected: true` keeps the look on the node the reader clicked: while no node is under the
+pointer, a lone selected node stands in for the hovered one. With several nodes selected, or none,
+the layer paints nothing until the pointer is over a node again.
+
+The element tells the session which node the pointer is over as it moves, and the layer repaints
+with no undo step: pointing is view state. `session.selection.hovered` reads the node (or `null`),
+and `session.selection.hover(id)` sets it, for a page that draws its own pointer or a test. Pointing
+at a node selects nothing.
+
+To mark the node under the pointer the way a selected node is marked, give it a halo: the
+selection highlight, drawn around the node in the node's own shape, so it stays on the node from
+any angle.
+
+```ts
+await session.styles.add({
+    name: "Halo on the pointed-at node",
+    target: "node",
+    selector: { match: "hover", orSelected: true },
+    set: { "node.halo": true },
+});
+```
+
+`node.halo` alone draws the selection's look (`selectionStyle`); `node.haloColor`,
+`node.haloScale` and `node.haloOpacity` change it for the nodes the layer picks, and writing any of
+them switches the halo on. A selected node a layer gives a halo shows one halo: each value the
+layer sets wins and the selection style gives the rest. `node.halo: false` takes the halo off a
+node, even a selected one. Unset, a node has a halo only while it is selected, as before.
 
 ### The top N
 
@@ -214,8 +265,13 @@ A channel is one visual property with one name. These are all of them:
 | `node.outline`      | a colour                                                                   |
 | `node.glow`         | a colour                                                                   |
 | `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
+| `node.halo`         | true or false: the selection highlight around the node, in its own shape   |
+| `node.haloColor`    | a colour; the selection highlight's when unset (gold)                      |
+| `node.haloScale`    | above 0: how many times the node's size the halo is drawn at (1.45)        |
+| `node.haloOpacity`  | 0 to 1 (0.4)                                                               |
 | `node.wireframe`    | true or false                                                              |
 | `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
+| `node.unlit`        | true or false: drawn in its own color with no light, as a flat dot (3D)    |
 
 | Edge channel              | Takes                                                                      |
 | ------------------------- | -------------------------------------------------------------------------- |

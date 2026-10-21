@@ -200,6 +200,47 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.import", source: { type: "json", config: { data: IMPORTED } }, mode: "merge" },
     },
     {
+        name: "data.import-source: rows a network source load read, replacing the graph",
+        variant: "replace",
+        tags: BOTH,
+        command: {
+            op: "data.import-source",
+            source: { type: "source:people", config: { team: "core" }, name: "People" },
+            mode: "replace",
+            held: {
+                nodes: [{ id: "ana", name: "Ana" }, { id: "bo" }],
+                edges: [{ source: "ana", target: "bo" }],
+                declaredDirection: null,
+                errors: [],
+                errorLimit: 100,
+                idPath: "id",
+                source: "source",
+                target: "target",
+            },
+        },
+    },
+    {
+        name: "data.import-source merging, updating the nodes already there",
+        variant: "merge",
+        tags: BOTH,
+        command: {
+            op: "data.import-source",
+            source: { type: "source:people", config: { team: "core" } },
+            mode: "merge",
+            existing: "update",
+            held: {
+                nodes: [{ id: "n1", name: "renamed" }, { id: "cy" }],
+                edges: [{ source: "n1", target: "cy" }],
+                declaredDirection: null,
+                errors: [],
+                errorLimit: 100,
+                idPath: "id",
+                source: "source",
+                target: "target",
+            },
+        },
+    },
+    {
         name: "data.expand: a fetched neighbourhood, one edge of it already held",
         tags: BOTH,
         command: {
@@ -210,6 +251,33 @@ export const FIXTURES: readonly RoundTripFixture[] = [
                 { src: "n3", dst: "n5" },
                 { src: "n2", dst: "n3" },
             ],
+        },
+    },
+    {
+        name: "data.source-expand: a source neighbourhood merged, one node already held",
+        tags: BOTH,
+        command: {
+            op: "data.source-expand",
+            key: "load-1/x1",
+            seeds: ["n3"],
+            nodes: [{ id: "n6", name: "six", "_source.loads": ["load-1/x1"], "_source.expansion": "none" }],
+            updates: [{ id: "n3", values: { "_source.loads": ["load-1"], "_source.expansion": "complete" } }],
+            edges: [
+                { source: "n3", target: "n6", "_source.loads": ["load-1/x1"] },
+                { source: "n2", target: "n3" },
+            ],
+            layout: "none",
+        },
+    },
+    {
+        name: "data.collapse: what one node's expansions brought, removed",
+        tags: BOTH,
+        command: {
+            op: "data.collapse",
+            seed: "n3",
+            nodes: ["n1"],
+            edges: [],
+            update: { id: "n3", values: { "_source.expansion": "none" } },
         },
     },
     {

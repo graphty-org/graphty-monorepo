@@ -854,6 +854,8 @@ export const arrowTypes = [
 export interface RealInput {
     /** Move the mouse, no button held, to a point in CSS pixels from the element's top-left corner. */
     hover(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
+    click(element: Element, point: { x: number; y: number }): Promise<void>;
 }
 
 /**

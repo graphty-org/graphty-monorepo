@@ -4,7 +4,6 @@
  * a styled GEXF with or without the file's own style layers, as the preference says. Every color
  * and layer asserted is read through the element's public API.
  */
-
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
@@ -79,7 +78,10 @@ async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
     await waitFor(
         () => {
-            session = document.querySelector("graphty-element")?.session;
+            // The start screen draws a graph of its own; the project's element is the other one.
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
         },
         { timeout: TIMEOUT_MS },

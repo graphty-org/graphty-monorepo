@@ -20,6 +20,8 @@ export interface RecentProject {
     readonly at: number;
     /** The file, where the browser keeps file handles (Chromium); absent where Save downloads. */
     readonly handle?: FileSystemFileHandle;
+    /** A small picture of the graph, taken by the element when the project was last saved. */
+    readonly thumbnail?: Blob;
 }
 
 /** How many projects the list keeps. */
@@ -142,6 +144,15 @@ export async function clearRecent(): Promise<void> {
     } catch {
         // Nothing stored.
     }
+}
+
+/**
+ * The entry kept under an id, as the list holds it now.
+ * @param id - the entry's id.
+ * @returns the entry, or undefined.
+ */
+export function recentEntry(id: string): RecentProject | undefined {
+    return entries.find((entry) => entry.id === id);
 }
 
 /**

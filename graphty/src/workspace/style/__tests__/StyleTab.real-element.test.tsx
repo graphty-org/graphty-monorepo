@@ -321,7 +321,8 @@ describe("labels from an attribute (task T10) on the real element", () => {
         const { session, element } = await openWithGraph(true);
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const label = within(tab).getByRole("group", { name: "Label" });
-        await userEvent.click(within(label).getByRole("button", { name: "Add label line" }));
+        await userEvent.click(within(label).getByRole("button", { name: "Add label or card" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
         const list = await screen.findByRole("dialog", { name: "From data" });
         // The new line starts empty, at Above.
         assert.isNotNull(within(label).getByRole("button", { name: "Label, Above: no attribute, draws nothing" }));
@@ -345,15 +346,21 @@ describe("labels from an attribute (task T10) on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // One label line per row for now: "+" says so.
-        const plus = within(styleTab()).getByRole("button", { name: "Add label line" });
-        assert.equal(plus.getAttribute("aria-disabled"), "true");
+        // A layer shows its label one way: "+" now offers only a card, which would replace it.
+        await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label or card" }));
+        const items = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            items.map((item) => item.textContent),
+            ["CardReplaces the label"],
+        );
+        await userEvent.keyboard("{Escape}");
     });
 
-    it("the heading word adds the line too; Esc leaves it empty, it writes nothing and is dropped on selection change", async () => {
+    it("the heading word opens the + menu too; Esc leaves the line empty, it writes nothing and is dropped on selection change", async () => {
         const { session, store } = await openWithGraph();
         const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await userEvent.click(within(tab).getByRole("button", { name: "Label" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
         await screen.findByRole("dialog", { name: "From data" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -363,7 +370,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         assert.equal(empty.textContent, "Pick an attribute");
         assert.lengthOf(readerLayers(session), 0, "an empty line writes nothing");
         assert.equal(
-            within(styleTab()).getByRole("button", { name: "Add label line" }).getAttribute("aria-disabled"),
+            within(styleTab()).getByRole("button", { name: "Add label or card" }).getAttribute("aria-disabled"),
             "true",
             "while an empty line exists, + adds no second one",
         );

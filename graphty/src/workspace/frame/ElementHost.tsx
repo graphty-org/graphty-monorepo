@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
+import { loadGraphtyElement } from "../../elementLoader";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { ACCELERATION, readPreference } from "../settings/preferences";
 
@@ -51,6 +52,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             }
         };
         if (customElements.get("graphty-element") === undefined) {
+            void loadGraphtyElement();
             void customElements.whenDefined("graphty-element").then(bind);
         } else {
             bind();

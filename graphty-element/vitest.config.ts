@@ -77,8 +77,15 @@ const LODASH_FUNCTIONS = [
  */
 const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
+/**
+ * The optional Graphviz package, which only the Graphviz layouts' Worker imports. Discovered
+ * there mid-run, Vite re-optimizes its dependencies and deletes the chunks the page already
+ * holds, and Babylon's next lazy shader import fails to fetch.
+ */
+const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
+
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [

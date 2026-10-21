@@ -188,6 +188,7 @@
         "Shaders/Scene Presets::HullGoo",
         "Shaders/Scene Presets::HullMembrane",
         "Shaders/Scene Presets::HullOutline",
+        "Shaders/Scene Presets::HullPerCommunityLayer",
         "Shaders/Scene Presets::Nebula",
         "Shaders/Scene Presets::NebulaTintedByGroups",
         "Shaders/Scene Presets::SoapBubble",

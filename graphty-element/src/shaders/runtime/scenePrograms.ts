@@ -57,8 +57,10 @@ export const TINT_COLOR_UNIFORMS = Array.from({ length: BACKGROUND_TINTS }, (_, 
 
 /** The splat program's instanced attributes. */
 export const SPLAT_ATTRIBUTES = [
-    // the member's center in graph-root space, and its kernel radius
+    // one end of the kernel's segment in graph-root space, and its kernel radius
     "graphtySplat",
+    // the segment's other end: the same point for a member, another member for a connector
+    "graphtyEnd",
     // which channel of the target it adds to: one component 1, the rest 0
     "graphtyMask",
 ] as const;
@@ -148,8 +150,9 @@ ${TINT_UNIFORMS.map(
 }
 
 /**
- * The splat: each member's kernel `(1 - d^2)^2` on a camera-facing disc, added into one channel
- * of a field target.
+ * The splat: a kernel `(1 - d^2)^2` around a segment on a camera-facing quad, added into one
+ * channel of a field target. A member's segment is one point, so its kernel is a disc; a
+ * connector's runs between two members, a capsule with the same falloff and a peak of 1 all along.
  * @returns The program.
  */
 export function splatProgram(): SceneProgram {
@@ -160,21 +163,31 @@ uniform mat4 world;
 uniform mat4 view;
 uniform mat4 projection;
 varying vec2 vUV;
+varying float vAlong;
 varying vec4 vMask;
 void main() {
     float radius = graphtySplat.w * length(world[0].xyz);
-    vec4 center = view * world * vec4(graphtySplat.xyz, 1.0);
-    gl_Position = projection * (center + vec4(position.xy * radius, 0.0, 0.0));
-    vUV = position.xy;
+    vec4 a = view * world * vec4(graphtySplat.xyz, 1.0);
+    vec4 b = view * world * vec4(graphtyEnd.xyz, 1.0);
+    vec2 d = b.xy - a.xy;
+    float len = length(d);
+    vec2 u = len > 1e-6 ? d / len : vec2(1.0, 0.0);
+    // Half the segment's length, in kernel radii; the quad reaches one radius past each end.
+    vAlong = 0.5 * len / max(radius, 1e-6);
+    vUV = vec2(position.x * (vAlong + 1.0), position.y);
+    vec4 mid = 0.5 * (a + b);
+    gl_Position = projection * vec4(mid.xy + (u * vUV.x + vec2(-u.y, u.x) * vUV.y) * radius, mid.z, 1.0);
     vMask = graphtyMask;
 }
 `;
     const fragment = `precision highp float;
 uniform float graphty_scale;
 varying vec2 vUV;
+varying float vAlong;
 varying vec4 vMask;
 void main() {
-    float r2 = dot(vUV, vUV);
+    float past = max(abs(vUV.x) - vAlong, 0.0);
+    float r2 = past * past + vUV.y * vUV.y;
     if (r2 > 1.0) {
         discard;
     }

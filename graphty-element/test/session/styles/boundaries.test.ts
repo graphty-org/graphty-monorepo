@@ -9,6 +9,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import { GraphBackground } from "../../../src/config/GraphStyle";
 import { boundariesOf, BOUNDARY_GROUP_CAP } from "../../../src/session/styles/StylesApi";
+import { FIELD_TARGETS } from "../../../src/shaders/runtime/scenePrograms";
 import { defineShader } from "../../../src/simple/defineShader";
 import { makeSession } from "../helpers";
 
@@ -111,6 +112,33 @@ describe("boundariesOf", () => {
         assert.lengthOf(layer.groups, BOUNDARY_GROUP_CAP);
         assert.strictEqual(layer.left, 40 - BOUNDARY_GROUP_CAP, "the rest are counted as left out");
         session.dispose();
+    });
+
+    it("reports a layer's groups past the cap as shader.boundary-cap, and nothing under it", async () => {
+        const { session } = makeSession({ directed: false });
+        await session.data.addNodes(Array.from({ length: 33 }, (_, i) => ({ id: `n${String(i)}`, group: i })));
+        const layer = await session.styles.add({
+            name: "Thirty-three",
+            target: "node",
+            selector: { match: "everything" },
+            boundary: { shader: "e6/hull", groupBy: "data.group" },
+        });
+        assert.deepInclude(session.styles.counts(layer.id).undrawn, {
+            code: "shader.boundary-cap",
+            params: { left: 1, limit: BOUNDARY_GROUP_CAP },
+        });
+
+        await session.data.removeNodes(["n32"]);
+        assert.notInclude(
+            session.styles.counts(layer.id).undrawn.map(({ code }) => code),
+            "shader.boundary-cap",
+            "32 groups all draw",
+        );
+        session.dispose();
+    });
+
+    it("caps groups at what the field targets hold, so no field group is left out by them", () => {
+        assert.strictEqual(BOUNDARY_GROUP_CAP, FIELD_TARGETS * 4);
     });
 });
 

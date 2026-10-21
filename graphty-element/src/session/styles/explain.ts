@@ -349,6 +349,7 @@ export interface ChannelCovers {
  * | `shader.target-mismatch` | `channel` (or `"boundary"`); `shader`; `expected`, `found`: the target that channel takes and the shader's, or when the targets agree, the role it takes and the shader's; `count` |
  * | `shader.param-unused` | `shader`, `param`: a parameter set for a shader not drawn on those elements; `count` |
  * | `shader.effect-cap` | `left`: the most effects left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
+ * | `shader.boundary-cap` | `left`: how many of the layer's groups draw no outline, because the graph already draws `limit` (32) outlines across its layers, lowest layers first |
  * | `edge.lift-needs-flat-layout` | `count`: how many edges the layer lifts that are drawn flat, because the view is not a flat layout in 3D (`edge.lift` rises out of a flat layout's plane, so it draws only there) |
  *
  * New codes may be added in a minor release: word an unknown one generically.
@@ -360,6 +361,7 @@ export type UndrawnCode =
     | "shader.target-mismatch"
     | "shader.param-unused"
     | "shader.effect-cap"
+    | "shader.boundary-cap"
     | "edge.lift-needs-flat-layout";
 
 /**

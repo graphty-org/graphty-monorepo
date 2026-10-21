@@ -1,5 +1,9 @@
 # Shader styles: binding decisions after the owner's first review
 
+> **Superseded (2026-10-21)** by `decisions-v2.md`, the decisions after the owner's second review.
+> Kept as history. Where `decisions-v2.md` lists a section of this file as still binding, that
+> section holds; everything else here is replaced.
+
 These are the design studio's decisions on the owner's review of the shader prototype (branch
 `feat/shader-styles`, head a30fa53333). They answer every item of that review and the owner's two
 top concerns:

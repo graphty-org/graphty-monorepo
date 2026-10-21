@@ -11,6 +11,13 @@ history.
 
 ## Top of mind
 
+- (2026-10-21) Shaders, second redesign: `design/rendering/shader-studio/decisions-v2.md`. One
+  Shaders section and one gallery per tab; place (on the node, instead of, on top, around, behind,
+  around the group, along the line) is an option on the row; no timing tags (layer condition, the
+  layer's `keep`, clocks as values); `minSize` only where a shader declares it; Wireframe is the
+  released channel plus additive `node.meshDetail`. Lesson: the first redesign kept the old
+  section-per-target structure because it existed; the owner caught it. Start a redesign from the
+  user's three questions, then check what survives, not the other way round.
 - (2026-10-20) Dry run pass 1 on 7d87760756 (`tier3/dry-run-r1-1.md`): 495 lines, 10 (a) in three
   units. T50 is BLOCKED on both halves: the golden merge renamed `node.haloSize` to
   `node.haloScale`, and one unknown channel makes `project.open` drop the whole style member. Fix

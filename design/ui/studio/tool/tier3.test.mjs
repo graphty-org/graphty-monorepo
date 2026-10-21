@@ -107,7 +107,9 @@ test("a briefing points the participant at no study file (the persona's hypothes
 });
 
 // round 1's tool dry run 2: four persona files ended in stray markup, and "Evidence limits" told the
-// study team how to weight the persona's findings; both reached the participant
+// study team how to weight the persona's findings; both reached the participant. Dry run 3: Sam's "Why
+// this persona exists" (the studio's keyboard bar, another persona) and Nadia's "Do not show her the
+// design's hypotheses" are for the team too
 test("a briefing holds no stray markup and no note to the study team", () => {
     for (const [i, [task, p]] of [
         ["T39A", "Sam"],
@@ -127,7 +129,7 @@ test("a briefing holds no stray markup and no note to the study team", () => {
         assert.doesNotMatch(text, /<\/?(content|invoke)>/, `${p}'s briefing carries markup`);
         assert.doesNotMatch(
             text,
-            /Evidence limits|Weight findings|findings about import|finding may rest|finding as a lead|study team/i,
+            /Evidence limits|Weight findings|findings about import|finding may rest|finding as a lead|study team|Why this persona exists|keyboard bar|design'?s? hypothes/i,
             `${p}'s briefing carries the team's note`,
         );
     }

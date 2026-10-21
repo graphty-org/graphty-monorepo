@@ -223,7 +223,12 @@ function facilitatorFiles(dir) {
 // Persona sections written for the study team, never for the agent playing the persona
 // "Evidence limits" says how far the study team may trust the persona ("Weight findings on import ...
 // over findings on her words"): for the team, not the participant (round 1's tool dry run 2)
-const TEAM_ONLY = /facilitator|study team|for the real study|hypothes|evidence limits/i;
+// "Why this persona exists" says what the studio needs the persona for (Sam's: "the studio's keyboard
+// bar ... beside the screen-reader user, Morgan"): the team's reason, not the persona's (dry run 3)
+const TEAM_ONLY = /facilitator|study team|for the real study|hypothes|evidence limits|why this persona exists/i;
+// a playing rule addressed to whoever runs the session about the design's hypotheses ("Do not show
+// her the design's hypotheses.", Nadia's): one list item, so the rest of the rules stay
+const TEAM_RULE = /^- [^\n]*\bdesign'?s? hypothes[^\n]*(?:\n[ \t]+[^\n]*)*\n?/gim;
 const TEAM_NOTE =
     /^\W*evidence limits\b|\bfindings?\b[^.]*\b(weigh|trust)|\b(weigh|trust)\w*\b[^.]*\bfindings?\b|\bhypothesis to test\b/i;
 const TEAM_SENTENCE = /;?[^.!?;]*\bfindings?\b[^.!?;]*\b(rest on|lead to check|weigh|trust)[^.!?]*[.!?]/gi;
@@ -248,6 +253,7 @@ function personaText(text) {
             // and one sentence of it inside a paragraph ("No single finding may rest on the short clock
             // alone.", "treat a vocabulary finding as a lead to check", Elena's)
             .map((p) => p.replace(TEAM_SENTENCE, (m) => (m.startsWith(";") ? "." : "")))
+            .map((p) => p.replace(TEAM_RULE, "").trimEnd())
             // a paragraph that points at the study's own files ("See `study/hypotheses/x.md` for the
             // design hypotheses", "the design team's guesses ... live in a separate hypotheses file")
             // sends a participant to team material

@@ -3913,6 +3913,12 @@ class Node_2 {
     mesh: AbstractMesh;
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get outlineHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;

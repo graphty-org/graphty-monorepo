@@ -1818,6 +1818,21 @@ export class Node {
     }
 
     /**
+     * How far the node's outline -- the size its style gives it -- reaches from its centre along each axis: its drawn
+     * surface ({@link Node.drawnHalfExtents}) plus what a border centered on the outline or inside it took from the
+     * fill. What a file's ports and a self-loop's bends are measured against (`line.sourcePort`, `line.bends`), so
+     * a Gephi loop sized from the node's size is not drawn smaller by the node's inside border.
+     * @returns The half-extents, in the units {@link Node.drawnHalfExtents} gives.
+     * @internal
+     */
+    get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const half = this.drawnHalfExtents;
+        // only a fitted mesh (a flat shape, or one sized to its extents) is drawn in by the border's inset
+        const inset = NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
+    }
+
+    /**
      * Build one overlay instance for this node.
      *
      * The source mesh is interned in the mesh cache under a fixed name, so the whole graph shares

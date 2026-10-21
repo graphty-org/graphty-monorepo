@@ -16395,8 +16395,8 @@
             "background": []
         },
         "gexf-graphology-rio": {
-            "edge.curve": ["ncs20->ncs20#0", "ncs223->ncs223#0", "ncs238->ncs238#0", "ncs283->ncs283#0", "ncs385->ncs385#0", "ncs409->ncs409#0", "ncs429->ncs429#0", "ncs443->ncs443#0", "ncs458->ncs458#0", "ncs52->ncs52#0", "ncs673->ncs656#0", "ncs9->ncs9#0", "ncs539->ncs540#0"],
-            "edge.route": ["ncs20->ncs20#0", "ncs385->ncs385#0"],
+            "edge.curve": ["ncs539->ncs540#0", "ncs673->ncs656#0"],
+            "edge.route": [],
             "stray.extra": ["graphty:arrowhead#12", "graphty:arrowhead#14", "graphty:arrowhead#8"],
             "stray.present": ["polyline#12", "polyline#14", "polyline#8"],
             "node.present": [],
@@ -16448,8 +16448,8 @@
             "background": []
         },
         "gexf-graphology-rio@matched": {
-            "edge.curve": ["ncs20->ncs20#0", "ncs223->ncs223#0", "ncs238->ncs238#0", "ncs283->ncs283#0", "ncs385->ncs385#0", "ncs409->ncs409#0", "ncs429->ncs429#0", "ncs443->ncs443#0", "ncs458->ncs458#0", "ncs52->ncs52#0", "ncs673->ncs656#0", "ncs9->ncs9#0", "ncs539->ncs540#0"],
-            "edge.route": ["ncs20->ncs20#0", "ncs385->ncs385#0"],
+            "edge.curve": ["ncs539->ncs540#0", "ncs673->ncs656#0"],
+            "edge.route": [],
             "stray.extra": ["graphty:arrowhead#12", "graphty:arrowhead#14", "graphty:arrowhead#8"],
             "stray.present": ["polyline#12", "polyline#14", "polyline#8"],
             "node.present": [],
@@ -16985,7 +16985,7 @@
             "background": []
         },
         "gexf-specimen-arrows": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17022,7 +17022,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p2": {
-            "edge.curve": ["self-loop-s->self-loop-s#0", "weight-4-s->weight-4-t#0"],
+            "edge.curve": ["weight-4-s->weight-4-t#0"],
             "edge.route": ["weight-4-s->weight-4-t#0"],
             "node.present": [],
             "node.extra": [],
@@ -17059,7 +17059,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p2@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0", "weight-4-s->weight-4-t#0"],
+            "edge.curve": ["weight-4-s->weight-4-t#0"],
             "edge.route": ["weight-4-s->weight-4-t#0"],
             "node.present": [],
             "node.extra": [],
@@ -17096,7 +17096,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p3": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17127,7 +17127,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p3@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17158,7 +17158,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p4": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17195,7 +17195,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p4@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17232,7 +17232,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p5": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17269,7 +17269,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p5@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17306,7 +17306,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p6": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17337,7 +17337,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p6@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17368,7 +17368,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p7": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17405,7 +17405,7 @@
             "background": []
         },
         "gexf-specimen-arrows-p7@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17442,7 +17442,7 @@
             "background": []
         },
         "gexf-specimen-arrows@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17479,7 +17479,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17510,7 +17510,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p10": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17555,7 +17555,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p10@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17600,7 +17600,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p11": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17645,7 +17645,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p11@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17690,7 +17690,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p12": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17735,7 +17735,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p12@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17780,7 +17780,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p13": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17825,7 +17825,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p13@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17870,7 +17870,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p14": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17915,7 +17915,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p14@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -17960,7 +17960,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p15": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18005,7 +18005,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p15@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18050,7 +18050,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p2": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18095,7 +18095,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p2@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18140,7 +18140,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p3": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18185,7 +18185,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p3@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18230,7 +18230,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p4": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18275,7 +18275,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p4@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18320,7 +18320,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p5": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18365,7 +18365,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p5@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18410,7 +18410,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p6": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18455,7 +18455,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p6@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18500,7 +18500,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p7": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18545,7 +18545,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p7@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18590,7 +18590,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p8": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18635,7 +18635,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p8@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18680,7 +18680,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p9": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18725,7 +18725,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels-p9@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18770,7 +18770,7 @@
             "background": []
         },
         "gexf-specimen-edge-labels@matched": {
-            "edge.curve": ["label-on-loop-s->label-on-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18801,7 +18801,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18832,7 +18832,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p10": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18863,7 +18863,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p10@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18894,7 +18894,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p11": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -18925,7 +18925,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p11@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19060,7 +19060,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p14": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19091,7 +19091,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p14@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19184,7 +19184,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p2": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19215,7 +19215,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p2@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19246,7 +19246,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p3": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19277,7 +19277,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p3@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19308,7 +19308,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p4": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19339,7 +19339,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p4@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19370,7 +19370,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p5": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19401,7 +19401,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p5@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19432,7 +19432,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p6": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19463,7 +19463,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p6@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19494,7 +19494,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p7": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19525,7 +19525,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p7@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19556,7 +19556,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p8": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19587,7 +19587,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines-p8@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -19680,7 +19680,7 @@
             "background": []
         },
         "gexf-specimen-edges-lines@matched": {
-            "edge.curve": ["self-loop-s->self-loop-s#0"],
+            "edge.curve": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -22351,8 +22351,8 @@
             "background": []
         },
         "gexf-synth-nx-viz": {
-            "edge.curve": ["v1->v1#0", "v2->v2#0"],
-            "edge.route": ["v1->v1#0", "v2->v2#0"],
+            "edge.curve": [],
+            "edge.route": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -22402,8 +22402,8 @@
             "background": []
         },
         "gexf-synth-nx-viz@matched": {
-            "edge.curve": ["v1->v1#0", "v2->v2#0"],
-            "edge.route": ["v1->v1#0", "v2->v2#0"],
+            "edge.curve": [],
+            "edge.route": [],
             "node.present": [],
             "node.extra": [],
             "node.position": [],
@@ -23894,7 +23894,7 @@
             "edge.present": [],
             "edge.extra": [],
             "edge.route": ["bends-s->bends-t#0", "loop-n->loop-n#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
-            "edge.curve": ["bends-s->bends-t#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
+            "edge.curve": ["bends-s->bends-t#0", "loop-n->loop-n#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -23923,7 +23923,7 @@
             "edge.present": [],
             "edge.extra": [],
             "edge.route": ["bends-s->bends-t#0", "loop-n->loop-n#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
-            "edge.curve": ["bends-s->bends-t#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
+            "edge.curve": ["bends-s->bends-t#0", "loop-n->loop-n#0", "parallel-s->parallel-t#0", "parallel-s->parallel-t#1", "smoothbends-0-s->smoothbends-0-t#0", "smoothbends-1-s->smoothbends-1-t#0"],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],

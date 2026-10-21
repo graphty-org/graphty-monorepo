@@ -3178,10 +3178,9 @@ Still open, and why:
   side the captions are drawn alike; the oracle reader hangs each source label on the neighboring edge (the label at
   x 414.9 of `source-text-margin-x-10`, whose node is at 400.9, is given to `source-text-margin-y-neg-10`, whose node is
   at 509.1, and the reverse), and gives `source-text-rotation-none`'s caption, which lies over its node, to the node.
-- Gephi's self-loop (`gexf-specimen-arrows`, `edge-labels` ..., `edge.curve` 0.646 against 0.436): comparator
-  (`comparator-occlusion`). Gephi's SVG draws the whole circle, starting 3.05 from the node's center under its fill
-  (r 3.68), so its path is 5.3 across; graphty draws the same circle cut at the node's outline. The part that differs is
-  under the opaque node.
+- Gephi's self-loop (`gexf-specimen-arrows`, `edge-labels` ..., `edge.curve` 0.646 against 0.436): fixed in round 4
+  (see "Gephi's self-loops drawn at their own size" below). It was not the comparator: graphty drew the loop's circle
+  smaller than Gephi's.
 - vis-network `selfReference.angle` and the default loop in the position-matched view (`edge.curve` o=2078.8): comparator.
   `curvatureOf` calls a path a loop only when its ends are under 1e-9 apart; vis-network's closed circle ends a float's
   error apart (2078.8), and graphty's ring does too once its node is moved (15.9 in the matched view, 1 in the plain one).
@@ -3866,3 +3865,25 @@ drew each node and which labels it drew). Two comparator defects there are fixed
 Still open: graphty frames a sigma file 1.109x (worldcup) to 1.217x (graphology-synth) smaller than sigma, which fits
 the node positions into the canvas less its 30 px `stagePadding`; graphty-element's own fit is the consumer's choice
 (`fitInsets`, `fitBounds`) and offers no fit by node centers alone (`json-graphology-synth` frame.zoom, recorded).
+
+## Gephi's self-loops drawn at their own size (round 4, 2026-10-21)
+
+Gephi draws a self-loop as an arc of a circle of radius r = half the node's size plus a third of the loop's stroke,
+centered r right of and r above the node's center (gephi PreviewPlugin `EdgeRenderer.SelfLoopEdgeRenderer`; on
+`gexf-specimen-arrows` the SVG arc's radius is 2.6435 for a size-4 node and a 1.95 stroke). graph-io writes that circle
+as the loop's bends, in fractions of the node's half size, and that was right. graphty-element measured the bends
+against the node's fill instead of its size: Gephi's nodes carry an inside border (0.16 of the size), which draws the
+fill in, so every loop came out 0.84 times Gephi's (`edge.curve` 0.458 against 0.646). graphty-element now measures a
+self-loop's bends and an edge's ports against the node's outline (`Node.outlineHalfExtents`: the drawn surface plus
+what a centered or inside border took from a fitted mesh).
+
+Every Gephi loop specimen now passes `edge.curve`, plain and position-matched: `gexf-specimen-arrows` and `-p2` to
+`-p7`, `gexf-specimen-edge-labels` and `-p2` to `-p15`, `gexf-specimen-edges-lines` and `-p2` to `-p14` except `-p9`,
+`gexf-synth-nx-viz` (`v1`, also `edge.route`) and the 11 loops of `gexf-graphology-rio` (`edge.curve` 0.988 to
+0.998, `edge.route` 0.998 to 1).
+
+Still open: `gexf-specimen-edges-lines-p9` (a loop of weight 4.5, stroke 5.85): oracle. Gephi extends the arc past
+where it meets the node by the round cap's angle, asin(stroke / 2r) on each side; on this thick loop the extended arc
+covers more than a full turn, and the SVG arc command (`A 3.9305,3.9305 0 1,1`) between its two near-coincident ends
+then takes the other circle through those ends, centered down and to the left of the node, under it. Gephi's own
+preview (`Arc2D`) draws the loop up and to the right, where graphty draws it.

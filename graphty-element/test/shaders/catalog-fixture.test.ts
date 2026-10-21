@@ -171,19 +171,15 @@ describe("the shader presets", () => {
         );
     });
 
-    // Skipped (and so reported as skipped) until every preset package has added its import lines.
-    it.skipIf(SHADER_PRESETS.length < PLANNED_SHADERS.length)(
-        "lists all 32 presets, the same list the catalog shows",
-        () => {
-            assert.sameMembers(ids, PLANNED_SHADERS);
-            assert.deepEqual(
-                createGraphSession()
-                    .catalog.shaders()
-                    .map((descriptor) => descriptor.id),
-                ids,
-            );
-        },
-    );
+    it("lists all 32 presets, the same list the catalog shows", () => {
+        assert.sameMembers(ids, PLANNED_SHADERS);
+        assert.deepEqual(
+            createGraphSession()
+                .catalog.shaders()
+                .map((descriptor) => descriptor.id),
+            ids,
+        );
+    });
 
     it("has a body for exactly the listed presets", () => {
         assert.sameMembers(Object.keys(SHADER_PRESET_BODIES), ids);
@@ -265,7 +261,7 @@ describe("the transition presets", () => {
         );
     });
 
-    it.skipIf(TRANSITION_PRESETS.length === 0)("lists all 7 presets, the same list the catalog shows", () => {
+    it("lists all 7 presets, the same list the catalog shows", () => {
         assert.sameMembers(ids, PLANNED_TRANSITIONS);
         assert.deepEqual(
             transitionDescriptors().map((descriptor) => descriptor.id),

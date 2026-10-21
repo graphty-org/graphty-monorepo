@@ -174,14 +174,25 @@ export function registerTransition(registration: TransitionRegistration, options
     registry.register(admitTransition(registration, true), options);
 }
 
+let listed:
+    { readonly registered: readonly TransitionDescriptor[]; readonly all: readonly TransitionDescriptor[] } | undefined;
+
 /**
  * Every transition the element can run: its presets first, then the registered ones.
  * @returns The descriptors.
  */
 export function transitionDescriptors(): readonly TransitionDescriptor[] {
     const registered = registry.descriptors();
+    if (PRESETS.length === 0) {
+        return registered;
+    }
 
-    return PRESETS.length === 0 ? registered : Object.freeze([...PRESET_DESCRIPTORS, ...registered]);
+    // The same array until a registration changes, as the registry's own list is.
+    if (listed?.registered !== registered) {
+        listed = { registered, all: Object.freeze([...PRESET_DESCRIPTORS, ...registered]) };
+    }
+
+    return listed.all;
 }
 
 /**

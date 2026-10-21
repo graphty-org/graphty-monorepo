@@ -164,7 +164,7 @@ async function showing(
     if (kind === "background") {
         const element = await mounted([], options);
         element.background = { backgroundType: "shader", shader: id, params, color: "#000000" };
-        await until(element, `${id} draws`, () => (passesOf(element).background?.draws ?? 0) > 0);
+        await until(element, `${id} draws`, () => passesOf(element).background?.shown === true);
         return element;
     }
 
@@ -210,7 +210,9 @@ function probeOf(descriptor: ShaderDescriptor, body: string): string {
 vec4 shade(${input}) {
     vec4 c = presetShade(${arg});
     bool bad = any(isnan(c)) || any(isinf(c));
-    return bad ? vec4(1.0, 0.0, 1.0, 1.0) : c;
+    // A good pixel's blue is held under the magenta band: the membrane's rainbow reaches
+    // near-magenta on a few pixels at large blob radii, which is a color, not a NaN.
+    return bad ? vec4(1.0, 0.0, 1.0, 1.0) : vec4(c.rg, min(c.b, 0.9), c.a);
 }
 `;
         const { origin: _origin, ...facts } = descriptor;
@@ -406,7 +408,7 @@ describe("the scene presets on a real element", () => {
         const nebula = presetId("nebula");
         const element = await mounted([boundaryLayer(presetId("metaball-hull"), { look: "outline", fillOpacity: 0 })]);
         element.background = { backgroundType: "shader", shader: nebula, params: { drift: 0 }, color: "#000000" };
-        await until(element, "the nebula draws", () => (passesOf(element).background?.draws ?? 0) > 0);
+        await until(element, "the nebula draws", () => passesOf(element).background?.shown === true);
         await until(element, "the hulls draw", () => (passesOf(element).boundary?.tints(4).length ?? 0) === 3);
         const plain = (await canvasPixels(element)).rgba;
 

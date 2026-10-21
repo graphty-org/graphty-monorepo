@@ -1394,6 +1394,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
             shaderStateChanged: RENDER,
+            shaderStateBits: RENDER,
             refreshShaderPaint: RENDER,
             pin: calls([], [PIN_N1]),
             unpin: calls([], [UNPIN_N1]),

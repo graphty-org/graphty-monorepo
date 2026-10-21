@@ -2,19 +2,13 @@
  * @file The node-effect presets (design/rendering/shader-styles.md section 7.3), each as its
  * catalog entry and its GLSL body, for their stories and tests.
  *
- * A layer names a preset by its bare id once the preset list (`src/shaders/presets/index.ts`)
- * lists it. Until then, {@link presetId} registers the same descriptor and body under the
- * `preview/` namespace and returns that id, so the stories and tests draw exactly the preset's
- * program through the element's own path either way.
- *
- * ponytail: the preview registration is a bridge for the time before the preset list carries
- * these ids; once `catalog.shaders()` lists them, presetId returns the bare id and registers
- * nothing, and the bridge can be deleted.
+ * A layer names a preset by its bare id, which the preset list (`src/shaders/presets/index.ts`)
+ * carries.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { registerShader, shaderDescriptor } from "../../src/catalog/shaderRegistry";
+import { shaderDescriptor } from "../../src/catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import { BODY as CHANGE_FLASH } from "../../src/shaders/presets/change-flash/body";
 import { DESCRIPTOR as CHANGE_FLASH_D } from "../../src/shaders/presets/change-flash/descriptor";
@@ -43,26 +37,14 @@ export const NODE_EFFECT_PRESETS: readonly NodeEffectPreset[] = [
 ];
 
 /**
- * The id a layer names a node-effect preset by: the bare id once the catalog lists it, else a
- * `preview/` registration of the same descriptor and body.
+ * The id a layer names a preset by: its bare id, checked against the catalog.
  * @param id - The preset's bare id.
  * @returns The id to write in `node.effects`.
  */
 export function presetId(id: string): string {
-    if (shaderDescriptor(id) !== undefined) {
-        return id;
+    if (shaderDescriptor(id) === undefined) {
+        throw new Error(`"${id}" is not a node-effect preset the catalog lists`);
     }
 
-    const preset = NODE_EFFECT_PRESETS.find((candidate) => candidate.descriptor.id === id);
-    if (preset === undefined) {
-        throw new Error(`"${id}" is not a node-effect preset`);
-    }
-
-    const previewId = `preview/${id}`;
-    if (shaderDescriptor(previewId) === undefined) {
-        const { origin: _origin, ...facts } = preset.descriptor;
-        registerShader({ descriptor: { ...facts, id: previewId }, glsl: preset.body });
-    }
-
-    return previewId;
+    return id;
 }

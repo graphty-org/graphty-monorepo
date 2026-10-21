@@ -3,30 +3,14 @@
  * (design/rendering/shader-styles.md sections 2.2 and 7.3, package P4): on one node the aura and
  * the satellites take separate per-node bindings, an effect added by one layer stacks with
  * another's, and a parameter a preset does not declare is refused.
- *
- * The preset list is replaced here by these five, as the integration package's one import line
- * per preset will list them, so the layers name exactly the ids a consumer types.
  */
 
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import { drawnEffects } from "../../../src/session/styles/channels";
-
-vi.mock("../../../src/shaders/presets", async () => {
-    const ids = ["uncertainty-aura", "lock-on-reticle", "orbiting-satellites", "shockwave", "change-flash"];
-    const descriptors = await Promise.all(
-        ids.map(async (id) => {
-            const module = (await import(`../../../src/shaders/presets/${id}/descriptor.ts`)) as {
-                DESCRIPTOR: unknown;
-            };
-            return module.DESCRIPTOR;
-        }),
-    );
-    return { SHADER_PRESETS: Object.freeze(descriptors) };
-});
 
 /**
  * A session of six nodes with an uncertainty and a degree each.

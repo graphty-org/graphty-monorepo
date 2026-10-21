@@ -80,6 +80,15 @@ export class BackgroundPass {
     draws = 0;
 
     /**
+     * Whether the canvas shows the shader: the target is drawn and the layer that shows it has
+     * compiled (Babylon skips a layer whose own program is still compiling). For tests and tools.
+     * @returns True once it does.
+     */
+    get shown(): boolean {
+        return this.draws > 0 && this.layer.isEnabled && this.layer.isReady();
+    }
+
+    /**
      * Start drawing backgrounds behind a scene; nothing shows until {@link show} compiled one.
      * @param scene - The scene.
      * @param runtime - The shader runtime, for the scene uniforms and motion claims.
@@ -296,6 +305,12 @@ export class BackgroundPass {
         this.layer.isEnabled = target !== null;
         if (target === null) {
             return;
+        }
+
+        if (!this.layer.isReady()) {
+            // The layer skips this frame while its program compiles: ask for the next one, so a
+            // graph drawn on demand does not stay on the clear color.
+            this.scene.onAfterRenderObservable.addOnce(animatesEveryFrame(this.scene));
         }
 
         const view = camera.getViewMatrix();

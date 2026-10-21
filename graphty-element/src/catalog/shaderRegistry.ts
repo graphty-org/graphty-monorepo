@@ -216,14 +216,24 @@ export function describePastedShader(registration: ShaderRegistration, hash: str
     return Object.freeze({ ...descriptor, hash });
 }
 
+let listed: { readonly registered: readonly ShaderDescriptor[]; readonly all: readonly ShaderDescriptor[] } | undefined;
+
 /**
  * Every shader the element can draw: its presets first, then the registered ones.
  * @returns The descriptors.
  */
 export function shaderDescriptors(): readonly ShaderDescriptor[] {
     const registered = registry.descriptors();
+    if (SHADER_PRESETS.length === 0) {
+        return registered;
+    }
 
-    return SHADER_PRESETS.length === 0 ? registered : Object.freeze([...SHADER_PRESETS, ...registered]);
+    // The same array until a registration changes, as the registry's own list is.
+    if (listed?.registered !== registered) {
+        listed = { registered, all: Object.freeze([...SHADER_PRESETS, ...registered]) };
+    }
+
+    return listed.all;
 }
 
 /**

@@ -1195,8 +1195,10 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 });
             }
 
+            // A catalog shader is read under its text's own `user/` id: a bare preset id is not one a
+            // pasted text may take, and the picture does not depend on the id.
             const text = shader === undefined ? await api.source(id) : undefined;
-            const drawn = shader ?? (text === undefined ? undefined : (readText(text, undefined, id) as ReadText));
+            const drawn = shader ?? (text === undefined ? undefined : (readText(text) as ReadText));
             if (drawn === undefined || Array.isArray(drawn)) {
                 throw unknownShader(id, []);
             }

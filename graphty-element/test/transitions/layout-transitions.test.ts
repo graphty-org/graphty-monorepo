@@ -50,13 +50,13 @@ function codeOf(call: () => void): string | undefined {
 }
 
 describe("registerTransition", () => {
-    it("ships no presets yet, and lists a registered transition with its params defaulted", () => {
-        assert.lengthOf(TRANSITION_PRESETS, 0);
-        assert.deepEqual(transitionDescriptors(), []);
+    it("lists the presets, then a registered transition with its params defaulted", () => {
+        const presets = TRANSITION_PRESETS.length;
+        assert.lengthOf(transitionDescriptors(), presets);
         registerTransition(LINEAR);
         const listed = transitionDescriptors();
-        assert.deepEqual(listed, [{ id: "test/linear", plainName: "Linear", params: [] }]);
-        assert.isTrue(Object.isFrozen(listed[0]));
+        assert.deepEqual(listed.slice(presets), [{ id: "test/linear", plainName: "Linear", params: [] }]);
+        assert.isTrue(Object.isFrozen(listed[presets]));
         assert.strictEqual(transitionDescriptors(), listed, "the same array until a registration changes");
     });
 
@@ -82,7 +82,7 @@ describe("registerTransition", () => {
     it("ignores the identical registration again, and refuses a different one when strict", () => {
         registerTransition(LINEAR);
         registerTransition(LINEAR);
-        assert.lengthOf(transitionDescriptors(), 1);
+        assert.lengthOf(transitionDescriptors(), TRANSITION_PRESETS.length + 1);
         assert.strictEqual(
             codeOf(() => registerTransition({ ...LINEAR, move: (_t, _f, to) => to }, { strict: true })),
             "E_DUPLICATE_PLUGIN",
@@ -93,7 +93,10 @@ describe("registerTransition", () => {
         registerTransition({ ...LINEAR, drawable: "particles" });
         const session = createGraphSession();
         assert.deepEqual(
-            session.catalog.transitions().map((descriptor) => [descriptor.id, descriptor.drawable]),
+            session.catalog
+                .transitions()
+                .slice(TRANSITION_PRESETS.length)
+                .map((descriptor) => [descriptor.id, descriptor.drawable]),
             [["test/linear", "particles"]],
         );
     });

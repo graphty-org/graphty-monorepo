@@ -10,11 +10,38 @@
 
 /** Each preset's body, by id, loaded on first use. */
 export const SHADER_PRESET_BODIES: Readonly<Record<string, () => Promise<string>>> = Object.freeze({
+    "matcap-ink": async () => (await import("./matcap-ink/body")).BODY,
+    "clear-glass": async () => (await import("./clear-glass/body")).BODY,
+    pearl: async () => (await import("./pearl/body")).BODY,
+    "toon-outline": async () => (await import("./toon-outline/body")).BODY,
+    halftone: async () => (await import("./halftone/body")).BODY,
     "glass-marble": async () => (await import("./glass-marble/body")).BODY,
     gemstone: async () => (await import("./gemstone/body")).BODY,
     "disco-ball": async () => (await import("./disco-ball/body")).BODY,
     "lantern-glow": async () => (await import("./lantern-glow/body")).BODY,
     "dew-drop": async () => (await import("./dew-drop/body")).BODY,
+    "colorblind-patterns": async () => (await import("./colorblind-patterns/body")).BODY,
+    "foil-shimmer": async () => (await import("./foil-shimmer/body")).BODY,
+    hologram: async () => (await import("./hologram/body")).BODY,
+    frost: async () => (await import("./frost/body")).BODY,
+    "frosted-glass": async () => (await import("./frosted-glass/body")).BODY,
+    "liquid-metal": async () => (await import("./liquid-metal/body")).BODY,
+    "anodized-steel": async () => (await import("./anodized-steel/body")).BODY,
+    "icon-sticker": async () => (await import("./icon-sticker/body")).BODY,
+    mandala: async () => (await import("./mandala/body")).BODY,
+    "uncertainty-aura": async () => (await import("./uncertainty-aura/body")).BODY,
+    "lock-on-reticle": async () => (await import("./lock-on-reticle/body")).BODY,
+    "orbiting-satellites": async () => (await import("./orbiting-satellites/body")).BODY,
+    shockwave: async () => (await import("./shockwave/body")).BODY,
+    "change-flash": async () => (await import("./change-flash/body")).BODY,
+    "fiber-optic": async () => (await import("./fiber-optic/body")).BODY,
+    "fiber-packets": async () => (await import("./fiber-packets/body")).BODY,
+    "comet-tracers": async () => (await import("./comet-tracers/body")).BODY,
+    "edge-glow": async () => (await import("./edge-glow/body")).BODY,
+    "edge-change": async () => (await import("./edge-change/body")).BODY,
+    nebula: async () => (await import("./nebula/body")).BODY,
+    "soap-bubble": async () => (await import("./soap-bubble/body")).BODY,
+    "metaball-hull": async () => (await import("./metaball-hull/body")).BODY,
 });
 
 /**

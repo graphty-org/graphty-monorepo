@@ -56,14 +56,14 @@ to the CPU and every node is then visited in JavaScript.
 
 **Fact: on one machine and one browser (section 8), the gap holds.** At 100,000 nodes and
 1,000,000 edges graphty-element took 28-30 s to a first frame and 86-111 ms per still frame;
-cosmos.gl took 0.7 s and 28 ms, and drew 1,000,000 nodes in 29 ms a frame. One hover at 10,000
-nodes blocked graphty-element's page for 26-61 s.
+cosmos.gl took 0.7 s and 28 ms, and drew 1,000,000 nodes in 29 ms a frame. A hover takes
+graphty-element 53-153 ms at 100,000 nodes on current golden, against cosmos.gl's 17 ms; the
+benchmark's own graphty-element build was older and much slower to hover (section 8.4).
 
-**Judgment: what to borrow, in order:** first, as a defect fix, picking that does not block the
-page, through a GPU ID buffer; then drawing nodes and edges straight from a GPU position texture,
-with layout positions handed to the renderer without a CPU loop; typed-array columns instead of
-per-element objects; edge trimming and curves in the vertex shader; GPU sampling of which labels to
-show. Little is left to take on the layout side.
+**Judgment: what to borrow, in order:** drawing nodes and edges straight from a GPU position
+texture, with layout positions handed to the renderer without a CPU loop; typed-array columns
+instead of per-element objects; GPU picking through an ID buffer; edge trimming and curves in the
+vertex shader; GPU sampling of which labels to show. Little is left to take on the layout side.
 
 **Judgment: what graphty does that cosmos.gl cannot** -- real 3D meshes and XR, in-scene text
 labels, stacked per-element style layers, 15+ layouts and 60+ algorithms, and a node and edge
@@ -407,27 +407,10 @@ Facts:
 
 Each item names where it goes in graphty, the expected gain (a judgment unless a number is cited),
 the cost, and what it conflicts with. The order follows the same-machine measurement in section 8:
-picking comes first because it is a defect, and layout work stays low because the GPU kernel was
-not the slow part.
+the per-element CPU work of drawing and of publishing layout positions comes first, picking is a
+scaling item, and layout work stays low because the GPU kernel was not the slow part.
 
-### 7.1 GPU ID-buffer picking, with edge picking and lasso
-
-- **Why first**: a fact from section 8.4: one hover at 10,000 nodes blocks the page for 26-61 s,
-  inside Babylon.js's CPU `scene.pick`, and at 100,000 nodes no hover was answered within 30
-  minutes. Judgment: this is a defect fix, tracked in #TBD-hover, and it does not wait for 7.2.
-- **What**: draw node and edge indices into an offscreen target only when something changed; a
-  hover reads a small window around the cursor asynchronously, a click reads synchronously.
-  Rectangle and lasso selection become GPU passes over the same data.
-- **Where**: `graphty-element/src/NodeBehavior.ts` and the element-at-point lookup in
-  `graphty-element/src/Graph.ts`.
-- **Gain**: hover cost no longer depends on the number of elements (cosmos.gl answered a hover in
-  17-24 ms at 100,000 and 1,000,000 points); edges become pickable; lasso and rectangle selection
-  become possible at any size.
-- **Cost**: medium.
-- **Conflicts**: XR picks along a controller ray, not at a screen pixel; there, keep a CPU ray test
-  against an array of node bounding spheres. Required by 7.2.
-
-### 7.2 Draw nodes from a GPU position texture (vertex pulling)
+### 7.1 Draw nodes from a GPU position texture (vertex pulling)
 
 - **What**: replace one `InstancedMesh` per node with one thin-instance batch per shape and
   material. The shader reads each node's position and size by instance index from a float texture
@@ -445,12 +428,12 @@ not the slow part.
   node's mesh need rework; `Node` becomes a handle into the batch.
 - **Conflicts**: style layers are compatible (their values go into instance buffers instead of
   materials). Node shapes become one batch per shape, the pattern edges already use. Picking must
-  move to the ID buffer (7.1), because there are no per-node meshes left to ray-cast.
+  move to the ID buffer (7.4), because there are no per-node meshes left to ray-cast.
 
-### 7.3 Hand layout positions to the renderer without a CPU loop
+### 7.2 Hand layout positions to the renderer without a CPU loop
 
 - **What**: on WebGL, upload each batch's readback as one texture instead of looping over nodes;
-  this needs only 7.2. On WebGPU, share one GPU device between Babylon.js and
+  this needs only 7.1. On WebGPU, share one GPU device between Babylon.js and
   webgpu-graph-algorithms so the renderer reads the layout's buffer directly -- a risk the WebGPU
   plan deferred.
 - **Where**: `graphty-element/src/layout/SimulationLayoutEngine.ts` and the WebGPU entry.
@@ -461,7 +444,7 @@ not the slow part.
 - **Conflicts**: code that reads node positions on the CPU needs cosmos.gl's pattern of
   non-blocking reads that are one frame behind.
 
-### 7.4 Typed-array columns instead of `Node` and `Edge` objects
+### 7.3 Typed-array columns instead of `Node` and `Edge` objects
 
 - **What**: element state lives in typed-array columns, with `Node` and `Edge` as lazy facades
   created on demand. This matches the column layout of `@graphty/graph-format` snapshots.
@@ -472,6 +455,25 @@ not the slow part.
 - **Cost**: large, and it may touch public API that hands out `Node` and `Edge` objects.
 - **Conflicts**: style selectors are evaluated per element today; they need an evaluator that runs
   over columns.
+
+### 7.4 GPU ID-buffer picking, with edge picking and lasso
+
+- **Why here**: facts from section 8.4: on current golden a hover takes 53-153 ms at 100,000
+  nodes, and with the fix for #3244 30-53 ms, against cosmos.gl's 17 ms. Each pick still visits
+  every mesh, so the cost grows linearly with the graph. Judgment: a scaling item, not a defect;
+  an ID buffer makes a hover cost the same at any size. It must land no later than 7.1, which
+  removes the per-node meshes the CPU pick tests.
+- **What**: draw node and edge indices into an offscreen target only when something changed; a
+  hover reads a small window around the cursor asynchronously, a click reads synchronously.
+  Rectangle and lasso selection become GPU passes over the same data.
+- **Where**: `graphty-element/src/NodeBehavior.ts` and the element-at-point lookup in
+  `graphty-element/src/Graph.ts`.
+- **Gain**: hover cost no longer depends on the number of elements (cosmos.gl answered a hover in
+  17-24 ms at 100,000 and 1,000,000 points); edges become pickable; lasso and rectangle selection
+  become possible at any size.
+- **Cost**: medium.
+- **Conflicts**: XR picks along a controller ray, not at a screen pixel; there, keep a CPU ray test
+  against an array of node bounding spheres. Required by 7.1.
 
 ### 7.5 Edge trimming and curves in the vertex shader
 
@@ -579,6 +581,8 @@ same graphs. Everything in 8.1 to 8.3 is a measured fact unless marked as a judg
   (50 for cosmos.gl, 16 for graphty-element) with one read at the end.
 - **Hover profile**: a Chrome CPU profile of one graphty-element hover at 10,000 nodes and 100,000
   edges in the 3D default configuration.
+- **Hover re-measured**: after the main runs, graphty-element's hover was measured again with the
+  same test page on a build of current golden, and on a build of the fix for #3244 (8.4).
 
 ### 8.3 Results
 
@@ -594,6 +598,8 @@ Where cosmos.gl was run twice, a cell gives the range of the two runs. Times are
 | Still frame                         | 3.8-4.1 / 5.9-7.0 ms | 33.4 / 37.3 ms          | 30.0 / 36.8 ms             |
 | Moving frame                        | 3.7-4.0 / 4.0-4.3 ms | 40.6 / 60.1 ms          | 47.8 / 68.8 ms             |
 | Hover                               | 7.4 ms (ratio 2)     | 30.7 s (26.1-36.6 s)    | 51.3 s (35.0-61.1 s)       |
+| Hover, graphty-element on golden    | -                    | 7.6-17.7 ms             | 7.6-17.7 ms                |
+| Hover, graphty-element, #3244 fix   | -                    | 2.9-15.7 ms             | 2.9-15.7 ms                |
 | JavaScript heap                     | 22 MB                | 345 MB                  | 289 MB                     |
 | Renderer and GPU processes          | 429-431 MB           | 791 MB                  | 733 MB                     |
 | Frame while the layout runs         | 6.9-7.2 / 8.5-9.3 ms | 117.6 / 187.3 ms        | 215.4 / 326.7 ms           |
@@ -609,6 +615,8 @@ Where cosmos.gl was run twice, a cell gives the range of the two runs. Times are
 | Still frame                         | 28.4-28.5 / 28.7-28.8 ms | 86.1 / 120.1 ms          | 110.9 / 145.9 ms           |
 | Moving frame                        | 28.7 / 29.2-29.5 ms    | 126.2 / 236.5 ms           | 211.3 / 404.5 ms           |
 | Hover                               | 16.5-16.9 ms           | no answer (see below)      | no answer (see below)      |
+| Hover, graphty-element on golden    | -                      | 53-153 ms                  | 53-153 ms                  |
+| Hover, graphty-element, #3244 fix   | -                      | 30-53 ms                   | 30-53 ms                   |
 | JavaScript heap                     | 160 MB                 | 3,045 MB                   | 2,466 MB                   |
 | Renderer and GPU processes          | 610-622 MB             | 3,762 MB                   | 3,215 MB                   |
 | Frame while the layout runs         | 18.9-19.1 / 22.7-25.4 ms | 1,575 / 2,751 ms         | 2,276 / 3,547 ms           |
@@ -633,8 +641,11 @@ graphty-element refused this graph: it stops at 100,000 nodes (`E_TOO_LARGE`).
 
 Notes on the tables:
 
-- **Hover at 100,000 nodes**: graphty-element had not answered the first pointer move when each
-  run reached its 30-minute limit, in all five runs at that size.
+- **Hover**: graphty-element's "Hover" row comes from the 2026-10-17 build every other
+  graphty-element number in these tables used (8.5). At 100,000 nodes that build never answered
+  the first pointer move: in all five runs at that size the page was still busy when the run's
+  30-minute limit closed it. The "on golden" and "#3244 fix" rows were measured later with the
+  same test page, and give one range across both configurations.
 - **The card's memory**: `nvidia-smi` reports the whole card, so its growth is noisy and was
   sometimes negative for graphty-element. For cosmos.gl it grew by 88 MB at 10,000 nodes, 350-366
   MB at 100,000 and 571-581 MB at 1,000,000; for graphty-element by under 100 MB at every size.
@@ -647,14 +658,26 @@ Notes on the tables:
 
 ### 8.4 Why graphty-element is slower
 
-**Picking.** Fact, from the hover profile: one pointer move at 10,000 nodes kept the main thread
-busy for 60.5 s, nearly all of it inside Babylon.js's CPU `scene.pick`, which graphty-element calls
-on every pointer move (`pickAsDrawn` in `graphty-element/src/NodeBehavior.ts`, lines 37-45). About
-31.6 s of that went to building picking rays (matrix multiplies and inversions) and about 11.4 s to
-intersection tests against bounding volumes. The page cannot respond to anything else meanwhile.
-Judgment: this is a defect, not a performance gap. A reader who moves the mouse over a 10,000-node
-graph sees the page freeze for half a minute or more, and at 100,000 nodes it never recovers. It is
-tracked in #TBD-hover.
+**Picking.** Facts:
+
+- **The 2026-10-17 build was quadratic.** In it every node had its own hover observer, and each
+  one picked the whole scene with Babylon.js's CPU `scene.pick`. The hover profile shows the cost:
+  one pointer move at 10,000 nodes kept the main thread busy for 60.5 s, about 31.6 s of it
+  building picking rays (matrix multiplies and inversions) and about 11.4 s in intersection tests.
+  That is where the 26-61 s hovers and the unanswered hovers at 100,000 nodes come from. The fix
+  for #2941 landed after that build and gave the nodes one shared observer.
+- **Current golden is linear.** Measured with the same test page, a hover takes 7.6-17.7 ms at
+  10,000 nodes and 53-153 ms at 100,000 nodes, and the page stays responsive at 100,000.
+- **The fix for #3244 trims the rays.** It adds a bounding-sphere test before Babylon.js builds a
+  picking ray, cutting the rays per pointer move from 20,003 to 7 at 10,000 nodes and from 200,003
+  to 7 at 100,000. A hover then takes 2.9-15.7 ms at 10,000 nodes and 30-53 ms at 100,000.
+- **It stays linear.** Each pick still visits every mesh to run the pick filter, about 15-20 ms
+  per pick at 100,000 nodes, with three picks per pointer move.
+
+Judgment: picking is no longer a defect that freezes the page but a scaling cost: about twice
+cosmos.gl's 17 ms at 100,000 nodes with the fix, and growing with the graph. An ID buffer, as
+cosmos.gl uses, would make it constant; a spatial index over node bounds would make it grow far
+more slowly (7.4).
 
 **Publishing layout positions.** Fact: at 100,000 nodes, one layout step with its readback took
 394-489 ms, while a step inside a batch of 16 took 23-31 ms, and that batch still includes one
@@ -698,8 +721,13 @@ as textures.
 - **Who drives the frames.** The test page drove cosmos.gl's frames; graphty-element drove its own
   and was timed from its after-render event. The blocking one-pixel read puts both on the same
   footing for the still and moving numbers.
-- **A slightly old graphty-element.** The build predates 3.29.0, so the device pixel ratio option
-  and the hover changes of that release were not measured.
+- **An old graphty-element build.** The test page imported a graphty-element build made on
+  2026-10-17 at 09:19, before 3.29.0 and before the fix for #2941, and every graphty-element
+  number in 8.3 comes from it except the two re-measured hover rows. Its
+  hover numbers were wrong by three orders of magnitude for the reason in 8.4. Load, frame times,
+  memory and the layout numbers were not re-measured on golden, and any change landed since then
+  (rendering, data loading, the layout's publish path) could move them; only hover is known to
+  have changed. The device pixel ratio option of 3.29.0 was not measured either.
 - **Few samples.** One run per graphty-element configuration and two per cosmos.gl configuration;
   three hover samples for graphty-element. At 10,000 nodes and ratio 1, cosmos.gl's hover test
   found no target on screen (a defect of the test page), so its hover number at that size is from
@@ -711,14 +739,15 @@ as textures.
 
 Judgments:
 
-- **Picking moves to first place, as a defect fix.** A hover that blocks the page for 26-61 s at
-  10,000 nodes is a bug any consumer hits. It comes before every performance item (7.1).
 - **Vertex pulling and handing layout positions to the renderer without a CPU loop are
   confirmed.** The publish loop costs about 370 ms of a 394 ms layout step at 100,000 nodes, and
-  the per-element frame work costs 26-44 ms at 10,000 nodes that cosmos.gl does not pay (7.2 and
-  7.3).
+  the per-element frame work costs 26-44 ms at 10,000 nodes that cosmos.gl does not pay (7.1 and
+  7.2).
 - **Typed-array columns are confirmed.** Load is about 40 times slower and the heap 15-19 times
-  larger at 100,000 nodes (7.4).
+  larger at 100,000 nodes (7.3).
+- **Picking is a scaling item.** The page-freezing hovers came from an old build. On golden, and
+  with the fix for #3244, a hover costs 30-153 ms at 100,000 nodes and grows linearly; an ID buffer
+  would make it constant (7.4).
 - **An option to render at the device pixel ratio** is added as a small item, and 3.29.0 already
   ships it (7.7).
 - **Labels were not measured**, so label sampling keeps its place on the evidence of section 3.6

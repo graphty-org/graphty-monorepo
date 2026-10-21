@@ -31,7 +31,7 @@ import type { LayerSpec } from "../../src/catalog/types";
 import type { Graphty } from "../../src/graphty-element";
 import { everyFrameAnimationsOn } from "../../src/managers/everyFrameAnimations";
 import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
-import { assertGraphLoaded, type Drawn, drawn } from "../assertions";
+import { assertGraphLoaded, assertNodesInFromEdges, type Drawn, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, realInput, waitForGraphSettled } from "../helpers";
 import { NODE_EFFECT_PRESETS, presetId } from "./nodeEffectPresets";
 
@@ -55,6 +55,9 @@ const EDGES = [
     { src: "n4", dst: "n7" },
     { src: "n2", dst: "n5" },
 ];
+
+/** How far in from the canvas's edges every node's center is drawn: room for its effect. */
+const EFFECT_ROOM_PX = 100;
 
 /** The middle node, which the interaction stories click. */
 const TARGET = "n4";
@@ -83,6 +86,9 @@ function render(
     }
 
     element.background = { backgroundType: "color", color: "#0d1117" };
+    // The camera frames the nodes; an aura or a moon's orbit reaches well past its node, so keep
+    // room at every edge.
+    element.fitInsets = { top: 70, right: 70, bottom: 70, left: 70 };
     element.nodeData = NODES.map((node) => ({ ...node }));
     element.edgeData = EDGES.map((edge) => ({ ...edge }));
     element.layout = "fixed";
@@ -277,6 +283,7 @@ function effectStory(
             await waitForGraphSettled(canvasElement);
             const scene = await drawn(canvasElement, `Shaders/Node Effects ${options.name}`);
             await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
+            await assertNodesInFromEdges(scene, EFFECT_ROOM_PX);
             const { slots } = options;
             if (slots !== undefined) {
                 await untilFrames(`${options.name}: ${String(slots)} nodes carry the effect`, () =>
@@ -364,6 +371,7 @@ export const AuraAndSatellites: Story = {
         await waitForGraphSettled(canvasElement);
         const scene = await drawn(canvasElement, "Shaders/Node Effects Aura and satellites");
         await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
+        await assertNodesInFromEdges(scene, EFFECT_ROOM_PX);
         await untilFrames("both effects are drawn on every node", () => {
             const slots = [...(statsOf(scene)?.slots.values() ?? [])];
             return slots.filter((count) => count === NODES.length).length >= 2;
@@ -432,6 +440,7 @@ export const AuraOverTheCap: Story = {
         await waitForGraphSettled(canvasElement);
         const scene = await drawn(canvasElement, "Shaders/Node Effects Aura over the cap");
         await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
+        await assertNodesInFromEdges(scene, EFFECT_ROOM_PX);
         await untilFrames("every node carries the aura", () => batchHolds(scene, NODES.length));
     },
 };

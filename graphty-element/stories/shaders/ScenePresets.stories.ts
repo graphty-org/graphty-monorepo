@@ -4,8 +4,8 @@
  *
  * Each story sets its shader the way a consumer does: the nebula as the element's background
  * (`element.background`), a boundary as a style layer's `boundary`, grouped by a data path. The
- * nodes are three communities, each split in two subgroups, colored by community from a layer
- * beneath; a boundary takes its group's mean color. The controls are the preset's parameters.
+ * nodes are three communities, each a hub and two separate subgroups, colored by community from a
+ * layer beneath; a boundary takes its group's mean color. The controls are the preset's parameters.
  *
  * The nebula drifts and the bubbles swirl; in a visual capture their motion is switched off with
  * the reader's own setting (`shaderSettings.motion`), so the picture is the same on every run.
@@ -16,7 +16,7 @@ import type { InputType } from "storybook/internal/types";
 
 import type { ShaderParamDescriptor, ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
-import { assertGraphLoaded, drawn } from "../assertions";
+import { assertGraphLoaded, assertNodesInFromEdges, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
 import { presetId, SCENE_PRESETS } from "./scenePresets";
 
@@ -24,23 +24,31 @@ import { presetId, SCENE_PRESETS } from "./scenePresets";
 const COLORS = ["#e0703a", "#2f9e8f", "#6a5acd"] as const;
 
 /**
- * Three communities around three centers, each split in two subgroups; a fixed layout spaced as a
- * force layout spaces nodes of this size, about ten node radii apart.
+ * Three communities around three centers, each a hub and two subgroups of three nodes in clusters
+ * of their own on either side of it, so a subgroup's boundary nests inside its community's. A
+ * fixed layout spaced as a force layout spaces nodes of this size, about ten node radii apart.
  */
 const NODES = COLORS.flatMap((color, community) => {
-    const cx = 16 * Math.cos((community / 3) * Math.PI * 2 + 0.5);
-    const cy = 16 * Math.sin((community / 3) * Math.PI * 2 + 0.5);
-    return Array.from({ length: 7 }, (_, i) => {
-        const angle = (i / 7) * Math.PI * 2 + community;
-        const r = i === 0 ? 0 : 4.5 + (i % 2) * 1.5;
+    const toward = (community / 3) * Math.PI * 2 + 0.5;
+    const cx = 16 * Math.cos(toward);
+    const cy = 16 * Math.sin(toward);
+    const hub = { id: `c${String(community)}n0`, community, color, position: { x: cx, y: cy, z: 0 } };
+    // The two subgroups sit across the line from the middle of the picture to the hub.
+    const across = toward + Math.PI / 2;
+    const members = Array.from({ length: 6 }, (_, k) => {
+        const side = k < 3 ? 1 : -1;
+        const angle = ((k % 3) / 3) * Math.PI * 2 + community;
+        const sx = cx + side * 4.5 * Math.cos(across);
+        const sy = cy + side * 4.5 * Math.sin(across);
         return {
-            id: `c${String(community)}n${String(i)}`,
+            id: `c${String(community)}n${String(k + 1)}`,
             community,
-            sub: `${String(community)}${i % 2 === 0 ? "a" : "b"}`,
+            sub: `${String(community)}${side === 1 ? "a" : "b"}`,
             color,
-            position: { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle), z: 0 },
+            position: { x: sx + 1.6 * Math.cos(angle), y: sy + 1.6 * Math.sin(angle), z: 0 },
         };
     });
+    return [hub, ...members];
 });
 
 /** Each community's nodes around its first node, and one edge between communities. */
@@ -95,6 +103,9 @@ function communities(layers: readonly LayerInput[], background: Graphty["backgro
     element.layout = "fixed";
     element.layoutConfig = { dim: 2 };
     element.viewMode = "2d";
+    // A bubble or hull reaches well past its outermost node, and the camera frames the nodes:
+    // keep room at every edge so the boundaries stay on the canvas.
+    element.fitInsets = { top: 110, right: 110, bottom: 110, left: 110 };
     return element;
 }
 
@@ -186,6 +197,8 @@ async function settled(canvasElement: HTMLElement, story: string): Promise<void>
     await waitForGraphSettled(canvasElement);
     const scene = await drawn(canvasElement, story);
     await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
+    // Room for a community's bubble, which reaches well past its outermost node.
+    await assertNodesInFromEdges(scene, 110);
 }
 
 /**

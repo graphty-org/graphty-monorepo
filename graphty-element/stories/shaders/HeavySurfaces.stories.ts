@@ -12,7 +12,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
-import { assertGraphLoaded, drawn } from "../assertions";
+import { assertGraphLoaded, assertNodesInFromEdges, drawn } from "../assertions";
 import { eventWaitingDecorator, waitForGraphSettled } from "../helpers";
 
 type LayerInput = Parameters<Graphty["session"]["styles"]["add"]>[0];
@@ -81,6 +81,9 @@ function surfaceScene(
     element.layoutConfig = { dim: 3 };
     element.viewMode = "2d";
     element.background = { backgroundType: "color", color: options.background ?? "#10131a" };
+    // The camera frames the nodes' centers; a marble's rim and a lantern's glow reach past them,
+    // so keep room at every edge.
+    element.fitInsets = { top: 60, right: 60, bottom: 60, left: 60 };
     return element;
 }
 
@@ -99,13 +102,16 @@ type Story = StoryObj;
  * @param counts - The nodes and edges it holds.
  * @param counts.nodes - The node count.
  * @param counts.edges - The edge count.
+ * @param marginPx - How far in from the canvas's edges every node's center is drawn, room for its
+ *   surface's rim or glow.
  * @returns The play function.
  */
-function played(name: string, counts = { nodes: NODES.length, edges: EDGES.length }): Story["play"] {
+function played(name: string, counts = { nodes: NODES.length, edges: EDGES.length }, marginPx = 100): Story["play"] {
     return async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
         const scene = await drawn(canvasElement, `Shaders/Heavy Surfaces ${name}`);
         await assertGraphLoaded(scene, counts);
+        await assertNodesInFromEdges(scene, marginPx);
     };
 }
 
@@ -162,5 +168,5 @@ const SMALL_NODES = Array.from({ length: 400 }, (_, i) => ({
 export const SmallMarbles: Story = {
     name: "Small marbles",
     render: () => surfaceScene("glass-marble", { params: { spin: 0 }, nodes: SMALL_NODES, size: 0.5 }),
-    play: played("SmallMarbles", { nodes: SMALL_NODES.length, edges: 0 }),
+    play: played("SmallMarbles", { nodes: SMALL_NODES.length, edges: 0 }, 60),
 };

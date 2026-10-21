@@ -752,6 +752,7 @@ export class DataManager implements Manager {
     dispose(): void;
     // @internal
     get drawHeld(): boolean;
+    drawnBundle(edge: Edge): EdgeBundle;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
     edgeVersion: number;
@@ -914,6 +915,8 @@ export class Edge {
     arrowHeadText: RichTextLabel | null;
     // @deprecated
     arrowMesh: AbstractMesh | null;
+    arrowMiddleHeadCap: ArrowCap | null;
+    arrowMiddleTailCap: ArrowCap | null;
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
@@ -922,13 +925,15 @@ export class Edge {
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
-        end: "arrowHead" | "arrowTail";
+        end: EdgeCapEnd;
         name: string;
         span: number;
         visibility: number;
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    // @internal
+    get drawnGradient(): readonly string[];
     get drawnLine(): {
         name: string;
         length: number;
@@ -979,6 +984,7 @@ export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
     readonly DEFAULT_ARROW_WIDTH: 1.25;
     readonly DEFAULT_ARROW_LENGTH: 0.5;
+    readonly NORMAL_ARROW_ASPECT: 0.8;
     readonly ARROW_CAP_WIDTH_MULTIPLIER: 20;
     readonly ARROW_CAP_WIDTH_MINIMUM: 4;
     readonly ARROW_CAP_LENGTH_MINIMUM: 0.5;
@@ -1017,6 +1023,9 @@ export interface EdgeAddEvent {
     // (undocumented)
     type: "edge-add-before";
 }
+
+// @public (undocumented)
+export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
 // @public (undocumented)
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
@@ -1058,10 +1067,30 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             "half-open": "half-open";
             vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+            "half-open-flipped": "half-open-flipped";
+            "open-box": "open-box";
+            image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
+        position: z.ZodOptional<z.ZodNumber>;
+        gap: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textPath: z.ZodOptional<z.ZodString>;
@@ -1075,19 +1104,47 @@ export const EdgeStyle: z.ZodObject<{
                 bottom: "bottom";
                 "bottom-left": "bottom-left";
                 "bottom-right": "bottom-right";
+                "inside-top": "inside-top";
+                "inside-bottom": "inside-bottom";
+                "inside-left": "inside-left";
+                "inside-right": "inside-right";
+                "inside-top-left": "inside-top-left";
+                "inside-top-right": "inside-top-right";
+                "inside-bottom-left": "inside-bottom-left";
+                "inside-bottom-right": "inside-bottom-right";
                 automatic: "automatic";
             }>>>;
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
+            letterSize: z.ZodOptional<z.ZodNumber>;
+            wrapWidth: z.ZodOptional<z.ZodNumber>;
+            wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+            wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+            wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            runAlign: z.ZodOptional<z.ZodEnum<{
+                baseline: "baseline";
+                hanging: "hanging";
+                middle: "middle";
+            }>>;
+            rotation: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            minScreenSize: z.ZodOptional<z.ZodNumber>;
+            declutter: z.ZodOptional<z.ZodEnum<{
+                size: "size";
+                degree: "degree";
+            }>>;
+            minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1096,14 +1153,18 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"gradient">;
                 direction: z.ZodNumber;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+                stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>, z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+                stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            borderOpacity: z.ZodOptional<z.ZodNumber>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 width: z.ZodNumber;
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1137,8 +1198,20 @@ export const EdgeStyle: z.ZodObject<{
                 bottom: "bottom";
                 "bottom-left": "bottom-left";
                 "bottom-right": "bottom-right";
+                "inside-top": "inside-top";
+                "inside-bottom": "inside-bottom";
+                "inside-left": "inside-left";
+                "inside-right": "inside-right";
+                "inside-top-left": "inside-top-left";
+                "inside-top-right": "inside-top-right";
+                "inside-bottom-left": "inside-bottom-left";
+                "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1150,6 +1223,7 @@ export const EdgeStyle: z.ZodObject<{
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
             textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 round: "round";
                 bevel: "bevel";
@@ -1161,6 +1235,7 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            boxPadding: z.ZodOptional<z.ZodNumber>;
             panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1218,9 +1293,9 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
+        textDistance: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     arrowTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1238,10 +1313,30 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             "half-open": "half-open";
             vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+            "half-open-flipped": "half-open-flipped";
+            "open-box": "open-box";
+            image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
+        position: z.ZodOptional<z.ZodNumber>;
+        gap: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textPath: z.ZodOptional<z.ZodString>;
@@ -1255,19 +1350,47 @@ export const EdgeStyle: z.ZodObject<{
                 bottom: "bottom";
                 "bottom-left": "bottom-left";
                 "bottom-right": "bottom-right";
+                "inside-top": "inside-top";
+                "inside-bottom": "inside-bottom";
+                "inside-left": "inside-left";
+                "inside-right": "inside-right";
+                "inside-top-left": "inside-top-left";
+                "inside-top-right": "inside-top-right";
+                "inside-bottom-left": "inside-bottom-left";
+                "inside-bottom-right": "inside-bottom-right";
                 automatic: "automatic";
             }>>>;
             text: z.ZodOptional<z.ZodString>;
             font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             size: z.ZodOptional<z.ZodNumber>;
+            letterSize: z.ZodOptional<z.ZodNumber>;
+            wrapWidth: z.ZodOptional<z.ZodNumber>;
+            wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+            wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+            wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            runAlign: z.ZodOptional<z.ZodEnum<{
+                baseline: "baseline";
+                hanging: "hanging";
+                middle: "middle";
+            }>>;
+            rotation: z.ZodOptional<z.ZodNumber>;
             fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
             fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            minScreenSize: z.ZodOptional<z.ZodNumber>;
+            declutter: z.ZodOptional<z.ZodEnum<{
+                size: "size";
+                degree: "degree";
+            }>>;
+            minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1276,14 +1399,18 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"gradient">;
                 direction: z.ZodNumber;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+                stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>, z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+                stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            borderOpacity: z.ZodOptional<z.ZodNumber>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 width: z.ZodNumber;
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1317,8 +1444,20 @@ export const EdgeStyle: z.ZodObject<{
                 bottom: "bottom";
                 "bottom-left": "bottom-left";
                 "bottom-right": "bottom-right";
+                "inside-top": "inside-top";
+                "inside-bottom": "inside-bottom";
+                "inside-left": "inside-left";
+                "inside-right": "inside-right";
+                "inside-top-left": "inside-top-left";
+                "inside-top-right": "inside-top-right";
+                "inside-bottom-left": "inside-bottom-left";
+                "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1330,6 +1469,7 @@ export const EdgeStyle: z.ZodObject<{
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
             textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 round: "round";
                 bevel: "bevel";
@@ -1341,6 +1481,7 @@ export const EdgeStyle: z.ZodObject<{
             textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            boxPadding: z.ZodOptional<z.ZodNumber>;
             panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1398,9 +1539,89 @@ export const EdgeStyle: z.ZodObject<{
             smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-            onTop: z.ZodOptional<z.ZodBoolean>;
             closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         }, z.core.$strict>>;
+        textDistance: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    arrowMiddleHead: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            dot: "dot";
+            normal: "normal";
+            inverted: "inverted";
+            "sphere-dot": "sphere-dot";
+            "open-dot": "open-dot";
+            tee: "tee";
+            "open-normal": "open-normal";
+            diamond: "diamond";
+            "open-diamond": "open-diamond";
+            crow: "crow";
+            box: "box";
+            "half-open": "half-open";
+            vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+            "half-open-flipped": "half-open-flipped";
+            "open-box": "open-box";
+            image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
+        }>>>;
+        opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
+        image: z.ZodOptional<z.ZodString>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
+    }, z.core.$strict>>;
+    arrowMiddleTail: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            dot: "dot";
+            normal: "normal";
+            inverted: "inverted";
+            "sphere-dot": "sphere-dot";
+            "open-dot": "open-dot";
+            tee: "tee";
+            "open-normal": "open-normal";
+            diamond: "diamond";
+            "open-diamond": "open-diamond";
+            crow: "crow";
+            box: "box";
+            "half-open": "half-open";
+            vee: "vee";
+            "half-circle": "half-circle";
+            "open-half-circle": "open-half-circle";
+            curve: "curve";
+            "triangle-tee": "triangle-tee";
+            "triangle-cross": "triangle-cross";
+            "circle-triangle": "circle-triangle";
+            "half-open-flipped": "half-open-flipped";
+            "open-box": "open-box";
+            image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
+            "open-inverted": "open-inverted";
+        }>>>;
+        opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodNumber>;
+        image: z.ZodOptional<z.ZodString>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -1413,14 +1634,65 @@ export const EdgeStyle: z.ZodObject<{
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
         }>>;
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
+        minScreenWidth: z.ZodOptional<z.ZodNumber>;
         patternCount: z.ZodOptional<z.ZodNumber>;
+        waveAmplitude: z.ZodOptional<z.ZodNumber>;
+        wavePeriod: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
+        outline: z.ZodOptional<z.ZodObject<{
+            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            width: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+            type: z.ZodOptional<z.ZodEnum<{
+                solid: "solid";
+                dot: "dot";
+                dash: "dash";
+                "dash-dot": "dash-dot";
+            }>>;
+        }, z.core.$strict>>;
+        underlay: z.ZodOptional<z.ZodObject<{
+            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+            padding: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        overlay: z.ZodOptional<z.ZodObject<{
+            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+            padding: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        gradient: z.ZodOptional<z.ZodObject<{
+            colors: z.ZodOptional<z.ZodString>;
+            stops: z.ZodOptional<z.ZodString>;
+            kind: z.ZodOptional<z.ZodEnum<{
+                none: "none";
+                linear: "linear";
+                radial: "radial";
+            }>>;
+        }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
+        fanSpacing: z.ZodOptional<z.ZodNumber>;
+        fanned: z.ZodOptional<z.ZodBoolean>;
+        bendCurve: z.ZodOptional<z.ZodEnum<{
+            bezier: "bezier";
+            corners: "corners";
+            midpoints: "midpoints";
+            arc: "arc";
+        }>>;
+        arcRadius: z.ZodOptional<z.ZodNumber>;
+        nodeGap: z.ZodOptional<z.ZodNumber>;
+        sourcePort: z.ZodOptional<z.ZodString>;
+        targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -1435,19 +1707,47 @@ export const EdgeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
             automatic: "automatic";
         }>>>;
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1456,14 +1756,18 @@ export const EdgeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"gradient">;
             direction: z.ZodNumber;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>, z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1497,8 +1801,20 @@ export const EdgeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -1510,6 +1826,7 @@ export const EdgeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -1521,6 +1838,7 @@ export const EdgeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1578,7 +1896,6 @@ export const EdgeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -3561,6 +3878,8 @@ class Node_2 {
     // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
+    // @internal
+    get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
     // (undocumented)
     dragging: boolean;
@@ -3585,6 +3904,7 @@ class Node_2 {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    get isDrawnAsGroup(): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -3598,12 +3918,15 @@ class Node_2 {
     pin(): void;
     // (undocumented)
     pinOnDrag: boolean;
+    // @internal
+    refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
     // (undocumented)
@@ -3752,6 +4075,7 @@ export interface NodeScreenPosition {
 
 // @public
 export const NodeShapes: z.ZodEnum<{
+    none: "none";
     diamond: "diamond";
     box: "box";
     vee: "vee";
@@ -3789,6 +4113,19 @@ export const NodeShapes: z.ZodEnum<{
     octagon: "octagon";
     parallelogram: "parallelogram";
     trapezoid: "trapezoid";
+    polygon: "polygon";
+    cross: "cross";
+    house: "house";
+    man: "man";
+    woman: "woman";
+    "round-triangle": "round-triangle";
+    "round-diamond": "round-diamond";
+    "round-pentagon": "round-pentagon";
+    "round-hexagon": "round-hexagon";
+    "round-octagon": "round-octagon";
+    "round-polygon": "round-polygon";
+    barrel: "barrel";
+    database: "database";
 }>;
 
 // @public
@@ -3801,6 +4138,7 @@ export const NodeStyle: z.ZodObject<{
             uniform: "uniform";
         }>>;
         type: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             diamond: "diamond";
             box: "box";
             vee: "vee";
@@ -3838,6 +4176,19 @@ export const NodeStyle: z.ZodObject<{
             octagon: "octagon";
             parallelogram: "parallelogram";
             trapezoid: "trapezoid";
+            polygon: "polygon";
+            cross: "cross";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
@@ -3846,6 +4197,20 @@ export const NodeStyle: z.ZodObject<{
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
+        exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
+        points: z.ZodOptional<z.ZodString>;
+        stretchPoints: z.ZodOptional<z.ZodBoolean>;
+        parts: z.ZodOptional<z.ZodString>;
+        lines: z.ZodOptional<z.ZodString>;
+        lineWidth: z.ZodOptional<z.ZodNumber>;
+        texts: z.ZodOptional<z.ZodString>;
+        labelFit: z.ZodOptional<z.ZodEnum<{
+            inside: "inside";
+            bounds: "bounds";
+        }>>;
+        labelPaddingX: z.ZodOptional<z.ZodNumber>;
+        labelPaddingY: z.ZodOptional<z.ZodNumber>;
+        labelFitSquare: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -3856,10 +4221,12 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"gradient">;
             direction: z.ZodNumber;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>, z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
@@ -3885,12 +4252,248 @@ export const NodeStyle: z.ZodObject<{
     border: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         width: z.ZodOptional<z.ZodNumber>;
+        screenWidth: z.ZodOptional<z.ZodNumber>;
+        opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            "dash-dot": "dash-dot";
+            sinewave: "sinewave";
+            zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
             dashed: "dashed";
             dotted: "dotted";
-            double: "double";
         }>>;
+        position: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            inside: "inside";
+            outside: "outside";
+        }>>;
+        waveAmplitude: z.ZodOptional<z.ZodNumber>;
+        wavePeriod: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    outerBorder: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        style: z.ZodOptional<z.ZodEnum<{
+            solid: "solid";
+            "dash-dot": "dash-dot";
+            sinewave: "sinewave";
+            zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
+            dashed: "dashed";
+            dotted: "dotted";
+        }>>;
+        offset: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    underlay: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        padding: z.ZodOptional<z.ZodNumber>;
+        shape: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            diamond: "diamond";
+            box: "box";
+            vee: "vee";
+            star: "star";
+            sphere: "sphere";
+            cylinder: "cylinder";
+            cone: "cone";
+            capsule: "capsule";
+            torus: "torus";
+            "torus-knot": "torus-knot";
+            tetrahedron: "tetrahedron";
+            octahedron: "octahedron";
+            dodecahedron: "dodecahedron";
+            icosahedron: "icosahedron";
+            rhombicuboctahedron: "rhombicuboctahedron";
+            triangular_prism: "triangular_prism";
+            pentagonal_prism: "pentagonal_prism";
+            hexagonal_prism: "hexagonal_prism";
+            square_pyramid: "square_pyramid";
+            pentagonal_pyramid: "pentagonal_pyramid";
+            triangular_dipyramid: "triangular_dipyramid";
+            pentagonal_dipyramid: "pentagonal_dipyramid";
+            elongated_square_dipyramid: "elongated_square_dipyramid";
+            elongated_pentagonal_dipyramid: "elongated_pentagonal_dipyramid";
+            elongated_pentagonal_cupola: "elongated_pentagonal_cupola";
+            goldberg: "goldberg";
+            icosphere: "icosphere";
+            geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            cross: "cross";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
+        }>>;
+        cornerRadius: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    overlay: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        padding: z.ZodOptional<z.ZodNumber>;
+        shape: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            diamond: "diamond";
+            box: "box";
+            vee: "vee";
+            star: "star";
+            sphere: "sphere";
+            cylinder: "cylinder";
+            cone: "cone";
+            capsule: "capsule";
+            torus: "torus";
+            "torus-knot": "torus-knot";
+            tetrahedron: "tetrahedron";
+            octahedron: "octahedron";
+            dodecahedron: "dodecahedron";
+            icosahedron: "icosahedron";
+            rhombicuboctahedron: "rhombicuboctahedron";
+            triangular_prism: "triangular_prism";
+            pentagonal_prism: "pentagonal_prism";
+            hexagonal_prism: "hexagonal_prism";
+            square_pyramid: "square_pyramid";
+            pentagonal_pyramid: "pentagonal_pyramid";
+            triangular_dipyramid: "triangular_dipyramid";
+            pentagonal_dipyramid: "pentagonal_dipyramid";
+            elongated_square_dipyramid: "elongated_square_dipyramid";
+            elongated_pentagonal_dipyramid: "elongated_pentagonal_dipyramid";
+            elongated_pentagonal_cupola: "elongated_pentagonal_cupola";
+            goldberg: "goldberg";
+            icosphere: "icosphere";
+            geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            cross: "cross";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
+        }>>;
+        cornerRadius: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    image: z.ZodOptional<z.ZodObject<{
+        src: z.ZodOptional<z.ZodString>;
+        fallback: z.ZodOptional<z.ZodString>;
+        fit: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            fill: "fill";
+            contain: "contain";
+            cover: "cover";
+        }>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        pixelSize: z.ZodOptional<z.ZodNumber>;
+        autoSize: z.ZodOptional<z.ZodEnum<{
+            proportional: "proportional";
+            natural: "natural";
+        }>>;
+        positionX: z.ZodOptional<z.ZodNumber>;
+        positionY: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        repeat: z.ZodOptional<z.ZodEnum<{
+            repeat: "repeat";
+            "no-repeat": "no-repeat";
+            "repeat-x": "repeat-x";
+            "repeat-y": "repeat-y";
+        }>>;
+        clip: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            node: "node";
+        }>>;
+        smoothing: z.ZodOptional<z.ZodBoolean>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    pie: z.ZodOptional<z.ZodObject<{
+        colors: z.ZodOptional<z.ZodString>;
+        sizes: z.ZodOptional<z.ZodString>;
+        opacities: z.ZodOptional<z.ZodString>;
+        radius: z.ZodOptional<z.ZodNumber>;
+        hole: z.ZodOptional<z.ZodNumber>;
+        rotation: z.ZodOptional<z.ZodNumber>;
+        fitBox: z.ZodOptional<z.ZodBoolean>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    stripes: z.ZodOptional<z.ZodObject<{
+        colors: z.ZodOptional<z.ZodString>;
+        sizes: z.ZodOptional<z.ZodString>;
+        opacities: z.ZodOptional<z.ZodString>;
+        direction: z.ZodOptional<z.ZodEnum<{
+            right: "right";
+            down: "down";
+        }>>;
+        size: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    chart: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            line: "line";
+            bar: "bar";
+            "stacked-bar": "stacked-bar";
+            cells: "cells";
+        }>>;
+        values: z.ZodOptional<z.ZodString>;
+        colors: z.ZodOptional<z.ZodString>;
+        min: z.ZodOptional<z.ZodNumber>;
+        max: z.ZodOptional<z.ZodNumber>;
+        horizontal: z.ZodOptional<z.ZodBoolean>;
+        size: z.ZodOptional<z.ZodNumber>;
+        margin: z.ZodOptional<z.ZodNumber>;
+        gap: z.ZodOptional<z.ZodNumber>;
+        lineWidth: z.ZodOptional<z.ZodNumber>;
+        borderColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        borderWidth: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    glyph: z.ZodOptional<z.ZodObject<{
+        text: z.ZodOptional<z.ZodString>;
+        font: z.ZodOptional<z.ZodString>;
+        size: z.ZodOptional<z.ZodNumber>;
+        weight: z.ZodOptional<z.ZodNumber>;
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -3905,19 +4508,47 @@ export const NodeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
             automatic: "automatic";
         }>>>;
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -3926,14 +4557,18 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"gradient">;
             direction: z.ZodNumber;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>, z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -3967,8 +4602,20 @@ export const NodeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -3980,6 +4627,7 @@ export const NodeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -3991,6 +4639,7 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4048,7 +4697,6 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
     tooltip: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
@@ -4064,19 +4712,47 @@ export const NodeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
             automatic: "automatic";
         }>>>;
         text: z.ZodOptional<z.ZodString>;
         font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             normal: "normal";
             italic: "italic";
         }>>>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4085,14 +4761,18 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"gradient">;
             direction: z.ZodNumber;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>, z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
             width: z.ZodNumber;
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4126,8 +4806,20 @@ export const NodeStyle: z.ZodObject<{
             bottom: "bottom";
             "bottom-left": "bottom-left";
             "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -4139,6 +4831,7 @@ export const NodeStyle: z.ZodObject<{
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
         textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             round: "round";
             bevel: "bevel";
@@ -4150,6 +4843,7 @@ export const NodeStyle: z.ZodObject<{
         textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
         panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4207,7 +4901,6 @@ export const NodeStyle: z.ZodObject<{
         smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-        onTop: z.ZodOptional<z.ZodBoolean>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
 }, z.core.$strict>;
@@ -4728,19 +5421,47 @@ export const RichTextStyle: z.ZodObject<{
         bottom: "bottom";
         "bottom-left": "bottom-left";
         "bottom-right": "bottom-right";
+        "inside-top": "inside-top";
+        "inside-bottom": "inside-bottom";
+        "inside-left": "inside-left";
+        "inside-right": "inside-right";
+        "inside-top-left": "inside-top-left";
+        "inside-top-right": "inside-top-right";
+        "inside-bottom-left": "inside-bottom-left";
+        "inside-bottom-right": "inside-bottom-right";
         automatic: "automatic";
     }>>>;
     text: z.ZodOptional<z.ZodString>;
     font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     size: z.ZodOptional<z.ZodNumber>;
+    letterSize: z.ZodOptional<z.ZodNumber>;
+    wrapWidth: z.ZodOptional<z.ZodNumber>;
+    wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+    wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+    wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+    runAlign: z.ZodOptional<z.ZodEnum<{
+        baseline: "baseline";
+        hanging: "hanging";
+        middle: "middle";
+    }>>;
+    rotation: z.ZodOptional<z.ZodNumber>;
     fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
     fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         normal: "normal";
         italic: "italic";
     }>>>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    minScreenSize: z.ZodOptional<z.ZodNumber>;
+    declutter: z.ZodOptional<z.ZodEnum<{
+        size: "size";
+        degree: "degree";
+    }>>;
+    minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    textOpacity: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
         colorType: z.ZodLiteral<"solid">;
         value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4749,14 +5470,18 @@ export const RichTextStyle: z.ZodObject<{
         colorType: z.ZodLiteral<"gradient">;
         direction: z.ZodNumber;
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>, z.ZodObject<{
         colorType: z.ZodLiteral<"radial-gradient">;
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+    backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    borderOpacity: z.ZodOptional<z.ZodNumber>;
     borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
         width: z.ZodNumber;
         color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4790,8 +5515,20 @@ export const RichTextStyle: z.ZodObject<{
         bottom: "bottom";
         "bottom-left": "bottom-left";
         "bottom-right": "bottom-right";
+        "inside-top": "inside-top";
+        "inside-bottom": "inside-bottom";
+        "inside-left": "inside-left";
+        "inside-right": "inside-right";
+        "inside-top-left": "inside-top-left";
+        "inside-top-right": "inside-top-right";
+        "inside-bottom-left": "inside-bottom-left";
+        "inside-bottom-right": "inside-bottom-right";
     }>>;
     attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    offsetX: z.ZodOptional<z.ZodNumber>;
+    offsetY: z.ZodOptional<z.ZodNumber>;
+    shiftX: z.ZodOptional<z.ZodNumber>;
+    shiftY: z.ZodOptional<z.ZodNumber>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";
         screen: "screen";
@@ -4803,6 +5540,7 @@ export const RichTextStyle: z.ZodObject<{
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
     textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         round: "round";
         bevel: "bevel";
@@ -4814,6 +5552,7 @@ export const RichTextStyle: z.ZodObject<{
     textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    boxPadding: z.ZodOptional<z.ZodNumber>;
     panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4871,7 +5610,6 @@ export const RichTextStyle: z.ZodObject<{
     smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
-    onTop: z.ZodOptional<z.ZodBoolean>;
     closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, z.core.$strict>;
 
@@ -5073,6 +5811,7 @@ export interface SnapshotLayoutInput {
     };
     readonly graph: GraphSnapshot;
     readonly initial: F32;
+    nodeExtents?(): F32;
     nodeSizes?(): F32;
     readonly options: Readonly<Record<string, unknown>>;
     report(progress: SnapshotLayoutProgress): void;

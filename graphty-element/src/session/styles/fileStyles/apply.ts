@@ -9,7 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { type ExtractedStyles, readAnnotations } from "@graphty/graph-io/styles";
+import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
@@ -20,6 +20,7 @@ import { quotePath } from "../predicate";
 import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
+import { withLabelGrid } from "./labelGrid";
 import { fileStyleNamespace, fileStylePath } from "./path";
 import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileStyleValuesOf } from "./store";
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
@@ -42,6 +43,20 @@ export interface FileStylesRead {
      * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
      */
     readonly positionPxPerUnit?: number;
+    /**
+     * Set when the stored positions have no fixed length and the program that draws the file fits
+     * them into its canvas, `padding` px in from each side, drawing label sizes in the canvas's px
+     * (sigma.js): the padding and the width and height of the positions' bounding box, in their unit.
+     */
+    readonly positionFit?: {
+        readonly padding: number;
+        readonly width: number;
+        readonly height: number;
+        /** The middle of the bounding box, in the positions' unit. */
+        readonly center?: readonly [number, number];
+        /** Each node's stored position, three numbers per node by the snapshot's index (NaN where it has none). */
+        readonly coords?: ArrayLike<number>;
+    };
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -200,8 +215,15 @@ async function applyRead(
     const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
+    const viewport = ctx.services.viewport?.() ?? null;
+    const pxPerUnit = labelPxPerUnit(read.positionFit, viewport);
+    const fit = read.positionFit;
+    const frame =
+        fit?.coords === undefined || fit.center === undefined || pxPerUnit === undefined || viewport === null
+            ? null
+            : { coords: fit.coords, center: fit.center, pxPerUnit, viewport };
     const translation = translateFileStyles({
-        extracted: read.extracted,
+        extracted: withLabelGrid(read.extracted, read.snapshot, frame),
         snapshot: read.snapshot,
         namespace,
         format: read.format,
@@ -209,6 +231,7 @@ async function applyRead(
         options,
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
+        labelPxPerUnit: pxPerUnit,
     });
     const notes = [...translation.notes];
 
@@ -280,17 +303,49 @@ async function applyRead(
             });
     }
 
-    // The stored positions take the styles' unit, so they are drawn at the file's proportions.
-    const sceneScale = translation.sceneScale === null ? null : translation.sceneScale * (read.positionPxPerUnit ?? 1);
+    // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
+    // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
+    // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
+    const graphtyWrote = read.extracted.styles.source.tool === "graphty";
+    const keptScale = graphtyWrote ? null : (read.positionPxPerUnit ?? null);
+    const sceneScale =
+        translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the
     // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
-    const { annotations } = readAnnotations(read.snapshot);
+    const annotations = [...readAnnotations(read.snapshot).annotations, ...readImageAnnotations(read.snapshot)];
     if (replacing && annotations.length > 0) {
         const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
     }
 
     return { layers, notes, sceneScale };
+}
+
+/**
+ * How many canvas px one unit of the file's positions is when they are fitted to the canvas the
+ * element draws on, as sigma.js fits them: the canvas's smaller side less `padding` px at each end,
+ * stretched by the canvas's aspect along its longer side, holds the bounding box at its own
+ * proportions (sigma 4.0.1 draws a 90 x 90 box 540 px tall and a 712 x 485 one 720 px wide in an
+ * 800 x 600 canvas). The file's label sizes are px of that canvas.
+ * @param fit - The positions' fit, when they have no fixed length.
+ * @param viewport - The canvas's size in CSS px, or null without one.
+ * @returns The px per unit, or undefined when the positions keep their own length or there is no
+ *     canvas to fit them to.
+ */
+export function labelPxPerUnit(
+    fit: FileStylesRead["positionFit"],
+    viewport: { readonly width: number; readonly height: number } | null,
+): number | undefined {
+    if (fit === undefined || viewport === null) {
+        return undefined;
+    }
+
+    const short = Math.min(viewport.width, viewport.height);
+    const inside = (short - 2 * fit.padding) / short;
+    const across = [(inside * viewport.width) / fit.width, (inside * viewport.height) / fit.height].filter(
+        (k) => Number.isFinite(k) && k > 0,
+    );
+    return across.length === 0 ? undefined : Math.min(...across);
 }
 
 /**

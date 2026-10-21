@@ -16,6 +16,7 @@ import type { SessionStyleSource } from "../../../src/formats/cys/styles.js";
 import { cellAtt } from "../../../src/formats/cys/tables.js";
 import { createRegistry } from "../../../src/registry.js";
 import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/internal.js";
+import type { StyleProperty } from "../../../src/styles/types.js";
 import { changeSessionEntry } from "../../styles/formats/cytoscape-xml.js";
 
 const registry = createRegistry();
@@ -59,6 +60,12 @@ describe("reading session styles", () => {
         expect(ex.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_VIEW_STYLE_MISSING");
     });
 
+    it("reads a background the view locks over its style's default, as Cytoscape draws it", async () => {
+        // the view's graph graphics lock NETWORK_BACKGROUND_PAINT #FAFAF0 over the style's #FFFFFF
+        const { styles } = await load(file(resolve(STYLES, "fidelity/syn-bypass.cys")));
+        expect((styles as ExtractedStyles).styles.graph).toEqual({ background: "#fafaf0" });
+    });
+
     it("reads the first style, with a note, when the view names a style the session does not hold", async () => {
         const written = file(resolve(STYLES, "generated/graphty-written.cys"));
         const renamed = changeSessionEntry(
@@ -96,6 +103,36 @@ describe("reading session styles", () => {
         expect(resolveStyles(ex, "node", "visible", snapshot)[hidden]).toBe(false);
         expect(resolveStyles(ex, "edge", "visible", snapshot)).toContain(false);
         expect(ex.styles.source.tool).toBe("cytoscape-fallbacks");
+    });
+
+    it("draws what a view's bypass of a parent visual property locks, as Cytoscape 3.10.5 draws the sheets", async () => {
+        const SHEETS = resolve(import.meta.dirname, "../../fidelity/specimens/cys");
+        const named = async (
+            sheet: string,
+            target: "node" | "edge",
+            properties: readonly StyleProperty[],
+        ): Promise<(name: string) => unknown[]> => {
+            const { snapshot, styles } = await load(file(resolve(SHEETS, `specimen-${sheet}.cys`)));
+            const table = target === "node" ? snapshot.nodes : snapshot.edges;
+            const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+            const columns = properties.map((p) => resolveStyles(styles as ExtractedStyles, target, p, snapshot));
+            return (name) => {
+                const i = Array.from({ length: n }, (_, k) => k).find((k) => table.get("name")?.value(k) === name);
+                return i === undefined ? [] : columns.map((c) => c[i]);
+            };
+        };
+        // NODE_PAINT paints the fill and the border; NODE_SIZE sizes the node with nodeSizeLocked off
+        const fills = await named("node-fills-borders", "node", ["fill", "borderColor"]);
+        expect(fills("paint-d62728")).toEqual(["#d62728", "#d62728"]);
+        const sizes = await named("node-sizes-opacity", "node", ["width", "height"]);
+        expect(sizes("size-80-unlocked")).toEqual([80, 80]);
+        // EDGE_PAINT and EDGE_UNSELECTED_PAINT paint the line
+        const lines = await named("edges-lines", "edge", ["color"]);
+        expect([lines("paint-d62728"), lines("unselected-paint-d62728")]).toEqual([["#d62728"], ["#d62728"]]);
+        // under arrowColorMatchesEdge the stroke's passthrough is not drawn, and a stroke bypass paints the line alone
+        const matched = await named("mappings-bypass", "edge", ["color", "targetArrowColor"]);
+        expect(matched("passthrough-edge-color-d62728")).toEqual(["#404040", "#404040"]);
+        expect(matched("bypass-over-edge-passthrough")).toEqual(["#9467bd", "#404040"]);
     });
 
     it("splits list cells on carriage returns, as some Cytoscape versions write them", () => {

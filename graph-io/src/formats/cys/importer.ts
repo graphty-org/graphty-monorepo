@@ -1524,6 +1524,7 @@ async function keepStyleSource(prepared: Prepared, index: number, visualStyle: s
         problem,
         visualStyle,
         network: { index, name: prepared.choices[index].name },
+        weightFrom: prepared.inner.weightFrom,
     };
     prepared.report.keepForStyles(source);
 }

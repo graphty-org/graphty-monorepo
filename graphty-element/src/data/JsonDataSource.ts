@@ -1,5 +1,5 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
-import { jsonImporter, jsonShapeOf, sniffJsonDialectHead } from "@graphty/graph-io";
+import { jsonImporter, jsonShapeOf, sniffJsonDialect } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod";
 
@@ -57,6 +57,9 @@ export const JsonDataSourceConfig = z.object({
     nodeIdPath: z.string().optional(),
     // An OBO Graphs document's ids: short prefixed ids (the default) or the IRIs the file holds.
     oboIds: z.enum(["curie", "iri"]).optional(),
+    // A graphology or Gephi JSON document's sigma.js settings (`{ renderEdgeLabels: true }`): the application's, never
+    // in the file, so a file is drawn under sigma's defaults unless they are given here. graph-io's `sigmaSettings`.
+    sigmaSettings: z.record(z.string(), z.unknown()).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
     node: JsonNodeConfig,
@@ -121,9 +124,6 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 
 /** The attribute a record's position in the file is carried to graph-io and back under. */
 const ROW_KEY = "graphty.row";
-
-/** How much of a document's head is enough to tell its JSON dialect. */
-const DIALECT_HEAD = 65536;
 
 /** The JSON dialects whose documents are read whole by graph-io rather than as plain node and edge arrays. */
 type ReadDialect = "cytoscape" | "graphology" | "vis";
@@ -424,7 +424,9 @@ export class JsonDataSource extends DataSource {
             this.declareDirection(declared.directed, declared.statedBy);
         }
 
-        const dialect = this.usesDefaultPaths() ? sniffJsonDialectHead(jsonString.slice(0, DIALECT_HEAD)) : null;
+        // the parsed document, never a head of its text: a vis-network or graphology document may hold
+        // more than any head of node records before its first edge or its `options`
+        const dialect = this.usesDefaultPaths() ? sniffJsonDialect(data) : null;
         if (dialect === "cytoscape" || dialect === "graphology" || dialect === "vis") {
             yield* this.readDialect(jsonString, data, dialect);
             return true;
@@ -646,6 +648,9 @@ export class JsonDataSource extends DataSource {
                 ids: "keep",
                 weightFrom: null,
                 ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+                ...(dialect === "graphology" && this.opts.sigmaSettings !== undefined
+                    ? { sigmaSettings: this.opts.sigmaSettings }
+                    : {}),
             },
             this.errorAggregator,
             { firstDeclarationWins: true },
@@ -663,6 +668,11 @@ export class JsonDataSource extends DataSource {
             dialect === "graphology"
                 ? rawNodes.map((node) => ("id" in node || !("key" in node) ? node : { id: node.key, ...node }))
                 : rawNodes;
+        // The coordinates graph-io read (a graphology node keeps them under `attributes`) become
+        // each record's `position`, as for every other format.
+        applyFilePositions(nodes, filePositionsOf(imported), (record) =>
+            typeof record.id === "string" || typeof record.id === "number" ? snapshot.ids.indexOf(record.id) : -1,
+        );
         const edges = this.keptEdges(snapshot, Array.isArray(root.edges) ? root.edges : [], dialect);
         rememberImport(this, () => dialectImport(imported, nodes, edges));
         yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);

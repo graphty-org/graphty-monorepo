@@ -147,6 +147,22 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(radius("d"), radius("a"), "the second ring further out");
     });
 
+    it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
+        // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
+        // 0.5 inch ranksep): each box is twice as wide as the step between their centres.
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const width = 2 * (graph.getNode("a")?.drawnHalfExtents.x ?? Number.NaN);
+        const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
+        assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
+    });
+
     // twopi spaces its rings, and patchwork sizes its cells, without reading a node's width: both
     // must be told the drawn size, or nodes 1.5 units wide land 1 unit apart and draw as one blob.
     for (const engine of ["twopi", "patchwork"]) {

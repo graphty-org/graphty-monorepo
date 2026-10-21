@@ -1197,6 +1197,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isSelected: READ,
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
+            refreshScreenBorder: RENDER,
             pin: calls([], [PIN_N1]),
             unpin: calls([], [UNPIN_N1]),
             showTooltip: RENDER,
@@ -1209,6 +1210,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
+            decorationPieces: READ,
+            shapeTextLabels: RENDER,
+            isDrawnAsGroup: READ,
         },
     },
     {
@@ -1228,6 +1232,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             mesh: RENDER,
             arrowCap: RENDER,
             arrowTailCap: RENDER,
+            arrowMiddleHeadCap: RENDER,
+            arrowMiddleTailCap: RENDER,
             arrowMesh: RENDER,
             arrowTailMesh: RENDER,
             ray: RENDER,
@@ -1241,6 +1247,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnPattern: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            drawnGradient: READ,
             invalidatePositionCache: RENDER,
             update: RENDER,
             updateStyle: RENDER,
@@ -1352,6 +1359,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
+            drawnBundle: READ,
             incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
             setEdges: calls(

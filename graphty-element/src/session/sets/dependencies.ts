@@ -197,16 +197,7 @@ class Collector {
                 this.scope(node.of);
                 return;
             case "item":
-                if (isObject(node.item)) {
-                    const run = runIdOfRef(node.item.result);
-                    if (typeof run === "string") {
-                        const execution = node.item.run;
-                        this.add(
-                            typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run },
-                        );
-                    }
-                }
-
+                this.item(node.item);
                 return;
             case "threshold":
                 this.path(node.path);
@@ -224,6 +215,18 @@ class Collector {
                 this.tree(node.of);
                 return;
             default:
+        }
+    }
+
+    item(item: unknown): void {
+        if (!isObject(item)) {
+            return;
+        }
+
+        const run = runIdOfRef(item.result);
+        if (typeof run === "string") {
+            const execution = item.run;
+            this.add(typeof execution === "string" ? { kind: "run", run, execution } : { kind: "run", run });
         }
     }
 

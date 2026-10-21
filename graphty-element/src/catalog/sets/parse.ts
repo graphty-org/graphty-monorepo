@@ -375,6 +375,18 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
 }
 
 /**
+ * Check that a leaf's member is a list of strings.
+ * @param list - The member's value.
+ * @param message - What it must be, for the refusal.
+ * @param details - The refusal's details.
+ */
+function checkStrings(list: unknown, message: string, details: Record<string, unknown>): void {
+    if (!Array.isArray(list) || !list.every((entry) => typeof entry === "string")) {
+        throw bad(message, details);
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -408,9 +420,9 @@ function checkTree(value: unknown, walker: Walker): void {
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
 
-            if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
-                throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });
-            }
+            checkStrings(value.values, 'A "categories" leaf\'s values are a list of strings.', {
+                values: value.values,
+            });
 
             return;
         case "degree":
@@ -448,9 +460,9 @@ function checkTree(value: unknown, walker: Walker): void {
         case "source":
             known(["sources"]);
 
-            if (!Array.isArray(value.sources) || !value.sources.every((key) => typeof key === "string")) {
-                throw bad('A "source" leaf\'s sources are a list of load keys.', { sources: value.sources });
-            }
+            checkStrings(value.sources, 'A "source" leaf\'s sources are a list of load keys.', {
+                sources: value.sources,
+            });
 
             return;
         case "member":

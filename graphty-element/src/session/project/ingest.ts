@@ -49,7 +49,7 @@ import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
-import type { LoadedSource, LoadedSourceKind } from "../types";
+import type { DataSourceDescriptor, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -326,6 +326,12 @@ function isStorableRecordId(value: unknown): value is string | number {
     return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
 }
 
+/** The nodes and edges the load in progress supplied. */
+interface Supplied {
+    readonly nodes: Set<NodeId>;
+    readonly edges: Set<EdgeId>;
+}
+
 /**
  * What a load's `data.sources()` entry says of its tables: their names, what each held, the
  * column roles it was given and, for a joined table, the load it joined onto.
@@ -384,7 +390,7 @@ export class Ingest<K extends KnownEdge> {
     private measure: NonNullable<DataImportCommand["measure"]> | null = null;
 
     /** The ids the load in progress named, for its entry in `provenance`; null outside a load. */
-    private supplied: { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } | null = null;
+    private supplied: Supplied | null = null;
 
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
@@ -529,17 +535,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const before = this.heldCounts();
-
-        this.leaveOutUnmatched = command.unmatched === "leave-out";
-        this.duplicateIds = command.duplicateIds ?? "first";
-        this.updateExisting = command.mode === "merge" && command.existing === "update";
-        // A replacing load is measured against an empty graph, which is what it leaves. Set before
-        // the graph is counted, so a measured merge matches its edges against the graph it counts
-        // as there, as the real merge does (#935).
-        this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
-        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
-        const supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
-        this.supplied = supplied;
+        const supplied = this.beginLoad(command);
         try {
             const outcome = await this.addDataFromSource(
                 type,
@@ -553,38 +549,7 @@ export class Ingest<K extends KnownEdge> {
             );
             const after = this.heldCounts();
             const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
-            const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
-            const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
-            const loaded: LoadedSource = Object.freeze({
-                ...described,
-                key,
-                kind,
-                ...tableFacts(command),
-                added,
-                // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
-                counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
-            });
-            const prior = same < 0 ? undefined : earlier[same];
-            const had = prior === undefined ? undefined : earlierProvenance?.[key];
-            const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
-            const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
-            const entry: LoadedSource =
-                prior === undefined
-                    ? loaded
-                    : Object.freeze({
-                          ...prior,
-                          added: Object.freeze({
-                              nodes: prior.added.nodes + added.nodes,
-                              edges: prior.added.edges + added.edges,
-                          }),
-                          counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
-                      });
-            writer.setGraphValues({
-                [SOURCES_VALUE]: Object.freeze(
-                    prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
-                ),
-                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
-            });
+            this.recordLoad(command, writer, { described, type, added, supplied, earlier, earlierProvenance, same });
             return outcome;
         } finally {
             this.supplied = null;
@@ -593,6 +558,88 @@ export class Ingest<K extends KnownEdge> {
             this.updateExisting = false;
             this.measure = null;
         }
+    }
+
+    /**
+     * Set what the load about to run reads: how it treats unmatched ends, repeated ids and nodes
+     * the graph holds, what it is measured against, and where it notes what it supplied.
+     * @param command - The import.
+     * @returns The sets it notes what it supplied in.
+     */
+    private beginLoad(command: DataImportCommand): Supplied {
+        this.leaveOutUnmatched = command.unmatched === "leave-out";
+        this.duplicateIds = command.duplicateIds ?? "first";
+        this.updateExisting = command.mode === "merge" && command.existing === "update";
+        // A replacing load is measured against an empty graph, which is what it leaves. Set before
+        // the graph is counted, so a measured merge matches its edges against the graph it counts
+        // as there, as the real merge does (#935).
+        this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
+        this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
+        const supplied: Supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
+        this.supplied = supplied;
+        return supplied;
+    }
+
+    /**
+     * List a finished load in `data.sources()` with what it supplied: a new entry, or added to the
+     * entry it continues (a next page, a refresh).
+     * @param command - The import.
+     * @param writer - The command's writer.
+     * @param load - What the load read and did.
+     * @param load.described - Where it came from.
+     * @param load.type - The data source that read it.
+     * @param load.added - How many nodes and edges it added.
+     * @param load.supplied - What it supplied.
+     * @param load.earlier - The loads listed before it.
+     * @param load.earlierProvenance - What those loads supplied.
+     * @param load.same - The position of the entry it continues, or -1.
+     */
+    private recordLoad(
+        command: DataImportCommand,
+        writer: GraphWriter,
+        load: {
+            readonly described: DataSourceDescriptor;
+            readonly type: string;
+            readonly added: LoadedSource["added"];
+            readonly supplied: Supplied;
+            readonly earlier: readonly LoadedSource[];
+            readonly earlierProvenance: Provenance | undefined;
+            readonly same: number;
+        },
+    ): void {
+        const { described, type, added, supplied, earlier, earlierProvenance, same } = load;
+        const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
+        const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
+        const loaded: LoadedSource = Object.freeze({
+            ...described,
+            key,
+            kind,
+            ...tableFacts(command),
+            added,
+            // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
+            counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
+        });
+        const prior = same < 0 ? undefined : earlier[same];
+        const had = prior === undefined ? undefined : earlierProvenance?.[key];
+        const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
+        const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+        const entry: LoadedSource =
+            prior === undefined
+                ? loaded
+                : Object.freeze({
+                      ...prior,
+                      added: Object.freeze({
+                          nodes: prior.added.nodes + added.nodes,
+                          edges: prior.added.edges + added.edges,
+                      }),
+                      counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                  });
+        writer.setGraphValues({
+            [SOURCES_VALUE]: Object.freeze(
+                prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
+            ),
+            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
+        });
     }
 
     /**

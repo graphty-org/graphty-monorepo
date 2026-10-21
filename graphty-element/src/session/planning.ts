@@ -456,6 +456,42 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * What a filter-steps change would leave visible, or why it would be refused.
+ * @param context - What planning reads.
+ * @param preview - The context's step preview.
+ * @param command - The filter-steps command.
+ * @returns The plan.
+ */
+function planSteps(
+    context: PlanningContext,
+    preview: NonNullable<PlanningContext["previewSteps"]>,
+    command: Extract<SessionCommand, { op: "visibility.steps" }>,
+): Plan {
+    const cost = unavailableEstimate(undefined, notEstimated(command));
+    try {
+        const counts = preview(command.steps);
+        return Object.freeze({
+            ok: true,
+            cost,
+            effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+            caveats: context.defaultCaveats,
+        });
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return Object.freeze({
+            ok: false,
+            blocked: Object.freeze({ code: error.code, reason: error.message }),
+            cost,
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+}
+
+/**
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
@@ -467,28 +503,7 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
     if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
-        const cost = unavailableEstimate(undefined, notEstimated(command));
-        try {
-            const counts = context.previewSteps(command.steps);
-            return Object.freeze({
-                ok: true,
-                cost,
-                effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
-                caveats: context.defaultCaveats,
-            });
-        } catch (error) {
-            if (!(error instanceof GraphtyError)) {
-                throw error;
-            }
-
-            return Object.freeze({
-                ok: false,
-                blocked: Object.freeze({ code: error.code, reason: error.message }),
-                cost,
-                effect: Object.freeze({ kind: "none" as const }),
-                caveats: context.defaultCaveats,
-            });
-        }
+        return planSteps(context, context.previewSteps, command);
     }
 
     if (command.op !== "algo.run") {

@@ -1470,7 +1470,7 @@ export type RuleTree =
     | { readonly kind: "not"; readonly of: RuleTree };
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string;
+export type SourceKey = string; // NOSONAR(S6564): a named public type for load keys, used across the API and its docs
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.

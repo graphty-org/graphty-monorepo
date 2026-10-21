@@ -141,7 +141,7 @@ import type {
     SessionRecordSource,
     ValueCounts,
 } from "./types";
-import { valueLabelsAt } from "./valueLabels";
+import { type LabelledValue, valueLabelsAt } from "./valueLabels";
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -161,7 +161,7 @@ interface DataWrites {
     /** Dispatch `data.setSource`. */
     setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
     /** Dispatch `data.label`. */
-    label(path: Path, value: string | number | boolean, label: string | null): Promise<unknown>;
+    label(path: Path, value: LabelledValue, label: string | null): Promise<unknown>;
     /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
     valueLabels(): ReadonlyMap<string, string>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
@@ -2028,7 +2028,7 @@ export class SessionData implements SessionDataApi {
      * @param label - The name, or null.
      * @returns Settles once the name is recorded.
      */
-    async setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void> {
+    async setValueLabel(path: Path, value: LabelledValue, label: string | null): Promise<void> {
         this.requireLive("setValueLabel");
         await this.writes.label(path, value, label);
     }

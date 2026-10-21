@@ -2849,6 +2849,13 @@ the load report (`lastImport()` describes only the last load, and is not saved).
 
 ## 2026-10-07 -- Focusing the element focuses its drawing (`delegatesFocus`)
 
+**Update 2026-10-21: the `render()` change is withdrawn, not deferred.** Changing what `render()`
+returns is breaking, and the grouped major release is on hold, so `render()` is back to
+`render(): Element` (it returns the graph container, as before). The element instead overrides the
+protected `update` so Lit never renders the container, which keeps it where `connectedCallback`
+put it and keeps the focus fix. Nothing about this waits for a major release. `delegatesFocus` is
+unchanged and non-breaking.
+
 **What.** `<graphty-element>`'s shadow root is now opened with `delegatesFocus: true`, so
 `element.focus()` puts keyboard focus on the canvas inside it, and a dialog or menu that returns
 focus to the element (as Mantine's do, to whatever had focus when they opened) lands on the

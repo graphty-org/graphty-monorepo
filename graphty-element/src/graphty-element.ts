@@ -1,6 +1,6 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph-io";
-import { css, LitElement, nothing } from "lit";
+import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
 import {
@@ -843,14 +843,28 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Renders nothing: the graph container is placed in the shadow root by `connectedCallback`,
-     * before the first update. Returning it here made Lit move it on that update, and moving a
-     * node takes focus off whatever inside it had focus, so a page that focused the drawing as it
-     * mounted the element lost that focus to the page.
-     * @returns Nothing.
+     * The graph container element. Lit never renders it: `connectedCallback` places it in the
+     * shadow root before the first update, and `update` leaves it there (see there).
+     * @returns The graph container element
      */
-    render(): unknown {
-        return nothing;
+    render(): Element {
+        return this.#element;
+    }
+
+    /**
+     * Applies property changes without Lit's template render. The graph container is already in
+     * the shadow root (`connectedCallback`); Lit rendering it would move it on the first update,
+     * and moving a node takes focus off whatever inside it had focus, so a page that focused the
+     * drawing as it mounted the element lost that focus to the page.
+     * @param changedProperties - The properties that changed.
+     */
+    protected override update(changedProperties: PropertyValues): void {
+        // ReactiveElement's update, the one LitElement's wraps: it records the update and reflects
+        // attributes, and renders nothing. Read by name, since it is protected on the base class.
+        const reactiveUpdate: unknown = Reflect.get(ReactiveElement.prototype, "update");
+        if (typeof reactiveUpdate === "function") {
+            Reflect.apply(reactiveUpdate, this, [changedProperties]);
+        }
     }
 
     /**

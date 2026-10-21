@@ -455,6 +455,23 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * What a filter-steps change would leave visible, as a `match` effect: what the last step leaves,
+ * and the counts step by step.
+ * @param counts - What is left before any step and after each one that is on.
+ * @returns The effect.
+ */
+function stepsEffect(counts: StepCounts): PlanEffect {
+    const last = counts.steps.at(-1) ?? counts.start;
+    return Object.freeze({
+        kind: "match" as const,
+        nodes: last.nodes,
+        edges: last.edges,
+        exact: true,
+        steps: { start: counts.start, steps: counts.steps },
+    });
+}
+
+/**
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
@@ -468,18 +485,10 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
         const cost = unavailableEstimate(undefined, notEstimated(command));
         try {
-            const counts = context.previewSteps(command.steps);
-            const last = counts.steps.at(-1) ?? counts.start;
             return Object.freeze({
                 ok: true,
                 cost,
-                effect: Object.freeze({
-                    kind: "match" as const,
-                    nodes: last.nodes,
-                    edges: last.edges,
-                    exact: true,
-                    steps: { start: counts.start, steps: counts.steps },
-                }),
+                effect: stepsEffect(context.previewSteps(command.steps)),
                 caveats: context.defaultCaveats,
             });
         } catch (error) {

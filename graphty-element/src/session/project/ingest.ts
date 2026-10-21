@@ -134,6 +134,18 @@ function kindOf(type: string, config: Readonly<Record<string, unknown>> | undefi
     return typeof config?.url === "string" ? "url" : "file";
 }
 
+/** What `listLoad` is told about one finished load. */
+interface ListedLoad {
+    readonly command: DataImportCommand;
+    readonly writer: GraphWriter;
+    readonly described: ReturnType<typeof describeSource>;
+    readonly earlier: readonly LoadedSource[];
+    readonly same: number;
+    readonly earlierProvenance: Provenance | undefined;
+    readonly added: { readonly nodes: number; readonly edges: number };
+    readonly supplied: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> };
+}
+
 /** What a caller may say about one `addEdges` call that the configuration does not already say. */
 export interface AddEdgesOptions {
     /** The JMESPath expression naming the source endpoint, overriding the configured one. */
@@ -553,40 +565,7 @@ export class Ingest<K extends KnownEdge> {
             );
             const after = this.heldCounts();
             const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
-            const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
-            const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
-            const loaded: LoadedSource = Object.freeze({
-                ...described,
-                key,
-                kind,
-                ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
-                tables: Object.freeze([...(command.tables ?? [])]),
-                ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
-                added,
-                // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
-                counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
-            });
-            const prior = same < 0 ? undefined : earlier[same];
-            const had = prior === undefined ? undefined : earlierProvenance?.[key];
-            const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
-            const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
-            const entry: LoadedSource =
-                prior === undefined
-                    ? loaded
-                    : Object.freeze({
-                          ...prior,
-                          added: Object.freeze({
-                              nodes: prior.added.nodes + added.nodes,
-                              edges: prior.added.edges + added.edges,
-                          }),
-                          counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
-                      });
-            writer.setGraphValues({
-                [SOURCES_VALUE]: Object.freeze(
-                    prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
-                ),
-                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
-            });
+            this.listLoad({ command, writer, described, earlier, same, earlierProvenance, added, supplied });
             return outcome;
         } finally {
             this.supplied = null;
@@ -595,6 +574,50 @@ export class Ingest<K extends KnownEdge> {
             this.updateExisting = false;
             this.measure = null;
         }
+    }
+
+    /**
+     * List a finished load in the graph's `sources`, and record what it supplied: a new entry, or
+     * the counts added to the entry of the load it continues.
+     * @param load - The command, the writer and what the load found.
+     */
+    private listLoad(load: ListedLoad): void {
+        const { command, writer, described, earlier, same, earlierProvenance, added, supplied } = load;
+        const type = command.source.type ?? "";
+        const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
+        const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
+        const loaded: LoadedSource = Object.freeze({
+            ...described,
+            key,
+            kind,
+            ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
+            tables: Object.freeze([...(command.tables ?? [])]),
+            ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
+            added,
+            // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
+            counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
+        });
+        const prior = same < 0 ? undefined : earlier[same];
+        const had = prior === undefined ? undefined : earlierProvenance?.[key];
+        const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
+        const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+        const entry: LoadedSource =
+            prior === undefined
+                ? loaded
+                : Object.freeze({
+                      ...prior,
+                      added: Object.freeze({
+                          nodes: prior.added.nodes + added.nodes,
+                          edges: prior.added.edges + added.edges,
+                      }),
+                      counts: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                  });
+        writer.setGraphValues({
+            [SOURCES_VALUE]: Object.freeze(
+                prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
+            ),
+            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges] }),
+        });
     }
 
     /**

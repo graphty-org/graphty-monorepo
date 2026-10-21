@@ -229,7 +229,8 @@ function redactRelative(raw: string): { address: string; dropped: string[] } {
     }
 
     const query = params.toString();
-    return { address: `${kept.slice(0, at)}${query === "" ? "" : `?${query}`}`, dropped };
+    const path = kept.slice(0, at);
+    return { address: query === "" ? path : `${path}?${query}`, dropped };
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -40,8 +40,21 @@ function bare(query: string): string {
 /** The keywords of SPARQL Update, which a query this source sends never holds. */
 const UPDATE_KEYWORDS = /\b(INSERT|DELETE|LOAD|CLEAR|DROP|CREATE|ADD|MOVE|COPY|WITH)\b/i;
 
-/** The prologue's declarations, as `bare` leaves them: `BASE <>` and `PREFIX ex: <>`. */
-const PROLOGUE = /^\s*(?:(?:BASE|PREFIX\s*[^\s:]*:)\s*<>\s*)*/i;
+/** One declaration of the prologue, as `bare` leaves it: `BASE <>` or `PREFIX ex: <>`. */
+const DECLARATION = /^\s*(?:BASE|PREFIX\s*[^\s:<]*:)\s*<>/i;
+
+/**
+ * Bare text after its prologue, one declaration at a time.
+ * @param text - the bare text
+ * @returns what follows the prologue
+ */
+function afterPrologue(text: string): string {
+    let rest = text;
+    for (let found = DECLARATION.exec(rest); found !== null; found = DECLARATION.exec(rest)) {
+        rest = rest.slice(found[0].length);
+    }
+    return rest;
+}
 
 /**
  * The bare text with variables and prefixed names blanked too, so a name such as `ex:LIMIT` or
@@ -80,7 +93,7 @@ function semicolonOutside(text: string): boolean {
  * @returns its form, its own modifiers and its template variables
  */
 export function readQuery(query: string): UserQuery {
-    const body = bare(query).replace(PROLOGUE, "");
+    const body = afterPrologue(bare(query));
     const text = keywordsOnly(body);
     const first = /^\s*([A-Za-z]+)/.exec(text)?.[1]?.toUpperCase() ?? "";
     const update = UPDATE_KEYWORDS.test(text) || semicolonOutside(text);

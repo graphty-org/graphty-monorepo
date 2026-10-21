@@ -548,6 +548,7 @@ export class Ingest<K extends KnownEdge> {
                 ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
                 tables: Object.freeze([...(command.tables ?? [])]),
                 ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
+                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
                 added,
                 // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
                 counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),

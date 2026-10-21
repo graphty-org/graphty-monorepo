@@ -273,6 +273,28 @@ function sourcePart(
     });
 }
 
+/**
+ * A joined table's join, as a load carries it: how it was joined, and the table it joins again
+ * from. The join feature owns the type; the member keeps it whole, less what the entry already
+ * says (`source` is the entry's id, `onto` its `joinedOnto`).
+ */
+type CarriedJoin = Readonly<Record<string, unknown>> & { readonly source?: unknown; readonly onto?: unknown };
+
+/**
+ * The join an entry records, when its load is a joined table.
+ * @param load - The listed load.
+ * @returns The join, or undefined.
+ */
+function joinOf(load: LoadedSource): Record<string, unknown> | undefined {
+    const { join } = load as LoadedSource & { readonly join?: CarriedJoin };
+    if (!isObject(join)) {
+        return undefined;
+    }
+
+    const { source: _source, onto: _onto, ...rest } = join;
+    return jsonOf(rest) as Record<string, unknown>;
+}
+
 /** One entry as written, and what writing it found. */
 interface Written {
     readonly entry: Record<string, unknown>;
@@ -354,9 +376,11 @@ function entryOf(
         format: network || load.type === undefined ? undefined : load.type,
         [kind]: part,
         options,
+        mapping: load.mapping === undefined ? undefined : jsonOf(load.mapping),
         tables: load.tables.length === 0 ? undefined : [...load.tables],
         tableRows: load.tableRows === undefined ? undefined : [...load.tableRows],
         joinedOnto: load.joinedOnto,
+        join: joinOf(load),
         added: { nodes: load.added.nodes, edges: load.added.edges },
         total: record?.total === undefined ? undefined : { nodes: record.total },
     });
@@ -578,6 +602,34 @@ const EXPANSION: Shape = {
 
 const COUNTS: Shape = { fields: { nodes: count, edges: count } };
 
+/**
+ * A table's column names: any text, a column may be named "".
+ * @param value - The value.
+ * @returns True when it is a list of column names.
+ */
+const columns: Check = (value) => Array.isArray(value) && value.length <= 4096 && value.every(text(0, 1024));
+
+/** A joined table's join (sources.md, "Joins"). */
+const JOIN: Shape = {
+    fields: {
+        shape: text(1, 128),
+        choices: openMap,
+        rows: count,
+        matched: count,
+        columns,
+        table: {
+            fields: {
+                name: text(0, 1024),
+                columns,
+                rows: (value) => Array.isArray(value) && value.every(isObject),
+            },
+            required: ["name", "columns", "rows"],
+        },
+        before: openMap,
+    },
+    required: ["shape", "choices", "rows", "matched", "columns", "table"],
+};
+
 /** Each kind part's shape. */
 const PART_SHAPES: Readonly<Record<(typeof PARTS)[number], Shape | Check>> = {
     file: {
@@ -630,10 +682,12 @@ const ENTRY: Shape = {
         mode: oneOf("replace", "merge"),
         format: text(1, 128),
         options: openMap,
+        mapping: openMap,
         tables: names,
         tableRows: (value) =>
             Array.isArray(value) && value.length <= 256 && value.every((rows) => rows === "nodes" || rows === "edges"),
         joinedOnto: pattern(ID),
+        join: JOIN,
         added: { ...COUNTS, required: ["nodes", "edges"] },
         total: COUNTS,
         file: PART_SHAPES.file,
@@ -724,6 +778,7 @@ function overLimit(member: Record<string, unknown>, loads: readonly unknown[]): 
         const sample = isObject(entry.sample) ? entry.sample : {};
         return [
             entry.options,
+            entry.mapping,
             source.params,
             source.next,
             sample.params,
@@ -808,15 +863,18 @@ function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
     const kind = typeof raw.kind === "string" ? raw.kind : "file";
     const { size } = partOf(raw, "file");
     const joinedOnto = typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined;
+    const join = isObject(raw.join) ? { source: raw.id, onto: joinedOnto ?? null, ...raw.join } : undefined;
     return defined({
         ...describedOf(raw, kind === "source"),
         name: typeof raw.name === "string" ? raw.name : undefined,
         size: typeof size === "number" ? size : undefined,
         key: raw.id,
-        kind: joinedOnto === undefined ? (kinds[kind] ?? kind) : "join",
+        kind: joinedOnto === undefined && join === undefined ? (kinds[kind] ?? kind) : "join",
         joinedOnto,
+        join,
         tables: Array.isArray(raw.tables) ? raw.tables : [],
         tableRows: Array.isArray(raw.tableRows) ? raw.tableRows : undefined,
+        mapping: isObject(raw.mapping) ? raw.mapping : undefined,
         added: countsOf(raw.added),
     });
 }
@@ -1163,6 +1221,8 @@ function readVersion2(
         key: _key,
         kind: _kind,
         joinedOnto: _onto,
+        join: _join,
+        mapping: _mapping,
         tables: _tables,
         tableRows: _rows,
         added: _added,

@@ -1579,6 +1579,12 @@ export interface LoadedSource extends DataSourceDescriptor {
      * name.
      */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /**
+     * The column roles the load was given ({@link LoadChoices.mapping}), as given, so a reopened
+     * project still says which column was which. Absent when it was given none.
+     * @since 3.30.0
+     */
+    readonly mapping?: LoadMapping;
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
     /**

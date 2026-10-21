@@ -569,3 +569,6 @@ its section and number on the page the section heading names, or by page when it
 | src-42 | a Cypher load with the caller's own `query` | no `total` | Data model 6 |
 | src-43 | a member of 1,001 entries | skipped, `E_TOO_LARGE` naming the entry limit | Limits |
 | src-44 | an entry whose `loadedAt` is `"2026-10-20T11:12:03+02:00"`, opened and saved unchanged | kept as read | Data model 4 |
+| src-45 | a CSV draft loaded with `mapping: { source: "from_station", target: "to_station", weight: "trips" }`, saved and reopened | the entry's `mapping` is that object; the reopened `data.sources()` entry carries it; saved again, unchanged | Options |
+| src-46 | a table joined onto load `s1`, saved and reopened | entry `s2` carries `joinedOnto: "s1"`, its `mapping` and `join` (shape, choices, counts, columns, the table, before); the reopened `data.sources()` entry is kind `join` with `join.source` `s2` and `join.onto` `s1`; saved again, the entry is the same | Joins 1, 2, 3 |
+| src-47 | a `join` with an unknown member `"colour": 1` | the entry `not-runnable`, `E_BAD_DOCUMENT` at `/members/n/loads/1/join/colour` | Reading 2 |

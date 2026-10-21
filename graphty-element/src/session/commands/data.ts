@@ -43,7 +43,7 @@ import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply"
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, LoadedSource, LoadedSourceKind, NodeRecordInput, RowUpdate } from "../types";
+import type { HistoryCode, LoadedSource, LoadedSourceKind, LoadMapping, NodeRecordInput, RowUpdate } from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
@@ -171,6 +171,8 @@ export interface DataImportCommand {
     readonly origin?: LoadedSourceKind;
     /** For a joined table: the load it was joined onto. */
     readonly joinedOnto?: SourceKey;
+    /** The column roles the load was given, kept with the load in `data.sources()`. */
+    readonly mapping?: LoadMapping;
     /** The load's key, in place of the next one: a load's next page or refresh adds to its own entry. */
     readonly key?: SourceKey;
 }

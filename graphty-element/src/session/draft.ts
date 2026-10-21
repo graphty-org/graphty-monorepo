@@ -571,6 +571,7 @@ export class Draft implements LoadDraft {
             held: plan.held,
             ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
             ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
+            ...(choices.mapping === undefined ? {} : { mapping: choices.mapping }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),

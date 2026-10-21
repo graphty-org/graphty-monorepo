@@ -41,10 +41,12 @@ interface EntryCommon {
     loadedAt: string; // RFC 3339: when the load finished
     mode: "replace" | "merge"; // whether it emptied the graph first
     format?: string; // the data source that read it: "csv", "graphml", "json", ...
-    options?: Record<string, unknown>; // the import mapping and options, as given ("Options")
+    options?: Record<string, unknown>; // the importer's options, as given ("Options")
+    mapping?: Record<string, unknown>; // the column roles a table load was given ("Options")
     tables?: string[]; // the tables a multi-table load read, by name
     tableRows?: ("nodes" | "edges")[]; // what each of `tables` held
     joinedOnto?: string; // for a table joined onto an earlier load: that load's id
+    join?: Join; // for a joined table: how it was joined ("Joins")
     added: { nodes: number; edges: number }; // how many it added when it ran
     total?: { nodes?: number; edges?: number }; // what the source holds for it, when known
     extensions?: Record<string, unknown>;
@@ -86,6 +88,16 @@ interface NetworkLoad extends EntryCommon {
 interface SampleLoad extends EntryCommon {
     kind: "sample";
     sample: { generator: string; params: Record<string, unknown> } | { dataset: string; baseUrl?: string };
+}
+
+interface Join {
+    shape: string; // what the rows were read as: values for nodes, values for edges, or edges
+    choices: Record<string, unknown>; // the join's choices, as given: keys, ignoreCase, columns, clash, ...
+    rows: number; // how many rows the table holds
+    matched: number; // how many the join matched
+    columns: string[]; // the names the join wrote its values under
+    table: { name: string; columns: string[]; rows: Record<string, unknown>[] }; // the table as read
+    before?: Record<string, Record<string, unknown>>; // for values: what the join wrote over, by id
 }
 
 interface Expansion {
@@ -202,11 +214,35 @@ delimiter, a node-id path, `idPrefix`, `columnPrefix`, `joinOn`, `keep`, `existi
 of a network load. It is the importer's own option object, an open map, checked by the importer
 when the load runs again (an option it does not know is its `E_UNKNOWN_OPTION`).
 
+`mapping` holds the column roles a table load was given, as given: one table's roles (`rowsAre`,
+`key`, `label`, `source`, `target`, `weight`, `time`, `edgeId`), or each table's by id under
+`tables`. It is written only when the load was given roles, so a reopened project still says which
+column was which; a role left out was the element's own reading. It is an open map, like `options`.
+
 1. It never holds the data or where to read it: `data`, `file` and `url` are the entry's own parts.
 2. It never holds `credential`, `write`, `signal`, `fetch`, `cursor` or `retry`: the first two are
    never stored ("What is never stored"); the others belong to one call.
 3. A reader that finds any of the names of rules 1 and 2 in `options` reads the entry as
    `not-runnable` ("Reading" rule 4): a file must never be able to switch on a query that writes.
+
+## Joins
+
+A table joined onto the graph (values matched to nodes or edges by key, or edges between the
+graph's nodes) is an entry of its own, after the load it joined onto. It names that load in
+`joinedOnto`, the table in `tables` and what its rows were in `tableRows`, and holds `join`.
+
+1. **`join`** is what the join needs to be made again: what the rows were read as (`shape`), the
+   choices it was made with (`choices`, an open map the join feature checks), the counts it
+   reported, the names it wrote values under (`columns`), the table as read (`table`) and, for
+   values, what each element held before the join wrote over it (`before`). With it, a reopened
+   project lists the join with its choices, and editing it, or making it again after a refresh or
+   a replace, works as in the session that made it.
+2. `join` never repeats the entry: the joined table's load is the entry's `id`, and the load it
+   joined onto is `joinedOnto` (absent when the graph had no load to join onto).
+3. An entry with `join` is listed as a joined table (`data.sources()` kind `"join"`), with or
+   without `joinedOnto`.
+4. The table's rows are data the join read, not raw bytes: they are kept because the graph holds
+   only the values that matched. They count toward the member's 16 MiB.
 
 ## URLs
 
@@ -338,11 +374,11 @@ next page, an expansion, a rebuild -- waits for the reader's approval through
    pointer; it is kept in place on save (container.md, "Reading a file" rule 13). With
    `data: "steps"` the kind is in `requires`, so that refuses the file.
 2. **Each entry is closed and read on its own.** An entry, a kind part (`file`, `url`, `source`,
-   `sample`), an expansion, `added`, `total`, `validators` or `expand` with a member its schema
+   `sample`), an expansion, `join` or its `table`, `added`, `total`, `validators` or `expand` with a member its schema
    does not list, or a value of the wrong type, makes that entry `not-runnable`, reported
    `E_BAD_DOCUMENT` with its pointer: running or refreshing a load under an instruction the reader
-   ignored would read other data. `options`, `params`, `next`, a sample's `params` and every
-   `extensions` are open maps and are never reported.
+   ignored would read other data. `options`, `mapping`, `params`, `next`, a sample's `params`, a
+   join's `choices` and `before`, and every `extensions` are open maps and are never reported.
 3. **An entry of a `kind` this release does not know** is `not-runnable`, reported
    `W_UNKNOWN_KIND` with its pointer.
 4. **A `not-runnable` entry** is kept: it still counts as a load for provenance, its elements are
@@ -424,8 +460,9 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
 
 1. A writer writes the member's `kind`, `version`, `data` (only when `"steps"`), `loads` and
    `extensions` in that order; inside an entry `id`, `kind`, `name`, `graph`, `loadedAt`, `mode`,
-   `format`, the kind part, `options`, `tables`, `tableRows`, `joinedOnto`, `added`, `total`,
-   `extensions`; inside a part, the order of the data model above. The same session gives the same
+   `format`, the kind part, `options`, `mapping`, `tables`, `tableRows`, `joinedOnto`, `join`,
+   `added`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
+   above. The same session gives the same
    bytes.
 2. A writer writes the member whenever the session holds a load, and only then.
 3. An entry it read and could not run is written back exactly as read; an upgraded version 1 entry
@@ -453,7 +490,7 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
 Fixed for version 2 (README, "Limits"):
 
 - 1,000 entries per member; 10,000 expansions per member; 1,000 seed ids per expansion;
-- the member at most 16 MiB saved as JSON; an entry's `options`, a network part's `params`, each
+- the member at most 16 MiB saved as JSON; an entry's `options` and `mapping`, a network part's `params`, each
   `next` and a sample's `params` at most 262,144 bytes (256 KB) each; every `extensions` at most
   65,536 bytes (64 KB), 32 levels deep;
 - `name` 1,024 characters, `format` and a source id 128, `address` 8,192, `credentialSlot` 64, each

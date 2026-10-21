@@ -31,6 +31,9 @@ const validateDocument = ajv.getSchema("https://graphty.app/schema/documents/gra
 /** A gene table: Valjean, whom the network source also brings, and two more. */
 const GENES = "source,target,weight\nvaljean,fantine,1\nfantine,tholomyes,2\n";
 
+/** A trip table whose endpoint columns no reader guesses. */
+const TRIPS = "from_station,to_station,trips\nA,B,3\nB,C,1\n";
+
 /** A JSON document, as parsed. */
 type Doc = { members: Record<string, unknown>[] } & Record<string, unknown>;
 
@@ -565,6 +568,93 @@ describe("the sources member: reading", () => {
             code: "E_TOO_LARGE",
             params: { kind: "graphty-sources", pointer: `/members/${String(changed.at)}`, limit: "entries" },
         });
+    });
+
+    it("src-45: a draft load's column roles are its entry's mapping, and come back on open", async () => {
+        const session = fresh();
+        const draft = await session.data.prepare({ type: "csv", config: { data: TRIPS }, name: "trips.csv" });
+        const mapping = { source: "from_station", target: "to_station", weight: "trips" };
+        await draft.load({ mapping });
+        const { text, doc } = await save(session);
+        assert.deepEqual(entries(doc)[0].mapping, mapping);
+
+        const { session: reopened } = await open(text);
+        assert.deepEqual(reopened.data.sources()[0].mapping, mapping);
+        assert.deepEqual(entries((await save(reopened)).doc)[0].mapping, mapping);
+    });
+
+    it("src-46: a joined table keeps its join, the load it joined onto and its mapping on open", async () => {
+        const session = fresh();
+        await session.data.import({ type: "csv", config: { data: GENES }, name: "genes.csv" });
+        const { text } = await save(session);
+        const join = {
+            shape: "node-values",
+            choices: { keys: [{ incoming: "name", graph: "id" }], ignoreCase: true, shape: "node-values" },
+            rows: 2,
+            matched: 2,
+            columns: ["region"],
+            table: {
+                name: "regions.csv",
+                columns: ["name", "region"],
+                rows: [
+                    { name: "Valjean", region: "Paris" },
+                    { name: "fantine", region: "Montreuil" },
+                ],
+            },
+            before: { valjean: { region: null }, fantine: { region: null } },
+        };
+        const entry = {
+            id: "s2",
+            kind: "file",
+            name: "regions.csv",
+            loadedAt: "2026-10-20T09:20:00.000Z",
+            mode: "merge",
+            format: "csv",
+            file: { name: "regions.csv", size: 40 },
+            mapping: { rowsAre: "nodes", key: "name" },
+            tables: ["regions.csv"],
+            tableRows: ["nodes"],
+            joinedOnto: "s1",
+            join,
+            added: { nodes: 0, edges: 0 },
+        };
+        const joined = edited(text, (loads) => {
+            loads.push(entry);
+        });
+
+        const { session: reopened, problems } = await open(joined.text);
+        assert.deepEqual(problems, []);
+        const listed = reopened.data.sources()[1] as unknown as Record<string, unknown>;
+        assert.strictEqual(listed.kind, "join");
+        assert.strictEqual(listed.joinedOnto, "s1");
+        assert.deepEqual(listed.join, { source: "s2", onto: "s1", ...join });
+        assert.deepEqual(listed.mapping, entry.mapping);
+        // Saved again, the entry is written as it was read.
+        assert.deepEqual(entries((await save(reopened)).doc)[1], entry);
+    });
+
+    it("src-47: a join with an unknown member makes its entry not-runnable", async () => {
+        const session = fresh();
+        await session.data.import({ type: "csv", config: { data: GENES }, name: "genes.csv" });
+        const { text } = await save(session);
+        const joined = edited(text, (loads) => {
+            loads.push({
+                id: "s2",
+                kind: "file",
+                loadedAt: "2026-10-20T09:20:00.000Z",
+                mode: "merge",
+                file: { size: 1 },
+                joinedOnto: "s1",
+                join: { shape: "edges", choices: {}, rows: 0, matched: 0, columns: [], table: {}, colour: 1 },
+                added: { nodes: 0, edges: 0 },
+            });
+        });
+        const { problems } = await open(joined.text);
+        const pointers = problems.filter((each) => each.code === "E_BAD_DOCUMENT").map((each) => each.params.pointer);
+        assert.isTrue(
+            pointers.some((pointer) => String(pointer).endsWith("/loads/1/join/colour")),
+            JSON.stringify(problems),
+        );
     });
 
     it("src-44: a time with an offset is kept as read", async () => {

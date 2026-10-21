@@ -1283,6 +1283,19 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
 const HELD_CHOICES = ["join", "choices", "mapping"] as const;
 
 /**
+ * Where the data came from: what a read sources member says, with the join, choices and mapping
+ * the data member holds for each load; else the data member's own fields.
+ * @param loads - What the sources member held.
+ * @param legacy - The data member.
+ * @returns The source, the loads and what each supplied.
+ */
+function openedLoads(loads: SourcesRead, legacy: Record<string, unknown>): Record<string, unknown> {
+    return loads.graph === undefined
+        ? legacy
+        : { ...loads.graph, sources: withHeldChoices(loads.graph.sources, legacy.sources) };
+}
+
+/**
  * The loads a sources member lists, each with the join, choices and mapping the data member's
  * `sources` holds for the same key, which the sources member does not record.
  * @param listed - The loads the sources member lists.
@@ -1415,9 +1428,7 @@ async function readProject(
     loads: SourcesRead,
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
-    const legacy = doc.members.get("graphty-data")?.[0] ?? {};
-    const { source, sources: listed, provenance } = loads.graph ?? legacy;
-    const sources = loads.graph === undefined ? listed : withHeldChoices(listed, legacy.sources);
+    const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");

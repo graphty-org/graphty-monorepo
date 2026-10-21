@@ -44,6 +44,10 @@ interface ElementHostProps {
  */
 export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
+    // The tag gets its settings only once it is defined: React 19 writes an object prop on an
+    // undefined custom element as an "[object Object]" attribute and never sets it again, so a
+    // project opened before the element loaded lost its layout, view settings and XR settings.
+    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
     // Labels that would land on each other are thinned out until the reader turns on Show all
     // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
     // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
@@ -87,19 +91,24 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
                 onReady(element, session);
             }
         };
-        if (customElements.get("graphty-element") === undefined) {
-            void loadGraphtyElement();
-            void customElements.whenDefined("graphty-element").then(bind);
-        } else {
+        if (defined) {
             bind();
+        } else {
+            void loadGraphtyElement();
+            void customElements.whenDefined("graphty-element").then(() => {
+                if (!disposed) {
+                    setDefined(true);
+                }
+            });
         }
         return () => {
             disposed = true;
             onReady(null, null);
         };
-    }, [onReady]);
+    }, [onReady, defined]);
 
-    return (
+    const box = { display: "block", width: "100%", height: "100%" } as const;
+    return defined ? (
         <graphty-element
             ref={ref}
             aria-label="Graph drawing"
@@ -116,7 +125,10 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
             // On the tag, so the reader's policy is in force before the element's first GPU probe.
             acceleration={readPreference(ACCELERATION)}
-            style={{ display: "block", width: "100%", height: "100%" }}
+            style={box}
         />
+    ) : (
+        // The same tag, so React keeps its node and hands it every setting as a property once defined.
+        <graphty-element ref={ref} aria-label="Graph drawing" style={box} />
     );
 }

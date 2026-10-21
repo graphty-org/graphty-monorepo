@@ -236,8 +236,8 @@ At most one per round, and only when nothing above acted.
 
 ### 7. Finished worktrees
 
-Every landing already deletes landed branches from GitHub and removes their clean worktrees
-(`node tools/land.mjs prune-branches` does the same by hand). This step catches the rest. At most five removals per round. List candidates (read-only; it skips the main checkout, locked worktrees and the live
+Merged branches stay on GitHub and here as history; this step removes only finished worktrees, never a
+branch on GitHub. At most five removals per round. List candidates (read-only; it skips the main checkout, locked worktrees and the live
 tool worktrees in `tools/live-tools.json` plus `golden-local`):
 
 ```bash

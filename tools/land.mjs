@@ -9,7 +9,7 @@
 //   node tools/land.mjs cut-fix <branch>            merge a fix the cut needs into golden-cut, push it, then land it on golden
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
-//   node tools/land.mjs prune-branches              delete the branches golden already holds, on GitHub and here
+//   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
 //   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //
@@ -40,8 +40,8 @@
 // Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
 // (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
 // cut needs starts from origin/golden-cut and goes in with `cut-fix`: merged into golden-cut, pushed, then
-// landed on golden the normal way, so both hold the same commits. After a landing, `prune-branches` runs:
-// every branch golden holds is deleted on GitHub, and here when its worktree is gone or clean.
+// landed on golden the normal way, so both hold the same commits. Merged branches stay, on GitHub and here,
+// as history; `prune-branches --yes` deletes them from GitHub only when someone runs it by hand.
 //
 // Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
 // and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
@@ -54,6 +54,7 @@
 // conflicts and gate failures kept some out.
 import { spawn, spawnSync } from "node:child_process";
 import {
+    appendFileSync,
     closeSync,
     copyFileSync,
     existsSync,
@@ -813,11 +814,6 @@ function announce(ctx, sha) {
     else console.error("land: the golden pull request was not updated; the next land or revert updates it");
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: golden is ${sha.slice(0, 10)} on GitHub${where}.`);
-    try {
-        ctx.prune(ctx);
-    } catch (e) {
-        console.error(`land: warning: pruning landed branches failed: ${e.message}`);
-    }
 }
 
 // ---------------------------------------------------------------- commands
@@ -1494,14 +1490,16 @@ function worktrees(ctx) {
 const KEEP = /^(HEAD|master|golden|golden-cut|gh-pages)$|^(release|revert)\b|^dependabot\//;
 
 /**
- * Deletes, on GitHub, every branch golden already holds, and here, its local branch when its worktree is
- * gone, or clean (nothing uncommitted, no process inside) and then removed. A branch with no commits of
- * its own (its tip on the first-parent line of golden, golden-cut or master: it was just made) is kept
- * while it has a worktree here.
+ * The branches on GitHub that golden already holds, and with `yes`, deletes them there. Run by hand only:
+ * merged branches are history and stay unless someone asks. Worktrees and local branches are never
+ * touched. A branch with no commits of its own (its tip on the first-parent line of golden, golden-cut or
+ * master: it was just made) is left alone while it has a worktree here. Before deleting, every branch's
+ * name and tip go into tmp/pruned-branches.log in the main checkout, so any of them can be restored.
  * @param ctx the run's context
- * @returns the branches deleted on GitHub
+ * @param [opts] `yes: true` deletes; otherwise it only lists
+ * @returns the branches listed (or deleted)
  */
-export function pruneBranches(ctx) {
+export function pruneBranches(ctx, opts = {}) {
     git(ctx, ctx.main, ["fetch", "-q", "--prune", "origin"], { ok: true });
     const trees = worktrees(ctx);
     // The branches the local tools run from (tools/live-tools.json) stay, wherever they point.
@@ -1516,79 +1514,29 @@ export function pruneBranches(ctx) {
         const r = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/${base}`], { ok: true });
         for (const sha of r.stdout.split("\n")) lines.add(sha);
     }
-    const gone = merged.filter((b) => {
-        const fresh = lines.has(git(ctx, ctx.main, ["rev-parse", `refs/remotes/origin/${b}`]));
-        return !fresh || !trees.has(b);
-    });
-    if (!gone.length) return [];
+    const tips = merged.map((b) => [b, git(ctx, ctx.main, ["rev-parse", `refs/remotes/origin/${b}`])]);
+    const gone = tips.filter(([b, sha]) => !lines.has(sha) || !trees.has(b));
+    if (!gone.length) {
+        console.log("land: no branch on GitHub to prune");
+        return [];
+    }
+    const list = gone.map(([b, sha]) => `  ${b} ${sha.slice(0, 10)}`).join("\n");
+    if (!opts.yes) {
+        console.log(`land: dry run -- would delete from GitHub (already on golden):\n${list}\nDelete them: --yes`);
+        return gone.map(([b]) => b);
+    }
+    const log = join(ctx.main, "tmp/pruned-branches.log");
+    mkdirSync(dirname(log), { recursive: true });
+    const now = new Date().toISOString();
+    appendFileSync(log, gone.map(([b, sha]) => `${now} ${b} ${sha}\n`).join(""));
     // No gate for a deletion: it carries no code. A hundred at a time keeps each push small.
     for (let i = 0; i < gone.length; i += 100) {
-        const r = git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", "--delete", ...gone.slice(i, i + 100)], {
-            ok: true,
-        });
+        const names = gone.slice(i, i + 100).map(([b]) => b);
+        const r = git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", "--delete", ...names], { ok: true });
         if (r.status !== 0) throw new Error(`git push --delete failed: ${r.stderr}`);
     }
-    console.log(`land: deleted from GitHub, already on golden: ${gone.join(", ")}`);
-    for (const b of gone) pruneLocal(ctx, b, trees.get(b));
-    return gone;
-}
-
-/**
- * Removes a pruned branch here: its clean worktree, then the branch, when golden holds all of it.
- * @param ctx the run's context
- * @param branch the branch
- * @param [dir] its worktree
- */
-function pruneLocal(ctx, branch, dir) {
-    if (hasRef(ctx, ctx.main, `refs/heads/${branch}`).status !== 0) return;
-    const ancestor = git(ctx, ctx.main, ["merge-base", "--is-ancestor", `refs/heads/${branch}`, `origin/${GOLDEN}`], {
-        ok: true,
-    });
-    if (ancestor.status !== 0) {
-        console.log(`land: kept ${branch} here: it has commits golden does not`);
-        return;
-    }
-    if (dir) {
-        const why = busy(ctx, dir);
-        if (why) {
-            console.log(`land: kept ${branch} and its worktree ${dir}: ${why}`);
-            return;
-        }
-        // The worktree's own scratch files (ignored, so removal would delete them) go to the main checkout.
-        const scratch = join(dir, "tmp");
-        const to = join(ctx.main, "tmp", basename(dir));
-        if (existsSync(scratch) && readdirSync(scratch).length && !existsSync(to)) renameSync(scratch, to);
-        const r = git(ctx, ctx.main, ["worktree", "remove", dir], { ok: true });
-        if (r.status !== 0) {
-            console.log(`land: kept ${branch}: git worktree remove ${dir} refused: ${r.stderr}`);
-            return;
-        }
-        console.log(`land: removed the worktree ${dir}`);
-    }
-    git(ctx, ctx.main, ["branch", "-D", "-q", branch]);
-    console.log(`land: deleted the local branch ${branch}`);
-}
-
-/**
- * Why a worktree must stay: it is the main checkout, has uncommitted or untracked files, or a process works in it.
- * @param ctx the run's context
- * @param dir the worktree
- * @returns the reason, or null
- */
-function busy(ctx, dir) {
-    dir = realpathSync(dir);
-    if (dir === realpathSync(ctx.main)) return "it is the main checkout";
-    if (git(ctx, dir, ["status", "--porcelain"], { ok: true }).stdout) return "it has uncommitted files";
-    for (const pid of existsSync("/proc") ? readdirSync("/proc").filter((p) => /^\d+$/.test(p)) : []) {
-        let cwd = "";
-        try {
-            cwd = realpathSync(`/proc/${pid}/cwd`);
-        } catch {
-            continue;
-        }
-        if (cwd === dir || cwd.startsWith(`${dir}/`)) return `process ${pid} works in it`;
-    }
-    return null;
+    console.log(`land: deleted from GitHub (names and tips in ${log}):\n${list}`);
+    return gone.map(([b]) => b);
 }
 
 function prLine(ctx) {
@@ -1645,14 +1593,13 @@ export function context(cwd, overrides = {}) {
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
-        prune: pruneBranches,
         ...base,
     };
 }
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> | ship | status | prune-branches (land, revert, cut and cut-fix also take --priority)";
+    " cut-fix <branch> | ship | status | prune-branches [--yes] (land, revert, cut and cut-fix also take --priority)";
 
 /**
  * Runs one command under the lock.
@@ -1699,9 +1646,9 @@ const UNLOCKED = {
     status: (ctx) => status(ctx),
     cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
     "cut-fix": cutFixThenLand,
-    "prune-branches": (ctx) => {
+    "prune-branches": (ctx, _branch, argv) => {
         try {
-            ctx.prune(ctx);
+            pruneBranches(ctx, { yes: argv.includes("--yes") });
             return 0;
         } catch (e) {
             return fail(e.message);

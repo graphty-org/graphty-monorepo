@@ -714,33 +714,41 @@ describe("pruning branches", () => {
     const local = (b) =>
         spawnSync("git", ["rev-parse", "-q", "--verify", `refs/heads/${b}`], { cwd: repo, env }).status === 0;
 
-    it("deletes what golden holds, on GitHub and here, and keeps new, unlanded, protected and dirty work", async () => {
-        git(repo, "fetch", "-q", "origin");
-        const tips = ["origin/golden:refs/heads/fresh/gone", "origin/golden:refs/heads/revert/x"];
-        git(repo, "push", "-q", "origin", "multi/d", "multi/f", "copy/c", ...tips);
-        git(repo, "worktree", "add", "-q", "-b", "fresh/kept", join(dir, "wt-fresh-kept"), "origin/golden");
-        git(repo, "push", "-q", "origin", "fresh/kept");
-        write(join(dir, "wt-multi-f"), "stray.txt", "x\n");
-        mkdirSync(join(dir, "wt-multi-d/tmp"));
-        write(join(dir, "wt-multi-d/tmp"), "notes.txt", "scratch\n");
-        const r = await run("prune-branches");
-        assert.equal(r.code, 0, r.out);
-        for (const b of ["multi/d", "multi/f", "fresh/gone"]) assert.equal(remote(b), "", `${b} deleted on GitHub`);
-        for (const b of ["copy/c", "fresh/kept", "revert/x", "golden", "golden-cut", "master"]) assert.ok(remote(b), b);
-        assert.ok(!existsSync(join(dir, "wt-multi-d")) && !local("multi/d"), "clean worktree and branch removed");
-        assert.equal(readFileSync(join(repo, "tmp/wt-multi-d/notes.txt"), "utf8"), "scratch\n", "its scratch kept");
-        assert.ok(existsSync(join(dir, "wt-multi-f")) && local("multi/f"), "dirty worktree kept");
-        assert.match(r.out, /kept multi\/f and its worktree .*uncommitted files/);
-    });
-
-    it("runs after every landing: the landed branch leaves GitHub and its clean worktree goes", async () => {
+    it("a landing deletes nothing: the landed branch stays on GitHub and here", async () => {
         const wt = branch("prune/me", { "pm.txt": "p\n" }, "feat: pm");
         git(wt, "push", "-q", "origin", "prune/me");
         gh.open = true;
         const r = await run("land", "prune/me");
         assert.equal(r.code, 0, r.out);
-        assert.equal(remote("prune/me"), "");
-        assert.ok(!existsSync(wt) && !local("prune/me"));
+        assert.ok(remote("prune/me"));
+        assert.ok(existsSync(wt) && local("prune/me"));
+    });
+
+    it("by default only lists what --yes would delete", async () => {
+        git(repo, "fetch", "-q", "origin");
+        const tips = ["origin/golden:refs/heads/fresh/gone", "origin/golden:refs/heads/revert/x"];
+        git(repo, "push", "-q", "origin", "multi/d", "copy/c", ...tips);
+        git(repo, "worktree", "add", "-q", "-b", "fresh/kept", join(dir, "wt-fresh-kept"), "origin/golden");
+        git(repo, "push", "-q", "origin", "fresh/kept");
+        const r = await run("prune-branches");
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /dry run -- would delete from GitHub/);
+        for (const b of ["multi/d", "prune/me", "fresh/gone"]) {
+            assert.match(r.out, new RegExp(`\\n  ${b} [0-9a-f]{10}`));
+            assert.ok(remote(b), `${b} still on GitHub`);
+        }
+        assert.doesNotMatch(r.out, /copy\/c|fresh\/kept|revert\/x/);
+        assert.ok(!existsSync(join(repo, "tmp/pruned-branches.log")));
+    });
+
+    it("with --yes deletes them on GitHub only, logging each name and tip first", async () => {
+        const tip = git(repo, "rev-parse", "origin/multi/d");
+        const r = await run("prune-branches", "--yes");
+        assert.equal(r.code, 0, r.out);
+        for (const b of ["multi/d", "prune/me", "fresh/gone"]) assert.equal(remote(b), "", `${b} deleted on GitHub`);
+        for (const b of ["copy/c", "fresh/kept", "revert/x", "golden", "golden-cut", "master"]) assert.ok(remote(b), b);
+        assert.match(readFileSync(join(repo, "tmp/pruned-branches.log"), "utf8"), new RegExp(`Z multi/d ${tip}\\n`));
+        assert.ok(existsSync(join(dir, "wt-multi-d")) && local("multi/d"), "worktree and local branch kept");
     });
 });
 

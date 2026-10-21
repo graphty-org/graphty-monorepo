@@ -2177,6 +2177,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly key: SourceKey;
     readonly kind: LoadedSourceKind;
     readonly loadKey?: string;
+    readonly mapping?: LoadMapping;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
     readonly total?: number;

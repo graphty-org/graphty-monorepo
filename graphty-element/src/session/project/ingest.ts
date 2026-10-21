@@ -327,6 +327,20 @@ function isStorableRecordId(value: unknown): value is string | number {
 }
 
 /**
+ * What a load's `data.sources()` entry says of its tables: their names, what each held, the
+ * column roles it was given and, for a joined table, the load it joined onto.
+ * @param command - The import.
+ * @returns Those members, each only when the import gives it.
+ */
+function tableFacts(command: DataImportCommand): Pick<LoadedSource, "tables" | "tableRows" | "mapping" | "joinedOnto"> {
+    return {
+        ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
+        tables: Object.freeze([...(command.tables ?? [])]),
+        ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
+        ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+    };
+}
+/**
  * Turns node and edge records, and whole data sources, into the graph a host holds.
  *
  * One per graph. It keeps what outlives a single call: the record identifiers already seen, the
@@ -545,10 +559,7 @@ export class Ingest<K extends KnownEdge> {
                 ...described,
                 key,
                 kind,
-                ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
-                tables: Object.freeze([...(command.tables ?? [])]),
-                ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
-                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+                ...tableFacts(command),
                 added,
                 // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
                 counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),

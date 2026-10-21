@@ -533,6 +533,50 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "outlineColor")[2]).toBe("#ffd700");
     });
 
+    it("reads vis.js's dynamic smooth edges as curves through a support point its physics places, with no positions", async () => {
+        const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }];
+        // vis-network's defaults: the barnesHut solver, every edge dynamic; an edge's own length is its springs' rest
+        const plain = await load({
+            nodes,
+            edges: [
+                { from: "a", to: "b" },
+                { from: "b", to: "c", length: 300 },
+                { from: "c", to: "a", physics: false },
+                { from: "a", to: "c", smooth: { type: "curvedCW" } },
+            ],
+        });
+        expect(values(plain, "edge", "curved")).toEqual([true, true, null, null]);
+        expect(values(plain, "edge", "supportModel")).toEqual(["barnesHut", "barnesHut", null, null]);
+        expect(values(plain, "edge", "supportSpringLength")).toEqual([95, 300, null, null]);
+        expect(values(plain, "edge", "supportSpringConstant")[0]).toBe(0.04);
+        expect(values(plain, "edge", "supportRepulsion")[0]).toBe(2000);
+        expect(values(plain, "edge", "supportCentralGravity")[0]).toBe(0.3);
+        // the forceAtlas2Based solver, with the file's own constants over its defaults
+        const fa2 = await load({
+            nodes,
+            edges: [{ from: "a", to: "b" }],
+            options: {
+                physics: {
+                    solver: "forceAtlas2Based",
+                    forceAtlas2Based: { gravitationalConstant: -26, springLength: 230 },
+                },
+            },
+        });
+        expect(values(fa2, "edge", "supportModel")).toEqual(["forceAtlas2"]);
+        expect(values(fa2, "edge", "supportRepulsion")).toEqual([26]);
+        expect(values(fa2, "edge", "supportSpringLength")).toEqual([230]);
+        expect(values(fa2, "edge", "supportCentralGravity")).toEqual([0.01]);
+        // no physics, or a hierarchical layout (which turns every dynamic curve static): the support node never moves
+        for (const options of [
+            { physics: false },
+            { physics: { enabled: false } },
+            { layout: { hierarchical: true } },
+        ]) {
+            const still = await load({ nodes, edges: [{ from: "a", to: "b" }], options });
+            expect(values(still, "edge", "supportModel")).toEqual([null]);
+        }
+    });
+
     it("reads vis.js's image arrows: each end's picture and the size it is drawn at", async () => {
         const src = "data:image/svg+xml;utf8,%3Csvg%3E%3C%2Fsvg%3E";
         const r = await load({

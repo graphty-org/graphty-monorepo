@@ -702,6 +702,24 @@ export interface EdgeStyleValues {
      */
     readonly arcRadius: number;
     /**
+     * A curved edge drawn as one quadratic curve through a support point a force simulation places among the nodes,
+     * wherever they are: `"barnesHut"` or `"forceAtlas2"`, the force law it settles under (vis-network's dynamic smooth
+     * edges, under its solvers of those names). Tied to the edge's two nodes by two springs, pushed away by every node
+     * and every other support point, pulled toward the middle of the nodes; the numbers below are in the file's units.
+     */
+    readonly supportModel: string;
+    /** The rest length of a support point's two springs together (a length). */
+    readonly supportSpringLength: number;
+    /** How hard a support point's springs pull per unit they are stretched. */
+    readonly supportSpringConstant: number;
+    /**
+     * How hard every node and every other support point push a support point away: over the distance squared under
+     * barnesHut, over the distance under forceAtlas2.
+     */
+    readonly supportRepulsion: number;
+    /** How hard a support point is pulled toward the middle of the nodes: a constant pull under barnesHut, in proportion to the distance under forceAtlas2. */
+    readonly supportCentralGravity: number;
+    /**
      * How far from each of its nodes' outlines the edge's line (and its arrowhead) stops, leaving that much empty
      * (a length; Gephi's `edge.radius`).
      */

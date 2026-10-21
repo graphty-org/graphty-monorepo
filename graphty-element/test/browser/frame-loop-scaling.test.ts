@@ -581,7 +581,7 @@ const CASES: readonly Case[] = [
         // connects (e63ee191b9) and the element's update skips Lit's template render, so an update
         // never moves it -- and the frame after the update draws the graph in that container.
         // render() still returns the container, as released.
-        methods: ["Graphty.render"],
+        methods: ["Graphty.render", "Graphty.update"],
         prepare: (element) => {
             let rendered: unknown;
             let before: ChildNode[] = [];

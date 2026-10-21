@@ -137,6 +137,7 @@ export const MUTATING: readonly string[] = [
     "Graphty.setViewMode",
     "Graphty.shutdown",
     "Graphty.unpin",
+    "Graphty.update",
     "Graphty.updateEdges",
     "Graphty.updateNodes",
     "LayoutEngine.addEdge",

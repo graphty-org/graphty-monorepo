@@ -762,6 +762,20 @@ export class BoundaryPass {
     }
 
     /**
+     * Bind the field targets to a program's field samplers, the first target standing in for any
+     * missing.
+     * @param program - The program.
+     */
+    private bindFields(program: SceneEffect["wrapper"]["effect"]): void {
+        FIELD_SAMPLERS.forEach((name, i) => {
+            const texture = (this.fields[i] ?? this.fields[0]) as FieldTarget | undefined;
+            if (texture !== undefined) {
+                program.setTexture(name, texture.texture);
+            }
+        });
+    }
+
+    /**
      * Draw every group into the boundary target, lowest layer first, each premultiplied over what
      * is beneath it, on its own box.
      * @param target - The boundary target.
@@ -824,12 +838,7 @@ export class BoundaryPass {
                     program.setFloat4("graphty_groupInfo", group.index, layer.depth, Math.max(group.slot, 0), 0);
                     program.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(shader.hash));
                     if (!layer.sphere) {
-                        FIELD_SAMPLERS.forEach((name, i) => {
-                            const texture = (this.fields[i] ?? this.fields[0]) as FieldTarget | undefined;
-                            if (texture !== undefined) {
-                                program.setTexture(name, texture.texture);
-                            }
-                        });
+                        this.bindFields(program);
                     }
 
                     setParams(program, shader.registration.descriptor.params, layer.params);

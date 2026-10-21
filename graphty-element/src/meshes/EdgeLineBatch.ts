@@ -345,7 +345,11 @@ export class EdgeLineBatch {
         }
 
         const length = Vector3.Distance(srcPoint, dstPoint);
-        this.write(index, srcPoint, srcPoint, dstPoint, dstPoint, 0, this.spacingFor(length), length);
+        this.write(index, srcPoint, srcPoint, dstPoint, dstPoint, {
+            distance: 0,
+            spacing: this.spacingFor(length),
+            total: length,
+        });
     }
 
     /**
@@ -536,9 +540,10 @@ export class EdgeLineBatch {
      * @param a - Where the piece starts.
      * @param b - Where it ends.
      * @param next - The corner after it, or its end for none.
-     * @param distance - How far along the edge the piece starts.
-     * @param spacing - The pattern's spacing, 0 for a solid line.
-     * @param total - The whole edge's length along its pieces, which a widened slot carries.
+     * @param along - Where the piece is along the edge.
+     * @param along.distance - How far along the edge the piece starts.
+     * @param along.spacing - The pattern's spacing, 0 for a solid line.
+     * @param along.total - The whole edge's length along its pieces, which a widened slot carries.
      */
     private write(
         index: number,
@@ -546,10 +551,9 @@ export class EdgeLineBatch {
         a: Vector3,
         b: Vector3,
         next: Vector3,
-        distance: number,
-        spacing: number,
-        total: number,
+        along: { readonly distance: number; readonly spacing: number; readonly total: number },
     ): void {
+        const { distance, spacing, total } = along;
         const at = index * this.stride;
         const s = this.slots;
         prev.toArray(s, at);

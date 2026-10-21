@@ -502,13 +502,13 @@ export class EdgeShaderDrawing {
  */
 export function edgeStaticValues(
     look: EdgeStaticLook,
-    shader: { readonly row: number; readonly varying: readonly number[] } = { row: 0, varying: [0, 0, 0, 0] },
+    shader?: { readonly row: number; readonly varying: readonly number[] },
 ): Float32Array {
     const out = new Float32Array(EDGE_STATIC_FLOATS);
     out.set(look.colorA, 0);
     out.set(look.colorB, 4);
-    out.set(shader.varying, 8);
-    out.set([look.seed, shader.row, look.bits, look.taper], 12);
+    out.set(shader?.varying ?? [0, 0, 0, 0], 8);
+    out.set([look.seed, shader?.row ?? 0, look.bits, look.taper], 12);
     out.set([...look.times, 0], 16);
     return out;
 }

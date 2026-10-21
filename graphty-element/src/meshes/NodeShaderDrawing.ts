@@ -184,6 +184,25 @@ const DRAWINGS = new WeakMap<Scene, NodeShaderDrawing>();
 const REPAINTS = new WeakMap<Scene, (nodes: readonly ShadedNode[]) => void>();
 
 /**
+ * The effects a node's look wants drawn, with their parameter values: every effect not turned off,
+ * none when the node is not drawn.
+ * @param look - The node's look.
+ * @returns The parameter values per effect id.
+ */
+function wantedEffects(look: NodeShaderLook): Map<string, ShaderParams> {
+    const wanted = new Map<string, ShaderParams>();
+    for (const [id, value] of Object.entries(look.style?.effects ?? {})) {
+        if (value === false || (typeof value === "object" && value.visible === false) || !look.drawn) {
+            continue;
+        }
+
+        wanted.set(id, typeof value === "object" ? value : {});
+    }
+
+    return wanted;
+}
+
+/**
  * A stable 0..1 random per node id.
  * @param id - The node id.
  * @returns The seed.
@@ -192,7 +211,7 @@ function seedOf(id: string | number): number {
     let hash = 0x811c9dc5;
     const text = String(id);
     for (let i = 0; i < text.length; i++) {
-        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
+        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193); // NOSONAR(S7758): hashes UTF-16 code units; codePointAt would change the seed of ids outside the BMP
     }
 
     return (hash >>> 0) / 0xffffffff;
@@ -410,7 +429,7 @@ export class NodeShaderDrawing {
         this.stopStatus = session.on("shader:status", ({ id, state }) => {
             const known = this.known.get(id);
             const drawable = state === "ready" || state === "still";
-            if (known !== undefined && known.shader === null && drawable) {
+            if (known?.shader === null && drawable) {
                 known.shader = undefined;
                 this.wake(known);
             } else if (known?.shader !== undefined && known.shader !== null && !drawable) {
@@ -1136,54 +1155,85 @@ export class NodeShaderDrawing {
      * @param look - Its look.
      */
     private paintEffects(entry: Entry, look: NodeShaderLook): void {
-        const wanted = new Map<string, ShaderParams>();
-        for (const [id, value] of Object.entries(look.style?.effects ?? {})) {
-            if (value === false || (typeof value === "object" && value.visible === false) || !look.drawn) {
-                continue;
-            }
-
-            wanted.set(id, typeof value === "object" ? value : {});
-        }
-
+        const wanted = wantedEffects(look);
         const data = this.data as NodeShaderData;
         /** Effects whose shader may not draw now: dropped at once, with no exit. */
         const dropped = new Set<string>();
         for (const [id, values] of wanted) {
-            const shader = this.resolved(id, entry.node);
-            if (shader?.registration.descriptor.kind !== "node-effect") {
-                if (shader === null && this.known.get(id)?.shader === null) {
-                    dropped.add(id);
-                }
-
-                continue;
-            }
-
-            const batch = this.batchFor("effect", shader, entry.node);
-            if (batch === null) {
-                continue;
-            }
-
-            const { descriptor } = shader.registration;
-            let slot = entry.effects.get(id);
-            if (slot !== undefined && slot.batch !== batch) {
-                this.releaseSlot(slot);
-                slot = undefined;
-            }
-
-            slot ??= this.newSlot(id, batch, entry, motionOf(descriptor.motion).enter);
-            slot.exited = NEVER;
-            slot.exitEnds = 0;
-            entry.effects.set(id, slot);
-            const row = data.paramRow(id, descriptor.params, values);
-            const params = this.varying(descriptor.params, values);
-            const meta: [number, number, number, number] = [entry.seed, row, entry.bits, entry.row];
-            batch.write(
-                slot.index,
-                this.slotValues(entry, look, params, meta, slot),
-                this.speedOf(descriptor, values, params),
-            );
+            this.paintEffect(entry, look, data, id, values, dropped);
         }
 
+        this.retireEffects(entry, look, wanted, dropped);
+        this.updateFrames();
+    }
+
+    /**
+     * Draw one effect the node wants, in its own slot; one whose shader may not draw now is added
+     * to `dropped`.
+     * @param entry - The node's entry.
+     * @param look - Its look.
+     * @param data - The shader data.
+     * @param id - The effect's shader id.
+     * @param values - Its parameter values.
+     * @param dropped - Effects whose shader may not draw now.
+     */
+    private paintEffect(
+        entry: Entry,
+        look: NodeShaderLook,
+        data: NodeShaderData,
+        id: string,
+        values: ShaderParams,
+        dropped: Set<string>,
+    ): void {
+        const shader = this.resolved(id, entry.node);
+        if (shader?.registration.descriptor.kind !== "node-effect") {
+            if (shader === null && this.known.get(id)?.shader === null) {
+                dropped.add(id);
+            }
+
+            return;
+        }
+
+        const batch = this.batchFor("effect", shader, entry.node);
+        if (batch === null) {
+            return;
+        }
+
+        const { descriptor } = shader.registration;
+        let slot = entry.effects.get(id);
+        if (slot !== undefined && slot.batch !== batch) {
+            this.releaseSlot(slot);
+            slot = undefined;
+        }
+
+        slot ??= this.newSlot(id, batch, entry, motionOf(descriptor.motion).enter);
+        slot.exited = NEVER;
+        slot.exitEnds = 0;
+        entry.effects.set(id, slot);
+        const row = data.paramRow(id, descriptor.params, values);
+        const params = this.varying(descriptor.params, values);
+        const meta: [number, number, number, number] = [entry.seed, row, entry.bits, entry.row];
+        batch.write(
+            slot.index,
+            this.slotValues(entry, look, params, meta, slot),
+            this.speedOf(descriptor, values, params),
+        );
+    }
+
+    /**
+     * The effects the node no longer wants: each plays its exit, kept drawing until it ends, or is
+     * released at once when it has none or was dropped.
+     * @param entry - The node's entry.
+     * @param look - Its look.
+     * @param wanted - The effects the node wants.
+     * @param dropped - Effects whose shader may not draw now.
+     */
+    private retireEffects(
+        entry: Entry,
+        look: NodeShaderLook,
+        wanted: ReadonlyMap<string, ShaderParams>,
+        dropped: ReadonlySet<string>,
+    ): void {
         for (const [id, slot] of entry.effects) {
             if ((wanted.has(id) && !dropped.has(id)) || (slot.exitEnds > 0 && !dropped.has(id))) {
                 continue;
@@ -1202,8 +1252,6 @@ export class NodeShaderDrawing {
                 entry.effects.delete(id);
             }
         }
-
-        this.updateFrames();
     }
 
     /**

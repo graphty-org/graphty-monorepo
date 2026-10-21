@@ -25,9 +25,8 @@
 import { tokenize } from "../../catalog/shaderGlsl";
 import type { ShaderDescriptor, ShaderKind, ShaderParamDescriptor, ShaderProblem } from "../../catalog/shaders";
 import { GLSL_HELPERS, GLSL_STRUCTS } from "./glsl";
-import { uniformValueOf } from "./nodeLayout";
 
-export { uniformValueOf };
+export { uniformValueOf } from "./nodeLayout";
 
 /** The line the wrapper's code after the body is numbered from, so its errors are told apart. */
 export const WRAPPER_LINE = 100_000;
@@ -58,6 +57,14 @@ const LIBRARY_PREFIX = "graphty_";
 /** One token, as the checker's tokenizer reads it. */
 type Token = ReturnType<typeof tokenize>["tokens"][number];
 
+/** How each bracket changes the brace and the parenthesis depth. */
+const NESTING: ReadonlyMap<string, readonly [number, number]> = new Map([
+    ["{", [1, 0]],
+    ["}", [-1, 0]],
+    ["(", [0, 1]],
+    [")", [0, -1]],
+]);
+
 /** Tokens after which an identifier is being declared, not used. */
 const DECLARATOR_FOLLOWERS = new Set(["(", "=", ",", ";", "["]);
 
@@ -73,45 +80,58 @@ function topLevelNames(tokens: readonly Token[]): Set<string> {
     // Inside an initializer at top level, until the next "," or ";" outside brackets.
     let initializing = false;
     for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-        const { text } = token;
-        if (text === "{") {
-            depth++;
-        } else if (text === "}") {
-            depth--;
-        } else if (text === "(") {
-            parens++;
-        } else if (text === ")") {
-            parens--;
+        const { text } = tokens[i];
+        const nesting = NESTING.get(text);
+        if (nesting !== undefined) {
+            depth += nesting[0];
+            parens += nesting[1];
         } else if (depth === 0 && parens === 0) {
-            if (text === "struct" && tokens[i + 1]?.kind === "id") {
-                names.add(tokens[i + 1].text);
-                i++;
-            } else if (text === "=") {
+            if (text === "=") {
                 initializing = true;
             } else if (text === "," || text === ";") {
                 initializing = false;
-            } else if (
-                !initializing &&
-                token.kind === "id" &&
-                tokens[i - 1]?.kind === "id" &&
-                DECLARATOR_FOLLOWERS.has(tokens[i + 1]?.text ?? "")
-            ) {
-                // "type name (", "type name =", "type name ;" ... -- a declarator follows its type.
-                names.add(text);
-            } else if (
-                !initializing &&
-                token.kind === "id" &&
-                tokens[i - 1]?.text === "," &&
-                tokens[i + 1] !== undefined
-            ) {
-                // The second name of "float a, b;".
-                names.add(text);
+            } else {
+                const name = topLevelNameAt(tokens, i, initializing);
+                if (name !== undefined) {
+                    names.add(name);
+                }
             }
         }
     }
 
     return names;
+}
+
+/**
+ * The name the token at `i`, at top level and outside any brackets, declares, if it declares one:
+ * the name after `struct`, a declarator after its type, or the second name of `float a, b;`. A
+ * struct's name is reached again as the next token, where it adds nothing new.
+ * @param tokens - The tokens.
+ * @param i - The index.
+ * @param initializing - Whether `i` is inside a top-level initializer.
+ * @returns The declared name, or undefined.
+ */
+function topLevelNameAt(tokens: readonly Token[], i: number, initializing: boolean): string | undefined {
+    const token = tokens[i];
+    if (token.text === "struct" && tokens[i + 1]?.kind === "id") {
+        return tokens[i + 1].text;
+    }
+
+    if (initializing || token.kind !== "id") {
+        return undefined;
+    }
+
+    if (tokens[i - 1]?.kind === "id" && DECLARATOR_FOLLOWERS.has(tokens[i + 1]?.text ?? "")) {
+        // "type name (", "type name =", "type name ;" ... -- a declarator follows its type.
+        return token.text;
+    }
+
+    if (tokens[i - 1]?.text === "," && tokens[i + 1] !== undefined) {
+        // The second name of "float a, b;".
+        return token.text;
+    }
+
+    return undefined;
 }
 
 /**
@@ -135,37 +155,13 @@ function isMemberName(tokens: readonly Token[], i: number, inStruct: boolean): b
  */
 export function renameIdentifiers(text: string, rename: ReadonlyMap<string, string>): string {
     const { tokens } = tokenize(text, { line: 1, column: 1 });
-    const lineStarts = [0];
-    for (let index = 0; index < text.length; index++) {
-        if (text.charCodeAt(index) === 10) {
-            lineStarts.push(index + 1);
-        }
-    }
-
+    const lineStarts = lineStartsOf(text);
     const edits: { at: number; length: number; to: string }[] = [];
-    let structDepth = -1;
-    let depth = 0;
+    const inStruct = structBodyFlags(tokens);
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        if (token.text === "{") {
-            depth++;
-            if (tokens[i - 2]?.text === "struct") {
-                structDepth = depth;
-            }
-        } else if (token.text === "}") {
-            if (depth === structDepth) {
-                structDepth = -1;
-            }
-
-            depth--;
-        }
-
         const to = token.kind === "id" ? rename.get(token.text) : undefined;
-        if (to === undefined || tokens[i - 1]?.text === ".") {
-            continue;
-        }
-
-        if (isMemberName(tokens, i, structDepth !== -1 && depth >= structDepth)) {
+        if (to === undefined || tokens[i - 1]?.text === "." || isMemberName(tokens, i, inStruct[i])) {
             continue;
         }
 
@@ -173,11 +169,59 @@ export function renameIdentifiers(text: string, rename: ReadonlyMap<string, stri
     }
 
     let out = text;
-    for (const edit of edits.reverse()) {
+    edits.reverse();
+    for (const edit of edits) {
         out = out.slice(0, edit.at) + edit.to + out.slice(edit.at + edit.length);
     }
 
     return out;
+}
+
+/**
+ * Whether each token is inside a struct body, `struct X { ... }`: the opening brace counts as
+ * inside, the closing one as outside.
+ * @param tokens - The tokens.
+ * @returns One flag per token.
+ */
+function structBodyFlags(tokens: readonly Token[]): boolean[] {
+    const flags: boolean[] = [];
+    let structDepth = -1;
+    let depth = 0;
+    for (let i = 0; i < tokens.length; i++) {
+        const { text } = tokens[i];
+        if (text === "{") {
+            depth++;
+            if (tokens[i - 2]?.text === "struct") {
+                structDepth = depth;
+            }
+        } else if (text === "}") {
+            if (depth === structDepth) {
+                structDepth = -1;
+            }
+
+            depth--;
+        }
+
+        flags.push(structDepth !== -1 && depth >= structDepth);
+    }
+
+    return flags;
+}
+
+/**
+ * Where each line of a text starts, as an offset: 0, then one past every line feed.
+ * @param text - The text.
+ * @returns The offsets, line 1 first.
+ */
+function lineStartsOf(text: string): number[] {
+    const lineStarts = [0];
+    for (let index = 0; index < text.length; index++) {
+        if (text.codePointAt(index) === 10) {
+            lineStarts.push(index + 1);
+        }
+    }
+
+    return lineStarts;
 }
 
 /** The library's top-level names, read once. */
@@ -449,12 +493,13 @@ bool graphty_bad(vec4 c) {
  * @returns The GLSL.
  */
 export function mainPrelude(params: readonly ShaderParamDescriptor[]): string {
+    const assignments = params.map((param) => `    ${paramAssignment(param)}`).join("\n");
     return `    graphty_quality = graphty_scene_time.y;
     graphty_lightDir = graphty_scene_lightDir.xyz;
     graphty_lightColor = graphty_scene_lightColor.xyz;
     graphty_ambient = graphty_scene_ambient.xyz;
     graphty_canvasColor = graphty_scene_canvas.xyz;
-${params.map((param) => `    ${paramAssignment(param)}`).join("\n")}`;
+${assignments}`;
 }
 
 /**

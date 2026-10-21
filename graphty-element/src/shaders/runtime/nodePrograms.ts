@@ -254,6 +254,8 @@ export function batchProgram(
     // An effect draws round the node, never over its own fill; squeezed to the cap (vFit: the
     // square's half width and the effect's reach, in radii), the ring from the radius out is
     // mapped onto the reach, so the look keeps its node-sized middle and all of its falloff.
+    // An impostor's normal is the sphere's; a sprite's faces the camera.
+    const flatNormal = role === "impostor" ? "vec3(vUV, -graphty_z)" : "vec3(0.0, 0.0, -1.0)";
     const surface = effect
         ? `
     float graphty_r = length(vUV);
@@ -277,7 +279,7 @@ export function batchProgram(
     }
     float graphty_z = sqrt(max(1.0 - graphty_d * graphty_d, 0.0));
     graphty_in.uv = vUV;
-    graphty_in.normal = ${role === "impostor" ? "vec3(vUV, -graphty_z)" : "vec3(0.0, 0.0, -1.0)"};`;
+    graphty_in.normal = ${flatNormal};`;
     const finish = effect
         ? `
     if (graphty_bad(graphty_out)) { graphty_out = vec4(0.0); }

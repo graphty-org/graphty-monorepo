@@ -135,14 +135,22 @@ export class NodeBillboardBatch {
             noteBloomMesh(scene, this.mesh);
         }
 
-        this.ready = this.material.forceCompilationAsync(this.mesh).then(
-            () => !this.gone,
-            () => false,
-        );
+        this.ready = this.compiled(); // NOSONAR(S7059): compiling starts with the batch, read at once
 
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+    }
+
+    /**
+     * Compile the batch's material.
+     * @returns Whether it compiled while the batch still lives.
+     */
+    private compiled(): Promise<boolean> {
+        return this.material.forceCompilationAsync(this.mesh).then(
+            () => !this.gone,
+            () => false,
+        );
     }
 
     /**

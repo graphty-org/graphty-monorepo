@@ -370,7 +370,7 @@ export function liftRoute(flat: readonly number[], lift: number): number[] {
     }
 
     // The last point is the route's own end, raised by sin(pi) = 0 up to rounding: put it back exactly.
-    out.splice(out.length - 3, 3, flat[flat.length - 3], flat[flat.length - 2], flat[flat.length - 1]);
+    out.splice(-3, 3, ...flat.slice(-3));
     return out;
 }
 

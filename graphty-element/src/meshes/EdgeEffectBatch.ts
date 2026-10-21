@@ -150,7 +150,17 @@ export class ShadedEdgeBatch extends EdgeLineBatch {
         this.stopData = data.onRebuilt(() => {
             material.setTexture(data.paramSampler, data.paramTexture);
         });
-        this.ready = material.forceCompilationAsync(mesh).then(
+        this.ready = this.compiled(material, mesh); // NOSONAR(S7059): compiling starts with the batch, read at once
+    }
+
+    /**
+     * Compile the batch's material.
+     * @param material - The material.
+     * @param mesh - The mesh it draws.
+     * @returns Whether it compiled while the batch still lives.
+     */
+    private compiled(material: ShaderMaterial, mesh: Mesh): Promise<boolean> {
+        return material.forceCompilationAsync(mesh).then(
             () => !this.disposed,
             () => false,
         );

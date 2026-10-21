@@ -227,7 +227,7 @@ export function newIssue(run, opts) {
  * @returns true when due
  */
 export function commitDue(main, branch, now = Date.now()) {
-    const file = join(main, "tmp/branch-note", `${branch.replace(/\//g, "-")}.stamp`);
+    const file = join(main, "tmp/branch-note", `${branch.replaceAll("/", "-")}.stamp`);
     try {
         if (now - Number(readFileSync(file, "utf8")) < COMMIT_EVERY_MS) return false;
     } catch {
@@ -240,10 +240,10 @@ export function commitDue(main, branch, now = Date.now()) {
 
 function parseArgs(argv) {
     const opts = {};
-    for (let i = 0; i < argv.length; i++) {
-        const m = /^--([a-z-]+)$/.exec(argv[i]);
-        if (m) opts[m[1]] = argv[++i];
-    }
+    argv.forEach((arg, i) => {
+        const m = /^--([a-z-]+)$/.exec(arg);
+        if (m) opts[m[1]] = argv[i + 1];
+    });
     return opts;
 }
 

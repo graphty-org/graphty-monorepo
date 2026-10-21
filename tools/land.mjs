@@ -1437,7 +1437,7 @@ export function openWork(ctx) {
         .filter(([b]) => b !== "HEAD");
     if (!branches.length) return "open work: none (every branch on GitHub is on golden)";
     const set = new Map(
-        git(ctx, ctx.main, ["config", "--get-regexp", "^branch\\..*\\.issue$"], { ok: true })
+        git(ctx, ctx.main, ["config", "--get-regexp", String.raw`^branch\..*\.issue$`], { ok: true })
             .stdout.split("\n")
             .filter(Boolean)
             .map((l) => /^branch\.(.+)\.issue (\d+)$/.exec(l))
@@ -1666,22 +1666,8 @@ export async function main(argv, ctx = context(process.cwd())) {
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
     const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") && command !== "ship" };
-    if (command === "status") return status(ctx);
-    if (command === "cut") return cutLocked(ctx, branch, lockOptions);
-    if (command === "prune-branches") {
-        try {
-            ctx.prune(ctx);
-            return 0;
-        } catch (e) {
-            return fail(e.message);
-        }
-    }
-    if (command === "cut-fix") {
-        if (!branch) return fail(USAGE);
-        const code = await cutLocked(ctx, branch, lockOptions, cutFix);
-        // The same branch, the same commits, on golden: a landing like any other.
-        return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
-    }
+    const unlocked = UNLOCKED[command];
+    if (unlocked) return unlocked(ctx, branch, argv, lockOptions);
     if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
     const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
@@ -1706,6 +1692,36 @@ export async function main(argv, ctx = context(process.cwd())) {
     } finally {
         cleanup(ctx);
     }
+}
+
+// The commands that do not take the landing lock (cut and cut-fix take the cut's own).
+const UNLOCKED = {
+    status: (ctx) => status(ctx),
+    cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
+    "cut-fix": cutFixThenLand,
+    "prune-branches": (ctx) => {
+        try {
+            ctx.prune(ctx);
+            return 0;
+        } catch (e) {
+            return fail(e.message);
+        }
+    },
+};
+
+/**
+ * `cut-fix`: the fix into golden-cut under the cut's lock, then the same branch onto golden.
+ * @param ctx the run's context
+ * @param branch the fix
+ * @param argv the command line (for --priority)
+ * @param lockOptions the lock's options
+ * @returns the exit code
+ */
+async function cutFixThenLand(ctx, branch, argv, lockOptions) {
+    if (!branch) return fail(USAGE);
+    const code = await cutLocked(ctx, branch, lockOptions, cutFix);
+    // The same branch, the same commits, on golden: a landing like any other.
+    return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
 }
 
 // The cut (or a cut fix) under its own lock: its push runs the gate without holding up landings.

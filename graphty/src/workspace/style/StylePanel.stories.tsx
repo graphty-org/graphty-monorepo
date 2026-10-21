@@ -231,11 +231,14 @@ export const HoveredAtRest: Story = sceneStory(async () => {
     await openStyle("Hovered");
 });
 
-/** Key people's Shape "+": the Shape properties the layer does not set yet. */
+/**
+ * Key people's Shape "+": with Shape the one property the layer does not set yet (the sprites are
+ * among Shape's own choices), it adds the Shape line, waiting for a value.
+ */
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000));
+    await within(tab).findByRole("combobox", { name: /^Node shape/ }, storyWaitOptions(1000));
 });
 
 /** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */

@@ -287,9 +287,10 @@
 }
 
 /* A shader row (shader-styles design, section 6.1): its picture and name open the gallery; an
-   effect's row has a third column, its eye, between the settings and the minus. */
+   effect's row has no label column (the section names its list) and a third column, its eye,
+   between the settings and the minus. */
 .ws-shader-row .ws-field[data-effect] {
-    grid-template-columns: var(--ws-label, 80px) minmax(0, 1fr) 24px 24px 24px;
+    grid-template-columns: minmax(0, 1fr) 24px 24px 24px;
 }
 
 .ws-shader-control {
@@ -325,8 +326,10 @@
     opacity: 0.5;
 }
 
+/* The trigger chip gives way before the name does: the name says which shader it is. */
 .ws-shader-trigger {
-    flex: 0 0 auto;
+    flex: 0 8 auto;
+    min-width: 28px;
 }
 
 /* The gallery: search, then two columns of tiles, each its still picture and name. */
@@ -420,4 +423,14 @@
 .ws-paste-problem b {
     flex: none;
     font-variant-numeric: tabular-nums;
+}
+
+/* The gallery's foot, Paste shader..., pinned to the bottom of the pop-out's scrolling body. */
+.ws-gallery-foot {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -16px;
+    padding: 4px 12px;
+    border-top: 1px solid var(--cm-border, var(--mantine-color-default-border));
+    background: var(--cm-bg);
 }

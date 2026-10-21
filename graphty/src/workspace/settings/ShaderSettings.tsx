@@ -1,4 +1,4 @@
-import { ControlSection, DataRow, Popout, PopoutButton } from "@graphty/compact-mantine";
+import { ControlSection, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { ShaderParams } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
@@ -7,8 +7,10 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { type PasteInit, PasteShaderDialog } from "../style/PasteShaderDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
 import { copyShaderText } from "../style/shaderSlots";
+import { headerBottom } from "../style/useFocusLine";
 import {
     enumWords,
     renderQualityWords,
@@ -52,14 +54,18 @@ interface BackgroundShaderProps {
     readonly shader: string | undefined;
     /** Its parameters. */
     readonly params: ShaderParams;
-    /** Writes a shader and its parameters as the background. */
-    readonly onWrite: (shader: string, params: ShaderParams) => void;
+    /**
+     * Writes a shader and its parameters as the background, through `scope` when given (a paste's
+     * transaction, so the add and the write are one undo step).
+     */
+    readonly onWrite: (shader: string, params: ShaderParams, scope?: GraphSession) => Promise<void> | void;
 }
 
 /**
  * The Background's Shader paint (shader-styles design, section 6.1): the shader's still picture
- * and name, which opens the gallery of background shaders, and its settings pop-out, drawn from
- * the catalog's parameters. Each write is one undo step.
+ * and name, which opens the gallery of background shaders (Paste shader... last), and its settings
+ * pop-out, drawn from the catalog's parameters, which opens after a pick. Nothing opens by itself:
+ * moving onto the Shader paint only shows the row (WCAG 3.2.2). Each write is one undo step.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.shader - the shader in force
@@ -73,8 +79,9 @@ export function BackgroundShader({
     params,
     onWrite,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
-    const [picking, setPicking] = useState(shader === undefined);
+    const [picking, setPicking] = useState(false);
     const [settings, setSettings] = useState(false);
+    const [paste, setPaste] = useState<PasteInit | null>(null);
     const descriptor = session.catalog.shaders().find((each) => each.id === shader);
     const name = descriptor?.plainName ?? shader ?? "None";
     return (
@@ -101,6 +108,7 @@ export function BackgroundShader({
                     width={POPOUT_WIDTH}
                     placement="left"
                     alignment="start"
+                    boundaryTop={picking ? headerBottom() : 0}
                     header={{ variant: "title", title: "Background" }}
                 >
                     <Popout.Content>
@@ -109,11 +117,18 @@ export function BackgroundShader({
                             kinds={["background"]}
                             label="Find background"
                             marked={shader === undefined ? [] : [shader]}
+                            onPaste={() => {
+                                setPicking(false);
+                                setPaste({});
+                            }}
                             onPick={(id) => {
                                 setPicking(false);
                                 if (id !== shader) {
-                                    onWrite(id, {});
+                                    void onWrite(id, {});
                                 }
+                                // Its settings open next, as a style row's do after a pick.
+                                const picked = session.catalog.shaders().find((each) => each.id === id);
+                                setSettings((picked?.params.length ?? 0) > 0);
                             }}
                         />
                     </Popout.Content>
@@ -149,7 +164,7 @@ export function BackgroundShader({
                                             typeof value === "string" ||
                                             typeof value === "boolean"
                                         ) {
-                                            onWrite(descriptor.id, { ...params, [param]: value });
+                                            void onWrite(descriptor.id, { ...params, [param]: value });
                                         }
                                     }}
                                     words={(option) => ({ label: option.plainName, choice: enumWords })}
@@ -158,6 +173,19 @@ export function BackgroundShader({
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>
+            )}
+            {paste !== null && (
+                <PasteShaderDialog
+                    session={session}
+                    kinds={["background"]}
+                    put={async (scope, id, values) => {
+                        await onWrite(id, values, scope);
+                    }}
+                    init={paste}
+                    onClose={() => {
+                        setPaste(null);
+                    }}
+                />
             )}
         </Group>
     );
@@ -188,10 +216,18 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
     };
     return (
         <Group gap={4} wrap="nowrap" justify="space-between" data-testid="held-shaders">
-            <Text size="xs">Held shaders</Text>
+            <Text size="xs" aria-hidden>
+                Held shaders
+            </Text>
             <Popout opened={open} onOpenChange={setOpen}>
                 <Popout.Trigger>
-                    <Button size="compact-xs" variant="default" aria-haspopup="dialog" aria-expanded={open}>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        aria-label={`Held shaders, ${String(held.length)}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={open}
+                    >
                         {String(held.length)}
                     </Button>
                 </Popout.Trigger>
@@ -258,17 +294,20 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
 
 /**
  * Graph settings > Shaders (shader-styles design, section 6.5): Quality and Motion, the reader's
- * preferences, kept in this browser and handed to the element's `shaderSettings`; and the Held
- * shaders row while a file's shaders wait to run.
+ * preferences, kept in this browser and handed to the element's `shaderSettings`; under Quality,
+ * the quality the frame guard draws at while it differs from the reader's; and the Held shaders
+ * row while a file's shaders wait to run.
  * @returns The section
  */
 export function ShaderSection(): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, element } = useWorkspace();
     const settings = useShaderSettings();
     useShaderVersion(session);
     if (session === null) {
         return null;
     }
+    // The level the frame guard stepped down to, while it differs from the reader's setting.
+    const guard = element?.renderQuality;
     return (
         <ControlSection label="Shaders" collapsible={false} headingLevel={3}>
             <Stack gap={6}>
@@ -276,6 +315,7 @@ export function ShaderSection(): React.JSX.Element | null {
                     label="Quality"
                     size="xs"
                     allowDeselect={false}
+                    description={guard?.code === undefined ? undefined : `Now ${renderQualityWords(guard)}`}
                     value={settings.quality ?? SHADER_QUALITY.fallback}
                     data={SHADER_QUALITY.values.map((value) => ({ value, label: SHADER_QUALITY_WORDS[value] }))}
                     onChange={(picked) => {
@@ -302,19 +342,4 @@ export function ShaderSection(): React.JSX.Element | null {
             </Stack>
         </ControlSection>
     );
-}
-
-/**
- * The graph's Values tab row for the shader quality, while the frame guard has it differ from the
- * reader's setting: the level and what it slowed or turned off. Nothing otherwise.
- * @returns The row, or nothing
- */
-export function RenderQualityRow(): React.JSX.Element | null {
-    const { session, element } = useWorkspace();
-    useShaderVersion(session);
-    const quality = element?.renderQuality;
-    if (quality?.code === undefined) {
-        return null;
-    }
-    return <DataRow stat name="Shader quality" value={renderQualityWords(quality)} />;
 }

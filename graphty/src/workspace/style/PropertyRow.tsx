@@ -32,6 +32,7 @@ import {
     type Target,
     writeIn,
 } from "./row";
+import { pickerChoices, pickerSlot, pickShader, SHADER_CHOICE } from "./shaderSlots";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
@@ -644,6 +645,21 @@ export function Field({
         }
     };
 
+    // Shape lists the sprites after its shapes, Pattern the edge surfaces after its patterns
+    // (shader-styles design, 6.1): a pick writes the shader, as the gallery does, not the property.
+    const picker = pickerSlot(channel);
+    const extraChoices = picker === undefined ? undefined : pickerChoices(ctx, picker);
+    const pick = (value: ChannelValue): void => {
+        if (picker === undefined || typeof value !== "string" || !value.startsWith(SHADER_CHOICE)) {
+            writeValue(value);
+            return;
+        }
+        if (own === undefined && partly === undefined) {
+            onCancel?.();
+        }
+        pickShader(ctx, picker, value.slice(SHADER_CHOICE.length)).catch(fail);
+    };
+
     let control: React.ReactNode;
     // Every layer a write reaches, those holding no value among them.
     const reached = ctx.many?.inOrder?.(channel).length ?? 0;
@@ -679,7 +695,8 @@ export function Field({
                 }
                 mixed={!pending || partly !== undefined}
                 swatches={ctx.documentColors}
-                onChange={writeValue}
+                extraChoices={extraChoices}
+                onChange={pick}
             />
         );
     } else if (own.binding !== undefined) {
@@ -717,7 +734,8 @@ export function Field({
                 label={name}
                 value={own.value}
                 shown={own.value}
-                onChange={writeValue}
+                extraChoices={extraChoices}
+                onChange={pick}
             />
         );
     } else if (descriptor.accepts === "number") {

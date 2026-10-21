@@ -430,28 +430,31 @@ export function bindingsOf(ctx: RowContext, slot: ShaderSlot, id: string): Recor
 let copied: { readonly kinds: readonly ShaderKind[]; readonly id: string; readonly params: Params } | null = null;
 
 /**
- * What a slot adds to its section's "+": the gallery (opened by the section), and for effects,
- * "<effect> off" for each effect a layer beneath adds and the row does not write, and Paste when an
- * effect was copied.
+ * What a slot adds to its section's "+": the gallery (opened by the section) for effects and the
+ * Material row, "<effect> off" for each effect a layer beneath adds and the row does not write,
+ * and Paste when a shader of the slot's kinds was copied. A sprite or an edge surface is picked in
+ * its property's picker instead (Shape, Pattern: design 6.1), so its slot adds no gallery.
  * @param ctx - the row.
  * @param slot - the slot.
  * @returns the items, keyed `shader:gallery`, `shader:off:<id>` and `shader:paste`.
  */
 export function slotAddOptions(ctx: RowContext, slot: ShaderSlot): { key: string; label: string }[] {
     const gallery =
-        slot.role === "effect" || !slotIsSet(ctx, slot) ? [{ key: "shader:gallery", label: `${slot.word}...` }] : [];
+        slot.role === "effect" || (slot.role === "material" && !slotIsSet(ctx, slot))
+            ? [{ key: "shader:gallery", label: `${slot.word}...` }]
+            : [];
+    const paste =
+        canPaste(slot) && copied !== null
+            ? [{ key: "shader:paste", label: `Paste ${shaderOf(ctx, copied.id)?.plainName ?? copied.id}` }]
+            : [];
     if (slot.role !== "effect") {
-        return gallery;
+        return [...gallery, ...paste];
     }
     const own = effectsOf(ctx, slot.channel);
     const beneath = ctx.beneath(slot.channel).value;
     const offs = Object.entries(typeof beneath === "object" && beneath !== null ? (beneath as ShaderEffects) : {})
         .filter(([id, value]) => value !== false && own[id] === undefined)
         .map(([id]) => ({ key: `shader:off:${id}`, label: effectOffWords(shaderOf(ctx, id)?.plainName ?? id) }));
-    const paste =
-        canPaste(slot) && copied !== null
-            ? [{ key: "shader:paste", label: `Paste ${shaderOf(ctx, copied.id)?.plainName ?? copied.id}` }]
-            : [];
     return [...gallery, ...offs, ...paste];
 }
 
@@ -471,6 +474,11 @@ export async function slotAdd(ctx: RowContext, slot: ShaderSlot, key: string): P
     }
     if (key === "shader:paste" && copied !== null) {
         const { id, params } = copied;
+        if (slot.role !== "effect") {
+            // A surface or sprite takes the place of the one the row draws, in one step.
+            await pickShader(ctx, slot, id, shaderEntries(ctx, slot)[0]?.id, params);
+            return;
+        }
         await writeRow(ctx, { [slot.channel]: { ...map, [id]: Object.keys(params).length === 0 ? true : params } });
     }
 }
@@ -486,12 +494,84 @@ export function copyShader(ctx: RowContext, slot: ShaderSlot, id: string): void 
 }
 
 /**
- * Whether a slot can paste what was copied: an effect, onto a section that takes its kind.
+ * Whether a slot can paste what was copied: a shader of a kind the slot takes. An effect joins the
+ * row's effects; a surface or sprite replaces the row's.
  * @param slot - the slot.
  * @returns true when Paste is offered.
  */
 export function canPaste(slot: ShaderSlot): boolean {
-    return slot.role === "effect" && copied !== null && copied.kinds.some((kind) => slot.kinds.includes(kind));
+    return copied !== null && copied.kinds.some((kind) => slot.kinds.includes(kind));
+}
+
+/** The value a property picker's shader choice carries, so it never meets a shape's or pattern's. */
+export const SHADER_CHOICE = "shader:";
+
+/**
+ * The slot whose shaders join a property's own picker (design 6.1): the sprites after the shapes
+ * in Shape, the edge surfaces after the patterns in Pattern.
+ * @param channel - the property.
+ * @returns the slot, or undefined for a property whose picker lists no shaders.
+ */
+export function pickerSlot(channel: Channel): ShaderSlot | undefined {
+    if (channel === "node.shape") {
+        return slotOf("node", ["node-sprite"]);
+    }
+    return channel === "edge.style" ? slotOf("edge", ["edge-surface"]) : undefined;
+}
+
+/** One shader choice in a property's picker. */
+export interface PickerChoice {
+    readonly value: string;
+    readonly label: string;
+    readonly picture?: string;
+    /** It cannot be picked: the row's layer draws a surface, which the sprite would replace. */
+    readonly disabled?: boolean;
+}
+
+/**
+ * The shader choices a property's picker lists after its own: the catalog's shaders of the slot's
+ * kinds that can be drawn here. A sprite is disabled while the row's layer draws a surface, since
+ * both are the one `node.shader`.
+ * @param ctx - the row.
+ * @param slot - the picker's slot.
+ * @returns the choices, valued `shader:<id>`.
+ */
+export function pickerChoices(ctx: RowContext, slot: ShaderSlot): PickerChoice[] {
+    const surface = slot.kinds.includes("node-sprite") && surfaceOn(ctx) !== undefined;
+    return ctx.session.catalog
+        .shaders()
+        .filter(
+            (descriptor) => slot.kinds.includes(descriptor.kind) && ctx.session.shaders.availability(descriptor.id).ok,
+        )
+        .map((descriptor) => ({
+            value: `${SHADER_CHOICE}${descriptor.id}`,
+            label: descriptor.plainName,
+            picture: descriptor.thumbnail,
+            disabled: surface,
+        }));
+}
+
+/**
+ * The surface the row's layer draws (its Material row), if any.
+ * @param ctx - the row.
+ * @returns the surface, or undefined.
+ */
+function surfaceOn(ctx: RowContext): ShaderDescriptor | undefined {
+    const slot = slotOf("node", ["node-surface"]);
+    return slot === undefined
+        ? undefined
+        : shaderEntries(ctx, slot).find((entry) => entry.descriptor !== undefined)?.descriptor;
+}
+
+/**
+ * The sprite the row's layer draws (its Shape section's sprite row), if any: while it is set, the
+ * Material row's "+" adds nothing, since both are the one `node.shader`.
+ * @param ctx - the row.
+ * @returns the sprite, or undefined.
+ */
+export function spriteOn(ctx: RowContext): ShaderDescriptor | undefined {
+    const slot = slotOf("node", ["node-sprite"]);
+    return slot === undefined ? undefined : shaderEntries(ctx, slot)[0]?.descriptor;
 }
 
 /**

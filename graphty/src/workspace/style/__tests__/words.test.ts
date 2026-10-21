@@ -179,7 +179,7 @@ describe("shader words", () => {
         assert.equal(motionWords({ motion: { loop: { speedParam: "spin" } }, params: [spin] }), "Spin");
         assert.equal(motionWords({ motion: {}, params: [] }), "Still");
         assert.equal(motionWords({ motion: { enter: 0.4 }, params: [] }), "On enter");
-        assert.equal(triggerWord({ motion: { change: 1 } }), "Change");
+        assert.equal(triggerWord({ motion: { change: 1 } }), "On change");
         assert.isUndefined(triggerWord({ motion: { loop: {} } }));
     });
 });

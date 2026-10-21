@@ -131,12 +131,12 @@ export function GraphSettings(): React.JSX.Element | null {
                             session={session}
                             shader={background.backgroundType === "shader" ? background.shader : undefined}
                             params={background.backgroundType === "shader" ? (background.params ?? {}) : {}}
-                            onWrite={(shader, params) => {
+                            onWrite={(shader, params, scope = session) => {
                                 // The color in force is drawn until the shader draws.
                                 const color = background.backgroundType === "color" ? background.color : undefined;
                                 const kept = background.backgroundType === "shader" ? background.color : color;
                                 setPicked(null);
-                                void session.config.set({
+                                return scope.config.set({
                                     background: {
                                         backgroundType: "shader",
                                         shader,

@@ -995,16 +995,23 @@ export function usesWords(reads: readonly ShaderInput[]): string {
 }
 
 /**
- * The trigger chip a row draws when the shader plays on an event: Enter or Change, else nothing.
+ * The trigger chip a row draws when the shader plays on an event: "On enter" or "On change", else
+ * nothing.
  * @param descriptor - the catalog's entry.
- * @returns the chip's word, or undefined.
+ * @returns the chip's words, or undefined.
  */
 export function triggerWord(descriptor: Pick<ShaderDescriptor, "motion">): string | undefined {
     if (descriptor.motion.enter !== undefined) {
-        return "Enter";
+        return "On enter";
     }
-    return descriptor.motion.change === undefined ? undefined : "Change";
+    return descriptor.motion.change === undefined ? undefined : "On change";
 }
+
+/** The trigger chip's tooltip, by its words. */
+export const TRIGGER_TIPS: Readonly<Record<string, string>> = {
+    "On enter": "Plays as an element joins this layer",
+    "On change": "Plays as a value changes",
+};
 
 /**
  * The Motion row: the parameter that sets its speed ("Spin"), "On enter", "On change" or "Still".
@@ -1020,12 +1027,12 @@ export function motionWords(descriptor: Pick<ShaderDescriptor, "motion" | "param
     if (motion.loop !== undefined) {
         return "Moves";
     }
-    const trigger = triggerWord(descriptor);
-    return trigger === undefined ? "Still" : `On ${trigger.toLowerCase()}`;
+    return triggerWord(descriptor) ?? "Still";
 }
 
-/** The second line of a heavy tile. */
+/** The second line of a heavy tile, and its tooltip. */
 export const HEAVY_WORD = "Heavy";
+export const HEAVY_TIP = "Costly to draw on a slow device";
 
 /**
  * Why a gallery tile cannot be picked here, from the element's coded answer.
@@ -1062,7 +1069,7 @@ export function effectOffWords(name: string): string {
 
 /** The paste dialog's Kind select: each kind of shader a style layer draws, by name. */
 export const SHADER_KIND_WORDS: Readonly<Record<ShaderKind, string>> = {
-    "node-surface": "Node surface",
+    "node-surface": "Node material",
     "node-sprite": "Node sprite",
     "node-effect": "Node effect",
     "edge-surface": "Edge surface",
@@ -1095,7 +1102,7 @@ export function pasteProblemWords(problem: ShaderProblem): string {
     const said = typeof p.message === "string" && p.message !== "" ? `: ${p.message}` : "";
     switch (problem.code) {
         case "shader.header-missing":
-            return "No shade function";
+            return "No header";
         case "shader.header-json":
             return `Header is not JSON${said}`;
         case "shader.header-key":
@@ -1133,7 +1140,12 @@ export function pasteProblemWords(problem: ShaderProblem): string {
         case "shader.entry-missing":
             return "No shade function";
         case "shader.entry-signature":
-            return `shade needs ${String(p.expected)}`;
+            // A kind's own signature ("vec4 shade(NodeInput node)"), or only the function's name.
+            return String(p.expected).includes("(")
+                ? `Write it as ${String(p.expected)}`
+                : "shade has the wrong inputs";
+        case "shader.apply-target":
+            return "Not for this layer's kind";
         case "shader.compile":
             return `Does not compile${said}`;
         case "shader.over-budget":
@@ -1142,6 +1154,35 @@ export function pasteProblemWords(problem: ShaderProblem): string {
             return shaderProblemWords(problem);
     }
 }
+
+/**
+ * The name Duplicate and edit gives its copy: "Pearl copy".
+ * @param name - the shader's name.
+ * @returns the words.
+ */
+export function copyNameWords(name: string): string {
+    return `${name} copy`;
+}
+
+/**
+ * Why a Material row cannot be added: the layer draws a sprite, the one shader a node has.
+ * @param sprite - the sprite's name.
+ * @returns the words.
+ */
+export function materialBlockedWords(sprite: string): string {
+    return `${sprite} is set in Shape`;
+}
+
+/** Where each kind of shader is set, which the paste dialog names for a kind its section does not take. */
+export const SHADER_HOME_WORDS: Readonly<Record<ShaderKind, string>> = {
+    "node-surface": "Goes in Node > Rendering",
+    "node-sprite": "Goes in Node > Shape",
+    "node-effect": "Goes in Node > Effects",
+    "edge-surface": "Goes in Edge > Line",
+    "edge-effect": "Goes in Edge > Effects",
+    background: "Goes in Graph settings > Background",
+    boundary: "Goes in Node > Group outline",
+};
 
 /** Why the paste dialog's Add cannot be pressed yet. */
 export const PASTE_WAIT_WORDS = { empty: "Nothing to add", checking: "Checking" } as const;

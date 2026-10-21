@@ -16,7 +16,7 @@ import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { StylePanel } from "../StylePanel";
 import { showKind } from "./kindTab";
@@ -42,6 +42,28 @@ vec4 shade(NodeInput n) {
 }
 `;
 
+/** The dialog, titled Paste shader, or Edit shader for Duplicate and edit. */
+const DIALOG = /^(Paste|Edit) shader$/;
+
+/** A node effect that passes the static checks and fails to compile: a vec3 stored in a float. */
+const COMPILE_TEXT = `/* graphty-shader 1
+{ "id": "user/bad-cast", "name": "Bad cast", "kind": "node-effect" }
+*/
+vec4 shade(NodeInput n) {
+    float x = vec3(1.0);
+    return vec4(x);
+}
+`;
+
+/** A header with a key the format does not know: a problem with no line. */
+const KEY_TEXT = `/* graphty-shader 1
+{ "id": "user/odd", "name": "Odd", "kind": "node-effect", "bogus": 1 }
+*/
+vec4 shade(NodeInput n) {
+    return n.color;
+}
+`;
+
 /** The same shader with the loop in the fixed-count form. */
 const FIXED_TEXT = WHILE_TEXT.replace("while (ring < 0.5)", "for (int i = 0; i < 5; i++)");
 
@@ -60,7 +82,7 @@ afterEach(() => {
  */
 async function mount(
     set: Record<string, unknown> = { "node.opacity": 1 },
-): Promise<{ session: GraphSession; id: LayerId }> {
+): Promise<{ session: GraphSession; id: LayerId; store: WorkspaceStore }> {
     host = document.createElement("div");
     host.style.width = "360px";
     host.style.height = "240px";
@@ -80,7 +102,8 @@ async function mount(
     await session.data.addNodes([{ id: "1" }, { id: "2" }]);
     await session.data.addEdges([{ source: "1", target: "2" }]);
     const layer = await session.styles.add({ name: "Top", target: "node", selector: { match: "everything" }, set });
-    const value = makeWorkspaceValue(createWorkspaceStore(), createRegistry([]), session, element);
+    const store = createWorkspaceStore();
+    const value = makeWorkspaceValue(store, createRegistry([]), session, element);
     render(
         <WorkspaceContext.Provider value={value}>
             <PopoutManager>
@@ -91,7 +114,7 @@ async function mount(
         </WorkspaceContext.Provider>,
     );
     await showKind("node");
-    return { session, id: layer.id };
+    return { session, id: layer.id, store };
 }
 
 /**
@@ -129,7 +152,7 @@ async function openPaste(): Promise<HTMLTextAreaElement> {
  * @returns the code box.
  */
 async function codeBox(): Promise<HTMLTextAreaElement> {
-    const dialog = await screen.findByRole("dialog", { name: "Paste shader" });
+    const dialog = await screen.findByRole("dialog", { name: DIALOG });
     return within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
 }
 
@@ -138,7 +161,7 @@ async function codeBox(): Promise<HTMLTextAreaElement> {
  * @returns the button.
  */
 function addButton(): HTMLElement {
-    return within(screen.getByRole("dialog", { name: "Paste shader" })).getByRole("button", { name: "Add" });
+    return within(screen.getByRole("dialog", { name: DIALOG })).getByRole("button", { name: "Add" });
 }
 
 /**
@@ -227,8 +250,10 @@ describe("Paste shader on the real element", () => {
 
         await userEvent.click(row, { button: "right" });
         await userEvent.click(await screen.findByRole("menuitem", { name: "Duplicate and edit" }));
+        await screen.findByRole("dialog", { name: "Edit shader" });
         const box = await codeBox();
         assert.include(box.value, '"user/uncertainty-aura"');
+        assert.include(box.value, '"Aura copy"', "the copy is named apart");
         await pressAdd();
 
         await waitFor(
@@ -237,6 +262,10 @@ describe("Paste shader on the real element", () => {
                     session.shaders.list().map((each) => each.id),
                     ["user/uncertainty-aura"],
                 );
+                assert.deepEqual(session.styles.get(id)?.set?.["node.effects"], {
+                    "uncertainty-aura": true,
+                    "user/uncertainty-aura": true,
+                });
             },
             { timeout: TIMEOUT_MS },
         );
@@ -276,7 +305,7 @@ describe("Paste shader on the real element", () => {
             return found;
         });
         await userEvent.click(row, { button: "right" });
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Copy shader" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Copy code" }));
         const text = await session.shaders.source("uncertainty-aura");
         await waitFor(async () => {
             assert.strictEqual(await navigator.clipboard.readText(), text);
@@ -322,5 +351,67 @@ describe("Paste shader on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.shaders.list(), 1);
         });
+    });
+
+    it("the live check finds a compile error before Add, marks the code box invalid and announces it", async () => {
+        const { session, id, store } = await mount();
+        const before = JSON.stringify(session.styles.get(id));
+        const box = await openPaste();
+        await userEvent.fill(box, COMPILE_TEXT);
+        const dialog = screen.getByRole("dialog", { name: "Paste shader" });
+        await waitFor(
+            () => {
+                assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "a compile problem row");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(box.getAttribute("aria-invalid"), "true");
+        const problems = within(dialog).getByRole("list", { name: "Problems" });
+        assert.include(box.getAttribute("aria-describedby") ?? "", problems.id);
+        assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
+        await waitFor(() => {
+            assert.match(store.get().announcement ?? "", /problem/, "the problems are announced");
+        });
+        assert.strictEqual(JSON.stringify(session.styles.get(id)), before);
+        assert.lengthOf(session.shaders.list(), 0);
+    });
+
+    it("a problem with no line is words, not a button", async () => {
+        await mount();
+        const box = await openPaste();
+        await userEvent.fill(box, KEY_TEXT);
+        const dialog = screen.getByRole("dialog", { name: "Paste shader" });
+        const row = await waitFor(
+            () => {
+                const found = dialog.querySelector<HTMLElement>('[data-code="shader.header-key"]');
+                assert.isNotNull(found);
+                return found;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.notStrictEqual(row.tagName, "BUTTON");
+        assert.isNull(row.closest("button"));
+    });
+
+    it("a shader of a kind the section does not take keeps the dialog open and names the section that does", async () => {
+        const { session, id } = await mount();
+        const text = `${await session.shaders.source("pearl", { duplicate: true })}\n// pasted\n`;
+        const box = await openPaste();
+        await userEvent.fill(box, text);
+        const dialog = screen.getByRole("dialog", { name: "Paste shader" });
+        await waitFor(
+            () => {
+                assert.include(dialog.textContent ?? "", "Goes in Node > Rendering");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const kind = within(dialog).getByRole<HTMLSelectElement>("combobox", { name: "Kind" });
+        assert.strictEqual(kind.value, "node-surface", "the Kind follows the header");
+        assert.include(kind.selectedOptions[0]?.textContent ?? "", "Node material");
+        assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
+        await userEvent.keyboard("{Enter}");
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Paste shader" }), "the dialog stays open");
+        assert.isUndefined(session.styles.get(id)?.set?.["node.shader"]);
+        assert.lengthOf(session.shaders.list(), 0);
     });
 });

@@ -1,4 +1,5 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
+import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Badge, Button, Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
@@ -26,8 +27,8 @@ import {
     writeParam,
     writeShown,
 } from "./shaderSlots";
-import { focusSectionNext } from "./useFocusLine";
-import { effectOffWords, failureWords, MATERIAL_WORDS, triggerWord } from "./words";
+import { focusSectionNext, headerBottom } from "./useFocusLine";
+import { copyNameWords, effectOffWords, failureWords, MATERIAL_WORDS, TRIGGER_TIPS, triggerWord } from "./words";
 
 /** The width of a shader row's pop-outs: the gallery and the settings, as every field's. */
 const POPOUT_WIDTH = 240;
@@ -146,7 +147,15 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                   ctx.session.shaders
                       .source(entry.id, { duplicate: true, params: paramsOf(ctx, slot, entry.id) })
                       .then((text) => {
-                          onPaste({ text, duplicateOf: entry.id });
+                          // The copy is named apart from what it copies: "Pearl copy".
+                          const read = parseShaderText(text);
+                          const named = read.ok
+                              ? formatShaderText({
+                                    ...read.registration,
+                                    descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
+                                })
+                              : text;
+                          onPaste({ text: named, duplicateOf: entry.id });
                       })
                       .catch(fail("copied"));
               };
@@ -157,7 +166,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             <Popout.Trigger>
                 <UnstyledButton
                     className="ws-shader-pick"
-                    aria-label={`${slot.word}: ${name}`}
+                    aria-label={trigger === undefined ? `${slot.word}: ${name}` : `${slot.word}: ${name}, ${trigger}`}
                     aria-haspopup="dialog"
                     aria-expanded={swapping}
                 >
@@ -175,6 +184,7 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
+                boundaryTop={swapping ? headerBottom() : 0}
                 header={{ variant: "title", title: slot.word }}
             >
                 <Popout.Content>
@@ -235,13 +245,14 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                             }}
                         />
                         <Button size="compact-xs" variant="subtle" onClick={copyText}>
-                            Copy shader
+                            Copy code
                         </Button>
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
         );
     const removeName = `Remove ${name.toLowerCase()}`;
+    const hideName = `Hide ${name.toLowerCase()}`;
     const row = (
         <div
             ref={box}
@@ -251,20 +262,27 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
             data-shader={entry.id}
             data-hidden={entry.hidden === true ? "" : undefined}
             onKeyDownCapture={(event) => {
+                // Only the row's own pick button removes the row, as a property row's closed
+                // select does. A key from its pop-outs (a color chip, a tile) reaches here through
+                // React's portal and is not the row's: the DOM's own containment tells them apart.
                 const target = event.target as HTMLElement;
-                if ((event.key === "Delete" || event.key === "Backspace") && target.tagName === "BUTTON") {
+                const own = box.current?.contains(target) === true && target.classList.contains("ws-shader-pick");
+                if ((event.key === "Delete" || event.key === "Backspace") && own) {
                     event.preventDefault();
                     event.stopPropagation();
                     remove();
                 }
             }}
         >
-            <div className="ws-field" data-named="" data-effect={effect ? "" : undefined}>
-                <span className="ws-field-label">
-                    <span className="ws-field-name" title={slot.word} aria-hidden>
-                        {slot.word}
+            {/* An effect row is one of a list the section names, so the kind is not repeated on each. */}
+            <div className="ws-field" data-named={effect ? undefined : ""} data-effect={effect ? "" : undefined}>
+                {!effect && (
+                    <span className="ws-field-label">
+                        <span className="ws-field-name" title={slot.word} aria-hidden>
+                            {slot.word}
+                        </span>
                     </span>
-                </span>
+                )}
                 <div className="ws-field-control ws-shader-control">
                     {entry.off === true ? (
                         <Text size="xs" truncate>
@@ -274,20 +292,23 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                         swap
                     )}
                     {trigger === undefined ? null : (
-                        <Badge size="xs" variant="light" radius="sm" className="ws-shader-trigger">
-                            {trigger}
-                        </Badge>
+                        <Tooltip label={TRIGGER_TIPS[trigger]}>
+                            <Badge size="xs" variant="light" radius="sm" className="ws-shader-trigger" aria-hidden>
+                                {trigger}
+                            </Badge>
+                        </Tooltip>
                     )}
                 </div>
                 <span className="ws-slot">{settingsButton}</span>
                 {effect && (
                     <span className="ws-slot">
                         {entry.off !== true && (
-                            <Tooltip label={shown ? `Hide ${name.toLowerCase()}` : `Show ${name.toLowerCase()}`}>
+                            <Tooltip label={hideName}>
                                 <ActionIcon
                                     variant="subtle"
                                     size="sm"
-                                    aria-label={shown ? `Hide ${name.toLowerCase()}` : `Show ${name.toLowerCase()}`}
+                                    // A toggle: one name, its state in aria-pressed (pressed: hidden).
+                                    aria-label={hideName}
                                     aria-pressed={!shown}
                                     onClick={toggleShown}
                                 >
@@ -320,9 +341,9 @@ export function ShaderRow({ ctx, slot, entry, onPaste }: Readonly<ShaderRowProps
                     store.set({ announcement: `${name} copied` });
                 }}
             >
-                Copy
+                {`Copy ${slot.word.toLowerCase()}`}
             </Menu.Item>
-            {descriptor !== undefined && <Menu.Item onClick={copyText}>Copy shader</Menu.Item>}
+            {descriptor !== undefined && <Menu.Item onClick={copyText}>Copy code</Menu.Item>}
             {duplicate !== undefined && <Menu.Item onClick={duplicate}>Duplicate and edit</Menu.Item>}
             {canPaste(slot) && (
                 <Menu.Item

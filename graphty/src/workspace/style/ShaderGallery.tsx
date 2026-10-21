@@ -1,10 +1,42 @@
 import { ContextMenu } from "@graphty/compact-mantine";
 import type { ShaderDescriptor, ShaderKind } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Text, TextInput, UnstyledButton } from "@mantine/core";
-import React, { useState } from "react";
+import { Menu, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import React, { useRef, useState } from "react";
 
-import { HEAVY_WORD, layersWord, shaderMatches, shaderProblemWords } from "./words";
+import { HEAVY_TIP, HEAVY_WORD, layersWord, shaderMatches, shaderProblemWords } from "./words";
+
+/** The gallery's columns, which Up and Down move across. */
+const COLUMNS = 2;
+
+/**
+ * Moves focus among the gallery's tiles, one Tab stop for all of them (decided.md's grids): the
+ * arrows move by one tile or one row and stop at the ends, Home and End go to the first and last.
+ * Disabled tiles are passed over.
+ * @param event - the key, on a tile.
+ * @param root - the gallery.
+ */
+function roveKey(event: React.KeyboardEvent, root: HTMLElement | null): void {
+    const tiles = [...(root?.querySelectorAll<HTMLElement>(".ws-gallery-tile:not([aria-disabled])") ?? [])];
+    const at = tiles.indexOf(event.target as HTMLElement);
+    if (at < 0) {
+        return;
+    }
+    const moves: Record<string, number> = {
+        ArrowRight: at + 1,
+        ArrowLeft: at - 1,
+        ArrowDown: at + COLUMNS,
+        ArrowUp: at - COLUMNS,
+        Home: 0,
+        End: tiles.length - 1,
+    };
+    const next = moves[event.key];
+    if (next === undefined) {
+        return;
+    }
+    event.preventDefault();
+    tiles[Math.max(0, Math.min(next, tiles.length - 1))]?.focus();
+}
 
 /** A gallery choice that is not a shader: the Material row's Plain and Wireframe. */
 export interface GalleryChoice {
@@ -34,9 +66,11 @@ interface ShaderGalleryProps {
 /**
  * The shader gallery (shader-styles design, section 6.2): a search box first, with focus, then a
  * two-column grid of the catalog's shaders of the kinds the row takes, each its still picture and
- * name; the shaders pasted into the project after them, under "In this project". Hovering a tile
- * changes nothing on the canvas: only a pick writes. A heavy tile says so on a second line; a tile
- * the element cannot draw here is disabled with its reason, and is no Tab stop.
+ * name; the shaders pasted into the project after them, under "In this project"; Paste shader...
+ * pinned at the foot. The tiles are one Tab stop: the arrows move among them (ArrowDown from the
+ * search box enters them), and the one on the layer is marked as current. Hovering a tile changes
+ * nothing on the canvas: only a pick writes. A heavy tile says so on a second line, with a
+ * tooltip; a tile the element cannot draw here is disabled with its reason and is passed over.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.kinds - the kinds the row takes
@@ -59,15 +93,32 @@ export function ShaderGallery({
     onDelete,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
+    const root = useRef<HTMLDivElement>(null);
+    // The tile that is the gallery's one Tab stop: the last one focused, else the first.
+    const [stop, setStop] = useState<string | null>(null);
     const shaders = session.catalog
         .shaders()
         .filter((descriptor) => kinds.includes(descriptor.kind) && shaderMatches(descriptor, query));
     const shown = choices.filter((choice) => shaderMatches({ id: choice.value, plainName: choice.label }, query));
     const own = shaders.filter((descriptor) => descriptor.origin !== "pasted");
     const pasted = shaders.filter((descriptor) => descriptor.origin === "pasted");
+    const reasons = new Map(
+        shaders.map((descriptor) => {
+            const available = session.shaders.availability(descriptor.id);
+            return [descriptor.id, available.ok ? undefined : shaderProblemWords(available.problem)] as const;
+        }),
+    );
+    // The Tab stop: the tile last focused while it is still shown and can be picked, else the one
+    // on the layer, else the first.
+    const pickable = [
+        ...shown.map((choice) => choice.value),
+        ...[...own, ...pasted]
+            .filter((descriptor) => reasons.get(descriptor.id) === undefined)
+            .map((descriptor) => descriptor.id),
+    ];
+    const tabStop = [stop, ...marked].find((id) => id !== null && pickable.includes(id)) ?? pickable[0];
     const tile = (descriptor: ShaderDescriptor): React.JSX.Element => {
-        const available = session.shaders.availability(descriptor.id);
-        const reason = available.ok ? undefined : shaderProblemWords(available.problem);
+        const reason = reasons.get(descriptor.id);
         return (
             <GalleryTile
                 key={descriptor.id}
@@ -75,14 +126,29 @@ export function ShaderGallery({
                 name={descriptor.plainName}
                 picture={descriptor.thumbnail}
                 second={reason ?? (descriptor.cost === "heavy" ? HEAVY_WORD : undefined)}
+                tip={reason === undefined && descriptor.cost === "heavy" ? HEAVY_TIP : undefined}
                 disabled={reason !== undefined}
                 marked={marked.includes(descriptor.id)}
+                stop={tabStop === descriptor.id}
                 onPick={onPick}
             />
         );
     };
     return (
-        <div className="ws-gallery" data-testid="shader-gallery">
+        <div
+            ref={root}
+            className="ws-gallery"
+            data-testid="shader-gallery"
+            onKeyDown={(event) => {
+                roveKey(event, root.current);
+            }}
+            onFocus={(event) => {
+                const id = (event.target as HTMLElement).dataset.shader;
+                if (id !== undefined && (event.target as HTMLElement).classList.contains("ws-gallery-tile")) {
+                    setStop(id);
+                }
+            }}
+        >
             <TextInput
                 size="xs"
                 aria-label={label}
@@ -92,6 +158,12 @@ export function ShaderGallery({
                 onChange={(event) => {
                     setQuery(event.currentTarget.value);
                 }}
+                onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        root.current?.querySelector<HTMLElement>('.ws-gallery-tile[tabindex="0"]')?.focus();
+                    }
+                }}
             />
             <div className="ws-gallery-grid" role="list" aria-label={label}>
                 {shown.map((choice) => (
@@ -100,6 +172,7 @@ export function ShaderGallery({
                         id={choice.value}
                         name={choice.label}
                         marked={marked.includes(choice.value)}
+                        stop={tabStop === choice.value}
                         onPick={onPick}
                     />
                 ))}
@@ -139,9 +212,12 @@ export function ShaderGallery({
                 </Text>
             )}
             {onPaste !== undefined && (
-                <UnstyledButton className="ws-gallery-paste" onClick={onPaste}>
-                    <Text size="xs">Paste shader...</Text>
-                </UnstyledButton>
+                // Pinned at the foot of the pop-out, so it is in view however long the grid is.
+                <div className="ws-gallery-foot">
+                    <UnstyledButton className="ws-gallery-paste" onClick={onPaste}>
+                        <Text size="xs">Paste shader...</Text>
+                    </UnstyledButton>
+                </div>
             )}
         </div>
     );
@@ -154,8 +230,10 @@ export function ShaderGallery({
  * @param props.name - the name
  * @param props.picture - the still picture, if any
  * @param props.second - the second line: Heavy, or why it cannot be picked
+ * @param props.tip - the tooltip, for a second line that needs saying more (Heavy)
  * @param props.disabled - whether it cannot be picked here
  * @param props.marked - whether it is already on the layer
+ * @param props.stop - whether it is the gallery's one Tab stop
  * @param props.onPick - picks it
  * @returns The tile
  */
@@ -164,8 +242,10 @@ function GalleryTile({
     name,
     picture,
     second,
+    tip,
     disabled = false,
     marked,
+    stop,
     onPick,
     ...handlers
 }: Readonly<
@@ -175,42 +255,47 @@ function GalleryTile({
         name: string;
         picture?: string;
         second?: string;
+        tip?: string;
         disabled?: boolean;
         marked: boolean;
+        stop: boolean;
         onPick: (id: string) => void;
     }
 >): React.JSX.Element {
+    const button = (
+        <UnstyledButton
+            className="ws-gallery-tile"
+            data-shader={id}
+            data-marked={marked ? "" : undefined}
+            aria-current={marked ? "true" : undefined}
+            aria-disabled={disabled ? true : undefined}
+            aria-description={disabled ? second : tip}
+            tabIndex={stop && !disabled ? 0 : -1}
+            title={disabled ? second : undefined}
+            onClick={() => {
+                if (!disabled) {
+                    onPick(id);
+                }
+            }}
+        >
+            {picture === undefined ? (
+                <span className="ws-gallery-picture" aria-hidden />
+            ) : (
+                <img className="ws-gallery-picture" src={picture} alt="" />
+            )}
+            <Text size="xs" truncate>
+                {name}
+            </Text>
+            {second !== undefined && (
+                <Text size="xs" c="dimmed" truncate>
+                    {second}
+                </Text>
+            )}
+        </UnstyledButton>
+    );
     return (
         <div role="listitem" {...handlers}>
-            <UnstyledButton
-                className="ws-gallery-tile"
-                data-shader={id}
-                data-marked={marked ? "" : undefined}
-                aria-pressed={marked}
-                aria-disabled={disabled ? true : undefined}
-                aria-description={disabled ? second : undefined}
-                tabIndex={disabled ? -1 : undefined}
-                title={disabled ? second : undefined}
-                onClick={() => {
-                    if (!disabled) {
-                        onPick(id);
-                    }
-                }}
-            >
-                {picture === undefined ? (
-                    <span className="ws-gallery-picture" aria-hidden />
-                ) : (
-                    <img className="ws-gallery-picture" src={picture} alt="" />
-                )}
-                <Text size="xs" truncate>
-                    {name}
-                </Text>
-                {second !== undefined && (
-                    <Text size="xs" c="dimmed" truncate>
-                        {second}
-                    </Text>
-                )}
-            </UnstyledButton>
+            {tip === undefined ? button : <Tooltip label={tip}>{button}</Tooltip>}
         </div>
     );
 }

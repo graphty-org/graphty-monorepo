@@ -155,6 +155,21 @@ async function bindParam(param: string, column: string): Promise<void> {
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${column}(,|$)`) }));
 }
 
+/**
+ * Opens a select by its name and picks an option by its name.
+ * @param field - the select.
+ * @param name - the option's name.
+ */
+async function pickOption(field: HTMLElement, name: string): Promise<void> {
+    await userEvent.click(field);
+    const options = await screen.findAllByRole("option");
+    const found = options.find((o) => (o.getAttribute("aria-label") ?? o.textContent ?? "").trim() === name);
+    assert.isDefined(found, `the picker offers ${name}`);
+    if (found !== undefined) {
+        await userEvent.click(found);
+    }
+}
+
 describe("shader rows on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1024, 768);
@@ -341,12 +356,15 @@ describe("shader rows on the real element", () => {
         const line = (): HTMLElement =>
             document.querySelector<HTMLElement>('[data-section="edge-line"]') as HTMLElement;
 
+        // An edge surface is one of the Pattern row's choices (design 6.1), not a "+" item of its own.
         await userEvent.click(within(line()).getByRole("button", { name: "Add to edge line" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Surface..." }));
-        await pickTile("Fiber");
+        assert.isNull(screen.queryByRole("menuitem", { name: "Surface..." }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern" }));
+        await pickOption(await within(line()).findByRole("combobox", { name: /^Edge pattern/ }), "Fiber");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(edges.id)?.set?.["edge.shader"], "fiber-optic");
         });
+        assert.isUndefined(session.styles.get(edges.id)?.set?.["edge.style"], "the pattern itself is not written");
         await closePopout();
 
         await userEvent.click(within(line()).getByRole("button", { name: "Add to edge line" }));
@@ -402,5 +420,158 @@ describe("shader rows on the real element", () => {
             assert.deepEqual(session.styles.get(id)?.set?.["node.effects"], { "uncertainty-aura": false });
         });
         assert.isNotNull(section("effects").querySelector('[data-line="node.effects:uncertainty-aura"]'));
+    });
+
+    it("Backspace on a tile in a row's gallery keeps the row; on the row's own button it removes it", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shader": "glass-marble" },
+        });
+        renderPanel(session, element, [layer.id]);
+        await showKind("node");
+
+        const pick = within(section("rendering")).getByRole("button", { name: "Material: Glass marble" });
+        await userEvent.click(pick);
+        await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        await userEvent.keyboard("{ArrowDown}");
+        assert.isTrue(document.activeElement?.classList.contains("ws-gallery-tile"), "a tile has focus");
+        await userEvent.keyboard("{Backspace}");
+        assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shader"], "glass-marble", "the row is kept");
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByTestId("shader-gallery"));
+        });
+        within(section("rendering")).getByRole("button", { name: "Material: Glass marble" }).focus();
+        await userEvent.keyboard("{Backspace}");
+        await waitFor(() => {
+            assert.isUndefined(session.styles.get(layer.id)?.set?.["node.shader"]);
+        });
+    });
+
+    it("the gallery is one Tab stop: ArrowDown from search enters it, the arrows move and stop at the ends, and the tile in use is current", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shader": "pearl" },
+        });
+        renderPanel(session, element, [layer.id]);
+        await showKind("node");
+
+        await userEvent.click(within(section("rendering")).getByRole("button", { name: "Material: Pearl" }));
+        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        assert.lengthOf(gallery.querySelectorAll('.ws-gallery-tile[tabindex="0"]'), 1, "one Tab stop");
+        const pearl = gallery.querySelector<HTMLElement>('.ws-gallery-tile[data-shader="pearl"]');
+        assert.isNotNull(pearl);
+        assert.strictEqual(pearl.getAttribute("aria-current"), "true");
+        assert.isNull(pearl.getAttribute("aria-pressed"));
+        assert.strictEqual(pearl.getAttribute("tabindex"), "0", "the tile in use is the stop");
+
+        await userEvent.keyboard("{ArrowDown}");
+        assert.strictEqual(document.activeElement, pearl);
+        await userEvent.keyboard("{Home}");
+        const first = gallery.querySelector<HTMLElement>(".ws-gallery-tile:not([aria-disabled])");
+        assert.strictEqual(document.activeElement, first);
+        await userEvent.keyboard("{ArrowLeft}{ArrowUp}");
+        assert.strictEqual(document.activeElement, first, "the arrows stop at the first tile");
+        await userEvent.keyboard("{ArrowRight}");
+        assert.notStrictEqual(document.activeElement, first);
+        assert.strictEqual(document.activeElement?.getAttribute("tabindex"), "0", "the stop follows focus");
+        // The gallery's foot is in view however long the grid is.
+        const paste = within(gallery).getByRole("button", { name: "Paste shader..." });
+        const panel = paste.closest<HTMLElement>(".cm-popout-body");
+        assert.isAtMost(paste.getBoundingClientRect().bottom, (panel?.getBoundingClientRect().bottom ?? 0) + 1);
+    });
+
+    it("Shape lists the sprites: Sticker writes node.shader, covers the layer's own Shape row, and Material's '+' says why it adds nothing", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+        renderPanel(session, element, [layer.id]);
+        await showKind("node");
+        assert.isNull(
+            within(section("shape")).queryByRole("menuitem", { name: "Sprite..." }),
+            "no sprite gallery in the '+'",
+        );
+
+        await pickOption(within(section("shape")).getByRole("combobox", { name: /^Node shape/ }), "Sticker");
+        await waitFor(() => {
+            assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shader"], "icon-sticker");
+        });
+        assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shape"], "box", "the shape is kept");
+        await waitFor(
+            () => {
+                const shape = section("shape").querySelector('.ws-row[data-line="node.shape"]');
+                assert.include(shape?.querySelector("[data-covered-caption]")?.textContent ?? "", "Covered by Sticker");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const plus = within(section("rendering")).getByRole("button", { name: "Add to node rendering" });
+        assert.strictEqual(plus.getAttribute("aria-disabled"), "true");
+        assert.strictEqual(plus.getAttribute("aria-description"), "Sticker is set in Shape");
+    });
+
+    it("an effect row names its trigger, its eye keeps one name with its state pressed, and Copy effect then Paste replaces a sprite's", async () => {
+        const { session, element } = await mountElement();
+        const layer = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.effects": { "change-flash": true }, "node.shader": "icon-sticker" },
+        });
+        renderPanel(session, element, [layer.id]);
+        await showKind("node");
+
+        const pick = await within(section("effects")).findByRole("button", { name: "Effect: Change flash, On change" });
+        assert.include(pick.textContent ?? "", "Change flash");
+        const eye = within(section("effects")).getByRole("button", { name: "Hide change flash" });
+        assert.strictEqual(eye.getAttribute("aria-pressed"), "false");
+        await userEvent.click(eye);
+        await waitFor(() => {
+            const hidden = within(section("effects")).getByRole("button", { name: "Hide change flash" });
+            assert.strictEqual(hidden.getAttribute("aria-pressed"), "true");
+        });
+
+        // Copy the sticker, swap the sprite for a mandala, then paste the sticker back over it.
+        const row = section("shape").querySelector<HTMLElement>('[data-shader="icon-sticker"]');
+        assert.isNotNull(row);
+        await userEvent.click(row, { button: "right" });
+        assert.isNotNull(await screen.findByRole("menuitem", { name: "Copy sprite" }));
+        assert.isNotNull(screen.getByRole("menuitem", { name: "Copy code" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Copy sprite" }));
+        await session.styles.update(layer.id, { set: { "node.shader": "mandala" } });
+        const swapped = await waitFor(() => {
+            const found = section("shape").querySelector<HTMLElement>('[data-shader="mandala"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        const steps = session.history.position;
+        await userEvent.click(swapped, { button: "right" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await waitFor(() => {
+            assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shader"], "icon-sticker");
+        });
+        assert.strictEqual(session.history.position, steps + 1, "one step");
+    });
+
+    it("a '+' that opens a gallery says so and whether it is open", async () => {
+        const { session, element } = await mountElement();
+        await renderRow(session, element);
+        await showKind("node");
+        const plus = within(section("rendering")).getByRole("button", { name: "Add to node rendering" });
+        assert.strictEqual(plus.getAttribute("aria-haspopup"), "dialog");
+        assert.strictEqual(plus.getAttribute("aria-expanded"), "false");
+        await userEvent.click(plus);
+        await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        assert.strictEqual(plus.getAttribute("aria-expanded"), "true");
     });
 });

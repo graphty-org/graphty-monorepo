@@ -11,9 +11,9 @@ import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { lineIn, partlySet, startingAdds, writeIn } from "./row";
 import { ShaderRow, SlotGallery } from "./ShaderRow";
-import { pickShader, shaderEntries, slotAdd, slotAddOptions, slotIsSet, slotOf } from "./shaderSlots";
-import { focusLineNext } from "./useFocusLine";
-import { channelWord, failureWords, fieldName, type SectionSpec } from "./words";
+import { pickShader, shaderEntries, slotAdd, slotAddOptions, slotIsSet, slotOf, spriteOn } from "./shaderSlots";
+import { focusLineNext, headerBottom } from "./useFocusLine";
+import { channelWord, failureWords, fieldName, materialBlockedWords, type SectionSpec } from "./words";
 
 /**
  * Whether the row sets a property: a line of its own (not the element's locked base), or, for
@@ -101,6 +101,9 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         return null;
     }
     const shaders = slot === undefined ? [] : shaderEntries(ctx, slot);
+    // A sprite and a surface are the one node.shader: while the layer draws a sprite, Material
+    // adds nothing, and says why, instead of a pick that would silently replace the sprite.
+    const sprite = slot?.role === "material" ? spriteOn(ctx) : undefined;
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
@@ -171,8 +174,10 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                         title={spec.title}
                         options={[
                             ...unset.flatMap(optionsFor),
-                            ...(slot === undefined ? [] : slotAddOptions(ctx, slot)),
+                            ...(slot === undefined || sprite !== undefined ? [] : slotAddOptions(ctx, slot)),
                         ]}
+                        blocked={sprite === undefined ? undefined : materialBlockedWords(sprite.plainName)}
+                        expanded={gallery}
                         onAdd={(key) => {
                             if (slot !== undefined && key === "shader:gallery") {
                                 setGallery(true);
@@ -228,6 +233,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                         placement="left"
                         alignment="start"
                         anchorY={sectionBox}
+                        boundaryTop={gallery ? headerBottom() : 0}
                         header={{ variant: "title", title: slot.word }}
                     >
                         <Popout.Content>
@@ -257,8 +263,9 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
             )}
             {slot !== undefined && paste !== null && (
                 <PasteShaderDialog
-                    ctx={ctx}
-                    slot={slot}
+                    session={ctx.session}
+                    kinds={slot.kinds}
+                    put={(scope, id, params) => pickShader({ ...ctx, session: scope }, slot, id, undefined, params)}
                     init={paste}
                     onClose={() => {
                         setPaste(null);
@@ -322,6 +329,8 @@ export interface AddOption {
  * @param props.title - the section's title
  * @param props.options - what it can add, in menu order
  * @param props.onAdd - adds one, by its key
+ * @param props.blocked - why it adds nothing, when that is not that everything is set
+ * @param props.expanded - whether the pop-out its one item opens is open (a shader gallery)
  * @returns The button and its menu
  */
 export function AddButton({
@@ -329,15 +338,19 @@ export function AddButton({
     title,
     options,
     onAdd,
+    blocked,
+    expanded,
 }: Readonly<{
     kind: "node" | "edge";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;
+    blocked?: string;
+    expanded?: boolean;
 }>): React.JSX.Element {
     const name = `Add to ${kind} ${title.toLowerCase()}`;
     const full = options.length === 0;
-    const reason = `Everything in ${kind} ${title.toLowerCase()} is set`;
+    const reason = blocked ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
         <ActionIcon
             variant="subtle"
@@ -359,10 +372,14 @@ export function AddButton({
     const [only] = options;
     if (options.length === 1) {
         // A menu of one item is one more click for nothing: the "+" adds it. Its tooltip is its
-        // name, so a reader who hovers it and one who hears it meet one name.
+        // name, so a reader who hovers it and one who hears it meet one name. One that opens a
+        // gallery says it opens one, and whether it is open.
+        const opens = only.key === "shader:gallery";
         return (
             <Tooltip label={name}>
                 {React.cloneElement(button, {
+                    "aria-haspopup": opens ? "dialog" : undefined,
+                    "aria-expanded": opens ? expanded === true : undefined,
                     onClick: () => {
                         onAdd(only.key);
                     },

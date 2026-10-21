@@ -13,7 +13,6 @@ import React, { useState } from "react";
 import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
-import { RenderQualityRow } from "../settings/ShaderSettings";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
@@ -147,7 +146,6 @@ export function Overview(): React.JSX.Element | null {
                 <DataRow stat name="Loaded weight" value={weightName(weight.attribute, weight.meaning)} />
             )}
             <DataRow stat name="Density" value={formatNumber(statistics.density)} />
-            <RenderQualityRow />
             <DataRow stat name="Components" value={statistics.components.count} />
             {statistics.components.count > 1 && (
                 <DataRow

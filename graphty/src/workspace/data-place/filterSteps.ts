@@ -3,7 +3,7 @@
  * one write, and the words Undo and Redo name a step change with. The steps themselves are graphty-element's.
  */
 
-import type { CodedFact, FilterStep, GraphSession, HistoryCode } from "@graphty/graphty-element/session";
+import type { CodedFact, FilterStep, GraphSession, HistoryCode, RuleTree } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
@@ -144,4 +144,13 @@ export function stepChange(session: GraphSession, fact: CodedFact<HistoryCode>):
 export function stepEditorName(session: GraphSession, id: string): string {
     const step = session.visibility.steps.find((s) => s.id === id);
     return step === undefined ? "New filter step" : stepWords(session, step);
+}
+
+/**
+ * Selects what a rule holds, replacing the selection: a source row's Select nodes.
+ * @param session - the element's session.
+ * @param rule - the rule.
+ */
+export async function selectRule(session: Pick<GraphSession, "selection">, rule: RuleTree): Promise<void> {
+    await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
 }

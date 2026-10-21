@@ -6,6 +6,7 @@
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { pickSample } from "../../../test/samples-dialog";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -58,7 +59,7 @@ describe("the workspace frame", () => {
         renderWorkspace();
 
         assert.isNull(screen.queryByRole("banner", { name: "Project" }));
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await pickSample("Florentine families");
 
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Places" }));

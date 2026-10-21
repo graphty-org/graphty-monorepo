@@ -991,13 +991,16 @@ function DataTableInner<TRow extends object>(
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
                                 const hasMenu = config?.menu !== undefined && config.menu !== null;
+                                const hasEnd = config?.headerEnd !== undefined && config.headerEnd !== null;
                                 const caption = (
                                     <>
                                         {config?.icon !== undefined && config.icon !== null && (
                                             <span
                                                 className="cm-dt-header-icon"
                                                 data-testid="data-table-header-icon"
-                                                aria-hidden="true"
+                                                {...(config.iconLabel === undefined
+                                                    ? { "aria-hidden": true }
+                                                    : { role: "img", "aria-label": config.iconLabel })}
                                             >
                                                 {config.icon}
                                             </span>
@@ -1082,6 +1085,7 @@ function DataTableInner<TRow extends object>(
                                                   }
                                                 : undefined
                                         }
+                                        data-with-end={hasEnd && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -1131,11 +1135,21 @@ function DataTableInner<TRow extends object>(
                                                       className="cm-dt-sort"
                                                       data-align={config?.align === "end" ? "end" : undefined}
                                                       data-with-menu={hasMenu ? "" : undefined}
+                                                      data-with-end={hasEnd ? "" : undefined}
                                                   >
                                                       {caption}
                                                   </UnstyledButton>,
                                               )
                                             : caption}
+                                        {hasEnd && (
+                                            <span
+                                                className="cm-dt-header-end"
+                                                data-testid="data-table-header-end"
+                                                data-with-menu={hasMenu ? "" : undefined}
+                                            >
+                                                {config?.headerEnd}
+                                            </span>
+                                        )}
                                         {hasMenu && (
                                             <Menu
                                                 opened={menuFor === column.id}

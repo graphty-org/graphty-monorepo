@@ -8,9 +8,13 @@
 
 import { assert, describe, it, type TestContext } from "vitest";
 
+// What query.wikidata.org answered on 2026-10-20 (graph-io's scripts/record-sparql.ts)
+import wikidataRecordings from "../../../../graph-io/test/sources/sparql/recordings/wikidata-advisors.json";
+import { sourceDescriptors } from "../../../catalog";
 import { createGraphSession, credentials, type GraphtyError, replayFetch } from "../../../session";
 import ndexRecordings from "../../../stories/fixtures/sources/ndex-wp5483.json";
 import neo4jRecordings from "../../../stories/fixtures/sources/neo4j-movies.json";
+import openalexRecordings from "../../../stories/fixtures/sources/openalex-citing.json";
 
 /**
  * Load, undo and redo, counting fetches; skip while the source is a stub.
@@ -80,5 +84,59 @@ describe("built-in sources from recorded responses", () => {
         );
         assert.isAbove(nodes, 1);
         assert.strictEqual(edges, nodes - 1, "one ACTED_IN edge per film");
+    });
+
+    it("loads a Wikidata CONSTRUCT through sparql: Load more adds a page, expanding a node adds its triples", async () => {
+        const sample = sourceDescriptors().find((info) => info.id === "sparql")?.descriptor.samples?.[0];
+        assert.isDefined(sample);
+        const session = createGraphSession();
+        try {
+            const fetch = replayFetch(wikidataRecordings);
+            await session.data.import(
+                { source: "sparql", config: sample.params },
+                { endpoint: sample.endpoint, fetch, limits: { maxNodes: 150 } },
+            );
+            const first = session.data.nodes().length;
+            assert.strictEqual(first, 281);
+            assert.isNotNull(session.data.loads()[0].next);
+
+            await session.data.more({ fetch });
+            assert.isAbove(session.data.nodes().length, first);
+            assert.isNull(session.data.loads()[0].next);
+
+            const seed = "http://www.wikidata.org/entity/Q127944";
+            const edges = session.data.edges().length;
+            await session.data.expand([seed], { limit: 40, fetch });
+            assert.isAbove(session.data.edges().length, edges);
+            assert.strictEqual(fetch.calls.length, 5);
+        } finally {
+            session.dispose();
+        }
+    });
+
+    it("loads the OpenAlex sample's first page, and its source entry offers Load more", async () => {
+        const session = createGraphSession();
+        try {
+            // The recorded citing page, with the cursor a live answer carries to its next page.
+            const paged = openalexRecordings.map((r, at) =>
+                at === 1
+                    ? {
+                          ...r,
+                          body: {
+                              ...r.body,
+                              meta: { ...r.body.meta, ...Object.fromEntries([["next_cursor", "next"]]) },
+                          },
+                      }
+                    : r,
+            );
+            const fetch = replayFetch(paged);
+            await session.data.loadSample("openalex-watts-strogatz", { fetch });
+            assert.isNotNull(session.data.loads()[0].next, "the sample stops after its first page");
+            const [entry] = session.data.sources();
+            assert.deepEqual(entry.features, { expand: true, more: true, refresh: true });
+            assert.strictEqual(fetch.calls.length, 2);
+        } finally {
+            session.dispose();
+        }
     });
 });

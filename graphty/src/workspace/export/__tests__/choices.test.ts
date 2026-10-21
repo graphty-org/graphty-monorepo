@@ -1,12 +1,15 @@
-import { formatDescriptor } from "@graphty/graphty-element/catalog";
+import { formatDescriptor, SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
+    animationOptions,
     backgroundRefusal,
+    dataExportOptions,
     DEFAULT_IMAGE,
+    exportScope,
     fileName,
     formatRows,
-    IMAGE_PRESETS,
+    presetChoices,
     presetOf,
     screenshotOptions,
     slug,
@@ -18,8 +21,8 @@ describe("the Export dialog's choices", () => {
         assert.equal(presetOf(DEFAULT_IMAGE)?.id, "web-share");
         assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
         assert.isUndefined(presetOf({ ...DEFAULT_IMAGE, format: "webp" }));
-        for (const preset of IMAGE_PRESETS) {
-            assert.equal(presetOf({ ...preset.choices, view: "current" }), preset);
+        for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
+            assert.equal(presetOf({ ...presetChoices(preset), view: "current" }), preset);
         }
     });
 
@@ -75,5 +78,34 @@ describe("the Export dialog's choices", () => {
         const options = writerOptions(row, {});
         assert.isTrue(options.styles);
         assert.strictEqual(options.sanitizeIds, "mangle");
+    });
+
+    it("hands the element the scope and columns the reader chose", () => {
+        assert.isUndefined(exportScope("all"));
+        assert.equal(exportScope("shown"), "shown");
+        assert.equal(exportScope("selection"), "selection");
+        assert.deepEqual(exportScope("set:hubs"), { set: "hubs" });
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        const [row] = formatRows(csv === undefined ? [] : [csv]);
+        const choices = { format: "csv", variant: row.variant, values: {}, scope: "shown" } as const;
+        const options = dataExportOptions(row, choices, ["name"]);
+        assert.equal(options.scope, "shown");
+        assert.deepEqual(options.columns, ["name"]);
+    });
+
+    it("records a tour by naming its views, and a still view without a camera path", () => {
+        const tour = animationOptions(
+            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
+            "a.webm",
+        );
+        assert.equal(tour.cameraMode, "animated");
+        assert.deepEqual(tour.tour, ["topView", "isometric"]);
+        assert.equal(tour.duration, 3000);
+        assert.isTrue(tour.download);
+        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
+        assert.equal(still.cameraMode, "stationary");
+        assert.isUndefined(still.tour);
+        assert.isUndefined(still.download);
     });
 });

@@ -436,6 +436,13 @@ export interface CompactMantineLabels {
      * @returns The line, such as `No option starts with "cube"`
      */
     listNoMatch?: (typed: string) => string;
+
+    // EntityChip
+
+    /** What a screen reader says before a node chip's count or name. Never drawn: the chip shows a circle. */
+    entityNode: string;
+    /** What a screen reader says before an edge chip's count or name. Never drawn: the chip shows a segment. */
+    entityEdge: string;
 }
 
 /**
@@ -554,6 +561,9 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     listNoMatch: (typed: string): string => `No option starts with "${typed}"`,
 
     passwordReveal: "Show the password",
+
+    entityNode: "Node",
+    entityEdge: "Edge",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

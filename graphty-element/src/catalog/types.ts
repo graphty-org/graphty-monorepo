@@ -25,6 +25,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
+import type { ScreenshotPreset } from "./screenshotPresets";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -1370,6 +1371,24 @@ export interface AttributeDescriptor {
      * ```
      */
     usedBy?: readonly AttributeUse[];
+    /**
+     * The loads whose rows carry the column, oldest first (`session.data.sources()` keys). Absent
+     * when no load recorded what it supplied.
+     */
+    sources?: readonly SourceKey[];
+    /**
+     * True when the column was hidden with `session.data.setHidden`; absent otherwise. Its values
+     * are all still there: what to leave out for a hidden column is the consumer's choice.
+     * @since 3.30.0
+     */
+    hidden?: boolean;
+    /**
+     * True when every value is a whole number from 1000 to 2999 and they span 500 or less, as a
+     * column of years does (`1975`); absent otherwise. A consumer that groups digits may leave
+     * them ungrouped for such a column: `1975`, not `1,975`.
+     * @since 3.30.0
+     */
+    yearLike?: true;
 }
 
 /**
@@ -1591,8 +1610,8 @@ export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" 
  * `repeated-edge` speak edges; `range` and `categories` speak each half whose elements carry the
  * attribute (one on `data.weight` speaks edges); `member` speaks the referenced set's nodes, and
  * its edges only when that set is read `listed` or `clipped` (`"visible"` is); `item` and
- * `threshold` speak the half or halves their field lives on; every other leaf speaks nodes. A
- * group with no members constrains nothing.
+ * `threshold` speak the half or halves their field lives on; `source` speaks both halves, or the
+ * one its `side` names; every other leaf speaks nodes. A group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -1684,9 +1703,33 @@ export type RuleTree =
           /** Which nodes the leaf keeps when its value lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
       }
+    /**
+     * The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+     * `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+     * Speaks nodes and edges.
+     */
+    | {
+          readonly kind: "source";
+          readonly sources: readonly SourceKey[];
+          /**
+           * Which half the rule speaks: both when absent; `"nodes"` keeps the nodes the loads
+           * supplied and leaves every edge between them, whichever load supplied it; `"edges"`
+           * keeps only the edges they supplied. @since 3.30.0
+           */
+          readonly side?: RuleSide;
+      }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * Which half of the graph a `source` rule leaf speaks: its nodes or its edges.
+ * @since 3.30.0
+ */
+export type RuleSide = "nodes" | "edges";
+
+/** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
+export type SourceKey = string;
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.
@@ -1919,6 +1962,12 @@ export interface CatalogApi {
      * and license. Supplied by @graphty/graph-samples.
      */
     datasets(): readonly DatasetMeta[];
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
+     * background each sets, so an export dialog can show them. Static; also published as
+     * `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog` entry.
+     */
+    screenshotPresets(): readonly ScreenshotPreset[];
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

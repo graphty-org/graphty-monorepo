@@ -35,7 +35,9 @@ interface RecordTableProps {
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
     /** Moves a column one place left (-1) or right (1) among the columns that are not keys. */
-    onMoveColumn: (id: string, by: -1 | 1) => void;
+    onMoveColumn?: (id: string, by: -1 | 1) => void;
+    /** A column's header parts: its icons, summary, warning and menu. */
+    header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
 }
 
 /**
@@ -68,6 +70,29 @@ function resultValue(column: PageColumn | undefined, index: number): DataTableVa
 }
 
 /**
+ * One header menu from two parts: the header's own items, then the column's Move left and Move
+ * right, with a divider between them.
+ * @param own - the header's items, or undefined.
+ * @param move - the move items, or undefined for a key column.
+ * @returns the menu, or undefined with neither.
+ */
+function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode {
+    if (own === undefined || own === null) {
+        return move;
+    }
+    if (move === undefined) {
+        return own;
+    }
+    return (
+        <>
+            {own}
+            <Menu.Divider />
+            {move}
+        </>
+    );
+}
+
+/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -80,6 +105,7 @@ function resultValue(column: PageColumn | undefined, index: number): DataTableVa
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
  * @param props.onMoveColumn - Moves a column one place
+ * @param props.header - A column's header parts
  * @returns The table
  */
 export function RecordTable({
@@ -91,6 +117,7 @@ export function RecordTable({
     onSortChange,
     height,
     onMoveColumn,
+    header,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -114,34 +141,37 @@ export function RecordTable({
     const tableColumns = columns.map((column): DataTableColumn<Row> => {
         const at = column.run === undefined ? -1 : runIds.indexOf(column.run);
         const place = movable.indexOf(column.id);
+        const move =
+            place === -1 || onMoveColumn === undefined ? undefined : (
+                <>
+                    <Menu.Item
+                        disabled={place === 0}
+                        onClick={() => {
+                            onMoveColumn(column.id, -1);
+                        }}
+                    >
+                        Move left
+                    </Menu.Item>
+                    <Menu.Item
+                        disabled={place === movable.length - 1}
+                        onClick={() => {
+                            onMoveColumn(column.id, 1);
+                        }}
+                    >
+                        Move right
+                    </Menu.Item>
+                </>
+            );
+        const parts = header?.(column);
         return {
+            ...parts,
             id: column.id,
             header: column.header,
             // A group's name is a word ("Group 3"), so it reads from the left like other words.
             align: column.numeric && column.grouping !== true ? "end" : "start",
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
-            menu:
-                place === -1 ? undefined : (
-                    <>
-                        <Menu.Item
-                            disabled={place === 0}
-                            onClick={() => {
-                                onMoveColumn(column.id, -1);
-                            }}
-                        >
-                            Move left
-                        </Menu.Item>
-                        <Menu.Item
-                            disabled={place === movable.length - 1}
-                            onClick={() => {
-                                onMoveColumn(column.id, 1);
-                            }}
-                        >
-                            Move right
-                        </Menu.Item>
-                    </>
-                ),
+            menu: joinMenus(parts?.menu, move),
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)

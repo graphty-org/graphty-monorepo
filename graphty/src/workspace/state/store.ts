@@ -9,8 +9,14 @@
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting, ViewInsets } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
-import { useSyncExternalStore } from "react";
+import type {
+    DataSourceInput,
+    GraphSession,
+    LoadDraft,
+    NoteTargetInput,
+    SourceKey,
+} from "@graphty/graphty-element/session";
+import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
 
@@ -22,11 +28,14 @@ type Page = "panels" | "data-page";
 
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
+    /** Its words; the notice shows them unless it has content. */
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
     /** Describes the selection that just went: a new selection takes it down at once. */
     readonly endsWithSelection?: boolean;
+    /** What it shows instead of the words, such as the replace receipt's chips. */
+    readonly content?: ReactNode;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 
@@ -78,6 +87,31 @@ export interface WorkspaceState {
      * table and cleared by the dock; null when none is asked for.
      */
     readonly dockColumn: string | null;
+    /**
+     * Whether the open table dock fills the canvas area, with the configuration beside it (data
+     * prototype spec section 3.5). A file with problems opens it so.
+     */
+    readonly dockMaximized: boolean;
+    /**
+     * A table read to join onto the graph, waiting for the join screen (spec section 3.6): a second
+     * file dropped, picked, pasted or chosen in Samples while the graph holds data. The join screen
+     * loads or disposes the draft and sets this back to null.
+     */
+    readonly joining: {
+        readonly name: string;
+        readonly draft: LoadDraft;
+        /** What the draft was read from, for Replace data and Open as a separate graph. */
+        readonly source?: DataSourceInput;
+    } | null;
+    /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
+    readonly editingJoin: SourceKey | null;
+    /**
+     * The edge ends picked for a load whose rows are still nodes (Fields' Rows are, or a header's
+     * Role): the load is read again as edges once both are picked.
+     */
+    readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
+    readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -189,6 +223,11 @@ const INITIAL: WorkspaceState = {
     dockOpen: false,
     dockTab: "nodes",
     dockColumn: null,
+    dockMaximized: false,
+    joining: null,
+    editingJoin: null,
+    ends: null,
+    timelineOpen: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,

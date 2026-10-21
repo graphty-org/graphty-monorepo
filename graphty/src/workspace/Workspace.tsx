@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { findRecovered } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
+import { focusOpenedGraph, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
@@ -15,6 +15,8 @@ import { notReadSentence, openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { useDropToOpen } from "./start/open";
+import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
@@ -65,6 +67,7 @@ export function Workspace({
     // A project opened from the start screen loads its sample or file once its element is up. If
     // the load fails, the project was never really opened: back to the start screen, with the
     // reason staying until it is dismissed.
+    useDropToOpen(value);
     useEffect(() => {
         const { opening, project } = store.get();
         const { session, element: host } = element;
@@ -158,13 +161,10 @@ export function Workspace({
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
     // project, New project) hands focus to the open place's list as its element comes up (the
     // style layers), never the drawing's outline. Its element is keyed by project, so this runs
-    // once per project. Closing a project hands focus to the start screen's first way in.
+    // once per project.
     // Focus never falls to the page, on the start screen or in a project: Tab wraps, and a
     // control that goes while it holds focus hands it on (focus.ts).
     useEffect(() => installFocusGuard(), []);
-    const startDoor = useRef<HTMLButtonElement>(null);
-    const lastDoor = useRef<string | null>(null);
-    const projectWasOpen = useRef(false);
     useEffect(() => {
         // A project that opens on the Data page (New from data...) keeps focus on that page; one
         // with a sample or file to read takes focus once it is read (focusOpenedGraph).
@@ -175,22 +175,11 @@ export function Workspace({
             focusOpenedGraph();
         }
     }, [element, store, startProjectId]);
-    useEffect(() => {
-        if (projectOpen) {
-            projectWasOpen.current = true;
-        } else if (projectWasOpen.current && focusIsLost()) {
-            // Back to the way in that opened the project (New from data..., a sample), else the first.
-            const door = [...document.querySelectorAll<HTMLElement>("[data-start-door]")].find(
-                (candidate) => candidate.dataset.startDoor === lastDoor.current,
-            );
-            (door ?? startDoor.current)?.focus();
-        }
-    }, [projectOpen]);
 
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
-            {projectOpen ? null : <StartScreen openRef={startDoor} lastDoor={lastDoor} />}
+            {projectOpen ? null : <StartScreen />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />
@@ -203,6 +192,7 @@ export function Workspace({
             <VisuallyHidden role="status" aria-live="polite">
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
+            <SamplesDialog />
         </WorkspaceContext.Provider>
     );
 }

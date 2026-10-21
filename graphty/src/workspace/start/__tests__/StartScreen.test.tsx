@@ -150,9 +150,7 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
 
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
-        assert.isNotNull(
-            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
-        );
+        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
         assert.equal(initSentry.mock.calls.length, 1);
     });
 
@@ -160,7 +158,7 @@ describe("the start screen", () => {
         renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
-        assert.isNotNull(screen.getByText(/Usage data stays off\./, { selector: ".ws-start-answer" }));
+        assert.isNotNull(screen.getByText(/Usage data stays off\./));
         assert.equal(initSentry.mock.calls.length, 0);
 
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
@@ -212,7 +210,7 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("lists the network sources that are on the way, and opens a graph from a link", async () => {
+    it("lists the network sources, and opens a graph from a link", async () => {
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
@@ -222,7 +220,6 @@ describe("the start screen", () => {
         }
         // Memgraph cannot be reached from an https page without a server, so it is not offered.
         assert.isNull(within(dialog).queryByText("Memgraph"));
-        assert.isNotNull(within(dialog).getByText(/on the way/));
         const open = within(dialog).getByRole("button", { name: "Open" });
         // Open with no address asks for one, and opens nothing.
         await userEvent.click(open);
@@ -237,6 +234,19 @@ describe("the start screen", () => {
 
         assert.equal(store.get().project?.name, "trade routes");
         assert.equal(store.get().opening?.name, "trade routes");
+    });
+
+    it("opens the server form on the Data place for a network source", async () => {
+        const store = renderStart();
+
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        await userEvent.click(within(dialog).getByText("Neo4j"));
+
+        const state = store.get();
+        assert.equal(state.project?.name, "Untitled");
+        assert.equal(state.place, "data");
+        assert.equal(state.dialog, "server");
     });
 
     it("opens a dropped file as a project named after it", async () => {
@@ -278,11 +288,10 @@ describe("the start screen", () => {
 });
 
 describe("Settings", () => {
-    it("opens on General from the main menu and from Mod+,", async () => {
+    it("opens on General from the gear and from Mod+,", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Settings\.\.\./ }));
+        await userEvent.click(screen.getByRole("button", { name: "Settings..." }));
         let dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Theme" }));
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Number format" }));
@@ -291,15 +300,6 @@ describe("Settings", () => {
 
         await userEvent.keyboard("{Control>},{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Settings" });
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
-    });
-
-    it("opens on General from the Settings button in the start screen's header", async () => {
-        renderStart();
-
-        const header = screen.getByRole("banner");
-        await userEvent.click(within(header).getByRole("button", { name: "Settings..." }));
-        const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
     });
 

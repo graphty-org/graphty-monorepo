@@ -6,7 +6,14 @@
  */
 
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
-import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
+import {
+    type ColumnRole,
+    type DraftTable,
+    LOAD_ROLES,
+    type LoadChoices,
+    type LoadDraft,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
 
 import { fileStylesChoice } from "../settings/preferences";
 
@@ -53,16 +60,6 @@ export function initialChoices(): PageChoices {
 export function offersStyles(draft: LoadDraft): boolean {
     return draft.styles?.declared === true || formatDescriptor(draft.type)?.styles?.read === true;
 }
-
-/**
- * The roles a table of each kind takes, in menu order (the element's own role names).
- * Temporary: the element keeps this list private (`session/draft.ts` ROLES) and does not export
- * it; #926 asks it to. Delete this copy when it does.
- */
-export const ROLES_BY_KIND: Readonly<Record<"nodes" | "edges", readonly ColumnRole[]>> = {
-    nodes: ["key", "label", "time"],
-    edges: ["source", "target", "weight", "time", "edgeId"],
-};
 
 /**
  * What each row of a table becomes: the reader's choice, else the element's reading.
@@ -226,7 +223,7 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};
-    for (const role of ROLES_BY_KIND[kind]) {
+    for (const role of LOAD_ROLES[kind].takes) {
         const holder = table.columns.find((column) => roleOf(draft, table, column.name, choices) === role);
         if (holder !== undefined) {
             mapping[role] = holder.name;

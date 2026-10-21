@@ -612,7 +612,24 @@ export type GraphtyWarningCode =
      * event. `params.requested` holds the options as given and `params.used` the values used, by
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
-    | "W_DIMENSION_OVERRIDDEN";
+    | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
+     * out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
+     * `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+     */
+    | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
+     * data applied. `params.graph` names the graph, null for the file's one graph.
+     */
+    | "W_SOURCE_STEPS_IGNORED"
+    /**
+     * A member of an older version was read and upgraded to the version this release writes; a
+     * save writes the new version. `params.kind` is the member's kind, `params.found` the version
+     * read and `params.version` the version it was upgraded to.
+     */
+    | "W_VERSION_UPGRADED";
 
 /**
  * Every code, as a lookup table.

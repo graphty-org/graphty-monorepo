@@ -59,6 +59,7 @@ import {
     refused,
     type ScopeCandidate,
 } from "./cost";
+import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics } from "./types";
@@ -117,6 +118,7 @@ export type SessionCommand =
     | AlgoRemoveCommand
     | AlgoMoveCommand
     | DataCommand
+    | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
     | VisibilityCommand

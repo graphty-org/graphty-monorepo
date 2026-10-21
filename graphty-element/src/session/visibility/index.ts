@@ -25,14 +25,18 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
+    type TimeHistogram,
+    type TimeHistogramBin,
     type TimeStep,
     type TimeWindow,
     type VisibilityPass,
 } from "./filter";
+export { addTimeStep, type FirstWindowOptions } from "./timeSteps";
 export {
     createVisibilityApi,
     type FilterResult,
     type SessionVisibilityApi,
+    type StepCounts,
     type VisibilityApi,
     type VisibilityChange,
     type VisibilitySources,

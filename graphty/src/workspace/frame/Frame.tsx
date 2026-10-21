@@ -13,10 +13,13 @@ import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
+import { JoinScreen } from "../join/JoinScreen";
 import { NotesPlace } from "../notes/NotesPlace";
+import { NodeMenu } from "../server/NodeMenu";
 import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
+import { TimelineStrip } from "../timeline/TimelineStrip";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
 import { focusIsLost, focusOpenedGraph } from "./focus";
@@ -55,6 +58,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
@@ -122,7 +126,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 <main className="ws-main" hidden={!panels}>
                     {/* A region named for the drawing, holding it and its key, so a screen reader can
                         land on it and read it as one place. */}
-                    <section className="ws-canvas" aria-label="Graph drawing">
+                    {/* Under the maximized table, the canvas and its tools take no input or focus. */}
+                    <section className="ws-canvas" aria-label="Graph drawing" inert={dockOpen && dockMaximized}>
                         <CanvasMenu>
                             <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         </CanvasMenu>
@@ -130,26 +135,38 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock" ref={dock}>
                                 <WorkspaceToolbar />
+                                <TimelineStrip />
                             </div>
                             <NoticeSlot />
                         </div>
                     </section>
                     {dockOpen ? (
-                        <section className="ws-dock" aria-label="Table" style={{ height: dockHeight }}>
-                            <ResizeHandle
-                                edge="top"
-                                label="Resize table"
-                                value={dockHeight}
-                                defaultValue={DOCK_DEFAULT}
-                                min={DOCK_MIN}
-                                max={DOCK_MAX}
-                                onChange={(value) => {
-                                    store.set({ dockHeight: value });
-                                }}
-                            />
+                        // Maximized, the dock covers the canvas area (table.css), so it takes no height
+                        // of its own and has nothing to resize.
+                        <section
+                            className="ws-dock"
+                            aria-label="Table"
+                            data-maximized={dockMaximized ? "" : undefined}
+                            style={dockMaximized ? undefined : { height: dockHeight }}
+                        >
+                            {dockMaximized ? null : (
+                                <ResizeHandle
+                                    edge="top"
+                                    label="Resize table"
+                                    value={dockHeight}
+                                    defaultValue={DOCK_DEFAULT}
+                                    min={DOCK_MIN}
+                                    max={DOCK_MAX}
+                                    onChange={(value) => {
+                                        store.set({ dockHeight: value });
+                                    }}
+                                />
+                            )}
                             <TableDock />
                         </section>
                     ) : null}
+                    <JoinScreen />
+                    <NodeMenu />
                 </main>
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with
                     the row that opened it (Figma's right panel). */}

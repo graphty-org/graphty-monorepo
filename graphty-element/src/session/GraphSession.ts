@@ -40,6 +40,7 @@ import type {
     Scope,
     ScopeInput,
     SetId,
+    SourceKey,
     StaticStyle,
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
@@ -92,6 +93,7 @@ import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graph
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
+import { type RecipeDocument, recipeOf } from "./recipe";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -133,6 +135,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
+import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -618,9 +621,8 @@ class Session implements ElementSession {
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
             sources: {
-                member: () => this.sessionData.sourceMember(),
-                restore: (member) => {
-                    this.sessionData.restoreSourceMember(member);
+                restore: (read) => {
+                    this.sessionData.restoreSourceMember(read);
                 },
             },
         });
@@ -953,6 +955,14 @@ class Session implements ElementSession {
      */
     fingerprint(): string {
         return this.sessionData.fingerprint();
+    }
+
+    /**
+     * What was done to the data and how it is drawn, naming columns and never elements.
+     * @returns The recipe.
+     */
+    recipe(): RecipeDocument {
+        return recipeOf(this);
     }
 
     /**
@@ -2350,7 +2360,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },
-            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
+            readers: () => ({
+                styles: dispatcher.state.styles,
+                runs: dispatcher.state.runs,
+                visibility: dispatcher.state.visibility,
+            }),
         },
         {
             revision: () => inputs.tick.value,
@@ -2552,6 +2566,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return key === undefined ? () => undefined : setsCache.pin(key);
     };
 
+    /**
+     * What some loads supplied, as the graph slice records it now.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids.
+     */
+    const suppliedNow = (keys: readonly SourceKey[]): ReturnType<typeof suppliedBy> =>
+        suppliedBy(dispatcher.state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined, keys);
+
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -2577,6 +2599,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        supplied: suppliedNow,
     });
 
     const visibility = createVisibilityApi({
@@ -2600,6 +2623,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);

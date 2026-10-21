@@ -1,11 +1,10 @@
 import "./canvas.css";
 
 import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
-import { Button, Menu, Tooltip } from "@mantine/core";
+import { Button, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
-import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
 import { runName } from "../runWords";
@@ -184,7 +183,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
-    const addData = useCommand("data.add");
+    // The empty card's doors: the Sources "+" doors a first source most often comes through.
+    const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
 
     if (session === null) {
@@ -207,30 +207,24 @@ export function CanvasOverlays(): React.JSX.Element | null {
                 icon={<GLYPHS.empty size={20} />}
                 title="No nodes to draw"
                 actions={
-                    <>
-                        {addData === null ? null : (
-                            <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                                <Button
-                                    size="xs"
-                                    aria-disabled={addData.disabledReason !== null}
-                                    data-disabled={addData.disabledReason === null ? undefined : true}
-                                    onClick={addData.disabledReason === null ? addData.run : undefined}
-                                >
-                                    {addData.command.label}
-                                </Button>
-                            </Tooltip>
-                        )}
-                        <Menu position="bottom" withinPortal>
-                            <Menu.Target>
-                                <Button size="xs" variant="default">
-                                    Open a sample
-                                </Button>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                <SampleItems />
-                            </Menu.Dropdown>
-                        </Menu>
-                    </>
+                    doors.length === 0
+                        ? undefined
+                        : doors.map((door) => (
+                              <Tooltip
+                                  key={door.command.id}
+                                  label={door.disabledReason}
+                                  disabled={door.disabledReason === null}
+                              >
+                                  <Button
+                                      size="xs"
+                                      aria-disabled={door.disabledReason !== null}
+                                      data-disabled={door.disabledReason === null ? undefined : true}
+                                      onClick={door.disabledReason === null ? door.run : undefined}
+                                  >
+                                      {door.command.label}
+                                  </Button>
+                              </Tooltip>
+                          ))
                 }
             />
         );

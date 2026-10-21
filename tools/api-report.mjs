@@ -159,6 +159,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // a value the consumer's data holds: a source preview row's label (`name`, `title`, ...)
+    "label",
 ]);
 
 const DECLARATION =

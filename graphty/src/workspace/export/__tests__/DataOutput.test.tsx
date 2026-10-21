@@ -192,6 +192,7 @@ describe("the Data output", () => {
                 format: "csv",
                 variant: "gephi",
                 values: {},
+                scope: "all",
             },
         );
 

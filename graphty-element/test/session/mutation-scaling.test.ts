@@ -679,6 +679,28 @@ const CASES: readonly Case[] = [
         growth: "linear",
         prepare: (session) => Promise.resolve(() => session.data.setValueLabel("data.group", 1, "First")),
     },
+    // The column commands: each walks the column once, never once per row per row.
+    {
+        method: "SessionDataApi.setRole",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setRole({ kind: "node", name: "group" }, "label")),
+    },
+    {
+        method: "SessionDataApi.setType",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setType({ kind: "node", name: "weight" }, "text")),
+    },
+    {
+        method: "SessionDataApi.renameColumn",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() => session.data.renameColumn({ kind: "node", name: "weight" }, "mass")),
+    },
+    {
+        method: "SessionDataApi.setHidden",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setHidden([{ kind: "node", name: "group" }], true)),
+    },
     // Visibility, scope and settings
     {
         method: "VisibilityApi.set",

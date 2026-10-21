@@ -49,6 +49,8 @@ import type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -195,6 +197,8 @@ type PublicTypeSurface = {
     dataTableSort: DataTableSort;
     dataTableValue: DataTableValue;
     direction: Direction;
+    entityChip: EntityChipProps;
+    entityKind: EntityKind;
     disclosure: DisclosureProps;
     fieldGlyph: FieldGlyphProps;
     fieldGlyphName: FieldGlyphName;
@@ -331,6 +335,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ControlGroup",
     "ControlSection",
     "DataTable",
+    "EntityChip",
     "GradientEditor",
     "InfoCircle",
     "Popout",
@@ -772,6 +777,8 @@ describe("Package exports", () => {
                     dataTableSort: true,
                     dataTableValue: true,
                     direction: true,
+                    entityChip: true,
+                    entityKind: true,
                     disclosure: true,
                     fieldGlyph: true,
                     fieldGlyphName: true,
@@ -883,7 +890,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(134);
+                expect(names).toHaveLength(136);
             });
         });
 

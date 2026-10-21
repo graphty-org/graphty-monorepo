@@ -42,7 +42,15 @@ function loaded(
     added: LoadedSource["added"],
     url: string | null = null,
 ): LoadedSource {
-    return { ...(name === undefined ? {} : { name }), ...(url === null ? {} : { config: { url } }), tables, added };
+    return {
+        key: "s1",
+        kind: url === null ? "file" : "server",
+        counts: added,
+        ...(name === undefined ? {} : { name }),
+        ...(url === null ? {} : { config: { url } }),
+        tables,
+        added,
+    };
 }
 
 /**

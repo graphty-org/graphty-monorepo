@@ -47,6 +47,7 @@ import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
@@ -134,6 +135,12 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the settings it sets.
+     * Static.
+     * @returns the preset descriptors
+     */
+    screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
     /**
      * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
      * @returns the generator descriptors

@@ -188,6 +188,25 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
     },
     {
+        name: "data.issues",
+        tags: BOTH,
+        command: {
+            op: "data.issues",
+            state: {
+                facts: {
+                    s1: {
+                        unknownEnds: ["n9"],
+                        repeatedIds: [],
+                        blankIds: { nodes: 0, edges: 0, examples: [] },
+                        refusedRows: [{ line: 4, issue: "E_CSV_FIELD_COUNT" }],
+                    },
+                },
+                ignored: ["refused-row"],
+                kept: [],
+            },
+        },
+    },
+    {
         name: "data.import replacing the graph",
         variant: "replace",
         tags: BOTH,
@@ -727,6 +746,14 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         name: "data.label",
         tags: BOTH,
         command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
+    },
+    {
+        name: "data.columns",
+        tags: BOTH,
+        command: {
+            op: "data.columns",
+            settings: { hidden: ["node:name"], types: { "node:name": "category" }, renamed: {} },
+        },
     },
     {
         name: "data.setFileStyles",

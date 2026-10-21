@@ -9,7 +9,14 @@ import {
     ResetButton,
     SegmentedControl,
 } from "@graphty/compact-mantine";
-import type { DraftRow, DraftTable, LoadDraft, LoadReport, TableMapping } from "@graphty/graphty-element/session";
+import {
+    type DraftRow,
+    type DraftTable,
+    LOAD_ROLES,
+    type LoadDraft,
+    type LoadReport,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Alert,
@@ -49,7 +56,6 @@ import {
     offersStyles,
     type PageChoices,
     type PageRole,
-    ROLES_BY_KIND,
     rowsAreOf,
     setRole,
     setRowsAre,
@@ -1036,7 +1042,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
     const options: { value: string; label: string }[] = [
-        ...ROLES_BY_KIND[kind].map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),

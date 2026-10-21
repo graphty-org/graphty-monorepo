@@ -154,6 +154,7 @@ export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean"
 // @public
 export interface AttributeDescriptor {
     completeness: number;
+    hidden?: boolean;
     holdsNodeIds?: true;
     // (undocumented)
     kind: "node" | "edge";
@@ -174,6 +175,7 @@ export interface AttributeDescriptor {
     runId?: RunId;
     // (undocumented)
     sampleValues: readonly unknown[];
+    sources?: readonly SourceKey[];
     // (undocumented)
     technicalName: string;
     token: string;
@@ -183,6 +185,7 @@ export interface AttributeDescriptor {
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
     valuesAreColors?: true;
+    yearLike?: true;
 }
 
 // @public
@@ -318,6 +321,7 @@ export interface CatalogApi {
     palettes(): readonly PaletteDescriptor[];
     // (undocumented)
     scales(): readonly ScaleDescriptor[];
+    screenshotPresets(): readonly ScreenshotPreset[];
     // @deprecated (undocumented)
     themes(): readonly ThemeDescriptor[];
     // @deprecated (undocumented)
@@ -1714,6 +1718,9 @@ export interface Rgba {
 }
 
 // @public
+export type RuleSide = "nodes" | "edges";
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;
@@ -1805,6 +1812,16 @@ export type RuleTree = {
     readonly text: string;
     readonly caseSensitive?: boolean;
     readonly nodes?: AttributeLeafNodes;
+}
+/**
+* The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+* `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+* Speaks nodes and edges.
+*/
+| {
+    readonly kind: "source";
+    readonly sources: readonly SourceKey[];
+    readonly side?: RuleSide;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -1860,6 +1877,29 @@ export type ScopeInput = Exclude<Scope, {
 }> | {
     define: SetDefinitionInput;
 };
+
+// @public
+export const SCREENSHOT_PRESET_DESCRIPTORS: readonly ScreenshotPreset[];
+
+// @public
+export interface ScreenshotPreset {
+    readonly destination?: {
+        readonly download?: boolean;
+        readonly clipboard?: boolean;
+    };
+    readonly enhanceQuality?: boolean;
+    readonly format: "png" | "jpeg" | "webp";
+    readonly height?: number;
+    // (undocumented)
+    readonly id: ScreenshotPresetId;
+    readonly multiplier?: number;
+    readonly quality?: number;
+    readonly transparentBackground?: boolean;
+    readonly width?: number;
+}
+
+// @public
+export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
 
 // @public
 export type SelectionDirection = "in" | "out" | "all";
@@ -2010,9 +2050,24 @@ export type SetOperand = Scope | {
 };
 
 // @public
-export function sourceDescriptors(): readonly SourceInfo[];
+export interface SourceCatalogEntry extends SourceInfo {
+    readonly features: SourceFeatures;
+}
+
+// @public
+export function sourceDescriptors(): readonly SourceCatalogEntry[];
+
+// @public
+export interface SourceFeatures {
+    readonly expand: boolean;
+    readonly more: boolean;
+    readonly refresh: boolean;
+}
 
 export { SourceInfo }
+
+// @public
+export type SourceKey = string;
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;

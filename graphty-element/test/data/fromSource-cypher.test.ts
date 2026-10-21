@@ -17,6 +17,13 @@ const RECORDINGS = JSON.parse(
     ),
 ) as Parameters<typeof replayFetch>[0];
 
+/** The count-store lookup a first page of Everything runs: the demo's 171 nodes. */
+const COUNT = {
+    ...RECORDINGS[0],
+    requestBody: JSON.stringify({ statement: "MATCH (n) RETURN count(n) AS c", parameters: {}, accessMode: "Read" }),
+    body: { data: { fields: ["c"], values: [[{ $type: "Integer", _value: "171" }]] }, bookmarks: [] },
+};
+
 describe("DataSource.fromSource with the built-in neo4j source", () => {
     it("loads the demo movies graph: 171 nodes, 253 edges, labels and types kept", async () => {
         const Neo4j = DataSource.fromSource("neo4j");
@@ -26,7 +33,7 @@ describe("DataSource.fromSource with the built-in neo4j source", () => {
             pageSize: 100,
             endpoint: "https://demo.neo4jlabs.com:7473",
             credential: credentials.basic("movies", "movies"),
-            fetch: replayFetch(RECORDINGS),
+            fetch: replayFetch([COUNT, ...RECORDINGS]),
         });
         const nodes: Record<string, unknown>[] = [];
         const edges: Record<string, unknown>[] = [];

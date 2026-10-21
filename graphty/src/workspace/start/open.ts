@@ -10,9 +10,10 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { AssetSource, GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
@@ -164,4 +165,18 @@ export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
     if (file !== undefined) {
         openFile(ctx, file);
     }
+}
+
+/**
+ * Opens a new project, named after a model file dropped on the start screen, that draws every node
+ * as that model: the model is added to the project and one undoable layer names it, so the graph
+ * data the reader adds next is drawn with it.
+ * @param workspace - the workspace store.
+ * @param fileName - the model's main file name.
+ * @param source - the model's files.
+ */
+export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
+    openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
+        await putModelOnNodes(session, workspace, source);
+    });
 }

@@ -11,7 +11,7 @@ import { LabelSection } from "./LabelSection";
 import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
 import { SetLine } from "./SetLine";
 import { useStyleVersion } from "./useStyleVersion";
-import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
+import { channelWord, isAddable, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
 /** Props for StyleTab. */
 interface StyleTabProps {
@@ -188,7 +188,7 @@ function Section({
         const line = lineOf(layers, d.channel);
         return line === undefined ? [] : [{ descriptor: d, line }];
     });
-    const unset = channels.filter((d) => lineOf(layers, d.channel) === undefined);
+    const unset = channels.filter((d) => isAddable(d) && lineOf(layers, d.channel) === undefined);
     const add = (descriptor: ChannelDescriptor): void => {
         writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }).catch(() => {
             store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });

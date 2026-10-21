@@ -1,10 +1,20 @@
 import { ModalFooter } from "@graphty/compact-mantine";
-import { Button, Modal, Text, TextInput } from "@mantine/core";
+import { Button, Group, Modal, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { DISCARD_DIALOG, discardAndContinue, openPending, SAVE_AS_DIALOG, saveProjectAs } from "./actions";
+import {
+    type AssetChoices,
+    assetQuestion,
+    DISCARD_DIALOG,
+    discardAndContinue,
+    KEEP_ASSETS_DIALOG,
+    openPending,
+    SAVE_AS_DIALOG,
+    saveProjectAs,
+} from "./actions";
 import { keepsFileHandles } from "./files";
+import { NetworkPrompt } from "./NetworkPrompt";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -113,6 +123,83 @@ function DiscardDialog(): React.JSX.Element {
 }
 
 /**
+ * How to keep each model or picture loaded from a web address, asked before a save that holds any:
+ * Embed (the default) puts the file in the project, so it opens offline; Use URL keeps only the
+ * address, and the file is fetched again when the project opens.
+ * @returns The dialog
+ */
+function KeepAssetsDialog(): React.JSX.Element {
+    const { store } = useWorkspace();
+    const opened = useWorkspaceState((state) => state.dialog === KEEP_ASSETS_DIALOG);
+    const question = opened ? assetQuestion(store) : undefined;
+    const [choices, setChoices] = useState<AssetChoices>({});
+
+    useEffect(() => {
+        if (opened) {
+            setChoices({});
+        }
+    }, [opened]);
+
+    const finish = (answer: AssetChoices | null): void => {
+        store.set({ dialog: null });
+        question?.answer(answer);
+    };
+
+    return (
+        <Modal
+            opened={opened}
+            onClose={() => {
+                finish(null);
+            }}
+            title="Save files from the web"
+        >
+            <Stack gap="xs">
+                <Text size="sm">
+                    These come from web addresses. Put a copy in the project, or keep only the address?
+                </Text>
+                {(question?.assets ?? []).map((asset) => (
+                    <Group key={asset.url} justify="space-between" wrap="nowrap" gap="xs">
+                        <Text size="sm" truncate title={asset.url}>
+                            {asset.name}
+                        </Text>
+                        <SegmentedControl
+                            size="xs"
+                            aria-label={`Keep ${asset.name}`}
+                            value={choices[asset.url] ?? "embed"}
+                            data={[
+                                { value: "embed", label: asset.kind === "image" ? "Embed picture" : "Embed model" },
+                                { value: "url", label: "Use URL" },
+                            ]}
+                            onChange={(value) => {
+                                setChoices((now) => ({ ...now, [asset.url]: value === "url" ? "url" : "embed" }));
+                            }}
+                        />
+                    </Group>
+                ))}
+                <ModalFooter mt="md">
+                    <Button
+                        variant="default"
+                        onClick={() => {
+                            finish(null);
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        data-autofocus
+                        onClick={() => {
+                            finish(choices);
+                        }}
+                    >
+                        Save
+                    </Button>
+                </ModalFooter>
+            </Stack>
+        </Modal>
+    );
+}
+
+/**
  * The Project package's dialogs (tier1-design.md section T14): Save as... and the unsaved-changes
  * question. It also opens a file waiting for a just-opened project's element, and keeps the
  * header's name in step with the name graphty-element holds (an Undo of a rename, a reopened file).
@@ -143,6 +230,8 @@ export function ProjectDialogs(): React.JSX.Element {
         <>
             <SaveAsDialog />
             <DiscardDialog />
+            <KeepAssetsDialog />
+            <NetworkPrompt />
         </>
     );
 }

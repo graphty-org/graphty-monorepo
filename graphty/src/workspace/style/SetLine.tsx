@@ -1,26 +1,30 @@
 import { ComboInput, CompactColorInput, FieldRow, QuickActions, VariablePill } from "@graphty/compact-mantine";
-import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
-import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Checkbox, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
+import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
+import { ActionIcon, Button, Checkbox, Group, Popover, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
 import { Link2, Minus } from "lucide-react";
 import React, { useState } from "react";
 
+import { modelName, useModelStates } from "../canvas/models";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { FromDataList } from "./FromDataList";
+import { ModelPicker } from "./ModelPicker";
 import {
     type DataBinding,
     type DataChoice,
     type Line,
+    lineOf,
     propose,
     readsNothing,
     removeLine,
+    rowLayers,
     sourceName,
     startingValue,
     writeLine,
 } from "./row";
-import { bindLabel, bindsAtRest, channelWord, enumWords, paletteWord } from "./words";
+import { bindLabel, bindsAtRest, channelWord, enumWords, MODEL_CHANNELS, modelWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
 interface SetLineProps {
@@ -73,6 +77,10 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
     const write = (next: { value: ChannelValue } | { binding: DataBinding }): void => {
         writeLine(session, row, target, channel, next).catch(fail);
     };
+    // Another line of the same row: the shape line's Model... and the model line's controls.
+    const writeOther = (other: Channel, value: ChannelValue): void => {
+        writeLine(session, row, target, other, { value }).catch(fail);
+    };
     const bind = (choice: DataChoice): void => {
         const proposal = propose(session, choice, channel);
         if (proposal.ok) {
@@ -80,7 +88,8 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
         }
     };
     const remove = (): void => {
-        removeLine(session, line.layer, channel).then(() => {
+        // The model's own controls go with it.
+        removeLine(session, line.layer, channel === "node.model" ? MODEL_CHANNELS : channel).then(() => {
             store.set({
                 notice: {
                     message: `Removed ${name}`,
@@ -155,6 +164,8 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
                             value={line.value}
                             documentColors={documentColors}
                             write={write}
+                            writeOther={writeOther}
+                            row={row}
                         />
                     ) : (
                         <BoundValue
@@ -271,6 +282,8 @@ function BoundValue({
  * @param props.value - the value
  * @param props.documentColors - colors the document uses
  * @param props.write - writes the line
+ * @param props.writeOther - writes another line of the row
+ * @param props.row - the row's layers
  * @returns The editor
  */
 function ValueEditor({
@@ -278,19 +291,36 @@ function ValueEditor({
     value,
     documentColors,
     write,
+    writeOther,
+    row,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     value: ChannelValue | undefined;
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
+    writeOther: (channel: Channel, value: ChannelValue) => void;
+    row: readonly LayerId[];
 }>): React.JSX.Element {
     const label = channelWord(descriptor.channel);
+    if (descriptor.channel === "node.model") {
+        return <ModelValue value={value} row={row} writeOther={writeOther} />;
+    }
+    if (descriptor.channel === "node.texture") {
+        return <TextureValue value={value} write={write} />;
+    }
     switch (descriptor.accepts) {
         case "color":
             return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
         case "enum":
             return descriptor.channel === "node.shape" ? (
-                <ShapeValue descriptor={descriptor} value={value} write={write} />
+                <ShapeValue
+                    descriptor={descriptor}
+                    value={value}
+                    write={write}
+                    pickModel={(id) => {
+                        writeOther("node.model", id);
+                    }}
+                />
             ) : (
                 <Select
                     size="xs"
@@ -406,26 +436,38 @@ export function ColorValue({
 
 /**
  * A shape line's value; clicking it opens the Shape popover: every shape the element draws, by
- * name, with a filter field.
+ * name, with a filter field, and Model..., which opens the Model picker in its place.
  * @param props - Component props
  * @param props.descriptor - the shape property
  * @param props.value - the value
  * @param props.write - writes the line
+ * @param props.pickModel - draws the row's nodes as a model
  * @returns The value and its popover
  */
 function ShapeValue({
     descriptor,
     value,
     write,
+    pickModel,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     value: ChannelValue | undefined;
     write: (next: { value: ChannelValue }) => void;
+    pickModel: (id: string) => void;
 }>): React.JSX.Element {
     const [open, setOpen] = useState(false);
+    const [models, setModels] = useState(false);
     const current = typeof value === "string" ? value : "";
     return (
-        <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
+        <Popover
+            opened={open}
+            onChange={(next) => {
+                setOpen(next);
+                setModels(false);
+            }}
+            position="left-start"
+            trapFocus
+        >
             <Popover.Target>
                 <Button
                     size="compact-xs"
@@ -440,21 +482,197 @@ function ShapeValue({
                 </Button>
             </Popover.Target>
             <Popover.Dropdown p={0}>
-                <QuickActions
-                    aria-label="Shapes"
-                    placeholder="Filter shapes"
-                    width={240}
-                    height={320}
-                    actions={(descriptor.values ?? []).map((v) => ({ value: v, label: enumWords(v) }))}
-                    onRun={(next) => {
-                        setOpen(false);
-                        write({ value: next });
-                    }}
-                    onClose={() => {
-                        setOpen(false);
-                    }}
-                />
+                {models ? (
+                    <ModelPicker
+                        onPick={(id) => {
+                            setOpen(false);
+                            setModels(false);
+                            pickModel(id);
+                        }}
+                    />
+                ) : (
+                    <QuickActions
+                        aria-label="Shapes"
+                        placeholder="Filter shapes"
+                        width={240}
+                        height={320}
+                        actions={[
+                            ...(descriptor.values ?? []).map((v) => ({ value: v, label: enumWords(v) })),
+                            { value: MODEL_ACTION, label: "Model..." },
+                        ]}
+                        onRun={(next) => {
+                            if (next === MODEL_ACTION) {
+                                setModels(true);
+                                return;
+                            }
+                            setOpen(false);
+                            write({ value: next });
+                        }}
+                        onClose={() => {
+                            setOpen(false);
+                        }}
+                    />
+                )}
             </Popover.Dropdown>
         </Popover>
+    );
+}
+
+/**
+ * The texture line's value: the picture's name, which opens the picture picker (a file, a drop or a
+ * pasted URL), and what graphty-element says about it.
+ * @param props - Component props
+ * @param props.value - the picture the layer names
+ * @param props.write - writes the line
+ * @returns The value and its popover
+ */
+function TextureValue({
+    value,
+    write,
+}: Readonly<{
+    value: ChannelValue | undefined;
+    write: (next: { value: ChannelValue }) => void;
+}>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const [open, setOpen] = useState(false);
+    const states = useModelStates(session);
+    if (session === null) {
+        return null;
+    }
+    const ref = typeof value === "string" ? value : "";
+    const problems = states.find((change) => change.ref === ref)?.problems ?? [];
+    const name = ref === "" ? "Choose picture" : modelName(session, ref).replace(/^Model$/, "Picture");
+    return (
+        <Stack gap={2}>
+            <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="dark"
+                        aria-label={`Texture ${name}`}
+                        onClick={() => {
+                            setOpen(!open);
+                        }}
+                    >
+                        {name}
+                    </Button>
+                </Popover.Target>
+                <Popover.Dropdown p={0}>
+                    <ModelPicker
+                        kind="image"
+                        onPick={(picked) => {
+                            setOpen(false);
+                            write({ value: picked });
+                        }}
+                    />
+                </Popover.Dropdown>
+            </Popover>
+            {problems.map((fact) => (
+                <Text key={fact.code} size="xs" c={fact.code.startsWith("E_") ? "var(--cm-text-danger)" : "dimmed"}>
+                    {modelWords(fact)}
+                </Text>
+            ))}
+        </Stack>
+    );
+}
+
+/** The Shape popover's Model... entry; no shape has this id. */
+const MODEL_ACTION = "graphty-app:model";
+
+/**
+ * A model line's value: the model's name, which opens the Model picker, and the plain controls
+ * under it. Turn upright cycles the axis the file stands on; Use node color tints the model with
+ * the row's color. Each stands out when graphty-element says the model may be lying down
+ * (W_MODEL_UP_GUESSED) or that a color does not reach it (W_MODEL_COLOR_IGNORED), and the
+ * element's warnings and errors for the model are said beneath, in words.
+ * @param props - Component props
+ * @param props.value - the model the row names
+ * @param props.row - the row's layers
+ * @param props.writeOther - writes another line of the row
+ * @returns The value, its popover and its controls
+ */
+function ModelValue({
+    value,
+    row,
+    writeOther,
+}: Readonly<{
+    value: ChannelValue | undefined;
+    row: readonly LayerId[];
+    writeOther: (channel: Channel, value: ChannelValue) => void;
+}>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const [open, setOpen] = useState(false);
+    const states = useModelStates(session);
+    if (session === null) {
+        return null;
+    }
+    const ref = typeof value === "string" ? value : "";
+    const problems = states.find((change) => change.ref === ref)?.problems ?? [];
+    const warned = (code: string): boolean => problems.some((fact) => fact.code === code);
+    const layers = rowLayers(session, row, "node");
+    const up = lineOf(layers, "node.modelSourceUp")?.value;
+    const tint = lineOf(layers, "node.modelTint")?.value;
+    const tinted = tint === true || tint === "true" || tint === "replace";
+    const axes = channelsFor("node").find((d) => d.channel === "node.modelSourceUp")?.values ?? [];
+    const turn = (): void => {
+        const at = axes.indexOf(typeof up === "string" ? up : "detected");
+        writeOther("node.modelSourceUp", axes[(at + 1) % axes.length]);
+    };
+    const name = modelName(session, ref);
+    return (
+        <Stack gap={2}>
+            <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="dark"
+                        aria-label={`Model ${name}`}
+                        onClick={() => {
+                            setOpen(!open);
+                        }}
+                    >
+                        {name}
+                    </Button>
+                </Popover.Target>
+                <Popover.Dropdown p={0}>
+                    <ModelPicker
+                        onPick={(id) => {
+                            setOpen(false);
+                            writeOther("node.model", id);
+                        }}
+                    />
+                </Popover.Dropdown>
+            </Popover>
+            <Group gap={4} wrap="nowrap">
+                <Button
+                    size="compact-xs"
+                    variant={warned("W_MODEL_UP_GUESSED") ? "light" : "subtle"}
+                    color={warned("W_MODEL_UP_GUESSED") ? "yellow" : "dark"}
+                    data-prominent={warned("W_MODEL_UP_GUESSED") || undefined}
+                    onClick={turn}
+                >
+                    Turn upright
+                </Button>
+                <Button
+                    size="compact-xs"
+                    variant={warned("W_MODEL_COLOR_IGNORED") ? "light" : "subtle"}
+                    color={warned("W_MODEL_COLOR_IGNORED") ? "yellow" : "dark"}
+                    data-prominent={warned("W_MODEL_COLOR_IGNORED") || undefined}
+                    aria-pressed={tinted}
+                    onClick={() => {
+                        writeOther("node.modelTint", !tinted);
+                    }}
+                >
+                    Use node color
+                </Button>
+            </Group>
+            {problems.map((fact) => (
+                <Text key={fact.code} size="xs" c={fact.code.startsWith("E_") ? "var(--cm-text-danger)" : "dimmed"}>
+                    {modelWords(fact)}
+                </Text>
+            ))}
+        </Stack>
     );
 }

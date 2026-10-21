@@ -20,6 +20,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
+import { sourceName } from "../data-place/words";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
@@ -1341,7 +1342,7 @@ function AddCondition({
                                     const key = keyOf(field);
                                     const inUse = used.includes(key);
                                     // The icon the Vary by list draws for the same value; the node id reads as text.
-                                    const Glyph = VALUE_GLYPHS[field.kind === "name" ? "text" : field.kind];
+                                    const Glyph = glyphOf(field.kind);
                                     return (
                                         <Combobox.Option
                                             key={key}
@@ -1378,6 +1379,19 @@ function AddCondition({
             </Combobox.Dropdown>
         </Combobox>
     );
+}
+
+/**
+ * The icon a field is listed with: the one the Vary by list draws for the same value, text for the
+ * node id, a file for the Data source.
+ * @param kind - the field's kind.
+ * @returns the icon.
+ */
+function glyphOf(kind: CardField["kind"]): (typeof VALUE_GLYPHS)[keyof typeof VALUE_GLYPHS] {
+    if (kind === "source") {
+        return GLYPHS.file;
+    }
+    return VALUE_GLYPHS[kind === "name" ? "text" : kind];
 }
 
 /** The two choices every value card's Match select ends with. */
@@ -1486,6 +1500,8 @@ export function CardBody({
             return <CategoryCard session={session} card={card} side={side} onChange={onChange} />;
         case "text":
             return <TextCard session={session} card={card} onChange={onChange} />;
+        case "source":
+            return <SourceCard session={session} card={card} side={side} onChange={onChange} />;
         case "yes-no":
             return (
                 <MatchSelect
@@ -2091,6 +2107,50 @@ function CategoryCard({
                     )}
                 </>
             )}
+        </Stack>
+    );
+}
+
+/**
+ * A Data source card: a checklist of the loads, each with how many elements of the kind it
+ * supplied, ticked ones being alternatives (a `source` leaf).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.card - the card
+ * @param props.side - nodes or edges
+ * @param props.onChange - takes the card as edited
+ * @returns The body
+ */
+function SourceCard({
+    session,
+    card,
+    side,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    card: Extract<Card, { type: "source" }>;
+    side: Side;
+    onChange: OnCard;
+}>): React.JSX.Element {
+    const { name } = card.field;
+    return (
+        <Stack gap={2} role="group" aria-label={`${name} values`}>
+            {session.data.sources().map((load) => (
+                <Checkbox
+                    key={load.key}
+                    size="xs"
+                    label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
+                    data-enter-done
+                    checked={card.sources.includes(load.key)}
+                    onChange={(event) => {
+                        const on = event.currentTarget.checked;
+                        const sources = on
+                            ? [...card.sources, load.key]
+                            : card.sources.filter((key) => key !== load.key);
+                        onChange({ ...card, sources });
+                    }}
+                />
+            ))}
         </Stack>
     );
 }

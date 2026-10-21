@@ -293,13 +293,14 @@ function atEnds(leaf: RuleTree): RuleTree {
 }
 
 /**
- * The values a step can test, nodes' then edges', as condition cards read them.
+ * The values a step can test, nodes' then edges', as condition cards read them. A Data source
+ * step keeps nodes and edges alike, so it is offered once, among the nodes.
  * @param session - the element's session.
  * @returns the fields.
  */
 const stepFields = (session: GraphSession): CardField[] => [
     ...cardFields(session, "node"),
-    ...cardFields(session, "edge"),
+    ...cardFields(session, "edge").filter((field) => field.kind !== "source"),
 ];
 
 /**

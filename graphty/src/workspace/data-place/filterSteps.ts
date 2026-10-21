@@ -8,6 +8,7 @@ import type { CodedFact, FilterStep, GraphSession, HistoryCode, RuleTree } from 
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Left, type Namer, ruleWords, stepChangeWords } from "./filterWords";
+import { sourceName } from "./words";
 
 /** The inspected kind of the step editor; its id is a step id, or `NEW` for a new step. */
 const STEP_KIND = "filter-step";
@@ -29,6 +30,10 @@ function namerOf(session: GraphSession): Namer {
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
+        source: (key) => {
+            const load = session.data.sources().find((each) => each.key === key);
+            return load === undefined ? "a removed source" : sourceName(load);
+        },
     };
 }
 

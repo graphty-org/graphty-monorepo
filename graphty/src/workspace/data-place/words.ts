@@ -417,7 +417,6 @@ export function columnOf(id: string): ColumnRef | null {
     return kind === "node" || kind === "edge" ? { kind, name: id.slice(at + 1) } : null;
 }
 
-
 /** What a load is called when the reader gave it no name and its source has none. */
 const KIND_NAMES: Readonly<Record<LoadedSource["kind"], string>> = {
     file: "File",

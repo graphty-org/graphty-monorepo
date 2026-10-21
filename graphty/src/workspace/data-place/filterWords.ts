@@ -11,6 +11,8 @@ export interface Namer {
     readonly node: (id: NodeId) => string;
     /** One value of a path in words (a yes-or-no as Yes or No); absent writes it as it is. */
     readonly value?: (path: string, value: string) => string;
+    /** A load's name, by its `data.sources()` key; absent writes the key. */
+    readonly source?: (key: string) => string;
 }
 
 /**
@@ -52,6 +54,8 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return rule.of.map((each) => ruleWords(each, names)).join(" or ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
+        case "source":
+            return `from ${rule.sources.map((key) => names.source?.(key) ?? key).join(" or ")}`;
         case "neighborhood": {
             // The hop count leads: a cut row still tells two steps on the same node apart.
             const who = rule.seeds.length === 1 ? names.node(rule.seeds[0]) : `${String(rule.seeds.length)} nodes`;

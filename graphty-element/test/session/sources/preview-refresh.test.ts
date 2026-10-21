@@ -194,7 +194,7 @@ describe("data.previewSource", () => {
             assert.deepInclude(preview.serverFacts, { code: "source.product", params: { value: "Neo4j" } });
             assert.strictEqual(preview.rows.length, 25);
             // with no label path configured, a row is labelled as data.name labels a node: by its id
-            assert.isTrue(preview.rows.every((row) => row.label === String(row.id)));
+            assert.isTrue(preview.rows.every((row) => row.name === String(row.id)));
             assert.isFalse(
                 preview.columns.some((c) => c.name.startsWith("_source.")),
                 "no bookkeeping column in a preview",
@@ -206,7 +206,7 @@ describe("data.previewSource", () => {
         });
     });
 
-    it("labels its rows by the configured label path, as data.name labels a loaded node", async () => {
+    it("names its rows by the configured label path, as data.name labels a loaded node", async () => {
         people = [
             { id: "a", name: "Ana", knows: [] },
             { id: "b", name: "", knows: [] },
@@ -215,7 +215,7 @@ describe("data.previewSource", () => {
             await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
             const preview = await session.data.previewSource({ source: "people-live", config: {} }, { maxNodes: 2 });
             assert.deepEqual(
-                preview.rows.map((row) => [row.id, row.label]),
+                preview.rows.map((row) => [row.id, row.name]),
                 [
                     ["a", "Ana"],
                     ["b", "b"],

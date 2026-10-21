@@ -789,8 +789,15 @@ describe("the sources member: what a save leaves out", () => {
             requests: {
                 works: {
                     path: "/works",
-                    query: { api_key: "SECRET-2", filter: "cites:{work}", access_token: "{token}" },
-                    body: { client_secret: "SECRET-3", page: 1 },
+                    query: Object.fromEntries([
+                        ["api_key", "SECRET-2"],
+                        ["filter", "cites:{work}"],
+                        ["access_token", "{token}"],
+                    ]),
+                    body: Object.fromEntries([
+                        ["client_secret", "SECRET-3"],
+                        ["page", 1],
+                    ]),
                     records: "results",
                     entity: "work",
                 },
@@ -812,7 +819,13 @@ describe("the sources member: what a save leaves out", () => {
             next: { at: string };
         };
         assert.strictEqual(part.params.mapping.endpoint, "https://api.example.test/");
-        assert.deepEqual(part.params.mapping.requests.works.query, { filter: "cites:{work}", access_token: "{token}" });
+        assert.deepEqual(
+            part.params.mapping.requests.works.query,
+            Object.fromEntries([
+                ["filter", "cites:{work}"],
+                ["access_token", "{token}"],
+            ]),
+        );
         assert.deepEqual(part.params.mapping.requests.works.body, { page: 1 });
         assert.strictEqual(part.next.at, "https://api.example.test/p2?page=2");
         const redacted = leftOut.find((each) => (each as { code: string }).code === "W_SOURCE_URL_REDACTED") as

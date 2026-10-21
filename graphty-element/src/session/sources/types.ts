@@ -202,7 +202,7 @@ export interface SourcePreview {
     /** At most `maxNodes` node rows, as a load would hold them, without the `_source.` facts. */
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
     /**
-     * Each of `nodes`, in order, as its id and its label: the value at the configured
+     * Each of `nodes`, in order, as its id and its name: the value at the configured
      * `data.knownFields.nodeLabelPath`, as `data.name(id)` reads it once the node is loaded, else
      * the id.
      * @since 3.30.0
@@ -230,8 +230,8 @@ export interface SourcePreview {
 export interface SourcePreviewRow {
     /** The node's id. */
     readonly id: NodeId;
-    /** Its label, or null when the row has none. */
-    readonly label: string | null;
+    /** Its name, as `data.name(id)` reads it once the node is loaded: the configured label, else the id. */
+    readonly name: string;
 }
 
 /** The options of `data.previewSource`. Experimental. */

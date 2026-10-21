@@ -551,9 +551,7 @@ export async function previewSource(
     const labelPath = host.labelPath();
     return Object.freeze({
         nodes: Object.freeze(nodes),
-        rows: Object.freeze(
-            nodes.map((row) => Object.freeze({ id: row.id as NodeId, label: labelOf(row, labelPath) })),
-        ),
+        rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, name: nameOf(row, labelPath) }))),
         edges: Object.freeze(edges),
         columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
         more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,
@@ -574,13 +572,13 @@ function withoutSourceFacts(row: Readonly<Record<string, unknown>>): Readonly<Re
 }
 
 /**
- * A row's label as `data.name` reads a loaded node's: the value at the label path, as text, else
+ * A row's name as `data.name` reads a loaded node's: the value at the label path, as text, else
  * the id.
  * @param row - the row
  * @param path - `data.knownFields.nodeLabelPath`, or null for none
- * @returns the label
+ * @returns the name
  */
-function labelOf(row: Readonly<Record<string, unknown>>, path: string | null): string {
+function nameOf(row: Readonly<Record<string, unknown>>, path: string | null): string {
     const value = path === null ? undefined : row[path];
     if (typeof value === "string" && value !== "") {
         return value;

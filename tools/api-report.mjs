@@ -154,8 +154,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
-    // a value the consumer's data holds: a source preview row's label (`name`, `title`, ...)
-    "label",
+    // the name of the credential slot a load filled, an identifier its source's descriptor declares
+    "credentialSlot",
 ]);
 
 const DECLARATION =

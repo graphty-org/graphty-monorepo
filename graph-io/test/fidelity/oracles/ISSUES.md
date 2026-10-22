@@ -2278,6 +2278,36 @@ Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sam
   turned 90 degrees) and `edge.dash` (graph-io reads `dashed`, graphty draws it dotted), `dot-real-happiness`
   `label.size`.
 
+Fix round 4, edge routes (2026-10-22), against Graphviz 14.1.2's SVG:
+
+- FIXED, graphty-element: a DOT file that places every node and stores no `pos` for its edges is drawn by Graphviz
+  with `neato -n2`: the nodes stay and Graphviz routes each edge round the nodes in its way, by its `splines`
+  (curved, ortho, polyline), into its compass and record-field ports. graphty kept the nodes and drew every such
+  edge straight. A placed DOT file now loads with the fixed layout and `edgeRoutes: "graphviz"` (when the optional
+  Graphviz package is installed), which hands Graphviz the placed nodes with their drawn size, shape and record
+  label, and the edges' ports and arrows, and draws each edge along the route Graphviz lays; a route the file stores
+  still wins. `edge.route` on `dot-specimen-edges-lines` 0.604 -> 0.925, `-p2` 0.778 -> 1, `-p3` 0.556 -> 0.778,
+  `-p4` (curved) 0.333 -> 1 with `edge.curve` 0.333 -> 1 and its label on the line, `-p5` (ortho) 0.5 -> 0.9 (with
+  the comparator fix below), `-p6`, `-p9` 0.889 -> 1, `-p8` 0.778 -> 1, `dot-specimen-arrows-p4` 0.25 -> 0.75.
+- FIXED, comparator: an edge Graphviz draws as open paths laid end to end is one line: its colored segments
+  (`red;0.2:green;0.3:blue`, one piece per color) and an orthogonal route with rounded corners (`radius=8`, its runs
+  and corners drawn apart). The comparator read the longest piece as the whole edge (`color-segments-3`
+  `edge.color` blue and `edge.route` a third of the line; `radius` one straight run). It now joins the pieces into
+  one line, painted through the colors with a hard switch at each joint where they differ, and reads graphty's
+  gradient as the flat pieces it draws rather than blending neighbours at each switch: `color-segments` and
+  `color-segments-3` pass `edge.color`, `edge.route` and `edge.gradient`; `-p5` `radius` passes `edge.route` and
+  `edge.curve`.
+- FIXED, comparator: a line that crosses its end node to a port on the outline (`headport=n`, `ne`, `s`) and ends a
+  hair inside or outside it, or pokes a hair past a corner and back, is cut where it enters the node, as the
+  program's line is.
+- OPEN: `splines=polyline` parallels (`dot-specimen-edges-lines-p3` `parallel`): the Graphviz graphty-element runs
+  (16.1.0, WebAssembly) draws the two edges straight on one another at pinned positions where 14.1.2 fans them; a
+  Graphviz version difference. Self-loops keep graphty's loop (`-p5` `loop`, `loop-port`): Graphviz's loop route is
+  not read back. HTML-like ports (`headport-html-port`, `-table-port`) need the HTML table, which graphty draws at
+  the wrong size. Tapered edges (`style-tapered*`) are drawn by Graphviz as a filled polygon the comparator does not
+  read as an edge (`edge.extra`, `stray.present`). A stored `pos` with an `e,x,y` arrow point (`pos-arrow-endpoint`)
+  is the open row above.
+
 Not drawn on any sheet, with the reason (`NOT_DRAWN` and `NOT_SWEPT` in the generator): 112 of Graphviz's 177
 attributes draw nothing at pinned positions (layout-engine parameters; output metadata such as URL, tooltip, id and
 class; layers; page, size, dpi, viewport and the other whole-drawing placements; font and image search paths;

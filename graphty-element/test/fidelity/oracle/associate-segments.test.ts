@@ -55,10 +55,38 @@ describe("an edge drawn in colored segments", () => {
         assert.strictEqual(read?.pieces.size, 3);
     });
 
-    it("is not read from pieces that do not meet, are of one color, or differ in width", () => {
+    it("joins an orthogonal route drawn as its runs and its rounded corner, in any order, as one line in one color", () => {
+        // Graphviz's radius=8: the first run, the last run, then the corner between them drawn from the last run's start
+        const corner = piece(2, "#505050", 0, 0);
+        // a quarter circle of radius 6 from (56, 100) round to (50, 94), drawn from the last run's start
+        corner.points = Array.from({ length: 9 }, (_, i): Pt => {
+            const a = (Math.PI / 2) * (i / 8);
+            return [56 - 6 * Math.sin(a), 94 + 6 * Math.cos(a)];
+        });
+        const up = piece(0, "#505050", 0, 0);
+        up.points = [
+            [50, 40],
+            [50, 94],
+        ];
+        const along = piece(1, "#505050", 56, 120);
+        const read = segmentedLine([up, along, corner]);
+
+        assert.deepEqual(
+            [read?.line.points[0], read?.line.points.at(-1)],
+            [
+                [50, 40],
+                [120, 100],
+            ],
+        );
+        assert.strictEqual(read?.line.points.length, 11, "the first run, the corner, the last run");
+        assert.isUndefined(read?.line.stroke?.gradient, "one color: no gradient");
+    });
+
+    it("is not read from pieces that do not meet or differ in width", () => {
         assert.isNull(segmentedLine([piece(0, "#ff0000", 0, 20), piece(1, "#0000ff", 30, 50)]), "apart");
-        assert.isNull(segmentedLine([piece(0, "#ff0000", 0, 20), piece(1, "#ff0000", 20, 50)]), "one color");
         assert.isNull(segmentedLine([piece(0, "#ff0000", 0, 20), piece(1, "#0000ff", 20, 50, 3)]), "two widths");
         assert.isNull(segmentedLine([piece(0, "#ff0000", 0, 20)]), "one piece");
+        // Graphviz's `tee` tail: the line and a stub of its stem on its end, in one color, which the line runs on to
+        assert.isNull(segmentedLine([piece(0, "#505050", 5, 100), piece(1, "#505050", 0, 5)]), "a stem");
     });
 });

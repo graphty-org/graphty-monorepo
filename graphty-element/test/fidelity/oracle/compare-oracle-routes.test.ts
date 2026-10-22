@@ -163,6 +163,18 @@ describe("a route that crosses its end node to a corner (Graphviz's headport=ne)
         assert.closeTo(hook.at(-1)?.[0] ?? 0, 188, 0.5);
     });
 
+    it("is cut there too when its last points round a hair outside the outline (headport=n)", () => {
+        const top: Pt[] = [
+            [112, 99],
+            [180, 91],
+            [195, 88.6],
+            [199, 87.9],
+            [200, 87.7],
+        ];
+
+        assert.closeTo(clipToNodes(top, s, t).at(-1)?.[0] ?? 0, 188, 0.5);
+    });
+
     it("keeps a route that only passes near its node, never entering it", () => {
         const past: Pt[] = [
             [112, 100],

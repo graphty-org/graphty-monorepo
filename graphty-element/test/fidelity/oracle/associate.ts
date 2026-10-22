@@ -895,50 +895,84 @@ function labelDress(p: Prim, part: readonly Prim[]): boolean {
     );
 }
 
+/** Whether two points are one joint. */
+const joint = (a: Pt | undefined, b: Pt | undefined): boolean =>
+    a !== undefined && b !== undefined && Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.05;
+
 /**
- * Graphviz's colored segments (`color="red;0.3:blue"`, emit.c `splitBSpline`): one route drawn as open paths of one
- * width laid end to end, each in the next color. Read as one line whose stroke runs through the colors with a hard
- * switch at each joint, as a gradient along the line; its first color is the line's.
+ * Open pieces of one width laid end to end, each the right way round, from the first in document order that has a
+ * free end; null unless every piece is on the one chain.
+ * @param open - the pieces
+ * @returns each piece with its points in chain order, or null
+ */
+function chainOf(open: readonly Prim[]): { piece: Prim; points: Pt[] }[] | null {
+    const free = (p: Prim, at: Pt | undefined): boolean =>
+        !open.some((q) => q !== p && (joint(q.points[0], at) || joint(q.points.at(-1), at)));
+    const first = open.find((p) => free(p, p.points[0]) || free(p, p.points.at(-1)));
+    if (first === undefined) {
+        return null;
+    }
+    const chain = [{ piece: first, points: free(first, first.points[0]) ? first.points : [...first.points].reverse() }];
+    const left = new Set(open.filter((p) => p !== first));
+    for (let tail = chain[0].points.at(-1); left.size > 0; tail = chain.at(-1)?.points.at(-1)) {
+        const next = [...left].find((q) => joint(q.points[0], tail) || joint(q.points.at(-1), tail));
+        if (next === undefined) {
+            return null;
+        }
+        left.delete(next);
+        chain.push({ piece: next, points: joint(next.points[0], tail) ? next.points : [...next.points].reverse() });
+    }
+    return chain;
+}
+
+/**
+ * One route drawn as open paths of one width laid end to end: Graphviz's colored segments (`color="red;0.3:blue"`,
+ * emit.c `splitBSpline`), each piece in the next color, and an orthogonal route with rounded corners (`radius`), its
+ * straight runs and its corners drawn apart. Read as one line; when its pieces differ in color, its stroke runs
+ * through the colors with a hard switch at each joint, as a gradient along the line, its first color the line's.
  * @param part - an edge's primitives
  * @returns the line and the pieces it joins, or null when the edge is not drawn so
  */
 export function segmentedLine(part: readonly Prim[]): { line: Prim; pieces: ReadonlySet<Prim> } | null {
-    const chain = part
+    const open = part
         .filter((p) => p.kind === "path" && !p.closed && p.fill === null && p.stroke !== null)
         .sort((a, b) => a.index - b.index);
-    const joined = (p: Prim, i: number): boolean => {
-        const [before, end] = [chain[i], chain[i].points.at(-1)];
-        return (
-            end !== undefined &&
-            Math.hypot(p.points[0][0] - end[0], p.points[0][1] - end[1]) < 0.05 &&
-            p.stroke?.width === before.stroke?.width &&
-            p.stroke?.color !== before.stroke?.color
-        );
-    };
-    const first = chain[0];
-    if (chain.length < 2 || first.stroke === null || !chain.slice(1).every(joined)) {
+    const width = open[0]?.stroke?.width;
+    const chain = open.length < 2 || open.some((p) => p.stroke?.width !== width) ? null : chainOf(open);
+    const stroke = chain?.[0].piece.stroke ?? null;
+    // A stroked arc at either end is a cap on the line's tip (Graphviz's `curve` arrowhead on its stem), not a corner
+    // between two runs; and pieces all of one color are one route only with a corner drawn between two runs
+    // (Graphviz's `radius`): a stub alone on a line's end is an arrowhead's stem (Graphviz's `tee`).
+    const capped = chain !== null && [chain[0], chain.at(-1)].some((c) => c !== undefined && strokedArc(c.piece));
+    const oneColor = chain?.every((c) => c.piece.stroke?.color === stroke?.color) ?? true;
+    if (chain === null || stroke === null || capped || (oneColor && chain.length < 3)) {
         return null;
     }
-    const points = chain.flatMap((p, i) => (i === 0 ? p.points : p.points.slice(1)));
+    const points = chain.flatMap((c, i) => (i === 0 ? c.points : c.points.slice(1)));
     const total = pathLength(points);
     const stops: PStop[] = [];
     let at = 0;
-    for (const { points: piece, stroke } of chain) {
-        const color = stroke?.color ?? first.stroke.color;
-        const opacity = stroke?.opacity ?? 1;
+    for (const { piece, points: run } of chain) {
+        const color = piece.stroke?.color ?? stroke.color;
+        const opacity = piece.stroke?.opacity ?? 1;
         stops.push({ offset: at / total, color, opacity });
-        at += pathLength(piece);
+        at += pathLength(run);
         stops.push({ offset: at / total, color, opacity });
     }
     const end = points.at(-1) ?? points[0];
     const angle = (Math.atan2(end[1] - points[0][1], end[0] - points[0][0]) * 180) / Math.PI;
+    const painted = stops.some((stop) => stop.color !== stroke.color);
     const line: Prim = {
-        ...first,
+        ...chain[0].piece,
         points,
         box: boxOfPoints(points),
-        stroke: { ...first.stroke, gradient: { kind: "linear", stops, angle } },
+        stroke: {
+            ...chain[0].piece.stroke,
+            ...stroke,
+            ...(painted ? { gradient: { kind: "linear", stops, angle } } : {}),
+        },
     };
-    return { line, pieces: new Set(chain) };
+    return { line, pieces: new Set(open) };
 }
 
 const longestPath = (prims: readonly Prim[]): Prim | undefined =>

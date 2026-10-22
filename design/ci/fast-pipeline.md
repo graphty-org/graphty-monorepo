@@ -1,6 +1,6 @@
 # Fast pipeline: from development branch to graphty.app and npm
 
-Status: Proposed, 2026-10-21. Issue #3262. Nothing below is built; until it is, the tools follow
+Status: Accepted, 2026-10-21. Issue #3262. Nothing below is built; until it is, the tools follow
 `design/ci/golden-local.md`.
 
 This document describes how a change in graphty-monorepo should travel from a development branch
@@ -399,17 +399,19 @@ gate step or the visual job.
 - **Reduce CI and catch errors at release** (owner suggestion, 2026-10-21). Not adopted: runner use
   is under half the limit. Revisit past 10 minutes of queue.
 
-## 9. Owner decisions still open
+## 9. Owner decisions
 
-1. **Composed screenshot approvals** (section 6.3). Recommended, and needed to meet requirement 1 in
-   full; it changes the owner's trusted code.
-2. **Golden may be briefly broken.** Confirm that "nothing merges with known errors" governs master,
-   not golden; the design depends on it.
-3. **The beta repository's name** (proposed `graphty-beta`), a published URL.
-4. **Whether docs and Storybooks wait for promotion.** Default, matching the owner's words:
-   everything but append-only data waits. The alternative, docs following each npm release, splits
-   the site into two versions.
-5. **An npm beta channel.** Proposed: none.
+Decided by the owner on 2026-10-21:
+
+1. **Composed screenshot approvals: yes** (section 6.3). An image is approved when one of the
+   owner's signatures covers that exact image and no later signed reject revokes it. This changes the
+   owner's trusted gate code, which the owner has now authorized for this purpose.
+2. **Golden may be briefly broken: yes.** "Nothing merges with known errors" governs master. Golden
+   is protected by verification, bisect and revert (section 4.3).
+3. **The beta repository is `graphty-beta`**, serving beta.graphty.app.
+4. **Docs and Storybooks wait for promotion**, because they are paired with the code they document.
+   Only the append-only hosted data deploys on every green master build.
+5. **No npm beta channel.** The release train is unchanged.
 
 ## 10. Build order
 

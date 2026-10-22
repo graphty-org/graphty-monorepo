@@ -990,17 +990,23 @@ Each is argued where it appears; listed here so the choices can be found in one 
 
 ### 8.2 Owner decisions (2026-10-22)
 
-- **What a window move does to finished runs is an option on the window**,
-  `TimeWindow.results: "keep" | "stale" | "rerun"`. `"stale"` (the default) marks runs over the
-  visible graph out of date, which is what moving a window did before this option existed, so
-  the default changes nothing. `"keep"` leaves them current as they are; `"rerun"` runs them again
-  over the new window, and playback waits for those runs before its next step. It lives on the
-  window so it is saved with the project and undone with the window. It replaces the
-  `play({ rerun })` option of section 2.3 and settles item 1 of the list below.
+- **What a window move does to finished runs is an option with three values**: keep the results
+  as they are (`"keep"`), mark them out of date (`"stale"`), or run them again (`"rerun"`). It is
+  `time.settings.results`, held with the designated field and saved in the project as
+  `visibility.playback` (section 8.5 moved it off the window, so "Show all time" keeps it). The
+  default is `"stale"`: it is what moving a window did before the option existed, so the default
+  changes nothing for an existing consumer. The task that relayed the owner's decision suggested
+  `"keep"` as the default; the studio's ruling kept `"stale"` for the reason above, and the owner
+  may still pick `"keep"` (one changed constant, `DEFAULT_TIME_SETTINGS` in
+  `graphty-element/src/session/time/TimeApi.ts`). `"rerun"` also re-runs runs that went out of
+  date before it was chosen, and playback waits for the re-runs before its next step. A re-run
+  that fails publishes `time:rerun-failed` with the run's id and the error's `{ code, params }`.
+  It replaces the `play({ rerun })` option of section 2.3 and settles item 1 of section 8.4.
 - **Designating a column makes it a time column.** The column's measurement reads `"time"`
   (source `"declared"`) while it is the designated field, unless the reader declared it
-  something else, which `setField` refuses (`reason: "declared-not-time"`). This settles item 2
-  below.
+  something else, which `setField` refuses (`reason: "declared-not-time"`). Its completeness in
+  `data.attributes()` counts the values that parse as time, not the values present. This settles
+  item 2 of section 8.4.
 
 ### 8.3 What the prototype built (branch feat/timeline-prototype)
 
@@ -1016,8 +1022,9 @@ Where it differs from sections 2 to 7:
 - The unit is stored in `data.knownFields` (`nodeTimeUnit`, `edgeTimeUnit`) beside the path, not
   on the measurement declaration: designation then works before the data has loaded (an element
   attribute), and the measurement is derived from the designation instead of being written.
-- `mode` lives on the window, so it is saved and undone with it; `interval` and `loop` are
-  playback options and are not saved.
+- `mode`, `step`, `results` and `missing` are settings held with the field (section 8.5), saved
+  and undone; the window carries the step and mode in use. `interval` and `loop` are playback
+  options and are not saved.
 - No cursor slot: every move is a `visibility.window` command. A play's steps merge into one
   history step (a transaction continuing the play's first step), so one undo returns to the
   window before the play; `stepBy` and `seek` are one step each. `seek` always commits.
@@ -1089,6 +1096,51 @@ they change existing behavior.
    `time.end-ignored`, `time.found`; reasons `calendar-step-on-ordinal`, `declared-not-time`.
 8. Project file keys: `knownFields.nodeTimeEndPath`, `edgeTimeEndPath`, and
    `visibility.playback`.
+
+### 8.5 Studio review rulings, as built (2026-10-22)
+
+The design studio reviewed the prototype; its rulings are in
+`design/ui/studio/timeline/decisions.md`. What they changed in the element's API (all additive to
+the published element; the prototype's own unreleased API changed where noted):
+
+- **Runs.** A re-run keeps its id after the window moved, named or not (`RunsApi` compares a run's
+  identity as spelled, live scope keywords unresolved). A run over the visible graph records the
+  window it was computed in: `Caveats.window` and `RunScopeRecord.window`, `{ attribute, from, to,
+nodes, edges }`. Staleness compares windows, not only the visible node set: a run computed on
+  Jun 3-12 is out of date on May 16-25 even when every node shows in both, with
+  `StaleNote.reason: "window-moved"` and `StaleNote.window: { code: "window-moved", params: { from,
+to, nodes, edges } }`.
+- **Settings.** `time.settings` (`{ results, mode, step, missing }`, every default filled in) and
+  `time.setSettings(patch)`, one undoable step (op `visibility.playback`, history code
+  `visibility.playback`), saved as `visibility.playback`. `TimeWindow.results` is gone (it was
+  never released). `step: "auto"` (the default) picks the calendar step closest to a twentieth of
+  the data's span (a 1-2-5 number for ordinal time) and writes the step in use on the window
+  (`time.current.step`). A new step snaps a sliding window to one aligned step; with no window it
+  is only stored, and the first `stepBy(1)` or play opens the first window. Cumulative windows
+  start at the start of the data; switching back to sliding keeps one step ending where the
+  cumulative window ended. `missing` hides untimed elements in every window.
+- **Designation.** `setField` refuses a column none of whose values reads as time (`reason:
+"no-times"`). Clearing or changing the field or its unit clears the window, in the same undoable
+  step, whose history code is now `time.field` (`{ column }`) or `time.clear-field`. A column
+  designated again without a unit takes the unit it was last given. In a column of mostly date
+  text, a bare number counts as unparsed rather than as epoch milliseconds. `time.unit-suspect`
+  also suggests `"ordinal"` when every number is a whole number from -5000 to 3000.
+  `time.notices()` returns the same notices for a field designated by an import or an attribute,
+  and the import mapping takes `TableMapping.timeUnit`.
+- **New facts.** `time.candidates()` (the columns that read as time, most first, with a suggested
+  unit for numbers); `time.parse(text)` (typed dates, no zone read as UTC); `time.seek("start" |
+"end")`; `time.atStart`, `time.atEnd`, and `atStart`, `atEnd` and `untimed` counts on
+  `time:step`; `bins({ maxCount })` (whole calendar or 1-2-5 steps covering the data exactly, each
+  bin carrying its `step`); `data.statistics({ scope: "visible" })`.
+- **Transport.** Stepping and playback stop at the window that reaches the end of the data
+  (`time:end`), and stepping back stops at the first; play at the end starts again from the
+  first window. Autosave holds its writes while time plays and writes once on pause.
+
+Left as decided against, with reasons, in the rulings file: a pre-set field on the timeline
+samples, a time chip on sample cards, applying a suggested unit by itself, relabeling Results,
+leaving untimed elements out of the counts, not counting a window move as unsaved, a T key, an
+outlier notice, an "entered this step" layer (phase 5) and the reader's time zone (UTC is named on
+readouts finer than a day instead).
 
 ## 9. Phased implementation plan
 

@@ -205,7 +205,8 @@ export function owner(given, env = process.env) {
  */
 export function busyLine(until, reason, now = Date.now()) {
     const span = /^(\d+)([hd])$/.exec(until ?? "");
-    const at = span ? now + Number(span[1]) * (span[2] === "h" ? 3600e3 : 86400e3) : Date.parse(until);
+    const unit = span?.[2] === "h" ? 3600e3 : 86400e3;
+    const at = span ? now + Number(span[1]) * unit : Date.parse(until);
     if (!Number.isFinite(at)) throw new Error(`--until takes a time, 24h, 2d or clear, not ${until}`);
     if (!reason) throw new Error("busy needs --reason");
     return `until ${new Date(at).toISOString()} -- ${reason}`;
@@ -310,12 +311,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         writeNote(run, n, branch, { "latest commit": latestCommit(cwd) });
         return 0;
     }
-    if (command === "busy") {
-        const busy = o.until === "clear" ? null : busyLine(o.until, o.reason);
-        writeNote(run, n, branch, { busy });
-        console.error(`branch-note: ${branch} is ${busy ? `busy ${busy}` : "no longer busy"} (#${n})`);
-        return 0;
-    }
+    if (command === "busy") return markBusy(run, n, branch, o);
     if (command === "start") {
         run(["api", "-X", "POST", `repos/{owner}/{repo}/issues/${n}/labels`, "-f", "labels[]=in-progress"]);
     }
@@ -329,6 +325,22 @@ export function main(argv, run = gh, cwd = process.cwd()) {
     };
     writeNote(run, n, branch, fields);
     console.error(`branch-note: the progress note of ${branch} on #${n} is current`);
+    return 0;
+}
+
+/**
+ * `busy`: writes (or with `--until clear`, removes) the note's busy line.
+ * @param run runs gh
+ * @param n the issue
+ * @param branch the branch
+ * @param o the options (`until`, `reason`)
+ * @returns the exit code
+ */
+function markBusy(run, n, branch, o) {
+    const busy = o.until === "clear" ? null : busyLine(o.until, o.reason);
+    writeNote(run, n, branch, { busy });
+    const state = busy ? `busy ${busy}` : "no longer busy";
+    console.error(`branch-note: ${branch} is ${state} (#${n})`);
     return 0;
 }
 

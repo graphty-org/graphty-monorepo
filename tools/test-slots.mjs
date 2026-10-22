@@ -305,7 +305,8 @@ export async function acquire({
             return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
         }
         if (at < slots) {
-            if (low) writeTicket({ ...ticket, granted: true });
+            // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
+            writeTicket({ ...ticket, granted: true });
             if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
             return release;
         }

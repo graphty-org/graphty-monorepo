@@ -118,8 +118,10 @@ export async function newestPassing(from, n, ok) {
 }
 
 const describeLanding = (l) => `${short(l.sha)} (${l.subject})`;
-const conflictIn = (files) =>
-    `a conflict in ${files.slice(0, 5).join(", ")}${files.length > 5 ? ` and ${files.length - 5} more` : ""}`;
+const conflictIn = (files) => {
+    const more = files.length > 5 ? ` and ${files.length - 5} more` : "";
+    return `a conflict in ${files.slice(0, 5).join(", ")}${more}`;
+};
 
 /**
  * Syncs one branch: finds the newest landing that merges and passes, pushes the merge.
@@ -296,7 +298,12 @@ export function defaultCheck(ctx, job) {
  */
 export function failedTest(out) {
     const shard = /\[FAIL\] (\S+)/.exec(out)?.[1];
-    const test = /^\s*(?:FAIL|×)\s+(.+?)\s*$/m.exec(out)?.[1];
+    // vitest marks a failed test "FAIL" or with a multiplication sign.
+    const line = out
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => /^(FAIL|\u00d7) /.test(l));
+    const test = line?.replace(/^\S+ +/, "");
     return [shard, test].filter(Boolean).join(": ") || "tests";
 }
 
@@ -507,7 +514,8 @@ export function syncCommand(ctx, argv) {
         return i === -1 ? undefined : argv[i + 1];
     };
     const days = value("--active-days");
-    if (days !== undefined && !(Number(days) > 0)) {
+    const n = Number(days);
+    if (days !== undefined && (!Number.isFinite(n) || n <= 0)) {
         console.error(`sync: --active-days takes a number of days, not ${days}`);
         return 1;
     }
@@ -515,6 +523,6 @@ export function syncCommand(ctx, argv) {
         branch: value("--branch"),
         dryRun: argv.includes("--dry-run"),
         ifDue: argv.includes("--if-due"),
-        activeDays: days === undefined ? undefined : Number(days),
+        activeDays: days === undefined ? undefined : n,
     });
 }

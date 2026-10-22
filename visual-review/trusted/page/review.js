@@ -4834,10 +4834,8 @@ function commitWhat(t, f, signed) {
         return `Commit ${kinds.join(" and ")} to ${t.branch}.`;
     }
     const day = new Date().toISOString().slice(0, 10);
-    return (
-        `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request` +
-        `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`
-    );
+    const notes = f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : "";
+    return `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request${notes}.`;
 }
 
 // What a Finish commits and posts, as the sheet's first lines.

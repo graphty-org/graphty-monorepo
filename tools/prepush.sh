@@ -288,8 +288,18 @@ fi
 # gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
 # 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
 # prepush-tests.mjs stops every shard's process group itself.
+# Whose tests run is nx's task-based answer (Nx 24): only the packages whose coverage task has a
+# changed file among its inputs (nx.json's test inputs), a subset of the affected packages above. A
+# change to a package's own tests or Markdown then no longer runs the tests of every package that
+# depends on it. When nx cannot answer (an older nx, an error), every affected package's tests run.
+TEST_PROJECTS="$PROJECTS"
+if [ -n "${BASE:-}" ]; then
+    TASK_PROJECTS=$(node "$SCRIPT_DIR/nx-affected-compare.mjs" --tests "$BASE" HEAD 2>/dev/null) &&
+        [[ "$TASK_PROJECTS" == "["* ]] && TEST_PROJECTS="$TASK_PROJECTS"
+fi
+echo "Packages whose tests this push can affect: $(echo "$TEST_PROJECTS" | tr -d '[]" ')"
 run_step "Tests (the CI shards of the affected packages)" \
-    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
+    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$TEST_PROJECTS' '${BASE:-}'"
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"

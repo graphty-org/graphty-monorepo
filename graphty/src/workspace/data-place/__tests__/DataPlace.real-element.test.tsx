@@ -273,6 +273,8 @@ describe("the Data place's sidebar on the real element", () => {
             assert.equal(shown("Kind of source"), "user");
         });
         await pick("Kind of target", "host");
+        // The shared-ids row appears once the load is read again with both kinds.
+        await within(fieldsGroup()).findByRole("combobox", { name: "Shared ids" });
         await pick("Shared ids", "Different nodes");
         await waitFor(() => {
             assert.isDefined(session.data.node("user:admin"));

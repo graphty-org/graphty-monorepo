@@ -15,13 +15,16 @@ A branch lands in `golden` after a fast check that runs only the tests its chang
 under a lock held only long enough to merge and push. The full checks (the whole gate, the local
 GPU run, screenshots, SonarQube) then run on golden after landing, as a verification run the
 landing script starts. A failing run bisects over the landings it covers and the pipeline round
-reverts the culprit at once. A cut for master takes only a verified commit, and GitHub CI still
-checks it once before it merges.
+reverts the culprit at once. A cut for master takes a verified commit, or a named commit that passes the
+full gate as `cut-fix` does, and GitHub CI still checks it once before it merges.
 
 The owner's decisions:
 
 - **Composed screenshot approvals.** An image is approved when one of the owner's passkey
-  signatures covers that exact image and no later signed reject revokes it. Screenshots are
+  signatures covers that exact image and no later signed reject revokes it. The rule covers every
+  changed path under `visual-baselines/` (images, story settings files, deletions) except the
+  `reviews/` records; "later" is the time inside the signed statement; rejects count from
+  `golden`, `master` and every `review/*` ref (section 6.3 of the design). Screenshots are
   captured and signed on the branch, so two branches that each changed images need no second
   review when they combine. This changes `visual-review/trusted/gate.mjs` and `lib/approval.mjs`,
   which the owner authorized for this purpose only.

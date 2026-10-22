@@ -10,9 +10,9 @@ release train, and changes what makes large work take days to land.
 
 It replaces these parts of `design/ci/golden-local.md`: the "full local gate on every
 landing" row of 3.1, and sections 4.2 (landing), 4.3 (screenshot review at the cut), 4.7 (what CI
-is for), 4.8 (the lock), the landing-failure rows of 4.13 and 4.14 (cut selection and the one-round
-grace before a revert). It replaces `design/ci/ci-cd-plan.md` except sections 7 (where the GPU,
-macOS and Windows lanes run), 9 (flaky tests), 10 and 11 (the release train), 12 (keeping master
+is for), 4.8 (the lock), the landing-failure rows of 4.13, and 4.14's cut selection and one-round
+grace before a revert; the rest of 4.14 (`golden-cut`, the draft cut pull request, `ship`) stays.
+It replaces `design/ci/ci-cd-plan.md` except sections 7 (where the GPU, macOS and Windows lanes run), 9 (flaky tests), 10 and 11 (the release train), 12 (keeping master
 green) and 13 (runner capacity and API budget), which stay in force.
 
 Words used throughout:
@@ -150,16 +150,28 @@ stay.
 
 **What happens.** After a landing, `land.mjs` starts a verification run in the background, as it
 starts the screenshot preview today. No standing process, no timer. A run takes golden's newest
-commit. When it ends, it starts its own follow-up run if golden moved meanwhile, and keeps going
-until `golden-verified` reaches golden's tip; a landing that finds a run already going starts
-nothing.
+commit and keeps going until `golden-verified` reaches golden's tip. No wakeup may be lost between
+a run that is finishing and a landing that is pushing, so both decide under one small verify lock
+(a lock file beside the state file, held for milliseconds, separate from the landing lock):
+
+- A landing, after its push, takes the verify lock, records its new tip as the `wanted` commit in
+  the state file, and starts a run only if no live run is recorded. Then it releases the lock.
+- A run, when it finishes a commit, takes the verify lock and re-reads `wanted` and golden's tip.
+  If either is past what it just verified, it continues with the newer commit, still recorded as
+  the live run. Only when nothing newer is wanted does it mark itself ended and release the lock.
+
+So a landing either sees a live run that will re-read `wanted` before ending, or sees no live run
+and starts one.
 
 **State file.** Verification keeps its state in one durable file, `tmp/golden/verify.json` in the
-main checkout: the range under test (last verified commit to the commit being verified), the run's
-process id, its status (running, passed, failed, bisecting), the bisect's progress (the points
-tested and their results) and, once found, the culprit landing. It is written before each step
-starts and after each step ends, so a run killed at any point leaves a file that says where it
-stopped.
+main checkout: the range under test (last verified commit to the commit being verified), the
+`wanted` commit, the run's process id and that process's start time (a process id alone can be
+reused), its status (running, passed, failed, bisecting, handling, handled), the bisect's progress
+(the points tested and their results) and, once found, the culprit landing. It is written before
+each step starts and after each step ends, so a run killed at any point leaves a file that says
+where it stopped. Every writer (the run, its continuation, the landing, the pipeline round) holds
+the verify lock for its whole read, change and write, and writes a temporary file and renames it
+over the old one, so no update is lost and no reader sees half a file.
 
 **Testing.** `tools/prepush.sh` with `PREPUSH_ALL=1` on the packages affected since master, so every
 shard runs, including graphty-element's eleven browser and Storybook shards the gate today skips
@@ -184,10 +196,16 @@ anything is called a flake.
 **The pipeline round watches verification.** Verification finds and records; the pipeline round
 acts. Each round reads the state file and:
 
-- restarts a run whose status is running but whose process is gone, from the recorded range;
+- restarts a run whose status is running but whose process is gone (no process with that id and
+  start time), from the recorded range;
+- starts a run when `golden-verified` is behind golden's tip and no live run is recorded, whatever
+  the last status says;
 - resumes a bisect that stopped, from the points already recorded, rather than starting over;
-- acts on a result: reverts the culprit, comments on the issues, and marks the result handled in
-  the file so no later round acts on it twice;
+- acts on a result: first claims it (status `handling` with its session id, written under the
+  verify lock), then reverts the culprit and comments on the issues, then marks it `handled`. A
+  round that finds a result already claimed by a live session leaves it alone; a claim whose
+  session is gone is taken over, after checking what the earlier session already did (the revert
+  commit on golden, the issue comments);
 - keeps a lessons file of resolved failure modes, like Anthropic's on-call `lessons.md`: each entry
   names the symptom, how it was told apart from a real failure, and the fix. A round reads it before
   diagnosing, and adds an entry whenever it resolves a failure mode the file did not already hold.
@@ -260,16 +278,26 @@ revisit if queue time exceeds 10 minutes.
 ### 4.6 Master and beta.graphty.app
 
 - Every green master build publishes the whole site (app, docs, Storybooks) to **beta.graphty.app**,
-  served by GitHub Pages from a new graphty-org repository (proposed `graphty-beta`) through a Pages
+  served by GitHub Pages from a new graphty-org repository, `graphty-beta`, through a Pages
   artifact, not by committing the site. The last 30 builds are kept as release assets named by source
   commit. The owner adds a CNAME record for `beta.graphty.app` to `graphty-org.github.io` and
   verifies the domain in the organization's settings.
 - **Promotion** is a workflow the owner runs by hand: it deploys one beta build to graphty.app.
   Rollback is promoting an earlier build. Nothing promotes automatically.
 - **Hosted data is the exception.** The datasets graph-samples and cytoscape-extensions download
-  (`https://graphty.app/data/graph-samples/v1/`) are append-only, so every green master build adds
-  new files there directly. Early is harmless, and neither the beta app nor a new npm release ever
+  (`https://graphty.app/data/graph-samples/v1/`) are append-only, so every green master build
+  publishes new files there. Early is harmless, and neither the beta app nor a new npm release ever
   names a missing file.
+- **How graphty.app is assembled.** graphty.app is deployed with a Pages artifact
+  (`actions/upload-pages-artifact`, `actions/deploy-pages`), which replaces the whole site at once,
+  so data cannot be added on its own. Every graphty.app deploy, a promotion or a green master build,
+  therefore assembles the same way: the promoted beta build (its release asset in `graphty-beta`)
+  with its data directory replaced by the data directory of the current master build. The promoted
+  build is named by a pointer, the variable `PROMOTED_BUILD` (the source commit) on the
+  graphty-monorepo repository, which only the promotion workflow writes. A master build deploys
+  graphty.app only when its data directory differs from the deployed one, and never changes which
+  build is promoted, so unpromoted docs and app never reach graphty.app. The promoted build's asset
+  is exempt from the keep-the-last-30 cleanup.
 
 The link check resolves graphty.app links against the site the build assembles, which is what
 promotion publishes. Between a release and the next promotion, the docs describe the previous npm
@@ -372,16 +400,33 @@ composed-tree gate of section 6.3 does.
 
 Anthropic binds an approval to one commit; today's gate binds one tree. If branches A and B each
 changed screenshots and both land before a cut, golden's tree is one nobody signed, and the owner
-signs once more at the cut: one Face ID, every image marked "approved before". Owner requirement 1 is
-met fully only with a composed-tree gate: every screenshot path that differs from master is, in some
-passkey-signed approval in the head's history, exactly that image or deletion, with no newer signed
-reject of it on any ref reachable from golden or master.
+signs once more at the cut: one Face ID, every image marked "approved before". The owner's
+requirement that two signed branches combine with no second review is met fully only with the
+composed-tree gate, whose rule is:
+
+- **What must be covered.** Every path under `visual-baselines/` that differs from master: an
+  image, a story settings file (`visual-baselines/<project>/<story id>.json`, which changes how a
+  story is captured) or a deletion. The only exception is `visual-baselines/reviews/`, the
+  per-pull-request records, which mean nothing to the gate today and still do not.
+- **What covers a path.** A passkey-signed approval statement, made at a commit in the head's
+  history, whose tree holds that path with exactly the head's bytes (or holds no such path, for a
+  deletion).
+- **What revokes it.** A passkey-signed reject statement naming that path and those exact bytes
+  whose signed time is later than the approval's. "Later" is the time inside the signed statement
+  (today's `approvedAt`, which the signature must cover), never commit dates or ref order. An
+  approval and a reject of the same bytes with the same time count as rejected. Today a Finish that
+  rejects signs nothing, so this piece adds signed reject statements.
+- **Which rejects count.** Every reject statement on `golden`, `master` and every `review/*` ref,
+  which CI fetches before the gate runs. A reject on the review ref of a branch that never lands
+  still counts. Approvals, unlike rejects, count only from the head's history, because the approving
+  commit must be an ancestor of the gated head.
+- **One rule in two places.** The gate and the review page's "approved before" mark apply exactly
+  this rule, from the same code.
 
 This departs from "an approval covers one commit" on purpose: the binding moves from a whole tree to
-each image's exact bytes, which is what the owner looked at, and CI's capture still proves the code
+each path's exact bytes, which is what the owner looked at, and CI's capture still proves the code
 draws those bytes. The owner adopted it (section 9); it changes the owner's trusted code and
-takes effect one cut later, because CI runs master's copy of the gate. The revocation rule applies
-now to the review page: an image with a newer signed reject on another ref is not "approved before".
+takes effect one cut later, because CI runs master's copy of the gate.
 
 ### 6.4 Security properties kept
 
@@ -437,8 +482,9 @@ gate step or the visual job.
   request but the cut runs CI, and Mergify is retired.
 - **Per-pull-request screenshot approvals** (`visual-testing/design.md`). Dropped, replaced by
   signed trees, which composed approvals then refine (section 6.3).
-- **An approval covers only its exact tree.** Changed to composed approvals: each changed image
-  must be covered, byte for byte, by some signed approval not revoked by a later signed reject.
+- **An approval covers only its exact tree.** Changed to composed approvals: each changed path
+  under `visual-baselines/` but `reviews/` must be covered, byte for byte, by some signed approval
+  not revoked by a later signed reject (section 6.3).
 - **Passes keyed by branch name or HEAD** (`tools/prepush-inputs.mjs`). Changed: keyed by inputs.
 - **Reduce CI and catch errors at release** (owner suggestion, 2026-10-21). Not adopted: runner use
   is under half the limit. Revisit past 10 minutes of queue.
@@ -448,7 +494,8 @@ gate step or the visual job.
 Decided by the owner on 2026-10-21:
 
 1. **Composed screenshot approvals: yes** (section 6.3). An image is approved when one of the
-   owner's signatures covers that exact image and no later signed reject revokes it. This changes the
+   owner's signatures covers that exact image and no later signed reject revokes it (the precise
+   rule, including settings files and which rejects count, is in section 6.3). This changes the
    owner's trusted gate code, which the owner has now authorized for this purpose.
 2. **Golden may be briefly broken: yes.** "Nothing merges with known errors" governs master. Golden
    is protected by verification, bisect and revert (section 4.3).
@@ -474,7 +521,8 @@ Each step is useful alone and lands separately.
 5. The short-lock landing, once steps 2 and 3 show no misses.
 6. The composed-tree gate (authorized by the owner, section 9).
 7. Branch capture, `review/<branch>` refs, and `land.mjs` merging them.
-8. The beta repository, its deploy and the promotion workflow.
+8. The beta repository, its deploy and the promotion workflow; graphty.app assembled from the
+   promoted build named by `PROMOTED_BUILD` plus the current master build's data (section 4.6).
 9. The dry-run script, starting from the routes of the studio's most recent study.
 10. Removing Hosts on pull requests and ci.yml's Mergify handling; moving the nightly Hosts run off
     the release train's hours.

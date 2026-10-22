@@ -511,6 +511,9 @@ describe("the Overview and the import of time", () => {
         // The Filters list holds it as a row, and the card stays open on it.
         await dataPlace().findByRole("treeitem", { name: /^Time / });
         await screen.findByTestId("time-card");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Add step" }), "the row's card has nothing to add");
+        });
         // The same field reads in Fields.
         assert.equal(dataPlace().getByRole("combobox", { name: "Edge time" }).getAttribute("value"), "sent");
     });

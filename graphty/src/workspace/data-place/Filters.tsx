@@ -735,19 +735,21 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                     {outcomeWords(true, preview.before, preview.after, overEdges({ id: added, on: true, rule }))}
                 </Text>
             )}
-            <Group gap="xs" hidden={timeRow}>
-                {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
-                <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
-                    <Button
-                        size="xs"
-                        type="submit"
-                        aria-disabled={missing !== null || undefined}
-                        data-disabled={missing !== null || undefined}
-                    >
-                        {step === undefined ? "Add step" : saveLabel(step.on)}
-                    </Button>
-                </Tooltip>
-            </Group>
+            {!timeRow && (
+                <Group gap="xs">
+                    {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
+                    <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
+                        <Button
+                            size="xs"
+                            type="submit"
+                            aria-disabled={missing !== null || undefined}
+                            data-disabled={missing !== null || undefined}
+                        >
+                            {step === undefined ? "Add step" : saveLabel(step.on)}
+                        </Button>
+                    </Tooltip>
+                </Group>
+            )}
         </Stack>
     );
 }

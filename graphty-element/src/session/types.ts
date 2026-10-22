@@ -50,6 +50,7 @@ import type {
     SetId,
     StructureValue,
 } from "../catalog/types";
+import type { BasemapConfig } from "../config/Basemap";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
@@ -1782,6 +1783,12 @@ export interface ProjectConfig {
     readonly runAlgorithmsOnLoad: boolean;
     /** What the graph is drawn against: a colour or a skybox. */
     readonly background: GraphBackgroundConfig;
+    /**
+     * The map drawn under a geographic layout (`location-map`). Absent when none is set: the
+     * bundled Natural Earth world image is drawn then.
+     * @since 3.31.0
+     */
+    readonly basemap?: BasemapConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
@@ -1852,6 +1859,8 @@ export interface ProjectConfigPatch {
     };
     readonly runAlgorithmsOnLoad?: boolean;
     readonly background?: GraphBackgroundConfig;
+    /** See {@link ProjectConfig.basemap}. Replaced whole. */
+    readonly basemap?: BasemapConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
     /** See {@link ProjectConfig.startingRows}. */
     readonly startingRows?: boolean;

@@ -274,6 +274,52 @@ To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where i
 load it with `layout: "recommended"`: see
 [Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
+### location-map
+
+Puts every node at the place its data names, on a map drawn under the graph. With no options it
+finds `latitude` and `longitude` attributes (also `lat`, `lon`, `lng`, `long`) by name, or one
+attribute whose values are locations:
+
+```html
+<graphty-element id="g"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const g = document.getElementById("g");
+    g.nodeData = [
+        { id: "SFO", where: "37.619, -122.375" },
+        { id: "JFK", where: "40 38 23 N, 73 46 44 W" },
+        { id: "LHR", where: "POINT(-0.45 51.47)" },
+    ];
+    g.edgeData = [
+        { source: "SFO", target: "JFK" },
+        { source: "JFK", target: "LHR" },
+    ];
+    g.layout = "location-map";
+    g.layoutConfig = { location: "where" };
+</script>
+```
+
+A location is one attribute (`location`) or two (`latitude` and `longitude`). One attribute can be
+a decimal pair (latitude first, or longitude first when only that fits), GeoJSON, WKT, ISO 6709,
+degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
+should not decide.
+
+- **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
+  (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe
+  with great-circle arcs. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+  `line.arcHeight` override the arcs per edge.
+- **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
+  the whole world. `size` is the map's width (or the globe's radius) in scene units.
+- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
+  or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
+  `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
+- **The map.** `element.basemap` picks the picture: unset, the bundled Natural Earth world image
+  (no network); `{ source: "openstreetmap" }` or another named keyless source; `{ tiles, attribution }`
+  for any XYZ tile service; `{ image, bounds }` for one picture; `{ source: "none" }` for none.
+  Zooming in loads finer tiles. The map's credits are drawn in the canvas's corner and are on
+  `element.basemapStatus.attribution`. The basemap is saved with the project.
+
 ### forceatlas2 (Force-Directed, live)
 
 Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling communities apart:

@@ -1370,6 +1370,9 @@ function configOf(
         get background() {
             return read().background;
         },
+        get basemap() {
+            return read().basemap;
+        },
         get selectionStyle() {
             return read().selectionStyle;
         },

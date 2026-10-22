@@ -692,6 +692,22 @@ location format ids (`decimal`, `lon-lat`, `geojson`, `wkt`, `iso6709`, `dms`, `
 `plus-code`, `mgrs`, `utm`) and the error codes (`empty`, `syntax`, `range`, `short-code`). All are
 unpublished (version 0.0.0) until the first release.
 
+The graphty-element prototype (branch `feat/location-map-prototype`) ships under these proposed
+names, all still open: the layout id `location-map` and its options (`location`, `latitude`,
+`longitude`, `format`, `surface`, `projection`, `extent`, `size`, `unplaced`, `overlap`); the
+element property and project setting `basemap` with its three shapes and `attributionShown`; the
+read-only `basemapStatus` (`{ source, state: "off" | "loading" | "ready" | "fallback",
+attribution }`); the style channels `edge.route` and `edge.arcHeight` (`line.route`,
+`line.arcHeight`); the warning codes `W_LOCATION_UNPARSED`, `W_LOCATION_OUT_OF_RANGE`,
+`W_LOCATION_AMBIGUOUS` and `W_LOCATION_SWAPPED`; and the graph-samples dataset id `venice-transit`.
+
+What the prototype does differently from the text above, and why: an unset `arcHeight` is 0.25 on a
+flat map but 0.1 on a globe (a quarter of a long great circle rose higher than the globe is wide);
+`basemapStatus.state` adds `off` for "no geographic layout is active"; an unknown named source
+draws the bundled image with state `fallback` rather than refusing; and the `basemap-status` event,
+the `E_BASEMAP_*` codes, the published `results.location-map.*` fields, a bounds `extent`, keyed
+sources and the gazetteer are not built yet.
+
 ### 15.2 Decisions made here, each with its reason
 
 - Layout plus a separate basemap setting, joined by a published frame: the map follows the layout,

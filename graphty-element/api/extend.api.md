@@ -59,6 +59,7 @@ import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
+import type { MapSourceId } from 'babylonjs-map';
 import { maskTest } from '@graphty/graph-format';
 import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
@@ -1675,7 +1676,7 @@ export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "f
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
-export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
+export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
 
 // @public
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];

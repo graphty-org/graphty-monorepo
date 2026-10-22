@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 
+import { Basemap, type BasemapConfig } from "../../config/Basemap";
 import { DataConfig } from "../../config/DataConfig";
 import { GraphBehaviorOpts } from "../../config/GraphBehavior";
 import { type GraphBackgroundConfig, type GraphSelectionStyleConfig, GraphStyle } from "../../config/GraphStyle";
@@ -37,6 +38,7 @@ type ConfigGroup =
     | "data"
     | "runAlgorithmsOnLoad"
     | "background"
+    | "basemap"
     | "selectionStyle"
     | "startingRows"
     | "runPlacement"
@@ -90,6 +92,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ]),
     ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
     ["background", { group: "background", schema: GraphStyle.shape.background }],
+    ["basemap", { group: "basemap", schema: Basemap.optional() }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
     ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
     // The base look's home goes with the starting rows: one round-trip fixture covers both.
@@ -285,10 +288,12 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     Object.freeze(data.knownFields);
     const author = slice.get("author");
     const name = slice.get("name");
+    const basemap = read("basemap") as BasemapConfig | undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
         runAlgorithmsOnLoad: read("runAlgorithmsOnLoad") as boolean,
         background: read("background") as GraphBackgroundConfig,
+        ...(basemap === undefined ? {} : { basemap }),
         selectionStyle: read("selectionStyle") as GraphSelectionStyleConfig,
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,

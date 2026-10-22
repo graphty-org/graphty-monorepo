@@ -166,6 +166,10 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
+     * Sets the basemap. A value the schema refuses is reported and dropped, as for `background`.
+     */
+    basemap?: Graphty["basemap"];
+    /**
      * Sets the starting camera distance.
      */
     startingCameraDistance?: Graphty["startingCameraDistance"];

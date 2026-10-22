@@ -809,6 +809,9 @@ importers:
       '@mlc-ai/web-llm':
         specifier: '>=0.2.0'
         version: 0.2.85
+      babylonjs-map:
+        specifier: workspace:^
+        version: link:../babylonjs-map
       colorjs.io:
         specifier: ^0.5.2
         version: 0.5.2

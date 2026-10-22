@@ -30,7 +30,10 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
+import { Basemap, type BasemapConfig, type BasemapStatus } from "./config/Basemap";
+import type { LocationMapFrame } from "./layout/locationMap/place";
 import { GraphtyLogger, type Logger } from "./logging";
+import { BasemapManager } from "./managers/BasemapManager";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -637,6 +640,8 @@ export class Graph implements GraphContext {
     /** Told the node label counts once the view is still and they changed. */
     readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
+    /** Draws the map under a geographic layout. */
+    private readonly basemapManager: BasemapManager;
     private readonly lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
     private readonly managers: Map<string, Manager>;
@@ -767,6 +772,14 @@ export class Graph implements GraphContext {
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
         });
+
+        this.basemapManager = new BasemapManager(
+            () => this.scene,
+            this.element,
+            () => {
+                this.renderManager.requestFrame();
+            },
+        );
 
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
@@ -1402,6 +1415,7 @@ export class Graph implements GraphContext {
         this.#unwatchXrButtons?.();
         this.#unwatchXrButtons = null;
         this.xrAvailability.dispose();
+        this.basemapManager.dispose();
         this.xrUIManager?.dispose();
         this.xrUIManager = null;
         this.xrSessionManager?.dispose();
@@ -1912,6 +1926,10 @@ export class Graph implements GraphContext {
                 this.updateManager.update(frameMs);
             });
 
+            // The map follows the layout's frame and the basemap setting; nothing happens unless one changed.
+            const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+            this.basemapManager.sync(engine?.geoFrame ?? null, this.session.config.basemap);
+
             this.statsManager.measure("Graph.settlementCheck", () => {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
@@ -2027,6 +2045,34 @@ export class Graph implements GraphContext {
         // Checked here so the throw reaches the caller, rather than a rejection nobody awaits.
         GraphBackground.parse(background);
         this.setProjectConfig({ background });
+    }
+
+    /**
+     * Set the map drawn under a geographic layout (`location-map`): a named source, a raster tile
+     * service or one picture, or undefined for the bundled Natural Earth world image.
+     *
+     * A project setting: one step, which undo takes back. It is drawn only while a geographic layout
+     * is active, so it can be set before one is chosen and survives switching layouts.
+     * @param basemap - The map, or undefined for the default.
+     * @throws A Zod error when the value is not a basemap; nothing is changed then.
+     * @since 3.31.0
+     */
+    setBasemap(basemap: BasemapConfig | undefined): void {
+        if (basemap !== undefined) {
+            Basemap.parse(basemap);
+        }
+
+        this.setProjectConfig({ basemap });
+    }
+
+    /**
+     * What the map under a geographic layout is doing: its source, whether it is loading, drawn or
+     * fell back to the bundled world image, and the credits that must be shown with it.
+     * @returns The status; `state` is `off` while no geographic layout is active.
+     * @since 3.31.0
+     */
+    get basemapStatus(): BasemapStatus {
+        return this.basemapManager.status;
     }
 
     /**

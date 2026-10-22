@@ -930,6 +930,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: assigns({ backgroundType: "color", color: "#101010" }, [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
+            basemap: assigns({ source: "openstreetmap" }, [
+                { op: "config.set", values: { basemap: { source: "openstreetmap" } } },
+            ]),
+            basemapStatus: READ,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1111,6 +1115,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ backgroundType: "color", color: "#202020" }],
                 [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
             ),
+            setBasemap: calls(
+                [{ source: "opentopomap" }],
+                [{ op: "config.set", values: { basemap: { source: "opentopomap" } } }],
+            ),
+            basemapStatus: READ,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -2381,6 +2390,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             data: READ,
             runAlgorithmsOnLoad: READ,
             background: READ,
+            basemap: READ,
             selectionStyle: READ,
             startingRows: READ,
             editableBase: READ,
@@ -2647,6 +2657,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/LifecycleManager.ts",
         half: "renderer",
         whole: LIFECYCLE,
+    },
+    {
+        name: "BasemapManager",
+        file: "src/managers/BasemapManager.ts",
+        half: "renderer",
+        doors: {
+            sync: RENDER,
+            status: READ,
+            dispose: LIFECYCLE,
+        },
     },
     {
         name: "RenderManager",

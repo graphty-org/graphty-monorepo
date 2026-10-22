@@ -635,7 +635,30 @@ export type GraphtyWarningCode =
      * event. `params.requested` holds the options as given and `params.used` the values used, by
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
-    | "W_DIMENSION_OVERRIDDEN";
+    | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * The `location-map` layout found no usable location for some nodes, and put them in its tray
+     * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
+     * values no location format reads, `params.total` every node, and `params.samples` up to eight
+     * `{ id, value, code }` (code `syntax` or `short-code`).
+     */
+    | "W_LOCATION_UNPARSED"
+    /**
+     * The `location-map` layout read locations whose latitude is beyond +/-90 degrees or longitude
+     * beyond +/-180. `params.count` and up to eight `params.samples` `{ id, value, code }`.
+     */
+    | "W_LOCATION_OUT_OF_RANGE"
+    /**
+     * The `location-map` layout's `format: "auto"` found more than one format that reads the
+     * column about as well, and used the first. `params.formats` (the one used first) and
+     * `params.column`.
+     */
+    | "W_LOCATION_AMBIGUOUS"
+    /**
+     * The `location-map` layout's `format: "auto"` read a column of decimal pairs longitude first,
+     * because latitude first would put latitudes beyond +/-90. `params.column`.
+     */
+    | "W_LOCATION_SWAPPED";
 
 /**
  * Every code, as a lookup table.

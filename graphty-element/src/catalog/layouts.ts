@@ -36,6 +36,7 @@ import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "../layout/graphviz/engine
 import { GRAPHVIZ_LAYOUTS } from "../layout/GraphvizLayoutEngine";
 import { GridLayout } from "../layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
+import { LocationMapLayout } from "../layout/LocationMapLayoutEngine";
 import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { PlanarLayout } from "../layout/PlanarLayoutEngine";
@@ -192,6 +193,13 @@ const SEED_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
 /** A layout's `groupBy` names a node attribute or a run's field whose values partition the nodes. */
 const GROUP_BY_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     groupBy: { type: "partition", on: "node" },
+};
+
+/** The location map's location options name node attributes, as an algorithm's `weight` names an edge one. */
+const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    location: { type: "attribute", on: "node" },
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
 };
 
 /**
@@ -510,6 +518,19 @@ const random: LayoutImplementationSpec = {
     scoped: RandomLayout.scoped,
 };
 
+const locationMap: LayoutImplementationSpec = {
+    engine: "location-map",
+    plainName: "Map",
+    technicalName: "Geographic layout",
+    kind: "batch",
+    maxDimensions: 3,
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    options: engineOptions(LocationMapLayout.zodOptionsSchema, LOCATION_OVERRIDE),
+    honoursWeights: LocationMapLayout.honoursWeights,
+    scoped: LocationMapLayout.scoped,
+};
+
 /** What each Graphviz engine is, as the catalogue describes it. */
 const GRAPHVIZ_ENTRIES: Readonly<
     Record<
@@ -808,6 +829,20 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         fixed,
+    ),
+    entry(
+        {
+            id: "location-map",
+            plainName: "Map",
+            technicalName: "Geographic layout",
+            description: "Puts every node at the place its data names, on a flat map or a globe drawn under the graph.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 3,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        locationMap,
     ),
     ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];

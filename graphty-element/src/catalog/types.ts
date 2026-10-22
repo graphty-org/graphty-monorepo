@@ -184,6 +184,7 @@ export const KNOWN_LAYOUT_IDS = [
     "layers",
     "fixed",
     "random",
+    "location-map",
 ] as const;
 
 /** A layout id: a built-in name, or a plugin's. */
@@ -719,6 +720,8 @@ export type Channel =
     | "edge.fanned"
     | "edge.bendCurve"
     | "edge.arcRadius"
+    | "edge.route"
+    | "edge.arcHeight"
     | "edge.nodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"

@@ -282,6 +282,21 @@ const LineStyle = z.strictObject({
      */
     arcRadius: z.number().min(0.5).optional(),
     /**
+     * The path the line takes between its nodes, whether or not it is curved: unset, the active
+     * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
+     * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
+     * "straight", a straight line; "arc", a raised arc in the vertical plane through both ends,
+     * bowed toward the viewer (-z); "great-circle", along the great circle about the scene's origin
+     * between the two ends, lifted at its middle. A self-loop ignores it.
+     */
+    route: z.enum(["straight", "arc", "great-circle"]).optional(),
+    /**
+     * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
+     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
+     * great circle; 0 draws it flat.
+     */
+    arcHeight: z.number().nonnegative().optional(),
+    /**
      * How far from each of its nodes' outlines the line stops, in the scene's units, leaving that much empty between
      * the node and the line's end (and the arrow cap there, which moves out with it). Unset or 0, the line meets the
      * outline. A self-loop ignores it. A file's setting (Gephi's `edge.radius`) arrives here through its style layer.

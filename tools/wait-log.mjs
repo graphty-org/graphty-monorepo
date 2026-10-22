@@ -1,4 +1,5 @@
-#!/usr/bin/env node
+// No #! line: every vitest config imports this through test-slots.mjs, and Vite's config loader
+// prepends code to line 1, which turns a #! into a syntax error. Run it as `node tools/wait-log.mjs`.
 /**
  * wait-log.mjs -- one machine-readable log of every wait in the pipeline, so the time a change spends
  * queued (for the landing lock, a gate slot, a browser slot, a test or GPU slot, a screenshot preview)

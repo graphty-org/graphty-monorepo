@@ -1,8 +1,9 @@
 {
     "$comment": "Rules tools/test-select.mjs applies for what Vite's import graph cannot see. Every path is repo-relative and every pattern is a JavaScript regular expression. design/ci/fast-pipeline.md section 5 and design/ci/test-selection-replay.md explain each one; a miss found by the replay adds a rule here.",
     "everything": {
-        "$comment": "A change to one of these runs every shard: the lockfile, the root package.json and patches change installed code; the rest decide how every shard runs. nx.json's sharedGlobals are added at run time.",
+        "$comment": "A change to one of these runs every shard: the lockfile, the root package.json and patches change installed code; the rest decide how every shard runs (.github/ holds the workflows and the actions CI's shards use). nx.json's sharedGlobals are added at run time.",
         "patterns": [
+            "^\\.github/",
             "^pnpm-lock\\.yaml$",
             "^package\\.json$",
             "^patches/",
@@ -28,7 +29,7 @@
         ]
     },
     "wholePackage": {
-        "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run.",
+        "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run. A code file under the package's src/ is never matched (src/data/ holds data-source code): the import graph judges it.",
         "patterns": [
             "(^|/)(fixtures|__fixtures__|data|recordings|golden|goldens|__snapshots__|snapshots|corpus|conformance|baselines)/",
             "(^|/)setup/",
@@ -38,6 +39,10 @@
             "^(vite|vitest)[^/]*\\.config\\.[cm]?[jt]s$",
             "^\\.storybook/"
         ]
+    },
+    "fileLevel": {
+        "$comment": "Packages whose shards may run a list of test files instead of the whole shard, adopted one by one as the replay shows no misses (design/ci/fast-pipeline.md section 5.1, item 2). A shard that runs a browser project still runs whole. Elsewhere the file-level answer is measured and logged, never used.",
+        "packages": ["graph-format", "remote-logger", "compact-mantine", "graphty"]
     },
     "alsoRun": {
         "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",

@@ -5,17 +5,25 @@
  * (design/ci/fast-pipeline.md section 5.2; results in design/ci/test-selection-replay.md).
  *
  * Input: the push log (<main checkout>/tmp/push-log.jsonl), each push's gate log and the failed shards'
- * whole logs (tmp/push-gate-logs/), and optionally failures found by CI (--ci <file>, JSON lines of
- * `{ sha, base, source, failures: [{ package, file|null, what }] }`). For every push in the window whose
- * gate ran test shards it computes the change (from the push's base to the pushed commit), the selection,
- * and for every failing test file whether the selection would have run it.
+ * whole logs (tmp/push-gate-logs/), the advisory records the gate wrote (tmp/test-select/advisory.jsonl),
+ * and optionally failures found by CI (--ci <file>, JSON lines of
+ * `{ sha, base, source, at, failures: [{ package, shard, file|null, what }] }`, which --collect-ci writes).
+ * For every push in the window whose gate ran test shards it computes the change (from the push's base to
+ * the pushed commit), the selection, and for every failing test file whether the selection would have run
+ * it. Failures are judged on the file-level answer even where file-level selection is not yet allowed
+ * (tools/test-select-rules.json "fileLevel"); the time is given both ways.
  *
- * The selector's import graphs are built once, from the checkout the replay runs in (--graphs <file>
- * caches them), not from each pushed commit: building them per commit would take hours. A test file that
- * no longer exists is judged by its package alone and listed as such.
+ * Where the gate wrote an advisory record for a push, that record is used instead of a replay: it was
+ * computed from that commit's own import graphs, and it names the failing test files even after the gate
+ * logs are deleted (14 days). Otherwise the import graphs are built once, from the checkout the replay
+ * runs in (--graphs <file> caches them), not from each pushed commit: building them per commit would take
+ * hours. A test file that no longer exists is judged by its package alone and listed as such.
  *
- * Usage: node tools/test-select-replay.mjs [--since 2026-09-30] [--graphs <file>] [--ci <file>]
- *            [--out <file.json>]
+ * Usage:
+ *   node tools/test-select-replay.mjs [--since 2026-09-30] [--graphs <file>] [--ci <file>] [--out <file.json>]
+ *   node tools/test-select-replay.mjs --collect-ci <file> [--since 2026-09-30]
+ *       writes the --ci input: every failed ci.yml test job on the golden and golden-cut pull requests, with
+ *       the test files its annotations name, from one GitHub GraphQL query
  */
 
 import { execFileSync } from "node:child_process";
@@ -23,16 +31,21 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { buildGraphs, estimate, loadRules, selectPackages, selectShards, testRefs } from "./test-select.mjs";
+import {
+    buildGraphs,
+    estimate,
+    failingFiles,
+    loadRules,
+    measuredOf,
+    repoPath,
+    selectPackages,
+    selectShards,
+    strip,
+    testRefs,
+} from "./test-select.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// Drops each terminal color code: ESC, "[", digits and semicolons, "m".
-const strip = (s) =>
-    s
-        .split("\u001b[")
-        .map((part, i) => (i === 0 ? part : part.slice(part.indexOf("m") + 1)))
-        .join("");
 const git = (args) => {
     try {
         return execFileSync("git", args, {
@@ -91,37 +104,6 @@ export function parseGateLog(text) {
 }
 
 /**
- * The failing test files a vitest log names, relative to its package.
- * @param text a shard log or the end of one
- * @returns `{ files: string[], unhandled: boolean, summary: string|null }`
- */
-export function failingFiles(text) {
-    const files = new Set();
-    let unhandled = false;
-    for (const raw of strip(text).split("\n")) {
-        const fail = /^\s*FAIL\s+(?:\|[^|]+\|\s+|[a-z-]+ \([a-z]+\)\s+|[a-z-]+\s{2,})?([^\s>]+\.[cm]?[jt]sx?)\b/u.exec(
-            raw,
-        );
-        if (fail) {
-            files.add(fail[1]);
-            const story = / > (?:\.\.\/)+([^\s>]+\.stories\.[jt]sx?) > /u.exec(raw);
-            if (story) {
-                files.add(story[1]);
-            }
-        }
-        const origin = /originated in "([^"]+)" test file/u.exec(raw);
-        if (origin) {
-            files.add(origin[1]);
-        }
-        if (/Unhandled Errors?|Unhandled Rejection/u.test(raw)) {
-            unhandled = true;
-        }
-    }
-    const summary = strip(text).match(/Test Files .*/u)?.[0] ?? null;
-    return { files: [...files], unhandled, summary };
-}
-
-/**
  * A package directory for a shard name, old names included (graphty was one shard before 2026-10-21).
  * @param shard a shard name
  * @param SHARDS the CI test shards
@@ -141,7 +123,7 @@ function packageOfShard(shard, SHARDS) {
  */
 function baseOf(entry, goldenTips) {
     const at = entry.startedAt ?? entry.at;
-    const prev = goldenTips.filter((t) => t.at < at).at(-1);
+    const prev = goldenTips.findLast((t) => t.at < at);
     if (entry.branch === "golden" && prev && git(["merge-base", "--is-ancestor", prev.sha, entry.sha]) !== null) {
         return prev.sha;
     }
@@ -189,21 +171,25 @@ function pushes(main, since) {
  * @returns a record for the report
  */
 function replayOne(entry, ctx) {
+    const adv = ctx.advisory.get(entry.sha);
+    if (adv) {
+        return fromAdvisory(adv, entry);
+    }
     const base = baseOf(entry, entry.goldenTips);
     if (!base || git(["cat-file", "-e", `${entry.sha}^{commit}`]) === null) {
         return { sha: entry.sha, branch: entry.branch, at: entry.at, skipped: "commit or base not available" };
     }
     const changed = changedBetween(base, entry.sha);
     const sel = selectPackages({ changed, ...ctx.selectArgs });
-    const shards = selectShards(ctx.SHARDS, sel.packages, ctx.graphs);
+    const shards = selectShards(ctx.SHARDS, sel.packages, ctx.graphs, ctx.allowed);
     const failures = [];
     for (const r of entry.gate.ran.filter((x) => !x.ok)) {
         const pkg = packageOfShard(r.shard, ctx.SHARDS);
         const text = r.kept && existsSync(r.kept) ? readFileSync(r.kept, "utf8") : (r.tail ?? "");
-        const found = failingFiles(text);
-        failures.push(...judge(pkg, r, found, sel.packages.get(pkg), ctx));
+        failures.push(...judge(pkg, r, failingFiles(text), sel.packages.get(pkg), ctx));
     }
     const seconds = new Map(entry.gate.ran.map((r) => [r.shard, r.secs]));
+    const ran = timedShards(entry.gate.ran, shards, sel.packages, ctx);
     return {
         sha: entry.sha,
         branch: entry.branch,
@@ -211,18 +197,75 @@ function replayOne(entry, ctx) {
         base,
         changed: changed.length,
         everything: sel.everything,
+        unexplainedRoot: sel.unexplainedRoot,
         modes: Object.fromEntries(
             [...sel.packages]
                 .filter(([, p]) => p.mode !== "none")
                 .map(([d, p]) => [d, { run: p.mode === "files" ? p.specs.size : "all", why: p.reasons[0] ?? null }]),
         ),
-        time: timeOf(entry.gate.ran, shards, seconds, sel.packages, ctx),
+        time: estimate(ran, seconds),
+        measuredTime: estimate(measuredOf(ran), seconds),
         failures,
     };
 }
 
 /**
- * Whether the selection ran each failing file of one failed shard.
+ * A record from the gate's own advisory record of a push: its selection was computed from that commit's
+ * import graphs, and its failing files were read from the shard logs at the time.
+ * @param adv an advisory.jsonl record
+ * @param entry the push log entry, when there is one
+ * @returns a record for the report
+ */
+function fromAdvisory(adv, entry) {
+    const failures = [];
+    for (const r of adv.results.filter((x) => !x.ok)) {
+        const s = adv.selection.find((x) => x.shard === r.shard);
+        const m = s?.measured ?? s ?? { mode: "all", files: [] };
+        const chosen = new Set(m.files.map((f) => f.file));
+        const files = r.failing?.length ? r.failing : [null];
+        for (const file of files) {
+            const selected = m.mode === "all" || (file !== null && chosen.has(file));
+            failures.push({ shard: r.shard, package: s?.package, file, selected, mode: m.mode });
+        }
+    }
+    return {
+        sha: adv.sha,
+        branch: entry?.branch ?? null,
+        at: entry?.at ?? adv.at,
+        base: adv.base,
+        everything: adv.everything,
+        unexplainedRoot: adv.unexplainedRoot,
+        time: adv.time,
+        measuredTime: adv.measuredTime,
+        failures,
+        advisory: true,
+    };
+}
+
+/**
+ * The advisory records the gate wrote, newest per pushed commit.
+ * @param main the main checkout
+ * @returns Map of commit to record
+ */
+function advisoryRecords(main) {
+    const file = join(main, "tmp/test-select/advisory.jsonl");
+    const records = new Map();
+    if (!existsSync(file)) {
+        return records;
+    }
+    for (const line of readFileSync(file, "utf8").split("\n").filter(Boolean)) {
+        try {
+            const r = JSON.parse(line);
+            records.set(r.sha, r);
+        } catch {
+            // a line cut short by a killed gate
+        }
+    }
+    return records;
+}
+
+/**
+ * Whether the selection ran each failing file of one failed shard, judged on the file-level answer.
  * @param pkg the package directory
  * @param ran the shard's gate line (parseGateLog)
  * @param found failingFiles() of the shard's log
@@ -238,7 +281,7 @@ function judge(pkg, ran, found, p, ctx) {
         return [{ ...base, file: null, selected: mode === "all", mode }];
     }
     return found.files.map((f) => {
-        const file = `${pkg}/${f.replace(/^\.\.\/\.\.\//u, "")}`;
+        const file = repoPath(pkg, f);
         const known = ctx.allSpecs.get(pkg)?.has(file) ?? false;
         const selected = mode === "all" || (mode === "files" && p.specs.has(file));
         return { ...base, file, selected, mode, known };
@@ -246,25 +289,109 @@ function judge(pkg, ran, found, p, ctx) {
 }
 
 /**
- * Shard seconds the gate spent, and what the selection would have spent on the same shards.
- * @param ran the shard's gate line (parseGateLog)
- * @param shards SHARDS entries
- * @param seconds Map of shard name to the seconds it took
- * @param packages Map of package name to directory
+ * The selection of each shard the gate ran, including shards that no longer exist under that name.
+ * @param ran the gate's shard lines (parseGateLog)
+ * @param shards selectShards()
+ * @param packages selectPackages().packages
  * @param ctx shared state of the run
- * @returns `{ full, selected }` seconds
+ * @returns selectShards()-shaped entries
  */
-function timeOf(ran, shards, seconds, packages, ctx) {
-    const sel = ran.map((r) => {
+function timedShards(ran, shards, packages, ctx) {
+    return ran.map((r) => {
         const own = shards.find((s) => s.shard === r.shard);
         if (own) {
             return own;
         }
-        const p = packages.get(packageOfShard(r.shard, ctx.SHARDS));
-        const total = ctx.allSpecs.get(packageOfShard(r.shard, ctx.SHARDS))?.size ?? null;
-        return { shard: r.shard, mode: p?.mode ?? "all", files: [...(p?.specs ?? [])], total };
+        const pkg = packageOfShard(r.shard, ctx.SHARDS);
+        const p = packages.get(pkg);
+        const total = ctx.allSpecs.get(pkg)?.size ?? null;
+        const files = [...(p?.specs ?? [])];
+        const measured = { mode: p?.mode ?? "all", files };
+        return ctx.allowed.has(pkg)
+            ? { shard: r.shard, ...measured, total }
+            : { shard: r.shard, mode: "all", files: [], total, measured };
     });
-    return estimate(sel, seconds);
+}
+
+/**
+ * Writes the --ci input: every failed `Test (...)` job of ci.yml on the golden and golden-cut pull requests
+ * since a day, with the test files its annotations name. One GraphQL query (the repository's GitHub API
+ * budget: never one call per run).
+ * @param out the JSON-lines file to write
+ * @param since the first day (ISO date)
+ * @param SHARDS the CI test shards
+ * @returns the number of failed runs written
+ */
+function collectCi(out, since, SHARDS) {
+    const heads = ["golden", "golden-cut"];
+    const prs = heads
+        .map(
+            (
+                h,
+                i,
+            ) => `p${i}: pullRequests(headRefName: "${h}", first: 8, orderBy: {field: CREATED_AT, direction: DESC}) {
+            nodes { baseRefOid commits(last: 10) { nodes { commit { oid checkSuites(first: 10, filterBy: {appId: 15368}) { nodes {
+              workflowRun { createdAt workflow { name } }
+              checkRuns(first: 15, filterBy: {conclusions: [FAILURE]}) { nodes { name
+                annotations(first: 10) { nodes { path message annotationLevel } } } } } } } } } } }`,
+        )
+        .join("\n");
+    const query = `{ repository(owner: "graphty-org", name: "graphty-monorepo") { ${prs} } }`;
+    const res = JSON.parse(execFileSync("gh", ["api", "graphql", "-f", `query=${query}`], { encoding: "utf8" }));
+    const dirs = [...new Set(SHARDS.map((s) => s.package))];
+    const lines = [];
+    heads.forEach((head, i) => {
+        for (const pr of res.data.repository[`p${i}`].nodes) {
+            for (const { commit } of pr.commits.nodes) {
+                for (const suite of commit.checkSuites.nodes) {
+                    const run = suite.workflowRun;
+                    if (run?.workflow.name !== "CI" || run.createdAt < since) {
+                        continue;
+                    }
+                    const failures = suite.checkRuns.nodes.flatMap((c) => ciFailures(c, SHARDS, dirs));
+                    if (failures.length > 0) {
+                        const base = git(["merge-base", pr.baseRefOid, commit.oid]) ?? pr.baseRefOid;
+                        lines.push({ sha: commit.oid, base, source: `ci ${head}`, at: run.createdAt, failures });
+                    }
+                }
+            }
+        }
+    });
+    writeFileSync(out, lines.map((l) => JSON.stringify(l)).join("\n") + (lines.length > 0 ? "\n" : ""));
+    return lines.length;
+}
+
+/**
+ * The failures of one failed CI check run: a test file per annotation that names one, or the shard alone.
+ * @param check `{ name, annotations }`
+ * @param SHARDS the CI test shards
+ * @param dirs the package directories
+ * @returns `[{ package, shard, file|null, what }]`; empty for a check that is not a test job
+ */
+export function ciFailures(check, SHARDS, dirs) {
+    const job = /^Test \((.+)\)$/u.exec(check.name)?.[1];
+    if (!job) {
+        return [];
+    }
+    const packageOf = (shard) => SHARDS.find((s) => s.shard === shard)?.package ?? null;
+    const notes = check.annotations.nodes;
+    const named = notes
+        .filter((a) => a.annotationLevel === "FAILURE" && /\.(test|spec|stories)\.[cm]?[jt]sx?$/u.test(a.path ?? ""))
+        .map((a) => {
+            const pkg = dirs.find((d) => a.path.startsWith(`${d}/`)) ?? packageOf(job);
+            const file = a.path.startsWith(`${pkg}/`) ? a.path.slice(pkg.length + 1) : a.path;
+            return { package: pkg, shard: job, file, what: a.message.split("\n")[0] };
+        })
+        .filter((f) => f.package);
+    if (named.length > 0) {
+        return named;
+    }
+    // a group job names its failed shards ("failed: graph-io, layout"); a single shard's job is its own
+    const listed = notes.map((a) => /^failed: (.+)$/u.exec(a.message)?.[1]).find(Boolean);
+    const shards = listed ? listed.split(",").map((x) => x.trim()) : [job];
+    return shards
+        .filter((shard) => packageOf(shard))
+        .map((shard) => ({ package: packageOf(shard), shard, file: null, what: "no failing test file annotated" }));
 }
 
 async function main(argv) {
@@ -274,6 +401,12 @@ async function main(argv) {
     };
     const main = dirname(git(["rev-parse", "--path-format=absolute", "--git-common-dir"]));
     const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
+    const since = arg("--since", "2026-09-30");
+    if (arg("--collect-ci")) {
+        const n = collectCi(arg("--collect-ci"), since, SHARDS);
+        console.log(`${n} failed CI runs written to ${arg("--collect-ci")}`);
+        return;
+    }
     const { projectGraph, pathRefs } = await import(pathToFileURL(join(ROOT, "tools/prepush-inputs.mjs")).href);
     const nx = projectGraph(ROOT);
     const packages = new Map([...nx.roots].filter(([, d]) => SHARDS.some((s) => s.package === d)));
@@ -291,19 +424,29 @@ async function main(argv) {
             new Set(gs.filter(Boolean).flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs))),
         ]),
     );
+    const rules = loadRules(ROOT);
     const ctx = {
         SHARDS,
         graphs,
         allSpecs,
+        allowed: rules.fileLevel,
+        advisory: advisoryRecords(main),
         selectArgs: {
             packages,
             deps: nx.deps,
             refs: testRefs(ROOT, packages, graphs, pathRefs(ROOT, nx.roots)),
             graphs,
-            rules: loadRules(ROOT),
+            rules,
         },
     };
-    const records = pushes(main, arg("--since", "2026-09-30")).map((e) => replayOne(e, ctx));
+    const replayed = pushes(main, since);
+    const records = replayed.map((e) => replayOne(e, ctx));
+    const seen = new Set(replayed.map((e) => e.sha));
+    for (const adv of ctx.advisory.values()) {
+        if (!seen.has(adv.sha) && adv.at >= since) {
+            records.push(fromAdvisory(adv, null));
+        }
+    }
     const ci = arg("--ci") ? readFileSync(arg("--ci"), "utf8").split("\n").filter(Boolean).map(JSON.parse) : [];
     for (const c of ci) {
         const changed = changedBetween(c.base, c.sha);
@@ -331,9 +474,12 @@ async function main(argv) {
     const out = arg("--out", join(main, "tmp/test-select-replay.json"));
     writeFileSync(out, JSON.stringify(records, null, 1));
     const fails = records.flatMap((r) => r.failures ?? []);
+    const sum = (key, part) => records.reduce((t, r) => t + (r[key]?.[part] ?? 0), 0);
     console.log(
-        `${records.length} gate runs and CI runs replayed; ${fails.length} failing test files or shards; ` +
-            `${fails.filter((f) => !f.selected).length} not selected. Details: ${out}`,
+        `${records.length} gate runs and CI runs replayed (${ctx.advisory.size} advisory records); ` +
+            `${fails.length} failing test files or shards; ${fails.filter((f) => !f.selected).length} not selected. ` +
+            `Shard seconds: ${sum("time", "full")} run, ${sum("time", "selected")} as allowed today, ` +
+            `${sum("measuredTime", "selected")} with file-level selection everywhere. Details: ${out}`,
     );
 }
 

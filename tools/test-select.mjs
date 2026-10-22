@@ -41,6 +41,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { pathRefs, projectGraph } from "./prepush-inputs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const RULES = join(HERE, "test-select-rules.json");
 
 /** A path that goes into a package's build: not a test, a story, a doc or a test folder. */
 const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook)\//u;
@@ -50,10 +51,10 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, noTests, wholePackage, alsoRun, opaque }` with RegExp lists
+ * @returns `{ everything, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel }`
  */
 export function loadRules(root) {
-    const raw = JSON.parse(readFileSync(join(HERE, "test-select-rules.json"), "utf8"));
+    const raw = JSON.parse(readFileSync(RULES, "utf8"));
     const toRe = (p) => new RegExp(p, "u");
     let shared = [];
     try {
@@ -69,6 +70,7 @@ export function loadRules(root) {
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
         opaque: toRe(raw.opaqueTest.pattern),
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
+        fileLevel: new Set(raw.fileLevel.packages),
     };
 }
 
@@ -78,19 +80,22 @@ export function loadRules(root) {
  * @returns RegExp over repo-relative paths
  */
 export function globToRe(glob) {
-    let re = "";
-    for (let i = 0; i < glob.length; i++) {
-        const c = glob[i];
-        if (c === "*" && glob[i + 1] === "*") {
-            re += ".*";
-            i += glob[i + 2] === "/" ? 2 : 1;
-        } else if (c === "*") {
-            re += "[^/]*";
-        } else {
-            re += /[.+?^${}()|[\]\\]/u.test(c) ? `\\${c}` : c;
+    const token = (part) => {
+        if (part.startsWith("**")) {
+            return ".*";
         }
-    }
-    return new RegExp(`^${re}$`, "u");
+        if (part === "*") {
+            return "[^/]*";
+        }
+        return part.replaceAll(/[.+?^${}()|[\]\\]/gu, "\\$&");
+    };
+    return new RegExp(
+        `^${glob
+            .split(/(\*\*\/?|\*)/u)
+            .map(token)
+            .join("")}$`,
+        "u",
+    );
 }
 
 /**
@@ -189,20 +194,9 @@ export function selectInGraph(graph, changed) {
             add(file, "changed");
             explained.add(file);
         }
-        if (!known.has(file)) {
-            continue;
-        }
-        explained.add(file);
-        const reached = reaching([file], rev);
-        for (const spec of allSpecs) {
-            if (spec !== file && reached.has(spec)) {
-                add(spec, `imports ${file}`);
-            }
-        }
-        for (const [name, project] of Object.entries(graph.projects)) {
-            if (project.setup.some((s) => reached.has(s))) {
-                project.specs.forEach((s) => add(s, `setup of ${name} imports ${file}`));
-            }
+        if (known.has(file)) {
+            explained.add(file);
+            specsReaching(file, graph, allSpecs, rev, add);
         }
     }
     const nonTest = changed.filter((f) => !allSpecs.has(f));
@@ -212,6 +206,29 @@ export function selectInGraph(graph, changed) {
         }
     }
     return { specs, explained };
+}
+
+/**
+ * Adds the test files whose imports reach one changed file, and every test of a project whose setup
+ * files reach it.
+ * @param file a changed file the graph knows
+ * @param graph a --graph result
+ * @param allSpecs every test file of the graph
+ * @param rev file -> the files that import it
+ * @param add (spec, why) => void
+ */
+function specsReaching(file, graph, allSpecs, rev, add) {
+    const reached = reaching([file], rev);
+    for (const spec of allSpecs) {
+        if (spec !== file && reached.has(spec)) {
+            add(spec, `imports ${file}`);
+        }
+    }
+    for (const [name, project] of Object.entries(graph.projects)) {
+        if (project.setup.some((s) => reached.has(s))) {
+            project.specs.forEach((s) => add(s, `setup of ${name} imports ${file}`));
+        }
+    }
 }
 
 /**
@@ -241,9 +258,9 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules })
     const trigger = changed.find((f) => !pkgOf(f) && rules.everything.some((re) => re.test(f)));
     if (trigger) {
         dirs.forEach((d) => whole(d, `${trigger} changes how every shard runs`));
-        return { everything: trigger, packages: out };
+        return { everything: trigger, packages: out, unexplainedRoot: [] };
     }
-    rootFiles(
+    const unexplainedRoot = rootFiles(
         changed.filter((f) => !pkgOf(f)),
         { rules, dirs, graphs, out, whole },
     );
@@ -256,7 +273,7 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules })
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole);
     }
-    return { everything: null, packages: out };
+    return { everything: null, packages: out, unexplainedRoot };
 }
 
 /**
@@ -270,20 +287,29 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules })
  * @param ctx.graphs Map of package directory to its import graphs
  * @param ctx.out each package's selection
  * @param ctx.whole marks a package to run whole
+ * @returns the changed root code files no test imports or names, which run nothing; listed in the output
+ *   so a replay can see whether one of them should have run something
  */
 function rootFiles(files, { rules, dirs, graphs, out, whole }) {
+    const unexplained = [];
     for (const f of files.filter((x) => !rules.noTests.some((re) => re.test(x)))) {
+        let used = false;
         for (const dir of dirs) {
             const gs = graphs.get(dir) ?? [];
-            const known = gs.length > 0 && gs.every(Boolean);
-            const imported = known && gs.some((g) => g.imports[f]);
-            if (imported) {
+            const known = gs.length > 0 && !gs.includes(null);
+            if (known && gs.some((g) => g.imports[f])) {
+                used = true;
                 gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
             } else if (namedBy(f, dir, known ? gs : null)) {
+                used = true;
                 whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
             }
         }
+        if (!used && CODE.test(f)) {
+            unexplained.push(f);
+        }
     }
+    return unexplained;
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);
@@ -395,6 +421,8 @@ function filesInPackage(dir, changed, graphs, rules, result, whole) {
     }
     if (result.mode !== "all") {
         result.mode = result.specs.size > 0 ? "files" : "none";
+        // decided file by file: a "none" here is a changed package none of whose tests reach the change
+        result.fileLevel = result.mode === "files" || mine.length > 0;
         if (result.mode === "none" && mine.length > 0) {
             result.reasons.push("no test imports or reads what changed");
         }
@@ -414,12 +442,12 @@ function filesInPackage(dir, changed, graphs, rules, result, whole) {
  * @param whole marks a package to run whole, with the reason
  */
 function pickFiles(dir, mine, graphs, rules, result, whole) {
-    const ruled = mine.find((f) => rules.wholePackage.some((re) => re.test(f.slice(dir.length + 1))));
+    const ruled = mine.find((f) => wholePackageRule(f.slice(dir.length + 1), rules));
     if (ruled) {
         whole(dir, `${ruled} matches a whole-package rule`);
         return;
     }
-    if (!graphs || graphs.length === 0 || graphs.some((g) => g === null)) {
+    if (!graphs || graphs.length === 0 || graphs.includes(null)) {
         whole(dir, "its import graph could not be built");
         return;
     }
@@ -436,53 +464,108 @@ function pickFiles(dir, mine, graphs, rules, result, whole) {
 }
 
 /**
+ * Whether a package-relative path matches a whole-package rule. A code file under src/ never does: the
+ * import graph judges it (a data-source folder such as src/data/ holds code, not data), and the fail safe
+ * still runs the whole package when no test imports it.
+ * @param rel the path inside its package
+ * @param rules loadRules()
+ * @returns boolean
+ */
+export function wholePackageRule(rel, rules) {
+    if (rel.startsWith("src/") && CODE.test(rel)) {
+        return false;
+    }
+    return rules.wholePackage.some((re) => re.test(rel));
+}
+
+/**
  * Per shard: "all", "none" or the selected test files that its vitest runs select.
+ *
+ * File-level selection is adopted package by package (design/ci/fast-pipeline.md section 5.1, item 2):
+ * a shard whose package is not in `allowed`, or whose runs include a browser project (browsers are a lane,
+ * not file selection), runs whole wherever its package was judged file by file. Its file-level answer is
+ * kept as `measured`, so the replay can show it before it is allowed.
  * @param shards SHARDS entries (the gate's or CI's)
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
- * @returns `[{ shard, mode, files, total, reasons }]`; total is the shard's test file count when known
+ * @param allowed Set of package directories where file-level selection is allowed; omitted, every one is
+ * @returns `[{ shard, package, mode, files, total, reasons, measured? }]`; total is the shard's test file
+ *   count when known; measured `{ mode, files }` is the file-level answer where it was not allowed
  */
-export function selectShards(shards, packages, graphs) {
+export function selectShards(shards, packages, graphs, allowed) {
     return shards.map((shard) => {
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
-        const own = runs && gs.length > 0 && gs.every(Boolean) ? shardSpecs(runs, gs) : null;
-        const total = own ? own.size : null;
-        if (p.mode !== "files") {
-            return { shard: shard.shard, mode: p.mode, files: [], total, reasons: p.reasons };
+        const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
+        const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
+        const sel = measuredShard(p, own);
+        if (!p.fileLevel || sel.mode === "all") {
+            return { ...base, ...sel };
         }
-        if (!own) {
-            return {
-                shard: shard.shard,
-                mode: "all",
-                files: [],
-                total,
-                reasons: ["its command is not a vitest run the selector can read"],
-            };
+        const why = notAllowed(shard.package, own, allowed);
+        if (!why) {
+            return { ...base, ...sel };
         }
-        const files = [...p.specs].filter(([spec]) => own.has(spec)).map(([spec, why]) => ({ file: spec, why }));
-        return { shard: shard.shard, mode: files.length > 0 ? "files" : "none", files, total, reasons: [] };
+        return { ...base, mode: "all", files: [], reasons: [why], measured: { mode: sel.mode, files: sel.files } };
     });
 }
 
 /**
- * Every test file a shard's runs could run (before the --shard slice).
+ * One shard's answer from its package's selection.
+ * @param p the package's selection
+ * @param own shardSpecs() or null
+ * @returns `{ mode, files, reasons }`
+ */
+function measuredShard(p, own) {
+    if (p.mode !== "files") {
+        return { mode: p.mode, files: [], reasons: p.reasons };
+    }
+    if (!own) {
+        return { mode: "all", files: [], reasons: ["its command is not a vitest run the selector can read"] };
+    }
+    const files = [...p.specs].filter(([spec]) => own.specs.has(spec)).map(([spec, why]) => ({ file: spec, why }));
+    return { mode: files.length > 0 ? "files" : "none", files, reasons: [] };
+}
+
+/**
+ * Why a shard may not use file-level selection yet, or null when it may.
+ * @param pkg the shard's package directory
+ * @param own shardSpecs() or null
+ * @param allowed Set of package directories, or undefined for all
+ * @returns a reason or null
+ */
+function notAllowed(pkg, own, allowed) {
+    if (allowed && !allowed.has(pkg)) {
+        return "file-level selection is not yet allowed for this package (measured only)";
+    }
+    if (allowed && own?.browser !== false) {
+        return "it runs a browser project, which runs whole (measured only)";
+    }
+    return null;
+}
+
+/**
+ * Every test file a shard's runs could run (before the --shard slice), and whether any of its projects
+ * runs in a browser.
  * @param runs shardRuns()
  * @param graphs Map of package directory to its import graphs (null where one could not be built)
- * @returns Set of repo-relative test files
+ * @returns `{ specs: Set of repo-relative test files, browser: boolean }`; a graph from before the
+ *   browser flag counts as a browser project
  */
 function shardSpecs(runs, graphs) {
     const specs = new Set();
+    let browser = false;
     for (const run of runs) {
         const g = graphs.find((x) => (run.config ? x.config === run.config : x.config === null)) ?? graphs[0];
         for (const [name, project] of Object.entries(g?.projects ?? {})) {
             if (projectSelected(name, run.projects)) {
                 project.specs.forEach((s) => specs.add(s));
+                browser ||= project.browser !== false;
             }
         }
     }
-    return specs;
+    return { specs, browser };
 }
 
 /**
@@ -510,9 +593,15 @@ export function estimate(selection, seconds) {
     return { full: Math.round(full), selected: Math.round(selected) };
 }
 
+/**
+ * A selection with each shard's file-level answer in place of the whole-shard run it was not yet allowed.
+ * @param selection selectShards(...)
+ * @returns the same shape
+ */
+export const measuredOf = (selection) => selection.map((s) => (s.measured ? { ...s, ...s.measured } : s));
+
 // --- building the import graph of one package, in a child process ------------------------------------
 
-const QUERY = /\?.*$/u;
 const NEW_URL = /new\s+URL\(\s*["'`](\.{1,2}\/[^"'`$]+)["'`]\s*,\s*import\.meta\.url\s*\)/gu;
 const CODE = /\.[cm]?[jt]sx?$|\.vue$|\.svelte$/u;
 
@@ -545,6 +634,7 @@ async function buildGraph(root, pkg, config) {
         }
         for (const project of vitest.projects) {
             projects[project.name] ??= { specs: [], setup: [] };
+            projects[project.name].browser = Boolean(project.config.browser?.enabled);
             for (const s of project.config.setupFiles ?? []) {
                 projects[project.name].setup.push(rel(s));
                 await walk(project, s);
@@ -567,32 +657,42 @@ async function walkFile(project, file, ctx) {
         return;
     }
     ctx.walked.add(file);
-    const deps = new Set();
-    if (CODE.test(file)) {
-        let transformed = null;
-        try {
-            const env = project.vite.environments.ssr;
-            transformed = env.moduleGraph.getModuleById(file)?.transformResult || (await env.transformRequest(file));
-        } catch {
-            // a file Vite cannot transform is a leaf; the fail safe covers what it hides
-        }
-        for (const dep of [...(transformed?.deps ?? []), ...(transformed?.dynamicDeps ?? [])]) {
-            const path = (dep.startsWith("/@fs/") ? dep.slice(4) : join(project.config.root, dep)).replace(QUERY, "");
-            if (!path.includes("node_modules") && isFile(path)) {
-                deps.add(path);
-            }
-        }
-        for (const m of safeRead(file).matchAll(NEW_URL)) {
-            const path = join(dirname(file), m[1]);
-            if (isFile(path)) {
-                deps.add(path);
-            }
-        }
-    }
+    const deps = CODE.test(file) ? await edgesOf(project, file) : new Set();
     ctx.imports[ctx.rel(file)] = [...deps].map(ctx.rel);
     for (const d of deps) {
         await walkFile(project, d, ctx);
     }
+}
+
+/**
+ * One code file's edges: what Vite's transform says it imports (static and literal dynamic imports, with
+ * any `?raw`-style query dropped), plus `new URL("./file", import.meta.url)`.
+ * @param project the Vitest project whose Vite server transforms the file
+ * @param file an absolute path
+ * @returns Set of absolute paths of files in the checkout
+ */
+async function edgesOf(project, file) {
+    const deps = new Set();
+    let transformed = null;
+    try {
+        const env = project.vite.environments.ssr;
+        transformed = env.moduleGraph.getModuleById(file)?.transformResult || (await env.transformRequest(file));
+    } catch {
+        // a file Vite cannot transform is a leaf; the fail safe covers what it hides
+    }
+    for (const dep of [...(transformed?.deps ?? []), ...(transformed?.dynamicDeps ?? [])]) {
+        const path = (dep.startsWith("/@fs/") ? dep.slice(4) : join(project.config.root, dep)).split("?", 1)[0];
+        if (!path.includes("node_modules") && isFile(path)) {
+            deps.add(path);
+        }
+    }
+    for (const m of safeRead(file).matchAll(NEW_URL)) {
+        const path = join(dirname(file), m[1]);
+        if (isFile(path)) {
+            deps.add(path);
+        }
+    }
+    return deps;
 }
 
 const isFile = (p) => {
@@ -651,74 +751,203 @@ function opaqueSpecs(root, pkg, projects, imports) {
 /**
  * Starts the selector beside the gate's test shards (tools/prepush-tests.mjs). It changes nothing the
  * gate runs: when the shards are done, report() prints what the selector would have run and how long
- * that would have taken, and appends both, with what the gate actually ran, to
- * <main checkout>/tmp/test-select/advisory.jsonl for the replay. PREPUSH_SELECT_ADVISORY=0 turns it off.
+ * that would have taken, and appends both, with what the gate actually ran and the test files that
+ * failed, to <main checkout>/tmp/test-select/advisory.jsonl for the replay. PREPUSH_SELECT_ADVISORY=0
+ * turns it off.
+ *
+ * The change is measured from PREPUSH_SELECT_BASE when it is set (tools/land.mjs sets it to the golden
+ * tip a landing's push replaces, so the record is about the landed branch, not about everything golden
+ * has not shipped yet), else from the gate's own base. The selector runs at the lowest CPU priority in
+ * its own process group, so it does not slow the shards it runs beside and report() stops all of it.
  * @param root the checkout under test
- * @param base the commit the push is compared with
+ * @param base the commit the gate compares the push with
  * @param main the main checkout
- * @returns `{ report(results) }`; results are `[{ shard, ok, secs }]` of the shards the gate ran
+ * @returns `{ report(results), closed }`; results are `[{ shard, ok, secs, log }]` of the shards the gate
+ *   ran; closed settles when the selector has exited
  */
 export function startAdvisory(root, base, main) {
-    if (!base || process.env.PREPUSH_SELECT_ADVISORY === "0") {
-        return { report: () => {} };
+    const asked = process.env.PREPUSH_SELECT_BASE;
+    const selectBase = asked && isCommit(root, asked) ? asked : base;
+    if (!selectBase || process.env.PREPUSH_SELECT_ADVISORY === "0") {
+        return { report: () => {}, closed: Promise.resolve() };
     }
     let out = "";
     let done = false;
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--root", root, "--base", base, "--json"], {
+    const args = [fileURLToPath(import.meta.url), "--root", root, "--base", selectBase, "--json"];
+    const child = spawn("nice", ["-n", "19", process.execPath, ...args], {
         cwd: root,
+        detached: true,
         stdio: ["ignore", "pipe", "ignore"],
         env: { ...process.env, GRAPHTY_TEST_SLOTS: "0" },
     });
     child.stdout.on("data", (d) => (out += d));
-    child.on("close", () => (done = true));
-    child.on("error", () => (done = true));
+    const closed = new Promise((resolve) => {
+        child.on("close", resolve);
+        child.on("error", resolve);
+    }).then(() => (done = true));
     return {
+        closed,
         report(results) {
             try {
-                reportAdvisory({ root, base, main, results, done, out });
+                reportAdvisory({ root, base: selectBase, gateBase: base, main, results, done, out });
             } catch (e) {
                 console.log(`Test selection (advisory): not recorded: ${e.message.split("\n")[0]}`);
             } finally {
-                child.kill("SIGKILL");
+                try {
+                    process.kill(-child.pid, "SIGKILL");
+                } catch {
+                    // already gone
+                }
             }
         },
     };
 }
 
-function reportAdvisory({ root, base, main, results, done, out }) {
+const isCommit = (root, ref) => {
+    try {
+        execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: root, stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Prints and records one advisory selection beside what the gate ran.
+ * @param a the gate's side
+ * @param a.root the checkout under test
+ * @param a.base the commit the selector measured the change from
+ * @param a.gateBase the commit the gate measured the change from
+ * @param a.main the main checkout
+ * @param a.results `[{ shard, ok, secs, log }]`
+ * @param a.done whether the selector exited
+ * @param a.out what it printed
+ */
+export function reportAdvisory({ root, base, gateBase, main, results, done, out }) {
     if (!done || !out.trim()) {
-        console.log("Test selection (advisory): the selector had not finished when the shards did; nothing recorded.");
+        const why = done ? "the selector failed" : "the selector had not finished when the shards did";
+        console.log(`Test selection (advisory): ${why}; nothing recorded.`);
         return;
     }
     const sel = JSON.parse(out.trim().split("\n").at(-1));
     const ran = new Set(results.map((r) => r.shard));
     const mine = sel.shards.filter((s) => ran.has(s.shard));
-    const time = estimate(mine, new Map(results.map((r) => [r.shard, r.secs])));
-    const missed = results.filter((r) => !r.ok && mine.find((s) => s.shard === r.shard)?.mode === "none");
+    const seconds = new Map(results.map((r) => [r.shard, r.secs]));
+    const time = estimate(mine, seconds);
+    const measuredTime = estimate(measuredOf(mine), seconds);
+    const recorded = results.map(({ shard, ok, secs, log }) => {
+        const pkg = mine.find((s) => s.shard === shard)?.package;
+        return ok || !pkg ? { shard, ok, secs } : { shard, ok, secs, failing: failingIn(pkg, log) };
+    });
+    const missed = advisoryMisses(recorded, mine);
+    const shown = mine.map((s) => {
+        const what = s.mode === "files" ? `${s.files.length}/${s.total ?? "?"}` : s.mode;
+        return `${s.shard}=${what}`;
+    });
+    const missText = missed.map((m) => `${m.shard}: ${m.file ?? "(no test file named)"}`).join(", ");
     console.log(
-        `Test selection (advisory; the gate ran every shard above): it would have run ${mine
-            .map((s) => `${s.shard}=${s.mode === "files" ? `${s.files.length}/${s.total ?? "?"}` : s.mode}`)
-            .join(", ")}; about ${time.selected}s of shard time instead of ${time.full}s.` +
-            (missed.length > 0
-                ? ` It would have skipped the failed shard ${missed.map((m) => m.shard).join(", ")}.`
-                : ""),
+        `Test selection (advisory; the gate ran every shard above): it would have run ${shown.join(", ")}; ` +
+            `about ${time.selected}s of shard time instead of ${time.full}s ` +
+            `(${measuredTime.selected}s with file-level selection everywhere).` +
+            (missed.length > 0 ? ` It would NOT have run these failures: ${missText}.` : ""),
     );
     const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
     const file = join(main, "tmp/test-select/advisory.jsonl");
     mkdirSync(dirname(file), { recursive: true });
-    appendFileSync(
-        file,
-        JSON.stringify({
-            at: new Date().toISOString(),
-            sha,
-            base,
-            results,
-            selection: mine,
-            everything: sel.everything,
-            time,
-        }) + "\n",
-    );
+    const record = {
+        at: new Date().toISOString(),
+        sha,
+        base,
+        gateBase,
+        results: recorded,
+        selection: mine,
+        everything: sel.everything,
+        unexplainedRoot: sel.unexplainedRoot ?? [],
+        time,
+        measuredTime,
+        missed,
+    };
+    appendFileSync(file, JSON.stringify(record) + "\n");
 }
+
+/**
+ * The failing test files of a failed shard's log, repo-relative.
+ * @param pkg the shard's package directory
+ * @param log the shard's log file
+ * @returns repo-relative paths (empty when the log names none: a crash, a coverage threshold)
+ */
+function failingIn(pkg, log) {
+    const text = log && existsSync(log) ? readFileSync(log, "utf8") : "";
+    return failingFiles(text).files.map((f) => repoPath(pkg, f));
+}
+
+/**
+ * Failures a selection would not have run, judged on its file-level answer (`measured` where it was not
+ * yet allowed), so a miss shows before the package is adopted.
+ * @param results recorded results, with `failing` on the failed shards
+ * @param selection the shards' selection
+ * @returns `[{ shard, file }]`; file null for a failure no test file is named for
+ */
+export function advisoryMisses(results, selection) {
+    const missed = [];
+    for (const r of results.filter((x) => !x.ok)) {
+        const s = selection.find((x) => x.shard === r.shard);
+        const m = s?.measured ?? s;
+        if (!m || m.mode === "all") {
+            continue;
+        }
+        const chosen = new Set(m.files.map((f) => f.file));
+        const files = r.failing?.length ? r.failing : [null];
+        missed.push(...files.filter((f) => !chosen.has(f)).map((file) => ({ shard: r.shard, file })));
+    }
+    return missed;
+}
+
+// Drops each terminal color code: ESC, "[", digits and semicolons, "m".
+export const strip = (s) =>
+    s
+        .split("\u001b[")
+        .map((part, i) => (i === 0 ? part : part.slice(part.indexOf("m") + 1)))
+        .join("");
+
+/**
+ * The failing test files a vitest log names, relative to its package.
+ * @param text a shard log or the end of one
+ * @returns `{ files: string[], unhandled: boolean, summary: string|null }`
+ */
+export function failingFiles(text) {
+    const files = new Set();
+    let unhandled = false;
+    for (const raw of strip(text).split("\n")) {
+        const fail = /^\s*FAIL\s+(?:\|[^|]+\|\s+|[a-z-]+ \([a-z]+\)\s+|[a-z-]+\s{2,})?([^\s>]+\.[cm]?[jt]sx?)\b/u.exec(
+            raw,
+        );
+        if (fail) {
+            files.add(fail[1]);
+            const story = / > (?:\.\.\/)+([^\s>]+\.stories\.[jt]sx?) > /u.exec(raw);
+            if (story) {
+                files.add(story[1]);
+            }
+        }
+        const origin = /originated in "([^"]+)" test file/u.exec(raw);
+        if (origin) {
+            files.add(origin[1]);
+        }
+        if (/Unhandled Errors?|Unhandled Rejection/u.test(raw)) {
+            unhandled = true;
+        }
+    }
+    const summary = strip(text).match(/Test Files .*/u)?.[0] ?? null;
+    return { files: [...files], unhandled, summary };
+}
+
+/**
+ * A test file a vitest log names (relative to its package) as a repo-relative path.
+ * @param pkg the package directory
+ * @param file the path the log printed
+ * @returns repo-relative path
+ */
+export const repoPath = (pkg, file) => `${pkg}/${file.replace(/^\.\.\/\.\.\//u, "")}`;
 
 // --- the command line -----------------------------------------------------------------------------------
 
@@ -764,12 +993,15 @@ function graphCache(root) {
     } catch {
         // not a git checkout: no cache
     }
+    // the list of tests that read files is computed from the rules and kept in each graph
+    const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
     return (dir, config, build) => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
+                const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update(`${GRAPH_VERSION}\0${git(["rev-parse", `HEAD:${dir}`])}\0${config}`)
+                    .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 if (existsSync(file)) {
@@ -789,7 +1021,7 @@ function graphCache(root) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 1;
+const GRAPH_VERSION = 2;
 
 /**
  * The packages each package's tests read by relative path (`../graph-io/test/...`): the references in the
@@ -806,7 +1038,7 @@ export function testRefs(root, roots, graphs, fallback) {
     const refs = new Map();
     for (const [name, dir] of roots) {
         const gs = graphs.get(dir);
-        if (!gs || gs.length === 0 || gs.some((g) => g === null)) {
+        if (!gs || gs.length === 0 || gs.includes(null)) {
             refs.set(name, fallback.get(name) ?? new Set());
             continue;
         }
@@ -859,9 +1091,8 @@ function graphChild(root, dir, config) {
             .split("\n")
             .slice(-3)
             .join(" / ");
-        console.error(
-            `test-select: the import graph of ${dir}${config ? ` (${config})` : ""} could not be built: ${why}`,
-        );
+        const which = config ? `${dir} (${config})` : dir;
+        console.error(`test-select: the import graph of ${which} could not be built: ${why}`);
         return null;
     }
 }
@@ -882,15 +1113,16 @@ export async function selectChange(root, changed, shards, graphs) {
     grepRoot = root;
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
     const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
+    const rules = loadRules(root);
     const sel = selectPackages({
         changed,
         packages,
         deps: graph.deps,
         refs: testRefs(root, packages, all, pathRefs(root, graph.roots)),
         graphs: all,
-        rules: loadRules(root),
+        rules,
     });
-    return { ...sel, shards: selectShards(shards, sel.packages, all) };
+    return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel) };
 }
 
 /**
@@ -915,7 +1147,11 @@ export function describe(selection) {
     const lines = [];
     for (const s of selection.shards) {
         const what = s.mode === "files" ? `${s.files.length} of ${s.total ?? "?"} test files` : s.mode;
-        lines.push(`  ${s.shard}: ${what}${s.reasons.length > 0 ? ` (${s.reasons[0]})` : ""}`);
+        const why = s.reasons.length > 0 ? ` (${s.reasons[0]})` : "";
+        lines.push(`  ${s.shard}: ${what}${why}`);
+    }
+    for (const f of selection.unexplainedRoot ?? []) {
+        lines.push(`  (${f} is code outside every package that no test imports or names; it runs nothing)`);
     }
     return lines.join("\n");
 }
@@ -941,6 +1177,7 @@ async function main(argv) {
             JSON.stringify({
                 changed: changed.length,
                 everything: selection.everything,
+                unexplainedRoot: selection.unexplainedRoot,
                 shards: selection.shards,
             }),
         );

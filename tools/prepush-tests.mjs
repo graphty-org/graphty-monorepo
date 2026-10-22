@@ -366,7 +366,7 @@ async function main() {
                 // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
                 // (tools/shard-verdict.mjs).
                 const verdict = checkShard(shard, code, text, ROOT, t0);
-                results.push({ shard: shard.shard, ok: verdict.pass, secs });
+                results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 if (verdict.pass) {
                     warmed.add(family(shard));
                     console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, text)}`);

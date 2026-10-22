@@ -578,7 +578,10 @@ const conflicted = (ctx) =>
  */
 function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`) {
     // Measured from master: everything on golden that master does not have yet is this push's change.
-    const env = { ...ctx.env, PUSH_BASE_REF: "origin/master" };
+    // The advisory test selector (tools/test-select.mjs) asks about this landing alone: the change from the
+    // tip the push replaces.
+    const dst = refspec.split(":").pop().replace("refs/heads/", "");
+    const env = { ...ctx.env, PUSH_BASE_REF: "origin/master", PREPUSH_SELECT_BASE: `origin/${dst}` };
     const child = spawn(join(cwd, "tools/push-queue.sh"), ["git", "push", "origin", refspec], {
         cwd,
         env,

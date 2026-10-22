@@ -176,6 +176,16 @@ export default tseslint.config(
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
     },
 
+    // The dry run (dry-run/) is a Node script that drives the built app in Playwright: its own code
+    // runs in Node, and the functions it hands to page.evaluate run in the page, so it declares both.
+    // As in visual-review, a JSDoc type is the only type annotation a plain .mjs file has.
+    {
+        files: ["dry-run/**/*.mjs"],
+        languageOptions: { globals: { ...globals.node, ...globals.browser } },
+        settings: { jsdoc: { mode: "typescript" } },
+        rules: { "jsdoc/no-types": "off" },
+    },
+
     // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
     // of its own under a test runner (#2930). The rule: tools/eslint-rules/story-wait-options.mjs.
     {

@@ -248,13 +248,16 @@ function elementLocal(filter: RuleTree): boolean {
     switch (filter.kind) {
         case "expression":
         case "edges":
-        case "range":
-        case "categories":
         case "degree":
         case "isolated":
         case "self-loop":
         case "item":
             return true;
+        case "range":
+        case "categories":
+        case "text":
+            // "ends" reads every edge at the element, not the element alone.
+            return filter.nodes !== "ends";
         case "threshold":
             return filter.top === undefined;
         case "all":
@@ -650,6 +653,11 @@ function ruleHolds(
             return ends();
         case "listed":
             return halves.edge?.(index) ?? false;
+        case "incident":
+            return (
+                (halves.edge === null || halves.edge(index)) &&
+                (nodeIn(snapshot.edgeSource(index)) || nodeIn(snapshot.edgeTarget(index)))
+            );
         default:
             return (halves.edge === null || halves.edge(index)) && ends();
     }

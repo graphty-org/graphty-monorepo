@@ -30,7 +30,7 @@ import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
-import type { DataService } from "../commands/data";
+import type { DataService, EdgeIdentityService } from "../commands/data";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
@@ -84,6 +84,8 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  */
 interface CommandServices {
     data?: DataService;
+    /** Stable edge identity: what a replacing load maps a hand-picked layer's edges through. */
+    edgeIdentity?: EdgeIdentityService;
     /** The arrangement: where `positions.*` write. Always present. */
     positions?: Arrangement;
     runs?: RunService;
@@ -2414,6 +2416,28 @@ export class Dispatcher {
         for (const group of this.open) {
             for (const job of group.jobs) {
                 if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a command that writes the graph is dispatched and has not started: a write still to
+     * come after whatever is running now. A command that is running is not counted, so the pass
+     * deriving a write (an import's included, which runs until its rows are placed) can tell
+     * "another write follows" from "this is the write".
+     * @returns True while one is.
+     */
+    get graphWritesQueued(): boolean {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (
+                    (job.status === "new" || job.status === "queued" || job.status === "waiting") &&
+                    job.keys.some((key) => sliceOf(key) === "graph")
+                ) {
                     return true;
                 }
             }

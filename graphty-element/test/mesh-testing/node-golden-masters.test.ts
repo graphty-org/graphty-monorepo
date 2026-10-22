@@ -73,6 +73,12 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
 };
 
 /**
+ * The two shapes that once ignored the requested size (a capsule and a torus stayed at Babylon's
+ * default dimensions at every size): each now scales with the size like every other shape.
+ */
+const ONCE_SIZE_IGNORING_SHAPES = new Set(["capsule", "torus"]);
+
+/**
  * Hyphenated spellings `NodeMesh` registers for backward compatibility that the `NodeShapes`
  * schema does NOT accept. The retired mock's shape list was written entirely in these, which is
  * how it managed to claim coverage of shapes a parsed style can never carry.
@@ -208,6 +214,12 @@ describe("Node Golden Masters", () => {
             assert.equal(result.mesh.scaling.z, 1);
             // Under the default sizeMode a sphere of size 5 is 5 across, as it always was.
             assert.closeTo(boundingExtent("sphere", 5), 5, 1e-6);
+        });
+
+        ONCE_SIZE_IGNORING_SHAPES.forEach((shape) => {
+            test(`${shape} scales with the requested size`, () => {
+                assert.closeTo(boundingExtent(shape as ShapeName, 5), 5 * boundingExtent(shape as ShapeName, 1), 1e-6);
+            });
         });
     });
 

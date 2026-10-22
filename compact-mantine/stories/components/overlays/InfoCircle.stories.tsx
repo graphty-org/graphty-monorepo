@@ -16,7 +16,7 @@ import { waitForSettledLayout } from "../../helpers/settled";
 
 /**
  * A circled `i` placed right after a name, which shows an explanation of that name on hover,
- * focus or tap.
+ * Enter or Space, or tap.
  *
  * ## When to use it
  *
@@ -47,9 +47,10 @@ import { waitForSettledLayout } from "../../helpers/settled";
  *
  * ## Keyboard and accessibility
  *
- * - The button is reachable with Tab and opens on focus, so the explanation never needs a
- *   pointer. It closes when focus or the pointer leaves, on Escape, on a second tap, and on a
- *   click elsewhere.
+ * - The button is reachable with Tab and opens on Enter or Space, so the explanation never needs
+ *   a pointer; Tab reaching it opens nothing, so walking a panel never drops a bubble over the
+ *   rows below. It closes when focus or the pointer leaves, on Escape, on a second tap, and on a
+ *   click elsewhere. Inside a `Popout.Anchor` (a side panel) the bubble stays across the panel.
  * - It follows the disclosure pattern: the button is named "About" and the `label` ("About
  *   Resolution"; the `about` label, translatable through `LabelsProvider`) and, while open, the
  *   bubble is its `aria-describedby`, so a screen reader reads the name and then the explanation.

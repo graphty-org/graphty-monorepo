@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Thank-you cards 6 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: Thank-you cards",
+     "color": "#008000"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 18,
+   "#008000": 6
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

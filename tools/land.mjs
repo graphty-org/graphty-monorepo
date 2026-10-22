@@ -2141,5 +2141,11 @@ export async function handOff(argv, env = process.env, self = fileURLToPath(impo
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const argv = process.argv.slice(2);
-    process.exitCode = (await handOff(argv)) ?? (await main(argv));
+    // Not a top-level await: land.mjs must finish loading before main runs, or the dynamic import of
+    // verify.mjs (which imports land.mjs) waits on it forever and node exits with nothing done.
+    handOff(argv)
+        .then((code) => code ?? main(argv))
+        .then((code) => {
+            process.exitCode = code;
+        });
 }

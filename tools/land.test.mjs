@@ -4,7 +4,16 @@
 //   node tools/land.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1133,6 +1142,21 @@ describe("the live copy", () => {
         assert.match(lines[0], /^land: no live copy at .*no-live-here.*; running .*land\.mjs instead$/);
         assert.match(lines[1], /usage: node tools\/land\.mjs/);
         assert.equal(lines.length, 2);
+    });
+
+    it("loads verify.mjs from the command line: status reaches its verification line", () => {
+        // A top-level await around main left land.mjs loading, so verify.mjs's import of it never settled.
+        const bin = join(dir, "no-gh-bin");
+        mkdirSync(bin, { recursive: true });
+        write(bin, "gh", "#!/bin/sh\nexit 1\n");
+        chmodSync(join(bin, "gh"), 0o755);
+        const r = spawnSync(process.execPath, [tool, "status"], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: join(dir, "no-live-here"), PATH: `${bin}:${env.PATH ?? process.env.PATH}` },
+            encoding: "utf8",
+        });
+        assert.match(r.stdout, /verification of golden/, r.stderr);
+        assert.doesNotMatch(r.stderr, /unsettled top-level await/);
     });
 
     it("the live copy runs itself and drops the hand-off mark, so the gate it pushes through starts clean", async () => {

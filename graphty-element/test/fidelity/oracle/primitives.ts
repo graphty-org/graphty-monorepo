@@ -273,6 +273,8 @@ export interface PArrow {
     shape: ArrowShape;
     /** `#rrggbb`: its fill where it is filled, else its outline's color; null where the drawing does not say. */
     color: string | null;
+    /** Its middle, where its outline says: parts drawn at one place (a fill and its outline) are one part. */
+    at?: Pt;
     /** graphty's side: how many pixels past the allowance it sits off its line's end (`capPlaceMiss`); absent when on it. */
     misplaced?: number;
 }
@@ -325,6 +327,8 @@ export interface PStray {
     fill: string | null;
     stroke: string | null;
     text: string | null;
+    /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
+    lettering?: true;
 }
 
 /** One side's drawing, associated with graph elements. */

@@ -620,6 +620,33 @@ function arrowMiss(o: number, g: number, pixel: number): number {
 }
 
 /**
+ * How many parts in a row a head at one end has: its arrows apart by more than a third of the larger one's length are
+ * two parts (Graphviz's boxdotnormal), those at one place are one (Cytoscape's hollow head, its fill and its outline),
+ * and one of another color or size is no part of it.
+ * @param heads - the arrows at one end
+ * @returns the count
+ */
+function headParts(heads: readonly PArrow[]): number {
+    const placed: PArrow[] = [];
+    for (const h of heads) {
+        const apart = (q: PArrow): boolean =>
+            h.at === undefined ||
+            q.at === undefined ||
+            Math.hypot(h.at[0] - q.at[0], h.at[1] - q.at[1]) > Math.max(h.length, q.length) / 3;
+        // a part of the same head is drawn in the head's color at about its size: a neighbor's head read onto this
+        // end (a diamond of another color beside a Cytoscape desktop head) is not one
+        const first = placed[0];
+        const kin =
+            first === undefined ||
+            (h.color === first.color && h.length <= 2 * first.length && first.length <= 2 * h.length);
+        if (kin && placed.every(apart)) {
+            placed.push(h);
+        }
+    }
+    return placed.length;
+}
+
+/**
  * How far graphty's dash pattern is from the oracle's, where both read one: the period (a dash and the gap after it,
  * each the mean of its kind) and the share of it drawn, each by its ratio (`dashRatio`). Only the class was judged, so
  * Graphviz's sparse dots drawn nearly solid and Cytoscape's long dashes drawn as equal ones passed.
@@ -2198,7 +2225,7 @@ export function compareOracle(
                 continue;
             }
             // a head of several parts in a row (Graphviz's boxdotnormal, crowtee) is read one arrow a part
-            const parts = (list: readonly PArrow[]): number => list.filter((a) => a.end === end).length;
+            const parts = (list: readonly PArrow[]): number => headParts(list.filter((a) => a.end === end));
             j.add("edge.arrowParts", "edge", at, parts(o.arrows) === parts(ga) ? 0 : 1, parts(o.arrows), parts(ga));
             j.add(
                 "edge.arrowShape",
@@ -2506,8 +2533,25 @@ export function compareOracle(
     // further lines of a wrapped node label Cytoscape draws at 0.15 px (cx-ddram, node 6907), which the association
     // leaves as free text when it drops the first line with its node
     const legibleText = (t: PText): boolean => t.sizePx === 0 || t.sizePx / lengthScale >= T.legibleFontPx;
+    // Words a program drew as glyph outlines (Cytoscape desktop's labels on cx-polygenic-sle, each a white halo and
+    // the black glyphs over it) say no words: one stray per place, drawn where graphty draws any text over it
+    const glyphs = new Map<string, PBox>();
+    for (const s of oracle.strays.filter((x) => x.lettering === true)) {
+        glyphs.set([s.box.x0, s.box.y0, s.box.x1, s.box.y1].map((v) => Math.round(v * 2)).join(","), s.box);
+    }
+    const lettered = [...glyphs.values()].map((box) => ({
+        tag: "lettering",
+        box,
+        fill: null,
+        stroke: null,
+        text: null,
+    }));
+    const overlaps = (a: PBox, b: PBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
     const strays = [
-        ...oracle.strays.map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
+        ...oracle.strays
+            .filter((s) => s.lettering !== true)
+            .map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
+        ...lettered,
         ...[...oracle.texts, ...annotatedTexts].filter(legibleText).map((t) => ({
             tag: "text",
             box: t.box,
@@ -2520,7 +2564,8 @@ export function compareOracle(
         .map((s, i) => {
             const matched =
                 gAnn.some((b) => strayIou(b, s.box) >= T.strayIoU) ||
-                (s.text !== null && textDrawn(s.text, s.box, gTexts));
+                (s.text !== null && textDrawn(s.text, s.box, gTexts)) ||
+                (s.tag === "lettering" && gTexts.some((t) => overlaps(t.box, s.box)));
             j.add(
                 "stray.present",
                 "stray",

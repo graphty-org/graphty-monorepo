@@ -1820,6 +1820,75 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         );
     });
 
+    it("counts a hollow head's fill and outline at one place as one part", () => {
+        const withHeads = (side: PScene["side"], at: Pt[]): PScene => {
+            const scene = sceneOf(side, 600, 400, grid());
+            scene.edges = [
+                {
+                    ...edge("e1", [
+                        [120, 100],
+                        [280, 100],
+                    ]),
+                    arrows: at.map((p) => ({
+                        end: "target" as const,
+                        length: 10,
+                        width: 8,
+                        filled: true,
+                        shape: "triangle" as const,
+                        color: "#0000ff",
+                        at: p,
+                    })),
+                },
+            ];
+            return scene;
+        };
+        const parts = (o: Pt[], g: Pt[]) =>
+            compareOracle("t", withHeads("oracle", o), withHeads("graphty", g)).properties["edge.arrowParts"].passRate;
+        // Cytoscape's hollow head: a white fill and its outline, one place
+        assert.strictEqual(
+            parts(
+                [
+                    [275, 100],
+                    [275.5, 100],
+                ],
+                [[275, 100]],
+            ),
+            1,
+        );
+        // Graphviz's normalnormal: two heads 10 px apart along the line
+        assert.strictEqual(
+            parts(
+                [
+                    [275, 100],
+                    [265, 100],
+                ],
+                [[275, 100]],
+            ),
+            0,
+        );
+    });
+
+    it("reads words a program drew as glyph outlines as one label where graphty draws text over them", () => {
+        // cx-polygenic-sle: each label a white halo and the black glyphs over it, the same box
+        const glyphs = (index: number): PScene["strays"][number] => ({
+            index,
+            tag: "path",
+            kind: "shape",
+            box: { x0: 280, y0: 180, x1: 330, y1: 190 },
+            fill: index === 0 ? null : "#000000",
+            stroke: index === 0 ? "#ffffff" : null,
+            text: null,
+            lettering: true,
+        });
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.strays = [glyphs(0), glyphs(1)];
+        const g = sceneOf("graphty", 600, 400, grid());
+        g.texts = [text("9606.ENSP00000336894", 305, 185)];
+        assert.strictEqual(compareOracle("t", o, g).properties["stray.present"].passRate, 1);
+        g.texts = [];
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["lettering#0"]);
+    });
+
     it("fails an arrowhead a quarter too long, and lets a few-pixel head round by a pixel", () => {
         const withHead = (side: PScene["side"], length: number, width: number): PScene => {
             const scene = sceneOf(side, 600, 400, grid());

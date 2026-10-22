@@ -489,6 +489,7 @@ export function measureArrow(
     [dx, dy] = capAxis(outline, pts, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
+    const at = areaCentroid(outline) ?? [cx(box), cy(box)];
     return {
         end,
         length: Math.max(...along) - Math.min(...along),
@@ -496,6 +497,7 @@ export function measureArrow(
         filled,
         shape: look.shape ?? shapeAlong(outline, look.pieces, [dx, dy]),
         color,
+        at,
     };
 }
 
@@ -1519,6 +1521,7 @@ const strayOf = (p: Prim): PStray => ({
     fill: p.fill?.color ?? null,
     stroke: p.stroke?.color ?? null,
     text: p.text?.content ?? null,
+    ...(p.lettering === true ? { lettering: true as const } : {}),
 });
 
 /** How the oracle's primitives were associated: by the file's names, by geometry, or both. */

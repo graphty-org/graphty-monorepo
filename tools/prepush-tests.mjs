@@ -58,6 +58,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard } from "./shard-verdict.mjs";
+import { startAdvisory } from "./test-select.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -324,6 +325,9 @@ async function main() {
     let failed = null;
     let stopping = false;
     const started = Date.now();
+    // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
+    const advisory = startAdvisory(ROOT, base, main);
+    const results = [];
 
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
@@ -365,6 +369,7 @@ async function main() {
                 // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
                 // (tools/shard-verdict.mjs).
                 const verdict = checkShard(shard, code, text, ROOT, t0);
+                results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 if (verdict.pass) {
                     warmed.add(family(shard));
                     console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, text)}`);
@@ -428,6 +433,7 @@ async function main() {
 
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
+        advisory.report(results);
         if (failed) {
             keepLog(failed);
             console.log(`Stopped after ${failed} failed (${secs}s); the other shards did not finish.`);

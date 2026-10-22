@@ -239,7 +239,7 @@ export function gateKey(root, gateRoot = GATE_ROOT, env = process.env) {
  * @param root the checkout
  * @returns `{ roots, outputs, deps }` (Maps by project name), or null when nx cannot answer
  */
-function projectGraph(root) {
+export function projectGraph(root) {
     if (!existsSync(join(root, "nx.json"))) {
         return null;
     }
@@ -287,7 +287,7 @@ function projectGraph(root) {
  * @param roots Map of project name to directory
  * @returns Map of project name to the Set of project names it refers to
  */
-function pathRefs(root, roots) {
+export function pathRefs(root, roots) {
     const byDir = new Map([...roots].map(([name, dir]) => [dir, name]));
     const refs = new Map();
     for (const [name, dir] of roots) {

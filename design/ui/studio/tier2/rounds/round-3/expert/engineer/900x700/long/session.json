@@ -1,0 +1,38 @@
+{
+ "commit": "26f3bb968e43208f13a1303695958061ce23821c",
+ "toolCommit": "a68199725e942c370490a089ddd67bab8086770e",
+ "uncommittedChanges": false,
+ "buildStamp": "26f3bb968e43 graphty@0.8.61",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "viewport": {
+  "width": 900,
+  "height": 700
+ },
+ "started": "2026-10-11T02:28:07.631Z",
+ "setup": [
+  "--click No thanks",
+  "--click New from data...",
+  "--click choose a file...",
+  "--upload long-names.csv",
+  "--click Load",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run",
+  "--click PageRank",
+  "--click role=tab:Style",
+  "--click Add to Shape",
+  "--click role=menuitem:Size",
+  "--click role=option:PageRank",
+  "--key Escape",
+  "--click Everything",
+  "--click role=tab:Style",
+  "--click Add label line",
+  "--click role=option:id",
+  "--click Show all labels",
+  "--key Escape"
+ ],
+ "task": null,
+ "followUp": "none"
+}

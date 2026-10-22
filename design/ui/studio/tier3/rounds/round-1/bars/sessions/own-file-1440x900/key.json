@@ -1,0 +1,38 @@
+{
+ "key": [
+  {
+   "title": "Size: hours",
+   "text": "Size: hours Size: hours 2 52 Layer 1: 4 of 24 nodes",
+   "rows": []
+  },
+  {
+   "title": "Color: role",
+   "text": "Color: role volunteer Layer 1: 4 of 24 nodes",
+   "rows": [
+    {
+     "text": "volunteer",
+     "color": "#e69f00"
+    }
+   ]
+  },
+  {
+   "title": "Shape: Layer 1",
+   "text": "Shape: Layer 1 Box 4 of 24 nodes",
+   "rows": [
+    {
+     "text": "Box",
+     "color": null
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 20,
+   "#e69f00": 4
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

@@ -1,6 +1,6 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -63,7 +63,7 @@ import { storyWaitOptions } from "../../helpers/settled";
  *   scrubs it, half a percent per pixel.
  * - The three controls sit in a group named by `label`, so a screen reader reads the label once
  *   on entry, and each control is named from the label too: with `label="Fill"` the chit is
- *   "Pick Fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
+ *   "Pick fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
  *   the opacity box "Fill opacity". Every name comes from `LabelsProvider` (`pickColor`,
  *   `colorValue`, `colorOpacity`; `colorSwatch`, `colorHexValue` and `opacity` when there is no
  *   label); typed opacity is read in the reader's locale.
@@ -107,9 +107,10 @@ export const Default: Story = {
 };
 
 /**
- * Every state, light and dark side by side: rest, the default in italics, hover, focus and
+ * Every state, light and dark side by side: rest, the default in italics, focus and
  * picker open (forced, since a story cannot hold the pointer), a translucent color with the
- * checkerboard half, a near-white color with its ring, disabled, and without opacity.
+ * checkerboard half, a near-white color with its ring, disabled, and without opacity. Hover
+ * changes nothing, as on the select: the field is outlined at rest.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -121,11 +122,6 @@ export const States: Story = {
                 </StateCell>
                 <StateCell label="Default (nothing chosen)">
                     <CompactColorInput defaultColor="#3373E5" width={156} />
-                </StateCell>
-                <StateCell label="Hover">
-                    <ForceState state="hover" selector=".cm-paint-field">
-                        <CompactColorInput color="#3373E5" opacity={100} defaultColor="#000000" width={156} />
-                    </ForceState>
                 </StateCell>
                 <StateCell label="Focus">
                     <ForceState state="focus" selector=".cm-paint-field">
@@ -223,7 +219,7 @@ export const PickerOpen: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: "Pick Fill color" }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
         const opacity = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).getByRole("textbox", {
             name: /opacity/i,
@@ -231,6 +227,31 @@ export const PickerOpen: Story = {
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");
+    },
+};
+
+/**
+ * The picker offers the swatches you pass -- here three colors already used in a document --
+ * instead of the built-in set. Drag in the picker's field and watch the Actions panel: `onChange`
+ * logs every move, `onChangeEnd` logs once, on release. A swatch pick or a typed hex logs each
+ * once.
+ */
+export const SwatchesAndChangeEnd: Story = {
+    parameters: OPEN_OVERLAY,
+    args: {
+        label: "Fill",
+        defaultColor: "#3373E5",
+        swatches: ["#E8590C", "#2F9E44", "#7048E8CC"],
+        onChange: fn(),
+        onChangeEnd: fn(),
+    },
+    play: async ({ args, canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
+        const dialog = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000)));
+        await userEvent.click(dialog.getByRole("button", { name: / 2F9E44$/ }));
+        await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);
+        await expect(args.onChangeEnd).toHaveBeenCalledWith("#2F9E44", 100);
     },
 };
 

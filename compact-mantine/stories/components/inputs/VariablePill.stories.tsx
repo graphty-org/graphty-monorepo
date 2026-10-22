@@ -113,3 +113,16 @@ export const DetachFromTheKeyboard: Story = {
         await expect(args.onDetach).toHaveBeenCalled();
     },
 };
+
+/**
+ * Keyboard: Tab reaches the pill of a bound number field. The pill draws the one focus ring; the
+ * field around it does not ring as well, and the Detach button shows.
+ */
+export const PillFromTheKeyboard: Story = {
+    args: { glyph: "S", name: "PageRank", value: "1 to 3", onDetach: fn(), onClick: fn() },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.tab();
+        await expect(canvas.getByRole("button", { name: "1 to 3, variable PageRank" })).toHaveFocus();
+    },
+};

@@ -557,12 +557,15 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         expectMeasured(field(container), { borderTopColor: "#000000a6", outlineColor: "#00000000" });
     });
 
-    it("AA option: a disabled trigger keeps its border and paints no outline over it", async () => {
+    it("AA option: a disabled trigger draws its edge in the disabled ink and paints no outline over it", async () => {
         const { container } = await renderFigma(
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" disabled />,
             { highContrast: true },
         );
-        expectMeasured(field(container), { borderTopColor: "#00000073", outlineColor: "#00000000" });
+        // A select that cannot change reads as a fixed value, not a box to open: no caret and a
+        // disabled edge (3650da1d89), even in the AA option; a disabled control is exempt from the
+        // 3:1 edge (WCAG 1.4.11).
+        expectMeasured(field(container), { borderTopColor: "#e6e6e6", outlineColor: "#00000000" });
     });
 
     it("Figma look: hovering an outlined field changes nothing", async () => {
@@ -664,6 +667,27 @@ describe.skipIf(!available)("6.5 listbox", () => {
         expect(Math.abs(s.left + 8 - t.left)).toBeLessThanOrEqual(1);
     });
 
+    // A field at the window's right edge with nothing chosen (a filter step's attribute): the list
+    // opens below, flush with the field, and stays inside the window.
+    it("with nothing selected, opens below as wide as its field and stays inside the window", async () => {
+        await page.viewport(600, 400);
+        const { container } = await renderFigma(
+            <div style={{ position: "fixed", right: 6, top: 40, width: 200 }}>
+                <Select aria-label="Attribute" data={["name", "kind", "email"]} placeholder="Choose" searchable />
+            </div>,
+        );
+        const trigger = field(container);
+        await drive(part(container, "input"), "open");
+        const dropdown = await listbox();
+        await settle();
+        const t = trigger.getBoundingClientRect();
+        const d = dropdown.getBoundingClientRect();
+        expect(d.top).toBeGreaterThanOrEqual(t.bottom);
+        expect(Math.abs(d.left - t.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(d.right - t.right)).toBeLessThanOrEqual(1);
+        expect(d.right).toBeLessThanOrEqual(window.innerWidth - 6 + 0.5);
+    });
+
     it("clamps inside the viewport minus 6px", async () => {
         await page.viewport(600, 300);
         const data = Array.from({ length: 30 }, (_, i) => `Item ${String(i + 1)}`);
@@ -678,6 +702,32 @@ describe.skipIf(!available)("6.5 listbox", () => {
         expect(d.top).toBeGreaterThanOrEqual(6 - 0.5);
         expect(d.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
         expect(d.left).toBeGreaterThanOrEqual(6 - 0.5);
+    });
+
+    // A short list on a field at the window's bottom edge (the import page's Direction): aligned,
+    // its selected first option on the field, it would be cut to a strip showing no option.
+    it("a list that fits the window whole opens whole, moved up from a field at the bottom", async () => {
+        await page.viewport(600, 300);
+        const { container } = await renderFigma(
+            <div style={{ position: "fixed", left: 20, bottom: 10 }}>
+                <Select
+                    aria-label="Direction"
+                    data={["As the file says", "Directed", "Undirected"]}
+                    defaultValue="As the file says"
+                    style={{ width: 160 }}
+                />
+            </div>,
+        );
+        await drive(part(container, "input"), "open");
+        const dropdown = await listbox();
+        const d = dropdown.getBoundingClientRect();
+        expect(d.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
+        expect(dropdown.scrollHeight - dropdown.clientHeight).toBeLessThanOrEqual(1);
+        for (const option of dropdown.querySelectorAll<HTMLElement>(".cm-listbox-option")) {
+            const o = option.getBoundingClientRect();
+            expect(o.top).toBeGreaterThanOrEqual(d.top - 0.5);
+            expect(o.bottom).toBeLessThanOrEqual(d.bottom + 0.5);
+        }
     });
 
     // A viewport shorter than the aligned list (Storybook's canvas above its addon panel): the list
@@ -1024,7 +1074,7 @@ describe.skipIf(!available)("6.3 combo input", () => {
         const { container } = await renderFigma(
             <ComboInput label="Width" defaultValue="Hug" suffix="Hug" divided options={[{ value: "Hug" }]} />,
         );
-        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#00000080", fontSize: "11px" });
+        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#0000008c", fontSize: "11px" });
         expectMeasured(part(container, ".cm-combo-chevron"), {
             width: 25,
             borderLeftWidth: "1px",

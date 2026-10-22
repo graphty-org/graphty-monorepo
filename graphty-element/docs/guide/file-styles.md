@@ -229,7 +229,7 @@ and an export never writes them as columns. They are saved in a project file wit
 read them, belong to the same undo step as the load, and go when the load's layers go.
 
 A file rule that depends on the number of edges a node has (a Cytoscape.js `[[degree > 2]]`
-selector) reads `graphty.degree`, `graphty.indegree` or `graphty.outdegree`: the degree as the
+selector) reads `graphty.degree`, `graphty.inDegree` or `graphty.outDegree`: the degree as the
 graph stands now, so it follows later edits instead of freezing the degrees of the file. See
 [Values the element provides](./styling#values-the-element-provides).
 

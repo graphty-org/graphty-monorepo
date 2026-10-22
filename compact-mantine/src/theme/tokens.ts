@@ -62,7 +62,9 @@ export const CM_COLORS = {
     "bg-mode-switcher-hover": t("#e6e6e6", "#383838", "--color-bgtoolbarmodeswitcher-hover"),
     "bg-info": t("#e5f4ff", "#394360", "--color-bg-info"),
     text: t("#000000e5", "#ffffff", "--color-text"),
-    "text-secondary": t("#00000080", "#ffffffb2", "--color-text-secondary"),
+    // Not Figma's: --color-text-secondary is #00000080 in light, 4.0:1 on white; 55% black reads
+    // at 4.5:1 there (WCAG 1.4.3)
+    "text-secondary": t("#0000008c", "#ffffffb2"),
     "text-tertiary": t("#0000004d", "#ffffff66", "--color-text-tertiary"),
     "text-disabled": t("#0000004d", "#ffffff66", "--color-text-disabled"),
     "text-brand": t("#007be5", "#7cc4f8", "--color-text-brand"),
@@ -120,6 +122,8 @@ export const CM_COLORS = {
     "field-edge-hover": t("#e6e6e6", "#444444"),
     /** the selected segment's inset edge (= border) */
     "segment-edge": t("#e6e6e6", "#444444"),
+    /** the 1px inset ring round a color chit or strip: 3:1 against the panel in both schemes, so a pale or a dark color keeps its edge */
+    "swatch-ring": t("#00000073", "#ffffff80"),
     /** the white label on a danger, success or inverse fill, which no accent changes */
     "text-onsolid": t("#ffffff", "#ffffff"),
     /** the dimmed white label on those fills (a pressed button, a shortcut) */

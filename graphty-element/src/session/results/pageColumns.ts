@@ -185,7 +185,7 @@ export function resultCell(resolved: ResolvedResult, target: "node" | "edge", id
  * @param resolved - The column.
  * @returns The rank by group value, or undefined when the field is not a grouping one.
  */
-function sizeRanks(resolved: ResolvedResult): ReadonlyMap<unknown, number> | undefined {
+function sizeRanks(resolved: Pick<ResolvedResult, "result" | "field">): ReadonlyMap<unknown, number> | undefined {
     const sizes = resolved.result?.graph.sizes;
     if (!GROUPING_FIELDS.has(resolved.field) || !Array.isArray(sizes)) {
         return undefined;
@@ -210,10 +210,19 @@ export function resultCellRanks(
     target: "node" | "edge",
     ids: readonly (NodeId | EdgeId)[],
 ): readonly (number | undefined)[] | undefined {
-    const ranks =
-        resolved.result?.shape === "community" && resolved.field === "group" ? sizeRanks(resolved) : undefined;
+    const ranks = resolved.field === "group" ? partitionGroupRanks(resolved.result) : undefined;
 
     return ranks === undefined ? undefined : ids.map((id) => ranks.get(resultCell(resolved, target, id)));
+}
+
+/**
+ * Each group's rank, by the group id the result publishes, for a partition into groups: the same
+ * `rank` the run summary's group, the legend's swatch and a page column carry.
+ * @param result - The run's result.
+ * @returns The rank by group id, or undefined when the result is not a partition into groups.
+ */
+export function partitionGroupRanks(result: RunResult | undefined): ReadonlyMap<unknown, number> | undefined {
+    return result?.shape === "community" ? sizeRanks({ result, field: "group" }) : undefined;
 }
 
 /**

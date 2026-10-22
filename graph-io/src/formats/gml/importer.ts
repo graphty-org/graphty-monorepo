@@ -1298,12 +1298,86 @@ class GmlImport {
     }
 
     /**
+     * Find a node block's id, label and original-id values.
+     * @param open - the block's `[`
+     * @param close - the block's `]`
+     * @returns each key's value token, or -1 when the block has none
+     */
+    private nodeKeyTokens(open: number, close: number): { idTok: number; labelTok: number; originalTok: number } {
+        const t = this.requireTokens();
+        let idTok = -1;
+        let labelTok = -1;
+        let originalTok = -1;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id") {
+                idTok = this.structuralToken(idTok, p, "id");
+            } else if (key === "label") {
+                labelTok = labelTok < 0 ? p + 1 : labelTok;
+            } else if (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds) {
+                originalTok = originalTok < 0 ? p + 1 : originalTok;
+            }
+        }
+        return { idTok, labelTok, originalTok };
+    }
+
+    /**
+     * The id a node is added to the sink under: its restored original id, else its label, its
+     * ordinal or its file id, as `nodeIdFrom` says.
+     * @param fileId - the node's file id
+     * @param labelTok - its label's value token, or -1
+     * @param originalTok - its original id's value token, or -1
+     * @param ordinal - its position among the file's nodes
+     * @returns the sink id
+     */
+    private nodeSinkId(fileId: NodeId, labelTok: number, originalTok: number, ordinal: number): NodeId {
+        if (originalTok >= 0) {
+            return this.restoredId(originalTok);
+        }
+        switch (this.options.nodeIdFrom) {
+            case "label":
+                if (labelTok < 0) {
+                    throw new GraphFormatError("E_INVALID_ID", "node has no label", {
+                        reason: "missing label",
+                    });
+                }
+                return this.coerceValueToken(labelTok);
+            case "index":
+                return ordinal;
+            default:
+                return fileId;
+        }
+    }
+
+    /**
+     * Note which sink id a file id resolves to, warning when a file id is declared twice.
+     * @param fileId - the file id
+     * @param sinkId - the sink id it now resolves to
+     * @param line - the node block's line
+     */
+    private mapFileId(fileId: NodeId, sinkId: NodeId, line: number): void {
+        if (this.idMap === null) {
+            return;
+        }
+        const before = this.idMap.get(fileId);
+        if (before !== undefined && before !== sinkId) {
+            this.report.warning(
+                "merged",
+                DUPLICATE_NODE_CODE,
+                `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
+                { line, element: String(fileId) },
+            );
+        }
+        this.idMap.set(fileId, sinkId);
+    }
+
+    /**
      * Push one node block.
      * @param open - the block's `[`
      */
     private importNode(open: number): void {
         const t = this.requireTokens();
-        const { sink, report, options } = this;
+        const { sink, report } = this;
         const close = t.match[open];
         const line = t.line[open];
         const ordinal = this.nodeOrdinal++;
@@ -1312,57 +1386,16 @@ class GmlImport {
         let sinkId: NodeId;
         let fileId: NodeId | undefined;
         try {
-            let idTok = -1;
-            let labelTok = -1;
-            let originalTok = -1;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id") {
-                    idTok = this.structuralToken(idTok, p, "id");
-                } else if (key === "label") {
-                    labelTok = labelTok < 0 ? p + 1 : labelTok;
-                } else if (key === ORIGINAL_ID_KEY && options.restoreMangledIds) {
-                    originalTok = originalTok < 0 ? p + 1 : originalTok;
-                }
-            }
+            const { idTok, labelTok, originalTok } = this.nodeKeyTokens(open, close);
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
             fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
-            if (originalTok >= 0) {
-                sinkId = this.restoredId(originalTok);
-            } else {
-                switch (options.nodeIdFrom) {
-                    case "label":
-                        if (labelTok < 0) {
-                            throw new GraphFormatError("E_INVALID_ID", "node has no label", {
-                                reason: "missing label",
-                            });
-                        }
-                        sinkId = this.coerceValueToken(labelTok);
-                        break;
-                    case "index":
-                        sinkId = ordinal;
-                        break;
-                    default:
-                        sinkId = fileId;
-                }
-            }
+            sinkId = this.nodeSinkId(fileId, labelTok, originalTok, ordinal);
             index = sink.addNode(sinkId);
-            if (this.idMap !== null) {
-                const before = this.idMap.get(fileId);
-                if (before !== undefined && before !== sinkId) {
-                    report.warning(
-                        "merged",
-                        DUPLICATE_NODE_CODE,
-                        `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
-                        { line, element: String(fileId) },
-                    );
-                }
-                this.idMap.set(fileId, sinkId);
-            }
+            this.mapFileId(fileId, sinkId, line);
         } catch (err) {
             this.recordNodeError(err, line);
             report.counts.skippedNodes++;

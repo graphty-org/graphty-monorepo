@@ -622,9 +622,20 @@ export function ensureListboxKeyboard(): void {
     const printable = (event: KeyboardEvent): boolean =>
         event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey;
 
+    // A closed trigger a letter is opening, until its run is walked in the drawn list.
+    let opening: EventTarget | null = null;
+    // An Enter typed on it before then: held back, and pressed again once the run is walked, so
+    // it takes the option the letters name instead of whatever the list opened on (or nothing).
+    let enterOwed: EventTarget | null = null;
     document.addEventListener(
         "keydown",
         (event) => {
+            if (event.key === "Enter" && opening !== null && event.target === opening) {
+                event.preventDefault();
+                event.stopPropagation();
+                enterOwed = opening;
+                return;
+            }
             const list = openSelectList(event.target);
             const input = event.target as HTMLInputElement;
             if (!list || event.ctrlKey || event.metaKey || event.altKey) {
@@ -665,7 +676,6 @@ export function ensureListboxKeyboard(): void {
     // A letter typed on a closed trigger opens its list and types ahead in it (the APG select-only
     // combobox), so a reader who types a value's name with focus on a select is not ignored. On
     // the way out, after the field's own handlers: a key one of them used (a row's "=") is left alone.
-    let opening: EventTarget | null = null;
     document.addEventListener("keydown", (event) => {
         const input = event.target;
         if (
@@ -701,6 +711,7 @@ export function ensureListboxKeyboard(): void {
                     });
                 } else {
                     opening = null;
+                    enterOwed = null;
                 }
                 return;
             }
@@ -708,6 +719,12 @@ export function ensureListboxKeyboard(): void {
                 opening = null;
                 const current = inForce(input, list);
                 typeAhead(input, list, options, current === null ? -1 : options.indexOf(current));
+                if (enterOwed === input) {
+                    enterOwed = null;
+                    input.dispatchEvent(
+                        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
+                    );
+                }
             }, 0);
         };
         walkWhenDrawn(OPEN_FRAMES);

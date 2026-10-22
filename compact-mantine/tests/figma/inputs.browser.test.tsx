@@ -908,6 +908,28 @@ describe.skipIf(!available)("6.5 listbox", () => {
         expect(onChange).toHaveBeenCalledWith("Overlap", expect.anything());
     });
 
+    it("Enter typed on a closed list before its letters are walked takes the option they name", async () => {
+        const onChange = vi.fn();
+        const { container } = await renderFigma(
+            <Select
+                aria-label="Align"
+                data={["Center", "Inside", "Outside", "Overlap"]}
+                defaultValue="Inside"
+                onChange={onChange}
+            />,
+        );
+        const input = part(container, "input");
+        await drive(input, "focus");
+        // In one task, as a fast typist's keys can arrive: the list opens and its letters are
+        // walked only on later frames, so the Enter comes before the highlight is on "Overlap".
+        for (const key of ["O", "v", "Enter"]) {
+            input.dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true, cancelable: true }));
+        }
+        await vi.waitFor(() => {
+            expect(onChange).toHaveBeenCalledWith("Overlap", expect.anything());
+        });
+    });
+
     it("a long list scrolls itself and shows the 24px chevron rows; hovering one scrolls", async () => {
         await page.viewport(900, 300);
         const many = Array.from({ length: 40 }, (_, i) => `Option ${String(i + 1)}`);

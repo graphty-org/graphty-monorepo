@@ -122,9 +122,6 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
-export function addTimeStep(at: number, step: TimeStep, times: number): number;
-
-// @public
 export interface AgreementOptions {
     readonly below?: StyleRowId;
     readonly over?: StyleRowId;
@@ -1236,14 +1233,6 @@ export interface FindValueRow {
 }
 
 // @public
-export interface FirstWindowOptions {
-    readonly at?: number | string;
-    readonly end?: Path;
-    readonly nodes?: "own" | "follow-edges";
-    readonly step: TimeStep;
-}
-
-// @public
 export type FixCode = "make-blank" | "read-decimal-comma" | "add-nodes" | "leave-out" | "merge" | "keep" | "keep-first" | "merge-rows" | "trim" | "merge-case" | "read-yes-no";
 
 // @public
@@ -2085,7 +2074,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4572,6 +4561,9 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
+    sourcesOf(id: NodeId_2 | EdgeId, options?: {
+        readonly kind?: "node" | "edge";
+    }): readonly SourceKey[];
     statistics(options?: {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
@@ -5523,6 +5515,7 @@ export interface TimeApi {
     bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
     candidates(): readonly TimeCandidate[];
     changes(): TimeChanges;
+    commit(): Promise<TimeStepEvent | null>;
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
@@ -5534,7 +5527,9 @@ export interface TimeApi {
     play(options?: TimePlayOptions): void;
     readonly playing: boolean;
     readonly ready: Promise<void>;
-    seek(instant: number | "start" | "end"): Promise<TimeStepEvent>;
+    seek(instant: number | "start" | "end", options?: {
+        readonly commit?: boolean;
+    }): Promise<TimeStepEvent>;
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     readonly settings: TimeSettings;
@@ -5660,6 +5655,7 @@ export interface TimePlayOptions {
     readonly interval?: number;
     readonly loop?: boolean;
     readonly mode?: TimePlayMode;
+    readonly motion?: "smooth" | "steps";
     readonly step?: TimeStep;
 }
 
@@ -5708,7 +5704,6 @@ export type TimeUnit = "ms" | "s" | "ordinal";
 // @public
 export interface TimeWindow {
     readonly attribute: Path;
-    readonly end?: Path;
     readonly from: number | string;
     readonly missing?: "inside" | "outside";
     readonly mode?: "sliding" | "cumulative";
@@ -5854,7 +5849,6 @@ export interface VisibilityApi {
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
-    firstWindow(attribute: Path, options: FirstWindowOptions): TimeWindow | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
@@ -5863,12 +5857,8 @@ export interface VisibilityApi {
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
     readonly steps: readonly FilterStep[];
-    stepWindow(direction?: 1 | -1): TimeWindow | null;
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
-    timeHistogram(attribute: Path, options?: {
-        readonly bins?: number;
-    }): TimeHistogram;
     readonly window: TimeWindow | null;
 }
 

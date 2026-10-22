@@ -207,6 +207,14 @@ export interface TimePlayOptions {
     readonly interval?: number;
     /** Start again from the beginning at the end, instead of stopping; default false. */
     readonly loop?: boolean;
+    /**
+     * How the window moves: `"smooth"` (the default) slides it a little every animation frame, by
+     * its step times the time elapsed over `interval`, so elements come and go as its edges pass
+     * them; `"steps"` jumps one whole step every `interval`. Smooth falls back to steps under
+     * `prefers-reduced-motion`, where there are no animation frames (Node), and with the
+     * `"rerun"` results setting, which re-runs algorithms on each step.
+     */
+    readonly motion?: "smooth" | "steps";
 }
 
 /** How `session.time` moves windows: {@link TimePlayback} with every default filled in. */
@@ -311,14 +319,15 @@ export interface TimeApi {
      */
     window(window: TimeWindowInput | null): Run<FilterResult>;
     /**
-     * Start advancing the window by its step every `interval` milliseconds, until the window
-     * reaches the end of the data (`time:end`, then paused). With no window, the first one is
-     * opened. Every step of one play is ONE undoable step: undo returns to the window before it.
-     * @param options - Step, mode, interval and loop.
+     * Start advancing the window by one step per `interval` milliseconds -- smoothly, a little
+     * every frame, unless `motion` says `"steps"` -- until the window reaches the end of the data
+     * (`time:end`, then paused). With no window, the first one is opened. One play is ONE undoable
+     * step: undo returns to the window before it.
+     * @param options - Step, mode, interval, loop and motion.
      * @throws `E_NO_TIME_FIELD` when nothing is designated and the window names no attribute.
      */
     play(options?: TimePlayOptions): void;
-    /** Stop advancing. */
+    /** Stop advancing, and record where the window stopped. */
     pause(): void;
     /**
      * Move the window by whole steps (negative goes back), stopping at the first and the last
@@ -330,11 +339,19 @@ export interface TimeApi {
     stepBy(count: number): Promise<TimeStepEvent>;
     /**
      * Move the window to start at an instant (sliding) or end there (cumulative), or to the first
-     * or the last window. One undoable step.
+     * or the last window. One undoable step; with `commit: false` it moves only the cursor, for a
+     * window being dragged, until {@link TimeApi.commit} records it.
      * @param instant - Epoch milliseconds or an ordinal value, `"start"` or `"end"`.
+     * @param options - `commit: false` to move the cursor only.
+     * @param options.commit - Whether the move is recorded; default true.
      * @returns What the move did.
      */
-    seek(instant: number | "start" | "end"): Promise<TimeStepEvent>;
+    seek(instant: number | "start" | "end", options?: { readonly commit?: boolean }): Promise<TimeStepEvent>;
+    /**
+     * Record the cursor a `seek` with `commit: false` moved, as one undoable step.
+     * @returns What the move did, or null when the cursor is where the window already is.
+     */
+    commit(): Promise<TimeStepEvent | null>;
     /** Whether playback is running. */
     readonly playing: boolean;
     /** The mode windows move in. */
@@ -720,6 +737,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let index: FieldIndex | null = null;
     let lastChanges: (() => TimeChanges) | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    /** The window on screen while it is played smoothly or dragged, before it is recorded. */
+    let cursor: TimeWindow | null = null;
+    let frame: number | null = null;
+    let lastFrameAt = 0;
+    let smooth = true;
     let playing = false;
     let interval = DEFAULT_INTERVAL;
     let loop = false;
@@ -1191,18 +1213,132 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             await visibility.setWindow(next);
         }
 
+        cursor = null;
         const event = afterMove(before, next, cause);
         await reruns;
 
         return event;
     };
 
-    /** Stop the timer. */
+    /** Stop the timer, and the frame loop. */
     const stopTimer = (): void => {
         if (timer !== null) {
             clearTimeout(timer);
             timer = null;
         }
+
+        if (frame !== null) {
+            cancelAnimationFrame(frame);
+            frame = null;
+        }
+    };
+
+    /**
+     * Whether a play can slide the window smoothly: frames to slide on, motion the reader has not
+     * asked to reduce, and no re-run on every step.
+     * @returns True when it can.
+     */
+    const canSlide = (): boolean =>
+        smooth &&
+        typeof requestAnimationFrame === "function" &&
+        !(typeof globalThis.matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) &&
+        settingsNow().results !== "rerun";
+
+    /**
+     * Show a window without recording it: only the rows it changes are written.
+     * @param next - The window.
+     * @param cause - What moved it.
+     * @returns The event.
+     */
+    const slideTo = (next: TimeWindow, cause: TimeStepEvent["cause"]): TimeStepEvent => {
+        const counts = visibility.slideWindow(next);
+        cursor = next;
+        const graph = sources.snapshot();
+        const rows = counts?.rows;
+        let cached: TimeChanges | null = null;
+        lastChanges = () => {
+            if (cached !== null || rows === undefined) {
+                return cached ?? NO_CHANGES;
+            }
+
+            const space = edgeSpaceOf(graph);
+            const idsOf = (nodeRows: readonly number[], edgeRows: readonly number[]): TimeIds =>
+                Object.freeze({
+                    nodes: Object.freeze(nodeRows.map((row) => graph.ids.idOf(row))),
+                    edges: Object.freeze(edgeRows.map((row) => space.idOf(row))),
+                });
+            cached = Object.freeze({
+                entered: idsOf(rows.enteredNodes, rows.enteredEdges),
+                left: idsOf(rows.leftNodes, rows.leftEdges),
+            });
+
+            return cached;
+        };
+        const extent = extentNow();
+        const untimedOf = (counts: TimeCounts | undefined): number =>
+            counts === undefined ? 0 : counts.untimed + counts.unparsed;
+        const { summary } = visibility;
+        const event: TimeStepEvent = Object.freeze({
+            index: stepIndexOf(next),
+            from: numericBound(next.from),
+            to: numericBound(next.to),
+            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
+            entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
+            left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
+            untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
+            atStart: isFirst(next),
+            atEnd: isLast(next),
+            cause,
+        });
+        sources.emit("time:step", event);
+
+        return event;
+    };
+
+    /**
+     * One animation frame of a smooth play: the window moves by its step times the time since the
+     * last frame over the interval, and stops (or starts again) at the last window.
+     * @param now - The frame's time.
+     */
+    const glide = (now: number): void => {
+        frame = null;
+        const at = cursor;
+        if (!playing || disposed || at === null || extentNow() === null) {
+            return;
+        }
+
+        // A frame after a long stall (a hidden tab) moves no more than a tenth of a second's worth;
+        // the first frame's time can be earlier than the press that started the play.
+        const elapsed = Math.max(0, Math.min(now - lastFrameAt, 100));
+        lastFrameAt = now;
+        if (elapsed === 0) {
+            frame = requestAnimationFrame(glide);
+            return;
+        }
+
+        const step = stepOf(at);
+        const mode = at.mode ?? "sliding";
+        const head = numericBound(at.to);
+        const by = ((addSteps(head, step, 1) - head) * elapsed) / interval;
+        const end = numericBound(lastWindow({ step, mode }).to);
+        let next: TimeWindow =
+            mode === "cumulative"
+                ? Object.freeze({ ...at, to: head + by })
+                : Object.freeze({ ...at, from: numericBound(at.from) + by, to: head + by });
+        if (numericBound(next.to) >= end) {
+            if (!loop) {
+                const last = lastWindow({ step, mode });
+                slideTo(last, "play");
+                sources.emit("time:end", { window: last });
+                api.pause();
+                return;
+            }
+
+            next = firstWindow({ step, mode });
+        }
+
+        slideTo(next, "play");
+        frame = requestAnimationFrame(glide);
     };
 
     /** One playback step, then the next one on the timer. */
@@ -1660,16 +1796,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         get current() {
-            return visibility.window;
+            return cursor ?? visibility.window;
         },
 
         get atStart() {
-            const current = visibility.window;
+            const current = cursor ?? visibility.window;
             return current !== null && isFirst(current);
         },
 
         get atEnd() {
-            const current = visibility.window;
+            const current = cursor ?? visibility.window;
             return current !== null && isLast(current);
         },
 
@@ -1748,6 +1884,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         window(input: TimeWindowInput | null): Run<FilterResult> {
+            cursor = null;
             const next = input === null ? null : complete(filled(input));
             const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
             const run = visibility.setWindow(next);
@@ -1770,10 +1907,30 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             interval = options.interval ?? interval;
             loop = options.loop ?? loop;
-            const current = visibility.window;
+            smooth = (options.motion ?? (smooth ? "smooth" : "steps")) === "smooth";
+            const current = cursor ?? visibility.window;
             playing = true;
             playStep = null;
             sources.emit("time:play", { window: current });
+            if (canSlide()) {
+                let start = current ?? firstWindow(options);
+                if (current !== null && (options.step !== undefined || options.mode !== undefined)) {
+                    start = Object.freeze({
+                        ...current,
+                        ...(options.step === undefined ? {} : { step: options.step }),
+                        ...(options.mode === undefined ? {} : { mode: options.mode }),
+                    });
+                } else if (current !== null && isLast(current)) {
+                    // Pressing play at the end starts again from the first window.
+                    start = firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" });
+                }
+
+                slideTo(start, "play");
+                lastFrameAt = performance.now();
+                frame = requestAnimationFrame(glide);
+                return;
+            }
+
             const begin = (window: TimeWindow): void => {
                 void move(window, "play")
                     .then(() => {
@@ -1817,8 +1974,24 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             playing = false;
-            playStep = null;
-            sources.emit("time:pause", { window: visibility.window });
+            const slidTo = cursor;
+            if (slidTo !== null) {
+                // Where a smooth play stopped is recorded as the play's one step.
+                void move(slidTo, "play").then(
+                    () => {
+                        playStep = null;
+                    },
+                    () => {
+                        playStep = null;
+                        visibility.slideWindow(null);
+                        cursor = null;
+                    },
+                );
+            } else {
+                playStep = null;
+            }
+
+            sources.emit("time:pause", { window: slidTo ?? visibility.window });
         },
 
         async stepBy(count: number): Promise<TimeStepEvent> {
@@ -1847,7 +2020,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return event;
         },
 
-        async seek(instant: number | "start" | "end"): Promise<TimeStepEvent> {
+        async seek(
+            instant: number | "start" | "end",
+            options: { readonly commit?: boolean } = {},
+        ): Promise<TimeStepEvent> {
             if (instant === "start") {
                 return move(
                     firstWindow({
@@ -1868,7 +2044,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 );
             }
 
-            const current = visibility.window ?? firstWindow();
+            const current = cursor ?? visibility.window ?? firstWindow();
             const from = numericBound(current.from);
             const to = numericBound(current.to);
             const next =
@@ -1876,7 +2052,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     ? Object.freeze({ ...current, from, to: Math.max(instant, from) })
                     : Object.freeze({ ...current, from: instant, to: instant + (to - from) });
 
-            return move(next, "seek");
+            return options.commit === false ? slideTo(next, "seek") : move(next, "seek");
+        },
+
+        async commit(): Promise<TimeStepEvent | null> {
+            const at = cursor;
+            if (at === null) {
+                return null;
+            }
+
+            return move(at, "seek");
         },
 
         get playing() {
@@ -1926,6 +2111,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         visibilityChanged(change: VisibilityChange): void {
+            // A recorded change (a window set, an undo, a filter) supersedes a dragged cursor; a
+            // play keeps its own and records it when it stops.
+            if (!playing) {
+                cursor = null;
+            }
+
             const policy: TimeResultsPolicy = settingsNow().results;
             const runs = sources.runs();
             if (change.filterKind === "window" || change.filterKind === "none") {

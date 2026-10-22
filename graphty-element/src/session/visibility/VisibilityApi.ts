@@ -96,6 +96,7 @@ import {
     type ScopeLeaf,
     type TimeWindow,
 } from "./filter";
+import { type SlideCounts, WindowSlider } from "./slide";
 import { assertSteps, combinedRule } from "./steps";
 
 // ---------------------------------------------------------------------------------------------
@@ -322,6 +323,14 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @throws A `GraphtyError` when a step is malformed.
      */
     previewSteps(steps: readonly FilterStep[]): StepCounts;
+    /**
+     * Move the time window without recording it, writing only the rows whose membership changes:
+     * the cursor `session.time` plays and drags. Recording the window afterwards (`setWindow`, or
+     * a `visibility.window` command) evaluates it in full, which lands on the same masks.
+     * @param window - The window to show, or null to put back the window the slice records.
+     * @returns What came into view and went out of it; null when put back.
+     */
+    slideWindow(window: TimeWindow | null): SlideCounts | null;
 }
 
 /** Visible nodes and edges. */
@@ -636,6 +645,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     /** What the last pass changed, and how long its walk took: what an announcement reports. */
     let lastKind = "none";
     let lastDurationMs = 0;
+    /** The time window a cursor slid through the masks, which the masks hold until the next pass. */
+    const slider = new WindowSlider();
+    let slid = false;
 
     /**
      * The frame to answer from, rebuilt when the snapshot moves.
@@ -853,14 +865,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const sync = (): VisibilityFrame => {
         const active = currentFrame();
         const tag = wantedTag();
-        if (shown !== null && shown.snapshot === active.graph && sameTag(shown, tag)) {
+        if (shown !== null && shown.snapshot === active.graph && sameTag(shown, tag) && !slid) {
             return active;
         }
 
         const step = ownerStep();
-        if (shown !== null && shown.step !== null && shown.step !== step) {
+        // Slid masks belong to no step: copying them would hand the last step a window it never had.
+        if (shown !== null && shown.step !== null && shown.step !== step && !slid) {
             keepCopy({ ...shown, step: shown.step });
         }
+
+        slid = false;
 
         const kept = step === null ? undefined : (history.cacheOf(step) as MaskCopy | undefined);
         if (kept !== undefined && sameTag(kept.tag, tag)) {
@@ -1281,6 +1296,36 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get rule(): RuleTree | null {
             return ruleNow();
+        },
+
+        slideWindow(window: TimeWindow | null): SlideCounts | null {
+            if (window === null) {
+                if (slid) {
+                    sync();
+                }
+
+                return null;
+            }
+
+            const active = upToDate();
+            const { filter, steps } = dispatcher.state.visibility;
+            const rule = ruleNow();
+            slid = true;
+
+            return slider.move(
+                {
+                    graph: active.graph,
+                    filter: [filter, steps, active.graph],
+                    nodes: nodeMaskValue,
+                    edges: edgeMaskValue,
+                    compileFilter: () => compileVisibility(active.graph, rule, null, passSources(active.graph)),
+                    evaluate: (moved) => {
+                        evaluate(active.graph, rule, moved);
+                    },
+                    instants: sources.instants?.(window.attribute) ?? null,
+                },
+                window,
+            );
         },
 
         previewSteps(steps: readonly FilterStep[]): StepCounts {

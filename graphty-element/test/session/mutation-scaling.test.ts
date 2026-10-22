@@ -736,6 +736,16 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "TimeApi.commit",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            await session.time.seek(size / 2, { commit: false });
+            return () => session.time.commit();
+        },
+    },
+    {
         method: "TimeApi.seek",
         growth: "linear",
         prepare: async (session, size) => {

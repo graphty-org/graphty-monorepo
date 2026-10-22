@@ -305,6 +305,7 @@ export const MUTATING: readonly string[] = [
     "UpdateManager.thawActiveMeshes",
     "UpdateManager.update",
     "UpdateManager.updateConfig",
+    "TimeApi.commit",
     "TimeApi.play",
     "TimeApi.seek",
     "TimeApi.setField",

@@ -48,7 +48,100 @@ function assertDrawnAsVisible(element: Graphty, when: string): void {
     }
 }
 
+/**
+ * An element showing the emails, with `sent` designated.
+ * @returns The element.
+ */
+async function emailElement(): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.style.width = "400px";
+    element.style.height = "300px";
+    element.style.display = "block";
+    element.setAttribute("edge-time-path", "sent");
+    document.body.appendChild(element);
+    mounted = element;
+    await element.updateComplete;
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element initialised its graph");
+    });
+    await element.graph.setLayout("random");
+    element.dataSource = "json";
+    element.dataSourceConfig = { data: EMAILS };
+    await element.waitForSettled();
+    await element.session.time.ready;
+    return element;
+}
+
 describe("session.time playback on the element", () => {
+    it("slides the window a little every frame, and elements come and go one at a time", async () => {
+        const element = await emailElement();
+        const { time } = element.session;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+
+        const frames: TimeStepEvent[] = [];
+        const shown: number[] = [];
+        element.session.on("time:step", (step) => {
+            frames.push(step);
+            shown.push(element.session.visibility.summary.visibleNodes);
+        });
+        // A day every two seconds: a frame moves the window a sliver of a day.
+        time.play({ interval: 2000 });
+        await vi.waitFor(() => {
+            assert.isAtLeast(frames.length, 8, "frames played");
+        });
+        time.pause();
+
+        assert.isTrue(frames.every((frame) => frame.cause === "play"));
+        for (let at = 1; at < frames.length; at++) {
+            const by = frames[at].from - frames[at - 1].from;
+            assert.isAbove(by, 0, `frame ${String(at)} moves forward`);
+            assert.isBelow(by, DAY / 4, `frame ${String(at)} moves less than a step`);
+            assert.strictEqual(frames[at].to - frames[at].from, DAY, "the window keeps its width");
+            // Each frame writes only what crossed an edge of the window.
+            assert.isAtMost(frames[at].entered.nodes + frames[at].left.nodes, 2);
+        }
+        assert.notStrictEqual(frames.at(-1)?.from, T0 + DAY, "the window sits between whole steps");
+
+        // Paused, the window stays where it stopped, recorded as the play's one step.
+        const stopped = time.current;
+        await vi.waitFor(() => {
+            assert.strictEqual(element.session.visibility.window?.from, stopped?.from);
+        });
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        assertDrawnAsVisible(element, "paused between steps");
+        await element.session.undo();
+        await vi.waitFor(() => {
+            assert.strictEqual(element.session.visibility.window?.from, T0, "one undo returns to before the play");
+        });
+    });
+
+    it("jumps whole steps when the reader asks for reduced motion", async () => {
+        const element = await emailElement();
+        const { time } = element.session;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const reduce = vi.spyOn(window, "matchMedia").mockImplementation(
+            (query: string) =>
+                ({
+                    matches: query.includes("reduce"),
+                    media: query,
+                    addEventListener: () => undefined,
+                    removeEventListener: () => undefined,
+                }) as unknown as MediaQueryList,
+        );
+        const starts: number[] = [];
+        element.session.on("time:step", (step) => starts.push(step.from));
+        await new Promise<void>((resolve) => {
+            const off = element.session.on("time:end", () => {
+                off();
+                resolve();
+            });
+            time.play({ interval: 0 });
+        });
+        reduce.mockRestore();
+        assert.deepStrictEqual(starts, [T0 + DAY, T0 + 2 * DAY, T0 + 3 * DAY]);
+    });
+
     it("steps a one-day window across the data and draws only what each step leaves", async () => {
         const element = document.createElement("graphty-element");
         element.style.width = "400px";
@@ -88,7 +181,7 @@ describe("session.time playback on the element", () => {
                 off();
                 resolve();
             });
-            time.play({ interval: 0 });
+            time.play({ interval: 0, motion: "steps" });
         });
         await element.waitForSettled();
         await element.waitForStableFrame();

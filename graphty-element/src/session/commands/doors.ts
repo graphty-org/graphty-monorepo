@@ -994,6 +994,9 @@ const TIME_API: Readonly<Record<string, Door>> = {
     // With no data the automatic step is a day; a first step forward opens the first window.
     stepBy: timeMove([1], { from: 0, to: 86_400_000, step: "day" }),
     seek: timeMove([5], { from: 5, to: 86_400_005, step: "day" }),
+    commit: exempt(
+        "Records a cursor that seek({ commit: false }) moved as the visibility.window command seek dispatches; with no cursor it changes nothing.",
+    ),
     candidates: READ,
     notices: READ,
     parse: READ,
@@ -3107,6 +3110,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             masks: READ,
             rule: READ,
             previewSteps: READ,
+            slideWindow: exempt(
+                "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
+            ),
         },
     },
     {

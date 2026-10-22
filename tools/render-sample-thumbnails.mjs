@@ -65,6 +65,16 @@ const ROAD_NODES = 2500;
 const SNOWBALL_FANOUT = 6;
 /** How far apart positions from the data are drawn: the side of the square they fill, per node's square root. */
 const SPREAD = 6;
+/**
+ * Darker, more solid lines and larger nodes for a dense picture whose default marks are too faint
+ * to read on a light card (venice-transit: 1,874 stops drawn at 480 x 300).
+ */
+const EMPHASIS = {
+    "venice-transit": {
+        edge: { "edge.color": "#3c4252", "edge.opacity": 0.9 },
+        node: { "node.size": 2.5, "node.outline": "#2b2f3a" },
+    },
+};
 
 const { fromBytes } = await import(pathToFileURL(path.join(root, "graph-format/dist/src/index.js")).href);
 const { DATASETS, DEFAULT_DATASET_BASE_URL, GENERATOR_CATALOG, toElementData } = await import(
@@ -405,6 +415,7 @@ try {
             const picture = await page.evaluate(draw, {
                 name: job.name,
                 data: JSON.stringify({ directed: job.directed, ...job.records }),
+                emphasis: EMPHASIS[job.name] ?? null,
                 layout: job.layout,
                 width: WIDTH,
                 height: HEIGHT,
@@ -432,9 +443,10 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.layout - the layout: its catalogue id, the engine when not the default, and options
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
+ * @param job.emphasis - darker lines and larger nodes for a dense picture, or null
  * @returns the WebP picture, base64
  */
-async function draw({ name, data, layout, width, height }) {
+async function draw({ name, data, layout, width, height, emphasis }) {
     await globalThis.customElements.whenDefined("graphty-element");
     const element = globalThis.document.querySelector("graphty-element");
     const { session } = element;
@@ -442,8 +454,16 @@ async function draw({ name, data, layout, width, height }) {
         name: "Thin gray lines",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.color": "#8a90a0", "edge.opacity": 0.55, "edge.arrowHead": "none" },
+        set: { "edge.color": "#8a90a0", "edge.opacity": 0.55, "edge.arrowHead": "none", ...emphasis?.edge },
     });
+    if (emphasis?.node !== undefined) {
+        await session.styles.add({
+            name: "Larger outlined nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: emphasis.node,
+        });
+    }
     await session.layout.setDimension("2d");
     await session.layout.set(layout.id, {
         ...(layout.engine === undefined ? {} : { engine: layout.engine }),

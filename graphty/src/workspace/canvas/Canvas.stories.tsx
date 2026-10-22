@@ -148,17 +148,21 @@ export const LouvainOpen: Story = {
 };
 
 /**
- * A shortest path over PageRank: the path's node and edge highlight share one key section,
- * "Shortest route", with one entry, "On the path", above "Color: Influence".
+ * A shortest path over PageRank: the path's node and edge highlight share one key section, one
+ * row named by the run ("Shortest path"), above "Color: PageRank".
  */
 export const PathOverRanking: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadKarate(canvasElement);
-        await element.session.runs.start("pagerank");
+        const rank = element.session.runs.start("pagerank");
+        await rank;
         const route = element.session.runs.start("shortest-path", { source: "17", target: "26" });
         await route;
-        await settle(canvasElement, element, nameOf(element, route.id));
+        // The run's merged section is one row, not a named group: the row says the run's name.
+        await settle(canvasElement, element, `Color: ${nameOf(element, rank.id)}`);
+        const legend = within(canvasElement).getByRole("region", { name: "Legend" });
+        await within(legend).findByText(nameOf(element, route.id), {}, storyWaitOptions(30_000));
     },
 };
 

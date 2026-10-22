@@ -1906,7 +1906,8 @@ export class Edge {
                 springConstant: line?.supportSpringConstant ?? SUPPORT_DEFAULTS.springConstant,
                 repulsion: line?.supportRepulsion ?? SUPPORT_DEFAULTS.repulsion,
                 centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
-                unit: line?.supportUnit ?? 1,
+                // a unit of 0 has no size: drawn as unset, as the channel refuses it
+                unit: line?.supportUnit || 1,
             },
         };
     }

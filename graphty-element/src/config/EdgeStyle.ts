@@ -303,10 +303,10 @@ const LineStyle = z.strictObject({
     /** How hard the support point is pulled toward the middle of the nodes (0.3 when unset). */
     supportCentralGravity: z.number().nonnegative().optional(),
     /**
-     * How many scene units one unit of the support's lengths and forces is (1 when unset): a
+     * How many scene units one unit of the support's lengths and forces is (1 when unset or 0): a
      * file's constants keep their meaning however its lengths are scaled into the scene.
      */
-    supportUnit: z.number().positive().optional(),
+    supportUnit: z.number().nonnegative().optional(),
     /**
      * How far from each of its nodes' outlines the line stops, in the scene's units, leaving that much empty between
      * the node and the line's end (and the arrow cap there, which moves out with it). Unset or 0, the line meets the

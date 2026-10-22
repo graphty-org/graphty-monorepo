@@ -3808,6 +3808,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "line",
         accepts: "number",
         min: 0,
+        exclusiveMin: true,
         stylePath: "line.supportUnit",
         renderable: true,
         caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,

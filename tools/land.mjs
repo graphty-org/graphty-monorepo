@@ -1966,9 +1966,12 @@ const USAGE =
  */
 export async function main(argv, ctx = context(process.cwd())) {
     const at = argv.findIndex((a) => a === "--allow-copies" || a.startsWith("--allow-copies="));
-    const allowArg = at < 0 ? null : argv[at].includes("=") ? argv[at].split("=")[1] : argv[at + 1];
+    const inline = at >= 0 && argv[at].includes("=");
+    let allowArg = null;
+    if (inline) allowArg = argv[at].split("=")[1];
+    else if (at >= 0) allowArg = argv[at + 1];
     const allowCopies = allowArg?.split(",").filter(Boolean) ?? [];
-    const positional = at >= 0 && !argv[at].includes("=") ? argv.filter((_, i) => i !== at + 1) : argv;
+    const positional = at >= 0 && !inline ? argv.filter((_, i) => i !== at + 1) : argv;
     const [command, ...branches] = positional.filter((a) => !a.startsWith("--"));
     if (command === "sync") return syncCommand(ctx, argv);
     const branch = branches[0];

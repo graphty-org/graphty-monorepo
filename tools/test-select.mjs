@@ -1243,7 +1243,7 @@ const GRAPH_VERSION = 3;
 
 const fileHash = (root, f) => {
     try {
-        return createHash("sha1")
+        return createHash("sha256")
             .update(readFileSync(join(root, f)))
             .digest("hex");
     } catch {

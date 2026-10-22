@@ -69,6 +69,7 @@ import {
     Minus,
     MoreHorizontal,
     MousePointerClick,
+    MoveHorizontal,
     Network,
     Orbit,
     Paintbrush,
@@ -89,13 +90,13 @@ import {
     Share2,
     Shuffle,
     Sigma,
-    SkipBack,
-    SkipForward,
     Sparkles,
     Spline,
     Square,
     SquareArrowOutUpRight,
     SquareDashed,
+    StepBack,
+    StepForward,
     StickyNote,
     Sun,
     Table,
@@ -246,8 +247,6 @@ export const GLYPHS = {
     joined: Link,
     mixed: Shapes,
     computed: Sigma,
-    stepBack: SkipBack,
-    stepForward: SkipForward,
     saveLocal: HardDriveDownload,
     join: Combine,
     tags: Tags,
@@ -260,6 +259,11 @@ export const GLYPHS = {
     sampleSource: FlaskConical,
     loadMore: ListPlus,
     refresh: RefreshCw,
+    // The timeline dock's transport.
+    stepBack: StepBack,
+    stepForward: StepForward,
+    // The whole span of the data: the window opened wide.
+    allTime: MoveHorizontal,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

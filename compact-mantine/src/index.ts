@@ -37,6 +37,7 @@ export {
 export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
+export { RangeSlider, Slider } from "./components/Slider";
 export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
@@ -227,6 +228,8 @@ export type {
     GestureStartHandler,
     GradientEditorProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     InfoCircleProps,
     LabelsProviderProps,

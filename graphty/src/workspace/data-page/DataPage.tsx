@@ -18,6 +18,7 @@ import {
     type LoadDraft,
     type LoadReport,
     type TableMapping,
+    type TimeUnit,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -51,6 +52,8 @@ import { writeFileStylesChoice } from "../settings/preferences";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { showNotices } from "../time/timeActions";
+import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
     kindChanged,
@@ -61,6 +64,7 @@ import {
     rowsAreOf,
     setRole,
     setRowsAre,
+    setTimeUnit,
     setWeightMeaning,
     weightHolder,
 } from "./choices";
@@ -305,6 +309,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
             return;
         }
         noticeFileStyles(store, session);
+        // A time field marked at import says what its values held, as Set as time does.
+        if (session.time.field !== null) {
+            showNotices(session, store, session.time.notices());
+        }
         // The status line, written once the place is showing and the header has its name: the
         // graph as the header names it, its size and the rows the load left out. Nothing reruns
         // by itself after a replace, so that line says how many runs now need it.
@@ -1111,6 +1119,23 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
                         </Text>
+                        {/* A number column holding times says how its numbers read: epoch or years. */}
+                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
+                            <Select
+                                size="xs"
+                                label="Unit"
+                                aria-label={`Unit of ${column.name}`}
+                                value={page.choices.tables[table.id]?.timeUnit ?? "ms"}
+                                data={UNIT_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                allowDeselect={false}
+                                disabled={table.fixed}
+                                onChange={(value) => {
+                                    if (value !== null) {
+                                        page.setChoices(setTimeUnit(table, value as TimeUnit, page.choices));
+                                    }
+                                }}
+                            />
+                        ) : null}
                     </div>
                 );
             })}

@@ -116,10 +116,19 @@ export function tabStops(root: ParentNode): HTMLElement[] {
 /**
  * The panels F6 and Shift+F6 move between, in order, as a desktop application's do: the left
  * panel, then the inspector that edits what it picks (one press from a layer to its style), the
- * drawing, the canvas toolbar, the table while it is open, and the Data page while it stands in
- * for them. A hidden one is passed over.
+ * drawing, the timeline dock while a time field is designated, the canvas toolbar, the table while
+ * it is open, and the Data page while it stands in for them. A hidden one is passed over.
  */
-const PANELS = [".ws-left", ".ws-right", ".ws-canvas graphty-element", ".ws-toolbar-dock", ".ws-dock", ".ws-page"];
+const PANELS = [
+    ".ws-left",
+    ".ws-right",
+    ".ws-canvas graphty-element",
+    // The timeline dock while a time field is designated: its brush is where focus lands.
+    ".tl-dock",
+    ".ws-toolbar-dock",
+    ".ws-dock",
+    ".ws-page",
+];
 
 /** The control that last had focus in each panel, by its selector: where F6 returns to it. */
 const lastInPanel = new Map<string, HTMLElement>();
@@ -174,7 +183,12 @@ function panelTarget(selector: string, element: HTMLElement): HTMLElement | unde
     if (last !== undefined && element.contains(last) && canFocus(last)) {
         return last;
     }
-    return element.tagName === "GRAPHTY-ELEMENT" ? element : tabStops(element)[0];
+    if (element.tagName === "GRAPHTY-ELEMENT") {
+        return element;
+    }
+    // A panel can name where focus lands first (the timeline dock's brush, not its first button).
+    const start = element.querySelector<HTMLElement>("[data-panel-start]");
+    return (start === null ? undefined : tabStops(start)[0]) ?? tabStops(element)[0];
 }
 
 /** How many focused controls the guard remembers, newest last. */

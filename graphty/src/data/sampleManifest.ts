@@ -234,10 +234,13 @@ export interface StartSample {
     readonly size: string;
     /** Where the element imports it from, under the app's base URL. */
     readonly url: string;
+    /** Its picture, for a sample with no graph-samples dataset to take one from. */
+    readonly picture?: string;
 }
 
 /**
- * The four tier 1 samples, Les Miserables first. Each opens by URL through graphty-element's
+ * The tier 1 samples, Les Miserables first, then the two timed ones (synthetic, written by
+ * scripts/write-timeline-samples.ts). Each opens by URL through graphty-element's
  * ordinary import, with nothing run.
  *
  * TEMPORARY WORKAROUND: the list of samples belongs in graphty-element, so every consumer can
@@ -278,5 +281,23 @@ export const START_SAMPLES: readonly StartSample[] = [
             "Marriages between the leading families of Renaissance Florence. Good for finding who brokers between groups.",
         size: "15 families",
         url: `${import.meta.env.BASE_URL}samples/florentine.gml`,
+    },
+    {
+        id: "office-email",
+        name: "Office email",
+        sentence:
+            "Emails between 48 people in four teams over six months, each with the time it was sent. Good for watching activity rise and fall over time.",
+        size: "48 nodes, 2,102 edges",
+        url: `${import.meta.env.BASE_URL}samples/office-email.json`,
+        picture: `${import.meta.env.BASE_URL}samples/office-email.webp`,
+    },
+    {
+        id: "paper-citations",
+        name: "Paper citations",
+        sentence:
+            "Papers from 1995 to 2024 and the older papers they cite, each with its year. Good for watching a field grow year by year.",
+        size: "159 nodes, 453 edges",
+        url: `${import.meta.env.BASE_URL}samples/paper-citations.json`,
+        picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
     },
 ];

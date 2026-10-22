@@ -364,6 +364,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
 
@@ -512,6 +513,7 @@ export interface CommandOutcomeMap {
     "view.remove": Promise<void>;
     "view.save": Promise<void>;
     "visibility.context": Promise<void>;
+    "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
     "visibility.steps": Promise<void>;
     "visibility.window": Promise<void>;
@@ -1299,6 +1301,7 @@ export interface GraphSession {
     snapshot(): GraphSnapshot;
     readonly status: SessionStatus;
     readonly styles: StylesApi;
+    readonly time: TimeApi;
     transaction<T>(label: string, fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>, options?: TransactionOptions): Promise<T>;
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
@@ -1427,6 +1430,12 @@ export type GraphtyErrorCode =
 * and `column`. The caller corrects the name, or loads the data that would define it.
 */
 | "E_UNKNOWN_ATTRIBUTE"
+/**
+* A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+* `stepBy` or `seek` with no attribute given. The caller designates one with
+* `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+*/
+| "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
 * caller picks a key from the catalogue or registers a plugin that provides it.
@@ -2076,7 +2085,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4090,6 +4099,7 @@ export interface RunScopeRecord {
         readonly revision: string;
     };
     readonly spec: Scope;
+    readonly window?: RunWindow | null;
 }
 
 // @public
@@ -4113,6 +4123,17 @@ export type RunStyle = boolean | {
     readonly groupName?: (group: RunGroup) => string;
     readonly groupPalettes?: readonly PaletteId[];
 };
+
+// @public
+export interface RunWindow {
+    readonly attribute: string;
+    readonly edges: number;
+    // (undocumented)
+    readonly from: number;
+    readonly nodes: number;
+    // (undocumented)
+    readonly to: number;
+}
 
 // @public
 export interface SavedProject {
@@ -4551,10 +4572,9 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
-    sourcesOf(id: NodeId_2 | EdgeId, options?: {
-        readonly kind?: "node" | "edge";
-    }): readonly SourceKey[];
-    statistics(): GraphStatistics;
+    statistics(options?: {
+        readonly scope?: "all" | "visible";
+    }): GraphStatistics;
     readonly store: SessionGraphStore;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
@@ -4613,6 +4633,26 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
+    "time:end": {
+        readonly window: TimeWindow | null;
+    };
+    "time:field": {
+        readonly field: TimeField | null;
+    };
+    "time:pause": {
+        readonly window: TimeWindow | null;
+    };
+    "time:play": {
+        readonly window: TimeWindow | null;
+    };
+    "time:ready": {
+        readonly field: TimeField | null;
+    };
+    "time:rerun-failed": {
+        readonly run: RunId;
+        readonly error: CodedFact;
+    };
+    "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
 }
 
@@ -5139,10 +5179,11 @@ export interface StaleNote {
     readonly ranOn: number;
     readonly reason: StaleReason;
     readonly scopeSpec: Scope;
+    readonly window?: CodedFact<"window-moved">;
 }
 
 // @public
-export type StaleReason = "data-changed" | "scope-changed";
+export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 
 // @public
 export interface StartOptions extends RunOptions {
@@ -5437,6 +5478,7 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     readonly targetKind?: string | Endpoint | null;
     readonly time?: string | null;
+    readonly timeUnit?: TimeUnit | null;
     readonly weight?: string | null;
     readonly weightMeaning?: WeightMeaning["meaning"] | null;
 }
@@ -5475,38 +5517,212 @@ export const TERMINAL_RUN_STATUSES: readonly RunStatus[];
 export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
 // @public
-export interface TimeHistogram {
-    readonly attribute: Path;
-    readonly bins: readonly TimeHistogramBin[];
-    readonly kind: "number" | "date";
-    readonly max: number | null;
-    readonly min: number | null;
-    readonly untimed: {
-        readonly nodes: number;
-        readonly edges: number;
-    };
+export interface TimeApi {
+    readonly atEnd: boolean;
+    readonly atStart: boolean;
+    bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
+    candidates(): readonly TimeCandidate[];
+    changes(): TimeChanges;
+    readonly current: TimeWindow | null;
+    extent(): TimeExtent | null;
+    readonly field: TimeField | null;
+    readonly interval: number;
+    readonly mode: TimePlayMode;
+    notices(): readonly CodedFact<TimeNoticeCode>[];
+    parse(text: string): number | null;
+    pause(): void;
+    play(options?: TimePlayOptions): void;
+    readonly playing: boolean;
+    readonly ready: Promise<void>;
+    seek(instant: number | "start" | "end"): Promise<TimeStepEvent>;
+    setField(field: TimeField | null): Promise<TimeFieldResult>;
+    setSettings(settings: Partial<TimeSettings>): Promise<void>;
+    readonly settings: TimeSettings;
+    stepBy(count: number): Promise<TimeStepEvent>;
+    window(window: TimeWindowInput | null): Run<FilterResult>;
 }
 
 // @public
-export interface TimeHistogramBin {
+export interface TimeBin {
+    // (undocumented)
     readonly edges: number;
-    readonly from: number;
+    // (undocumented)
+    readonly end: number;
+    // (undocumented)
     readonly nodes: number;
+    // (undocumented)
+    readonly start: number;
+    readonly step?: TimeStep;
+}
+
+// @public
+export interface TimeBinsOptions {
+    readonly count?: number;
+    readonly from?: number;
+    readonly maxCount?: number;
+    readonly of?: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
+    };
+    readonly scope?: "all" | "visible";
+    readonly step?: TimeStep;
+    readonly to?: number;
+}
+
+// @public
+export interface TimeCandidate {
+    readonly column: string;
+    readonly kind: "node" | "edge";
+    readonly parsed: number;
+    readonly total: number;
+    readonly unit?: TimeUnit;
+}
+
+// @public
+export interface TimeChanges {
+    // (undocumented)
+    readonly entered: TimeIds;
+    // (undocumented)
+    readonly left: TimeIds;
+}
+
+// @public
+export interface TimeCountPair {
+    // (undocumented)
+    readonly edges: number;
+    // (undocumented)
+    readonly nodes: number;
+}
+
+// @public
+export interface TimeCounts {
+    readonly timed: number;
+    readonly unparsed: number;
+    readonly untimed: number;
+}
+
+// @public
+export interface TimeExtent {
+    // (undocumented)
+    readonly edges: TimeCounts;
+    // (undocumented)
+    readonly from: number;
+    // (undocumented)
+    readonly nodes: TimeCounts;
+    // (undocumented)
     readonly to: number;
+}
+
+// @public
+export interface TimeField {
+    // (undocumented)
+    readonly edges?: TimeSource;
+    // (undocumented)
+    readonly nodes?: TimeSource;
+}
+
+// @public
+export interface TimeFieldResult {
+    // (undocumented)
+    readonly edges?: TimeCounts;
+    // (undocumented)
+    readonly field: TimeField | null;
+    // (undocumented)
+    readonly nodes?: TimeCounts;
+    readonly notices: readonly CodedFact<TimeNoticeCode>[];
+}
+
+// @public
+export interface TimeIds {
+    // (undocumented)
+    readonly edges: readonly EdgeId[];
+    // (undocumented)
+    readonly nodes: readonly NodeId[];
+}
+
+// @public
+export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
+
+// @public
+export interface TimePlayback {
+    readonly missing?: "inside" | "outside";
+    readonly mode?: "sliding" | "cumulative";
+    readonly results?: TimeResultsPolicy;
+    readonly step?: TimeStep | "auto";
+}
+
+// @public
+export type TimePlayMode = "sliding" | "cumulative";
+
+// @public
+export interface TimePlayOptions {
+    readonly interval?: number;
+    readonly loop?: boolean;
+    readonly mode?: TimePlayMode;
+    readonly step?: TimeStep;
+}
+
+// @public
+export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+// @public
+export interface TimeSettings {
+    readonly missing: "inside" | "outside";
+    readonly mode: TimePlayMode;
+    readonly results: TimeResultsPolicy;
+    readonly step: TimeStep | "auto";
+}
+
+// @public
+export interface TimeSource {
+    readonly start: Path;
+    readonly unit?: TimeUnit;
 }
 
 // @public
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
 
 // @public
+export interface TimeStepEvent {
+    readonly atEnd: boolean;
+    readonly atStart: boolean;
+    readonly cause: "play" | "step" | "seek" | "window";
+    // (undocumented)
+    readonly entered: TimeCountPair;
+    // (undocumented)
+    readonly from: number;
+    readonly index: number;
+    // (undocumented)
+    readonly left: TimeCountPair;
+    // (undocumented)
+    readonly to: number;
+    readonly untimed: TimeCountPair;
+    // (undocumented)
+    readonly visible: TimeCountPair;
+}
+
+// @public
+export type TimeUnit = "ms" | "s" | "ordinal";
+
+// @public
 export interface TimeWindow {
     readonly attribute: Path;
     readonly end?: Path;
     readonly from: number | string;
-    readonly nodes?: "own" | "follow-edges";
+    readonly missing?: "inside" | "outside";
+    readonly mode?: "sliding" | "cumulative";
+    readonly nodes?: "all" | "ends";
     readonly step?: TimeStep;
     readonly to: number | string;
 }
+
+// @public
+export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    readonly attribute?: Path;
+    readonly from?: number | string;
+    readonly to?: number | string;
+};
 
 // @public
 export interface TooLargeDetails {

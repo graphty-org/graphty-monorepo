@@ -217,6 +217,26 @@ export interface RunsApiOptions {
      */
     readonly dataDigest?: () => string;
     /**
+     * A scope digest a run counts as current besides the one it ran on: what a time window move
+     * under `results: "keep"` accepted. Absent, only the digest it ran on is current.
+     * @param id - The run.
+     * @param ranOn - The digest it ran on.
+     * @returns The accepted digest, or undefined.
+     */
+    readonly acceptedDigest?: (id: RunId, ranOn: string) => string | undefined;
+    /**
+     * The time window in force now (attribute and bounds), compared with the one a run over the
+     * visible graph recorded. Absent, windows are not compared.
+     */
+    readonly windowNow?: () => { readonly attribute: string; readonly from: number; readonly to: number } | null;
+    /**
+     * The window a `results: "keep"` window move accepted a run as current in, besides the one it
+     * ran in.
+     * @param id - The run.
+     * @returns The accepted window key, or undefined.
+     */
+    readonly acceptedWindow?: (id: RunId) => string | undefined;
+    /**
      * The name of a kept set, for a run label.
      * @param id - The set.
      * @returns The name, or undefined when no set has the id.
@@ -699,12 +719,26 @@ function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
     return applySuggestedStyles === undefined && restoreLayer === undefined ? command : rest;
 }
 
+/**
+ * A time window as one comparable string.
+ * @param window - Its attribute and bounds.
+ * @param window.attribute - The attribute it reads.
+ * @param window.from - Its start.
+ * @param window.to - Its end.
+ * @returns The key.
+ */
+export function windowKey(window: { readonly attribute: string; readonly from: number; readonly to: number }): string {
+    return `${window.attribute}|${String(window.from)}|${String(window.to)}`;
+}
+
 /** What a run is and what it answers to, worked out from what the caller asked for. */
 interface ResolvedRun {
     readonly descriptor: AlgorithmDescriptor;
     readonly identity: RunIdentity;
     /** The canonical identity of the result it answers: what an id may be reused for. */
     readonly result: string;
+    /** The same identity with every live scope keyword left as it is spelled. */
+    readonly spelled: string;
     readonly spec: Scope;
     readonly id: RunId;
     readonly derived: boolean;
@@ -745,6 +779,12 @@ class Runs implements SessionRunsApi {
      * silent. Parameters and the seed are not in it: a change of either re-runs the result.
      */
     private readonly identities = new Map<RunId, string>();
+
+    /**
+     * Each run's identity with its live scope keywords as spelled: the same spelling under another
+     * filter or window is the same question asked of what is showing now, which a re-run answers.
+     */
+    private readonly spellings = new Map<RunId, string>();
 
     /** The ids the element minted, which are the ones a saved document may not reference. */
     private readonly derivedIds = new Set<RunId>();
@@ -1161,7 +1201,11 @@ class Runs implements SessionRunsApi {
             });
         }
 
-        const { descriptor, identity, result, spec, id, derived, name } = this.resolve(algorithm, params, options);
+        const { descriptor, identity, result, spelled, spec, id, derived, name } = this.resolve(
+            algorithm,
+            params,
+            options,
+        );
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
         const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
         const launch: Launch = { via, command, beside: options.queue === "now" };
@@ -1174,12 +1218,20 @@ class Runs implements SessionRunsApi {
         }
 
         if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === result)) {
+            if (this.identities.get(id) !== result && this.spellings.get(id) === spelled) {
+                // The same question over a visible graph that moved (a filter, the time window):
+                // the run answers it again under its id.
+                this.identities.set(id, result);
+            }
+
             return this.reuse(existing, identity, result, descriptor, launch);
         }
 
         if (name !== undefined) {
             this.names.set(id, name);
         }
+
+        this.spellings.set(id, spelled);
 
         return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
     }
@@ -1218,14 +1270,32 @@ class Runs implements SessionRunsApi {
             exact: identity.exact,
         };
         const canonical = canonicalResultIdentity(result);
+        const spelled = canonicalResultIdentity({ ...result, scope: freezeScope(spec, () => null) });
 
         if (options.as !== undefined) {
-            return { descriptor, identity, result: canonical, spec, id: assertRunId(options.as), derived: false };
+            return {
+                descriptor,
+                identity,
+                result: canonical,
+                spelled,
+                spec,
+                id: assertRunId(options.as),
+                derived: false,
+            };
         }
 
         const name = suggestRunName(descriptor, identity.params);
 
-        return { descriptor, identity, result: canonical, spec, id: this.mintId(name, canonical), derived: true, name };
+        return {
+            descriptor,
+            identity,
+            result: canonical,
+            spelled,
+            spec,
+            id: this.mintId(name, canonical),
+            derived: true,
+            name,
+        };
     }
 
     /**
@@ -1413,7 +1483,28 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run);
+        return (
+            this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest ||
+            this.dataMoved(run) ||
+            this.windowMoved(run)
+        );
+    }
+
+    /**
+     * Whether a run over the visible graph was computed in another time window than the one in
+     * force now, and no `results: "keep"` move accepted it in this one.
+     * @param run - The run.
+     * @returns True when the window moved.
+     */
+    private windowMoved(run: ManagedRun): boolean {
+        const ran = run.scopeWindow;
+        if (ran === undefined || this.options.windowNow === undefined) {
+            return false;
+        }
+
+        const now = this.options.windowNow();
+        const key = now === null ? "" : windowKey(now);
+        return (ran === null ? "" : windowKey(ran)) !== key && this.options.acceptedWindow?.(run.id) !== key;
     }
 
     /**
@@ -1456,9 +1547,13 @@ class Runs implements SessionRunsApi {
             return { cancel: () => undefined };
         }
 
+        // A re-run keeps its id: a command that names none would derive one from the scope as it
+        // is now, which after a filter or a window move names another run, and this one would wait
+        // in the queue for ever.
+        const recorded = this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm };
         const launch = this.launches.get(run.id) ?? {
             via: this.dispatch,
-            command: this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm },
+            command: this.pinnedTo(run.id, recorded),
             beside: false,
         };
         this.launches.delete(run.id);
@@ -1478,6 +1573,23 @@ class Runs implements SessionRunsApi {
                 controller.abort();
             },
         };
+    }
+
+    /**
+     * A recorded command that still names its run: one that names no id derives it from the scope
+     * as it is now, and is given the run's id when that derives another.
+     * @param id - The run's id.
+     * @param command - The command it was recorded with.
+     * @returns The command to dispatch.
+     */
+    private pinnedTo(id: RunId, command: AlgorithmRunCommand): AlgorithmRunCommand {
+        if (command.as !== undefined) {
+            return command;
+        }
+
+        const { algorithm, params, ...options } = command;
+
+        return this.resolve(algorithm, params, options).id === id ? command : { ...command, as: id };
     }
 
     /**
@@ -2254,10 +2366,16 @@ class Runs implements SessionRunsApi {
         }
 
         const dataChanged = this.dataMoved(run);
+        const windowMoved = !dataChanged && this.windowMoved(run);
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (!dataChanged && current.digest === run.scope.digest) {
+            if (
+                !dataChanged &&
+                !windowMoved &&
+                (current.digest === run.scope.digest ||
+                    current.digest === this.options.acceptedDigest?.(id, run.scope.digest))
+            ) {
                 return null;
             }
 
@@ -2272,11 +2390,25 @@ class Runs implements SessionRunsApi {
             nowVisible = 0;
         }
 
+        const ran = windowMoved ? run.scopeWindow : undefined;
+        let reason: StaleNote["reason"] = windowMoved ? "window-moved" : "scope-changed";
+        if (dataChanged) {
+            reason = "data-changed";
+        }
+
         return Object.freeze({
-            reason: dataChanged ? "data-changed" : "scope-changed",
+            reason,
             ranOn: run.scope.nodeCount,
             nowVisible,
             scopeSpec: run.scope.spec,
+            ...(ran === undefined || ran === null
+                ? {}
+                : {
+                      window: Object.freeze({
+                          code: "window-moved" as const,
+                          params: Object.freeze({ from: ran.from, to: ran.to, nodes: ran.nodes, edges: ran.edges }),
+                      }),
+                  }),
         });
     }
 

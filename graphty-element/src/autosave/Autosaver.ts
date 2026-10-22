@@ -481,6 +481,11 @@ export class Autosaver {
                     this.#mark(["data"], false, false);
                 }
             }),
+            session.on("time:pause", () => {
+                if (this.#entry.unwritten.size > 0 && !this.#stopped) {
+                    this.#schedule();
+                }
+            }),
             onProjectBoundary(session, () => {
                 this.#boundary();
             }),
@@ -1493,6 +1498,11 @@ export class Autosaver {
         const fire = (): void => {
             this.#kick();
         };
+        // Playback moves the window every step: the write waits for the pause, then happens once.
+        if (this.#session.time.playing) {
+            return;
+        }
+
         if (this.#entry.unwritten.has("data")) {
             this.#debounce?.();
             this.#maxWait?.();

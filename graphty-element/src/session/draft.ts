@@ -1311,12 +1311,36 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
     for (const [role, value] of Object.entries(choice)) {
         if (role === "weightMeaning") {
             out[role] = checkedMeaning(held, rowsAre, value);
+        } else if (role === "timeUnit") {
+            out[role] = checkedUnit(held, value);
         } else if (value !== undefined && role !== "rowsAre") {
             out[role] = checkedRole(held, rowsAre, role, value);
         }
     }
 
     return Object.freeze(out) as unknown as TableMappingRead;
+}
+
+/** The units a time column's numbers can be read in at load. */
+const TIME_UNIT_CHOICES: ReadonlySet<unknown> = new Set(["ms", "s", "ordinal", null, undefined]);
+
+/**
+ * A reader's time unit, checked.
+ * @param held - The table.
+ * @param value - The unit.
+ * @returns The unit.
+ * @throws `E_BAD_COMMAND` for a unit the element does not know.
+ */
+function checkedUnit(held: HeldTable, value: unknown): unknown {
+    if (!TIME_UNIT_CHOICES.has(value)) {
+        throw badCommand(`A time unit is "ms", "s", "ordinal" or null.`, {
+            table: held.table.id,
+            role: "timeUnit",
+            units: ["ms", "s", "ordinal"],
+        });
+    }
+
+    return value;
 }
 
 /** The meanings an edge weight can be given at load. */
@@ -1393,6 +1417,10 @@ function tableFields(nodes: boolean, choice: TableMapping): Record<string, strin
     const out: Record<string, string | null> = {};
     if (choice.time !== undefined) {
         out[nodes ? "nodeTimePath" : "edgeTimePath"] = choice.time;
+    }
+
+    if (choice.timeUnit !== undefined) {
+        out[nodes ? "nodeTimeUnit" : "edgeTimeUnit"] = choice.timeUnit;
     }
 
     if (nodes) {

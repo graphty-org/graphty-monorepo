@@ -827,6 +827,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     journal: READ,
     selection: READ,
     visibility: READ,
+    time: READ,
     styles: READ,
     views: READ,
     layout: READ,
@@ -929,14 +930,80 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
-    timeHistogram: READ,
-    firstWindow: READ,
-    stepWindow: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
         [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
     ),
+};
+
+/**
+ * A door on `session.time` that moves the window: a field on `t` is designated first (not
+ * spied), so with no window it opens the first one at 0, a day wide, and moves from there.
+ * @param args - The arguments.
+ * @param window - The window the move must dispatch.
+ * @returns The door.
+ */
+function timeMove(args: readonly unknown[], window: Readonly<Record<string, unknown>>): Door {
+    return {
+        kind: "dispatches",
+        op: "visibility.window",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                const time = target as { setField(field: unknown): Promise<unknown> };
+                await time.setField({ edges: { start: "t" } });
+                return async () => time.setField(null);
+            },
+        },
+        expect: [{ op: "visibility.window", window: { attribute: "data.t", nodes: "ends", ...window } }],
+    };
+}
+
+/** The rows of `TimeApi`. */
+const TIME_API: Readonly<Record<string, Door>> = {
+    field: READ,
+    setField: calls(
+        [{ edges: { start: "t" } }],
+        [
+            {
+                op: "config.set",
+                values: {
+                    data: {
+                        knownFields: { nodeTimePath: null, nodeTimeUnit: null, edgeTimePath: "t", edgeTimeUnit: null },
+                    },
+                },
+            },
+        ],
+    ),
+    ready: READ,
+    extent: READ,
+    bins: READ,
+    changes: READ,
+    current: READ,
+    // The window takes the step in use: with no data, the automatic step is a day.
+    window: calls(
+        [{ attribute: "data.t", from: 0, to: 1 }],
+        [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1, step: "day" } }],
+    ),
+    play: exempt(
+        "Starts a timer, which is not project state; each step it then takes is a visibility.window command, and one play records one step.",
+    ),
+    pause: exempt("Stops the timer; the steps already taken are recorded."),
+    // With no data the automatic step is a day; a first step forward opens the first window.
+    stepBy: timeMove([1], { from: 0, to: 86_400_000, step: "day" }),
+    seek: timeMove([5], { from: 5, to: 86_400_005, step: "day" }),
+    candidates: READ,
+    notices: READ,
+    parse: READ,
+    atStart: READ,
+    atEnd: READ,
+    settings: READ,
+    setSettings: calls([{ mode: "cumulative" }], [{ op: "visibility.playback", playback: { mode: "cumulative" } }]),
+    playing: READ,
+    mode: READ,
+    interval: READ,
 };
 
 /** A layer the style doors add. */
@@ -1170,6 +1237,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             edgeWeightPath: assigns("w", [
                 { op: "config.set", values: { data: { knownFields: { edgeWeightPath: "w" } } } },
+            ]),
+            edgeTimePath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { edgeTimePath: "t" } } } },
+            ]),
+            nodeTimePath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { nodeTimePath: "t" } } } },
+            ]),
+            edgeTimeUnit: assigns("s", [
+                { op: "config.set", values: { data: { knownFields: { edgeTimeUnit: "s" } } } },
+            ]),
+            nodeTimeUnit: assigns("s", [
+                { op: "config.set", values: { data: { knownFields: { nodeTimeUnit: "s" } } } },
             ]),
             positionScale: assigns(2, [{ op: "config.set", values: { data: { knownFields: { positionScale: 2 } } } }]),
             directed: assigns(true, [{ op: "config.set", values: { data: { directed: true } } }]),
@@ -3012,6 +3091,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             remapNodes: SELECTION,
             remapEdges: SELECTION,
         },
+    },
+    {
+        name: "TimeApi",
+        file: "src/session/time/TimeApi.ts",
+        half: "session",
+        doors: TIME_API,
     },
     {
         name: "SessionVisibilityApi",

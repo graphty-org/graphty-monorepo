@@ -79,6 +79,7 @@ function standIn(facts: StandInFacts = {}): {
                           distinguishedBy: null,
                           siblingsDifferBy: null,
                           scope: { spec: "visible" },
+                          caveats: {},
                       },
             painting: () => facts.painting,
         },

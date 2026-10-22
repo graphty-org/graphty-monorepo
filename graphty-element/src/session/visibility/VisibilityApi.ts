@@ -94,12 +94,9 @@ import {
     type RuleTree,
     runPass,
     type ScopeLeaf,
-    type TimeHistogram,
-    timeHistogram,
     type TimeWindow,
 } from "./filter";
 import { assertSteps, combinedRule } from "./steps";
-import { firstTimeWindow, type FirstWindowOptions, steppedTimeWindow } from "./timeSteps";
 
 // ---------------------------------------------------------------------------------------------
 // What visibility answers with
@@ -267,39 +264,6 @@ export interface VisibilityApi {
      * @throws A `GraphtyError` when the window is malformed or needs something this session lacks.
      */
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
-    /**
-     * How one time attribute spreads over the WHOLE graph, nodes and edges counted apart: the
-     * density strip a timeline draws under its window. Not narrowed by the filter or the window,
-     * so it shows where the window could move as well as where it is. Changes nothing.
-     * @param attribute - The time attribute, such as `data.timestamp`.
-     * @param options - `bins`: how many equal-width bins, 1 to 10,000 (default 50).
-     * @param options.bins - How many bins.
-     * @returns The bins, the range, whether the values are dates, and how many elements had none.
-     * @throws A `GraphtyError` when the path or `bins` is not usable, or this session cannot read
-     *     attributes.
-     */
-    timeHistogram(attribute: Path, options?: { readonly bins?: number }): TimeHistogram;
-    /**
-     * The window one `step` wide over a time attribute that holds `at` (default: the attribute's
-     * first value), its start rounded down to the step -- the hour, the UTC day, the Monday of
-     * the week, the first of the month, quarter or year, or a multiple of a number -- so
-     * consecutive windows tile the timeline. Builds the window; pass it to
-     * {@link VisibilityApi.setWindow} to apply it. Changes nothing.
-     * @param attribute - The time attribute, such as `data.timestamp`.
-     * @param options - `step`, and optionally `at`, `end` and `nodes`, carried onto the window.
-     * @returns The window, or null when no node or edge carries a value.
-     * @throws A `GraphtyError` when the path is not usable or this session cannot read attributes.
-     */
-    firstWindow(attribute: Path, options: FirstWindowOptions): TimeWindow | null;
-    /**
-     * The window in force moved one step forward or back: by its `step` (calendar steps in
-     * UTC), or by its own width when it has none, its width kept. Builds the window; pass it to
-     * {@link VisibilityApi.setWindow} to apply it. Changes nothing.
-     * @param direction - 1 forward (the default), -1 back.
-     * @returns The moved window, or null when no window is in force or the move would leave the
-     *     attribute's range, so a player stops there.
-     */
-    stepWindow(direction?: 1 | -1): TimeWindow | null;
     /**
      * The filter steps, in order. The steps that are on combine with {@link VisibilityApi.filter}
      * by AND, so each narrows what the step before it left; a step that is off keeps its rule and
@@ -1298,23 +1262,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             assertVisibility(null, window);
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
-        },
-
-        timeHistogram(attribute: Path, options?: { readonly bins?: number }): TimeHistogram {
-            return timeHistogram(upToDate().graph, sources.values, attribute, options);
-        },
-
-        firstWindow(attribute: Path, options: FirstWindowOptions): TimeWindow | null {
-            return firstTimeWindow(timeHistogram(upToDate().graph, sources.values, attribute, { bins: 1 }), options);
-        },
-
-        stepWindow(direction: 1 | -1 = 1): TimeWindow | null {
-            const { window } = dispatcher.state.visibility;
-            if (window === null) {
-                return null;
-            }
-            const range = timeHistogram(upToDate().graph, sources.values, window.attribute, { bins: 1 });
-            return steppedTimeWindow(window, range, direction);
         },
 
         get steps(): readonly FilterStep[] {

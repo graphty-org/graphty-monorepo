@@ -273,6 +273,19 @@ interface PageSources {
      * @returns The value, or undefined for none.
      */
     valueAt(kind: "node" | "edge", index: number, path: Path): unknown;
+    /**
+     * How many of the designated time column's values read as time, so its completeness counts
+     * times rather than values present; undefined for any other column.
+     * @param kind - Nodes or edges.
+     * @param column - The column.
+     * @returns The count, or undefined.
+     */
+    timeParsed?(kind: "node" | "edge", column: string): number | undefined;
+    /**
+     * The visible masks, for statistics over the visible graph.
+     * @returns The node and edge masks, 1 for visible.
+     */
+    visibleMasks?(): { readonly nodes: Uint8Array; readonly edges: Uint8Array };
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -3096,8 +3109,25 @@ export class SessionData implements SessionDataApi {
         const settings = this.columnSettings();
         const hidden = new Set(settings.hidden);
         const joined = this.joinedColumns();
+        // The designated time column counts the values that read as time, not those present.
+        const parsed = new Map<AttributeDescriptor, number>();
+        for (const each of described) {
+            const times = this.pages.timeParsed?.(each.kind, each.name);
+            if (times !== undefined) {
+                parsed.set(each, times);
+            }
+        }
+
         // The same array back while nothing it was laid from moved, so a consumer can memo on it.
-        const key = JSON.stringify([[...declarations], [...roles], [...uses], [...fed], settings, [...joined]]);
+        const key = JSON.stringify([
+            [...declarations],
+            [...roles],
+            [...uses],
+            [...fed],
+            settings,
+            [...joined],
+            [...parsed.values()],
+        ]);
         const memo = this.attributeOverlay;
         if (memo?.described === described && memo.key === key) {
             return memo.result;
@@ -3109,6 +3139,7 @@ export class SessionData implements SessionDataApi {
             uses.size === 0 &&
             fed.size === 0 &&
             joined.size === 0 &&
+            parsed.size === 0 &&
             settings === NO_COLUMN_SETTINGS
                 ? described
                 : Object.freeze(
@@ -3120,11 +3151,14 @@ export class SessionData implements SessionDataApi {
                           const typed = settings.types[declarationKey(each)];
                           const isHidden = hidden.has(declarationKey(each));
                           const isJoined = joined.has(declarationKey(each));
+                          const times = parsed.get(each);
+                          const rows = each.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
                           return declared === undefined &&
                               played === undefined &&
                               used === undefined &&
                               from === undefined &&
                               typed === undefined &&
+                              times === undefined &&
                               !isHidden &&
                               !isJoined
                               ? each
@@ -3132,12 +3166,17 @@ export class SessionData implements SessionDataApi {
                                     ...each,
                                     ...(isJoined ? { origin: "joined" as const } : {}),
                                     ...(typed === undefined ? {} : typedFields(each, typed)),
+                                    ...(times === undefined ? {} : { completeness: rows === 0 ? 0 : times / rows }),
                                     ...(declared === undefined
                                         ? {}
                                         : {
                                               measurement: declared.measurement,
                                               measurementSource: "declared" as const,
                                           }),
+                                    // Designating a column as the time field makes it time.
+                                    ...(declared === undefined && played?.includes("time") === true
+                                        ? { measurement: "time", measurementSource: "declared" as const }
+                                        : {}),
                                     ...(played === undefined ? {} : { roles: Object.freeze(played) }),
                                     ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
                                     ...(from === undefined ? {} : { sources: Object.freeze([...from]) }),
@@ -3847,17 +3886,41 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The graph's shape.
+     * @param options - What to measure.
+     * @param options.scope - `"visible"` for only what is showing; default the whole graph.
      * @returns the statistics
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    statistics(): GraphStatistics {
+    statistics(options: { readonly scope?: "all" | "visible" } = {}): GraphStatistics {
         const derived = this.derivedFor(this.current());
         derived.statistics ??= computeStatistics(
             derived.snapshot,
             this.readConfig().directed,
             this.graphStore.directionSettledBy,
         );
-        return derived.statistics;
+        const masks = options.scope === "visible" ? this.pages.visibleMasks?.() : undefined;
+        if (masks === undefined || (!masks.nodes.includes(0) && !masks.edges.includes(0))) {
+            return derived.statistics;
+        }
+
+        // ponytail: recomputed on every call over the visible subgraph; cache by mask version when
+        // a large graph reads it per frame.
+        const pack = (bytes: Uint8Array, length: number): Uint32Array<ArrayBuffer> => {
+            const words = new Uint32Array(Math.ceil(length / 32));
+            for (let at = 0; at < length; at++) {
+                if (bytes[at] === 1) {
+                    words[at >>> 5] |= 1 << (at & 31);
+                }
+            }
+
+            return words;
+        };
+        const graph = derived.snapshot;
+        const visible = graph
+            .filterEdges(pack(masks.edges, graph.edgeCount))
+            .snapshot.inducedSubgraph({ mask: pack(masks.nodes, graph.nodeCount) }).snapshot;
+
+        return computeStatistics(visible, this.readConfig().directed, this.graphStore.directionSettledBy);
     }
 
     /**

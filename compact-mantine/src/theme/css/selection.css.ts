@@ -448,19 +448,36 @@ const css = `
     background-color: var(--cm-bg-secondary);
     box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
 }
-.cm-slider-bar { background-color: var(--cm-bg-brand); }
+/* The filled bar in the brand's text step: 3:1 or more on the track in light and dark (WCAG 1.4.11);
+   the fill step was 2.6:1 on white. */
+.cm-slider-bar { background-color: var(--cm-text-brand); }
 .cm-slider .cm-slider-thumb {
     box-sizing: border-box;
     border: 2px solid var(--cm-text-onsolid);
     color: var(--cm-text-onsolid);
     background-color: var(--cm-text-onsolid);
-    box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
+    /* The ring in the secondary icon ink, 3:1 or more against the panel. */
+    box-shadow: 0 0 0 1px var(--cm-icon-secondary), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
     outline: 1px solid transparent;
     outline-offset: -2px;
     transition: none;
     cursor: default;
 }
 .cm-slider .cm-slider-thumb[data-dragging] { transform: translate(-50%, -50%); }
+/* A finger needs more than a 12px thumb: under a coarse pointer the thumb draws at 20px and an
+   invisible ::after grows its hit target to 44 x 44 (the touch guideline) without moving anything. */
+@media (pointer: coarse) {
+    .cm-slider { --slider-thumb-size: 20px !important; }
+    .cm-slider .cm-slider-thumb::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
 .cm-slider .cm-slider-thumb:focus-visible {
     outline: 1px solid var(--cm-border-selected);
     outline-offset: -2px;

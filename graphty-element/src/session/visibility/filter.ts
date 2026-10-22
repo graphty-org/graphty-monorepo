@@ -96,50 +96,55 @@ export interface TimeWindow {
     readonly from: number | string;
     /** The first instant past the window, in the same form as `from`. */
     readonly to: number | string;
-    /** How far a caller advancing the window moves it. Carried, not applied. */
+    /** How far a caller advancing the window moves it: what `session.time` steps and plays by. */
     readonly step?: TimeStep;
     /**
-     * The attribute carrying an interval's end, when elements span time rather than sit at an
-     * instant. An element is inside when its interval overlaps the window: it starts before `to`
-     * and ends at or after `from`. An element missing one end is treated as the instant at the
-     * other.
+     * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
+     * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
+     * window ends at it, so nodes follow their edges.
      */
-    readonly end?: Path;
+    readonly nodes?: "all" | "ends";
     /**
-     * Which time decides a node. `"own"` (the default) reads the node's own value, like an edge.
-     * `"follow-edges"` shows a node exactly when one of its edges with a place on the timeline is
-     * inside the window -- the shape of an event table, where the edges carry the time and the
-     * nodes do not. A node with no such edge is left alone.
+     * Whether an element of a kind that carries the attribute, but has no usable value for it, is
+     * kept: `"inside"` (the default) or `"outside"`.
      */
-    readonly nodes?: "own" | "follow-edges";
+    readonly missing?: "inside" | "outside";
+    /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
+    readonly mode?: "sliding" | "cumulative";
 }
 
-/** One bin of a {@link TimeHistogram}: half-open, except the last, which holds the maximum. */
-export interface TimeHistogramBin {
-    /** The first instant in the bin, in milliseconds (or the plain number for numeric columns). */
-    readonly from: number;
-    /** The first instant past the bin. */
-    readonly to: number;
-    /** How many nodes carry an instant in the bin. */
-    readonly nodes: number;
-    /** How many edges carry an instant in the bin. */
-    readonly edges: number;
+/**
+ * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
+ * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
+ * new window. See {@link TimePlayback.results}.
+ */
+export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+/**
+ * How `session.time` moves windows, held with the designated field rather than on one window, so
+ * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
+ * optional; one left out reads its default.
+ */
+export interface TimePlayback {
+    /** What a window move does to finished runs over the visible graph; default `"stale"`. */
+    readonly results?: TimeResultsPolicy;
+    /** Sliding (both ends move) or cumulative (from the start of the data); default `"sliding"`. */
+    readonly mode?: "sliding" | "cumulative";
+    /**
+     * How far a step moves, and how wide a sliding window is. `"auto"` (the default) picks the
+     * calendar step closest to a twentieth of the data's span (a 1-2-5 number for ordinal time).
+     */
+    readonly step?: TimeStep | "auto";
+    /** Whether an element with no usable time is kept in every window; default `"inside"`. */
+    readonly missing?: "inside" | "outside";
 }
 
-/** How the values of one time attribute spread over the whole graph. */
-export interface TimeHistogram {
-    /** The attribute counted. */
-    readonly attribute: Path;
-    /** `"date"` when any value was a date string or a `Date`, else `"number"`. */
-    readonly kind: "number" | "date";
-    /** The smallest instant, or null when no element carried one. */
-    readonly min: number | null;
-    /** The largest instant, or null when no element carried one. */
-    readonly max: number | null;
-    /** The bins, equal width from `min` to `max`; empty when no element carried an instant. */
-    readonly bins: readonly TimeHistogramBin[];
-    /** How many elements carried no readable instant. */
-    readonly untimed: { readonly nodes: number; readonly edges: number };
+/** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
+export interface TimeInstants {
+    /** One instant per row; NaN for a row with no usable value. */
+    readonly rows: Float64Array;
+    /** How many rows have one. */
+    readonly timed: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -205,6 +210,15 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
+    /**
+     * The instants of a designated time column, parsed once. Absent, or null for a path or a
+     * kind, a window parses each element's value itself.
+     * @param path - The window's attribute.
+     * @returns Each kind's instants, or null.
+     */
+    readonly instants?: (
+        path: Path,
+    ) => { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
     /**
      * The paths inside a query that nothing in this session answers.
      *
@@ -695,12 +709,31 @@ function assertTimeWindow(window: TimeWindow): void {
         );
     }
 
-    if (window.end !== undefined) {
-        assertPath(window.end, "window");
-    }
+    assertWindowOptions(window);
+}
 
-    if (window.nodes !== undefined && window.nodes !== "own" && window.nodes !== "follow-edges") {
-        throw malformed('A time window\'s nodes is "own" or "follow-edges".', { nodes: window.nodes });
+/** The values each enumerated window option takes. */
+const WINDOW_OPTIONS = {
+    nodes: ["all", "ends"],
+    missing: ["inside", "outside"],
+    mode: ["sliding", "cumulative"],
+} as const;
+
+/**
+ * Check a time window's enumerated options.
+ * @param window - The window.
+ * @throws A `GraphtyError` naming the option and the values it takes.
+ */
+function assertWindowOptions(window: TimeWindow): void {
+    for (const [option, allowed] of Object.entries(WINDOW_OPTIONS)) {
+        const value = (window as unknown as Record<string, unknown>)[option];
+        if (value !== undefined && !(allowed as readonly unknown[]).includes(value)) {
+            throw malformed(`A time window's ${option} is one of ${allowed.join(", ")}.`, {
+                field: option,
+                value,
+                allowed: [...allowed],
+            });
+        }
     }
 }
 
@@ -1625,175 +1658,67 @@ export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: F
  */
 function compileWindow(window: TimeWindow, context: CompileContext): CompiledHalves {
     const values = valuesOf(context, "window");
+    const { graph } = context;
     const mark = markFor(context, window.attribute);
-    const endMark = window.end === undefined ? null : markFor(context, window.end);
     const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
     const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const missingInside = window.missing !== "outside";
+    const indexed = context.sources.instants?.(window.attribute) ?? null;
 
     /**
-     * Where one element sits relative to the window.
-     * @param read - Reads the element's value.
-     * @param index - The element's dense index.
-     * @returns `"none"` with no place on the timeline, else whether it overlaps the window.
+     * The test of one kind: whether its instant falls inside the half-open window. An element
+     * with no place on the timeline is kept unless the window says `missing: "outside"`.
+     * @param parsed - The kind's instants when the column is designated, else null.
+     * @param count - How many elements of the kind.
+     * @param read - Reads one element's value, for a column that is not designated.
+     * @returns The test, or null when the kind carries no value: the window says nothing of it.
      */
-    const placeOf = (read: (index: number, path: Path) => unknown, index: number): "none" | "in" | "out" => {
-        const start = instantOf(readValue(read, index, window.attribute, mark));
-        const finish =
-            window.end === undefined || endMark === null
-                ? start
-                : instantOf(readValue(read, index, window.end, endMark));
-        const low = start ?? finish;
-        const high = finish ?? start;
+    const half = (
+        parsed: TimeInstants | null,
+        count: number,
+        read: (index: number, path: Path) => unknown,
+    ): ElementTest | null => {
+        const inside = (instant: number | null): boolean =>
+            instant === null ? missingInside : instant >= from && instant < to;
 
-        if (low === null || high === null) {
-            return "none";
+        if (parsed !== null) {
+            if (parsed.timed === 0) {
+                return null;
+            }
+
+            mark.seen = true;
+            const { rows } = parsed;
+
+            return (index) => inside(Number.isNaN(rows[index]) ? null : rows[index]);
         }
 
-        // An instant (low === high) is inside on [from, to); an interval overlaps when it starts
-        // before the window ends and ends at or after the window starts.
-        return low < to && high >= from ? "in" : "out";
+        if (!missingInside && !carries(count, (index) => read(index, window.attribute))) {
+            return null;
+        }
+
+        return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));
     };
 
-    const readEdge = (index: number, path: Path): unknown => values.edgeValue(index, path);
-    const edge: ElementTest = (index) => placeOf(readEdge, index) !== "out";
+    const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
+    let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (window.nodes !== "follow-edges") {
-        const readNode = (index: number, path: Path): unknown => values.nodeValue(index, path);
-
-        return { node: (index) => placeOf(readNode, index) !== "out", edge };
-    }
-
-    // Follow the edges: one pass over the edge list at compile time, like the other compiled kinds.
-    // 0 = no timed edge (the window says nothing), 1 = timed edges, none inside, 2 = one inside.
-    const { graph } = context;
-    const state = new Uint8Array(graph.nodeCount);
-    const list = graph.edgeList();
-
-    for (let index = 0; index < graph.edgeCount; index++) {
-        const place = placeOf(readEdge, index);
-
-        if (place === "none") {
-            continue;
-        }
-
-        const level = place === "in" ? 2 : 1;
-        state[list.src[index]] = Math.max(state[list.src[index]], level);
-        state[list.dst[index]] = Math.max(state[list.dst[index]], level);
-    }
-
-    return { node: (index) => state[index] !== 1, edge };
-}
-
-/** How many bins a time histogram has when the caller does not say. */
-const DEFAULT_TIME_BINS = 50;
-
-/** The most bins a time histogram may have. */
-const MAX_TIME_BINS = 10_000;
-
-/**
- * Count how one time attribute spreads over every node and edge of the graph, for the density
- * strip under a time window. Always the whole graph, like the window itself: a histogram of what
- * the window already shows could never show where to move it.
- * @param graph - The snapshot.
- * @param values - Where to read attribute values; absent refuses with `E_UNSUPPORTED`.
- * @param attribute - The time attribute, such as `data.timestamp`.
- * @param options - `bins`, a whole number from 1 to 10,000 (default 50).
- * @param options.bins - How many equal-width bins.
- * @returns The bins, the range and how many elements carried no instant.
- * @throws A `GraphtyError` when the path or the bin count is not usable.
- */
-export function timeHistogram(
-    graph: GraphSnapshot,
-    values: FilterValueSource | undefined,
-    attribute: Path,
-    options: { readonly bins?: number } = {},
-): TimeHistogram {
-    assertPath(attribute, "window");
-    const binCount = options.bins ?? DEFAULT_TIME_BINS;
-
-    if (!Number.isInteger(binCount) || binCount < 1 || binCount > MAX_TIME_BINS) {
-        throw outOfRange(`A time histogram's bins is a whole number from 1 to ${String(MAX_TIME_BINS)}.`, {
-            bins: options.bins,
-        });
-    }
-
-    if (values === undefined) {
-        throw unsupported("window", "a source of attribute values");
-    }
-
-    let kind: TimeHistogram["kind"] = "number";
-    const read = (count: number, value: (index: number) => unknown): Float64Array => {
-        const instants = new Float64Array(count);
-
-        for (let index = 0; index < count; index++) {
-            const raw = value(index);
-            instants[index] = instantOf(raw) ?? Number.NaN;
-
-            if (kind === "number" && !Number.isNaN(instants[index]) && typeof raw !== "number") {
-                kind = "date";
+    if (window.nodes === "ends" && edge !== null) {
+        // ponytail: counts an edge inside the window, not one that also passes the filter's edge
+        // half, as the `ends` of a range leaf does; the design's rule ANDs both.
+        const list = graph.edgeList();
+        const ends = new Uint8Array(graph.nodeCount);
+        for (let index = 0; index < graph.edgeCount; index++) {
+            if (edge(index)) {
+                ends[list.src[index]] = 1;
+                ends[list.dst[index]] = 1;
             }
         }
 
-        return instants;
-    };
-    const nodes = read(graph.nodeCount, (index) => values.nodeValue(index, attribute));
-    const edges = read(graph.edgeCount, (index) => values.edgeValue(index, attribute));
-
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    for (const instants of [nodes, edges]) {
-        for (const instant of instants) {
-            if (!Number.isNaN(instant)) {
-                min = Math.min(min, instant);
-                max = Math.max(max, instant);
-            }
-        }
+        const own = node;
+        node = (index) => ends[index] === 1 && (own === null || own(index));
     }
 
-    if (min > max) {
-        return Object.freeze({
-            attribute,
-            kind,
-            min: null,
-            max: null,
-            bins: Object.freeze([]),
-            untimed: Object.freeze({ nodes: nodes.length, edges: edges.length }),
-        });
-    }
-
-    // One value everywhere still gets bins of a usable width rather than a division by zero.
-    const width = max > min ? (max - min) / binCount : 1;
-    const counts = { nodes: new Uint32Array(binCount), edges: new Uint32Array(binCount) };
-    const untimed = { nodes: 0, edges: 0 };
-    const tally = (instants: Float64Array, into: Uint32Array, half: "nodes" | "edges"): void => {
-        for (const instant of instants) {
-            if (Number.isNaN(instant)) {
-                untimed[half]++;
-            } else {
-                into[Math.min(binCount - 1, Math.floor((instant - min) / width))]++;
-            }
-        }
-    };
-    tally(nodes, counts.nodes, "nodes");
-    tally(edges, counts.edges, "edges");
-
-    return Object.freeze({
-        attribute,
-        kind,
-        min,
-        max,
-        bins: Object.freeze(
-            Array.from({ length: binCount }, (_, bin) =>
-                Object.freeze({
-                    from: min + bin * width,
-                    to: bin === binCount - 1 ? Math.max(max, min + width) : min + (bin + 1) * width,
-                    nodes: counts.nodes[bin],
-                    edges: counts.edges[bin],
-                }),
-            ),
-        ),
-        untimed: Object.freeze(untimed),
-    });
+    return { node, edge };
 }
 
 /**

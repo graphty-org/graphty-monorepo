@@ -171,6 +171,8 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import { numericBound } from "./time/parse";
+import { createTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -203,7 +205,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
-import type { FilterRunResult } from "./visibility/filter";
+import type { FilterRunResult, TimeWindow } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -381,6 +383,10 @@ interface SessionParts {
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
     readonly visibility: SessionVisibilityApi;
+    /** The timeline over the time window. */
+    readonly time: TimeApi;
+    /** Stops playback, for `dispose()`. */
+    readonly stopTime: () => void;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
     /** Cancels every style edit still pending, for `dispose()`. */
@@ -478,6 +484,7 @@ class Session implements ElementSession {
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
+    readonly time: TimeApi;
     readonly styles: SessionStylesApi;
     readonly views: SessionViews;
     readonly layout: SessionLayout;
@@ -486,6 +493,8 @@ class Session implements ElementSession {
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
+    /** Stops playback. */
+    private readonly stopTime: () => void;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -536,6 +545,8 @@ class Session implements ElementSession {
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
+        this.time = parts.time;
+        this.stopTime = parts.stopTime;
         this.styles = parts.styles;
         this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
@@ -1091,6 +1102,7 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        this.stopTime();
         // A pass still queued would repaint from a store disposed below.
         this.dispatcher.lane.close();
         // The store may be the renderer's, and gone: nothing is captured on the way out.
@@ -2274,6 +2286,19 @@ export function createElementSession(
  * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
+/**
+ * A time window's attribute and numeric bounds, for comparing two windows.
+ * @param window - The window, or null.
+ * @returns The bounds, or null for no window.
+ */
+function windowBoundsOf(
+    window: TimeWindow | null,
+): { readonly attribute: string; readonly from: number; readonly to: number } | null {
+    return window === null
+        ? null
+        : { attribute: window.attribute, from: numericBound(window.from), to: numericBound(window.to) };
+}
+
 function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
@@ -2418,6 +2443,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 values ??= valueSourceOf(records, snapshot, fieldKinds, () => elements);
                 return kind === "node" ? values.nodeValue(index, path) : values.edgeValue(index, path);
             },
+            // Read through calls: the timeline and the visibility are built below.
+            timeParsed: (kind, column) => timeline?.parsedCount(kind, column),
+            visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
     let values: FilterValueSource | undefined;
@@ -2639,8 +2667,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         supplied: suppliedNow,
     });
 
+    /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
+    let timeline: TimeInternals | null = null;
     const visibility = createVisibilityApi({
         snapshot,
+        instants: (path: Path) => timeline?.instants(path) ?? null,
         components,
         dispatcher,
         dependencies,
@@ -2663,6 +2694,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
+            timeline?.visibilityChanged(change);
             publish(watchers, "visibility:changed", change);
         },
         onMaskVersion: advanceTick,
@@ -2714,12 +2746,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
 
             const data = dataNow();
+            // A run over the visible graph records the time window it was computed in.
+            const bounds = spec === "visible" ? windowBoundsOf(visibility.window) : undefined;
+            const summary = bounds === undefined || bounds === null ? null : visibility.summary;
+            const window =
+                bounds === undefined
+                    ? {}
+                    : {
+                          window:
+                              bounds === null || summary === null
+                                  ? null
+                                  : { ...bounds, nodes: summary.visibleNodes, edges: summary.visibleEdges },
+                      };
 
             return kept === undefined
-                ? { reading, dataDigest: data }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data };
+                ? { reading, dataDigest: data, ...window }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
         },
         dataDigest: () => dataNow(),
+        acceptedDigest: (id: RunId, ranOn: string) => timeline?.acceptedDigest(id, ranOn),
+        windowNow: () => windowBoundsOf(visibility.window),
+        acceptedWindow: (id: RunId) => timeline?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
@@ -2845,6 +2892,35 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }
         },
     });
+
+    const time = createTimeApi({
+        snapshot,
+        token: () => dispatcher.state.graph.token,
+        values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        knownFields: () => {
+            const known = readProject().data.knownFields;
+            return {
+                nodeTimePath: known.nodeTimePath,
+                nodeTimeUnit: known.nodeTimeUnit ?? null,
+                edgeTimePath: known.edgeTimePath,
+                edgeTimeUnit: known.edgeTimeUnit ?? null,
+            };
+        },
+        declarations: () => dispatcher.state.attributes,
+        columns: () =>
+            data
+                .attributes()
+                .filter((each) => each.origin !== "result")
+                .map((each) => ({ kind: each.kind, name: each.name })),
+        dispatcher,
+        visibility,
+        runs: () => runs.list(),
+        digestOf: (spec: Scope) => scope.resolveNow(spec).digest,
+        emit: (event, detail) => {
+            publish(watchers, event, detail);
+        },
+    });
+    timeline = time.internals;
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
@@ -3395,6 +3471,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         journal,
         selection,
         visibility,
+        time: time.api,
+        stopTime: () => {
+            time.internals.dispose();
+        },
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

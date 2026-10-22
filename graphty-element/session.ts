@@ -287,6 +287,7 @@ export type {
     RunSpec,
     RunStatus,
     RunStyle,
+    RunWindow,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -449,18 +450,42 @@ export type {
     AttributeLeafNodes,
     FilterResult,
     FilterStep,
-    FirstWindowOptions,
     RuleTree,
     StepCounts,
-    TimeHistogram,
-    TimeHistogramBin,
+    TimePlayback,
+    TimeResultsPolicy,
     TimeStep,
     TimeWindow,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,
 } from "./src/session/visibility";
-export { addTimeStep } from "./src/session/visibility";
+
+// ---------------------------------------------------------------------------------------------
+// The timeline: a designated time field and a window that moves along it
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TimeApi,
+    TimeBin,
+    TimeBinsOptions,
+    TimeCandidate,
+    TimeChanges,
+    TimeCountPair,
+    TimeCounts,
+    TimeExtent,
+    TimeField,
+    TimeFieldResult,
+    TimeIds,
+    TimeNoticeCode,
+    TimePlayMode,
+    TimePlayOptions,
+    TimeSettings,
+    TimeSource,
+    TimeStepEvent,
+    TimeUnit,
+    TimeWindowInput,
+} from "./src/session/time/TimeApi";
 
 // ---------------------------------------------------------------------------------------------
 // Asking what something would do and cost, before doing it

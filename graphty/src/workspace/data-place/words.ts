@@ -323,7 +323,9 @@ export function typeOf(
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
-    if (readable === "text" && measurement !== undefined) {
+    // Free text is a text column whose values are groups only by inference; a column declared to
+    // measure something (a designated time field of text dates) reads as what it measures.
+    if (readable === "text" && measurement === "categorical") {
         return { glyph: "text", typeWord: TEXT_WORD };
     }
     switch (measurement) {

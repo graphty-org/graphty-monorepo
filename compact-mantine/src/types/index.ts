@@ -99,6 +99,8 @@ export type {
     DataRowProps,
     FieldRowProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     MetricRowProps,
     PanelFieldProps,

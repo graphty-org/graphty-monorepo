@@ -77,6 +77,8 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /** How fast the timeline plays: 1, 2 or 4 steps a second. The reader's choice, not saved with the project. */
+    readonly timeSpeed: 1 | 2 | 4;
     /**
      * The table dock's tab: "nodes", "edges" or a group run's "g:<run id>". Kept while the dock
      * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
@@ -221,6 +223,7 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,
+    timeSpeed: 1,
     dockTab: "nodes",
     dockColumn: null,
     dockMaximized: false,

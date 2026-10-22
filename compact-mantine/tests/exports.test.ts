@@ -345,6 +345,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "RampEditor",
     "ScrollArea",
     "SegmentedControl",
+    "RangeSlider",
+    "Slider",
     "ToggleWithContent",
 
     // Buttons, chrome, color, inputs, overlays, selection, tree

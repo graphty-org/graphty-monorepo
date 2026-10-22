@@ -574,6 +574,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.steps", steps: [] },
     },
     {
+        name: "visibility.playback",
+        tags: BOTH,
+        command: { op: "visibility.playback", playback: { mode: "cumulative", step: "week", results: "keep" } },
+    },
+    {
         name: "visibility.window",
         tags: BOTH,
         command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },

@@ -42,6 +42,17 @@ with each team tagged by conference.
   graph-samples datasets with graph-io's GML writer; each node carries a readable `name`. Do not
   edit them by hand: change the script and run it again. Licenses: graph-samples' dataset `meta.ts`
 
+## office-email.json and paper-citations.json (timed, synthetic)
+
+- Office email: 48 nodes (people, with `name` and `team`), 2,102 directed edges, one per email,
+  each with `sent`, an ISO 8601 UTC time from 2025-01-01 to 2025-06-30. Weekdays are busy and
+  weekends quiet; three bursts: a product launch (engineering and design, March 10-14), quarter
+  end (sales, March 24-31) and an offsite week (everyone, June 2-6)
+- Paper citations: 159 nodes (papers, with `year` from 1995 to 2024 and `topic`), 453 directed
+  edges from a citing paper to an older paper it cites; edges carry no time
+- Both are synthetic, from a seeded generator, so no license applies. Written by
+  `graphty/scripts/write-timeline-samples.ts` (`npm run samples:write`). Do not edit them by hand
+
 ## Provenance
 
 Both files come from Mark Newman's network data collection at the URL above, which

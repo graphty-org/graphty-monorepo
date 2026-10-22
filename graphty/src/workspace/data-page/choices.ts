@@ -28,6 +28,8 @@ interface TableEdits {
     readonly roles: Readonly<Record<string, PageRole>>;
     /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
     readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
+    /** How a number time column is read, once the reader chose. */
+    readonly timeUnit?: NonNullable<TableMapping["timeUnit"]>;
 }
 
 /** Every choice on the page. */
@@ -180,12 +182,24 @@ export function setWeightMeaning(
     meaning: NonNullable<TableMapping["weightMeaning"]> | undefined,
     choices: PageChoices,
 ): PageChoices {
-    const { rowsAre, roles } = choices.tables[table.id] ?? { roles: {} };
-    const edits: TableEdits = {
-        ...(rowsAre === undefined ? {} : { rowsAre }),
-        roles,
-        ...(meaning === undefined ? {} : { weightMeaning: meaning }),
-    };
+    const { weightMeaning: _was, ...rest } = choices.tables[table.id] ?? { roles: {} };
+    const edits: TableEdits = { ...rest, ...(meaning === undefined ? {} : { weightMeaning: meaning }) };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
+}
+
+/**
+ * Says how a table's number time column is read.
+ * @param table - the table.
+ * @param unit - the unit.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setTimeUnit(
+    table: DraftTable,
+    unit: NonNullable<TableMapping["timeUnit"]>,
+    choices: PageChoices,
+): PageChoices {
+    const edits: TableEdits = { ...(choices.tables[table.id] ?? { roles: {} }), timeUnit: unit };
     return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
 }
 
@@ -233,12 +247,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const meaning =
         edits.weightMeaning !== undefined && kind === "edges" && weightHolder(draft, table, choices) !== undefined;
-    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning;
+    const unit =
+        edits.timeUnit !== undefined && table.columns.some((c) => roleOf(draft, table, c.name, choices) === "time");
+    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning || unit;
     return changed
         ? {
               ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }),
               ...mapping,
               ...(meaning ? { weightMeaning: edits.weightMeaning } : {}),
+              ...(unit ? { timeUnit: edits.timeUnit } : {}),
           }
         : undefined;
 }

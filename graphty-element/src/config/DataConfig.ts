@@ -42,6 +42,9 @@ const GraphKnownFields = z.strictObject({
     nodeLabelPath: z.string().or(z.null()).default(null),
     nodeWeightPath: z.string().or(z.null()).default(null),
     nodeTimePath: z.string().or(z.null()).default(null),
+    // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
+    // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
+    nodeTimeUnit: z.enum(["ms", "s", "ordinal"]).or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does
@@ -76,6 +79,7 @@ const GraphKnownFields = z.strictObject({
     // reader did not say. Kept here so the project file saves it and undo moves it.
     edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
     edgeTimePath: z.string().or(z.null()).default(null),
+    edgeTimeUnit: z.enum(["ms", "s", "ordinal"]).or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

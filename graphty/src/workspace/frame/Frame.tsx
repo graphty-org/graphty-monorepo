@@ -19,7 +19,7 @@ import { NodeMenu } from "../server/NodeMenu";
 import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
-import { TimelineStrip } from "../timeline/TimelineStrip";
+import { TimeDock } from "../time/TimeDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
 import { focusIsLost, focusOpenedGraph } from "./focus";
@@ -135,11 +135,11 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock" ref={dock}>
                                 <WorkspaceToolbar />
-                                <TimelineStrip />
                             </div>
                             <NoticeSlot />
                         </div>
                     </section>
+                    <TimeDock />
                     {dockOpen ? (
                         // Maximized, the dock covers the canvas area (table.css), so it takes no height
                         // of its own and has nothing to resize.

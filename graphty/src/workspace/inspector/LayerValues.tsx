@@ -56,7 +56,10 @@ function stateWords(run: Run | undefined): string {
         return "Data";
     }
     if (run.status === "succeeded") {
-        return run.stale === null ? "Current" : "Out of date";
+        if (run.stale === null) {
+            return "Current";
+        }
+        return run.stale.reason === "window-moved" ? "Out of date: window moved" : "Out of date";
     }
     const words: Readonly<Record<Exclude<Run["status"], "succeeded">, string>> = {
         queued: "Queued",

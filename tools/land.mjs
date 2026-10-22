@@ -75,6 +75,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
+import { logWait } from "./wait-log.mjs";
 
 export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
@@ -166,11 +167,18 @@ function stale(dir, owner) {
  * @param info what to record about this holder (the command and branch)
  * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
  * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes;
- * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder)
+ * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder); `waitLog` records
+ * the wait and the hold (tools/wait-log.mjs, by default)
  * @returns a function that releases it
  */
 export async function acquireLock(dir, info, opts = {}) {
     const pollMs = opts.pollMs ?? 15_000;
+    const waitLog = opts.waitLog ?? logWait;
+    // "lock" is the landing lock, "cut-lock" the cut's.
+    const kind = basename(dir) === "lock" ? "land-lock" : basename(dir);
+    const waiter = [info.command, info.branch].filter(Boolean).join(" ");
+    const heldBy = new Set();
+    const start = Date.now();
     const tell = waitReporter(opts);
     mkdirSync(dirname(dir), { recursive: true });
     const ticket = enqueue(dir, info, opts.priority);
@@ -178,12 +186,20 @@ export async function acquireLock(dir, info, opts = {}) {
         for (;;) {
             const position = queuePosition(ticket.file);
             const release = position === 1 ? tryLock(dir, info) : null;
-            if (release) return release;
+            if (release) {
+                const taken = Date.now();
+                waitLog({ kind, start, end: taken, waiter, heldBy: [...heldBy] });
+                return () => {
+                    release();
+                    waitLog({ kind: `${kind}-held`, start: taken, waiter });
+                };
+            }
             const owner = readLock(dir);
             if (owner && stale(dir, owner)) {
                 removeStaleLock(dir, owner);
                 continue;
             }
+            if (owner?.pid) heldBy.add(describeOwner(owner));
             tell(owner, position);
             await new Promise((r) => setTimeout(r, pollMs));
         }

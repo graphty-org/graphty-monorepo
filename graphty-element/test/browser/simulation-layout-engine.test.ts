@@ -1072,7 +1072,10 @@ describe("the simulation layout bridge", () => {
         const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 3 });
         graph.acceleration.setAccelerator(fake);
 
-        const rig = await bridge(graph, "forceatlas2", { scalingFactor: 100, seed: 42 });
+        // UNSEEDED, because a seeded layout's own arrangement starts over from its seed when the
+        // graph grows (a seeded layout draws its data, not the order it arrived in), and this case
+        // is about the arrangement a freeze keeps.
+        const rig = await bridge(graph, "forceatlas2", { scalingFactor: 100 });
         for (let frame = 0; frame < 5; frame += 1) {
             rig.step();
             await drain(fake);

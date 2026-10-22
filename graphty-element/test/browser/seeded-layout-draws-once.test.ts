@@ -9,6 +9,9 @@
  *   went through the same `running` setter a reader's "play" goes through.
  * - `viewMode = "2d"` assigned before the element was attached built the default layout at
  *   once, so it moved the data before the layout the consumer asked for replaced it.
+ * - Edges that arrived after a simulation layout had stepped over the nodes alone were laid out
+ *   from wherever those steps had left the nodes, so the picture depended on how many frames the
+ *   machine drew between the two writes (the Layout/GPU Spring story under a busy capture).
  */
 import "../../src/graphty-element";
 
@@ -36,6 +39,49 @@ afterEach(() => {
         cleanup();
     }
 });
+
+/** More layout steps than a five-node Spring needs to settle. */
+const STEP_CAP = 1000;
+
+/**
+ * Lays the path out with a seeded Spring, stepping it by hand, and reads where every node ended.
+ * @param split - Write the edges after the layout has stepped over the nodes alone.
+ * @returns Every node's position, in node order.
+ */
+async function springArrangement(split: boolean): Promise<number[]> {
+    // The layout is set before the data arrives, as an element's attributes set it, so every node
+    // starts unplaced and the seed alone places it.
+    const { graph } = await createE2EGraph({ enableAi: false });
+    cleanups.push(() => {
+        graph.dispose();
+        cleanupE2EGraph();
+    });
+    graph.engine.stopRenderLoop();
+    graph.setLayoutBehavior({ layout: { preSteps: 0 } });
+    await graph.setLayout("spring", { seed: 42 });
+    const manager = graph.getLayoutManager();
+
+    await graph.addNodes(NODES);
+    if (split) {
+        graph.getDataManager().getSnapshot();
+        for (let i = 0; i < 5; i += 1) {
+            manager.step();
+        }
+    }
+
+    await graph.addEdges(EDGES);
+    graph.getDataManager().getSnapshot();
+
+    const engine = manager.layoutEngine;
+    assert.instanceOf(engine, SimulationLayoutEngine);
+    for (let i = 0; i < STEP_CAP && !engine.isSettled; i += 1) {
+        manager.step();
+    }
+
+    assert.isTrue(engine.isSettled, "the layout settled");
+    const nodes = [...graph.getDataManager().nodes.values()];
+    return nodes.flatMap((node) => manager.getNodePosition(node) ?? []);
+}
 
 /** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
 const INIT_BUDGET_MS = 10_000;
@@ -106,5 +152,15 @@ describe("a seeded layout draws the same graph every load", () => {
             DEFAULT_LAYOUT.engine,
             `the default layout should never be built (built: ${built.join(", ")})`,
         );
+    });
+
+    test("edges written after the nodes were stepped draw what one write draws", async () => {
+        const together = await springArrangement(false);
+        const split = await springArrangement(true);
+
+        assert.lengthOf(split, together.length);
+        for (const [i, value] of split.entries()) {
+            assert.closeTo(value, together[i], 1e-3, `coordinate ${String(i)}`);
+        }
     });
 });

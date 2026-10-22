@@ -615,10 +615,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * either direction, and design 9.4 item 4 re-evaluates the threshold at every load.
      * @param snapshot - The snapshot that has just replaced the old one.
      * @param positions - The element's array, re-viewed at the new node count.
+     * @param fromSeed - Start every unpinned node again from the layout's seed, rather than from
+     *   where the steps so far left it. See `LayoutManager.onSnapshotReplaced`.
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` under the `required` policy with nothing
      * attached.
      */
-    reload(snapshot: GraphSnapshot, positions: F32): void {
+    reload(snapshot: GraphSnapshot, positions: F32, fromSeed = false): void {
         if (this.#snapshot === null) {
             // NOTHING HAS BEEN LOADED YET, so this is `init()`'s own freeze coming back at us:
             // `getSnapshot()` emits `snapshot-replaced` synchronously, from inside the call
@@ -635,6 +637,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // BEFORE THE PLAN, and at every reload whether or not the simulation is rebuilt: a freeze
         // renumbers the rows, and the element's array is the copy it renumbered.
         const simPositions = this.#adoptPositions(snapshot.nodeCount, positions);
+        if (fromSeed) {
+            // An unplaced row is what the seed fills, here and in a rebuild's `#build`.
+            const pins = this.#dataManager[WRITABLE_LANE].pinnedView(snapshot.nodeCount);
+            for (let row = 0; row < snapshot.nodeCount; row += 1) {
+                if (pins[row] !== 1) {
+                    simPositions.fill(Number.NaN, 3 * row, 3 * row + 3);
+                }
+            }
+        }
 
         const decision = this.#controller.plan({ capability: this.capability, nodeCount: snapshot.nodeCount });
 

@@ -1081,8 +1081,20 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        // A SEEDED LAYOUT DRAWS ITS DATA, NOT THE ORDER IT ARRIVED IN, the rule `restartsForNewData`
+        // keeps for the other engines. A reload keeps where the steps so far left every node, so
+        // a graph whose edges arrived a few frames after its nodes was arranged from wherever the
+        // nodes had drifted without them, and how far that was depended on how many frames the
+        // machine drew in between: the same story drew a different graph on a busy machine. So
+        // while the arrangement is still the layout's own, a freeze that adds or removes nodes or
+        // edges starts it over from the seed and spends the pre-steps again.
+        const fromSeed = this.restartsSimulationFromSeed(event);
         try {
-            engine.reload(event.next, this.dataManager[WRITABLE_LANE].view(event.next.nodeCount));
+            engine.reload(event.next, this.dataManager[WRITABLE_LANE].view(event.next.nodeCount), fromSeed);
+            if (fromSeed) {
+                this.preStepsOwed = true;
+            }
+
             if (!this.restoring()) {
                 this.running = true;
             }
@@ -1093,6 +1105,22 @@ export class LayoutManager implements Manager {
             this.running = false;
             this.reportSimulationFailure(error);
         }
+    }
+
+    /**
+     * Whether a freeze starts the running simulation over from its seed: see `onSnapshotReplaced`.
+     * @param event - The freeze.
+     * @returns True when the graph's size changed under a seeded layout's own arrangement.
+     */
+    private restartsSimulationFromSeed(event: GraphSnapshotReplacedEvent): boolean {
+        const { previous, next } = event;
+        return (
+            previous !== null &&
+            (previous.nodeCount !== next.nodeCount || previous.edgeCount !== next.edgeCount) &&
+            this.ownArrangement &&
+            !this.restoring() &&
+            typeof (this.driverOptions as { seed?: unknown }).seed === "number"
+        );
     }
 
     /**

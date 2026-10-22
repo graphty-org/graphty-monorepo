@@ -1,6 +1,6 @@
 # Fast pipeline: from development branch to graphty.app and npm
 
-Status: Accepted, 2026-10-21. Issue #3262. Nothing below is built; until it is, the tools follow
+Status: Proposed, 2026-10-21; the owner's open decisions are recorded in section 9. Issue #3262. Nothing below is built; until it is, the tools follow
 `design/ci/golden-local.md`.
 
 This document describes how a change in graphty-monorepo should travel from a development branch

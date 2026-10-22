@@ -10,6 +10,8 @@
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
 //   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
+//   --allow-copies <sha>[,<sha>...] (land, one branch)  land despite these listed copies of golden commits (sha
+//                                                   prefixes of 7+ characters); the land commit names each one
 //   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //
@@ -43,6 +45,8 @@
 // cut needs starts from origin/golden-cut and goes in with `cut-fix`: merged into golden-cut, pushed, then
 // landed on golden the normal way, so both hold the same commits. Merged branches stay, on GitHub and here,
 // as history; `prune-branches --yes` deletes them from GitHub only when someone runs it by hand.
+// `--allow-copies <sha>,...` accepts exactly the listed copies (any other copy, or a listed sha that is not a
+// copy, still refuses) and records them in the land commit's message.
 //
 // Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
 // and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
@@ -823,7 +827,8 @@ function announce(ctx, sha) {
  * Lands a branch on golden.
  * @param ctx the run's context
  * @param branch the branch to land
- * @param [opts] `dryRun`: merge, report, undo; no push, no GitHub
+ * @param [opts] `dryRun`: merge, report, undo; no push, no GitHub; `allowCopies`: sha prefixes of copies
+ *   of golden commits to land anyway
  * @returns the exit code
  */
 export async function land(ctx, branch, opts = {}) {
@@ -840,12 +845,12 @@ export async function land(ctx, branch, opts = {}) {
         console.log(`land: ${branch} is already on golden; nothing to land.`);
         return 0;
     }
-    const copies = copiedCommits(ctx, ref);
-    if (copies.length) {
+    const { refusal, allowed } = screenCopies(ctx, branch, ref, opts.allowCopies ?? []);
+    if (refusal) {
         git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
-        return fail(copyRefusal(branch, copies));
+        return fail(refusal);
     }
-    const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref);
+    const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref, allowed);
     if (merged !== 0) {
         git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
         return merged;
@@ -872,14 +877,48 @@ const branchRef = (ctx, branch) =>
  * @returns "<sha10> <subject>" lines, empty when there are none
  */
 export function copiedCommits(ctx, ref) {
-    const marked = git(ctx, ctx.golden, ["cherry", "HEAD", ref]).split("\n");
-    const shas = marked.filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
-    return shas.map((sha) => git(ctx, ctx.golden, ["log", "-1", "--format=%h %s", "--abbrev=10", sha]));
+    return copiedShas(ctx, ref).map((sha) => describeCommit(ctx, sha));
+}
+
+const copiedShas = (ctx, ref) =>
+    git(ctx, ctx.golden, ["cherry", "HEAD", ref])
+        .split("\n")
+        .filter((l) => l.startsWith("- "))
+        .map((l) => l.slice(2));
+const describeCommit = (ctx, sha) => git(ctx, ctx.golden, ["log", "-1", "--format=%h %s", "--abbrev=10", sha]);
+
+/**
+ * Checks a branch's copies of golden commits against the ones `--allow-copies` accepted.
+ * @param ctx the run's context
+ * @param branch the branch
+ * @param ref its ref
+ * @param allow the accepted sha prefixes (7+ characters each)
+ * @returns `{ refusal }` when anything is not accepted (a copy not listed, a listed sha that is no copy),
+ *   else `{ allowed }`: the accepted copies as "<sha10> <subject>" lines
+ */
+export function screenCopies(ctx, branch, ref, allow) {
+    const short = allow.filter((p) => !/^[0-9a-f]{7,40}$/i.test(p));
+    if (short.length)
+        return { refusal: `--allow-copies takes sha prefixes of 7 to 40 hex characters: ${short.join(", ")}` };
+    const shas = copiedShas(ctx, ref);
+    const listed = (sha) => allow.some((p) => sha.startsWith(p.toLowerCase()));
+    const notCopies = allow.filter((p) => !shas.some((sha) => sha.startsWith(p.toLowerCase())));
+    if (notCopies.length) {
+        return {
+            refusal:
+                `--allow-copies names commits that are not copies of golden commits on ${branch}: ` +
+                `${notCopies.join(", ")}\nNothing was landed; list only the copies the refusal names.`,
+        };
+    }
+    const refused = shas.filter((sha) => !listed(sha)).map((sha) => describeCommit(ctx, sha));
+    if (refused.length) return { refusal: copyRefusal(branch, refused) };
+    return { allowed: shas.map((sha) => describeCommit(ctx, sha)) };
 }
 
 const copyRefusal = (branch, copies) =>
     `${branch} holds copies of commits golden already has (a cherry-pick or a rebase), so it is not landed:\n  ` +
-    `${copies.join("\n  ")}\nNever copy, always merge: start again from the original branch, or merge it.`;
+    `${copies.join("\n  ")}\nNever copy, always merge: start again from the original branch, or merge it.\n` +
+    `If the copies were made on purpose, land it alone with --allow-copies <sha>[,<sha>...] naming each one.`;
 const goldenHead = (ctx) => git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
 
 /**
@@ -1041,8 +1080,17 @@ function reapply(ctx, branch, ref) {
     return gitStep(ctx, branch, "revert", ["--no-edit", old.reverted]);
 }
 
-const mergeBranch = (ctx, branch, ref) =>
-    gitStep(ctx, branch, "merge", ["--no-ff", "--no-edit", "-m", `land: ${branch}`, ref]);
+const mergeBranch = (ctx, branch, ref, allowed = []) =>
+    gitStep(ctx, branch, "merge", [
+        "--no-ff",
+        "--no-edit",
+        "-m",
+        `land: ${branch}`,
+        ...(allowed.length
+            ? ["-m", `Copies of golden commits landed on purpose (--allow-copies):\n${allowed.join("\n")}`]
+            : []),
+        ref,
+    ]);
 
 /**
  * Runs a merge or revert on golden; on a failure reports a conflict, or git's own message when nothing
@@ -1637,7 +1685,7 @@ export function context(cwd, overrides = {}) {
 }
 
 const USAGE =
-    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] |" +
+    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
     " cut-fix <branch> | ship | status | prune-branches [--yes] (land, revert, cut and cut-fix also take --priority)";
 
 /**
@@ -1647,7 +1695,11 @@ const USAGE =
  * @returns the exit code
  */
 export async function main(argv, ctx = context(process.cwd())) {
-    const [command, ...branches] = argv.filter((a) => !a.startsWith("--"));
+    const at = argv.findIndex((a) => a === "--allow-copies" || a.startsWith("--allow-copies="));
+    const allowArg = at < 0 ? null : argv[at].includes("=") ? argv[at].split("=")[1] : argv[at + 1];
+    const allowCopies = allowArg?.split(",").filter(Boolean) ?? [];
+    const positional = at >= 0 && !argv[at].includes("=") ? argv.filter((_, i) => i !== at + 1) : argv;
+    const [command, ...branches] = positional.filter((a) => !a.startsWith("--"));
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
@@ -1655,6 +1707,9 @@ export async function main(argv, ctx = context(process.cwd())) {
     const unlocked = UNLOCKED[command];
     if (unlocked) return unlocked(ctx, branch, argv, lockOptions);
     if (!["land", "revert"].includes(command) || !branch) return fail(USAGE);
+    if (at >= 0 && (command !== "land" || branches.length !== 1 || !allowCopies.length)) {
+        return fail("--allow-copies takes a comma-separated list of shas and lands exactly one branch");
+    }
     const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
     const onTerm = onSignal(ctx, "SIGTERM", 143);
@@ -1672,7 +1727,7 @@ export async function main(argv, ctx = context(process.cwd())) {
         }
         ctx.hooks = hooksDir(ctx);
         if (command === "land" && branches.length > 1) return await landMany(ctx, branches, { dryRun });
-        if (command === "land") return await land(ctx, branch, { dryRun });
+        if (command === "land") return await land(ctx, branch, { dryRun, allowCopies });
         return await revert(ctx, branch);
     } finally {
         cleanup(ctx);

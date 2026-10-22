@@ -58,8 +58,8 @@ describe("session.data.sources", () => {
         await session.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
         await session.data.import({ type: "csv", config: { data: MESSAGES }, name: "messages.csv" }, { mode: "merge" });
         assert.deepStrictEqual(summary(session), [
-            ["friends.csv", "csv", [], { nodes: 3, edges: 3 }],
-            ["messages.csv", "csv", [], { nodes: 2, edges: 2 }],
+            ["friends.csv", "csv", ["friends.csv"], { nodes: 3, edges: 3 }],
+            ["messages.csv", "csv", ["messages.csv"], { nodes: 2, edges: 2 }],
         ]);
         session.dispose();
     });

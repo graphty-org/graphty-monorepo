@@ -272,7 +272,9 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules, r
     if (trigger) {
         return everything(root.get(trigger) === trigger ? trigger : `${root.get(trigger)} (through ${trigger})`);
     }
-    const { unexplained: unexplainedRoot, unknown } = rootFiles([...root.keys()], { rules, dirs, graphs, out, whole });
+    const { unexplained, unknown } = rootFiles([...root.keys()], { rules, dirs, graphs, out, whole });
+    // listed: the changed files themselves, not the root files that import them
+    const unexplainedRoot = unexplained.filter((f) => root.get(f) === f);
     if (unknown) {
         return everything(`${unknown}, a root file no rule, import or test accounts for,`);
     }

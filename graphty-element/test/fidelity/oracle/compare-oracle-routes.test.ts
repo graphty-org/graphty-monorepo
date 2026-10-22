@@ -142,3 +142,34 @@ describe("routes at nodes that cut a line badly", () => {
         assert.strictEqual(passRate(o, g, "edge.extra"), 1);
     });
 });
+
+describe("a route that crosses its end node to a corner (Graphviz's headport=ne)", () => {
+    const s = node("s", 100, 100, { w: 24, h: 24, shape: "rect" });
+    const t = node("t", 200, 100, { w: 24, h: 24, shape: "rect" });
+    // from s's right side across t to its top right corner, at x 212, y 88
+    const across = (end: Pt, after: Pt[] = []): Pt[] => [[112, 98.8], [180, 90.6], [205, 88.8], end, ...after];
+
+    it("is cut where it enters the node whether its end rounds a hair inside the corner or a hair outside", () => {
+        const inside = clipToNodes(across([211.6, 88.4]), s, t);
+        const outside = clipToNodes(across([212.4, 87.6]), s, t);
+
+        assert.closeTo(inside.at(-1)?.[0] ?? 0, 188, 0.5, "where the line enters t's left side");
+        assert.closeTo(outside.at(-1)?.[0] ?? 0, 188, 0.5);
+    });
+
+    it("is cut there too when it pokes a hair out past the corner and back", () => {
+        const hook = clipToNodes(across([212.3, 87.7], [[211.9, 88.1]]), s, t);
+
+        assert.closeTo(hook.at(-1)?.[0] ?? 0, 188, 0.5);
+    });
+
+    it("keeps a route that only passes near its node, never entering it", () => {
+        const past: Pt[] = [
+            [112, 100],
+            [150, 60],
+            [190, 87],
+        ];
+
+        assert.deepEqual(clipToNodes(past, s, t).at(-1), [190, 87]);
+    });
+});

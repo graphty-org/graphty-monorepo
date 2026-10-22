@@ -289,11 +289,17 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
+    // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
-        .map((color, i) => {
-            const t = (i + 0.5) / n;
-            return { offset: drawn.kind === "radial" ? Math.abs(2 * t - 1) : t, color, opacity: 1 };
-        })
+        .flatMap((color, i) =>
+            drawn.kind === "radial"
+                ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
+                : [
+                      { offset: i / n, color, opacity: 1 },
+                      { offset: (i + 1) / n, color, opacity: 1 },
+                  ],
+        )
         .sort((a, b) => a.offset - b.offset);
     const [a, b] = [points[0], points.at(-1) ?? points[0]];
     return {

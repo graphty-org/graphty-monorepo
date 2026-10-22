@@ -30,6 +30,7 @@ import {
     type Prim,
     type PScene,
     type PShape,
+    type PStop,
     type PStray,
     type Pt,
     type PText,
@@ -894,6 +895,52 @@ function labelDress(p: Prim, part: readonly Prim[]): boolean {
     );
 }
 
+/**
+ * Graphviz's colored segments (`color="red;0.3:blue"`, emit.c `splitBSpline`): one route drawn as open paths of one
+ * width laid end to end, each in the next color. Read as one line whose stroke runs through the colors with a hard
+ * switch at each joint, as a gradient along the line; its first color is the line's.
+ * @param part - an edge's primitives
+ * @returns the line and the pieces it joins, or null when the edge is not drawn so
+ */
+export function segmentedLine(part: readonly Prim[]): { line: Prim; pieces: ReadonlySet<Prim> } | null {
+    const chain = part
+        .filter((p) => p.kind === "path" && !p.closed && p.fill === null && p.stroke !== null)
+        .sort((a, b) => a.index - b.index);
+    const joined = (p: Prim, i: number): boolean => {
+        const [before, end] = [chain[i], chain[i].points.at(-1)];
+        return (
+            end !== undefined &&
+            Math.hypot(p.points[0][0] - end[0], p.points[0][1] - end[1]) < 0.05 &&
+            p.stroke?.width === before.stroke?.width &&
+            p.stroke?.color !== before.stroke?.color
+        );
+    };
+    const first = chain[0];
+    if (chain.length < 2 || first.stroke === null || !chain.slice(1).every(joined)) {
+        return null;
+    }
+    const points = chain.flatMap((p, i) => (i === 0 ? p.points : p.points.slice(1)));
+    const total = pathLength(points);
+    const stops: PStop[] = [];
+    let at = 0;
+    for (const { points: piece, stroke } of chain) {
+        const color = stroke?.color ?? first.stroke.color;
+        const opacity = stroke?.opacity ?? 1;
+        stops.push({ offset: at / total, color, opacity });
+        at += pathLength(piece);
+        stops.push({ offset: at / total, color, opacity });
+    }
+    const end = points.at(-1) ?? points[0];
+    const angle = (Math.atan2(end[1] - points[0][1], end[0] - points[0][0]) * 180) / Math.PI;
+    const line: Prim = {
+        ...first,
+        points,
+        box: boxOfPoints(points),
+        stroke: { ...first.stroke, gradient: { kind: "linear", stops, angle } },
+    };
+    return { line, pieces: new Set(chain) };
+}
+
 const longestPath = (prims: readonly Prim[]): Prim | undefined =>
     [...prims]
         .filter((p) => p.kind === "path" || (p.closed && p.fill === null))
@@ -1600,7 +1647,8 @@ export function associate(
                 // was read as the line, its fill and borders as arrowheads)
                 const dress = new Set(whole.filter((p) => labelDress(p, whole)));
                 const part = whole.filter((p) => !dress.has(p));
-                const line = longestPath(part);
+                const segmented = segmentedLine(part);
+                const line = segmented?.line ?? longestPath(part);
                 if (line === undefined) {
                     continue;
                 }
@@ -1632,7 +1680,14 @@ export function associate(
                 // a stroked arc across it (arrows.c arrow_type_curve), both open paths; the stem carries the line to
                 // the tip, the arc is the arrowhead, hollow. A piece of the route (an orthogonal route's rounded
                 // corner, its next straight run) joins the line end to end; an arc of a cap joins nothing.
-                const open = part.filter((q) => q !== line && q.kind === "path" && !q.closed && q.fill === null);
+                const open = part.filter(
+                    (q) =>
+                        q !== line &&
+                        segmented?.pieces.has(q) !== true &&
+                        q.kind === "path" &&
+                        !q.closed &&
+                        q.fill === null,
+                );
                 const stems = open.filter((q) => !strokedArc(q) && alongEnd(q.points, line.points, endOf(q)));
                 const joints = [line, ...open.filter((q) => !strokedArc(q) && !stems.includes(q))].flatMap((q) => [
                     q.points[0],

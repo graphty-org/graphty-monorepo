@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
-import { withoutCaptions } from "./compare-oracle";
+import { rampColor, withoutCaptions } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 
 type Cap = DrawnEdge["caps"][number];
@@ -217,15 +217,33 @@ describe("graphty's drawing in the oracle comparison's model", () => {
     it("reads a line painted in a gradient as that gradient, its first stop its color", () => {
         const linear = graphOf([], null, { kind: "linear", colors: ["#ff0000", "#00ff00", "#0000ff"] }).edges[0].stroke;
         assert.strictEqual(linear?.color, "#ff0000");
+        // each piece is one color from its start to its end
         assert.deepEqual(
-            linear?.gradient?.stops.map((s) => s.color),
-            ["#ff0000", "#00ff00", "#0000ff"],
+            linear?.gradient?.stops.map((s) => [s.offset, s.color]),
+            [
+                [0, "#ff0000"],
+                [1 / 3, "#ff0000"],
+                [1 / 3, "#00ff00"],
+                [2 / 3, "#00ff00"],
+                [2 / 3, "#0000ff"],
+                [1, "#0000ff"],
+            ],
         );
         assert.strictEqual(linear?.gradient?.angle, 0);
         // a radial one is read out from the middle: the middle piece is its first stop
         const radial = graphOf([], null, { kind: "radial", colors: ["#0000ff", "#ff0000", "#0000ff"] }).edges[0].stroke;
         assert.deepEqual([radial?.gradient?.kind, radial?.color, radial?.gradient?.angle], ["radial", "#ff0000", null]);
         assert.isNull(graphOf([]).edges[0].stroke?.gradient ?? null);
+    });
+
+    it("reads a hard switch between two pieces as drawn, not a blend of their colors at the switch", () => {
+        // Graphviz's `red;0.5:blue`, drawn as 64 pieces: half red, half blue
+        const colors = Array.from({ length: 64 }, (_, i) => (i < 32 ? "#ff0000" : "#0000ff"));
+        const { stroke } = graphOf([], null, { kind: "linear", colors }).edges[0];
+        const ramp = stroke?.gradient ?? null;
+
+        assert.isNotNull(ramp);
+        assert.include(["#ff0000", "#0000ff"], ramp === null ? "" : rampColor(ramp, 0.5));
     });
 
     it("reads each line pattern into its line class", () => {

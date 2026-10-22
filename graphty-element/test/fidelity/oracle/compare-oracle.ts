@@ -692,7 +692,15 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
         if (!insideNode(n, dense[0]) && !insideNode(n, dense[1])) {
             return path;
         }
-        const i = dense.findIndex((q, k) => k > 0 && !insideNode(n, q));
+        // A line that ends at a corner of its node from across it (Graphviz's `headport=ne` from the left) leaves the
+        // node where it goes on out past a pixel round it: a hair's step out past the corner and back in is the same
+        // corner, which the program's line ends on (dot-specimen-edges-lines headport-ne)
+        const near = { ...n, w: n.w + 2 * ORACLE_TOLERANCES.pixel, h: n.h + 2 * ORACLE_TOLERANCES.pixel };
+        const leaves = (k: number): boolean => {
+            const back = dense.findIndex((q, j) => j >= k && (insideNode(n, q) || !insideNode(near, q)));
+            return back < 0 || !insideNode(n, dense[back]);
+        };
+        const i = dense.findIndex((q, k) => k > 0 && !insideNode(n, q) && leaves(k));
         return i < 1 ? path : [crossing(dense[i - 1], dense[i], n), ...path.slice(of[i])];
     };
     // a ring drawn round a loop's node (vis-network's loop, behind its node) shows only the arc outside the node: it is

@@ -1,6 +1,7 @@
 # Location map layout: nodes on a flat map or a globe
 
-Status: proposal, 2026-10-22. Nothing here is built yet.
+Status: proposal, 2026-10-22, with a prototype on branch `feat/location-map-prototype`; section
+15.3 lists what the prototype's 2026-10-22 review changed.
 
 ## 1. Summary
 
@@ -110,6 +111,7 @@ The layout `location-map`, in the layout catalog (`graphty-element/src/catalog/l
 | `unplaced`   | enum                  | `"tray"`   | Nodes with no usable location: `tray` puts them in a row beside the map, `leave` leaves them where the previous layout put them. They are never put at latitude 0, longitude 0 (`design/extensions/layout.md` already forbids that). |
 | `overlap`    | enum                  | `"spread"` | Nodes at exactly the same place: `spread` arranges them in a small spiral around the point, `stack` keeps them on it.                                                                                                                |
 | `geocoder`   | geocoder name or null | null       | For `place-name`: `"gazetteer"` (offline country, state and city names) or a keyed service. See section 4.5.                                                                                                                         |
+| `nodeScale`  | enum                  | `"scene"`  | `scene`: node sizes are scene units and grow as the camera zooms in; `screen`: every node keeps its size on screen at any zoom, a size-1 node drawn as one unit is when the map's extent fills the view's height.                    |
 
 The location options use the existing option type `"attribute"` with `on: "node"`, the same type the
 algorithms' `weight` option uses (`WEIGHT_OPTION` in `graphty-element/src/catalog/algorithms.ts`),
@@ -222,20 +224,29 @@ entry. Together the parsers are under 10 KB gzipped and live in the lazily loade
 
 `format: "auto"` decides once per column, never per cell, so a geohash column is not half read as
 place names. It samples up to 200 non-empty values and scores each format by the share it parses
-without error and within range. The best format wins when it parses at least 90% of the sample
-and beats the next by a clear margin; otherwise the layout uses the best one and emits
-`W_LOCATION_AMBIGUOUS`. Two rules settle the classic confusion:
+without error and within range. The best format wins; a format that reads within 5% as many values
+is reported with `W_LOCATION_AMBIGUOUS`. Geohash is scored only for a column whose values all have
+one length of at least five characters and contain letters, so ZIP codes and words are never read
+as geohashes. A value the column's format refuses is tried in the formats whose spelling cannot be
+mistaken (a decimal pair, degrees-minutes-seconds, WKT, GeoJSON, ISO 6709), never as a geohash, so
+a column mixing spellings loses no row. Two rules settle the classic confusion:
 
 - A decimal pair is read latitude first (the ISO 6709 order and the common spoken order) unless
   that puts any latitude outside +/-90 and longitude-first does not, in which case it is read
-  longitude first and `W_LOCATION_SWAPPED` says so. GeoJSON and WKT are always longitude first.
+  longitude first and `W_LOCATION_SWAPPED` says so. When longitude first reads as many values (a
+  column of European capitals reads either way), `lon-lat` is an alternative and
+  `W_LOCATION_AMBIGUOUS` points the reader at `format`. GeoJSON and WKT are always longitude first.
 - With separate columns picked by name, `latitude` and `longitude` never swap.
 
 When no location option is set at all, the layout looks for columns named like latitude and
-longitude (the same heuristic Graphistry, Ogma, NeoDash and sigma.js use), then for one column
-whose values a format reads. The graph-samples datasets therefore work with no options. If nothing
-is found the layout refuses with an error code naming the attributes it saw, the way attribute
-options already refuse a misspelled name (`design/extensions/simple-tier.md`).
+longitude (the same heuristic Graphistry, Ogma, NeoDash and sigma.js use), then for the column a
+format reads best, when it reads at least half its values. The graph-samples datasets therefore
+work with no options. When only one of Latitude and Longitude is set, the other is found by name
+and reported as filled. If nothing is found the layout refuses with `layout.needs-location`,
+naming the role nothing fills and the attributes it saw: in its cost estimate before it is chosen
+(so a picker greys it out with the reason), and when it starts (so the previous layout stays drawn).
+Separate latitude and longitude columns also read a hemisphere letter before or after the number
+("51.5074 N") and a decimal comma ("48,8566").
 
 ### 4.3 Conversion and errors
 
@@ -246,7 +257,10 @@ their reasons. The parsed result is also published as two node results,
 `results.location-map.lat` and `results.location-map.lon`, plus `results.location-map.status`
 (`placed`, `unplaced`, `geocoded`), so a style layer or a filter can select unplaced nodes and an
 application can list them. This uses the existing result path that `input.column()` and style
-selectors already resolve.
+selectors already resolve. NOT BUILT in the prototype: results are published only by runs in the
+run registry, and a layout that registered a run would show among the reader's runs. Until that is
+designed, the unplaced nodes' ids are in both unplaced warnings (`params.ids`) and in
+`element.mapFrame.unplaced`, which is what an application's Select reads.
 
 ### 4.4 Parser libraries considered
 
@@ -310,7 +324,9 @@ its datasets from graphty.app, and the same hosting fits.
 Web Mercator is the default because every web tile source is drawn in it, so tiles and nodes line
 up with no reprojection. It cannot show the poles (it stops at +/-85.05 degrees) and inflates
 high latitudes, which is fine for a city or a country and misleading for a world map of
-quantities. Other projections are offered for the bundled map and for equirectangular tile
+quantities. A point past +/-85.05 degrees on a flat Web Mercator map goes to the tray and is
+counted in `W_LOCATION_OUT_OF_RANGE`, rather than drawn on the map's edge. Other projections are
+offered for the bundled map and for equirectangular tile
 sources: equirectangular (plate carree, the NASA GIBS EPSG:4326 tiles), Equal Earth (an equal-area
 world map), Albers USA (the familiar US map with Alaska and Hawaii inset) and transverse Mercator
 (small areas far from the equator). Picking a projection that does not match the tile source's
@@ -374,8 +390,15 @@ The map sits under the nodes:
   drive color or size like any column.
 
 Size on a map: nodes keep their scene size, so on a zoomed-in city map they look as they do in any
-layout. A later option, `nodeScale: "screen"`, could hold node size in pixels while zooming, as web
-maps do with markers; it is listed in section 10.
+layout; `nodeScale: "screen"` holds node size on screen while zooming, as web maps do with markers.
+On the globe the radius is set so the data's extent spans `size` scene units of arc, the same share
+of the view as on the flat map, so a node is the same size on either surface.
+
+Contrast: while a map is drawn, edges no style layer outlined get a thin light casing and nodes a
+light outline (`basemap.casing`, default on), and nodes are drawn after edges, with edges writing no
+depth, so an arc passing in front of a hub never hides it. The Graph settings "Outline width" did
+nothing visible on the map before this because it only sets the width of outlines a style layer
+draws, and no layer drew one; the casing gives every node on a map an outline it applies to.
 
 ## 7. Edges
 
@@ -526,9 +549,12 @@ world sets `equal-earth` and gets the bundled image. The camera starts framing t
 On the globe, `extent: "data"` turns the globe so the data's center faces the camera and sets the
 camera distance so the data fills the view.
 
-Edge cases: a single node, or all nodes at one point, gets a minimum extent of 1 km; data
-crossing the antimeridian (Fiji, the Aleutians) is detected by the largest longitude gap and the
-extent is centered across 180 degrees.
+Edge cases: a single node, or all nodes at one point, gets a minimum extent of 1 degree; data
+crossing the antimeridian (Fiji, the Aleutians) is detected by the largest longitude gap, the box's
+east edge passes 180 degrees, and longitudes are shifted by 360 into it before projecting, so an
+800 km edge is not drawn across the whole map. `basemap.beyond` defaults to `"continue"`: the map
+goes on past the box (a world to the east and west), so panning or zooming out shows map, and Fit
+frames the camera rather than cropping the picture.
 
 ## 11. Zoom and level of detail
 
@@ -743,6 +769,78 @@ sources and the gazetteer are not built yet.
 - Keys through the existing credential store: no second key store.
 - Edge route as an edge-style property any layout can use: what `design/extensions/candidates.md`
   section 20 recommended.
+
+### 15.3 What the 2026-10-22 review changed
+
+Four reviews of the prototype were sorted into decisions
+(`design/ui/studio/location-map/decisions.md`). The prototype now does the following; names added
+here are prototype names and open (15.1).
+
+- **A map that cannot run says why.** The cost estimate refuses `location-map` with
+  `layout.needs-location` (`{ layout, missing, attributes }`), so the Layout list greys Map out with
+  the app's words; the layout refuses again when it starts, before it becomes the active layout,
+  so the previous layout stays drawn and the form never says Applied. It throws no sentence: a
+  `GraphtyError` whose `details.refusal` is the coded fact.
+- **Feedback on the column choice.** Half a pair is completed by name and reported as `filled` in
+  the frame; every location warning has words under the Latitude and Longitude fields, read from
+  `element.mapFrame.warnings`.
+- **Detection** takes a column that reads at least half its values; geohash only for one-length
+  values of five or more characters with letters; mixed columns retry each value in the
+  unambiguous formats; latitude and longitude columns read hemisphere letters and decimal commas;
+  longitude-first pairs are flagged as ambiguous.
+- **The date line**: `boundsOf` takes the narrowest longitude range and `longitudeIn` shifts points
+  into it; the flat map draws a box past 180 degrees from both copies of the world.
+- **Unplaced nodes**: points past 85.05 degrees on Web Mercator go to the tray; both unplaced
+  warnings carry `unplaced` (one total), `total` and `ids`; the tray is one row; an edge to a tray
+  node is straight; a run on an emptied graph reports nothing. The app's notice names its whole,
+  has Select, and is posted once per layout and options.
+- **Undo** of a map layout publishes its frame again from the nodes' locations (`loadArrangement`),
+  so the map, the routes and the facing come back.
+- **Camera**: a new map is faced (the orbit turned to look at -z) and framed with the map's extent,
+  the tray and the view insets; Fit with the whole graph includes the map, and a kept angle that
+  sees the map from behind is not kept; on the globe the camera's distance from the center never
+  drops below 1.02 radii (wheel or pinch), world data opens at the equator, north up; Top, Side and
+  Isometric look at the map's face, from the south and from its front while a map layout is active.
+- **Tiles**: the level is chosen by texel size on screen with edge tiles sized as whole tiles;
+  failed tiles retry with backoff (1 s doubling to 60 s) and on `online`; a failed tile's parent
+  stands in for its siblings; `setSources` keeps a source that stays; the poles of a Web Mercator
+  source on a globe are filled from its own coarsest tile. Not done: a rule that no two drawn
+  levels in one area differ by more than one.
+- **Status and credits**: the element emits `basemap-status` (`{ source, state, attribution,
+error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, status } }` with
+  `status` null because an image load reveals no HTTP status) and reports `fallback` when a tile
+  service drew nothing and failed; the credits list only sources that drew a tile, each a link,
+  on one line or folded into a "(c)" button, raised by `element.attributionOffset`. The app shows
+  "Not reachable" at a custom Address, announces Map shown and fallback, and sets the offset to the
+  toolbar's height.
+- **Surface in 2D**: `session.layout.optionInEffect(id, option, dimension)` answers
+  `setting.notIn2d` for `location-map.surface`, and the app disables the field with that reason.
+- **"Automatic (column)"**: `element.mapFrame.location` names the columns used; `optionsFor` lists
+  every node column for the three location options, fitting ones first and the rest with
+  `refusal: { code: "location.column-unfit", params: { role, share } }`.
+- **Map choice**: the select in Graph settings > Map is labeled Source; the Map layout form has one
+  row naming the source that moves focus there.
+- **Node size**: `nodeScale` (above) and the globe radius rule.
+- **Gestures**: a reader's own pan or zoom stops the camera gliding back to the selection until it
+  changes (any layout); on a map the wheel zooms toward the pointer; dragging the globe keeps the
+  grabbed point under the pointer (babylonjs-map's `raySphere`).
+- **Reduced motion**: `element.cameraTransitionDuration` (ms; 0 moves at once, glides included);
+  the app sets 0 when the reader prefers reduced motion.
+- **Recommendation**: `recommend.location-map`, fired by `recommendLayout(..., { locations })` and by
+  `session.recommendLayout()`, which reads the map's own estimate. The import's recommended layout
+  is unchanged (it does not pass `locations`).
+- **Gray backdrop**: `natural-earth-gray`, the bundled picture desaturated and lightened in a canvas
+  at load (kind `light` in the catalog); no new image file.
+- **Small fixes**: Escape in the Advanced pop-out closes only it, and its gear has the tooltip
+  Advanced; one-point data spans 1 degree; the Venice sample card is re-rendered with darker edges
+  and outlined nodes (`tools/render-sample-thumbnails.mjs`, median mark contrast 3.5:1 on white).
+
+Added to the open names (15.1): the refusal code `layout.needs-location`, `recommend.location-map`,
+`location.column-unfit`, the frame facts `element.mapFrame` (`location`, `unplaced`, `warnings`),
+`nodeScale`, `basemap.beyond`, `basemap.casing`, `attributionOffset`, `cameraTransitionDuration`,
+`session.layout.optionInEffect`, `session.recommendLayout`, the `basemap-status` event and
+`E_BASEMAP_UNREACHABLE`, the source id `natural-earth-gray` and the catalog kind `light`; and the
+defaults `casing` on and `beyond: "continue"`. `results.location-map.*` is not built (4.3).
 
 ## 16. Implementation plan
 

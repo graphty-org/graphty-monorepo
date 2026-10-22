@@ -357,7 +357,7 @@ The `tools/` directory contains build scripts:
 | `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
-| `pages-builds.sh` | The beta builds in graphty-org/graphty-beta: `pack`, `publish` (release, prune to 30 plus the promoted one, deploy to beta.graphty.app), `live` and `promoted` (read and write `PROMOTED_BUILD`), `resolve` and `compose` (what promotion puts on graphty.app) |
+| `pages-builds.sh` | Copies a build already deployed to beta.graphty.app into graphty-org/graphty-site (graphty.app) as one commit: `find <build>` (`newest` or a commit), `promote <build>` (the whole site, keeping graphty.app's datasets), `data <commit>` (only the hosted datasets, for a release); `--dry-run` does not push |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
@@ -559,8 +559,9 @@ grouped jobs. ci.yml still holds the handling for Mergify merge-queue runs (draf
 `mergify/merge-queue/*` branches, reported as `Queue Checks Pass`), but `.mergify.yml` is deleted
 and Mergify is retired, so no such runs happen. A push to master runs no
 tests: ci.yml builds every package, Storybook and docs site and skips every test, link, cost and
-screenshot job, and beta.graphty.app deploys after every green master build; graphty.app changes only
-when the owner promotes a beta build (`promote-pages.yml`), except the append-only hosted datasets. A red master build opens a
+screenshot job, and beta.graphty.app (this repository's own Pages site) deploys after every green master
+build; graphty.app (graphty-org/graphty-site) changes only when the owner promotes a beta build
+(`promote-pages.yml`) or a release brings new hosted datasets. A red master build opens a
 revert (`master-guard.yml`). Releases run on the release train every 6 hours
 (see "Release versioning"), which runs the full suite, the T4 GPU lane, Hosts and the security
 audit on the exact commit it releases and publishes Coveralls' coverage from that run. The paid T4
@@ -578,10 +579,10 @@ writes this into the golden pull request's description from the landed commit me
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs (in practice the golden pull request), dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (18 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` summarizes (`Queue Checks Pass` belongs to the retired Mergify queue: its handling is still in the file but no longer used). The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate, and its hosted datasets put on graphty.app (`promote-pages.yml` with `data_only`); when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
-| `deploy-pages.yml` | After every green CI run (the build) on master | Publish the whole site (app, docs, Storybooks, hosted data) as a beta build: a release `build-<commit>` of graphty-org/graphty-beta (the newest 30 are kept), deployed to beta.graphty.app (`tools/pages-builds.sh`; the GitHub App in secrets `GRAPHTY_PAGES_APP_ID` and `GRAPHTY_PAGES_APP_KEY`). When the build's hosted datasets differ from graphty.app's, it calls `promote-pages.yml` with `live` to add them to the build graphty.app already serves |
-| `promote-pages.yml` | Dispatch, by the owner only (input: `newest` or a beta build's commit; `dry_run`); called by `deploy-pages.yml` | Put one beta build on graphty.app, with the union of its hosted datasets and the newest build's, and record it in the repository variable `PROMOTED_BUILD`. Rolling back is promoting an earlier build |
+| `deploy-pages.yml` | After every green CI run (the build) on master | Deploy the whole site (app, docs, Storybooks, hosted data) to this repository's GitHub Pages, beta.graphty.app. The run is named `Deploy <commit> to beta.graphty.app` and keeps the site as its `github-pages` artifact for 90 days, which is what promotion copies. No other repository is written |
+| `promote-pages.yml` | Dispatch, by the owner only (input: `newest` or a beta build's commit; `dry_run`); called by `release.yml` with `data_only` | Copy one beta build into graphty-org/graphty-site as one commit (`tools/pages-builds.sh`, with the GitHub App in secrets `GRAPHTY_PAGES_APP_ID` and `GRAPHTY_PAGES_APP_KEY`), keeping the hosted datasets graphty.app has; graphty-site's own workflow deploys it to graphty.app. Rolling back is promoting an earlier build or reverting a commit in graphty-site. The release's call brings only the candidate's hosted datasets, before anything is published |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
 | `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
@@ -1062,6 +1063,11 @@ that starts the same server from the owner's own shell, which is how the owner s
 **IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):
 - Documentation: `https://graphty.app/docs/{package}/`
 - Storybook: `https://graphty.app/storybook/{package}/`
+
+graphty.app is the promoted site, served by graphty-org/graphty-site: it changes only when the owner
+promotes a build (`promote-pages.yml`) or a release brings new hosted datasets. Every green master
+build is on beta.graphty.app, this repository's own GitHub Pages site; link to it only to show
+something that is not promoted yet.
 
 ### Build System
 

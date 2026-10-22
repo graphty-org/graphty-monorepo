@@ -20,7 +20,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, closeSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -126,29 +126,34 @@ async function runAll(o) {
     const started = Date.now();
     const gate = join(repo, "design/ui/studio/tool/with-browser.sh");
     const ids = picked.map((r) => r.id).join(",");
-    const codes = await Promise.all(
-        Array.from({ length: workers }, (_, n) => {
-            const child = spawn(
-                "bash", // NOSONAR(S4036): developer tooling runs the developer's own bash
-                [
-                    gate,
-                    process.execPath,
-                    fileURLToPath(import.meta.url),
-                    "--worker",
-                    String(n + 1),
-                    "--only",
-                    ids,
-                    "--dist",
-                    o.dist,
-                ],
-                {
-                    stdio: "inherit",
-                    env: { ...process.env, BROWSER_SLOTS: "4", BROWSER_GPU: "", DRY_RUN_STARTED: String(started) },
-                },
-            );
-            return new Promise((ok) => child.on("exit", (code) => ok(code)));
-        }),
+    const children = Array.from({ length: workers }, (_, n) =>
+        spawn(
+            "bash", // NOSONAR(S4036): developer tooling runs the developer's own bash
+            [
+                gate,
+                process.execPath,
+                fileURLToPath(import.meta.url),
+                "--worker",
+                String(n + 1),
+                "--only",
+                ids,
+                "--dist",
+                o.dist,
+            ],
+            {
+                stdio: "inherit",
+                env: { ...process.env, BROWSER_SLOTS: "4", BROWSER_GPU: "", DRY_RUN_STARTED: String(started) },
+            },
+        ),
     );
+    // Once every route has its result, a browser still waiting for a slot has nothing left to walk:
+    // stop it rather than wait for a slot it would give straight back.
+    const done = setInterval(() => {
+        if (readdirSync(join(OUT, "results")).length < picked.length) return;
+        for (const c of children) if (c.exitCode === null) c.kill("SIGTERM");
+    }, 1000);
+    const codes = await Promise.all(children.map((c) => new Promise((ok) => c.on("exit", (code) => ok(code)))));
+    clearInterval(done);
     const results = picked.map((r) => {
         const f = join(OUT, "results", `${r.id}.json`);
         return existsSync(f)

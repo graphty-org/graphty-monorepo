@@ -233,7 +233,9 @@ function unknownRefusal(session: GraphSession, check: RuleCheck): Refusal | null
         // "No column named degree" beside a Degree column on screen reads as a contradiction:
         // the line names the column the reader meant, as the screen names it.
         const meant = check.unknown.map(({ candidates }) => shownName(session, candidates[0]) ?? candidates[0]);
-        return { words: `Did you mean ${[...new Set(meant)].join(", ")}?`, rule: `=${check.suggestion}` };
+        // The rewrite keeps the reader's spacing; a trailing space is not part of the rule, and
+        // would make the same correction read, and be spoken, as a new one.
+        return { words: `Did you mean ${[...new Set(meant)].join(", ")}?`, rule: `=${check.suggestion.trim()}` };
     }
     // A bare name and its `data.` path are one column to the reader.
     const names = check.unknown.map(({ path }) => `"${path.replace(/^data\./, "")}"`).join(", ");

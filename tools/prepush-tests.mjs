@@ -289,6 +289,21 @@ function selectRuns(gated, base) {
 }
 
 /**
+ * The shards the gate considers: under selection every shard but the "never" ones (the selector decides),
+ * else those its "local" policy keeps (gateShards).
+ * @param all the shards
+ * @param changed the changed paths, or null
+ * @param selecting selectionOn()
+ * @returns SHARDS entries
+ */
+function candidates(all, changed, selecting) {
+    if (selecting) {
+        return all.filter((s) => s.local !== "never");
+    }
+    return gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
+}
+
+/**
  * Builds the packages the selection runs that nx did not call affected (the gate's Build step built only
  * those), with what they depend on; nx's cache makes an unchanged one free.
  * @param planned the shards to run
@@ -456,10 +471,8 @@ async function main() {
               .split("\n")
               .filter(Boolean)
         : null;
-    const gated = selecting
-        ? all.filter((s) => s.local !== "never")
-        : gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
-    const skipped = all.filter((s) => !gated.includes(s) && (!selecting || s.local !== "never"));
+    const gated = candidates(all, changed, selecting);
+    const skipped = all.filter((s) => !gated.includes(s));
     if (skipped.length > 0) {
         console.log(
             `Left to CI (this push changes none of the files they test): ${skipped.map((s) => s.shard).join(", ")}`,

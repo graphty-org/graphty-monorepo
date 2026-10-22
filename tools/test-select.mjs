@@ -330,18 +330,7 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
     const unexplained = [];
     let unknown = null;
     for (const f of files) {
-        let used = false;
-        for (const dir of dirs) {
-            const gs = graphs.get(dir) ?? [];
-            const known = gs.length > 0 && !gs.includes(null);
-            if (known && gs.some((g) => g.imports[f])) {
-                used = true;
-                gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
-            } else if (namedBy(f, dir, known ? gs : null)) {
-                used = true;
-                whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
-            }
-        }
+        const used = dirs.map((dir) => readBy(f, dir, { graphs, out, whole })).some(Boolean);
         if (used || rules.noTests.some((re) => re.test(f)) || rules.alsoRun.some((e) => e.re.test(f))) {
             continue;
         }
@@ -352,6 +341,31 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
         }
     }
     return { unexplained, unknown };
+}
+
+/**
+ * Whether a package's tests read a root file: those that import it are selected, and a package whose tests
+ * name it runs whole.
+ * @param f a root file
+ * @param dir the package
+ * @param ctx `{ graphs, out, whole }` as rootFiles has them
+ * @param ctx.graphs Map of package directory to its import graphs
+ * @param ctx.out each package's selection
+ * @param ctx.whole marks a package to run whole
+ * @returns boolean
+ */
+function readBy(f, dir, { graphs, out, whole }) {
+    const gs = graphs.get(dir) ?? [];
+    const known = gs.length > 0 && !gs.includes(null);
+    if (known && gs.some((g) => g.imports[f])) {
+        gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
+        return true;
+    }
+    if (namedBy(f, dir, known ? gs : null)) {
+        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
+        return true;
+    }
+    return false;
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);

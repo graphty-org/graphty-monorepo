@@ -185,3 +185,68 @@ describe("a route that crosses its end node to a corner (Graphviz's headport=ne)
         assert.deepEqual(clipToNodes(past, s, t).at(-1), [190, 87]);
     });
 });
+
+describe("a route judged where it runs between its own nodes", () => {
+    it("passes two straight lines between nodes one side draws 10 px off, which node.position judges", () => {
+        // dot-synth-nodes n_alpha -> n_hsv: both straight, graphty's 10 px lower because its nodes are
+        const p = node("p", 150, 200, { w: 30, h: 20 });
+        const q = node("q", 250, 200, { w: 30, h: 20 });
+        const o = scene(
+            "oracle",
+            [p, q],
+            [
+                edge("p", "q", [
+                    [165, 200],
+                    [235, 200],
+                ]),
+            ],
+        );
+        const g = scene(
+            "graphty",
+            [
+                { ...p, cy: 210 },
+                { ...q, cy: 210 },
+            ],
+            [
+                edge("p", "q", [
+                    [165, 210],
+                    [235, 210],
+                ]),
+            ],
+        );
+        assert.strictEqual(passRate(o, g, "edge.route"), 1);
+        assert.strictEqual(passRate(o, g, "edge.curve"), 1);
+        // the same lines ending 10 px apart on nodes drawn alike: a port moved, which edge.route judges
+        const moved = scene(
+            "graphty",
+            [p, q],
+            [
+                edge("p", "q", [
+                    [165, 210],
+                    [235, 210],
+                ]),
+            ],
+        );
+        assert.strictEqual(passRate(o, moved, "edge.route"), 0);
+    });
+
+    it("fails a long route sent through the middle of another node, past a share of its chord", () => {
+        // dot-synth-nodes n_html3 -> n_unfilled: 1044 px long, sent 45 px off its chord through a 33 x 22 node
+        const wide = (side: PScene["side"], bump: number): PScene => ({
+            ...scene(
+                side,
+                [node("p", 50, 380, { w: 33, h: 22 }), node("q", 1100, 380, { w: 33, h: 22 })],
+                [
+                    edge("p", "q", [
+                        [66, 380],
+                        [575, 380 - bump],
+                        [1084, 380],
+                    ]),
+                ],
+            ),
+            width: 1200,
+        });
+        assert.strictEqual(passRate(wide("oracle", 0), wide("graphty", 0), "edge.route"), 1);
+        assert.strictEqual(passRate(wide("oracle", 0), wide("graphty", 45), "edge.route"), 0);
+    });
+});

@@ -626,6 +626,38 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
 }
 
 /**
+ * The axis of an inverted triangle drawn on from a line's end, its point on the end: the unit direction from the point
+ * to the middle of its two far corners, when those lie about as far from the point (within a tenth) and the cap's
+ * middle lies on that line, within CAP_AXIS_AGREE. Graphviz's `inv` on a spline that kinks at its end
+ * (dot-synth-edges-clusters c7_1 -> c8_0: the line's last sampled run is 30 degrees off the head) was read along the
+ * kinked run, which makes no shape of it.
+ * @param pts - the cap's points
+ * @param end - the point
+ * @returns the direction, or null for a cap that is not so
+ */
+function invertedAxis(pts: readonly Pt[], end: Pt): Pt | null {
+    const corners = pts.filter((p, i) => pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+    if (corners.length !== 3) {
+        return null;
+    }
+    const byDist = [...corners].sort(
+        (a, b) => Math.hypot(a[0] - end[0], a[1] - end[1]) - Math.hypot(b[0] - end[0], b[1] - end[1]),
+    );
+    const [near, a, b] = byDist;
+    const [da, db] = [a, b].map((p) => Math.hypot(p[0] - end[0], p[1] - end[1]));
+    const toNear = Math.hypot(near[0] - end[0], near[1] - end[1]);
+    const back: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const reach = Math.hypot(back[0] - end[0], back[1] - end[1]);
+    const mid = areaCentroid(pts);
+    if (mid === null || !(reach > 1e-9) || Math.abs(da - db) > 0.1 * Math.max(da, db) || toNear > 0.25 * reach) {
+        return null;
+    }
+    const axis: Pt = [(back[0] - end[0]) / reach, (back[1] - end[1]) / reach];
+    const off = Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
+    return Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
+}
+
+/**
  * The direction a cap points in. A cap drawn on from where its line stops (its back on the line's end) points along
  * its own axis, which need not be the line's end direction: Gephi ends an arc short of its node and aims the arrowhead
  * from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4` (34 on a short arc
@@ -646,7 +678,7 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
     if (end === undefined) {
         return dir;
     }
-    const axis = pointedAxis(outline, end);
+    const axis = pointedAxis(outline, end) ?? invertedAxis(outline, end);
     if (axis === null) {
         return dir;
     }

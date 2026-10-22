@@ -273,6 +273,8 @@ export interface PArrow {
     shape: ArrowShape;
     /** `#rrggbb`: its fill where it is filled, else its outline's color; null where the drawing does not say. */
     color: string | null;
+    /** graphty's side: how many pixels past the allowance it sits off its line's end (`capPlaceMiss`); absent when on it. */
+    misplaced?: number;
 }
 
 /** An edge as drawn. */

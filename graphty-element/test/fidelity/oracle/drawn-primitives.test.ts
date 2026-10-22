@@ -10,6 +10,7 @@ import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene"
 import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
 import { rampColor, withoutCaptions } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
+import type { Pt } from "./primitives";
 
 type Cap = DrawnEdge["caps"][number];
 const cap = (over: Partial<Cap>): Cap => ({
@@ -80,6 +81,39 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({})]).edges[0].arrows, 1);
+    });
+
+    it("reads a head drawn backward by its outline, and one off its line's end as misplaced", () => {
+        const head = (pts: Pt[], name = "arrow-2d-normal"): PScene["edges"][number]["arrows"][number] =>
+            graphOf([cap({ name, outline: pts })]).edges[0].arrows[0];
+        const at = (dx: number, dy: number, back = false): Pt[] =>
+            back
+                ? [
+                      [100 + dx, -5 + dy],
+                      [90 + dx, dy],
+                      [100 + dx, 5 + dy],
+                  ]
+                : [
+                      [90 + dx, -5 + dy],
+                      [100 + dx, dy],
+                      [90 + dx, 5 + dy],
+                  ];
+        const onEnd = head(at(0, 0));
+        assert.strictEqual(onEnd.shape, "triangle");
+        assert.isUndefined(onEnd.misplaced);
+        // the scene names it a triangle, its outline points back at the line
+        assert.strictEqual(head(at(0, 0, true)).shape, "inverted");
+        // a 15 px gap ahead of the line, 30 px back along it, 12 px to its side
+        assert.isAbove(head(at(15, 0)).misplaced ?? 0, 0);
+        assert.isAbove(head(at(-40, 0)).misplaced ?? 0, 0);
+        assert.isAbove(head(at(0, 12)).misplaced ?? 0, 0);
+        // half an arrow lies to one side by its make
+        const half: Pt[] = [
+            [90, -5],
+            [100, 0],
+            [90, 0],
+        ];
+        assert.isUndefined(head(half, "arrow-2d-half").misplaced);
     });
 
     it("reads the arrowhead of an edge it draws no line for as a free shape, as the oracle's is a stray", () => {

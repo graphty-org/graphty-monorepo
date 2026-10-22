@@ -1783,6 +1783,69 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         }
     });
 
+    it("fails a dash pattern of another period, and a head of fewer parts in a row", () => {
+        const dashedWith = (side: PScene["side"], dash: number[], heads: number): PScene => {
+            const scene = sceneOf(side, 600, 400, grid());
+            const head = { end: "target" as const, length: 10, width: 8, filled: true, shape: "triangle" as const };
+            scene.edges = [
+                {
+                    ...edge("e1", [
+                        [120, 100],
+                        [280, 100],
+                    ]),
+                    stroke: { color: "#0000ff", opacity: 1, width: 1, dash, dashClass: "dashed" },
+                    arrows: Array.from({ length: heads }, () => ({ ...head, color: "#0000ff" })),
+                },
+            ];
+            return scene;
+        };
+        const r = (o: PScene, g: PScene) => compareOracle("t", o, g).properties;
+        // Graphviz's penwidth=3 dashes [5, 2] drawn [8.4, 7.2]
+        assert.strictEqual(
+            r(dashedWith("oracle", [5, 2], 1), dashedWith("graphty", [8.4, 7.2], 1))["edge.dashPeriod"].passRate,
+            0,
+        );
+        assert.strictEqual(
+            r(dashedWith("oracle", [5, 2], 1), dashedWith("graphty", [5.5, 2.1], 1))["edge.dashPeriod"].passRate,
+            1,
+        );
+        // Graphviz's normalnormal, two heads in a row, drawn as one
+        assert.strictEqual(
+            r(dashedWith("oracle", [5, 2], 2), dashedWith("graphty", [5, 2], 1))["edge.arrowParts"].passRate,
+            0,
+        );
+        assert.strictEqual(
+            r(dashedWith("oracle", [5, 2], 2), dashedWith("graphty", [5, 2], 2))["edge.arrowParts"].passRate,
+            1,
+        );
+    });
+
+    it("fails an arrowhead a quarter too long, and lets a few-pixel head round by a pixel", () => {
+        const withHead = (side: PScene["side"], length: number, width: number): PScene => {
+            const scene = sceneOf(side, 600, 400, grid());
+            scene.edges = [
+                {
+                    ...edge("e1", [
+                        [120, 100],
+                        [280, 100],
+                    ]),
+                    arrows: [{ end: "target", length, width, filled: true, shape: "triangle", color: "#0000ff" }],
+                },
+            ];
+            return scene;
+        };
+        const rate = (
+            o: [number, number],
+            g: [number, number],
+            p: "edge.arrowLength" | "edge.arrowWidth",
+        ): number | null =>
+            compareOracle("t", withHead("oracle", ...o), withHead("graphty", ...g)).properties[p].passRate;
+        assert.strictEqual(rate([20, 16], [25, 16], "edge.arrowLength"), 0, "a quarter too long");
+        assert.strictEqual(rate([20, 16], [20, 20], "edge.arrowWidth"), 0, "a quarter too wide");
+        assert.strictEqual(rate([20, 16], [22, 17], "edge.arrowLength"), 1, "a tenth longer");
+        assert.strictEqual(rate([3, 2], [4, 3], "edge.arrowLength"), 1, "a pixel on a 3 px head");
+    });
+
     it("fails arrowheads too large for the drawing's spacing where the layouts are unrelated", () => {
         const elsewhere: Pt[] = [
             [50, 50],

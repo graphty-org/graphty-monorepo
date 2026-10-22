@@ -216,6 +216,9 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     }
     const scenes = { oracle: association.scene, graphty };
     let matched: OracleScored | null = null;
+    // graphty's drawing with its nodes moved, kept with the report: whether a routed edge follows its moved node is
+    // read off it, not guessed from the scores
+    let matchedGraphty: unknown = null;
     if (await matchPositions(element, first, meta.mirrored === true)) {
         const second = await compareWithOracle(
             id,
@@ -224,6 +227,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
             `${command}; nodes moved to the oracle's positions`,
         );
         matched = { report: second.report, scores: { ...second.scores } };
+        matchedGraphty = second.graphty;
     }
     if (options.write) {
         await commands.writeFile(`${ORACLE_OUT}/${id}.graphty.png`, shot, { encoding: "base64" });
@@ -248,7 +252,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
                   };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
-            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched: matched, scenes }, null, 1)}\n`,
+            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched: matched === null ? null : { ...matched, graphty: matchedGraphty }, scenes }, null, 1)}\n`,
         );
     }
     return {

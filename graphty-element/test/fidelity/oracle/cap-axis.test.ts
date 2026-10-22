@@ -338,3 +338,26 @@ describe("an arrowhead drawn as separate pieces in one path", () => {
         assert.strictEqual(measureArrow(pieces.flat(), path, "target", { ...look, pieces }).shape, "other");
     });
 });
+
+describe("an inverted arrowhead on a line that kinks at its end", () => {
+    it("is read along its own axis, not the kinked line's last run (dot-synth-edges-clusters c7_1 -> c8_0)", () => {
+        // Graphviz's `inv` at the end of a spline whose last few pixels turn 30 degrees off the run before them,
+        // sampled every 4 px: the last sampled run is the long one
+        const path: Pt[] = [
+            [740.71, 273.46],
+            [744.83, 273.63],
+            [748.95, 273.8],
+            [753.07, 273.97],
+            [757.2, 274.14],
+            [761.14, 274.78],
+        ];
+        const head: Pt[] = [
+            [764.91, 276.07],
+            [761.02, 274.69],
+            [763.2, 278.2],
+            [764.91, 276.07],
+            [764.91, 276.07],
+        ];
+        assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "inverted");
+    });
+});

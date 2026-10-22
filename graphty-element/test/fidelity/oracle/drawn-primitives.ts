@@ -22,6 +22,7 @@ import {
     type PNode,
     type PScene,
     type PShape,
+    type Pt,
     type PText,
 } from "./primitives";
 
@@ -204,6 +205,75 @@ const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
     vee: "crow",
     crow: "vee",
 };
+
+/** One of graphty's drawn caps. */
+type DrawnCap = DrawnEdge["caps"][number];
+
+/** How far off its line's end a cap may sit before a reader sees it stand off, sit back or sit aside, in pixels. */
+const CAP_PLACE_PX = 2;
+
+/**
+ * graphty's cap as drawn: its shape by its name, unless its outline points the other way along the line (a head drawn
+ * backward), and how far it sits off its line's end. The name alone read a head drawn backward, or one standing 15 px
+ * off its line, 30 px back along it or 12 px to its side, as a head in its place (extendToTip bridged a gap to it).
+ * @param c - the cap
+ * @param line - the line as drawn, source end first, before any cap carries it on
+ * @returns the arrow
+ */
+function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
+    const end = CAP_END[c.end];
+    const open =
+        (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
+        STROKED_NAMES.some((n) => c.name.includes(n));
+    // a cap part-way along is classed against the line's direction, source to target, as the oracle's is: a mid tail
+    // points back along it
+    const named = arrowShapeNamed(c.name);
+    const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+    // a picture's colors are its own, not the cap's
+    const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
+    if (c.outline === null) {
+        return { end, length: c.sizePx, width: c.sizePx, ...look };
+    }
+    const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
+    const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
+    const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // a half arrow lies to one side of its line by its make
+    const misplaced = end === "middle" ? 0 : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
+    return misplaced > 0 ? { ...arrow, misplaced } : arrow;
+}
+
+/**
+ * How far past `CAP_PLACE_PX` a cap at a line's end sits off it: ahead of the end with a gap between, behind it
+ * wholly back along the line, or its middle aside from the line by more than a quarter of its width.
+ * @param outline - the cap's points
+ * @param line - the line, source end first
+ * @param end - the end it caps
+ * @param centered - whether the cap is drawn centered on its line (not half an arrow)
+ * @returns the pixels past the allowance, 0 for a cap on its end
+ */
+export function capPlaceMiss(
+    outline: readonly Pt[],
+    line: readonly Pt[],
+    end: "source" | "target",
+    centered = true,
+): number {
+    const run = end === "target" ? line : [...line].reverse();
+    const tip = run.at(-1);
+    const from = [...run].reverse().find((p) => tip !== undefined && Math.hypot(p[0] - tip[0], p[1] - tip[1]) >= 1);
+    if (tip === undefined || from === undefined || outline.length === 0) {
+        return 0;
+    }
+    const len = Math.hypot(tip[0] - from[0], tip[1] - from[1]);
+    const [ux, uy] = [(tip[0] - from[0]) / len, (tip[1] - from[1]) / len];
+    const along = outline.map(([x, y]) => (x - tip[0]) * ux + (y - tip[1]) * uy);
+    const across = outline.map(([x, y]) => -(x - tip[0]) * uy + (y - tip[1]) * ux);
+    const width = Math.max(...across) - Math.min(...across);
+    const middle = (Math.max(...across) + Math.min(...across)) / 2;
+    const ahead = Math.max(0, Math.min(...along));
+    const behind = Math.max(0, -Math.max(...along));
+    const aside = centered ? Math.max(0, Math.abs(middle) - 0.25 * width) : 0;
+    return Math.max(0, Math.max(ahead, behind, aside) - CAP_PLACE_PX);
+}
 
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
@@ -539,21 +609,7 @@ export function drawnPrimitives(
         // a cap drawn at no opacity or no size draws nothing
         const arrows: PArrow[] = d.caps
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => {
-                const end = CAP_END[c.end];
-                const open =
-                    (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
-                    STROKED_NAMES.some((n) => c.name.includes(n));
-                // a cap part-way along is classed against the line's direction, source to target, as the oracle's
-                // is: a mid tail points back along it
-                const named = arrowShapeNamed(c.name);
-                const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
-                // a picture's colors are its own, not the cap's
-                const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
-                return c.outline === null
-                    ? { end, length: c.sizePx, width: c.sizePx, ...look }
-                    : measureArrow(c.outline, d.points, end, look);
-            });
+            .map((c) => drawnArrow(c, d.points));
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's

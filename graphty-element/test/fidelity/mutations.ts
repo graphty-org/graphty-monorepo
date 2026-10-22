@@ -332,6 +332,44 @@ const DEFECTS = {
             a.width *= 2;
         });
     }),
+    "arrowheads x1.25": eachEdge((e) => {
+        e.arrows.forEach((a) => {
+            a.length *= 1.25;
+            a.width *= 1.25;
+        });
+    }),
+    "arrowheads drawn off their line's end": eachEdge((e) => {
+        e.arrows.forEach((a) => {
+            if (a.end !== "middle") {
+                a.misplaced = 15;
+            }
+        });
+    }),
+    "longest straight edge bent off its chord by a twenty-fifth of its length": (s) => {
+        const straight = s.edges.filter((e) => curvature(e.points) <= 0.01 && e.points.length >= 2);
+        const chord = (e: PEdge): number => {
+            const [a, b] = [e.points[0], e.points[e.points.length - 1]];
+            return Math.hypot(b[0] - a[0], b[1] - a[1]);
+        };
+        const e = [...straight].sort((x, y) => chord(y) - chord(x))[0];
+        if (e !== undefined) {
+            const [a, b] = [e.points[0], e.points[e.points.length - 1]];
+            const off = 0.04;
+            e.points = [a, [(a[0] + b[0]) / 2 - (b[1] - a[1]) * off, (a[1] + b[1]) / 2 + (b[0] - a[0]) * off], b];
+        }
+        return s;
+    },
+    "a second arrowhead part at the target end": eachEdge((e) => {
+        const head = e.arrows.find((a) => a.end === "target");
+        if (head !== undefined) {
+            e.arrows.push({ ...head });
+        }
+    }),
+    "edge dashes and gaps x2": eachEdge((e) => {
+        if (e.stroke !== null && e.stroke.dash !== null) {
+            e.stroke.dash = e.stroke.dash.map((x) => 2 * x);
+        }
+    }),
     "arrowhead removed at target end": eachEdge((e) => {
         e.arrows = e.arrows.filter((a) => a.end !== "target");
     }),
@@ -856,6 +894,25 @@ const DEFECTS = {
         });
         return s;
     },
+    "one extra free text": (s) => {
+        const size = 14;
+        const [x, y] = [s.width * 0.5, s.height * 0.97];
+        s.texts.push({
+            content: "planted words",
+            x,
+            y,
+            box: { x0: x - 5 * size, y0: y - size / 2, x1: x + 5 * size, y1: y + size / 2 },
+            sizePx: size,
+            family: "Verdana",
+            weight: 400,
+            style: "normal",
+            anchor: "middle",
+            rotation: 0,
+            color: "#000000",
+            opacity: 1,
+        });
+        return s;
+    },
     "whole drawing turned 20deg": (s) => reframe(s, 20, 1),
     "whole drawing zoomed x1.5": (s) => reframe(s, 0, 1.5),
     "one node moved twice its size": (s) => {
@@ -907,6 +964,11 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "curved edges straightened": ["edge.route", "edge.curve"],
     "straight edges bowed": ["edge.route", "edge.curve"],
     "arrowheads x2": ["edge.arrow", "edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+    "arrowheads x1.25": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+    "arrowheads drawn off their line's end": ["edge.arrowPlace"],
+    "a second arrowhead part at the target end": ["edge.arrowParts"],
+    "edge dashes and gaps x2": ["edge.dashPeriod"],
+    "longest straight edge bent off its chord by a twenty-fifth of its length": ["edge.route"],
     "arrowhead removed at target end": ["edge.arrow"],
     "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
     "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
@@ -994,6 +1056,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "one extra group box": ["group.extra"],
     "annotations removed": ["stray.present"],
     "one extra annotation added": ["stray.extra"],
+    "one extra free text": ["stray.extra"],
     "whole drawing turned 20deg": ["frame.rotation", "node.position"],
     "whole drawing zoomed x1.5": ["frame.zoom"],
 };
@@ -1016,6 +1079,26 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
                     ),
         ),
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+    // a bend a twenty-fifth of the chord off is over the route's allowance only where that is more than its end
+    // nodes' smaller side, and routes are judged only between related layouts
+    "longest straight edge bent off its chord by a twenty-fifth of its length": (base, oracle) => {
+        const byId = new Map(oracle.nodes.map((n) => [n.id, n]));
+        return (
+            base.transform !== null &&
+            !base.transform.unrelatedLayout &&
+            oracle.edges.some((e) => {
+                const [a, b] = [e.points[0], e.points[e.points.length - 1]];
+                const ends = [byId.get(e.source), byId.get(e.target)];
+                return (
+                    a !== undefined &&
+                    b !== undefined &&
+                    ends.every(
+                        (n) => n !== undefined && 0.04 * Math.hypot(b[0] - a[0], b[1] - a[1]) > 2 * Math.min(n.w, n.h),
+                    )
+                );
+            })
+        );
+    },
     "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
     // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is. A
     // caption's face is not judged: a DOT sheet's captions are DejaVu Sans, its `default` specimen Graphviz's Times

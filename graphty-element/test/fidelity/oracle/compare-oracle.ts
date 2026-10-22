@@ -76,11 +76,14 @@ export const ORACLE_PROPERTIES = [
     "edge.width",
     "edge.opacity",
     "edge.dash",
+    "edge.dashPeriod",
     "edge.gradient",
     "edge.outline",
     "edge.overlay",
     "edge.arrow",
     "edge.arrowShape",
+    "edge.arrowParts",
+    "edge.arrowPlace",
     "edge.arrowFill",
     "edge.arrowColor",
     "edge.arrowLength",
@@ -191,7 +194,13 @@ export const ORACLE_TOLERANCES = {
     edgeWidthRatio: [0.9, 1.1],
     /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
     gradientAngleDeg: 15,
-    arrowRatio: [0.67, 1.5],
+    /**
+     * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
+     * oracle's, which a rounding on a small head moves by more than the ratio allows.
+     */
+    arrowRatio: [0.85, 1.18],
+    /** A dash pattern's period and the share of it drawn, graphty's over the oracle's. */
+    dashRatio: [0.67, 1.5],
     groupIoU: 0.8,
     strayIoU: 0.5,
     /** A mirrored fit is the drawing's when it leaves under this share of the unmirrored fit's squared residual. */
@@ -599,6 +608,50 @@ function sizeMiss(o: number, g: number, range: readonly number[]): number {
 }
 
 /**
+ * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
+ * rounding on a head a few pixels long moves by more than the ratio allows.
+ * @param o - the oracle's size, in oracle pixels
+ * @param g - graphty's, in oracle pixels
+ * @param pixel - a render pixel, in oracle pixels
+ * @returns the miss, 0 when alike
+ */
+function arrowMiss(o: number, g: number, pixel: number): number {
+    return Math.abs(g - o) <= pixel ? 0 : ratioMiss(g / Math.max(o, 1e-9), ORACLE_TOLERANCES.arrowRatio);
+}
+
+/**
+ * How far graphty's dash pattern is from the oracle's, where both read one: the period (a dash and the gap after it,
+ * each the mean of its kind) and the share of it drawn, each by its ratio (`dashRatio`). Only the class was judged, so
+ * Graphviz's sparse dots drawn nearly solid and Cytoscape's long dashes drawn as equal ones passed.
+ * @param o - the oracle's dash array, in oracle pixels
+ * @param g - graphty's, in graphty pixels
+ * @param scale - graphty pixels to oracle pixels
+ * @returns the miss and each side's period and share, or null where a side reads none
+ */
+function dashMiss(
+    o: readonly number[] | null,
+    g: readonly number[] | null,
+    scale: number,
+): { miss: number; oracle: string; graphty: string } | null {
+    const read = (d: readonly number[] | null, k: number): { period: number; on: number } | null => {
+        if (d === null || d.length < 2) {
+            return null;
+        }
+        const mean = (xs: readonly number[]): number => xs.reduce((t, x) => t + x, 0) / xs.length;
+        const on = mean(d.filter((_, i) => i % 2 === 0)) * k;
+        const off = mean(d.filter((_, i) => i % 2 === 1)) * k;
+        return on + off > 0 ? { period: on + off, on: on / (on + off) } : null;
+    };
+    const [a, b] = [read(o, 1), read(g, scale)];
+    if (a === null || b === null) {
+        return null;
+    }
+    const R = ORACLE_TOLERANCES.dashRatio;
+    const show = (x: { period: number; on: number }): string => `${x.period.toFixed(1)} px, ${x.on.toFixed(2)} on`;
+    return { miss: ratioMiss(b.period / a.period, R) + ratioMiss(b.on / a.on, R), oracle: show(a), graphty: show(b) };
+}
+
+/**
  * How far one opacity is from another: past the opacity tolerance apart, or past its ratio where both show.
  * @param o - the oracle's
  * @param g - graphty's
@@ -726,10 +779,20 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
  * together. A loop's chord is next to nothing; it is judged as drawn, against its length instead.
  * @param o - the oracle's route
  * @param g - graphty's, in the oracle's frame and direction
+ * @param shift - how far graphty's source and target nodes sit from the oracle's, each end's own: an end is judged
+ *     where it sits on its node, and where the node sits is node.position's to judge (dot-synth-nodes n_alpha ->
+ *     n_hsv: two straight lines, 10 px apart because their nodes are)
  * @returns the larger of the ends' distance and the shapes' Frechet distance over `pathSamples` samples, as a share
  *     of `unit` oracle pixels
  */
-export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; unit: number } {
+export function routeShape(
+    o: readonly Pt[],
+    g: readonly Pt[],
+    shift: readonly [Pt, Pt] = [
+        [0, 0],
+        [0, 0],
+    ],
+): { gap: number; unit: number } {
     const N = ORACLE_TOLERANCES.pathSamples;
     const length = pathLength(o);
     if (o.length > 2 && g.length > 2 && closedRing(o) && closedRing(g)) {
@@ -756,9 +819,11 @@ export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; u
             (-(x - a[0]) * uy + (y - a[1]) * ux) / L,
         ]);
     };
+    const [gs, gt] = [g[0], g.at(-1) ?? g[0]];
+    const [os, ot] = [o[0], o.at(-1) ?? o[0]];
     const ends = Math.max(
-        Math.hypot(g[0][0] - o[0][0], g[0][1] - o[0][1]),
-        Math.hypot((g.at(-1) ?? g[0])[0] - (o.at(-1) ?? o[0])[0], (g.at(-1) ?? g[0])[1] - (o.at(-1) ?? o[0])[1]),
+        Math.hypot(gs[0] - shift[0][0] - os[0], gs[1] - shift[0][1] - os[1]),
+        Math.hypot(gt[0] - shift[1][0] - ot[0], gt[1] - shift[1][1] - ot[1]),
     );
     return { gap: Math.max(ends / chord, frechet(resample(own(o), N), resample(own(g), N))), unit: chord };
 }
@@ -1035,7 +1100,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.backgroundBorder": `a border round the box behind the words on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's and its width in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
-    "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop; at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
+    "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): its ends where they sit on their own nodes: Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop), but no more than its end nodes' smaller side, and at least ${String(ORACLE_TOLERANCES.pixel)} render px`,
     "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
@@ -1048,10 +1113,13 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
         "the same shape class at each end (triangle, inverted, vee, crow, diamond, circle, box, tee, half); one no class names matches nothing",
+    "edge.arrowParts": "as many arrowhead parts in a row at each end",
+    "edge.dashPeriod": `where both sides read a dash array: its period (a dash and a gap) and the share of it drawn, each ratio in [${ORACLE_TOLERANCES.dashRatio.join(", ")}]`,
+    "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels`,
     "edge.arrowFill": "filled on both or hollow on both, at each end",
     "edge.arrowColor": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at each end`,
-    "edge.arrowLength": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
-    "edge.arrowWidth": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}]`,
+    "edge.arrowLength": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}], or within ${String(ORACLE_TOLERANCES.pixel)} render pixels`,
+    "edge.arrowWidth": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}], or within ${String(ORACLE_TOLERANCES.pixel)} render pixels`,
     "edge.arrowToSpacing": `arrowhead length over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "edge.label": "same words",
     "group.present": "every oracle group box is drawn by graphty",
@@ -1780,8 +1848,21 @@ export function compareOracle(
         if (shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel)) {
             return { gap: 0, near: T.edgePathOfLength };
         }
-        const { gap, unit } = routeShape(...visible(o, g));
-        return { gap, near: Math.max(T.edgePathOfLength, pixel / unit) };
+        const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
+        const shiftOf = (gId: string, oId: string): Pt => {
+            const [at, on] = [gOuter(gId), oById.get(oId)];
+            return at === undefined || on === undefined ? [0, 0] : [at.cx - on.cx, at.cy - on.cy];
+        };
+        const [vo, vg] = visible(o, g);
+        const { gap, unit } = routeShape(vo, vg, [shiftOf(gs, o.source), shiftOf(gt, o.target)]);
+        // a share of a long chord is more than a node: a line sent through another node on the way passed
+        // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
+        // is no more than the smaller side of the smaller of its two end nodes
+        const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
+            n === undefined ? [] : [Math.min(n.w, n.h)],
+        );
+        const cap = ends.length === 2 ? Math.min(...ends) / unit : Infinity;
+        return { gap, near: Math.max(Math.min(T.edgePathOfLength, cap), pixel / unit) };
     };
     const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
     const sameWords = (o: PEdge, list: readonly PEdge[]): number => {
@@ -2081,6 +2162,10 @@ export function compareOracle(
                 o.stroke.dashClass,
                 lineClassAt(g.stroke, lengthScale),
             );
+            const dashes = dashMiss(o.stroke.dash, g.stroke.dash, lengthScale);
+            if (dashes !== null) {
+                j.add("edge.dashPeriod", "edge", id, dashes.miss, dashes.oracle, dashes.graphty);
+            }
             // a gradient along an edge runs against its own line: its direction is judged against its chord
             const og = o.stroke.gradient ?? null;
             const gg = g.stroke.gradient ?? null;
@@ -2112,6 +2197,9 @@ export function compareOracle(
             if (oa === undefined || gg === undefined) {
                 continue;
             }
+            // a head of several parts in a row (Graphviz's boxdotnormal, crowtee) is read one arrow a part
+            const parts = (list: readonly PArrow[]): number => list.filter((a) => a.end === end).length;
+            j.add("edge.arrowParts", "edge", at, parts(o.arrows) === parts(ga) ? 0 : 1, parts(o.arrows), parts(ga));
             j.add(
                 "edge.arrowShape",
                 "edge",
@@ -2120,6 +2208,7 @@ export function compareOracle(
                 oa.shape,
                 gg.shape,
             );
+            j.add("edge.arrowPlace", "edge", at, gg.misplaced ?? 0, null, gg.misplaced ?? 0);
             j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
@@ -2135,7 +2224,7 @@ export function compareOracle(
                 "edge.arrowLength",
                 "edge",
                 at,
-                ratioMiss((gg.length * lengthScale) / Math.max(oa.length, 1e-9), T.arrowRatio),
+                arrowMiss(oa.length, gg.length * lengthScale, pixel),
                 oa.length,
                 gg.length * lengthScale,
             );
@@ -2143,7 +2232,7 @@ export function compareOracle(
                 "edge.arrowWidth",
                 "edge",
                 at,
-                ratioMiss((gg.width * lengthScale) / Math.max(oa.width, 1e-9), T.arrowRatio),
+                arrowMiss(oa.width, gg.width * lengthScale, pixel),
                 oa.width,
                 gg.width * lengthScale,
             );

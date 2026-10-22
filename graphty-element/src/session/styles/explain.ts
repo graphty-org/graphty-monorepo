@@ -247,7 +247,7 @@ export interface StyleCounts {
     readonly paintedBy: readonly LayerId[];
     /**
      * Per channel the layer writes, the layers the picture shows instead on its matched elements
-     * and on how many each: the {@link COVERS_LISTED} that cover most, then how many more layers
+     * and on how many each: the three that cover most, then how many more layers
      * cover it. A channel the layer wins everywhere has no entry. What answers "why don't I see my
      * look?" property by property.
      * @since 3.26.0

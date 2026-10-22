@@ -50,6 +50,18 @@ const GRAPH_RESULTS = "graphResults";
 
 export type { AddEdgesOptions } from "../session/project/ingest";
 
+/** Where an edge is drawn among the edges joining the same two nodes: see `DataManager.drawnBundle`. */
+export interface EdgeBundle {
+    /** Its place in the bundle, from zero. */
+    readonly rank: number;
+    /** How many edges the bundle holds. */
+    readonly count: number;
+    /** The bundle's first edge, whose direction the fan is measured from. */
+    readonly first: Edge;
+    /** Every edge of the bundle, in bundle order. */
+    readonly members: readonly Edge[];
+}
+
 /**
  * Dispose the given nodes and edges -- `teardown` does that -- at a cost in proportion to them,
  * not to the scene they leave.
@@ -263,6 +275,7 @@ export function laneStoreOf(manager: DataManager): LaneStore {
         get seededNodeCount() {
             return manager.seededNodeCount;
         },
+        partialSeeds: () => dataManagerInternals.partialSeeds(manager),
         get directionSettledBy() {
             return manager.directionSettledBy;
         },
@@ -313,6 +326,8 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
+    partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
 };
 
 /**
@@ -371,6 +386,7 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
             manager.nodeVersion++;
@@ -819,18 +835,7 @@ export class DataManager implements Manager {
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
             } else if (key.startsWith("n:")) {
-                const id = JSON.parse(key.slice(2)) as NodeIdType;
-                const record = slice.nodes.get(id);
-                const node = this.nodes.get(id);
-                if (record === undefined && node !== undefined) {
-                    doomed.add(node.id);
-                } else if (record !== undefined && node === undefined) {
-                    this.buildNode(id, record, this.store.builder.indexOf(id));
-                    addedNodes++;
-                } else if (record !== undefined && node !== undefined) {
-                    adoptNodeRecord(node, record as AdHocData<string | number>);
-                    this.placeKept("node", node, this.store.builder.indexOf(id));
-                }
+                addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed);
             }
         }
 
@@ -846,38 +851,7 @@ export class DataManager implements Manager {
         // is edges x waiting, which never finished on a million of each.
         const waiting = new Map(this.pendingEdges.map((entry) => [entry.edgeId, entry]));
         for (const id of edgeKeys) {
-            const record = slice.edges.get(id);
-            const edge = this.edges.get(id);
-            const counter = edgeCounterOf(id);
-            const pending = waiting.get(counter);
-            if (record === undefined) {
-                if (edge !== undefined) {
-                    this.teardownEdge(edge, edge.index);
-                    removedEdges.push(id);
-                } else if (pending !== undefined) {
-                    this.forgetPending(pending);
-                    this.pendingEdges.splice(this.pendingEdges.indexOf(pending), 1);
-                    removedEdges.push(id);
-                }
-            } else if (edge !== undefined) {
-                adoptEdgeRecord(edge, record as AdHocData);
-                this.placeKept("edge", edge, this.store.edgeIndexOf(counter));
-            } else if (pending !== undefined) {
-                pending.record = record;
-            } else {
-                const row = this.store.edgeIndexOf(counter);
-                if (row !== INVALID_INDEX) {
-                    const [source, target] = this.store.builder.edgeEndpoints(row);
-                    this.buildEdge({
-                        record: record,
-                        sourceId: this.store.builder.idOf(source),
-                        targetId: this.store.builder.idOf(target),
-                        edgeIndex: row,
-                        edgeId: counter,
-                    });
-                    addedEdges++;
-                }
-            }
+            addedEdges += this.reconcileEdge(id, slice, waiting, removedEdges);
         }
 
         if (addedNodes > 0) {
@@ -894,6 +868,94 @@ export class DataManager implements Manager {
         }
 
         return { added: addedNodes + addedEdges, removed: removedNodes.length + removedEdges.length };
+    }
+
+    /**
+     * Bring one node's render object in line with the slice: build it, mark it to be torn down, or
+     * hand it its new record.
+     * @param id - The node.
+     * @param slice - The slice to draw.
+     * @param doomed - Receives a drawn node the slice no longer holds.
+     * @returns 1 when the node was built, else 0.
+     */
+    private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>): number {
+        const record = slice.nodes.get(id);
+        const node = this.nodes.get(id);
+        if (record === undefined) {
+            if (node !== undefined) {
+                doomed.add(node.id);
+            }
+
+            return 0;
+        }
+
+        if (node === undefined) {
+            this.buildNode(id, record, this.store.builder.indexOf(id));
+            return 1;
+        }
+
+        adoptNodeRecord(node, record as AdHocData<string | number>);
+        this.placeKept("node", node, this.store.builder.indexOf(id));
+        return 0;
+    }
+
+    /**
+     * Bring one edge's render object in line with the slice: build it, tear it down, drop it from
+     * the waiting queue, or hand it (drawn or waiting) its new record.
+     * @param id - The edge.
+     * @param slice - The slice to draw.
+     * @param waiting - The waiting edges, by counter.
+     * @param removedEdges - Receives the edge when it is torn down or dropped from the queue.
+     * @returns 1 when the edge was built, else 0.
+     */
+    private reconcileEdge(
+        id: EdgeId,
+        slice: GraphSlice,
+        waiting: ReadonlyMap<number, PendingEdge>,
+        removedEdges: EdgeId[],
+    ): number {
+        const record = slice.edges.get(id);
+        const edge = this.edges.get(id);
+        const counter = edgeCounterOf(id);
+        const pending = waiting.get(counter);
+        if (record === undefined) {
+            if (edge !== undefined) {
+                this.teardownEdge(edge, edge.index);
+                removedEdges.push(id);
+            } else if (pending !== undefined) {
+                this.forgetPending(pending);
+                this.pendingEdges.splice(this.pendingEdges.indexOf(pending), 1);
+                removedEdges.push(id);
+            }
+
+            return 0;
+        }
+
+        if (edge !== undefined) {
+            adoptEdgeRecord(edge, record as AdHocData);
+            this.placeKept("edge", edge, this.store.edgeIndexOf(counter));
+            return 0;
+        }
+
+        if (pending !== undefined) {
+            pending.record = record;
+            return 0;
+        }
+
+        const row = this.store.edgeIndexOf(counter);
+        if (row === INVALID_INDEX) {
+            return 0;
+        }
+
+        const [source, target] = this.store.builder.edgeEndpoints(row);
+        this.buildEdge({
+            record: record,
+            sourceId: this.store.builder.idOf(source),
+            targetId: this.store.builder.idOf(target),
+            edgeIndex: row,
+            edgeId: counter,
+        });
+        return 1;
     }
 
     /**
@@ -2005,6 +2067,51 @@ export class DataManager implements Manager {
     getEdge(edgeId: string): Edge | undefined {
         return this.edges.get(edgeId);
     }
+
+    /**
+     * Where an edge is drawn among every edge joining the same two nodes, in either direction (a
+     * self-loop among the loops on its node): its place, how many there are, and the bundle's
+     * first edge, whose direction the fan is measured from. Worked out over the whole edge set
+     * once per change to it, so a frame's worth of edges costs one pass, not a walk of each
+     * endpoint's edges per edge.
+     * @param edge - The edge.
+     * @returns Its bundle; a lone edge is a bundle of one.
+     */
+    drawnBundle(edge: Edge): EdgeBundle {
+        if (this.bundles?.version !== this.edgeVersion) {
+            const byEdge = new Map<Edge, EdgeBundle>();
+            const pairs = new Map<Node, Map<Node, Edge[]>>();
+            for (const each of this.edgeMap.values()) {
+                const { srcNode: a, dstNode: b } = each;
+                let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
+                if (group === undefined) {
+                    group = [];
+                    const inner = pairs.get(a) ?? new Map<Node, Edge[]>();
+                    inner.set(b, group);
+                    pairs.set(a, inner);
+                }
+
+                group.push(each);
+            }
+
+            for (const inner of pairs.values()) {
+                for (const group of inner.values()) {
+                    if (group.length > 1) {
+                        group.forEach((each, rank) => {
+                            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+                        });
+                    }
+                }
+            }
+
+            this.bundles = { version: this.edgeVersion, byEdge };
+        }
+
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+    }
+
+    /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */
+    private bundles: { version: number; byEdge: Map<Edge, EdgeBundle> } | null = null;
 
     /**
      * Every edge running from one node to another.

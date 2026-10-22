@@ -117,6 +117,145 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
 }
 
 /**
+ * Whether a slot's node draws anything: not undefined, null or false.
+ * @param node - the node
+ * @returns whether it draws
+ */
+function isDrawn(node: React.ReactNode): boolean {
+    return node !== undefined && node !== null && node !== false;
+}
+
+/**
+ * Join the ids a row is described by.
+ * @param ids - the ids, null where there is none
+ * @returns the ids space-separated, or undefined when there are none
+ */
+function joinIds(ids: readonly (string | null)[]): string | undefined {
+    const joined = ids.filter((x) => x !== null).join(" ");
+    return joined === "" ? undefined : joined;
+}
+
+/**
+ * A row's data attributes, which the theme draws its states from.
+ * @param states - the row's states
+ * @param states.tint - the row's fill, if set
+ * @param states.selected - whether the row is selected
+ * @param states.tone - the row's tone
+ * @param states.dimmed - whether the row is dimmed
+ * @param states.isStrong - whether the name is drawn strong
+ * @param states.twoLine - whether the description is drawn as a second line
+ * @returns the attributes
+ */
+function rowDataAttributes(states: {
+    tint: TreeRowTint | undefined;
+    selected: boolean;
+    tone: "default" | "component";
+    dimmed: boolean;
+    isStrong: boolean;
+    twoLine: boolean;
+}): Record<string, string | undefined> {
+    return {
+        "data-tint": states.tint ?? (states.selected ? "selected" : "none"),
+        "data-tone": states.tone === "component" ? "component" : undefined,
+        "data-dimmed": states.dimmed ? "" : undefined,
+        "data-strong": states.isStrong ? "" : undefined,
+        "data-two-line": states.twoLine ? "" : undefined,
+    };
+}
+
+/**
+ * The caret's pointer target: 24 x 24 around the 16px glyph (WCAG 2.5.8), saying what it does.
+ * @param props - Component props
+ * @param props.expanded - whether the row is open
+ * @param props.name - the row's name
+ * @returns the target
+ */
+function CaretHit({ expanded, name }: Readonly<{ expanded: boolean; name: string }>): React.JSX.Element {
+    const labels = useLabels();
+    return (
+        <Tooltip label={expanded ? labels.collapseSection(name) : labels.expandSection(name)}>
+            <span className="cm-tree-caret-hit">
+                <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />
+            </span>
+        </Tooltip>
+    );
+}
+
+/**
+ * A row's name: the name (or what stands in for it), with the description as a second line
+ * when it is drawn.
+ * @param props - Component props
+ * @param props.twoLine - whether the description is drawn as a second line
+ * @param props.name - the row's name
+ * @param props.nameSlot - drawn in place of the name
+ * @param props.description - the row's state in words
+ * @param props.descriptionId - the description's id
+ * @param props.detail - the count drawn after a one-line name
+ * @returns the name
+ */
+function RowName({
+    twoLine,
+    name,
+    nameSlot,
+    description,
+    descriptionId,
+    detail,
+}: Readonly<{
+    twoLine: boolean;
+    name: string;
+    nameSlot: React.ReactNode;
+    description: string | undefined;
+    descriptionId: string;
+    detail: React.ReactNode;
+}>): React.ReactNode {
+    if (!twoLine) {
+        return nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} detail={detail} />;
+    }
+    return (
+        <span className="cm-tree-lines">
+            {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} />}
+            <span className="cm-tree-description" id={descriptionId}>
+                {description}
+            </span>
+        </span>
+    );
+}
+
+/**
+ * A progress line along the bottom of a row.
+ * @param props - Component props
+ * @param props.progress - the progress, 0 to 1, or "indeterminate"; undefined draws nothing
+ * @param props.name - the row's name, which names the bar
+ * @returns the bar, or null
+ */
+function RowProgress({
+    progress,
+    name,
+}: Readonly<{ progress: number | "indeterminate" | undefined; name: string }>): React.JSX.Element | null {
+    if (progress === undefined) {
+        return null;
+    }
+    const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
+    return (
+        <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
+            className="cm-tree-progress"
+            role="progressbar"
+            aria-label={name}
+            aria-valuemin={fraction === undefined ? undefined : 0}
+            aria-valuemax={fraction === undefined ? undefined : 100}
+            aria-valuenow={fraction === undefined ? undefined : Math.round(fraction * 100)}
+            data-indeterminate={fraction === undefined ? "" : undefined}
+            data-testid="tree-progress"
+        >
+            <span
+                className="cm-tree-progress-fill"
+                style={fraction === undefined ? undefined : { width: `${String(fraction * 100)}%` }}
+            />
+        </span>
+    );
+}
+
+/**
  * One row of a layer tree, as Figma draws it (design/figma-spec.md 10.1): 32 tall, a 16px caret
  * slot and a 16px type glyph indented 24px per level, the name at 11/32, and the trailing
  * toggles. Hover, selection and the selected-parent band are pseudo-element fills behind the
@@ -160,19 +299,16 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
     ref,
 ) {
     useCompactStyles();
-    const labels = useLabels();
     const isStrong = strong ?? (level === 1 && hasChildren);
-    const hasActions = actions !== undefined && actions !== null && actions !== false;
-    const hasSwatch = swatch !== undefined && swatch !== null && swatch !== false;
-    const hasCount = count !== undefined && count !== null && count !== false && count !== "";
+    const hasActions = isDrawn(actions);
+    const hasSwatch = isDrawn(swatch);
+    const hasCount = isDrawn(count) && count !== "";
     const hasDescription = description !== undefined && description !== "";
+    const twoLine = hasDescription && descriptionVisible;
     const id = useId();
     const countId = `${id}-count`;
     const descriptionId = `${id}-description`;
-    const describedBy = [hasCount ? countId : null, hasDescription ? descriptionId : null]
-        .filter((x) => x !== null)
-        .join(" ");
-    const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
+    const describedBy = joinIds([hasCount ? countId : null, hasDescription ? descriptionId : null]);
     // The trailing toggles (eye, lock) leave the Tab order, so a tree stays one Tab stop however
     // many rows it has. A pointer still reaches them; the caller gives each a row key
     // (`onRowKeyDown`) and a row-menu item, as Figma does.
@@ -206,12 +342,8 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             aria-setsize={setSize}
             aria-expanded={hasChildren ? expanded : undefined}
             aria-selected={selected}
-            aria-describedby={describedBy === "" ? undefined : describedBy}
-            data-tint={tint ?? (selected ? "selected" : "none")}
-            data-tone={tone === "component" ? "component" : undefined}
-            data-dimmed={dimmed ? "" : undefined}
-            data-strong={isStrong ? "" : undefined}
-            data-two-line={hasDescription && descriptionVisible ? "" : undefined}
+            aria-describedby={describedBy}
+            {...rowDataAttributes({ tint, selected, tone, dimmed, isStrong, twoLine })}
             className={className ? `cm-tree-row ${className}` : "cm-tree-row"}
             tabIndex={tabIndex}
             onKeyDown={onKeyDown}
@@ -232,14 +364,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         >
             <span className="cm-tree-indent" style={{ width: iconOffset(level) - 16 }} />
             <span className="cm-tree-caret" aria-hidden="true" data-testid="tree-caret">
-                {hasChildren && (
-                    // A pointer target of 24 x 24 around the 16px glyph (WCAG 2.5.8), saying what it does.
-                    <Tooltip label={expanded ? labels.collapseSection(name) : labels.expandSection(name)}>
-                        <span className="cm-tree-caret-hit">
-                            <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />
-                        </span>
-                    </Tooltip>
-                )}
+                {hasChildren && <CaretHit expanded={expanded} name={name} />}
             </span>
             {checkbox && (
                 <span className="cm-tree-check" aria-hidden="true" data-testid="tree-check">
@@ -260,18 +385,14 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {swatch}
                 </span>
             )}
-            {hasDescription && descriptionVisible ? (
-                <span className="cm-tree-lines">
-                    {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} />}
-                    <span className="cm-tree-description" id={descriptionId}>
-                        {description}
-                    </span>
-                </span>
-            ) : (
-                (nameSlot ?? (
-                    <EllipsizedName className="cm-tree-name" name={name} detail={hasCount ? count : undefined} />
-                ))
-            )}
+            <RowName
+                twoLine={twoLine}
+                name={name}
+                nameSlot={nameSlot}
+                description={description}
+                descriptionId={descriptionId}
+                detail={hasCount ? count : undefined}
+            />
             {hasCount && (
                 <span className="cm-tree-count" id={countId} data-testid="tree-count" data-row-detail="">
                     {count}
@@ -287,23 +408,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {description}
                 </span>
             )}
-            {progress !== undefined && (
-                <span // NOSONAR(S6819): a 2px bar inside the row, drawn the same when indeterminate
-                    className="cm-tree-progress"
-                    role="progressbar"
-                    aria-label={name}
-                    aria-valuemin={fraction === undefined ? undefined : 0}
-                    aria-valuemax={fraction === undefined ? undefined : 100}
-                    aria-valuenow={fraction === undefined ? undefined : Math.round(fraction * 100)}
-                    data-indeterminate={fraction === undefined ? "" : undefined}
-                    data-testid="tree-progress"
-                >
-                    <span
-                        className="cm-tree-progress-fill"
-                        style={fraction === undefined ? undefined : { width: `${String(fraction * 100)}%` }}
-                    />
-                </span>
-            )}
+            <RowProgress progress={progress} name={name} />
             <span className="cm-tree-ring" aria-hidden="true" />
         </div>
     );
@@ -768,6 +873,147 @@ export function Tree({
         event.preventDefault();
     };
 
+    // ArrowRight on a row with nothing to open, or Alt+ArrowRight on any row: into its toggles.
+    const enterToggles = (
+        event: React.KeyboardEvent<HTMLDivElement>,
+        target: HTMLElement,
+        row: FlatTreeRow,
+    ): boolean => {
+        const firstAction = actionsOf(target)[0] as HTMLElement | undefined;
+        if (event.key === "ArrowRight" && firstAction && (event.altKey || !row.hasChildren)) {
+            event.preventDefault();
+            firstAction.focus();
+            return true;
+        }
+        return false;
+    };
+
+    // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place, into the folder next to it
+    // when there is one; Alt+ArrowLeft: out of its folder. Reported through onMove like a drop;
+    // focus stays on the item wherever the caller puts it.
+    const moveWithAlt = (event: React.KeyboardEvent<HTMLDivElement>, row: FlatTreeRow): boolean => {
+        const direction = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "out" } as const;
+        if (!onMove || !event.altKey || !(event.key in direction)) {
+            return false;
+        }
+        event.preventDefault();
+        const move = keyboardMove(items, row.node.id, direction[event.key as keyof typeof direction], canDrop);
+        if (move) {
+            commitMove(move);
+        }
+        return true;
+    };
+
+    // ArrowDown / ArrowUp: the next or previous row; Shift extends the selection from its anchor,
+    // as Shift+click does.
+    const stepFocus = (event: React.KeyboardEvent<HTMLDivElement>, i: number, row: FlatTreeRow): void => {
+        const next = rows[event.key === "ArrowDown" ? i + 1 : i - 1]?.node.id;
+        moveFocus(next);
+        if (!event.shiftKey || !multiselect || next === undefined) {
+            return;
+        }
+        if (anchor.current === null || !selectedSet.has(anchor.current)) {
+            anchor.current = row.node.id;
+        }
+        select(next, "range", event);
+    };
+
+    // ArrowRight opens a closed row, or goes to the first child of an open one.
+    const openOrEnter = (i: number, row: FlatTreeRow): void => {
+        if (row.hasChildren && !row.expanded) {
+            setExpanded(row.node.id, true);
+        } else if (row.expanded) {
+            moveFocus(rows[i + 1]?.node.id);
+        }
+    };
+
+    // ArrowLeft closes an open row, or goes to its parent.
+    const closeOrLeave = (row: FlatTreeRow): void => {
+        if (row.expanded) {
+            setExpanded(row.node.id, false);
+        } else if (row.parentId !== null) {
+            moveFocus(row.parentId);
+        }
+    };
+
+    // Alt+L collapses the whole tree; a collapsed tree keeps focus on the top-level row that held it.
+    const collapseAll = (row: FlatTreeRow): void => {
+        setOpen([]);
+        let top = row;
+        while (top.parentId !== null) {
+            top = rows[indexOf.get(top.parentId) ?? 0];
+        }
+        moveFocus(top.node.id);
+    };
+
+    // Type-ahead: letters and digits only, so "/", other punctuation and Shift+letter chords stay
+    // free for the page's shortcuts (type-ahead ignores case, so Shift adds nothing).
+    const isTypeAhead = (event: React.KeyboardEvent<HTMLDivElement>): boolean =>
+        TYPEAHEAD_KEY.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+
+    const typeAhead = (event: React.KeyboardEvent<HTMLDivElement>, i: number): void => {
+        const now = Date.now();
+        const t = typeahead.current;
+        t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;
+        t.at = now;
+        const needle = t.text.toLocaleLowerCase();
+        const start = t.text.length === 1 ? i + 1 : i;
+        const ordered = [...rows.slice(start), ...rows.slice(0, start)];
+        moveFocus(ordered.find((r) => r.node.name.toLocaleLowerCase().startsWith(needle))?.node.id);
+    };
+
+    // The keys with no case of their own: Alt+L and type-ahead.
+    const answerOtherKey = (event: React.KeyboardEvent<HTMLDivElement>, i: number, row: FlatTreeRow): boolean => {
+        if (event.altKey && event.code === "KeyL") {
+            collapseAll(row);
+            return true;
+        }
+        if (isTypeAhead(event)) {
+            typeAhead(event, i);
+            return true;
+        }
+        return false;
+    };
+
+    // The tree's own keys on a focused row; returns whether the key was answered.
+    const answerRowKey = (event: React.KeyboardEvent<HTMLDivElement>, i: number, row: FlatTreeRow): boolean => {
+        switch (event.key) {
+            case "ArrowDown":
+            case "ArrowUp":
+                stepFocus(event, i, row);
+                return true;
+            case "ArrowRight":
+                openOrEnter(i, row);
+                return true;
+            case "ArrowLeft":
+                closeOrLeave(row);
+                return true;
+            case "Home":
+                moveFocus(rows[0]?.node.id);
+                return true;
+            case "End":
+                moveFocus(rows.at(-1)?.node.id);
+                return true;
+            case "Enter":
+            case " ":
+                select(row.node.id, modeOf(event), event);
+                return true;
+            case "*": {
+                const siblings = rows.filter((r) => r.parentId === row.parentId && r.hasChildren).map((r) => r.node.id);
+                setOpen([...new Set([...open, ...siblings])]);
+                return true;
+            }
+            case "F2":
+                if (!onRename) {
+                    return false;
+                }
+                setRenaming(row.node.id);
+                return true;
+            default:
+                return answerOtherKey(event, i, row);
+        }
+    };
+
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const target = event.target as HTMLElement;
         const rowEl = target.closest<HTMLElement>("[role='treeitem']");
@@ -781,110 +1027,10 @@ export function Tree({
         const i = indexOf.get(tabId) ?? 0;
         const row = rows[i];
         onRowKeyDown?.(row.node.id, event);
-        if (event.defaultPrevented) {
+        if (event.defaultPrevented || enterToggles(event, target, row) || moveWithAlt(event, row)) {
             return;
         }
-        // ArrowRight on a row with nothing to open, or Alt+ArrowRight on any row: into its toggles.
-        const firstAction = actionsOf(target)[0] as HTMLElement | undefined;
-        if (event.key === "ArrowRight" && firstAction && (event.altKey || !row.hasChildren)) {
-            event.preventDefault();
-            firstAction.focus();
-            return;
-        }
-        // Alt+ArrowUp / Alt+ArrowDown: move the focused item one place, into the folder next to it
-        // when there is one; Alt+ArrowLeft: out of its folder. Reported through onMove like a drop;
-        // focus stays on the item wherever the caller puts it.
-        const direction = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "out" } as const;
-        if (onMove && event.altKey && event.key in direction) {
-            event.preventDefault();
-            const move = keyboardMove(items, row.node.id, direction[event.key as keyof typeof direction], canDrop);
-            if (move) {
-                commitMove(move);
-            }
-            return;
-        }
-        let handled = true;
-        switch (event.key) {
-            case "ArrowDown":
-            case "ArrowUp": {
-                const next = rows[event.key === "ArrowDown" ? i + 1 : i - 1]?.node.id;
-                moveFocus(next);
-                // Shift+Arrow extends the selection from its anchor, as Shift+click does.
-                if (event.shiftKey && multiselect && next !== undefined) {
-                    if (anchor.current === null || !selectedSet.has(anchor.current)) {
-                        anchor.current = row.node.id;
-                    }
-                    select(next, "range", event);
-                }
-                break;
-            }
-            case "ArrowRight":
-                if (row.hasChildren && !row.expanded) {
-                    setExpanded(row.node.id, true);
-                } else if (row.expanded) {
-                    moveFocus(rows[i + 1]?.node.id);
-                }
-                break;
-            case "ArrowLeft":
-                if (row.expanded) {
-                    setExpanded(row.node.id, false);
-                } else if (row.parentId !== null) {
-                    moveFocus(row.parentId);
-                }
-                break;
-            case "Home":
-                moveFocus(rows[0]?.node.id);
-                break;
-            case "End":
-                moveFocus(rows[rows.length - 1]?.node.id);
-                break;
-            case "Enter":
-            case " ":
-                select(row.node.id, modeOf(event), event);
-                break;
-            case "*": {
-                const siblings = rows.filter((r) => r.parentId === row.parentId && r.hasChildren).map((r) => r.node.id);
-                setOpen([...new Set([...open, ...siblings])]);
-                break;
-            }
-            case "F2":
-                if (onRename) {
-                    setRenaming(row.node.id);
-                } else {
-                    handled = false;
-                }
-                break;
-            default:
-                if (event.altKey && event.code === "KeyL") {
-                    setOpen([]);
-                    // A collapsed tree keeps focus on the top-level row that held it.
-                    let top = row;
-                    while (top.parentId !== null) {
-                        top = rows[indexOf.get(top.parentId) ?? 0];
-                    }
-                    moveFocus(top.node.id);
-                } else if (
-                    TYPEAHEAD_KEY.test(event.key) &&
-                    !event.ctrlKey &&
-                    !event.metaKey &&
-                    !event.altKey &&
-                    !event.shiftKey
-                ) {
-                    // Letters and digits only: "/", other punctuation and Shift+letter chords stay
-                    // free for the page's shortcuts (type-ahead ignores case, so Shift adds nothing).
-                    const now = Date.now();
-                    const t = typeahead.current;
-                    t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;
-                    t.at = now;
-                    const needle = t.text.toLocaleLowerCase();
-                    const start = t.text.length === 1 ? i + 1 : i;
-                    const ordered = [...rows.slice(start), ...rows.slice(0, start)];
-                    moveFocus(ordered.find((r) => r.node.name.toLocaleLowerCase().startsWith(needle))?.node.id);
-                } else {
-                    handled = false;
-                }
-        }
-        if (handled) {
+        if (answerRowKey(event, i, row)) {
             event.preventDefault();
         }
     };

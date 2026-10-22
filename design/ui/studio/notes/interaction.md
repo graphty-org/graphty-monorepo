@@ -15,117 +15,50 @@ save and reopen.
 
 ## Top of mind
 
-- (2026-10-16, combined V7 picker + bulk review, before build) Proposed: one card per field (the
-  field list marks fields in use, picking one focuses its card); a card with nothing chosen is
-  dashed, narrows nothing, is never written and goes away when the picker closes; Escape collapses
-  the INLINE picker and keeps the edits (Esc ladder, undo is the recovery; one undo step per
-  open-close, labeled "Which nodes"), a change from today's Escape-restores popover; the Which row is
-  the only tab stop at rest (chips are pointer shortcuts, like the bulk pill); remove = x or Delete,
-  focus to the next card, else the previous, else "+ Add condition". Bulk: same tabs and cards,
-  a card per field reads its shared value or Mixed (purple Layer token, the same parity as bulk
-  fields); a Mixed checklist is tri-state; typing or ticking writes that one value to every layer;
-  adding a card ANDs it into every layer; a receipt names layers left matching nothing. Edge tab's
-  pick is now independent of the node pick: today's shared selector and "touching" become a
-  visible "Both ends in this layer's nodes" card. Element gaps (additive): presence leaf, an ends
-  leaf over a node rule (both/either/source/target) and ends same/differ on a field, per-card
-  counts in one pass. Watch: does an algorithm folder's added card break re-run realignment;
-  does anyone press Escape expecting to cancel.
-
-- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
-  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
-  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
-  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
-  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
-  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
-  is in the pill's spoken name. Built without chit click shortcuts (rejected for now); the pill is
-  the only tab stop, bulk opens straight into Layer pre-filled, Escape unchanged writes nothing.
-
-- 2026-10-16 **Bulk field becomes BoundValue (owner).** My part proposed: the pill is the only tab
-  stop; click/Enter/Space opens the one BindingPopover (single: "Color by Louvain"; bulk: "Color by
-  layer", straight into Layer pre-filled). The strip in the pill is a glance cue, never clickable on
-  its own. The line under it is one row, never wraps: every chit for 2-8 values, else the first 8 and
-  "+N"; a ramp shows its ends. A chit click opens the popover with that row's control focused; "+N"
-  opens it with the whole list (search, sort) -- pointer shortcuts only, the keyboard path is pill >
-  popover > row. The pill's spoken name carries the count ("Fill: Louvain, 6 groups, Okabe-Ito";
-  "Fill: each layer's own, 12 layers"), the guillemets never spoken. Found: `chits()` squeezes 6 hard
-  stops into the 20 px strip (3.3 px each) and the line's chits are title-only (mouse only). Watch:
-  does the set-off "Layer" read as a data column named Layer?
-
-- 2026-10-13 **Tier 3 paused for the owner's review after build 3** (served as
-  `tier3-i3-617b43b270`; review `tier3/iterations/3/review.md`). Built and mine: unset is the minus
-  at rest on a set field, emptying + Enter, or Delete; its tooltip names what comes back read over
-  the layer's own elements ("back to 1, the default"); Undo right after Clear restores and names it;
-  a painted-over field names the layer above and its count. Covering something beneath is a
-  different act from unsetting: an ordinary entry of this layer set to nothing ("Hide label from
-  Key people" in the "+" menu). No split-parent layer exists: Louvain is an ordinary layer whose
-  color varies by Community, each group an entry with chip, eye and minus, "New layer for Group 3"
-  makes an ordinary layer; the same rows serve a number column of codes. Reason: two row kinds
-  only (layer, folder) -- the owner's consistency test. Figma taken: one-line rows, effect rows,
-  Mixed only for multi-select, Undo from an idle field, right-click selects. Kept graphty's own:
-  vary glyph at rest, painted-over mark (Figma does not stack paints).
-  Decided for iteration 4 and mine to verify on the served build: focus never falls to the page
-  (after Clear to the emptied field, after Remove to the next entry or "+", after Undo to the
-  restored control, one polite status region); a kind change keeps every setting (radios keep
-  select-on-arrow, nothing lost by passing through; each change one announced undo step); a layer
-  lists only its own entries; hiding an effect keeps its value; Tab past a pop-out's last control
-  closes it and moves on; a ramp handle can always step back; several selected layers show only
-  what all share, one undo step for their writes.
-  Watch at the owner review: does a dimmed painted-over value read as "not what is drawn"; is the
-  "+" menu where a reader looks to cover something beneath; does one settings button per section
-  read as Figma's Type settings. Watch in the study: do readers confuse Clear (stop covering) with
-  Hide-from-beneath (cover with nothing); does an empty field read as unset or as broken; does an
-  empty group layer from "New layer for" read as broken; does anyone press arrows through the kind
-  radios and trust what remains.
-
-- 2026-10-12 **Owner feedback 1 answered** in `tier3/decide/feedback-1-interaction.md`. (1) Unset =
-  the minus, or emptying / Delete on the focused control; set vs inherited by two cues (minus and
-  primary text vs placeholder), never color alone; the minus's tooltip names what comes back from
-  `agreement` plus an additive `from`; focus to the field after; inherited list entries shown as
-  secondary lines. "None"/"Hidden" are blocking values, not unset. (2) I reversed my own "split
-  parent is a layer with its own glyph": Split is a command making an ordinary folder of empty
-  ordinary layers above the unchanged original; the palette reaches unoverridden groups by plain
-  fall-through, "follow parent" is the minus, multi-select edits groups together. Reason: the
-  owner's consistency test (every row a layer or a folder) and the unset rule makes the special
-  inheritance unnecessary. Needs the element to keep a layer that sets nothing. (3) Figma pass:
-  adopt Mixed, multi-select, apply-variable placement, pill; reject Detach and click-title-adds.
-  Watch once built: do readers see an empty group layer as broken?
-
-- 2026-10-12 **Tier 3 (unified styles) answers proposed** in `tier3/decide/interaction.md`. Mine to
-  watch once built: the six core fields always shown with a computed "beneath" placeholder ("+" only
-  on lists) -- does an empty field read as unset or as broken? Which-elements as a find-style text
-  box offering a live rule or a fixed list; the ramp-over-histogram editor's handles by keyboard.
-  Reason: "+" before every common edit and eleven dimmed titles were the length and cardinality
-  complaints; one find pattern already worked in tier 2.
-- 2026-10-11 **Round 5 watches (round 4 closed):** "10" typed on bus stops in T22 A (the element
-  must offer only a rule it accepts, plus an "is 10 or more" row for a number inside the range);
-  T17 with the table open under a filter step (table lists what the step keeps; an off step stays
-  off when its editor closes unedited); New project then Discard by script; note editor Cancel
-  focus on "+" by script. The owed r4-s05b, r4-s20b, r4-s28b run first.
-- 2026-10-11 **Priming is in the briefings, not only the logs.** The file table leaked answers
-  ("Mo, Nia", "6 - w", s11) and histories pointed at the toolbar. Count "unprompted" only after the
-  briefings are checked; persona habits ("checks counts") are never unprompted evidence.
-- 2026-10-11 **No app copies of element logic:** the app's `columnText` goes, replaced by the
-  element's new `rulePath`; a wrong element suggestion is fixed in the element, never guarded.
-- 2026-10-11 **Do not change what worked:** Shift-click adds (7 of 7 T24), the toolbar Filters
-  icon (7 of 7 T17), the Degree link opening the neighbor list as a selection (one function, two
-  doors), a second path replacing the first silently (no task cost shown; a notice adds a line).
-- 2026-10-11 **Label and node overlap is graphty-element's** (placement, spacing by drawn size);
-  no app offsets, no turning "Show all labels" off as a workaround.
-- 2026-10-11 **A study gate that is not enforced is not a gate.** Two rounds ran without it; the
-  briefing's file table leaked answers and listed `--shift-click`. A check that reads nothing fails.
-- 2026-10-11 **One variant per problem; a one-specialist claim is scripted before it is fixed.**
-- 2026-10-11 **Walk every key route before a task runs** (T24's key credited an unwalked route).
-- 2026-10-10 **A disabled done-state is not a state.** Say why it is off (criterion 8).
-- 2026-10-10 **Words at rest go down, never up.** No new words for any fix (bar 9 (b) failed by 2).
-- 2026-10-10 **Discount behavior a prompt's or a briefing's own words ask for.**
-- 2026-10-07 **A decided change that is not verified on the served build is not done.**
-- 2026-10-07 **Simulated participants are one model.** Trust reproductions and causes in code.
-- 2026-10-06 **Every detour must work or not look clickable. Refusals in place until the value
-  changes.** Never suggest an action the app then refuses.
-- 2026-10-06 **Where a fix goes:** graph facts in graphty-element; flows, focus, words in the app;
-  shared control defects in compact-mantine.
-- Held, first in line if met again: Hops distance per name (element `hops`), a notice for a
-  replaced path, committing a step edit on focus leave vs Escape.
+1. (2026-10-21) **Tier 3 round 1 closed; the studio stopped at its 1-round cap with bar 5 still
+   failing**, only on the two pre-round severity 3 backlog items (a node's own Fill "+" making a
+   one-node layer; the folder's chain icon painting every cluster one color). 55 of 56 succeeded:
+   the round is at its success ceiling, so cost, routes and problems are the signal.
+2. (2026-10-21) **A new style line must start where the reader can see it act.** Fill "+" starts
+   at the color every node already has, edge Width at 8 with no unit; accepting changes nothing
+   and readers cannot tell it took (9 sessions, 5 halves). Same lesson as tier 2's "style + on the
+   drawn default" -- third time. Next: a new line opens its editor with nothing committed, or
+   commits a value that differs, and the unit is on the field.
+3. (2026-10-21) **Node color is looked for in the Graph inspector first** (9 sessions, 5 halves);
+   recovery only by matching the "Everything" count to the node count. The empty-selection Style
+   tab needs a door to the layer that paints nodes, not a copy of its controls.
+4. (2026-10-21) **Keyboard focus defects, mine:** the inspector's F6 stop draws no focus ring
+   (WCAG 2.4.7); both "Samples" controls scroll to the library and leave focus behind; 30+ Tabs to
+   a sample card (nine chips = nine stops; Enter in the search does nothing). Fix: focus follows
+   the scroll target, chips one stop with arrows, Enter in search goes to the first card.
+5. (2026-10-21) **Checking a layer's members is done by eye:** Values lists ids, the table neither
+   marks nor filters to a layer's rows. Criterion 10 says the count is a link that selects what it
+   counts -- "4 of 24" should select (and the table show) those 4, by name.
+6. (2026-10-21) **Picker defects:** one hue-bar click sets and closes the picker; a "+" click is
+   lost when the find list closes and the panel re-lays out between press and release (act on
+   pointerdown or hold layout until release); swatch focus drawn on the whole box; Escape from a
+   selection returns to the Graph inspector instead of the open layer (Esc ladder broken).
+7. (2026-10-21) **The color box accepts words but never says so.** Placeholder or example, not a
+   new sentence. Spoken color names come from compact-mantine's `colorWord`, which checks CSS
+   keywords before hue ("gold" for FFD700); the fix is in compact-mantine, never an app table.
+8. (2026-10-21) **A find-box pick becomes a fixed id list** while its rows read as rules ("kind is
+   company (6)"); the layer is named by its count. Offer the rule when the pick came from a rule.
+9. (2026-10-21) **Avoidance is not understanding.** 0 of 10 hit the chain-icon trap, but 6 went
+   around the purple Layer token. Next round needs a measure that separates the two before I call
+   the token readable.
+10. (2026-10-21) **Untraced moves are owed:** the 130 px drawing move on first color with a
+    find-box pick, the off-center smaller reopen of a saved project, and a real-notch wheel repro
+    (the 0.75% zoom figure was one synthetic event). Name the mechanism before any fix.
+11. (2026-10-16) Bulk field is BoundValue: the pill is the only tab stop, its spoken name carries
+    the count, chits are pointer shortcuts; Escape on the inline Which picker keeps edits (one undo
+    step per open-close). Watch whether anyone presses Escape expecting to cancel.
+12. (2026-10-13) Unset is the minus, emptying + Enter, or Delete; focus never falls to the page
+    (to the emptied field, the next entry, the restored control); a kind change keeps settings.
+13. Standing: one model plays every persona -- trust repros and code causes, discount a prompt's or
+    briefing's own words; a decided change unverified on the served build is not done; words at
+    rest go down, never up; every detour works or does not look clickable.
+14. Standing: where a fix goes -- graph facts in graphty-element, flows/focus/words in the app,
+    shared control defects in compact-mantine; no app copies of element logic.
 
 ## Priorities and values
 
@@ -189,6 +122,16 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
+- 2026-10-11..16 (summarized from the old Top of mind) Tier 3 build decisions, mine: one card per
+  field in the Which picker, a dashed unchosen card narrows nothing and is never written; bulk cards
+  read a shared value or Mixed, ticking writes to every layer, a receipt names layers left matching
+  nothing; the edge pick is independent of the node pick ("Both ends in this layer's nodes" card).
+  Split is a command making an ordinary folder of empty ordinary layers (two row kinds only, the
+  owner's consistency test). Set vs inherited by minus and primary text vs placeholder, never color
+  alone; "None"/"Hidden" are blocking values, not unset. Figma taken: Mixed, multi-select, pill,
+  one-line rows; rejected Detach. Tier 2 held: Shift-click adds, the toolbar Filters icon, the
+  Degree link as a selection; label overlap is the element's; a study gate not enforced is not a
+  gate; walk every key route before a task runs; a disabled done-state says why.
 - **2026-10-14, round 6:** Round 6: "+" holds Layer, Folder and Analyze... (one command, two doors); Analyze's button names the state (Run / Update Leiden layer / Add Leiden layer) and restores a deleted layer from the stored result without recomputing; Which elements is a popover, live edits, one undo step per popover, outside click keeps, Escape restores; group rows rename by F2, menu or the Name field, never double-click (single click opens the group).
 
 - 2026-09-13..10-03 (summarized; owner = decided by the owner) Panels stay open, no locks or
@@ -219,49 +162,11 @@ Each with its reason. A screen that breaks one is a defect.
   a plain command. Rejected: "Size arrives bound to the run", my find column rows (a second door),
   "+" opening the value picker (held). Owner: label overlap, bare numbers, edge width units.
 
-- 2026-10-10 Round 3 critique, mine: Shift/Ctrl-click adds (element); PathForm focuses its first
-  field with `autoFocus`; a selection layer's style pick focuses the new line; Made with reads only
-  the run (after a script pins the mechanism); "Filter to neighbors" says why it is off; Analyze
-  ranks a name match above a description match; the find Values row wraps instead of cutting.
-  Held: "or more" for a bare number (the element suggests rules; one change per problem), a
-  Filters door on the Graph place, announcing a replaced path, Hops distance (waits on element).
-
-- 2026-10-11 Tier 2 round 3 closed (Design Director). 54 of 56. Decided for round 4: study gate
-  enforced (leak check fails on unread logs, `--end` never removes notes, runner refuses a round
-  without pilots and bars); T24 prompt reworded to the outcome; Shift-click adds on a node
-  (element); bars.mjs fixed (bar 9 excludes data names; two focus actions; find list axe hit as an
-  exception if ArrowDown scrolls the active option); Made with scripted first; PathForm
-  `autoFocus` and the Color focus drop; find "or more" row via element `atLeast` and "Select where"
-  dropped from visible text (my wrap proposal not taken: shorter text should fit); Analyze name
-  match first; toolbar Filters icon to the existing step editor (my "hold" overruled: the one clean
-  case of no control where people look first); repeated-ties line as a described warning; edge
-  filter step counts edges (script first); disabled reason via compact-mantine Tooltip (check
-  first). Reason throughout: one variant per problem, fixes in the owning package, no words added.
-
-- 2026-10-11 Round 4 critique, mine. (1) Off filter step turning on: in the leave handler, return
-  when `step !== undefined && sameRule(rule, step.rule)`; `unchanged` keeps its `on` test for the
-  submit's "Save and turn on". Reason: a leave that changes state unasked breaks criterion 3 and 1;
-  the mechanism is in code (`unchanged` requires `step.on`). (2) Find box: `ruleFromText` offers the
-  backtick rewrite only if the element then counts it (> 0); the element adds `FindResult.ranges`
-  for a typed number between a number column's min and max that no record holds. Reason: T22 A's
-  prompt number (10) is not a bus-stops value; offering then refusing breaks criterion 7.
-  (3) TableDock `scope` "visible" for the graph view. Reason: the table is the canvas's text
-  equivalent; it read "41 edges" beside "12 of 41". (4) New project, Discard: script, then fix the
-  component that reads the disposed session. Not changed: Degree link selection, path replace
-  notice, "or more" row order (no task meets the fold), Replace's visible control.
-
-- 2026-10-11 Tier 2 round 4 closed (Design Director). Decided for round 5: the runner refuses a
-  session without gate exit 0 and starts a participant only on a free slot; briefings name each
-  data file and its kind only, and the leak check reads briefings (`--shift-click` stays listed);
-  element `suggestBackticks` suggests only a rule the selector accepts (no app count guard);
-  element "or more" row for a number inside a column's range; my off-step leave fix as proposed;
-  New project, Discard scripted then traced; table `scope: "visible"` (export still writes every
-  record: known gap); element `rulePath` export so the "or more" layer name reads "minutes >=
-  \`5\`"; note Cancel focuses "+"; T17 histories say what was done, not where; bar 9 (b) by word
-  diff against round 1 before any cut (scope words like ", full graph" stay even if the bar fails).
-  Three single-source claims scripted first (missing-column rule, Escape on a selection Color
-  swatch, a label taking a tie's click). Held: replaced-path notice, Degree arrow change, one
-  warning look for load problems. Reason: one path per problem, owning package, no words added.
+- 2026-10-10..11 (summarized) Tier 2 rounds 3-4 critiques and closes, mine: Shift/Ctrl-click
+  adds (element); forms focus their first field on every route in; the element offers only rules
+  it accepts (a bare number gets an "is N or more" row); the table lists what a filter step keeps;
+  an off step stays off when its editor closes unedited; New project then Discard never crashes;
+  the briefings are checked for leaks before anything counts as unprompted.
 
 - 2026-10-12 Tier 3 proposals, mine (owner approves the built UI before any study). "+" only on
   repeatable lists; 0-or-1 properties as always-shown core fields or one "Add style" menu with
@@ -339,8 +244,20 @@ Each with its reason. A screen that breaks one is a defect.
   filter step (2 sessions); an off step's editor turning it on (keys and pointer); New project,
   Discard crashing. Taught: a fix matching a habit is used at once, but the briefing primed it.
 
+- 2026-10-21 Tier 3 round 1 (55 of 56, frozen build 758b8e8081). Worked: every keyboard session
+  finished (cost in key presses, not failure); the Which-nodes door after a run (T48 6 of 6, median
+  0 wrong turns); color words typed into the hex box. Did not: new style lines at the current
+  value; the empty-selection Style tab as a door to node color; focus after "Samples" and on the
+  inspector's F6 stop; the picker's hue-bar click closing it; a "+" lost to a re-layout between
+  press and release. Taught: a fix I have now made three times (start a line where it shows) needs
+  a rule in the criteria, not another local patch; and avoidance passes a bar that should measure
+  understanding.
+
 ## Thinking
 
+- 2026-10-21 **Ceiling rounds need cost bars.** With success at 55 of 56, steps over the key and
+  wrong turns per half are the only signal; a round whose bars are all success-based cannot move.
+  The answer key may also lead graders: check task wording for leading before spending sessions.
 - 2026-10-06 **The chained first session is the real test of my work.** Each tier 1 task passes
   in isolation far more often than the chain (round 8: 86% without the chain, 0% with it). The
   chain fails where one step's state leaks into the next: a popover still open, a selection that
@@ -385,3 +302,4 @@ Each with its reason. A screen that breaks one is a defect.
 - `design/ui/studio/rounds/round-1/`, `round-2/` (insights, decisions, scores, repro r2-s07, s19,
   s56), `r2/pilot/T6-T16/pilot.md`, read 2026-10-07.
 - `design/ui/studio/tier2/rounds/round-1/insights.md` and `decisions.md`, read 2026-10-09.
+- `design/ui/studio/tier3/rounds/round-1/insights.md`, read 2026-10-21.

@@ -44,7 +44,8 @@ person watching would have read it.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
-  own log), `setup.log`, and `downloads/`. In `session.json`, `commit` is the served build's own commit (from its build stamp, the
+  own log), `setup.log`, `route.jsonl` (the steps taken, which `--replay` can run
+  again) and `downloads/`. In `session.json`, `commit` is the served build's own commit (from its build stamp, the
   `graphty-build` meta tag in `REAL_DIST`'s `index.html`, or else a frozen folder's name such as
   `tier2-r1d2-909b19b57`), `buildStamp` is that stamp, `toolCommit` is this checkout's HEAD (the
   tool that ran the session, not the build), and `uncommittedChanges` says whether this
@@ -72,6 +73,11 @@ person watching would have read it.
 ## Steps
 
 Several steps may follow one `--step`; they run in order, and one screenshot is saved at the end.
+A stretch you are sure of costs one command and one screenshot instead of one each:
+`--step $S --click "Open a file" --upload friends.csv --click Load`. The batch stops at its first
+miss or failed `--expect`, and says which steps did not run: the rest was meant for a screen that
+did not come. An `--expect` between steps is a guard: `--click Layer --expect "Which nodes" --click
+"Which nodes"`.
 
 | Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -171,6 +177,8 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
   three captures of the canvas half a second apart keep changing (a turning camera, a drifting layout).
   Only the drawing's own pixels count: whatever lies over the canvas (an open popover, its list, a
   notice) is left out of the comparison.
+- `stopped after "--click Layer": the rest of this step (--click --type) did not run` when a batch
+  met a miss or a failed check before its end.
 - Every script error, `console.error` and failed request since the last step. In the real app
   each is a defect worth a bug report. They make the command exit 1.
 
@@ -368,16 +376,32 @@ and stops the round on a failure, and runs the round's leak check before scoring
 
 ## Browsers
 
-At most four browsers run at once on this machine, across every study, tool and test run. A
-session takes one of the machine's four browser slots (`with-browser.sh`) when it starts and holds
-it until `--end`; a start waits, saying so, while all four are taken. The slots are the main
-checkout's `tmp/browser-slots/slot1` to `slot4`, the same ones `<main checkout>/tmp/with-browser.sh`
+A study browser draws on the GPU. Headless Chromium draws WebGL with SwiftShader, a software
+rasterizer, unless told otherwise: an idle graphty page then burned 550 to 690% CPU, four study
+browsers kept the machine's load above 47, and every step waited on the CPU. `real.mjs` launches its
+browsers with ANGLE on Vulkan (`--use-angle=vulkan --enable-features=Vulkan`) and the extracted
+`libEGL.so.1` in the main checkout's `tmp/egl/` (this machine has none of its own, and without it
+these flags hang the first page instead of failing; `REAL_EGL_DIR` names another copy). The same
+idle page then costs 27 to 51%. Every session checks the renderer the page draws with and records it
+in `session.json` (`renderer`); a software renderer fails the start loudly, with the reason on the
+command's own output, rather than running slowly. `REAL_GPU=0` runs SwiftShader on purpose, on a
+machine with no GPU.
+
+At most eight GPU browsers run at once for the studio, through one gate. A session takes one of the
+machine's browser slots (`with-browser.sh`) when it starts and holds it until `--end`; a start
+waits, saying so, while every slot is taken. The slots are the main checkout's
+`tmp/browser-slots/slot1` to `slot8`. Slots 1 to 4 are the same ones `<main checkout>/tmp/with-browser.sh`
 hands to the pre-push gate's browser test shards and to visual-preview captures, so a study round
-and the machine's test runs share one limit. `BROWSER_SLOTS` (1 to 4) uses fewer of the four;
-above 4 the gate refuses to run (exit 2). Every command that launches a browser for the studio
+and the machine's test runs share them; slots 5 and up are the studio's alone. A command that
+draws on the GPU (`real.mjs` sets `BROWSER_GPU=1` for its sessions) may take up to 8; any other
+command, drawn in software, up to 4. `BROWSER_SLOTS` (1 to 16) sets the cap; above 16 the gate
+refuses to run (exit 2). Eight GPU sessions with a graph open used 6.8 GB of memory in all (about
+850 MB each), 110% of one core idle and about 210% while all eight stepped at once, and 1.5 GB of
+the card's memory (2026-10-21). Every command that launches a browser for the studio
 (`real.mjs`, `bars.mjs`, a private walk) goes through `with-browser.sh`. `real.mjs --start` takes its own
 slot (it runs its session process through the gate), `--prove` runs the gate itself for each browser
-it starts, and `--step`, `--end` and `--brief` launch no browser, so all five are called directly;
+it starts, `--replay` and `--rewalk` start their sessions as `--start` does, and `--step`, `--end` and
+`--brief` launch no browser, so all of them are called directly;
 wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
 second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take a slot, and its tier
 1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
@@ -389,6 +413,19 @@ slot; a waiter that was killed leaves a ticket the next waiter removes. `node --
 design/ui/studio/tool/with-browser.test.mjs` checks the order, the dead waiter and the `bars.mjs`
 pass-through with no browser. Commands that take the machine's slots without this script (the
 pre-push gate's browser shards) do not queue; they take a slot when they find one free.
+
+**Warm browsers.** A cold start launches a browser, opens the app on a clean profile and lets it
+settle: 7 to 11 seconds after its slot. So the tool keeps a few browsers warm: launched, the app
+open and settled on a clean profile, never touched. A `--start` of the same build, window size and
+color scheme (and the same `real.mjs`) takes one over and starts in about 2 seconds; `session.log`
+says `took over warm browser`. A start still waiting in the queue takes one the moment one is ready.
+Every `--start`, and every `--end` that names its build with `REAL_DIST`, tops the pool up to
+`REAL_WARM_POOL` (default 2; 0 turns the pool off, and then nothing takes a warm browser either).
+A warm browser takes its slot through the gate's try mode (`BROWSER_SLOT_TRY=1`): only a spare slot
+above 4, at once or not at all, and never while a start waits in the queue, so it never stands
+between a start or a test shard and a slot. One that waits `REAL_WARM_SECONDS` (default 600)
+unclaimed, or sees starts queue for a slot for 6 seconds, closes and frees its slot. Warm browsers
+wait in `/tmp/graphty-real-warm/`, with their log there.
 
 **A start that must not wait in the background.** A start that waits longer than the caller's
 shell call allows is moved to the background, and an agent whose turn then ends never comes back
@@ -420,6 +457,47 @@ instead of passing a check it never reached. A participant's session leaves it u
 part of what they did, and exits 0. A replayed participant route (`rewalk.sh` with a session
 folder) also leaves it unset, since the participant's own misses are replayed as they happened.
 
+## Replaying a route
+
+Every session saves its own route: `route.jsonl` in its folder, one line saying how it started
+(`empty` or the setup file's full path, `--keys`, `--sr`, the window and color scheme), then one
+line per `--step` with its actions and its check points: what the step printed, whether a name
+missed, and the controls and headings on the screen it ended on, by kind and name. A pilot, a detour
+walk, a keyboard walk or a re-walk is therefore already a script.
+
+```bash
+node $T/real.mjs --replay rounds/r1d1/pilot/T38A/success rounds/r1d2/pilot/T38A/success
+node $T/real.mjs --rewalk rounds/r1d1/pilot/T38A rounds/r1d2/pilot/T38A [--only success,detours]
+```
+
+`--replay <walk folder | route.jsonl> <new session folder>` starts the new session the way the
+route did, on whatever build `REAL_DIST` names now, and sends the route's steps one `--step` at a
+time, printing one line per step. A step diverges when a name it uses is missing, it printed
+anything else (a different node at a point, another tooltip, another focus line, a new script
+error), or the screen it ends on differs from the recorded one by more than a couple of controls
+(`REAL_REPLAY_TOLERANCE`, default 2 or 5% of the screen). Lines that differ from run to run on
+the same screen are not compared: a slow click that landed, a drawing still moving, a notice gone
+before the screenshot. At the first divergence it stops (exit 5), prints how the step differed, and
+leaves the session open on that screen: whoever replayed it looks at the screenshot and carries on
+by hand with `--step`, then `--end`, and the new folder's own `route.jsonl` becomes the route to
+replay next time. A route that matched to the end is ended (exit 0; `--keep` leaves it open to
+extend it); `--end-on-diverge` ends a diverged one too. `replay.json` in the new folder records how
+many steps matched and where it diverged. A route written by hand -- a first line such as
+`{"start": "empty", "keys": false}`, then one `{"steps": ["--click", "Load"]}` line per step --
+replays too, with only its names checked, since it records no screens.
+
+`--rewalk <old walks folder> <new walks folder>` replays every route it finds under the old folder
+(a task's pilot folder, or a pilot folder of tasks), `REAL_REWALK_PARALLEL` (default 4) at a time,
+each through the gate, into the same place under the new one. A walk that diverged is ended and its
+folder renamed `<walk>-diverged`, which leaves `<walk>` free for a walker to `--replay` again and
+carry on by hand from where the build went another way. `rewalk.json` in the new folder lists each
+walk's result; the command exits 0 when every route matched and 5 when any diverged. A route that
+matched shows what the earlier walk showed, so the earlier walk's report stands for it and nobody
+needs to look at it again; only the diverged ones need a walker.
+
+Participants' sessions are never replayed: a participant drives every step. Pilots, detours,
+keyboard walks and the re-walks after a fix replay.
+
 ## Checking the tool
 
 ```bash
@@ -439,7 +517,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees). It prints `ok` or `FAIL` per check and exits 1 on any failure.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

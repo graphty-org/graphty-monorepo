@@ -1,0 +1,2531 @@
+{
+    "program": "Cytoscape desktop 3.10.5",
+    "sheets": [
+        {
+            "id": "specimen-node-shapes",
+            "specimens": 19
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "specimens": 35
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "specimens": 16
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p2",
+            "specimens": 6
+        },
+        {
+            "id": "specimen-labels",
+            "specimens": 38
+        },
+        {
+            "id": "specimen-labels-p2",
+            "specimens": 42
+        },
+        {
+            "id": "specimen-labels-p3",
+            "specimens": 41
+        },
+        {
+            "id": "specimen-labels-p4",
+            "specimens": 16
+        },
+        {
+            "id": "specimen-edges-lines",
+            "specimens": 45
+        },
+        {
+            "id": "specimen-arrows",
+            "specimens": 43
+        },
+        {
+            "id": "specimen-arrows-p2",
+            "specimens": 15
+        },
+        {
+            "id": "specimen-edge-labels",
+            "specimens": 29
+        },
+        {
+            "id": "specimen-groups",
+            "specimens": 24
+        },
+        {
+            "id": "specimen-images-charts",
+            "specimens": 27
+        },
+        {
+            "id": "specimen-images-charts-p2",
+            "specimens": 12
+        },
+        {
+            "id": "specimen-images-charts-p3",
+            "specimens": 19
+        },
+        {
+            "id": "specimen-images-charts-p4",
+            "specimens": 26
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "specimens": 7
+        },
+        {
+            "id": "specimen-images-charts-p5",
+            "specimens": 17
+        },
+        {
+            "id": "specimen-images-charts-p6",
+            "specimens": 45
+        },
+        {
+            "id": "specimen-images-charts-p7",
+            "specimens": 12
+        },
+        {
+            "id": "specimen-mappings-bypass",
+            "specimens": 42
+        },
+        {
+            "id": "specimen-mappings-bypass-p2",
+            "specimens": 19,
+            "replayOf": "specimen-node-shapes"
+        },
+        {
+            "id": "specimen-mappings-bypass-p3",
+            "specimens": 35,
+            "replayOf": "specimen-node-fills-borders"
+        },
+        {
+            "id": "specimen-mappings-bypass-p4",
+            "specimens": 16,
+            "replayOf": "specimen-node-sizes-opacity"
+        },
+        {
+            "id": "specimen-mappings-bypass-p5",
+            "specimens": 6,
+            "replayOf": "specimen-node-sizes-opacity-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p6",
+            "specimens": 38,
+            "replayOf": "specimen-labels"
+        },
+        {
+            "id": "specimen-mappings-bypass-p7",
+            "specimens": 42,
+            "replayOf": "specimen-labels-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p8",
+            "specimens": 41,
+            "replayOf": "specimen-labels-p3"
+        },
+        {
+            "id": "specimen-mappings-bypass-p9",
+            "specimens": 16,
+            "replayOf": "specimen-labels-p4"
+        },
+        {
+            "id": "specimen-mappings-bypass-p10",
+            "specimens": 45,
+            "replayOf": "specimen-edges-lines"
+        },
+        {
+            "id": "specimen-mappings-bypass-p11",
+            "specimens": 43,
+            "replayOf": "specimen-arrows"
+        },
+        {
+            "id": "specimen-mappings-bypass-p12",
+            "specimens": 15,
+            "replayOf": "specimen-arrows-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p13",
+            "specimens": 29,
+            "replayOf": "specimen-edge-labels"
+        },
+        {
+            "id": "specimen-mappings-bypass-p14",
+            "specimens": 27,
+            "replayOf": "specimen-images-charts"
+        },
+        {
+            "id": "specimen-mappings-bypass-p15",
+            "specimens": 12,
+            "replayOf": "specimen-images-charts-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p16",
+            "specimens": 19,
+            "replayOf": "specimen-images-charts-p3"
+        },
+        {
+            "id": "specimen-mappings-bypass-p17",
+            "specimens": 7,
+            "replayOf": "specimen-edge-labels-p2"
+        },
+        {
+            "id": "specimen-mappings-bypass-p18",
+            "specimens": 17,
+            "replayOf": "specimen-images-charts-p5"
+        },
+        {
+            "id": "specimen-mappings-bypass-p19",
+            "specimens": 17
+        },
+        {
+            "id": "specimen-mappings-bypass-p20",
+            "specimens": 5
+        }
+    ],
+    "valuesCovered": 472,
+    "uncovered": [],
+    "visualProperties": {
+        "COMPOUND_NODE_PADDING": {
+            "values": {
+                "0": ["specimen-groups#compound-node-padding-0"],
+                "10": ["(every sheet's default specimen)"],
+                "25": ["specimen-groups#compound-node-padding-25"]
+            }
+        },
+        "COMPOUND_NODE_SHAPE": {
+            "values": {
+                "DIAMOND": ["specimen-groups#compound-node-shape-diamond"],
+                "ELLIPSE": ["specimen-groups#compound-node-shape-ellipse"],
+                "HEXAGON": ["specimen-groups#compound-node-shape-hexagon"],
+                "OCTAGON": ["specimen-groups#compound-node-shape-octagon"],
+                "PARALLELOGRAM": ["specimen-groups#compound-node-shape-parallelogram"],
+                "RECTANGLE": ["specimen-groups#compound-node-shape-rectangle"],
+                "ROUND_RECTANGLE": [
+                    "specimen-groups#compound-node-shape-round-rectangle",
+                    "(every sheet's default specimen)"
+                ],
+                "TRIANGLE": ["specimen-groups#compound-node-shape-triangle"],
+                "VEE": ["specimen-groups#compound-node-shape-vee"]
+            }
+        },
+        "DING_RENDERING_ENGINE_ROOT": {
+            "skipped": "the renderer's root property, not a setting"
+        },
+        "EDGE": {
+            "skipped": "the abstract root of the edge properties, not a setting"
+        },
+        "EDGE_BEND": {
+            "values": {
+                "0.0,1.0,0.5": ["specimen-edges-lines#bend-one-handle", "specimen-mappings-bypass-p10#bend-one-handle"],
+                "0.7071,-0.7071,0.3|0.7071,0.7071,0.7": [
+                    "specimen-edges-lines#bend-two-handles",
+                    "specimen-mappings-bypass-p10#bend-two-handles"
+                ]
+            }
+        },
+        "EDGE_CURVED": {
+            "values": {
+                "false": [
+                    "specimen-edges-lines#curved-false-bend",
+                    "specimen-edges-lines#curved-false-parallel",
+                    "specimen-mappings-bypass-p10#curved-false-bend",
+                    "specimen-mappings-bypass-p10#curved-false-parallel"
+                ],
+                "true": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LABEL": {
+            "values": {
+                "Text": ["specimen-edge-labels#label-text", "specimen-mappings-bypass-p13#label-text"],
+                "Two\nlines": ["specimen-edge-labels#label-two-lines", "specimen-mappings-bypass-p13#label-two-lines"],
+                "(passthrough mapping)": ["specimen-mappings-bypass"],
+                "(text)": ["specimen-edge-labels"]
+            }
+        },
+        "EDGE_LABEL_AUTOROTATE": {
+            "values": {
+                "true": [
+                    "specimen-edge-labels#label-autorotate-true",
+                    "specimen-mappings-bypass-p13#label-autorotate-true"
+                ],
+                "false": [
+                    "specimen-edge-labels#label-autorotate-false",
+                    "specimen-mappings-bypass-p13#label-autorotate-false",
+                    "(every sheet's default specimen)"
+                ]
+            }
+        },
+        "EDGE_LABEL_BACKGROUND_COLOR": {
+            "values": {
+                "#FFFF66": [
+                    "specimen-edge-labels#label-background-color-ffff66",
+                    "specimen-mappings-bypass-p13#label-background-color-ffff66"
+                ]
+            }
+        },
+        "EDGE_LABEL_BACKGROUND_SHAPE": {
+            "values": {
+                "RECTANGLE": [
+                    "specimen-edge-labels#label-background-shape-rectangle",
+                    "specimen-mappings-bypass-p13#label-background-shape-rectangle"
+                ],
+                "ROUND_RECTANGLE": [
+                    "specimen-edge-labels#label-background-shape-round-rectangle",
+                    "specimen-mappings-bypass-p13#label-background-shape-round-rectangle"
+                ],
+                "NONE": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LABEL_BACKGROUND_TRANSPARENCY": {
+            "values": {
+                "100": [
+                    "specimen-edge-labels#label-background-transparency-100",
+                    "specimen-mappings-bypass-p13#label-background-transparency-100"
+                ]
+            }
+        },
+        "EDGE_LABEL_COLOR": {
+            "values": {
+                "#D62728": [
+                    "specimen-edge-labels#label-color-d62728",
+                    "specimen-mappings-bypass-p13#label-color-d62728"
+                ],
+                "#1F77B4": [
+                    "specimen-edge-labels#label-color-1f77b4",
+                    "specimen-mappings-bypass-p13#label-color-1f77b4"
+                ],
+                "#000000": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LABEL_FONT_FACE": {
+            "values": {
+                "Serif,plain,10": [
+                    "specimen-edge-labels#font-face-serif",
+                    "specimen-mappings-bypass-p13#font-face-serif"
+                ],
+                "Monospaced,plain,10": [
+                    "specimen-edge-labels#font-face-monospaced",
+                    "specimen-mappings-bypass-p13#font-face-monospaced"
+                ],
+                "DejaVu Serif,plain,10": [
+                    "specimen-edge-labels#font-face-dejavu-serif",
+                    "specimen-mappings-bypass-p13#font-face-dejavu-serif"
+                ],
+                "DejaVu Sans,bold,10": [
+                    "specimen-edge-labels#font-face-dejavu-sans-bold",
+                    "specimen-mappings-bypass-p13#font-face-dejavu-sans-bold"
+                ],
+                "DejaVu Sans,plain,10": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LABEL_FONT_SIZE": {
+            "values": {
+                "6": ["specimen-edge-labels#label-font-size-6", "specimen-mappings-bypass-p13#label-font-size-6"],
+                "10": ["(every sheet's default specimen)"],
+                "14": ["specimen-edge-labels#label-font-size-14", "specimen-mappings-bypass-p13#label-font-size-14"],
+                "20": ["specimen-edge-labels#label-font-size-20", "specimen-mappings-bypass-p13#label-font-size-20"]
+            }
+        },
+        "EDGE_LABEL_POSITION": {
+            "values": {
+                "N,S,c,0.00,0.00": [
+                    "specimen-edge-labels#label-position-n-s-c-0-0",
+                    "specimen-mappings-bypass-p13#label-position-n-s-c-0-0"
+                ],
+                "S,N,c,0.00,0.00": [
+                    "specimen-edge-labels#label-position-s-n-c-0-0",
+                    "specimen-mappings-bypass-p13#label-position-s-n-c-0-0"
+                ],
+                "C,C,c,0.00,-15.00": [
+                    "specimen-edge-labels#label-position-c-c-c-0-15",
+                    "specimen-mappings-bypass-p13#label-position-c-c-c-0-15"
+                ],
+                "W,E,r,0.00,0.00": [
+                    "specimen-edge-labels#label-position-w-e-r-0-0",
+                    "specimen-mappings-bypass-p13#label-position-w-e-r-0-0"
+                ],
+                "E,W,l,0.00,0.00": [
+                    "specimen-edge-labels#label-position-e-w-l-0-0",
+                    "specimen-mappings-bypass-p13#label-position-e-w-l-0-0"
+                ],
+                "NW,SE,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-nw-se-c-0-0"
+                ],
+                "SE,NW,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-se-nw-c-0-0"
+                ],
+                "NE,SW,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-ne-sw-c-0-0"
+                ],
+                "SW,NE,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-sw-ne-c-0-0"
+                ],
+                "C,C,c,15.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-c-c-c-15-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-15-0"
+                ],
+                "C,C,c,0.00,0.00": [
+                    "specimen-edge-labels-p2#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-0-0"
+                ]
+            }
+        },
+        "EDGE_LABEL_ROTATION": {
+            "values": {
+                "0": ["(every sheet's default specimen)"],
+                "45": [
+                    "specimen-edge-labels#label-rotation-45",
+                    "specimen-edge-labels#label-rotation-45-diagonal",
+                    "specimen-mappings-bypass-p13#label-rotation-45",
+                    "specimen-mappings-bypass-p13#label-rotation-45-diagonal"
+                ],
+                "90": ["specimen-edge-labels#label-rotation-90", "specimen-mappings-bypass-p13#label-rotation-90"]
+            }
+        },
+        "EDGE_LABEL_TRANSPARENCY": {
+            "values": {
+                "64": [
+                    "specimen-edge-labels#label-transparency-64",
+                    "specimen-mappings-bypass-p13#label-transparency-64"
+                ],
+                "160": [
+                    "specimen-edge-labels#label-transparency-160",
+                    "specimen-mappings-bypass-p13#label-transparency-160"
+                ],
+                "255": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LABEL_WIDTH": {
+            "values": {
+                "30": ["specimen-edge-labels#label-width-30", "specimen-mappings-bypass-p13#label-width-30"],
+                "200": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_LINE_TYPE": {
+            "values": {
+                "BACKWARD_SLASH": [
+                    "specimen-edges-lines#line-type-backward-slash",
+                    "specimen-mappings-bypass-p10#line-type-backward-slash"
+                ],
+                "CONTIGUOUS_ARROW": [
+                    "specimen-edges-lines#line-type-contiguous-arrow",
+                    "specimen-mappings-bypass-p10#line-type-contiguous-arrow"
+                ],
+                "DASH_DOT": [
+                    "specimen-edges-lines#line-type-dash-dot",
+                    "specimen-mappings-bypass-p10#line-type-dash-dot"
+                ],
+                "DOT": ["specimen-edges-lines#line-type-dot", "specimen-mappings-bypass-p10#line-type-dot"],
+                "EQUAL_DASH": [
+                    "specimen-edges-lines#line-type-equal-dash",
+                    "specimen-mappings-bypass-p10#line-type-equal-dash"
+                ],
+                "FORWARD_SLASH": [
+                    "specimen-edges-lines#line-type-forward-slash",
+                    "specimen-mappings-bypass-p10#line-type-forward-slash"
+                ],
+                "LONG_DASH": [
+                    "specimen-edges-lines#line-type-long-dash",
+                    "specimen-mappings-bypass-p10#line-type-long-dash"
+                ],
+                "MARQUEE_DASH": [
+                    "specimen-edges-lines#line-type-marquee-dash",
+                    "specimen-mappings-bypass-p10#line-type-marquee-dash"
+                ],
+                "MARQUEE_DASH_DOT": [
+                    "specimen-edges-lines#line-type-marquee-dash-dot",
+                    "specimen-mappings-bypass-p10#line-type-marquee-dash-dot"
+                ],
+                "MARQUEE_EQUAL": [
+                    "specimen-edges-lines#line-type-marquee-equal",
+                    "specimen-mappings-bypass-p10#line-type-marquee-equal"
+                ],
+                "PARALLEL_LINES": [
+                    "specimen-edges-lines#line-type-parallel-lines",
+                    "specimen-mappings-bypass-p10#line-type-parallel-lines"
+                ],
+                "SEPARATE_ARROW": [
+                    "specimen-edges-lines#line-type-separate-arrow",
+                    "specimen-mappings-bypass-p10#line-type-separate-arrow"
+                ],
+                "SINEWAVE": [
+                    "specimen-edges-lines#line-type-sinewave",
+                    "specimen-mappings-bypass-p10#line-type-sinewave"
+                ],
+                "SOLID": [
+                    "specimen-edges-lines#line-type-solid",
+                    "specimen-mappings-bypass-p10#line-type-solid",
+                    "(every sheet's default specimen)"
+                ],
+                "VERTICAL_SLASH": [
+                    "specimen-edges-lines#line-type-vertical-slash",
+                    "specimen-mappings-bypass-p10#line-type-vertical-slash"
+                ],
+                "ZIGZAG": ["specimen-edges-lines#line-type-zigzag", "specimen-mappings-bypass-p10#line-type-zigzag"],
+                "(discrete mapping)": ["specimen-mappings-bypass"]
+            }
+        },
+        "EDGE_PAINT": {
+            "values": {
+                "#D62728": ["specimen-edges-lines#paint-d62728", "specimen-mappings-bypass-p10#paint-d62728"]
+            }
+        },
+        "EDGE_SELECTED": {
+            "skipped": "selection state, out of scope"
+        },
+        "EDGE_SELECTED_PAINT": {
+            "skipped": "selected-state color, out of scope"
+        },
+        "EDGE_SOURCE_ARROW_SELECTED_PAINT": {
+            "skipped": "selected-state color, out of scope"
+        },
+        "EDGE_SOURCE_ARROW_SHAPE": {
+            "values": {
+                "ARROW": [
+                    "specimen-arrows#source-arrow-shape-arrow",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-arrow"
+                ],
+                "ARROW_SHORT": [
+                    "specimen-arrows#source-arrow-shape-arrow-short",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-arrow-short"
+                ],
+                "CIRCLE": [
+                    "specimen-arrows#source-arrow-shape-circle",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-circle"
+                ],
+                "CROSS_DELTA": [
+                    "specimen-arrows#source-arrow-shape-cross-delta",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-cross-delta"
+                ],
+                "CROSS_OPEN_DELTA": [
+                    "specimen-arrows#source-arrow-shape-cross-open-delta",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-cross-open-delta"
+                ],
+                "DELTA": [
+                    "specimen-arrows#source-arrow-shape-delta",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-delta"
+                ],
+                "DELTA_SHORT_1": [
+                    "specimen-arrows#source-arrow-shape-delta-short-1",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-delta-short-1"
+                ],
+                "DELTA_SHORT_2": [
+                    "specimen-arrows#source-arrow-shape-delta-short-2",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-delta-short-2"
+                ],
+                "DIAMOND": [
+                    "specimen-arrows#source-arrow-shape-diamond",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-diamond"
+                ],
+                "DIAMOND_SHORT_1": [
+                    "specimen-arrows#source-arrow-shape-diamond-short-1",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-diamond-short-1"
+                ],
+                "DIAMOND_SHORT_2": [
+                    "specimen-arrows#source-arrow-shape-diamond-short-2",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-diamond-short-2"
+                ],
+                "HALF_BOTTOM": [
+                    "specimen-arrows#source-arrow-shape-half-bottom",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-half-bottom"
+                ],
+                "HALF_CIRCLE": [
+                    "specimen-arrows#source-arrow-shape-half-circle",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-half-circle"
+                ],
+                "HALF_TOP": [
+                    "specimen-arrows#source-arrow-shape-half-top",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-half-top"
+                ],
+                "OPEN_CIRCLE": [
+                    "specimen-arrows#source-arrow-shape-open-circle",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-open-circle"
+                ],
+                "OPEN_DELTA": [
+                    "specimen-arrows#source-arrow-shape-open-delta",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-open-delta"
+                ],
+                "OPEN_DIAMOND": [
+                    "specimen-arrows#source-arrow-shape-open-diamond",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-open-diamond"
+                ],
+                "OPEN_HALF_CIRCLE": [
+                    "specimen-arrows#source-arrow-shape-open-half-circle",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-open-half-circle"
+                ],
+                "OPEN_SQUARE": [
+                    "specimen-arrows#source-arrow-shape-open-square",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-open-square"
+                ],
+                "SQUARE": [
+                    "specimen-arrows#source-arrow-shape-square",
+                    "specimen-mappings-bypass-p11#source-arrow-shape-square"
+                ],
+                "T": ["specimen-arrows#source-arrow-shape-t", "specimen-mappings-bypass-p11#source-arrow-shape-t"],
+                "NONE": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_SOURCE_ARROW_SIZE": {
+            "values": {
+                "6": [
+                    "specimen-arrows-p2#source-arrow-size-6",
+                    "specimen-mappings-bypass-p12#source-arrow-size-6",
+                    "(every sheet's default specimen)"
+                ],
+                "16": ["specimen-arrows-p2#source-arrow-size-16", "specimen-mappings-bypass-p12#source-arrow-size-16"]
+            }
+        },
+        "EDGE_SOURCE_ARROW_UNSELECTED_PAINT": {
+            "values": {
+                "#D62728": [
+                    "specimen-arrows-p2#source-arrow-unselected-paint-d62728",
+                    "specimen-mappings-bypass-p12#source-arrow-unselected-paint-d62728"
+                ],
+                "#1F77B4": [
+                    "specimen-arrows-p2#source-arrow-unselected-paint-1f77b4",
+                    "specimen-mappings-bypass-p12#source-arrow-unselected-paint-1f77b4"
+                ],
+                "#505050": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_STACKING": {
+            "values": {
+                "HAYSTACK": [
+                    "specimen-edges-lines#stacking-haystack",
+                    "specimen-mappings-bypass-p10#stacking-haystack"
+                ],
+                "AUTO_BEND": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_STACKING_DENSITY": {
+            "values": {
+                "0.1": [
+                    "specimen-edges-lines#stacking-density-0-1",
+                    "specimen-mappings-bypass-p10#stacking-density-0-1"
+                ],
+                "0.9": [
+                    "specimen-edges-lines#stacking-density-0-9",
+                    "specimen-mappings-bypass-p10#stacking-density-0-9"
+                ],
+                "0.5": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_STROKE_SELECTED_PAINT": {
+            "skipped": "selected-state color, out of scope"
+        },
+        "EDGE_STROKE_UNSELECTED_PAINT": {
+            "values": {
+                "#D62728": [
+                    "specimen-edges-lines#stroke-unselected-paint-d62728",
+                    "specimen-arrows-p2#arrow-paint-separate-from-edge",
+                    "specimen-mappings-bypass-p10#stroke-unselected-paint-d62728",
+                    "specimen-mappings-bypass-p12#arrow-paint-separate-from-edge"
+                ],
+                "#2CA02C": [
+                    "specimen-edges-lines#stroke-unselected-paint-2ca02c",
+                    "specimen-mappings-bypass-p10#stroke-unselected-paint-2ca02c"
+                ],
+                "#1F77B4": [
+                    "specimen-edges-lines#stroke-unselected-paint-1f77b4",
+                    "specimen-mappings-bypass-p10#stroke-unselected-paint-1f77b4"
+                ],
+                "#000000": [
+                    "specimen-edges-lines#stroke-unselected-paint-000000",
+                    "specimen-mappings-bypass-p10#stroke-unselected-paint-000000"
+                ],
+                "#9467BD": ["specimen-mappings-bypass#bypass-over-edge-passthrough"],
+                "(passthrough mapping)": ["specimen-mappings-bypass"],
+                "#505050": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_TARGET_ARROW_SELECTED_PAINT": {
+            "skipped": "selected-state color, out of scope"
+        },
+        "EDGE_TARGET_ARROW_SHAPE": {
+            "values": {
+                "ARROW": [
+                    "specimen-arrows#target-arrow-shape-arrow",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-arrow"
+                ],
+                "ARROW_SHORT": [
+                    "specimen-arrows#target-arrow-shape-arrow-short",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-arrow-short"
+                ],
+                "CIRCLE": [
+                    "specimen-arrows#target-arrow-shape-circle",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-circle"
+                ],
+                "CROSS_DELTA": [
+                    "specimen-arrows#target-arrow-shape-cross-delta",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-cross-delta"
+                ],
+                "CROSS_OPEN_DELTA": [
+                    "specimen-arrows#target-arrow-shape-cross-open-delta",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-cross-open-delta"
+                ],
+                "DELTA": [
+                    "specimen-arrows#target-arrow-shape-delta",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-delta"
+                ],
+                "DELTA_SHORT_1": [
+                    "specimen-arrows#target-arrow-shape-delta-short-1",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-delta-short-1"
+                ],
+                "DELTA_SHORT_2": [
+                    "specimen-arrows#target-arrow-shape-delta-short-2",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-delta-short-2"
+                ],
+                "DIAMOND": [
+                    "specimen-arrows#target-arrow-shape-diamond",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-diamond"
+                ],
+                "DIAMOND_SHORT_1": [
+                    "specimen-arrows#target-arrow-shape-diamond-short-1",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-diamond-short-1"
+                ],
+                "DIAMOND_SHORT_2": [
+                    "specimen-arrows#target-arrow-shape-diamond-short-2",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-diamond-short-2"
+                ],
+                "HALF_BOTTOM": [
+                    "specimen-arrows#target-arrow-shape-half-bottom",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-half-bottom"
+                ],
+                "HALF_CIRCLE": [
+                    "specimen-arrows#target-arrow-shape-half-circle",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-half-circle"
+                ],
+                "HALF_TOP": [
+                    "specimen-arrows#target-arrow-shape-half-top",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-half-top"
+                ],
+                "OPEN_CIRCLE": [
+                    "specimen-arrows#target-arrow-shape-open-circle",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-open-circle"
+                ],
+                "OPEN_DELTA": [
+                    "specimen-arrows#target-arrow-shape-open-delta",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-open-delta"
+                ],
+                "OPEN_DIAMOND": [
+                    "specimen-arrows#target-arrow-shape-open-diamond",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-open-diamond"
+                ],
+                "OPEN_HALF_CIRCLE": [
+                    "specimen-arrows#target-arrow-shape-open-half-circle",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-open-half-circle"
+                ],
+                "OPEN_SQUARE": [
+                    "specimen-arrows#target-arrow-shape-open-square",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-open-square"
+                ],
+                "SQUARE": [
+                    "specimen-arrows#target-arrow-shape-square",
+                    "specimen-mappings-bypass-p11#target-arrow-shape-square"
+                ],
+                "T": ["specimen-arrows#target-arrow-shape-t", "specimen-mappings-bypass-p11#target-arrow-shape-t"],
+                "NONE": [
+                    "specimen-arrows-p2#target-arrow-shape-none",
+                    "specimen-mappings-bypass-p12#target-arrow-shape-none",
+                    "(every sheet's default specimen)"
+                ],
+                "(discrete mapping)": ["specimen-mappings-bypass"]
+            }
+        },
+        "EDGE_TARGET_ARROW_SIZE": {
+            "values": {
+                "3": ["specimen-arrows-p2#target-arrow-size-3", "specimen-mappings-bypass-p12#target-arrow-size-3"],
+                "6": [
+                    "specimen-arrows-p2#target-arrow-size-6",
+                    "specimen-mappings-bypass-p12#target-arrow-size-6",
+                    "(every sheet's default specimen)"
+                ],
+                "10": ["specimen-arrows-p2#target-arrow-size-10", "specimen-mappings-bypass-p12#target-arrow-size-10"],
+                "16": ["specimen-arrows-p2#target-arrow-size-16", "specimen-mappings-bypass-p12#target-arrow-size-16"],
+                "24": ["specimen-arrows-p2#target-arrow-size-24", "specimen-mappings-bypass-p12#target-arrow-size-24"]
+            }
+        },
+        "EDGE_TARGET_ARROW_UNSELECTED_PAINT": {
+            "values": {
+                "#D62728": [
+                    "specimen-arrows-p2#target-arrow-unselected-paint-d62728",
+                    "specimen-mappings-bypass-p12#target-arrow-unselected-paint-d62728"
+                ],
+                "#1F77B4": [
+                    "specimen-arrows-p2#target-arrow-unselected-paint-1f77b4",
+                    "specimen-mappings-bypass-p12#target-arrow-unselected-paint-1f77b4"
+                ],
+                "#505050": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_TOOLTIP": {
+            "skipped": "shown on hover only; never drawn in an exported image"
+        },
+        "EDGE_TRANSPARENCY": {
+            "values": {
+                "0": ["specimen-edges-lines#transparency-0", "specimen-mappings-bypass-p10#transparency-0"],
+                "64": ["specimen-edges-lines#transparency-64", "specimen-mappings-bypass-p10#transparency-64"],
+                "128": ["specimen-edges-lines#transparency-128", "specimen-mappings-bypass-p10#transparency-128"],
+                "192": ["specimen-edges-lines#transparency-192", "specimen-mappings-bypass-p10#transparency-192"],
+                "255": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_UNSELECTED_PAINT": {
+            "values": {
+                "#D62728": [
+                    "specimen-edges-lines#unselected-paint-d62728",
+                    "specimen-mappings-bypass-p10#unselected-paint-d62728"
+                ]
+            }
+        },
+        "EDGE_VISIBLE": {
+            "values": {
+                "false": ["specimen-edges-lines#visible-false", "specimen-mappings-bypass-p10#visible-false"],
+                "true": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_WIDTH": {
+            "values": {
+                "1": ["specimen-edges-lines#width-1", "specimen-mappings-bypass-p10#width-1"],
+                "3": ["specimen-edges-lines#width-3", "specimen-mappings-bypass-p10#width-3"],
+                "6": [
+                    "specimen-edges-lines#width-6",
+                    "specimen-arrows-p2#arrow-on-wide-edge",
+                    "specimen-mappings-bypass-p10#width-6",
+                    "specimen-mappings-bypass-p12#arrow-on-wide-edge"
+                ],
+                "10": ["specimen-edges-lines#width-10", "specimen-mappings-bypass-p10#width-10"],
+                "0.5": ["specimen-edges-lines#width-0-5", "specimen-mappings-bypass-p10#width-0-5"],
+                "(continuous mapping)": ["specimen-mappings-bypass"],
+                "1.5": ["(every sheet's default specimen)"]
+            }
+        },
+        "EDGE_Z_ORDER": {
+            "values": {
+                "0": ["(every sheet's default specimen)"],
+                "10": ["specimen-edges-lines#z-order-10", "specimen-mappings-bypass-p10#z-order-10"]
+            }
+        },
+        "NETWORK": {
+            "skipped": "the abstract root of the network properties, not a setting"
+        },
+        "NETWORK_ANNOTATION_SELECTION": {
+            "skipped": "whether annotations can be selected (interaction only)"
+        },
+        "NETWORK_BACKGROUND_PAINT": {
+            "values": {
+                "#F4F1E8": ["specimen-mappings-bypass (style default)"],
+                "#FFFFFF": ["(every sheet's default specimen)"]
+            }
+        },
+        "NETWORK_CENTER_X_LOCATION": {
+            "skipped": "the camera; the oracle route fits the view to the content"
+        },
+        "NETWORK_CENTER_Y_LOCATION": {
+            "skipped": "the camera; the oracle route fits the view to the content"
+        },
+        "NETWORK_CENTER_Z_LOCATION": {
+            "skipped": "a 3D camera coordinate; Ding does not draw it"
+        },
+        "NETWORK_DEPTH": {
+            "skipped": "a 3D extent; Ding does not draw it"
+        },
+        "NETWORK_EDGE_SELECTION": {
+            "skipped": "whether edges can be selected (interaction only)"
+        },
+        "NETWORK_FORCE_HIGH_DETAIL": {
+            "skipped": "renderer level of detail; an SVG export is always drawn in full detail"
+        },
+        "NETWORK_HEIGHT": {
+            "skipped": "the view's pixel size; the oracle route sets it to 900"
+        },
+        "NETWORK_NODE_LABEL_SELECTION": {
+            "skipped": "whether labels can be selected (interaction only)"
+        },
+        "NETWORK_NODE_SELECTION": {
+            "skipped": "whether nodes can be selected (interaction only)"
+        },
+        "NETWORK_SCALE_FACTOR": {
+            "skipped": "the camera zoom; the oracle route fits the view to the content"
+        },
+        "NETWORK_SIZE": {
+            "skipped": "the view's pixel size; the oracle route sets it"
+        },
+        "NETWORK_TITLE": {
+            "skipped": "the view's window title; never drawn in the view"
+        },
+        "NETWORK_WIDTH": {
+            "skipped": "the view's pixel size; the oracle route sets it to 1200"
+        },
+        "NODE": {
+            "skipped": "the abstract root of the node properties, not a setting"
+        },
+        "NODE_BORDER_PAINT": {
+            "values": {
+                "#D62728": [
+                    "specimen-node-fills-borders#border-paint-d62728",
+                    "specimen-groups#collapsed-border-paint",
+                    "specimen-mappings-bypass-p3#border-paint-d62728"
+                ],
+                "#1F77B4": [
+                    "specimen-node-fills-borders#border-paint-1f77b4",
+                    "specimen-mappings-bypass-p3#border-paint-1f77b4"
+                ],
+                "#000000": [
+                    "specimen-node-fills-borders#border-paint-000000",
+                    "specimen-mappings-bypass-p3#border-paint-000000"
+                ],
+                "#FFFFFF": [
+                    "specimen-node-fills-borders#border-paint-ffffff",
+                    "specimen-mappings-bypass-p3#border-paint-ffffff"
+                ],
+                "(discrete mapping)": [
+                    "specimen-mappings-bypass",
+                    "specimen-mappings-bypass-p19",
+                    "specimen-mappings-bypass-p20"
+                ],
+                "#505050": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_BORDER_STROKE": {
+            "values": {
+                "BACKWARD_SLASH": [
+                    "specimen-node-fills-borders#border-stroke-backward-slash",
+                    "specimen-mappings-bypass-p3#border-stroke-backward-slash"
+                ],
+                "CONTIGUOUS_ARROW": [
+                    "specimen-node-fills-borders#border-stroke-contiguous-arrow",
+                    "specimen-mappings-bypass-p3#border-stroke-contiguous-arrow"
+                ],
+                "DASH_DOT": [
+                    "specimen-node-fills-borders#border-stroke-dash-dot",
+                    "specimen-mappings-bypass-p3#border-stroke-dash-dot"
+                ],
+                "DOT": [
+                    "specimen-node-fills-borders#border-stroke-dot",
+                    "specimen-mappings-bypass-p3#border-stroke-dot"
+                ],
+                "EQUAL_DASH": [
+                    "specimen-node-fills-borders#border-stroke-equal-dash",
+                    "specimen-mappings-bypass-p3#border-stroke-equal-dash"
+                ],
+                "FORWARD_SLASH": [
+                    "specimen-node-fills-borders#border-stroke-forward-slash",
+                    "specimen-mappings-bypass-p3#border-stroke-forward-slash"
+                ],
+                "LONG_DASH": [
+                    "specimen-node-fills-borders#border-stroke-long-dash",
+                    "specimen-mappings-bypass-p3#border-stroke-long-dash"
+                ],
+                "MARQUEE_DASH": [
+                    "specimen-node-fills-borders#border-stroke-marquee-dash",
+                    "specimen-mappings-bypass-p3#border-stroke-marquee-dash"
+                ],
+                "MARQUEE_DASH_DOT": [
+                    "specimen-node-fills-borders#border-stroke-marquee-dash-dot",
+                    "specimen-mappings-bypass-p3#border-stroke-marquee-dash-dot"
+                ],
+                "MARQUEE_EQUAL": [
+                    "specimen-node-fills-borders#border-stroke-marquee-equal",
+                    "specimen-mappings-bypass-p3#border-stroke-marquee-equal"
+                ],
+                "PARALLEL_LINES": [
+                    "specimen-node-fills-borders#border-stroke-parallel-lines",
+                    "specimen-mappings-bypass-p3#border-stroke-parallel-lines"
+                ],
+                "SEPARATE_ARROW": [
+                    "specimen-node-fills-borders#border-stroke-separate-arrow",
+                    "specimen-mappings-bypass-p3#border-stroke-separate-arrow"
+                ],
+                "SINEWAVE": [
+                    "specimen-node-fills-borders#border-stroke-sinewave",
+                    "specimen-mappings-bypass-p3#border-stroke-sinewave"
+                ],
+                "SOLID": [
+                    "specimen-node-fills-borders#border-stroke-solid",
+                    "specimen-mappings-bypass-p3#border-stroke-solid",
+                    "(every sheet's default specimen)"
+                ],
+                "VERTICAL_SLASH": [
+                    "specimen-node-fills-borders#border-stroke-vertical-slash",
+                    "specimen-mappings-bypass-p3#border-stroke-vertical-slash"
+                ],
+                "ZIGZAG": [
+                    "specimen-node-fills-borders#border-stroke-zigzag",
+                    "specimen-mappings-bypass-p3#border-stroke-zigzag"
+                ],
+                "(discrete mapping)": ["specimen-mappings-bypass"],
+                "(passthrough mapping)": ["specimen-mappings-bypass-p19", "specimen-mappings-bypass-p20"]
+            }
+        },
+        "NODE_BORDER_TRANSPARENCY": {
+            "values": {
+                "0": [
+                    "specimen-node-sizes-opacity#border-transparency-0",
+                    "specimen-mappings-bypass-p4#border-transparency-0"
+                ],
+                "128": [
+                    "specimen-node-sizes-opacity#border-transparency-128",
+                    "specimen-mappings-bypass-p4#border-transparency-128"
+                ],
+                "255": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_BORDER_WIDTH": {
+            "values": {
+                "0": ["specimen-node-fills-borders#border-width-0", "specimen-mappings-bypass-p3#border-width-0"],
+                "1": ["(every sheet's default specimen)"],
+                "3": ["specimen-node-fills-borders#border-width-3", "specimen-mappings-bypass-p3#border-width-3"],
+                "6": ["specimen-node-fills-borders#border-width-6", "specimen-mappings-bypass-p3#border-width-6"],
+                "10": ["specimen-node-fills-borders#border-width-10", "specimen-mappings-bypass-p3#border-width-10"],
+                "0.5": ["specimen-node-fills-borders#border-width-0-5", "specimen-mappings-bypass-p3#border-width-0-5"]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_1": {
+            "values": {
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0}": [
+                    "specimen-images-charts#pie",
+                    "specimen-images-charts-p2#pie-on-rectangle",
+                    "specimen-mappings-bypass-p14#pie",
+                    "specimen-mappings-bypass-p15#pie-on-rectangle"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":90}": [
+                    "specimen-images-charts#pie-start-90",
+                    "specimen-mappings-bypass-p14#pie-start-90"
+                ],
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.4}": [
+                    "specimen-images-charts#ring",
+                    "specimen-mappings-bypass-p14#ring"
+                ],
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.7}": [
+                    "specimen-images-charts#ring-hole-0-7",
+                    "specimen-mappings-bypass-p14#ring-hole-0-7"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\"}": [
+                    "specimen-images-charts#bar-grouped",
+                    "specimen-mappings-bypass-p14#bar-grouped"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"STACKED\"}": [
+                    "specimen-images-charts#bar-stacked",
+                    "specimen-mappings-bypass-p14#bar-stacked"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"HEAT_STRIPS\"}": [
+                    "specimen-images-charts#bar-heat-strips",
+                    "specimen-mappings-bypass-p14#bar-heat-strips"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[-10,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"UP_DOWN\"}": [
+                    "specimen-images-charts#bar-up-down",
+                    "specimen-mappings-bypass-p14#bar-up-down"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts#bar-horizontal",
+                    "specimen-mappings-bypass-p14#bar-horizontal"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_separation\":0.5}": [
+                    "specimen-images-charts#bar-separation",
+                    "specimen-mappings-bypass-p14#bar-separation"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts#bar-range-axis",
+                    "specimen-mappings-bypass-p14#bar-range-axis"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true}": [
+                    "specimen-images-charts#bar-domain-axis",
+                    "specimen-mappings-bypass-p14#bar-domain-axis"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_borderWidth\":2,\"cy_borderColor\":\"#000000\"}": [
+                    "specimen-images-charts#bar-border",
+                    "specimen-mappings-bypass-p14#bar-border"
+                ],
+                "org.cytoscape.BoxChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"]}": [
+                    "specimen-images-charts#box",
+                    "specimen-mappings-bypass-p14#box"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts#heat-map",
+                    "specimen-mappings-bypass-p14#heat-map"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1}": [
+                    "specimen-images-charts#line",
+                    "specimen-mappings-bypass-p14#line"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":3}": [
+                    "specimen-images-charts#line-width-3",
+                    "specimen-mappings-bypass-p14#line-width-3"
+                ],
+                "org.cytoscape.LinearGradient:{\"cy_angle\":0,\"cy_gradientColors\":[\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,1]}": [
+                    "specimen-images-charts#linear-gradient",
+                    "specimen-images-charts-p2#gradient-on-diamond",
+                    "specimen-mappings-bypass-p14#linear-gradient",
+                    "specimen-mappings-bypass-p15#gradient-on-diamond"
+                ],
+                "org.cytoscape.LinearGradient:{\"cy_angle\":45,\"cy_gradientColors\":[\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,1]}": [
+                    "specimen-images-charts#linear-gradient-45",
+                    "specimen-mappings-bypass-p14#linear-gradient-45"
+                ],
+                "org.cytoscape.LinearGradient:{\"cy_angle\":90,\"cy_gradientColors\":[\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,1]}": [
+                    "specimen-images-charts#linear-gradient-90",
+                    "specimen-mappings-bypass-p14#linear-gradient-90"
+                ],
+                "org.cytoscape.LinearGradient:{\"cy_angle\":180,\"cy_gradientColors\":[\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,1]}": [
+                    "specimen-images-charts#linear-gradient-180",
+                    "specimen-mappings-bypass-p14#linear-gradient-180"
+                ],
+                "org.cytoscape.LinearGradient:{\"cy_angle\":0,\"cy_gradientColors\":[\"#D62728\",\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,0.5,1]}": [
+                    "specimen-images-charts#linear-gradient-3-stops",
+                    "specimen-mappings-bypass-p14#linear-gradient-3-stops"
+                ],
+                "org.cytoscape.RadialGradient:{\"cy_gradientColors\":[\"#FFFFFF\",\"#D62728\"],\"cy_gradientFractions\":[0,1],\"cy_center\":{\"x\":0.5,\"y\":0.5},\"cy_radius\":0.5}": [
+                    "specimen-images-charts#radial-gradient",
+                    "specimen-mappings-bypass-p14#radial-gradient"
+                ],
+                "org.cytoscape.RadialGradient:{\"cy_gradientColors\":[\"#FFFFFF\",\"#D62728\"],\"cy_gradientFractions\":[0,1],\"cy_center\":{\"x\":0.25,\"y\":0.25},\"cy_radius\":0.5}": [
+                    "specimen-images-charts#radial-gradient-center",
+                    "specimen-mappings-bypass-p14#radial-gradient-center"
+                ],
+                "org.cytoscape.RadialGradient:{\"cy_gradientColors\":[\"#FFFFFF\",\"#D62728\"],\"cy_gradientFractions\":[0,1],\"cy_center\":{\"x\":0.5,\"y\":0.5},\"cy_radius\":0.25}": [
+                    "specimen-images-charts#radial-gradient-radius",
+                    "specimen-mappings-bypass-p14#radial-gradient-radius"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts#heat-map-list",
+                    "specimen-mappings-bypass-p14#heat-map-list"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_rotation\":\"CLOCKWISE\"}": [
+                    "specimen-images-charts-p5#pie-rotation-clockwise",
+                    "specimen-mappings-bypass-p18#pie-rotation-clockwise"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_borderWidth\":2,\"cy_borderColor\":\"#000000\"}": [
+                    "specimen-images-charts-p5#pie-border",
+                    "specimen-mappings-bypass-p18#pie-border"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"]}": [
+                    "specimen-images-charts-p5#pie-item-labels",
+                    "specimen-mappings-bypass-p18#pie-item-labels"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"],\"cy_itemLabelFontSize\":20}": [
+                    "specimen-images-charts-p5#pie-item-label-font-size-20",
+                    "specimen-mappings-bypass-p18#pie-item-label-font-size-20"
+                ],
+                "org.cytoscape.PieChart:{\"cy_values\":[1,1,2],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"]}": [
+                    "specimen-images-charts-p5#pie-values",
+                    "specimen-mappings-bypass-p18#pie-values"
+                ],
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.1}": [
+                    "specimen-images-charts-p5#ring-hole-0-1",
+                    "specimen-mappings-bypass-p18#ring-hole-0-1"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[-10,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeZeroBaseline\":true}": [
+                    "specimen-images-charts-p5#bar-zero-baseline",
+                    "specimen-mappings-bypass-p18#bar-zero-baseline"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeAxis\":true,\"cy_axisColor\":\"#D62728\",\"cy_axisWidth\":2}": [
+                    "specimen-images-charts-p5#bar-axis-color-width",
+                    "specimen-mappings-bypass-p18#bar-axis-color-width"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showItemLabels\":true,\"cy_itemLabels\":[\"A\",\"B\",\"C\"]}": [
+                    "specimen-images-charts-p5#bar-item-labels",
+                    "specimen-mappings-bypass-p18#bar-item-labels"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_globalRange\":false}": [
+                    "specimen-images-charts-p5#bar-global-range-false",
+                    "specimen-mappings-bypass-p18#bar-global-range-false"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"CONTRASTING\"}": [
+                    "specimen-images-charts-p5#bar-color-scheme-contrasting",
+                    "specimen-mappings-bypass-p18#bar-color-scheme-contrasting"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"RAINBOW\"}": [
+                    "specimen-images-charts-p5#bar-color-scheme-rainbow",
+                    "specimen-mappings-bypass-p18#bar-color-scheme-rainbow"
+                ],
+                "org.cytoscape.BoxChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#box-horizontal",
+                    "specimen-mappings-bypass-p18#box-horizontal"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#heat-map-horizontal",
+                    "specimen-mappings-bypass-p18#heat-map-horizontal"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_showDomainAxis\":true,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p5#heat-map-axes",
+                    "specimen-mappings-bypass-p18#heat-map-axes"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1,\"cy_orientation\":\"HORIZONTAL\"}": [
+                    "specimen-images-charts-p5#line-horizontal",
+                    "specimen-mappings-bypass-p18#line-horizontal"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"MODULATED\"}": [
+                    "specimen-images-charts-p6#bar-color-scheme-modulated"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"BLUE_RED\"}": [
+                    "specimen-images-charts-p6#bar-color-scheme-blue-red"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"YL_OR_RD\"}": [
+                    "specimen-images-charts-p6#bar-color-scheme-yl-or-rd"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":20,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p7#bar-axis-label-font-size-20"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p7#bar-axis-label-font-size-10"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"UP_45\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-up-45"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"UP_90\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-up-90"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"DOWN_45\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-down-45"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"DOWN_90\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-down-90"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelsColumn\":\"chartLabels\"}": [
+                    "specimen-images-charts-p7#bar-domain-labels-column"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeAxis\":true,\"cy_rangeLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#bar-range-labels-column"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabelsColumn\":\"chartLabels\",\"cy_itemLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#pie-item-labels-column"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_showDomainAxis\":true,\"cy_itemLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#heat-map-item-labels-column"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1,\"cy_showDomainAxis\":true,\"cy_domainLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#line-domain-labels-column"
+                ],
+                "(passthrough mapping)": ["specimen-mappings-bypass"]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_2": {
+            "values": {
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0}": [
+                    "specimen-images-charts-p2#customgraphics-2-pie",
+                    "specimen-images-charts-p2#customgraphics-1-and-2-stacked",
+                    "specimen-mappings-bypass-p15#customgraphics-2-pie",
+                    "specimen-mappings-bypass-p15#customgraphics-1-and-2-stacked"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_3": {
+            "values": {
+                "org.cytoscape.RingChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_holeSize\":0.4}": [
+                    "specimen-images-charts-p2#customgraphics-3-ring",
+                    "specimen-mappings-bypass-p15#customgraphics-3-ring"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_4": {
+            "values": {
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\"}": [
+                    "specimen-images-charts-p2#customgraphics-4-bar-grouped",
+                    "specimen-mappings-bypass-p15#customgraphics-4-bar-grouped"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_5": {
+            "values": {
+                "org.cytoscape.LinearGradient:{\"cy_angle\":0,\"cy_gradientColors\":[\"#FFFFFF\",\"#1F77B4\"],\"cy_gradientFractions\":[0,1]}": [
+                    "specimen-images-charts-p2#customgraphics-5-linear-gradient",
+                    "specimen-mappings-bypass-p15#customgraphics-5-linear-gradient"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_6": {
+            "values": {
+                "org.cytoscape.RadialGradient:{\"cy_gradientColors\":[\"#FFFFFF\",\"#D62728\"],\"cy_gradientFractions\":[0,1],\"cy_center\":{\"x\":0.5,\"y\":0.5},\"cy_radius\":0.5}": [
+                    "specimen-images-charts-p2#customgraphics-6-radial-gradient",
+                    "specimen-mappings-bypass-p15#customgraphics-6-radial-gradient"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_7": {
+            "values": {
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"]}": [
+                    "specimen-images-charts-p2#customgraphics-7-heat-map",
+                    "specimen-mappings-bypass-p15#customgraphics-7-heat-map"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_8": {
+            "values": {
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1}": [
+                    "specimen-images-charts-p2#customgraphics-8-line",
+                    "specimen-mappings-bypass-p15#customgraphics-8-line"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_9": {
+            "values": {
+                "org.cytoscape.BoxChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"]}": [
+                    "specimen-images-charts-p2#customgraphics-9-box",
+                    "specimen-mappings-bypass-p15#customgraphics-9-box"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_1": {
+            "values": {
+                "NW,NW,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-1-nw-nw",
+                    "specimen-mappings-bypass-p16#customgraphics-position-1-nw-nw"
+                ],
+                "E,W,c,0.00,0.00": ["specimen-images-charts-p6#customgraphics-position-1-e-w-c-0-0"],
+                "C,C,c,12.00,-8.00": ["specimen-images-charts-p6#customgraphics-position-1-c-c-c-12-8"]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_2": {
+            "values": {
+                "N,N,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-2-n-n",
+                    "specimen-mappings-bypass-p16#customgraphics-position-2-n-n"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_3": {
+            "values": {
+                "NE,NE,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-3-ne-ne",
+                    "specimen-mappings-bypass-p16#customgraphics-position-3-ne-ne"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_4": {
+            "values": {
+                "W,W,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-4-w-w",
+                    "specimen-mappings-bypass-p16#customgraphics-position-4-w-w"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_5": {
+            "values": {
+                "E,E,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-5-e-e",
+                    "specimen-mappings-bypass-p16#customgraphics-position-5-e-e"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_6": {
+            "values": {
+                "SW,SW,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-6-sw-sw",
+                    "specimen-mappings-bypass-p16#customgraphics-position-6-sw-sw"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_7": {
+            "values": {
+                "S,S,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-7-s-s",
+                    "specimen-mappings-bypass-p16#customgraphics-position-7-s-s"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_8": {
+            "values": {
+                "SE,SE,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-8-se-se",
+                    "specimen-mappings-bypass-p16#customgraphics-position-8-se-se"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_POSITION_9": {
+            "values": {
+                "C,NW,c,0.00,0.00": [
+                    "specimen-images-charts-p3#customgraphics-position-9-c-nw",
+                    "specimen-mappings-bypass-p16#customgraphics-position-9-c-nw"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_1": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-1-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-1-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_2": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-2-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-2-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_3": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-3-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-3-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_4": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-4-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-4-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_5": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-5-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-5-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_6": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-6-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-6-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_7": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-7-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-7-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_8": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-8-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-8-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMGRAPHICS_SIZE_9": {
+            "values": {
+                "30": [
+                    "specimen-images-charts-p3#customgraphics-size-9-30",
+                    "specimen-mappings-bypass-p16#customgraphics-size-9-30"
+                ]
+            }
+        },
+        "NODE_CUSTOMPAINT_1": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_1; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_2": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_2; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_3": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_3; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_4": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_4; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_5": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_5; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_6": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_6; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_7": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_7; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_8": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_8; it has no value of its own to set"
+        },
+        "NODE_CUSTOMPAINT_9": {
+            "skipped": "the internal parent of NODE_CUSTOMGRAPHICS_9; it has no value of its own to set"
+        },
+        "NODE_DEPTH": {
+            "skipped": "a 3D extent; Cytoscape's 2D renderer (Ding) does not draw it"
+        },
+        "NODE_FILL_COLOR": {
+            "values": {
+                "#D62728": [
+                    "specimen-node-fills-borders#fill-color-d62728",
+                    "specimen-mappings-bypass-p3#fill-color-d62728"
+                ],
+                "#2CA02C": [
+                    "specimen-node-fills-borders#fill-color-2ca02c",
+                    "specimen-mappings-bypass#bypass-over-continuous",
+                    "specimen-mappings-bypass-p3#fill-color-2ca02c"
+                ],
+                "#1F77B4": [
+                    "specimen-node-fills-borders#fill-color-1f77b4",
+                    "specimen-mappings-bypass-p3#fill-color-1f77b4"
+                ],
+                "#FF7F0E": [
+                    "specimen-node-fills-borders#fill-color-ff7f0e",
+                    "specimen-mappings-bypass#bypass-over-default",
+                    "specimen-mappings-bypass-p3#fill-color-ff7f0e"
+                ],
+                "#9467BD": [
+                    "specimen-node-fills-borders#fill-color-9467bd",
+                    "specimen-mappings-bypass-p3#fill-color-9467bd"
+                ],
+                "#000000": [
+                    "specimen-node-fills-borders#fill-color-000000",
+                    "specimen-mappings-bypass-p3#fill-color-000000"
+                ],
+                "#FFFFFF": [
+                    "specimen-node-fills-borders#fill-color-ffffff",
+                    "specimen-mappings-bypass-p3#fill-color-ffffff"
+                ],
+                "#FFFF00": [
+                    "specimen-node-fills-borders#fill-color-ffff00",
+                    "specimen-mappings-bypass-p3#fill-color-ffff00"
+                ],
+                "#AEC7E8": ["specimen-groups#collapsed-fill-color"],
+                "#9EDAE5": ["specimen-mappings-bypass (style default)"],
+                "(continuous mapping)": [
+                    "specimen-mappings-bypass",
+                    "specimen-mappings-bypass-p19",
+                    "specimen-mappings-bypass-p20"
+                ],
+                "#C8C8C8": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_HEIGHT": {
+            "values": {
+                "18": ["specimen-node-sizes-opacity#height-18", "specimen-mappings-bypass-p4#height-18"],
+                "36": ["(every sheet's default specimen)"],
+                "60": ["specimen-node-sizes-opacity#height-60", "specimen-mappings-bypass-p4#height-60"],
+                "80": [
+                    "specimen-node-sizes-opacity#height-80",
+                    "specimen-node-sizes-opacity-p2#height-80-locked",
+                    "specimen-mappings-bypass-p4#height-80",
+                    "specimen-mappings-bypass-p5#height-80-locked"
+                ],
+                "(discrete mapping)": ["specimen-mappings-bypass-p19", "specimen-mappings-bypass-p20"]
+            }
+        },
+        "NODE_LABEL": {
+            "values": {
+                "(text)": [
+                    "specimen-labels#default",
+                    "specimen-labels#label-text",
+                    "specimen-labels#label-long",
+                    "specimen-labels#label-two-lines",
+                    "specimen-labels#label-color-d62728",
+                    "specimen-labels#label-color-1f77b4",
+                    "specimen-labels#label-color-ffffff",
+                    "specimen-labels#label-font-size-6",
+                    "specimen-labels#label-font-size-8",
+                    "specimen-labels#label-font-size-14",
+                    "specimen-labels#label-font-size-20",
+                    "specimen-labels#label-font-size-28",
+                    "specimen-labels#font-face-sansserif",
+                    "specimen-labels#font-face-serif",
+                    "specimen-labels#font-face-monospaced",
+                    "specimen-labels#font-face-dialog",
+                    "specimen-labels#font-face-dialoginput",
+                    "specimen-labels#font-face-dejavu-serif",
+                    "specimen-labels#font-face-dejavu-sans-mono",
+                    "specimen-labels#font-face-dejavu-sans-bold",
+                    "specimen-labels#font-face-dejavu-sans-italic",
+                    "specimen-labels#font-face-dejavu-sans-bolditalic",
+                    "specimen-labels#font-face-sansserif-bold",
+                    "specimen-labels#font-face-sansserif-italic",
+                    "specimen-labels#label-transparency-0",
+                    "specimen-labels#label-transparency-64",
+                    "specimen-labels#label-transparency-128",
+                    "specimen-labels#label-transparency-192",
+                    "specimen-labels#label-rotation-30",
+                    "specimen-labels#label-rotation-90",
+                    "specimen-labels#label-rotation-minus-45",
+                    "specimen-labels#label-rotation-180",
+                    "specimen-labels#label-width-30",
+                    "specimen-labels#label-width-80",
+                    "specimen-labels#label-background-shape-rectangle",
+                    "specimen-labels#label-background-shape-round-rectangle",
+                    "specimen-labels#label-background-color-ffff66",
+                    "specimen-labels#label-background-transparency-100",
+                    "specimen-labels-p2#default",
+                    "specimen-labels-p2#label-position-nw-nw-c-0-0",
+                    "specimen-labels-p2#label-position-nw-n-c-0-0",
+                    "specimen-labels-p2#label-position-nw-ne-c-0-0",
+                    "specimen-labels-p2#label-position-nw-w-c-0-0",
+                    "specimen-labels-p2#label-position-nw-c-c-0-0",
+                    "specimen-labels-p2#label-position-nw-e-c-0-0",
+                    "specimen-labels-p2#label-position-nw-sw-c-0-0",
+                    "specimen-labels-p2#label-position-nw-s-c-0-0",
+                    "specimen-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-labels-p2#label-position-n-nw-c-0-0",
+                    "specimen-labels-p2#label-position-n-n-c-0-0",
+                    "specimen-labels-p2#label-position-n-ne-c-0-0",
+                    "specimen-labels-p2#label-position-n-w-c-0-0",
+                    "specimen-labels-p2#label-position-n-c-c-0-0",
+                    "specimen-labels-p2#label-position-n-e-c-0-0",
+                    "specimen-labels-p2#label-position-n-sw-c-0-0",
+                    "specimen-labels-p2#label-position-n-s-c-0-0",
+                    "specimen-labels-p2#label-position-n-se-c-0-0",
+                    "specimen-labels-p2#label-position-ne-nw-c-0-0",
+                    "specimen-labels-p2#label-position-ne-n-c-0-0",
+                    "specimen-labels-p2#label-position-ne-ne-c-0-0",
+                    "specimen-labels-p2#label-position-ne-w-c-0-0",
+                    "specimen-labels-p2#label-position-ne-c-c-0-0",
+                    "specimen-labels-p2#label-position-ne-e-c-0-0",
+                    "specimen-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-labels-p2#label-position-ne-s-c-0-0",
+                    "specimen-labels-p2#label-position-ne-se-c-0-0",
+                    "specimen-labels-p2#label-position-w-nw-c-0-0",
+                    "specimen-labels-p2#label-position-w-n-c-0-0",
+                    "specimen-labels-p2#label-position-w-ne-c-0-0",
+                    "specimen-labels-p2#label-position-w-w-c-0-0",
+                    "specimen-labels-p2#label-position-w-c-c-0-0",
+                    "specimen-labels-p2#label-position-w-e-c-0-0",
+                    "specimen-labels-p2#label-position-w-sw-c-0-0",
+                    "specimen-labels-p2#label-position-w-s-c-0-0",
+                    "specimen-labels-p2#label-position-w-se-c-0-0",
+                    "specimen-labels-p2#label-position-c-nw-c-0-0",
+                    "specimen-labels-p2#label-position-c-n-c-0-0",
+                    "specimen-labels-p2#label-position-c-ne-c-0-0",
+                    "specimen-labels-p2#label-position-c-w-c-0-0",
+                    "specimen-labels-p2#label-position-c-c-c-0-0",
+                    "specimen-labels-p3#default",
+                    "specimen-labels-p3#label-position-c-e-c-0-0",
+                    "specimen-labels-p3#label-position-c-sw-c-0-0",
+                    "specimen-labels-p3#label-position-c-s-c-0-0",
+                    "specimen-labels-p3#label-position-c-se-c-0-0",
+                    "specimen-labels-p3#label-position-e-nw-c-0-0",
+                    "specimen-labels-p3#label-position-e-n-c-0-0",
+                    "specimen-labels-p3#label-position-e-ne-c-0-0",
+                    "specimen-labels-p3#label-position-e-w-c-0-0",
+                    "specimen-labels-p3#label-position-e-c-c-0-0",
+                    "specimen-labels-p3#label-position-e-e-c-0-0",
+                    "specimen-labels-p3#label-position-e-sw-c-0-0",
+                    "specimen-labels-p3#label-position-e-s-c-0-0",
+                    "specimen-labels-p3#label-position-e-se-c-0-0",
+                    "specimen-labels-p3#label-position-sw-nw-c-0-0",
+                    "specimen-labels-p3#label-position-sw-n-c-0-0",
+                    "specimen-labels-p3#label-position-sw-ne-c-0-0",
+                    "specimen-labels-p3#label-position-sw-w-c-0-0",
+                    "specimen-labels-p3#label-position-sw-c-c-0-0",
+                    "specimen-labels-p3#label-position-sw-e-c-0-0",
+                    "specimen-labels-p3#label-position-sw-sw-c-0-0",
+                    "specimen-labels-p3#label-position-sw-s-c-0-0",
+                    "specimen-labels-p3#label-position-sw-se-c-0-0",
+                    "specimen-labels-p3#label-position-s-nw-c-0-0",
+                    "specimen-labels-p3#label-position-s-n-c-0-0",
+                    "specimen-labels-p3#label-position-s-ne-c-0-0",
+                    "specimen-labels-p3#label-position-s-w-c-0-0",
+                    "specimen-labels-p3#label-position-s-c-c-0-0",
+                    "specimen-labels-p3#label-position-s-e-c-0-0",
+                    "specimen-labels-p3#label-position-s-sw-c-0-0",
+                    "specimen-labels-p3#label-position-s-s-c-0-0",
+                    "specimen-labels-p3#label-position-s-se-c-0-0",
+                    "specimen-labels-p3#label-position-se-nw-c-0-0",
+                    "specimen-labels-p3#label-position-se-n-c-0-0",
+                    "specimen-labels-p3#label-position-se-ne-c-0-0",
+                    "specimen-labels-p3#label-position-se-w-c-0-0",
+                    "specimen-labels-p3#label-position-se-c-c-0-0",
+                    "specimen-labels-p3#label-position-se-e-c-0-0",
+                    "specimen-labels-p3#label-position-se-sw-c-0-0",
+                    "specimen-labels-p3#label-position-se-s-c-0-0",
+                    "specimen-labels-p3#label-position-se-se-c-0-0",
+                    "specimen-labels-p4#default",
+                    "specimen-labels-p4#label-position-c-c-c-0-0",
+                    "specimen-labels-p4#label-position-e-w-c-0-0",
+                    "specimen-labels-p4#label-position-w-e-c-0-0",
+                    "specimen-labels-p4#label-position-c-c-l-0-0",
+                    "specimen-labels-p4#label-position-e-w-l-0-0",
+                    "specimen-labels-p4#label-position-w-e-l-0-0",
+                    "specimen-labels-p4#label-position-c-c-r-0-0",
+                    "specimen-labels-p4#label-position-e-w-r-0-0",
+                    "specimen-labels-p4#label-position-w-e-r-0-0",
+                    "specimen-labels-p4#label-position-c-c-c-10-0",
+                    "specimen-labels-p4#label-position-c-c-c-0-10",
+                    "specimen-labels-p4#label-position-c-c-c-10-10",
+                    "specimen-labels-p4#label-position-c-c-c-20-20",
+                    "specimen-labels-p4#label-position-c-c-c-20-0",
+                    "specimen-labels-p4#label-position-c-c-c-0-25",
+                    "specimen-edge-labels#default",
+                    "specimen-edge-labels#label-text",
+                    "specimen-edge-labels#label-two-lines",
+                    "specimen-edge-labels#label-color-d62728",
+                    "specimen-edge-labels#label-color-1f77b4",
+                    "specimen-edge-labels#label-font-size-6",
+                    "specimen-edge-labels#label-font-size-14",
+                    "specimen-edge-labels#label-font-size-20",
+                    "specimen-edge-labels#font-face-serif",
+                    "specimen-edge-labels#font-face-monospaced",
+                    "specimen-edge-labels#font-face-dejavu-serif",
+                    "specimen-edge-labels#font-face-dejavu-sans-bold",
+                    "specimen-edge-labels#label-transparency-64",
+                    "specimen-edge-labels#label-transparency-160",
+                    "specimen-edge-labels#label-rotation-45",
+                    "specimen-edge-labels#label-rotation-90",
+                    "specimen-edge-labels#label-rotation-45-diagonal",
+                    "specimen-edge-labels#label-autorotate-true",
+                    "specimen-edge-labels#label-autorotate-false",
+                    "specimen-edge-labels#label-width-30",
+                    "specimen-edge-labels#label-background-shape-rectangle",
+                    "specimen-edge-labels#label-background-shape-round-rectangle",
+                    "specimen-edge-labels#label-background-color-ffff66",
+                    "specimen-edge-labels#label-background-transparency-100",
+                    "specimen-edge-labels#label-position-n-s-c-0-0",
+                    "specimen-edge-labels#label-position-s-n-c-0-0",
+                    "specimen-edge-labels#label-position-c-c-c-0-15",
+                    "specimen-edge-labels#label-position-w-e-r-0-0",
+                    "specimen-edge-labels#label-position-e-w-l-0-0",
+                    "specimen-edge-labels-p2#default",
+                    "specimen-edge-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-edge-labels-p2#label-position-se-nw-c-0-0",
+                    "specimen-edge-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-edge-labels-p2#label-position-sw-ne-c-0-0",
+                    "specimen-edge-labels-p2#label-position-c-c-c-15-0",
+                    "specimen-edge-labels-p2#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass#passthrough-label",
+                    "specimen-mappings-bypass#passthrough-label-color",
+                    "specimen-mappings-bypass#bypass-over-passthrough",
+                    "specimen-mappings-bypass-p6#default",
+                    "specimen-mappings-bypass-p6#label-text",
+                    "specimen-mappings-bypass-p6#label-long",
+                    "specimen-mappings-bypass-p6#label-two-lines",
+                    "specimen-mappings-bypass-p6#label-color-d62728",
+                    "specimen-mappings-bypass-p6#label-color-1f77b4",
+                    "specimen-mappings-bypass-p6#label-color-ffffff",
+                    "specimen-mappings-bypass-p6#label-font-size-6",
+                    "specimen-mappings-bypass-p6#label-font-size-8",
+                    "specimen-mappings-bypass-p6#label-font-size-14",
+                    "specimen-mappings-bypass-p6#label-font-size-20",
+                    "specimen-mappings-bypass-p6#label-font-size-28",
+                    "specimen-mappings-bypass-p6#font-face-sansserif",
+                    "specimen-mappings-bypass-p6#font-face-serif",
+                    "specimen-mappings-bypass-p6#font-face-monospaced",
+                    "specimen-mappings-bypass-p6#font-face-dialog",
+                    "specimen-mappings-bypass-p6#font-face-dialoginput",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-serif",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-mono",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-bold",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-italic",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-bolditalic",
+                    "specimen-mappings-bypass-p6#font-face-sansserif-bold",
+                    "specimen-mappings-bypass-p6#font-face-sansserif-italic",
+                    "specimen-mappings-bypass-p6#label-transparency-0",
+                    "specimen-mappings-bypass-p6#label-transparency-64",
+                    "specimen-mappings-bypass-p6#label-transparency-128",
+                    "specimen-mappings-bypass-p6#label-transparency-192",
+                    "specimen-mappings-bypass-p6#label-rotation-30",
+                    "specimen-mappings-bypass-p6#label-rotation-90",
+                    "specimen-mappings-bypass-p6#label-rotation-minus-45",
+                    "specimen-mappings-bypass-p6#label-rotation-180",
+                    "specimen-mappings-bypass-p6#label-width-30",
+                    "specimen-mappings-bypass-p6#label-width-80",
+                    "specimen-mappings-bypass-p6#label-background-shape-rectangle",
+                    "specimen-mappings-bypass-p6#label-background-shape-round-rectangle",
+                    "specimen-mappings-bypass-p6#label-background-color-ffff66",
+                    "specimen-mappings-bypass-p6#label-background-transparency-100",
+                    "specimen-mappings-bypass-p7#default",
+                    "specimen-mappings-bypass-p7#label-position-nw-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p8#default",
+                    "specimen-mappings-bypass-p8#label-position-c-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-se-c-0-0",
+                    "specimen-mappings-bypass-p9#default",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-10-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-10",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-10-10",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-20-20",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-20-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-25",
+                    "specimen-mappings-bypass-p13#default",
+                    "specimen-mappings-bypass-p13#label-text",
+                    "specimen-mappings-bypass-p13#label-two-lines",
+                    "specimen-mappings-bypass-p13#label-color-d62728",
+                    "specimen-mappings-bypass-p13#label-color-1f77b4",
+                    "specimen-mappings-bypass-p13#label-font-size-6",
+                    "specimen-mappings-bypass-p13#label-font-size-14",
+                    "specimen-mappings-bypass-p13#label-font-size-20",
+                    "specimen-mappings-bypass-p13#font-face-serif",
+                    "specimen-mappings-bypass-p13#font-face-monospaced",
+                    "specimen-mappings-bypass-p13#font-face-dejavu-serif",
+                    "specimen-mappings-bypass-p13#font-face-dejavu-sans-bold",
+                    "specimen-mappings-bypass-p13#label-transparency-64",
+                    "specimen-mappings-bypass-p13#label-transparency-160",
+                    "specimen-mappings-bypass-p13#label-rotation-45",
+                    "specimen-mappings-bypass-p13#label-rotation-90",
+                    "specimen-mappings-bypass-p13#label-rotation-45-diagonal",
+                    "specimen-mappings-bypass-p13#label-autorotate-true",
+                    "specimen-mappings-bypass-p13#label-autorotate-false",
+                    "specimen-mappings-bypass-p13#label-width-30",
+                    "specimen-mappings-bypass-p13#label-background-shape-rectangle",
+                    "specimen-mappings-bypass-p13#label-background-shape-round-rectangle",
+                    "specimen-mappings-bypass-p13#label-background-color-ffff66",
+                    "specimen-mappings-bypass-p13#label-background-transparency-100",
+                    "specimen-mappings-bypass-p13#label-position-n-s-c-0-0",
+                    "specimen-mappings-bypass-p13#label-position-s-n-c-0-0",
+                    "specimen-mappings-bypass-p13#label-position-c-c-c-0-15",
+                    "specimen-mappings-bypass-p13#label-position-w-e-r-0-0",
+                    "specimen-mappings-bypass-p13#label-position-e-w-l-0-0",
+                    "specimen-mappings-bypass-p17#default",
+                    "specimen-mappings-bypass-p17#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-15-0",
+                    "specimen-mappings-bypass-p17#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p19#passthrough-font-face",
+                    "specimen-mappings-bypass-p19#passthrough-label-color-d62728",
+                    "specimen-mappings-bypass-p19#passthrough-label-color-not-a-color"
+                ],
+                "Text": ["specimen-labels#label-text", "specimen-mappings-bypass-p6#label-text"],
+                "A longer label text": ["specimen-labels#label-long", "specimen-mappings-bypass-p6#label-long"],
+                "Two\nlines": ["specimen-labels#label-two-lines", "specimen-mappings-bypass-p6#label-two-lines"],
+                "Group": ["specimen-groups#collapsed-label"],
+                "Bypass": ["specimen-mappings-bypass#bypass-over-passthrough"],
+                "(passthrough mapping)": ["specimen-mappings-bypass"]
+            }
+        },
+        "NODE_LABEL_BACKGROUND_COLOR": {
+            "values": {
+                "#FFFF66": [
+                    "specimen-labels#label-background-color-ffff66",
+                    "specimen-mappings-bypass-p6#label-background-color-ffff66"
+                ]
+            }
+        },
+        "NODE_LABEL_BACKGROUND_SHAPE": {
+            "values": {
+                "RECTANGLE": [
+                    "specimen-labels#label-background-shape-rectangle",
+                    "specimen-mappings-bypass-p6#label-background-shape-rectangle"
+                ],
+                "ROUND_RECTANGLE": [
+                    "specimen-labels#label-background-shape-round-rectangle",
+                    "specimen-mappings-bypass-p6#label-background-shape-round-rectangle"
+                ],
+                "NONE": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_LABEL_BACKGROUND_TRANSPARENCY": {
+            "values": {
+                "100": [
+                    "specimen-labels#label-background-transparency-100",
+                    "specimen-mappings-bypass-p6#label-background-transparency-100"
+                ]
+            }
+        },
+        "NODE_LABEL_COLOR": {
+            "values": {
+                "#D62728": ["specimen-labels#label-color-d62728", "specimen-mappings-bypass-p6#label-color-d62728"],
+                "#1F77B4": ["specimen-labels#label-color-1f77b4", "specimen-mappings-bypass-p6#label-color-1f77b4"],
+                "#FFFFFF": ["specimen-labels#label-color-ffffff", "specimen-mappings-bypass-p6#label-color-ffffff"],
+                "(passthrough mapping)": [
+                    "specimen-mappings-bypass",
+                    "specimen-mappings-bypass-p19",
+                    "specimen-mappings-bypass-p20"
+                ],
+                "#000000": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_LABEL_FONT_FACE": {
+            "values": {
+                "SansSerif,plain,10": [
+                    "specimen-labels#font-face-sansserif",
+                    "specimen-mappings-bypass-p6#font-face-sansserif"
+                ],
+                "Serif,plain,10": ["specimen-labels#font-face-serif", "specimen-mappings-bypass-p6#font-face-serif"],
+                "Monospaced,plain,10": [
+                    "specimen-labels#font-face-monospaced",
+                    "specimen-mappings-bypass-p6#font-face-monospaced"
+                ],
+                "Dialog,plain,10": ["specimen-labels#font-face-dialog", "specimen-mappings-bypass-p6#font-face-dialog"],
+                "DialogInput,plain,10": [
+                    "specimen-labels#font-face-dialoginput",
+                    "specimen-mappings-bypass-p6#font-face-dialoginput"
+                ],
+                "DejaVu Serif,plain,10": [
+                    "specimen-labels#font-face-dejavu-serif",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-serif"
+                ],
+                "DejaVu Sans Mono,plain,10": [
+                    "specimen-labels#font-face-dejavu-sans-mono",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-mono"
+                ],
+                "DejaVu Sans,bold,10": [
+                    "specimen-labels#font-face-dejavu-sans-bold",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-bold"
+                ],
+                "DejaVu Sans,italic,10": [
+                    "specimen-labels#font-face-dejavu-sans-italic",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-italic"
+                ],
+                "DejaVu Sans,bold,italic,10": [
+                    "specimen-labels#font-face-dejavu-sans-bolditalic",
+                    "specimen-mappings-bypass-p6#font-face-dejavu-sans-bolditalic"
+                ],
+                "SansSerif.bold,bold,10": [
+                    "specimen-labels#font-face-sansserif-bold",
+                    "specimen-mappings-bypass-p6#font-face-sansserif-bold"
+                ],
+                "SansSerif.italic,italic,10": [
+                    "specimen-labels#font-face-sansserif-italic",
+                    "specimen-mappings-bypass-p6#font-face-sansserif-italic"
+                ],
+                "(passthrough mapping)": ["specimen-mappings-bypass-p19", "specimen-mappings-bypass-p20"],
+                "DejaVu Sans,plain,10": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_LABEL_FONT_SIZE": {
+            "values": {
+                "6": ["specimen-labels#label-font-size-6", "specimen-mappings-bypass-p6#label-font-size-6"],
+                "8": ["specimen-labels#label-font-size-8", "specimen-mappings-bypass-p6#label-font-size-8"],
+                "10": ["(every sheet's default specimen)"],
+                "14": ["specimen-labels#label-font-size-14", "specimen-mappings-bypass-p6#label-font-size-14"],
+                "20": ["specimen-labels#label-font-size-20", "specimen-mappings-bypass-p6#label-font-size-20"],
+                "28": ["specimen-labels#label-font-size-28", "specimen-mappings-bypass-p6#label-font-size-28"]
+            }
+        },
+        "NODE_LABEL_POSITION": {
+            "values": {
+                "NW,NW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-nw-c-0-0"
+                ],
+                "NW,N,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-n-c-0-0"
+                ],
+                "NW,NE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-ne-c-0-0"
+                ],
+                "NW,W,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-w-c-0-0"
+                ],
+                "NW,C,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-c-c-0-0"
+                ],
+                "NW,E,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-e-c-0-0"
+                ],
+                "NW,SW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-sw-c-0-0"
+                ],
+                "NW,S,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-s-c-0-0"
+                ],
+                "NW,SE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-nw-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-nw-se-c-0-0"
+                ],
+                "N,NW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-nw-c-0-0"
+                ],
+                "N,N,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-n-c-0-0"
+                ],
+                "N,NE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-ne-c-0-0"
+                ],
+                "N,W,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-w-c-0-0"
+                ],
+                "N,C,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-c-c-0-0"
+                ],
+                "N,E,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-e-c-0-0"
+                ],
+                "N,SW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-sw-c-0-0"
+                ],
+                "N,S,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-s-c-0-0"
+                ],
+                "N,SE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-n-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-n-se-c-0-0"
+                ],
+                "NE,NW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-nw-c-0-0"
+                ],
+                "NE,N,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-n-c-0-0"
+                ],
+                "NE,NE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-ne-c-0-0"
+                ],
+                "NE,W,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-w-c-0-0"
+                ],
+                "NE,C,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-c-c-0-0"
+                ],
+                "NE,E,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-e-c-0-0"
+                ],
+                "NE,SW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-sw-c-0-0"
+                ],
+                "NE,S,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-s-c-0-0"
+                ],
+                "NE,SE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-ne-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-ne-se-c-0-0"
+                ],
+                "W,NW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-nw-c-0-0"
+                ],
+                "W,N,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-n-c-0-0"
+                ],
+                "W,NE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-ne-c-0-0"
+                ],
+                "W,W,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-w-c-0-0"
+                ],
+                "W,C,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-c-c-0-0"
+                ],
+                "W,E,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-e-c-0-0",
+                    "specimen-labels-p4#label-position-w-e-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-e-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-c-0-0"
+                ],
+                "W,SW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-sw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-sw-c-0-0"
+                ],
+                "W,S,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-s-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-s-c-0-0"
+                ],
+                "W,SE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-w-se-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-w-se-c-0-0"
+                ],
+                "C,NW,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-c-nw-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-nw-c-0-0"
+                ],
+                "C,N,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-c-n-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-n-c-0-0"
+                ],
+                "C,NE,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-c-ne-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-ne-c-0-0"
+                ],
+                "C,W,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-c-w-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-w-c-0-0"
+                ],
+                "C,C,c,0.00,0.00": [
+                    "specimen-labels-p2#label-position-c-c-c-0-0",
+                    "specimen-labels-p4#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p7#label-position-c-c-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-0",
+                    "(every sheet's default specimen)"
+                ],
+                "C,E,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-c-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-e-c-0-0"
+                ],
+                "C,SW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-c-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-sw-c-0-0"
+                ],
+                "C,S,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-c-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-s-c-0-0"
+                ],
+                "C,SE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-c-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-c-se-c-0-0"
+                ],
+                "E,NW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-nw-c-0-0"
+                ],
+                "E,N,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-n-c-0-0"
+                ],
+                "E,NE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-ne-c-0-0"
+                ],
+                "E,W,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-w-c-0-0",
+                    "specimen-labels-p4#label-position-e-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-w-c-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-c-0-0"
+                ],
+                "E,C,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-c-c-0-0"
+                ],
+                "E,E,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-e-c-0-0"
+                ],
+                "E,SW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-sw-c-0-0"
+                ],
+                "E,S,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-s-c-0-0"
+                ],
+                "E,SE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-e-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-e-se-c-0-0"
+                ],
+                "SW,NW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-nw-c-0-0"
+                ],
+                "SW,N,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-n-c-0-0"
+                ],
+                "SW,NE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-ne-c-0-0"
+                ],
+                "SW,W,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-w-c-0-0"
+                ],
+                "SW,C,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-c-c-0-0"
+                ],
+                "SW,E,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-e-c-0-0"
+                ],
+                "SW,SW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-sw-c-0-0"
+                ],
+                "SW,S,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-s-c-0-0"
+                ],
+                "SW,SE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-sw-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-sw-se-c-0-0"
+                ],
+                "S,NW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-nw-c-0-0"
+                ],
+                "S,N,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-n-c-0-0"
+                ],
+                "S,NE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-ne-c-0-0"
+                ],
+                "S,W,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-w-c-0-0"
+                ],
+                "S,C,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-c-c-0-0"
+                ],
+                "S,E,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-e-c-0-0"
+                ],
+                "S,SW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-sw-c-0-0"
+                ],
+                "S,S,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-s-c-0-0"
+                ],
+                "S,SE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-s-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-s-se-c-0-0"
+                ],
+                "SE,NW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-nw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-nw-c-0-0"
+                ],
+                "SE,N,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-n-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-n-c-0-0"
+                ],
+                "SE,NE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-ne-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-ne-c-0-0"
+                ],
+                "SE,W,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-w-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-w-c-0-0"
+                ],
+                "SE,C,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-c-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-c-c-0-0"
+                ],
+                "SE,E,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-e-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-e-c-0-0"
+                ],
+                "SE,SW,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-sw-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-sw-c-0-0"
+                ],
+                "SE,S,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-s-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-s-c-0-0"
+                ],
+                "SE,SE,c,0.00,0.00": [
+                    "specimen-labels-p3#label-position-se-se-c-0-0",
+                    "specimen-mappings-bypass-p8#label-position-se-se-c-0-0"
+                ],
+                "C,C,l,0.00,0.00": [
+                    "specimen-labels-p4#label-position-c-c-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-l-0-0"
+                ],
+                "E,W,l,0.00,0.00": [
+                    "specimen-labels-p4#label-position-e-w-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-l-0-0"
+                ],
+                "W,E,l,0.00,0.00": [
+                    "specimen-labels-p4#label-position-w-e-l-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-l-0-0"
+                ],
+                "C,C,r,0.00,0.00": [
+                    "specimen-labels-p4#label-position-c-c-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-r-0-0"
+                ],
+                "E,W,r,0.00,0.00": [
+                    "specimen-labels-p4#label-position-e-w-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-e-w-r-0-0"
+                ],
+                "W,E,r,0.00,0.00": [
+                    "specimen-labels-p4#label-position-w-e-r-0-0",
+                    "specimen-mappings-bypass-p9#label-position-w-e-r-0-0"
+                ],
+                "C,C,c,10.00,0.00": [
+                    "specimen-labels-p4#label-position-c-c-c-10-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-10-0"
+                ],
+                "C,C,c,0.00,10.00": [
+                    "specimen-labels-p4#label-position-c-c-c-0-10",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-10"
+                ],
+                "C,C,c,-10.00,-10.00": [
+                    "specimen-labels-p4#label-position-c-c-c-10-10",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-10-10"
+                ],
+                "C,C,c,20.00,20.00": [
+                    "specimen-labels-p4#label-position-c-c-c-20-20",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-20-20"
+                ],
+                "C,C,c,-20.00,0.00": [
+                    "specimen-labels-p4#label-position-c-c-c-20-0",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-20-0"
+                ],
+                "C,C,c,0.00,-25.00": [
+                    "specimen-labels-p4#label-position-c-c-c-0-25",
+                    "specimen-mappings-bypass-p9#label-position-c-c-c-0-25"
+                ]
+            }
+        },
+        "NODE_LABEL_ROTATION": {
+            "values": {
+                "0": ["(every sheet's default specimen)"],
+                "30": ["specimen-labels#label-rotation-30", "specimen-mappings-bypass-p6#label-rotation-30"],
+                "90": ["specimen-labels#label-rotation-90", "specimen-mappings-bypass-p6#label-rotation-90"],
+                "180": ["specimen-labels#label-rotation-180", "specimen-mappings-bypass-p6#label-rotation-180"],
+                "-45": [
+                    "specimen-labels#label-rotation-minus-45",
+                    "specimen-mappings-bypass-p6#label-rotation-minus-45"
+                ]
+            }
+        },
+        "NODE_LABEL_TRANSPARENCY": {
+            "values": {
+                "0": ["specimen-labels#label-transparency-0", "specimen-mappings-bypass-p6#label-transparency-0"],
+                "64": ["specimen-labels#label-transparency-64", "specimen-mappings-bypass-p6#label-transparency-64"],
+                "128": ["specimen-labels#label-transparency-128", "specimen-mappings-bypass-p6#label-transparency-128"],
+                "192": ["specimen-labels#label-transparency-192", "specimen-mappings-bypass-p6#label-transparency-192"],
+                "255": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_LABEL_WIDTH": {
+            "values": {
+                "30": ["specimen-labels#label-width-30", "specimen-mappings-bypass-p6#label-width-30"],
+                "80": ["specimen-labels#label-width-80", "specimen-mappings-bypass-p6#label-width-80"],
+                "200": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_NESTED_NETWORK_IMAGE_VISIBLE": {
+            "skipped": "needs a nested network (a node pointing at another network), which XGMML, CX and CX2 do not save"
+        },
+        "NODE_PAINT": {
+            "values": {
+                "#D62728": ["specimen-node-fills-borders#paint-d62728", "specimen-mappings-bypass-p3#paint-d62728"]
+            }
+        },
+        "NODE_SELECTED": {
+            "skipped": "selection state, out of scope (selected-state styles are skipped)"
+        },
+        "NODE_SELECTED_PAINT": {
+            "skipped": "selected-state color, out of scope"
+        },
+        "NODE_SHAPE": {
+            "values": {
+                "DIAMOND": [
+                    "specimen-node-shapes#shape-diamond",
+                    "specimen-node-shapes#shape-diamond-wide",
+                    "specimen-groups#collapsed-shape-diamond",
+                    "specimen-mappings-bypass-p2#shape-diamond",
+                    "specimen-mappings-bypass-p2#shape-diamond-wide"
+                ],
+                "ELLIPSE": [
+                    "specimen-node-shapes#shape-ellipse",
+                    "specimen-node-shapes#shape-ellipse-wide",
+                    "specimen-mappings-bypass-p2#shape-ellipse",
+                    "specimen-mappings-bypass-p2#shape-ellipse-wide",
+                    "(every sheet's default specimen)"
+                ],
+                "HEXAGON": [
+                    "specimen-node-shapes#shape-hexagon",
+                    "specimen-node-shapes#shape-hexagon-wide",
+                    "specimen-mappings-bypass-p2#shape-hexagon",
+                    "specimen-mappings-bypass-p2#shape-hexagon-wide"
+                ],
+                "OCTAGON": [
+                    "specimen-node-shapes#shape-octagon",
+                    "specimen-node-shapes#shape-octagon-wide",
+                    "specimen-mappings-bypass-p2#shape-octagon",
+                    "specimen-mappings-bypass-p2#shape-octagon-wide"
+                ],
+                "PARALLELOGRAM": [
+                    "specimen-node-shapes#shape-parallelogram",
+                    "specimen-node-shapes#shape-parallelogram-wide",
+                    "specimen-mappings-bypass-p2#shape-parallelogram",
+                    "specimen-mappings-bypass-p2#shape-parallelogram-wide"
+                ],
+                "RECTANGLE": [
+                    "specimen-node-shapes#shape-rectangle",
+                    "specimen-node-shapes#shape-rectangle-wide",
+                    "specimen-mappings-bypass-p2#shape-rectangle",
+                    "specimen-mappings-bypass-p2#shape-rectangle-wide"
+                ],
+                "ROUND_RECTANGLE": [
+                    "specimen-node-shapes#shape-round-rectangle",
+                    "specimen-node-shapes#shape-round-rectangle-wide",
+                    "specimen-mappings-bypass-p2#shape-round-rectangle",
+                    "specimen-mappings-bypass-p2#shape-round-rectangle-wide"
+                ],
+                "TRIANGLE": [
+                    "specimen-node-shapes#shape-triangle",
+                    "specimen-node-shapes#shape-triangle-wide",
+                    "specimen-mappings-bypass#bypass-over-discrete",
+                    "specimen-mappings-bypass-p2#shape-triangle",
+                    "specimen-mappings-bypass-p2#shape-triangle-wide"
+                ],
+                "VEE": [
+                    "specimen-node-shapes#shape-vee",
+                    "specimen-node-shapes#shape-vee-wide",
+                    "specimen-mappings-bypass-p2#shape-vee",
+                    "specimen-mappings-bypass-p2#shape-vee-wide"
+                ],
+                "(discrete mapping)": ["specimen-mappings-bypass"],
+                "(continuous mapping)": ["specimen-mappings-bypass-p20"]
+            }
+        },
+        "NODE_SIZE": {
+            "values": {
+                "18": ["specimen-node-sizes-opacity-p2#size-18", "specimen-mappings-bypass-p5#size-18"],
+                "36": ["(every sheet's default specimen)"],
+                "60": ["specimen-node-sizes-opacity-p2#size-60", "specimen-mappings-bypass-p5#size-60"],
+                "80": [
+                    "specimen-node-sizes-opacity#size-80-unlocked",
+                    "specimen-node-sizes-opacity-p2#size-80",
+                    "specimen-mappings-bypass-p4#size-80-unlocked",
+                    "specimen-mappings-bypass-p5#size-80"
+                ]
+            }
+        },
+        "NODE_TOOLTIP": {
+            "skipped": "shown on hover only; never drawn in an exported image"
+        },
+        "NODE_TRANSPARENCY": {
+            "values": {
+                "0": ["specimen-node-sizes-opacity#transparency-0", "specimen-mappings-bypass-p4#transparency-0"],
+                "64": ["specimen-node-sizes-opacity#transparency-64", "specimen-mappings-bypass-p4#transparency-64"],
+                "80": ["specimen-groups#collapsed-transparency-80"],
+                "128": ["specimen-node-sizes-opacity#transparency-128", "specimen-mappings-bypass-p4#transparency-128"],
+                "192": ["specimen-node-sizes-opacity#transparency-192", "specimen-mappings-bypass-p4#transparency-192"],
+                "255": ["(every sheet's default specimen)"],
+                "(continuous mapping)": ["specimen-mappings-bypass"]
+            }
+        },
+        "NODE_VISIBLE": {
+            "values": {
+                "false": ["specimen-node-sizes-opacity#visible-false", "specimen-mappings-bypass-p4#visible-false"],
+                "true": ["(every sheet's default specimen)"]
+            }
+        },
+        "NODE_WIDTH": {
+            "values": {
+                "18": ["specimen-node-sizes-opacity#width-18", "specimen-mappings-bypass-p4#width-18"],
+                "36": ["(every sheet's default specimen)"],
+                "60": [
+                    "specimen-node-sizes-opacity#width-60",
+                    "specimen-groups#collapsed-width-60",
+                    "specimen-mappings-bypass-p4#width-60"
+                ],
+                "80": [
+                    "specimen-node-sizes-opacity#width-80",
+                    "specimen-node-sizes-opacity-p2#width-80-locked",
+                    "specimen-mappings-bypass-p4#width-80",
+                    "specimen-mappings-bypass-p5#width-80-locked"
+                ],
+                "(continuous mapping)": ["specimen-mappings-bypass"],
+                "(passthrough mapping)": ["specimen-mappings-bypass-p19", "specimen-mappings-bypass-p20"]
+            }
+        },
+        "NODE_X_LOCATION": {
+            "values": {
+                "(every node)": ["*"]
+            }
+        },
+        "NODE_Y_LOCATION": {
+            "values": {
+                "(every node)": ["*"]
+            }
+        },
+        "NODE_Z_LOCATION": {
+            "values": {
+                "0": ["(every sheet's default specimen)"],
+                "10": ["specimen-node-sizes-opacity#z-location-10", "specimen-mappings-bypass-p4#z-location-10"]
+            }
+        }
+    }
+}

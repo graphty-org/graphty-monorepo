@@ -68,6 +68,7 @@ import {
     declarationKey,
     describeSource,
     type HeldRows,
+    importCommand,
     importFact,
     type ImportSource,
     NO_COLUMN_SETTINGS,
@@ -188,6 +189,9 @@ import type {
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
 
+/** A value a column holds that can be given a name (`data.label`) or counted. */
+type ColumnScalar = string | number | boolean;
+
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
     /** Dispatch `data.apply`. */
@@ -208,7 +212,7 @@ interface DataWrites {
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Dispatch `data.label`. */
-    label(path: Path, value: string | number | boolean, label: string | null): Promise<unknown>;
+    label(path: Path, value: ColumnScalar, label: string | null): Promise<unknown>;
     /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
     valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
@@ -878,22 +882,15 @@ export class SessionData implements SessionDataApi {
             return;
         }
 
-        const command = (resolved: ImportSource): DataImportCommand => ({
-            op: "data.import",
-            source: resolved,
-            mode: options.mode ?? "replace",
-            ...(origin === undefined ? {} : { origin }),
-            ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(options.existing === undefined ? {} : { existing: options.existing }),
-            ...(options.styles === undefined ? {} : { styles: options.styles }),
-            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
-        });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolving = resolveImportSource(source);
         const resolved = resolving instanceof Promise ? await resolving : resolving;
         resolvedConfig = resolved.config ?? source.config;
-        const step = command(resolved);
+        const step: DataImportCommand = {
+            ...importCommand(resolved, options),
+            ...(origin === undefined ? {} : { origin }),
+        };
         // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
         // ponytail: only this door and the draft reset it; another replace route keeps the old one.
         const { knownFields } = this.readConfig();
@@ -1287,7 +1284,8 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                importer: () => this.noting(this.keeping(this.writes.importer(), source), () => bytesFacts(source.config)),
+                importer: () =>
+                    this.noting(this.keeping(this.writes.importer(), source), () => bytesFacts(source.config)),
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {
@@ -3799,7 +3797,7 @@ export class SessionData implements SessionDataApi {
 
         const limit = resolveBinCount(options.bins);
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let present = 0;
         for (let index = 0; index < count; index++) {
             const value = valueAt(index);
@@ -3831,7 +3829,7 @@ export class SessionData implements SessionDataApi {
             (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
         const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let missing = 0;
         for (let index = 0; index < total; index++) {
             const value =

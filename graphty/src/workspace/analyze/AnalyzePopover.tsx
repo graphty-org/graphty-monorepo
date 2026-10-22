@@ -66,7 +66,7 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
         return { label: "Run", restoreLayer: false, current: false };
     }
     const layers = session.runs.layers(latest.id);
-    const gone = layers !== undefined && layers.present.length === 0 && layers.missing.length > 0;
+    const gone = layers?.present.length === 0 && layers.missing.length > 0;
     // A run that made a folder of layers (one per group) names them in the plural. Once the folder
     // is deleted the element lists it as the one suggestion that makes it, so a run with groups
     // is plural whatever the count.
@@ -120,7 +120,8 @@ function unavailable(session: GraphSession, descriptor: AlgorithmDescriptor): st
     // Its nodes come from the selection only when it holds exactly them: never the first few of a
     // larger selection, which the reader did not choose.
     if (needed > 0 && selected > needed) {
-        return `Select only ${needed === 1 ? "1 node" : `${String(needed)} nodes`}; ${String(selected)} are selected`;
+        const wanted = needed === 1 ? "1 node" : `${String(needed)} nodes`;
+        return `Select only ${wanted}; ${String(selected)} are selected`;
     }
     const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key });
     return estimate.available ? null : runRefusalWords(estimate);
@@ -373,7 +374,7 @@ export function AnalyzePopover({
         const reason = unavailable(session, descriptor);
         const i = index++;
         return (
-            <UnstyledButton
+            <UnstyledButton // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on an option
                 component="div"
                 role="option"
                 id={optionId(i)}

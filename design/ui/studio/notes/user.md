@@ -12,38 +12,36 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-20, fifth review) The frozen build on criteria line 1 (3ef9e6c1ec) has NO pilot walk,
-  differs from e3c5bca8e6 in 86 app files, and does not hold the golden merge (f9d8b44b9) that the
-  change log and `decided.md` say it does. Refreeze on the post-golden commit; every walk and
-  reference value (T46 to T48 all methods, T51 palette) is owed there.
-- (2026-10-20) Third review in a row with the same tool asks unbuilt: WALKS3 lacks the five
-  2026-10-18 screens and the "Starts with" typing check; no `spoken.json`; `wording.mjs` stem()
-  joins plurals only; `gateCheck` still keys pilots by walk-folder name, so it refuses every
-  round. A criteria line with no owner and no machine check does not get built. Ask for a gate
-  refusal instead of a sentence.
-- (2026-10-20) The session-ready bar needs a measurable "grading-spoiling wrong result": a key,
-  count or drawing that disagrees with the style tree. And a keyboard-only block on Sam's four
-  halves (T39 A, T40 A, T47 B, T48 A) is a blocked task, not backlog.
-- (2026-10-20) One round only: bar 1 cannot hold (T37, T42, T44 unjudged by plan), the stall rule
-  has no prior round. Round 1 is a diagnostic and must say so in its headline.
-- (2026-10-19) T51 runs on two 3-value columns of one shape; my "twelve look-alike colors" risk
-  is unmet. Cheapest cover: the audit's key-and-drawing check on T46 B and T47 B (10 clusters, an
-  8-color palette).
-- Confusing rows off the success path are what the sessions are for; holding round 1 for them
-  spends the study on polish. A skipped pilot reads as a clean one.
-- Grade the user's goal, not the answer key's route.
-- Top risk, every tier: a picture that looks right and answers wrong (stale key, twelve oranges for
-  twelve values, a count that disagrees with the drawing). Any such screen is severity 3.
-- A new task brings its route's screens into WALKS3 in the same change.
-- Task wording never reuses the target's screen words, including tooltips, spoken names and
-  notices; every wording at stake runs on two domains.
+- (2026-10-21) Tier 3 round 1 closed at the one-round cap, bars unmet, studio stopped. 55 of 56
+  succeeded: the round is at its ceiling. The signal is in cost, routes and confusion, not in
+  success; future rounds measure steps over the key and first door, and read tasks for leading.
+- (2026-10-21) First door for node color is wrong: 9 sessions on 5 halves opened the Graph
+  inspector's Style tab (canvas settings only) and recovered by matching the Everything count to
+  the node count. Fix by making that tab point at the layer that paints nodes, not by a hint.
+- (2026-10-21) A new style line that starts at the current value (Fill 6366F1, Width 8 with no
+  unit) reads as "it did nothing". A new line must start at a visibly different value or show
+  that it is now the source.
+- (2026-10-21) Checking a layer's members is by eye: Values lists ids, the table does not mark or
+  filter painted rows. A layer should be able to show its members in the table, by name.
+- (2026-10-21) The color-name table speaks "gold" for a plainly yellow fill and gives two groups
+  one spoken name. Spoken names are what screen-reader users get: they must follow hue first, and
+  graders must not grade with the same table the app speaks with.
+- (2026-10-21) Keyboard: inspector F6 stop shows no focus (WCAG 2.4.7); both "Samples" controls
+  drop focus; 30+ Tabs to a sample card. One persona, all succeeded; fix in compact-mantine and
+  the app shell, they are cheap and serve everyone.
+- (2026-10-21) Color entry accepts words but says nothing; picker swatches hold no common hues.
+- (2026-10-21) Avoiding the <<Layer>> token counted as understanding it. A bar must separate the
+  two before the token is called learnable.
+- (2026-10-21) Same-model participants cap what a round can find and the answer key may lead
+  graders. Before more sessions: blind the graders to the key's problem list.
+- Top risk, every tier: a picture that looks right and answers wrong. Any such screen is severity 3.
+- Grade the user's goal from what ended on screen and in the style tree, not the key's route or a
+  participant's rating. Simulated passes are weak; failures and scripted repros count.
+- A new task brings its route's screens into the scripted walk in the same change; task wording
+  never reuses the target's screen words.
+- Criteria prose asking for tool changes does not get built; ask for a gate refusal with an owner.
 - No tours, hint panels or first-run aids; the same screens for everyone.
-- Grade from what ended on screen and in the style tree, never from a participant's rating.
-- Simulated passes are weak; failures and scripted repros count. One model's matching asides are
-  one voice.
-- Personas whose files script a quit are placed only where the quit is the finding.
-- (2026-10-16) V7 accepted (Node | Edge tabs, typed condition cards, bulk field as one bound value
-  with <<Layer>>).
+- No product concept built around one task's wording ("cube" for Box) or one domain.
 
 ## Priorities and values
 
@@ -216,6 +214,13 @@ something, or change my mind. Summarize when it passes about 25 KB.
   several outputs. Standard graph terms, explained by (i).
 
 ## Tried: worked / did not work
+
+- 2026-10-21 -- TIER 3 ROUND 1 (frozen 758b8e8081). WORKED: Node | Edge layer list as the door
+  (every session found it), Box via the Everything layer or a folder, Louvain grouping, the
+  "Picked by hand" label. DID NOT: Graph inspector as first door for node color (9 sessions);
+  new style lines at the current value; members by id; hex-first color box; colorWord's keyword
+  table (the round's only F, and a spoken-name clash); grading by the app's own color table;
+  success as the bar when 55 of 56 pass. Lesson: at the ceiling, score cost and first door.
 
 - 2026-10-20 -- DID NOT WORK (third time): asking for tool changes in criteria prose ("does not
   pass until WALKS3 walks..."). Nothing was built across two reviews. WORKED: grouping pilot

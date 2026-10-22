@@ -28,9 +28,9 @@ interface GestureSession {
  */
 export class InputController {
     /** The camera actions whose keys are held down now. */
-    private held = new Set<CanvasKeyAction>();
+    private readonly held = new Set<CanvasKeyAction>();
     /** The actions whose key went down since the last frame, so a tap between two frames acts. */
-    private tapped = new Set<CanvasKeyAction>();
+    private readonly tapped = new Set<CanvasKeyAction>();
     /** Whether the wheel zooms toward the point under the pointer; see `Graph.setZoomToPointer`. */
     public zoomToPointer = false;
     private gestureSession: GestureSession | null = null;
@@ -45,7 +45,7 @@ export class InputController {
         this.cam.canvas.focus({ preventScroll: true });
     };
 
-    private keyDownHandler = (e: KeyboardEvent): void => {
+    private readonly keyDownHandler = (e: KeyboardEvent): void => {
         // A modified key is a shortcut, not a pan; see OrbitInputController
         const action = canvasKeyAction("2d", e);
         if (action !== null) {
@@ -60,7 +60,7 @@ export class InputController {
         this.tapped.clear();
     };
 
-    private keyUpHandler = (e: KeyboardEvent): void => {
+    private readonly keyUpHandler = (e: KeyboardEvent): void => {
         // Released whatever modifiers are down by then.
         const action = canvasKeyAction("2d", {
             key: e.key,

@@ -521,47 +521,11 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
     if (command.op === "layout.set") {
-        const cost = estimateLayout(context, command);
-        return Object.freeze({
-            ok: cost.available,
-            ...(cost.available
-                ? {}
-                : {
-                      blocked: Object.freeze({
-                          code: "E_OPTION_RANGE",
-                          // An unavailable layout's basis is its refusal sentence.
-                          reason: cost.basis,
-                      }),
-                  }),
-            cost,
-            effect: Object.freeze({ kind: "none" as const }),
-            caveats: context.defaultCaveats,
-        });
+        return planLayout(context, command);
     }
 
     if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
-        const cost = unavailableEstimate(undefined, notEstimated(command));
-        try {
-            const counts = context.previewSteps(command.steps);
-            return Object.freeze({
-                ok: true,
-                cost,
-                effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
-                caveats: context.defaultCaveats,
-            });
-        } catch (error) {
-            if (!(error instanceof GraphtyError)) {
-                throw error;
-            }
-
-            return Object.freeze({
-                ok: false,
-                blocked: Object.freeze({ code: error.code, reason: error.message }),
-                cost,
-                effect: Object.freeze({ kind: "none" as const }),
-                caveats: context.defaultCaveats,
-            });
-        }
+        return planVisibilitySteps(context, command, command.steps, context.previewSteps);
     }
 
     if (command.op !== "algo.run") {
@@ -573,19 +537,56 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         });
     }
 
-    const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
-    // The weight the run would read, by the same rule the run reads it with.
-    let weighed: Caveats;
+    return planAlgorithmRun(context, command);
+}
+
+/**
+ * The plan of a layout change: its estimate, blocked when the layout cannot run.
+ * @param context - What planning reads.
+ * @param command - The layout command.
+ * @returns The plan.
+ */
+function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
+    const cost = estimateLayout(context, command);
+    return Object.freeze({
+        ok: cost.available,
+        ...(cost.available
+            ? {}
+            : {
+                  blocked: Object.freeze({
+                      code: "E_OPTION_RANGE",
+                      // An unavailable layout's basis is its refusal sentence.
+                      reason: cost.basis,
+                  }),
+              }),
+        cost,
+        effect: Object.freeze({ kind: "none" as const }),
+        caveats: context.defaultCaveats,
+    });
+}
+
+/**
+ * The plan of a filter-steps command: the counts each step would leave, or why it cannot run.
+ * @param context - What planning reads.
+ * @param command - The command.
+ * @param steps - The command's steps.
+ * @param previewSteps - Counts what the steps would leave.
+ * @returns The plan.
+ */
+function planVisibilitySteps(
+    context: PlanningContext,
+    command: SessionCommand,
+    steps: readonly FilterStep[],
+    previewSteps: (steps: readonly FilterStep[]) => StepCounts,
+): Plan {
+    const cost = unavailableEstimate(undefined, notEstimated(command));
     try {
-        const reading = resolveRunWeight(
-            descriptor?.weightMeaning ?? null,
-            command.params?.weight,
-            context.loadedWeight?.() ?? null,
-        );
-        weighed = Object.freeze({
-            ...context.defaultCaveats,
-            weight: reading.weight,
-            ...(reading.skipped === undefined ? {} : { weightSkipped: reading.skipped }),
+        const counts = previewSteps(steps);
+        return Object.freeze({
+            ok: true,
+            cost,
+            effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+            caveats: context.defaultCaveats,
         });
     } catch (error) {
         if (!(error instanceof GraphtyError)) {
@@ -595,12 +596,70 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         return Object.freeze({
             ok: false,
             blocked: Object.freeze({ code: error.code, reason: error.message }),
-            cost: estimateCommand(context, command),
+            cost,
             effect: Object.freeze({ kind: "none" as const }),
             caveats: context.defaultCaveats,
         });
     }
+}
 
+/**
+ * The caveats a run starts from: the defaults plus the weight the run would read, by the same
+ * rule the run reads it with.
+ * @param context - What planning reads.
+ * @param command - The run command.
+ * @param descriptor - The algorithm's descriptor, when it is registered.
+ * @returns The caveats, or the refused plan when the weight cannot be read.
+ */
+function weighedCaveats(
+    context: PlanningContext,
+    command: AlgorithmRunCommand,
+    descriptor: AlgorithmDescriptor | undefined,
+): { caveats: Caveats } | { refused: Plan } {
+    try {
+        const reading = resolveRunWeight(
+            descriptor?.weightMeaning ?? null,
+            command.params?.weight,
+            context.loadedWeight?.() ?? null,
+        );
+        return {
+            caveats: Object.freeze({
+                ...context.defaultCaveats,
+                weight: reading.weight,
+                ...(reading.skipped === undefined ? {} : { weightSkipped: reading.skipped }),
+            }),
+        };
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return {
+            refused: Object.freeze({
+                ok: false,
+                blocked: Object.freeze({ code: error.code, reason: error.message }),
+                cost: estimateCommand(context, command),
+                effect: Object.freeze({ kind: "none" as const }),
+                caveats: context.defaultCaveats,
+            }),
+        };
+    }
+}
+
+/**
+ * The plan of an algorithm run: what the gate would decide, and what the run would write.
+ * @param context - What planning reads.
+ * @param command - The run command.
+ * @returns The plan.
+ */
+function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand): Plan {
+    const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
+    const weight = weighedCaveats(context, command, descriptor);
+    if ("refused" in weight) {
+        return weight.refused;
+    }
+
+    const weighed = weight.caveats;
     const built = costInput(context, command, descriptor);
 
     if ("unresolvableScope" in built) {

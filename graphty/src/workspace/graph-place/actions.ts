@@ -71,7 +71,7 @@ function newLayerPlace(session: GraphSession, inspected: WorkspaceState["inspect
         const { children } = anchor.row;
         return { parent: anchor.row.id, index: children.length - children.filter((row) => row.pin === "top").length };
     }
-    if (anchor !== undefined && anchor.row.pin === "none") {
+    if (anchor?.row.pin === "none") {
         const parent = anchor.folders.at(-1);
         const siblings = parent?.children ?? tree;
         return { parent: parent?.id ?? null, index: siblings.findIndex((row) => row.id === anchor.row.id) + 1 };
@@ -139,10 +139,9 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         const now = session.history.nextUndo;
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
+    const kindWord = row.kind === "folder" ? "" : " layer";
     const notice: Notice = {
-        message: fromRun
-            ? `Deleted ${row.name}${row.kind === "folder" ? "" : " layer"}. Its results are kept.`
-            : `Deleted ${row.name}.`,
+        message: fromRun ? `Deleted ${row.name}${kindWord}. Its results are kept.` : `Deleted ${row.name}.`,
         action: {
             label: "Undo",
             run: () => {
@@ -361,7 +360,7 @@ export async function addFolderOf(session: GraphSession, name: string, ids: read
         const found = top === undefined ? undefined : findTreeRow(tree, top);
         const parent = found?.folders.at(-1);
         const place =
-            found === undefined || found.row.pin !== "none"
+            found?.row.pin !== "none"
                 ? undefined
                 : {
                       parent: parent?.id ?? null,

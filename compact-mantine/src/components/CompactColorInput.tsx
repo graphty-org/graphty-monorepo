@@ -3,12 +3,12 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
 import { PANEL_GRID } from "../constants/panel";
-import { defaultLabels, useLabels } from "../i18n";
+import { type CompactMantineLabels, defaultLabels, useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
 import { useChosen } from "../utils/chosen";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
-import { useControlAnnotation } from "../utils/control-annotation";
+import { type ControlAnnotation, useControlAnnotation } from "../utils/control-annotation";
 import { useDevWarning } from "../utils/dev-warning";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
@@ -256,6 +256,314 @@ export interface CompactColorInputProps {
     hideLabel?: boolean;
 }
 
+/** What the hex box shows and says. */
+interface HexReading {
+    /** Whether the field draws "Mixed": the things it stands for disagree and none is chosen. */
+    showsMixed: boolean;
+    /** The words under an empty hex box, if any. */
+    emptyWords: string | undefined;
+    /** The hex box's value: the digits, or empty under the words. */
+    shownHex: string;
+    /** The spoken state: mixed, not set (with what is drawn), or set. */
+    hexState: string;
+    /** Whether the state already carries the color's words, so the value text is not added again. */
+    wordsInState: boolean;
+}
+
+/**
+ * Work out what the hex box shows and says.
+ * @param labels - the words
+ * @param options - the field's state
+ * @param options.mixed - whether the things the field stands for disagree
+ * @param options.isColorDefault - whether no color is chosen here
+ * @param options.emptyText - words for an unchosen color
+ * @param options.emptySwatch - whether no color is in force while none is chosen
+ * @param options.displayColor - the color shown
+ * @param options.valueText - the color's spoken words
+ * @returns the reading
+ */
+function readHex(
+    labels: CompactMantineLabels,
+    options: {
+        mixed: boolean;
+        isColorDefault: boolean;
+        emptyText: string | undefined;
+        emptySwatch: boolean;
+        displayColor: string;
+        valueText: string | undefined;
+    },
+): HexReading {
+    const { mixed, isColorDefault, emptyText, emptySwatch, displayColor, valueText } = options;
+    // While nothing is chosen and there are words for that ("Mixed", "Line color"), the hex box
+    // is empty under them.
+    const showsMixed = mixed && isColorDefault;
+    const emptyWords = showsMixed ? labels.mixed : emptyText;
+    const shownHex = isColorDefault && emptyWords !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
+    // Every state is spoken, set included, as the number and select fields say theirs.
+    let hexState: string;
+    if (showsMixed) {
+        hexState = labels.mixed;
+    } else if (isColorDefault) {
+        // The color is what the drawing shows, not a value set here: "not set, drawn #6366F1
+        // indigo". With an empty swatch nothing is drawn, so no color is named.
+        const drawn = labels.colorDrawn ?? defaultLabels.colorDrawn;
+        hexState = labels.fieldNotSet(emptyText ?? (emptySwatch ? "" : drawn(displayColor.toUpperCase(), valueText)));
+    } else {
+        hexState = labels.fieldSet;
+    }
+    // An unset color's words are already in its state ("drawn #6366F1 indigo").
+    const wordsInState = showsMixed || (isColorDefault && emptyText === undefined);
+    return { showsMixed, emptyWords, shownHex, hexState, wordsInState };
+}
+
+/**
+ * The development warning for a field given both callback routes.
+ * @param usesOnChange - whether onChange was given
+ * @param onColorChange - the older color callback
+ * @param onOpacityChange - the older opacity callback
+ * @returns the warning, or undefined when the callbacks agree
+ */
+function callbackConflict(usesOnChange: boolean, onColorChange: unknown, onOpacityChange: unknown): string | undefined {
+    return usesOnChange && (onColorChange !== undefined || onOpacityChange !== undefined)
+        ? "CompactColorInput was given onChange together with onColorChange or onOpacityChange. " +
+              "Only onChange is called; drop the other callbacks."
+        : undefined;
+}
+
+/**
+ * The names of the field's controls, from the field's own name.
+ * @param labels - the words
+ * @param name - the field's name, if any
+ * @returns the hex box's, the swatch's and the opacity box's names
+ */
+function controlNames(
+    labels: CompactMantineLabels,
+    name: string | undefined,
+): { hexName: string; swatchName: string; opacityName: string } {
+    if (name === undefined) {
+        return { hexName: labels.colorHexValue, swatchName: labels.colorSwatch, opacityName: labels.opacity };
+    }
+    return {
+        hexName: labels.colorValue(name),
+        swatchName: labels.pickColor(name),
+        opacityName: labels.colorOpacity(name),
+    };
+}
+
+/**
+ * Join the ids a control is described by.
+ * @param ids - the ids, undefined where there is none
+ * @returns the ids space-separated, or undefined when there are none
+ */
+function joinIds(...ids: (string | undefined)[]): string | undefined {
+    return ids.filter((id) => id !== undefined).join(" ") || undefined;
+}
+
+/**
+ * The swatch's face: a dash for mixed, nothing for an empty swatch, else the color's chit.
+ * @param props - Component props
+ * @param props.showsMixed - whether the field draws "Mixed"
+ * @param props.empty - whether the swatch is drawn empty
+ * @param props.color - the chit's color
+ * @returns the face
+ */
+function SwatchFace({
+    showsMixed,
+    empty,
+    color,
+}: Readonly<{ showsMixed: boolean; empty: boolean; color: string }>): React.JSX.Element {
+    return (
+        <>
+            {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}
+            {!showsMixed && !empty && <Chit color={color} variant="field" />}
+        </>
+    );
+}
+
+/**
+ * The hidden description a disabled reason is announced from, when there is one.
+ * @param props - Component props
+ * @param props.annotation - the control's annotation
+ * @returns the description, or null
+ */
+function AnnotationDescription({ annotation }: Readonly<{ annotation: ControlAnnotation }>): React.JSX.Element | null {
+    if (annotation.description === undefined) {
+        return null;
+    }
+    return <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>;
+}
+
+/** Props for ColorChip. */
+interface ColorChipProps {
+    /** The words. */
+    labels: CompactMantineLabels;
+    /** The field's name, if any. */
+    name: string | undefined;
+    /** What the hex box shows and says. */
+    reading: HexReading;
+    /** Whether no color is chosen here. */
+    isColorDefault: boolean;
+    /** Words for an unchosen color. */
+    emptyText: string | undefined;
+    /** Whether no color is in force while none is chosen. */
+    emptySwatch: boolean;
+    /** The color shown. */
+    displayColor: string;
+    /** The color's spoken words. */
+    valueText: string | undefined;
+    /** The chit's color. */
+    chitColor: string;
+    /** The control's annotation. */
+    annotation: ControlAnnotation;
+    /** Whether the control cannot be used. */
+    disabled: boolean;
+    /** The picker's pop-out panel. */
+    pickerPanel: React.ReactNode;
+}
+
+/**
+ * The chip form: the swatch alone, a 24px target (WCAG 2.2, 2.5.8), named with its state and color.
+ * @param props - Component props
+ * @param props.labels - the words
+ * @param props.name - the field's name
+ * @param props.reading - what the hex box shows and says
+ * @param props.isColorDefault - whether no color is chosen here
+ * @param props.emptyText - words for an unchosen color
+ * @param props.emptySwatch - whether no color is in force while none is chosen
+ * @param props.displayColor - the color shown
+ * @param props.valueText - the color's spoken words
+ * @param props.chitColor - the chit's color
+ * @param props.annotation - the control's annotation
+ * @param props.disabled - whether the control cannot be used
+ * @param props.pickerPanel - the picker's pop-out panel
+ * @returns the chip
+ */
+function ColorChip({
+    labels,
+    name,
+    reading,
+    isColorDefault,
+    emptyText,
+    emptySwatch,
+    displayColor,
+    valueText,
+    chitColor,
+    annotation,
+    disabled,
+    pickerPanel,
+}: Readonly<ColorChipProps>): React.JSX.Element {
+    const { showsMixed, hexState } = reading;
+    const chipNoun = name === undefined ? labels.colorSwatch : labels.colorValue(name);
+    const chipName = `${chipNoun}, ${hexState}`;
+    /**
+     * The chip's name: the caller's words for the color, else its state and hex.
+     * @param stated - the name with the state
+     * @param words - the caller's words, if any
+     * @returns the name
+     */
+    const chipLabel = (stated: string, words: string | undefined): string => {
+        if (words !== undefined && !showsMixed) {
+            return `${chipNoun}, ${words}`;
+        }
+        return isColorDefault ? stated : `${stated}, ${displayColor.toUpperCase()}`;
+    };
+    // Nothing chosen, with words for it: an empty chip, since no color is in force here.
+    const emptyChip = !showsMixed && isColorDefault && (emptyText !== undefined || emptySwatch);
+    return (
+        <span className="cm-paint-chip-wrap" title={annotation.title} data-disabled={disabled || undefined}>
+            <Popout>
+                <Popout.Trigger>
+                    <button
+                        type="button"
+                        className="cm-paint-chit cm-paint-chip"
+                        data-testid="compact-color-input-chip"
+                        data-is-default={isColorDefault ? "true" : "false"}
+                        data-mixed={showsMixed || undefined}
+                        data-empty={emptyChip || undefined}
+                        disabled={disabled}
+                        aria-label={chipLabel(chipName, valueText)}
+                        aria-describedby={annotation.describedBy}
+                    >
+                        <SwatchFace showsMixed={showsMixed} empty={emptyChip} color={chitColor} />
+                    </button>
+                </Popout.Trigger>
+                {pickerPanel}
+            </Popout>
+            <AnnotationDescription annotation={annotation} />
+        </span>
+    );
+}
+
+/**
+ * The reset button, drawn only once there is something to undo; a 24px target (WCAG 2.2, 2.5.8).
+ * @param props - Component props
+ * @param props.show - whether the field offers a reset at all
+ * @param props.isDefault - whether nothing is set here
+ * @param props.name - the words the button's name is built from
+ * @param props.labels - the words
+ * @param props.disabled - whether the control cannot be used
+ * @param props.onReset - called on a click
+ * @returns the button, or null
+ */
+function ResetButton({
+    show,
+    isDefault,
+    name,
+    labels,
+    disabled,
+    onReset,
+}: Readonly<{
+    show: boolean;
+    isDefault: boolean;
+    name: string;
+    labels: CompactMantineLabels;
+    disabled: boolean;
+    onReset: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}>): React.JSX.Element | null {
+    if (!show || isDefault) {
+        return null;
+    }
+    return (
+        // An icon-only button says what it does on hover, not only to a screen reader.
+        <Tooltip label={labels.resetToDefault(name)}>
+            <ActionIcon
+                variant="subtle"
+                size={PANEL_GRID.TRAIL}
+                // The ink is a variable the theme dims under a locked (aria-disabled) panel.
+                c="var(--cm-paint-reset-ink)"
+                data-testid="compact-color-input-reset"
+                disabled={disabled}
+                aria-label={labels.resetToDefault(name)}
+                onClick={onReset}
+            >
+                <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
+ * Why the last entry was refused, as an alert, so the reason is spoken when it appears, also after
+ * Tab has moved on.
+ * @param props - Component props
+ * @param props.refusal - the refusal, if any
+ * @param props.id - the alert's id
+ * @returns the alert, or null
+ */
+function RefusalAlert({
+    refusal,
+    id,
+}: Readonly<{ refusal: { message: string } | undefined; id: string }>): React.JSX.Element | null {
+    if (refusal === undefined) {
+        return null;
+    }
+    return (
+        <div id={id} role="alert" className="cm-field-error cm-paint-message" data-testid="compact-color-input-message">
+            {refusal.message}
+        </div>
+    );
+}
+
 /**
  * A color in one paint field: the chit, the hex value and the opacity.
  *
@@ -329,7 +637,7 @@ export function CompactColorInput({
     variant = "field",
     valueText,
     hideLabel = false,
-}: CompactColorInputProps): React.JSX.Element {
+}: Readonly<CompactColorInputProps>): React.JSX.Element {
     const labels = useLabels();
     // What names the controls: the drawn label, else the undrawn name.
     const name = label ?? ariaLabel;
@@ -342,42 +650,22 @@ export function CompactColorInput({
     // second write for the same gesture, built from the same pre-gesture
     // snapshot onChange exists to avoid.
     const usesOnChange = onChange !== undefined;
-    useDevWarning(
-        usesOnChange && (onColorChange !== undefined || onOpacityChange !== undefined)
-            ? "CompactColorInput was given onChange together with onColorChange or onOpacityChange. " +
-                  "Only onChange is called; drop the other callbacks."
-            : undefined,
-    );
+    useDevWarning(callbackConflict(usesOnChange, onColorChange, onOpacityChange));
 
-    const [chosenColor, setChosenColor] = useChosen(color, usesOnChange ? undefined : onColorChange);
-    const [chosenOpacity, setChosenOpacity] = useChosen(opacity, usesOnChange ? undefined : onOpacityChange);
+    const older = usesOnChange ? {} : { onColorChange, onOpacityChange };
+    const [chosenColor, setChosenColor] = useChosen(color, older.onColorChange);
+    const [chosenOpacity, setChosenOpacity] = useChosen(opacity, older.onOpacityChange);
 
     const isColorDefault = chosenColor === undefined;
     const isOpacityDefault = chosenOpacity === undefined;
-    const isDefault = isColorDefault && (!showOpacity || isOpacityDefault);
 
     const displayColor = chosenColor ?? defaultColor;
     const displayOpacity = chosenOpacity ?? defaultOpacity;
 
-    // While nothing is chosen and there are words for that ("Mixed", "Line color"), the hex box
-    // is empty under them.
-    const showsMixed = mixed && isColorDefault;
-    const emptyWords = showsMixed ? labels.mixed : emptyText;
-    const shownHex = isColorDefault && emptyWords !== undefined ? "" : displayColor.replace("#", "").toUpperCase();
+    const reading = readHex(labels, { mixed, isColorDefault, emptyText, emptySwatch, displayColor, valueText });
+    const { showsMixed, emptyWords, shownHex, hexState } = reading;
     // The state joins the hex box's name, so the gray italic is not the only sign of it.
-    const hexName = name === undefined ? labels.colorHexValue : labels.colorValue(name);
-    // Every state is spoken, set included, as the number and select fields say theirs.
-    let hexState: string;
-    if (showsMixed) {
-        hexState = labels.mixed;
-    } else if (isColorDefault) {
-        // The color is what the drawing shows, not a value set here: "not set, drawn #6366F1
-        // indigo". With an empty swatch nothing is drawn, so no color is named.
-        const drawn = labels.colorDrawn ?? defaultLabels.colorDrawn;
-        hexState = labels.fieldNotSet(emptyText ?? (emptySwatch ? "" : drawn(displayColor.toUpperCase(), valueText)));
-    } else {
-        hexState = labels.fieldSet;
-    }
+    const { hexName, swatchName, opacityName } = controlNames(labels, name);
     const [hexDraft, setHexDraft] = useState(shownHex);
     // Why the last entry was refused, drawn under the field until the next edit. `held` is true
     // while the box still holds the refused words (after Enter), false once it went back (a blur).
@@ -547,62 +835,36 @@ export function CompactColorInput({
         </Popout.Panel>
     );
 
+    const chitColor = showOpacity ? hexaValue : displayColor;
+
     if (variant === "chip") {
-        // The chip: the swatch alone, a 24px target (WCAG 2.2, 2.5.8), named with its state and color.
-        const chipNoun = name === undefined ? labels.colorSwatch : labels.colorValue(name);
-        const chipName = `${chipNoun}, ${hexState}`;
-        /**
-         * The chip's name: the caller's words for the color, else its state and hex.
-         * @param stated - the name with the state
-         * @param words - the caller's words, if any
-         * @returns the name
-         */
-        const chipLabel = (stated: string, words: string | undefined): string => {
-            if (words !== undefined && !showsMixed) {
-                return `${chipNoun}, ${words}`;
-            }
-            return isColorDefault ? stated : `${stated}, ${displayColor.toUpperCase()}`;
-        };
-        // Nothing chosen, with words for it: an empty chip, since no color is in force here.
-        const emptyChip = !showsMixed && isColorDefault && (emptyText !== undefined || emptySwatch);
         return (
-            <span className="cm-paint-chip-wrap" title={annotation.title} data-disabled={disabled || undefined}>
-                <Popout>
-                    <Popout.Trigger>
-                        <button
-                            type="button"
-                            className="cm-paint-chit cm-paint-chip"
-                            data-testid="compact-color-input-chip"
-                            data-is-default={isColorDefault ? "true" : "false"}
-                            data-mixed={showsMixed || undefined}
-                            data-empty={emptyChip || undefined}
-                            disabled={disabled}
-                            aria-label={chipLabel(chipName, valueText)}
-                            aria-describedby={annotation.describedBy}
-                        >
-                            {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}
-                            {!showsMixed && !emptyChip && (
-                                <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
-                            )}
-                        </button>
-                    </Popout.Trigger>
-                    {pickerPanel}
-                </Popout>
-                {annotation.description !== undefined && (
-                    <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
-                )}
-            </span>
+            <ColorChip
+                labels={labels}
+                name={name}
+                reading={reading}
+                isColorDefault={isColorDefault}
+                emptyText={emptyText}
+                emptySwatch={emptySwatch}
+                displayColor={displayColor}
+                valueText={valueText}
+                chitColor={chitColor}
+                annotation={annotation}
+                disabled={disabled}
+                pickerPanel={pickerPanel}
+            />
         );
     }
 
     // No color in force and none chosen: an empty swatch, never one that shows a color nothing draws.
     const emptyField = emptySwatch && !showsMixed && isColorDefault;
+    const unlabeled = label === undefined || hideLabel;
     const controls = (
         <div
             className="cm-paint"
             data-testid="compact-color-input"
             // The tooltip belongs to the outermost element only, so one hover matches one title.
-            title={label === undefined || hideLabel ? annotation.title : undefined}
+            title={unlabeled ? annotation.title : undefined}
             data-disabled={disabled ? "true" : undefined}
         >
             <div
@@ -625,13 +887,10 @@ export function CompactColorInput({
                             data-mixed={showsMixed || undefined}
                             data-empty={emptyField || undefined}
                             disabled={disabled}
-                            aria-label={name === undefined ? labels.colorSwatch : labels.pickColor(name)}
+                            aria-label={swatchName}
                             aria-describedby={annotation.describedBy}
                         >
-                            {showsMixed && <UiGlyph name="dash" size={PANEL_GRID.CHEVRON} />}
-                            {!showsMixed && !emptyField && (
-                                <Chit color={showOpacity ? hexaValue : displayColor} variant="field" />
-                            )}
+                            <SwatchFace showsMixed={showsMixed} empty={emptyField} color={chitColor} />
                         </button>
                     </Popout.Trigger>
                     {pickerPanel}
@@ -646,22 +905,14 @@ export function CompactColorInput({
                     data-testid="compact-color-input-hex"
                     data-is-default={isColorDefault ? "true" : "false"}
                     // An unset color's words are already in its state ("drawn #6366F1 indigo").
-                    aria-label={[
-                        hexName,
-                        hexState,
-                        showsMixed || (isColorDefault && emptyText === undefined) ? undefined : valueText,
-                    ]
+                    aria-label={[hexName, hexState, reading.wordsInState ? undefined : valueText]
                         .filter((part) => part !== undefined && part !== "")
                         .join(", ")}
                     // Marks a box that holds its committed value and no typing of its own, so an
                     // application's Undo key can take back the last change rather than the box's
                     // empty native undo.
                     data-committed={hexDraft === shownHex || undefined}
-                    aria-describedby={
-                        [annotation.describedBy, refusal === undefined ? undefined : refusalId]
-                            .filter((id) => id !== undefined)
-                            .join(" ") || undefined
-                    }
+                    aria-describedby={joinIds(annotation.describedBy, refusal === undefined ? undefined : refusalId)}
                     aria-invalid={refusal?.held === true || undefined}
                     disabled={disabled}
                     value={hexDraft}
@@ -724,7 +975,7 @@ export function CompactColorInput({
                     <OpacityInput
                         value={displayOpacity}
                         onCommit={commitOpacity}
-                        ariaLabel={name === undefined ? labels.opacity : labels.colorOpacity(name)}
+                        ariaLabel={opacityName}
                         isDefault={isOpacityDefault}
                         disabled={disabled}
                         describedBy={annotation.describedBy}
@@ -736,45 +987,25 @@ export function CompactColorInput({
             </div>
 
             {/* Drawn only once there is something to undo; a 24px target (WCAG 2.2, 2.5.8). */}
-            {showReset && !isDefault && (
-                // An icon-only button says what it does on hover, not only to a screen reader.
-                <Tooltip label={labels.resetToDefault(label ?? labels.colorGenericName)}>
-                    <ActionIcon
-                        variant="subtle"
-                        size={PANEL_GRID.TRAIL}
-                        // The ink is a variable the theme dims under a locked (aria-disabled) panel.
-                        c="var(--cm-paint-reset-ink)"
-                        data-testid="compact-color-input-reset"
-                        disabled={disabled}
-                        aria-label={labels.resetToDefault(label ?? labels.colorGenericName)}
-                        onClick={handleReset}
-                    >
-                        <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-                    </ActionIcon>
-                </Tooltip>
-            )}
+            <ResetButton
+                show={showReset}
+                isDefault={isColorDefault && (!showOpacity || isOpacityDefault)}
+                name={label ?? labels.colorGenericName}
+                labels={labels}
+                disabled={disabled}
+                onReset={handleReset}
+            />
 
             {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
-            {refusal !== undefined && (
-                <div
-                    id={refusalId}
-                    role="alert"
-                    className="cm-field-error cm-paint-message"
-                    data-testid="compact-color-input-message"
-                >
-                    {refusal.message}
-                </div>
-            )}
+            <RefusalAlert refusal={refusal} id={refusalId} />
 
             <DiscardNote text={discarded} className="cm-paint-message" />
 
-            {annotation.description !== undefined && (
-                <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>
-            )}
+            <AnnotationDescription annotation={annotation} />
         </div>
     );
 
-    if (label === undefined || hideLabel) {
+    if (unlabeled) {
         return controls;
     }
 

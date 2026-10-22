@@ -321,6 +321,9 @@ export interface FindEnd {
     readonly name: string;
 }
 
+/** A value {@link FindHitBase.match} found the text in: an attribute's value, or a node's id. */
+export type FindMatchValue = string | number | boolean;
+
 /** What every {@link FindHit} carries. */
 export interface FindHitBase {
     /**
@@ -328,7 +331,7 @@ export interface FindHitBase {
      * column key (`AttributeDescriptor.path`, such as `"data.name"`). When several values match,
      * this is the best-ranked one, ties going to the first in `data.attributes()` order.
      */
-    readonly match: { readonly path: Path; readonly value: string | number | boolean };
+    readonly match: { readonly path: Path; readonly value: FindMatchValue };
     /**
      * Present when the element is in the graph but `session.visibility` hides it (the time window
      * is part of that filter). Never present under `scope: "visible"`, which leaves hidden
@@ -376,7 +379,7 @@ export interface FindValueRow {
     /** The attribute's literal column key, such as `"data.group"`. */
     readonly path: Path;
     /** The value. */
-    readonly value: string | number | boolean;
+    readonly value: FindMatchValue;
     /** How many elements `target` selects: every one in scope carrying exactly this value. */
     readonly count: number;
     /** A selection target naming exactly those elements, for `selection.apply`. */
@@ -1794,7 +1797,10 @@ export interface LoadDraft {
      */
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     /**
-     * Load the held rows as one undoable step, without reading the source again.
+     * Load the held rows as one undoable step, without reading the source again. For a graph
+     * file (every table `fixed`), a load with no `mapping` loads what `data.import` of the same
+     * source loads, and also sets `data.knownFields.nodeLabelPath` to the file's `label` field
+     * when no label path is configured.
      * @param choices - The column roles, how to treat the graph already there, and the rest.
      * @returns Settles once the rows are in the graph.
      */

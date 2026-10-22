@@ -684,7 +684,9 @@
             "target": 3
           }
         ]
-      }
+      },
+      "knownFailure": "graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML)",
+      "roundTripFailure": "the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML)"
     },
     {
       "file": "ogdf/cluster_node-in-two-clusters.gml",
@@ -717,7 +719,9 @@
             "target": 3
           }
         ]
-      }
+      },
+      "knownFailure": "graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML)",
+      "roundTripFailure": "the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML)"
     },
     {
       "file": "ogdf/invalid_ambiguous-id.gml",

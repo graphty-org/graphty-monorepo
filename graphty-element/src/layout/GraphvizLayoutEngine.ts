@@ -39,6 +39,15 @@ function commonOptions(engine: GraphvizEngine): OptionsSchema {
                 advanced: true,
             },
         },
+        scale: {
+            schema: z.number().positive().default(1),
+            meta: {
+                label: "Scale",
+                description:
+                    "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                advanced: true,
+            },
+        },
         attributes: {
             schema: z.record(z.string(), z.string()).default({}),
             meta: {
@@ -140,10 +149,16 @@ export function graphvizAttributes(
     options: Readonly<Record<string, unknown>>,
 ): Record<string, string> {
     const out: Record<string, string> = { ...(options.attributes as Record<string, string> | undefined) };
+    // nodesep and ranksep are given in scene units; Graphviz reads inches.
+    const scale = typeof options.scale === "number" ? options.scale : 1;
+    for (const name of ["nodesep", "ranksep"]) {
+        const value = options[name];
+        if (typeof value === "number") {
+            out[name] = String(value / scale);
+        }
+    }
     for (const [name, attribute] of [
         ["rankdir", "rankdir"],
-        ["nodesep", "nodesep"],
-        ["ranksep", "ranksep"],
         ["overlap", "overlap"],
         ["seed", "start"],
     ]) {
@@ -183,12 +198,14 @@ function widest(sizes: ArrayLike<number> | undefined): number {
  * @param engine - the engine
  * @param input - the run's input
  * @param options - the parsed options
- * @returns the coordinates, two per row
+ * @param skip - the rows Graphviz is not handed: groups the element draws round their members
+ * @returns the coordinates, two per row (NaN for a skipped row)
  */
 async function computeWith(
     engine: GraphvizEngine,
     input: SnapshotLayoutInput,
     options: Readonly<Record<string, unknown>>,
+    skip: (row: number) => boolean,
 ): Promise<F32> {
     const n = input.graph.nodeCount;
     if (n === 0) {
@@ -210,14 +227,16 @@ async function computeWith(
         }
     }
 
-    const sizes = input.nodeSizes?.();
+    const scale = options.scale as number;
+    const sizes = input.nodeSizes?.().map((size) => size / scale);
+    const extents = input.nodeExtents?.().map((size) => size / scale);
     // twopi spaces its rings `ranksep` apart (1 inch by default) whatever the nodes' size, which
     // fits Graphviz's 0.75-inch default node; scale it to the widest node the element draws.
     if (engine === "twopi" && attributes.ranksep === undefined) {
         attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
     }
 
-    const dot = toDot(input.stored, attributes, sizes, engine === "patchwork");
+    const dot = toDot(input.stored, attributes, sizes, extents, skip, engine === "patchwork");
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });
@@ -232,7 +251,7 @@ async function computeWith(
         throw graphvizError(reply.code, reply.params);
     }
 
-    return fromJson(reply.json, n);
+    return fromJson(reply.json, n).map((value) => value * scale);
 }
 
 /** One engine's layout class: a single-pass snapshot layout, two-dimensional. */
@@ -278,7 +297,9 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         }
 
         protected compute(input: SnapshotLayoutInput): Promise<F32> {
-            return computeWith(engine, input, this.options);
+            // A group drawn round its members is placed by the element, not by Graphviz: handed
+            // over as a node, it would take up room of its own beside the members it encloses.
+            return computeWith(engine, input, this.options, (row) => this.isFollower(row));
         }
     };
 }

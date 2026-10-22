@@ -11,7 +11,8 @@
  * - a node wholly behind another opaque node (inside its screen box and farther from the camera)
  *   is not visible, and nor are its fill and its label: a group drawn over its members hides them;
  * - a fill covered by an outline or glow whose inner rim reaches across the node, or on a node
- *   under one pixel across, is no visible fill (null);
+ *   under one pixel across, or a transparent one (an unfilled shape that draws only its outline),
+ *   is no visible fill (null);
  * - a label inside its node's box and behind the node's front face (occluded), or under one pixel
  *   tall, is not visible.
  *
@@ -34,6 +35,7 @@ import {
 } from "../../../graph-io/test/fidelity/scene";
 import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
+import { polygonPoints } from "../../src/meshes/shapeOutlines";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
 
 /**
@@ -68,6 +70,10 @@ const SHAPES: ReadonlyMap<string, ShapeClass> = new Map<string, ShapeClass>([
     ["octagon", "octagon"],
     ["star", "star"],
     ["parallelogram", "parallelogram"],
+    // a box with curved corners and a cylinder seen from the side read as rounded rectangles; a
+    // rounded polygon is a curved shape of no class
+    ["barrel", "roundrect"],
+    ["database", "roundrect"],
 ]);
 
 /** The node mesh names that are shapes; a mesh built under another name is read by its node's shape. */
@@ -81,6 +87,38 @@ const SHAPE_NAMES: ReadonlySet<string> = new Set(SHAPES.keys());
  */
 export function shapeClassOf(shape: unknown): ShapeClass {
     return (typeof shape === "string" ? SHAPES.get(shape) : undefined) ?? "other";
+}
+
+/**
+ * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
+ * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
+ * @param points - the polygon's `shape.points`
+ * @returns the class; "rect", the box graphty draws, without usable corners
+ */
+export function polygonClassOf(points: string | undefined): ShapeClass {
+    const corners = polygonPoints(points);
+    if (corners === null) {
+        // without usable corners graphty draws the node's box (shapeOutlines.flatShapeOutline)
+        return "rect";
+    }
+    if (corners.length === 4) {
+        const xs = corners.map(([x]) => x);
+        const ys = corners.map(([, y]) => y);
+        const near = (v: number, ends: readonly number[]): boolean => ends.some((e) => Math.abs(v - e) < 1e-3);
+        const onBox = corners.filter(
+            ([x, y]) => near(x, [Math.min(...xs), Math.max(...xs)]) && near(y, [Math.min(...ys), Math.max(...ys)]),
+        ).length;
+        // as the oracle's outlines are classed (associate.ts): a diamond touches its box at no corner, and a
+        // parallelogram or a trapezium, at one or two, is neither
+        if (onBox >= 3) {
+            return "rect";
+        }
+        return onBox === 0 ? "diamond" : "other";
+    }
+    return (
+        ({ 3: "triangle", 6: "hexagon", 8: "octagon" } as Partial<Record<number, ShapeClass>>)[corners.length] ??
+        "other"
+    );
 }
 
 const ARROWS: Readonly<Record<string, ArrowClass | "none">> = {
@@ -157,6 +195,10 @@ type LabelPositionClass = NonNullable<SceneNode["label"]>["position"];
  * @returns the class
  */
 export function labelPositionOf(location: unknown): LabelPositionClass {
+    // against a side or in a corner inside the node is still inside it
+    if (typeof location === "string" && location.startsWith("inside-")) {
+        return "inside";
+    }
     switch (location ?? "top") {
         case "center":
             return "inside";
@@ -269,7 +311,19 @@ export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string,
     const visible = scene.filter((n) => n.visible);
     const inside = new Map(
         scene.map((g) => {
-            const box = nodes.get(g.id)?.box;
+            // out to the node's size: a border drawn inside it (or centered on it) shrinks the fill the box measures,
+            // and a group's members sit inside its size, not inside that fill
+            const drawn = nodes.get(g.id);
+            const grow = drawn ? borderInset(drawn) : 0;
+            const box = drawn
+                ? {
+                      ...drawn.box,
+                      x0: drawn.box.x0 - grow,
+                      y0: drawn.box.y0 - grow,
+                      x1: drawn.box.x1 + grow,
+                      y1: drawn.box.y1 + grow,
+                  }
+                : undefined;
             const held = box
                 ? visible.filter((n) => {
                       const own = nodes.get(n.id)?.box;
@@ -321,8 +375,8 @@ function labelPlace(label: ScreenBox, node: DrawnNode): LabelPositionClass {
 }
 
 /**
- * The border a node shows: its border ring when it has one, else the outline or glow drawn around
- * it, else none.
+ * The border a node shows: its border ring when it has one, else the outline (highlight layer) drawn around it, else
+ * none. A glow is a blurred halo, not a border: a reader sees no line round the node there.
  * @param d - what the renderer drew
  * @returns the border
  */
@@ -332,9 +386,19 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
         const kept: LineStyle = style === "solid" || style === "dashed" || style === "dotted" ? style : "other";
         return { color: d.border.color, width: d.border.widthPx, style: kept };
     }
-    return d.ring
+    return d.ring?.kind === "outline"
         ? { color: d.ring.color, width: d.ring.reachPx, style: "solid" }
         : { color: null, width: 0, style: "solid" };
+}
+
+/**
+ * How far a node's border drew its fill in from its size, in screen pixels: its whole width inside the size, half of
+ * it centered on the size, nothing outside it.
+ * @param d - what the renderer drew
+ * @returns the inset on each side
+ */
+export function borderInset(d: Pick<DrawnNode, "insetPx">): number {
+    return d.insetPx;
 }
 
 /**
@@ -345,7 +409,7 @@ function drawnBorderOf(d: DrawnNode): SceneNode["border"] {
  * @param hiddenBy - the node drawn in front of all of it, or null
  * @returns the scene node
  */
-function sceneNode(
+export function sceneNode(
     id: string,
     d: DrawnNode,
     merged: Readonly<Record<string, unknown>>,
@@ -353,6 +417,8 @@ function sceneNode(
 ): SceneNode {
     const w = d.box.x1 - d.box.x0;
     const h = d.box.y1 - d.box.y0;
+    // the node's size: its fill, out by as far as its border drew the fill in from its size
+    const size = 2 * borderInset(d);
     const { ring } = d;
     // The highlight layer's stroke and the glow layer's bloom both draw over the rim of the mesh
     // as far as they reach; reaching across the whole node, they cover the fill.
@@ -370,10 +436,13 @@ function sceneNode(
         id,
         x: d.x,
         y: d.y,
-        w,
-        h,
-        shape: shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
-        fill: visible && !covered && !subPixel ? d.fillDrawn : null,
+        w: w + size,
+        h: h + size,
+        shape:
+            d.shapeType === "polygon"
+                ? polygonClassOf(d.polygon)
+                : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
+        fill: visible && !covered && !subPixel && d.fillOpacity > 0 ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
         border: drawnBorderOf(d),
         label:
@@ -384,7 +453,14 @@ function sceneNode(
                       fontSize: label.fontPx,
                       color: label.color,
                       position: place,
-                      visible: visible && label.enabled && !occluded && label.fontPx >= 1,
+                      // a label is drawn whatever its node's fill: an unfilled group still shows it, and one drawn on
+                      // top of everything shows over the node that hides its own (Gephi's, gexf-cns-wos n5)
+                      visible:
+                          d.shown &&
+                          (hiddenBy === null || label.onTop) &&
+                          label.enabled &&
+                          !occluded &&
+                          label.fontPx >= 1,
                   },
         visible,
         z: -d.box.near,
@@ -467,7 +543,7 @@ function sceneEdge(
         drawn: {
             kind: d.kind,
             thicknessPx: round(d.thicknessPx),
-            caps: d.caps.map((c) => ({ ...c, sizePx: round(c.sizePx) })),
+            caps: d.caps.map((c) => ({ end: c.end, name: c.name, sizePx: round(c.sizePx) })),
             pathPoints: d.points.length,
         },
     };

@@ -1,0 +1,20 @@
+{
+    "sample": "graphml-galaxy-lcms-workflow",
+    "file": "graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml",
+    "sha256": "acb8693f91a4cb68c7c8973b922628ab8ba0c94b4b5ec3ea64fbda99bbcbcc8e",
+    "program": "draw.io (jgraph/drawio)",
+    "version": "32.4.1",
+    "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
+    "standIn": true,
+    "standInReason": "yEd, which wrote this file, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process', and yEd has no SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the file (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.",
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (draw.io's --width 1200 --height 900: one scale, aspect kept)",
+        "widthPx": 1196,
+        "heightPx": 902
+    },
+    "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
+    "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs graphml-galaxy-lcms-workflow && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/graphml-galaxy-lcms-workflow.svg"
+}

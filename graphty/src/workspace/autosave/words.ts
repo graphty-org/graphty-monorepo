@@ -8,7 +8,6 @@
  */
 
 import type {
-    AutosaveAtRisk,
     AutosaveAvailable,
     AutosaveCode,
     AutosaveEntry,
@@ -140,16 +139,6 @@ export function availableSentence(available: AutosaveAvailable): string {
         default:
             return "Earlier work kept";
     }
-}
-
-/**
- * The autosave chip's storage icon, for work kept only where the browser may delete it: its
- * hover text, a short fact. Clicking the icon saves a copy to a file.
- * @param fact - the at-risk fact.
- * @returns the fact.
- */
-export function atRiskSentence(fact: AutosaveAtRisk): string {
-    return fact.params.ephemeral === "likely" ? "Private window: lost on close" : "Browser may clear it";
 }
 
 /**

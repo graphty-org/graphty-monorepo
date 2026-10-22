@@ -414,7 +414,7 @@ function inForce(input: HTMLInputElement, list: HTMLElement): HTMLElement | null
  * @param list - its open list
  * @param target - the enabled option to highlight
  */
-export function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
+function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
     const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
     const goal = items.indexOf(target);
     const enabled = items.filter((item) => item.dataset.comboboxDisabled === undefined);
@@ -706,12 +706,8 @@ export function ensureListboxKeyboard(): void {
             }
             globalThis.setTimeout(() => {
                 opening = null;
-                typeAhead(
-                    input,
-                    list,
-                    options,
-                    options.findIndex((option) => option === inForce(input, list)),
-                );
+                const current = inForce(input, list);
+                typeAhead(input, list, options, current === null ? -1 : options.indexOf(current));
             }, 0);
         };
         walkWhenDrawn(OPEN_FRAMES);

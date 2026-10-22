@@ -114,6 +114,7 @@ export {
     defaultRichTextLabelStyle,
     EdgeArrowTypes,
     EdgeLineTypes,
+    EdgeOutlineTypes,
     EdgeStyle,
     FLAT_NODE_SHAPES,
     GraphBackground,

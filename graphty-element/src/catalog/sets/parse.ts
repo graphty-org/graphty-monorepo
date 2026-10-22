@@ -742,84 +742,122 @@ function checkDefinition(value: unknown, walker: Walker): void {
 
     switch (value.kind) {
         case "fixed":
-            walker.fields(value, "fixed", DEFINITION_FIELDS.fixed);
-            checkIds(value.nodes, "A fixed set's nodes");
-            checkReading(value.reading);
-            if (value.reading === "incident") {
-                throw bad('"incident" reads a rule\'s node half; a fixed set is read "induced" or "listed".', {
-                    reading: value.reading,
-                });
-            }
-
-            if (value.edges !== undefined) {
-                if (!Array.isArray(value.edges)) {
-                    throw bad("A fixed set's edges are a list of edge members.", { edges: value.edges });
-                }
-
-                for (const member of value.edges) {
-                    checkEdgeMember(member, walker);
-                }
-            }
-
+            checkFixed(value, walker);
             break;
         case "rule":
-            walker.fields(value, "rule", DEFINITION_FIELDS.rule);
-            checkReading(value.reading);
-
-            if (typeof value.where === "string") {
-                checkQuery(value.where, "A rule");
-            } else {
-                checkTree(value.where, walker);
-            }
-
-            // Load mode keeps this form: a stored one reads invalid instead of failing the load.
-            if (walker.mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
-                throw inducedEdgeLeaf();
-            }
-
+            checkRule(value, walker);
             break;
-        case "path": {
-            walker.fields(value, "path", DEFINITION_FIELDS.path);
-            checkIds(value.nodes, "A path's nodes");
-
-            const nodes = value.nodes as readonly unknown[];
-            if (nodes.length === 0) {
-                throw bad("A path has at least one node; one node is a path of length zero.");
-            }
-
-            if (value.directed !== undefined && typeof value.directed !== "boolean") {
-                throw bad("A path's directed is true or false.", { directed: value.directed });
-            }
-
-            if (value.edges !== undefined) {
-                if (!Array.isArray(value.edges) || value.edges.length !== nodes.length - 1) {
-                    throw bad(`A path of ${nodes.length} nodes names ${nodes.length - 1} steps' edges, one per step.`, {
-                        edges: value.edges,
-                    });
-                }
-
-                (value.edges as readonly unknown[]).forEach((step, i) => {
-                    if (step === null) {
-                        return;
-                    }
-
-                    if (Array.isArray(step) && step.length === 0) {
-                        throw bad(
-                            "A path step's edge group names at least one edge; null means every edge of the pair.",
-                        );
-                    }
-
-                    for (const member of Array.isArray(step) ? step : [step]) {
-                        checkEdgeMember(member, walker);
-                        checkStepEnds(member as EdgeMember, nodes[i], nodes[i + 1], i, walker);
-                    }
-                });
-            }
-
+        case "path":
+            checkPath(value, walker);
             break;
-        }
         default:
             walker.unknown(value.kind, "The set definition kind");
+    }
+}
+
+/**
+ * Check a fixed definition.
+ * @param value - The candidate, whose kind is "fixed".
+ * @param walker - The pass.
+ */
+function checkFixed(value: Loose, walker: Walker): void {
+    walker.fields(value, "fixed", DEFINITION_FIELDS.fixed);
+    checkIds(value.nodes, "A fixed set's nodes");
+    checkReading(value.reading);
+    if (value.reading === "incident") {
+        throw bad('"incident" reads a rule\'s node half; a fixed set is read "induced" or "listed".', {
+            reading: value.reading,
+        });
+    }
+
+    if (value.edges === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(value.edges)) {
+        throw bad("A fixed set's edges are a list of edge members.", { edges: value.edges });
+    }
+
+    for (const member of value.edges) {
+        checkEdgeMember(member, walker);
+    }
+}
+
+/**
+ * Check a rule definition.
+ * @param value - The candidate, whose kind is "rule".
+ * @param walker - The pass.
+ */
+function checkRule(value: Loose, walker: Walker): void {
+    walker.fields(value, "rule", DEFINITION_FIELDS.rule);
+    checkReading(value.reading);
+
+    if (typeof value.where === "string") {
+        checkQuery(value.where, "A rule");
+    } else {
+        checkTree(value.where, walker);
+    }
+
+    // Load mode keeps this form: a stored one reads invalid instead of failing the load.
+    if (walker.mode === "door" && value.reading === "induced" && speaksEdges(value.where)) {
+        throw inducedEdgeLeaf();
+    }
+}
+
+/**
+ * Check a path definition.
+ * @param value - The candidate, whose kind is "path".
+ * @param walker - The pass.
+ */
+function checkPath(value: Loose, walker: Walker): void {
+    walker.fields(value, "path", DEFINITION_FIELDS.path);
+    checkIds(value.nodes, "A path's nodes");
+
+    const nodes = value.nodes as readonly unknown[];
+    if (nodes.length === 0) {
+        throw bad("A path has at least one node; one node is a path of length zero.");
+    }
+
+    if (value.directed !== undefined && typeof value.directed !== "boolean") {
+        throw bad("A path's directed is true or false.", { directed: value.directed });
+    }
+
+    if (value.edges === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(value.edges) || value.edges.length !== nodes.length - 1) {
+        throw bad(`A path of ${nodes.length} nodes names ${nodes.length - 1} steps' edges, one per step.`, {
+            edges: value.edges,
+        });
+    }
+
+    (value.edges as readonly unknown[]).forEach((step, i) => {
+        checkPathStep(step, nodes[i], nodes[i + 1], i, walker);
+    });
+}
+
+/**
+ * Check one path step's edge group: null, one edge member, or a non-empty list of them, each
+ * joining the step's two nodes.
+ * @param step - The step's edges.
+ * @param from - The step's first node.
+ * @param to - The step's second node.
+ * @param index - The step's index.
+ * @param walker - The pass.
+ */
+function checkPathStep(step: unknown, from: unknown, to: unknown, index: number, walker: Walker): void {
+    if (step === null) {
+        return;
+    }
+
+    if (Array.isArray(step) && step.length === 0) {
+        throw bad("A path step's edge group names at least one edge; null means every edge of the pair.");
+    }
+
+    for (const member of Array.isArray(step) ? step : [step]) {
+        checkEdgeMember(member, walker);
+        checkStepEnds(member as EdgeMember, from, to, index, walker);
     }
 }
 

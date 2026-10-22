@@ -477,6 +477,51 @@ function assertQuery(where: unknown, kind: string): void {
 }
 
 /**
+ * Check a "degree" filter's bounds and direction.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertDegreeFilter(filter: Extract<RuleTree, { kind: "degree" }>): void {
+    assertBounds(filter.min, filter.max, filter.kind);
+
+    if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
+        throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
+            direction: filter.direction,
+        });
+    }
+}
+
+/**
+ * Check a "component" filter names a component number.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when it does not.
+ */
+function assertComponentFilter(filter: Extract<RuleTree, { kind: "component" }>): void {
+    if (!Number.isInteger(filter.id) || filter.id < 0) {
+        throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
+            id: filter.id,
+        });
+    }
+}
+
+/**
+ * Check a "neighborhood" filter's seeds and depth.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertNeighborhoodFilter(filter: Extract<RuleTree, { kind: "neighborhood" }>): void {
+    if (!Array.isArray(filter.seeds)) {
+        throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
+    }
+
+    if (!Number.isInteger(filter.depth) || filter.depth < 0) {
+        throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
+            depth: filter.depth,
+        });
+    }
+}
+
+/**
  * Check one filter is a filter, all the way down, without touching the graph.
  *
  * Separate from compiling it so that a malformed filter is refused at the call that offered it
@@ -516,33 +561,15 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "degree":
-            assertBounds(filter.min, filter.max, filter.kind);
-
-            if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
-                throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
-                    direction: filter.direction,
-                });
-            }
+            assertDegreeFilter(filter);
 
             return;
         case "component":
-            if (!Number.isInteger(filter.id) || filter.id < 0) {
-                throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
-                    id: filter.id,
-                });
-            }
+            assertComponentFilter(filter);
 
             return;
         case "neighborhood":
-            if (!Array.isArray(filter.seeds)) {
-                throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
-            }
-
-            if (!Number.isInteger(filter.depth) || filter.depth < 0) {
-                throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
-                    depth: filter.depth,
-                });
-            }
+            assertNeighborhoodFilter(filter);
 
             return;
         case "isolated":

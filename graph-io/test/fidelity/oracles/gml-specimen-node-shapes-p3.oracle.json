@@ -1,0 +1,31 @@
+{
+    "sample": "gml-specimen-node-shapes-p3",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p3.gml",
+    "sha256": "53aa58153cd2d15c9f1a5c090c61ab7c388d7153ec6ddaef87e05e33dec3c299",
+    "program": "Cytoscape desktop",
+    "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
+    "route": "cytoscape-gml",
+    "command": "session new; network load file file=<file>; view set current (the largest view); hide the WEST, SOUTH and EAST panels; resize the main window until the view is 1200 x 900; view fit content; GET /v1/networks/{net}/views/{view}.svg",
+    "standIn": true,
+    "standInReason": "no program that writes GML can be automated on this machine (yEd's license forbids it; Graphlet is gone); this is Cytoscape desktop's own drawing of the sheet through Cytoscape's GML reader, with the style that reader builds.",
+    "network": {
+        "title": "specimen-node-shapes-p3.gml",
+        "nodes": 62,
+        "views": 1,
+        "chosen": "the view with the most nodes",
+        "style": "default"
+    },
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900,
+        "zoom": 1.0068493150684932,
+        "center": [600, 450],
+        "background": "#FFFFFF"
+    },
+    "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
+    "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
+    "exportsAgreed": 3,
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
+    "date": "2026-10-18",
+    "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs gml-specimen-node-shapes-p3 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p3.svg"
+}

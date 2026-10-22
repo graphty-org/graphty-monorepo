@@ -7,149 +7,43 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-- (2026-10-16, combined V7 + bulk review, before build) Structure I am holding: the Node/Edge tab
-  switch replaces "Paints: Nodes/Edges/Both" (one home for on/off); each tab owns its own pick, so
-  a row's node and edge parts get independent selectors -- today `WhichElements` writes ONE
-  selector to both parts and derives edges by "between/touching", so that becomes an "Ends" card
-  on the Edge tab. In bulk, a card is keyed by its field exactly as a bulk field is keyed by its
-  channel: same value everywhere shows the card, different values show the card with the
-  <<Layer>> token; a card added in bulk is added to every layer. Escape keeps (as BindingPopover),
-  one word "Done". Watch in the study: does a first-time reader find edges under a node-first
-  tab, and does anyone read the collapsed chips as the whole pick?
-- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
-  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
-  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
-  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
-  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
-  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
-  is in the pill's spoken name. Built with 6/5+N instead of my 10-chit cut and named rows for 2-3
-  (rejected: row height parity). Watch in the study whether readers tie chits to groups at rest.
-
-0.  (2026-10-13, build paused for the owner's review after iteration 3) Where the owner's three
-    questions stand, and what I watch:
-
-- **Unset.** Decided and built: a set field draws a minus (Clear) and only a set field does;
-  Clear names what comes back, read over the layer's own elements ("back to 1, the default"),
-  and Undo after Clear works and says what it undid. "Off" is a value ("None", "Hidden"),
-  never the minus. A field painted over by a layer above is marked with that layer and how
-  many of this layer's elements it covers. Reason: the owner asked how a reader stops a layer
-  overriding the ones beneath; the answer must be visible at rest, not learned. Watch: focus
-  falls to the page after Clear on a bound value and after Undo (severity 3, iteration 3) --
-  a keyboard reader loses their place exactly at the unset moment; and the painted-over mark
-  sits in the 56 px name column that cuts names to "C." -- the fact is there but unreadable.
-- **Split parent.** Gone. Two row kinds only, layer and folder. Per-group colors are entries
-  of the ordinary vary binding ("One color per value", category rows with chip, count, eye,
-  minus), and "New layer for <value>" makes an ordinary layer with an ordinary rule the rule
-  editor reads back. Reason: the owner's test is consistency of interaction; split added a
-  third row kind with private rules, and the per-value binding is reusable for any column,
-  not only communities. Watch: a numeric category column (College's conference) still paints
-  twelve oranges by default while the field says "Eight distinct colors" -- the reusable
-  path is only as good as its default on non-community data; and edge-end values filtered out
-  by the app keep "New layer for <value>" from working on edges.
-- **Figma.** Decision 1.13 in `tier3/design.md`: adopted Figma's mixed values, "+" and "-" on
-  lists, eye per entry, settings per entry, the type-row header with "Select what it paints",
-  selection colors on a folder; departures (Clear drawn at rest instead of unmarked overrides,
-  no default entry on "+", sticky group titles) each have a reason in
-  `design/ui/framework/figma-crosswalk.md` section 4. Watch: Figma never cuts a property's
-  name and has one position for a settings button; we cut names and have two positions --
-  the first thing the owner will judge.
-- In the study (after approval): do readers find the minus to unset and believe its "what
-  comes back"? Does anyone look for a split/group layer kind, or reach per-group color through
-  the vary picker unprompted? Does a kind change (Nodes to Edges) lose work without them
-  noticing -- today it drops the bindings while announcing success.
-  Lesson: answers to owner questions must be checked in the build at the edges (keyboard focus,
-  non-community data, edges), not only in the design text.
-
-0. (2026-10-13, iteration 3 review, `tier3/iterations/3/ia.md`) Style coverage is whole (every
-   channel has a control; vary on 47 of 51, the four yes-or-no by recorded decision); generic
-   picking works on three datasets including a reader's own GML file where "name contains Bob"
-   finds exactly 3 of 7; Clear is scoped (owner's unset question answered). Hold the build to:
-   (a) "One color per value" on a numeric category must paint distinct colors and say which
-   palette -- today 12 orange shades, field says "Eight distinct colors", key is a ramp "6 to 5"
-   (severity 3; element legend picks ramp from palette kind, app shows a palette that does not
-   paint); (b) edge-end readable values are published by the element and filtered out by the app
-   in all three pickers (`value.end` ponytail notes) -- and the empty picker's "make this layer
-   Both" is a door to nowhere; (c) find's `named` rows ("degree" finds Connections) are never
-   rendered; "Group 3" (the key's word) finds nothing; (d) one column, two answers: color per
-   value yes, shape per value "Holds amounts, not groups"; no home for a column's measurement;
-   (e) Power without exponent. Lesson: the element half of a planned change can land while the
-   app half is held back by a ponytail note -- grep the app for `ponytail:` near each element
-   fact the plan named before scoring a finding "fixed".
-1. (2026-10-12, iteration 2 review, `tier3/iterations/2/ia.md`) Coverage is close to whole: every
-   channel has a control, vary on 43 of 51 bindable properties, generic picking works on both
-   datasets from the draft, run values reach the rule editor, "New layer for <value>" round-trips.
-   Hold the build to: (a) a number that names a category (College's conference) must be paintable
-   as categories -- the popover filters scales to numeric (severity 3); (b) find, the rule editor
-   and the vary picker must read ONE list with ONE set of names and groups (find misses run
-   values, the two pickers name "Rank" vs "Degree rank"); (c) Clear's "what comes back" must be
-   scoped to the layer's elements, not the whole graph (says "mixed" where one value returns --
-   the owner's unset question); (d) an edge's ends are not readable values, so edge-only layers
-   on data without edge columns read nothing. Decided my own view: yes-or-no properties get no
-   vary (a rule plus a fixed value is the one home); record it in `coverage.ts`. Lesson: a
-   coverage count ("every channel has a home") hides scale and palette coverage -- check what a
-   binding can be made INTO (categories, passthrough), not only what can be bound.
-2. (2026-10-12, iteration 1 review, `tier3/iterations/1/ia.md`) Generic picking works on both
-   datasets (name contains, odd ids, by find and conditions, no favored run). Three structural
-   gaps to hold the build to: (a) the rule editor reads only data columns while the vary picker
-   reads runs -- two lists of "what can be read" composed in the app; ask the element for one;
-   (b) the draft cannot hold a rule, so the first value paints everything; (c) vary is offered on
-   11 properties, not the 30-odd the element binds (`bindsAtRest`). Lesson: "New layer for
-   <value>", my replacement for the split parent, is only as generic as the rule editor that must
-   read it back -- check a proposal's round trip (made, then read and edited), not only that it
-   can be made.
-3. (2026-10-12, owner feedback 1) I reversed my own "split parent stays a layer": the owner's
-   test is consistency of interaction, and split added two row kinds with private rules. Proposed
-   instead: per-value entries in the ordinary binding, "New layer for <value>", and multi-row
-   editing with Mixed. Answer: `tier3/decide/feedback-1-ia.md`. Lesson: judge a new row type by how
-   many rules a reader learns for it, not only by whether the model can express it.
-   0a. (2026-10-12) Unset is the minus, always drawn on set fields and only there; "off" is a value
-   ("None", "Hidden", "No label"), never the same control. The minus's tooltip and name say what
-   comes back from beneath.
-4. (2026-10-12) Tier 3 is unified styles; my answers to the owner's 12 questions are in
-   `tier3/decide/ia.md`. Core rule I am holding: "+" only adds to a list (labels, effects,
-   conditions); single-valued properties are always-drawn rows showing the inherited value, rare
-   ones behind the section's settings button. Reason: tier 1 round 2, Size behind "+" was found
-   only by guessing (18 of 18).
-   0b. (2026-10-12) Which elements is ONE home at the top (Nodes / Edges / Both, then the rule); the
-   rule language is the same RuleTree Data > Filters builds, with selection, find and JMESPath as
-   doors into it. A missing kind's group is hidden, not disabled (no promise without a place).
-   0c. (2026-10-12) Watch when the build lands: does the route layer fit 900 px with both kind groups
-   open? Does anyone look for edge color under a node-only layer, and do they find the kind
-   choice?
-5. (2026-10-11) Round 4 closed: 53 of 53 valid succeeded, 3 owed re-runs (r4-s05b, s20b, s28b).
-   Bars 9 (b) and 10 fail. Round 5 does not start until the gate refuses in `real.mjs --start` and
-   briefings name files by kind only.
-6. (2026-10-11) Decided for round 5 from my proposals: the element never suggests a rule its
-   selector refuses (`suggestBackticks`, element-side, not an app guard -- my app-side check was
-   overruled, rightly); `FindResult.atLeast` rows for a number inside a column's range; the table
-   scoped "visible" with "12 of 41 edges". All three are IA doors or words for existing homes.
-7. (2026-10-11) New: element `rulePath(path)` names a column the way a typed rule does; the app's
-   `columnText` copy is deleted. Lesson: an app helper that "knows how a name resolves" is element
-   logic copied -- look for these in FindBox.
-8. (2026-10-11) Watch in round 5: does "10" on bus stops reach the right selection without a
-   refusal? Credit by reaching the selection, not by the "or more" word matching the prompt.
-9. (2026-10-11) Watch in round 5: T17 with the table open under a step -- do the table's count and
-   the top bar's now read as one fact? Is the table stale after toggling a step?
-10. (2026-10-11) Off filter step turning itself on when its editor closes (`Filters.tsx`) is fixed:
-    the step's checkbox stays the one home for on/off; a leave without an edit changes nothing.
-11. (2026-10-11) Bar 9 (b): scope words (", full graph", "of nodes") stay if the diff names them;
-    a true fact is not cut to pass a count. Propose no word cuts before the diff exists.
-12. (2026-10-11) Do NOT change: toolbar Filters door, Shift-click, Replace in "...", Analyze search,
-    Neighborhood in "...", second path replacing the first, key scope words, "Settings" rail label.
-13. (2026-10-11) Overlapping labels, dots and ties are graphty-element's (owner's list). No app
-    fonts, offsets, seeds or setups that hide names.
-14. (2026-10-11) Study evidence is weaker than it looks: briefings leaked Mo, Nia, `s11`, "6 - w";
-    histories pointed at the toolbar; personas script count-checking. Discount "unprompted".
-15. (2026-10-11) Ask the element first, show second: every "same number, two answers" so far was
-    the app showing something the element was never asked about.
-16. (2026-10-10) Readers type the prompt's most prominent data word first: a column name OR a bare
-    number, including a number no row holds.
-17. (2026-10-10) Rule of the round: no feature moves, no second door where one is measured, words
-    at rest go down; words shown only while typing are not "at rest".
-18. (2026-10-09) The column is a door to existing homes, never a home; a count names its unit and
-    whole; under a filter it names whose numbers.
-19. (2026-10-06) Rejected, do not re-propose without new evidence: results in Size's list; names
-    in the Summary; a Style-tab pointer to Label; Size pre-bound to the row's result.
+1. (2026-10-21, tier 3 round 1 closed, studio stopped at its 1-round cap) 55 of 56 sessions
+   succeeded; no new severity 3. The round is at its ceiling on success, so judge structure by
+   cost (steps over the key), routes and wrong first places, not by pass rate.
+2. (2026-10-21) The top IA finding: with nothing picked, newcomers look for node color in the
+   Graph inspector's Style tab (9 sessions, 5 halves) and recover only by matching the count
+   beside "Everything" to the node count. The Graph inspector must point to the home of node and
+   edge appearance (the layer list), not hold a second home. A door, not a duplicate control.
+3. (2026-10-21) A new style line that starts at the value every element already has (Fill "+"
+   gives the current color; edge Width starts at 8, no unit) looks like nothing happened. Fix in
+   the shared row: show it is set and what it overrides, give units; do not invent a new default.
+4. (2026-10-21) Checking a layer's members is done by eye: the layer's Values tab lists ids, not
+   the label column, and the table cannot show only a layer's rows. One fact (which elements a
+   layer paints) needs one readable home -- the table scoped to the layer, named the way the
+   drawing names nodes. Element supplies membership; the app chooses the name column.
+5. (2026-10-21) Color names are one table deciding both what is spoken and a study grade:
+   `colorWord` returns a CSS keyword before hue ("gold", not "yellow"; a salmon is "red"), and two
+   group colors share one spoken name. Name by hue family first; fix in compact-mantine.
+6. (2026-10-21) Avoiding the <<Layer>> token is not reading it: 0 of 10 fell into the one-color
+   trap, but 6 went around the token. Next round needs a measure that separates avoidance from
+   understanding before I claim bulk editing is legible.
+7. (2026-10-21) Keyboard route to a styled graph costs 30+ Tabs; "Samples" drops focus; the
+   inspector's F6 stop has no focus ring (WCAG 2.4.7). Structure part: nine category chips are
+   nine stops -- a group should be one stop with arrows.
+8. (2026-10-21) Find-box value rows read as a rule ("kind is company (6)") but coloring from them
+   makes a fixed id list named by its count. A door that looks like a rule must make a rule.
+9. (2026-10-21) Do not build the product around one task's wording: no "cube" synonym, no
+   "cluster" re-ranking for B-half prompts. Weakened findings that rest on prompt words stay at 1.
+10. (2026-10-21) Studio lesson: the answer key describes most problems graders cite and every
+    participant is one model -- grading may be leading. Read next tasks for leading before
+    spending sessions; a fail is strong evidence, a pass weak.
+11. (2026-10-16) Still unverified in a study: does a reader find edges under a node-first tab;
+    do readers tie BoundValue chits to groups at rest; does anyone read collapsed chips as the
+    whole pick. Round 1 did not reach these directly.
+12. Standing rules: one home per capability; "+" only adds to lists, single-valued properties are
+    always-drawn rows; unset is the minus and says what comes back; two row kinds only (layer,
+    folder); per-value color is an ordinary vary binding; check proposals at their edges
+    (keyboard focus, non-community data, edges) and round trip (made, then read back).
 
 ## Priorities and values
 
@@ -308,7 +202,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   reject frame-like rows, add-default "+", switches, non-sticky kind headings, gradient paint type.
   Reason: every row behaves as a layer or a folder; one home per job.
 
+### Archived top of mind, 2026-10-11 to 2026-10-16 (summarized 2026-10-21)
+
+- Bulk iteration 7 frozen as tier3-bulk7-457aa9f0f2: a bulk field whose layers differ draws BoundValue with the <<Layer>> token and a line of chits (6, or 5 and "+N"). Node/Edge tab switch replaces "Paints"; each tab owns its pick; edges get an "Ends" card.
+- Owner questions answered: unset is the minus on set fields only, naming what comes back; split parent removed (two row kinds); Figma crosswalk in design/ui/framework/figma-crosswalk.md section 4.
+- Iterations 1 to 3 held the build to: one list of readable values for find, rule editor and vary picker; numeric categories paintable as distinct colors; edge-end values not filtered out by the app; Clear scoped to the layer. Lessons: grep the app for ponytail notes near element facts before scoring "fixed"; coverage counts hide scale and palette coverage; check a proposal's round trip.
+- Round 5 decisions (2026-10-11): element suggestBackticks, FindResult.atLeast, table scoped "visible"; element rulePath replaces app columnText.
+
 ## Tried: worked / did not work
+
+- (2026-10-21) Tier 3 round 1 on the real app: the layer list as the one home for appearance WORKED (every reader got there) but its door did NOT -- found by count matching, not by a pointer. Rule-free "+" lines starting at the current value did NOT read as a change. Bulk <<Layer>> token: no one trapped, legibility unproven.
 
 - 2026-10-13 (tier 3 iteration 3 build, 617b43b270) -- worked: a reader's own file as a third
   dataset (Open project or file, the Data page, Load; `tmp/ia-i3/people.gml`) -- it is the only way

@@ -178,6 +178,68 @@ interface SelectionView {
 }
 
 /**
+ * A neighborhood row from its id: its center node, hops and direction.
+ * @param id - the row's id.
+ * @returns the row, or undefined when the id does not parse.
+ */
+function neighborhoodFromId(id: string | undefined): Resolved | undefined {
+    const parsed = parse(id);
+    const node = idOf(Array.isArray(parsed) ? parsed[0] : parsed);
+    const hops: unknown = Array.isArray(parsed) ? parsed[1] : 1;
+    const direction: unknown = Array.isArray(parsed) ? (parsed[2] ?? "all") : "all";
+    if (
+        node !== undefined &&
+        typeof hops === "number" &&
+        Number.isInteger(hops) &&
+        hops >= 1 &&
+        (direction === "all" || direction === "in" || direction === "out")
+    ) {
+        return { kind: "neighborhood", node, hops, direction };
+    }
+    return undefined;
+}
+
+/**
+ * Several style rows from their id, a list of row ids.
+ * @param id - the row's id.
+ * @returns the rows, or undefined when the id does not parse.
+ */
+function rowsFromId(id: string | undefined): Resolved | undefined {
+    const parsed = parse(id);
+    return Array.isArray(parsed) && parsed.every((each) => typeof each === "string")
+        ? { kind: "rows", rows: parsed }
+        : undefined;
+}
+
+/** The kinds of open row whose id is the thing itself. */
+type IdKind = "measure-row" | "run-row" | "layer-row" | "folder-row" | "attribute" | "filter-step" | "source";
+
+/**
+ * An open row whose id is the thing itself: a run, a layer, a folder, an attribute, a filter
+ * step or a source.
+ * @param kind - the row's kind.
+ * @param id - the row's id.
+ * @returns the row.
+ */
+function fromId(kind: IdKind, id: string): Resolved {
+    switch (kind) {
+        case "measure-row":
+        case "run-row":
+            return { kind, run: id };
+        case "layer-row":
+            return { kind: "layer-row", layer: id };
+        case "folder-row":
+            return { kind: "folder-row", row: id };
+        case "attribute":
+            return { kind: "attribute", path: id };
+        case "filter-step":
+            return { kind: "filter-step", step: id };
+        default:
+            return { kind: "source", row: id };
+    }
+}
+
+/**
  * The open row, when there is one and it parses.
  * @param inspected - the store's `inspected`.
  * @returns what to draw, or undefined to fall back to the selection.
@@ -186,74 +248,26 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
     switch (inspected?.kind) {
         case "graph":
             return { kind: "graph" };
-        case "neighborhood": {
-            const parsed = parse(inspected.id);
-            const node = idOf(Array.isArray(parsed) ? parsed[0] : parsed);
-            const hops: unknown = Array.isArray(parsed) ? parsed[1] : 1;
-            const direction: unknown = Array.isArray(parsed) ? (parsed[2] ?? "all") : "all";
-            if (
-                node !== undefined &&
-                typeof hops === "number" &&
-                Number.isInteger(hops) &&
-                hops >= 1 &&
-                (direction === "all" || direction === "in" || direction === "out")
-            ) {
-                return { kind: "neighborhood", node, hops, direction };
-            }
-            break;
-        }
-        case "measure-row":
-        case "run-row":
-            if (inspected.id !== undefined) {
-                return { kind: inspected.kind, run: inspected.id };
-            }
-            break;
-        case "group-row": {
-            const row = groupRowFromKey(inspected.id);
-            if (row !== undefined) {
-                return row;
-            }
-            break;
-        }
+        case "neighborhood":
+            return neighborhoodFromId(inspected.id);
+        case "group-row":
+            return groupRowFromKey(inspected.id);
         case "everything-row":
         case "selection-row":
             return { kind: inspected.kind };
+        case "rows":
+            return rowsFromId(inspected.id);
+        case "measure-row":
+        case "run-row":
         case "layer-row":
-            if (inspected.id !== undefined) {
-                return { kind: "layer-row", layer: inspected.id };
-            }
-            break;
         case "folder-row":
-            if (inspected.id !== undefined) {
-                return { kind: "folder-row", row: inspected.id };
-            }
-            break;
-        case "rows": {
-            const parsed = parse(inspected.id);
-            if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string")) {
-                return { kind: "rows", rows: parsed };
-            }
-            break;
-        }
         case "attribute":
-            if (inspected.id !== undefined) {
-                return { kind: "attribute", path: inspected.id };
-            }
-            break;
         case "filter-step":
-            if (inspected.id !== undefined) {
-                return { kind: "filter-step", step: inspected.id };
-            }
-            break;
         case "source":
-            if (inspected.id !== undefined) {
-                return { kind: "source", row: inspected.id };
-            }
-            break;
+            return inspected.id === undefined ? undefined : fromId(inspected.kind, inspected.id);
         default:
-            break;
+            return undefined;
     }
-    return undefined;
 }
 
 /**

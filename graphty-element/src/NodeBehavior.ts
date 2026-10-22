@@ -38,13 +38,124 @@ import { sourceLoadsOf } from "./session/sources/ids";
  * @returns The mesh, or null when the point lands on nothing.
  */
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+    const ray = scene.createPickingRay(x, y, null, null);
+    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
     const onTop = scene.pick(
         x,
         y,
-        (mesh) =>
-            mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && mesh.isPickable && mesh.isVisible && mesh.isEnabled(),
+        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
     );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+}
+
+/**
+ * A pick predicate that admits a mesh only when `admit` does AND the world-space ray can reach
+ * its world bounding sphere.
+ *
+ * Babylon's pick builds a ray in each admitted mesh's own space -- a world x view x projection
+ * multiply, an invert and two unprojects -- before it tests the mesh, and every node is a mesh of
+ * its own, so a pick with no such filter cost one unproject per node (issue #3244). Testing the one
+ * world ray against the sphere Babylon keeps in world space costs a few multiplies, and Babylon's
+ * own test is against that same sphere in the mesh's space, so a mesh this rejects is one Babylon
+ * would have rejected: the line test below drops Babylon's "behind the ray's origin" check and pads
+ * the radius, so it only ever admits more. What is picked is unchanged.
+ *
+ * ponytail: Babylon's pick still walks every mesh in `scene.meshes` and calls this for each, about
+ * 15-20 ms a pick at 100,000 nodes; a GPU id buffer or a spatial index over node positions is the
+ * upgrade if that matters.
+ * @param scene - The scene being picked.
+ * @param ray - The pick's ray in world space.
+ * @param admit - Which meshes may be picked at all.
+ * @returns The predicate.
+ */
+export function alongRay(
+    scene: Scene,
+    ray: Ray,
+    admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
+): (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean {
+    // With several active cameras Babylon recomputes a camera-dependent mesh's world matrix for the
+    // pointer's camera, so the sphere read here could be the other camera's: filter nothing then.
+    const cameraDependent =
+        (scene.activeCameras?.length ?? 0) > 1 && scene.cameraToUseForPointers !== scene.activeCamera;
+    const { origin, direction } = ray;
+    const usable = !cameraDependent && direction.lengthSquared() > 0;
+    return (mesh, thinInstanceIndex = -1) => {
+        if (thinInstanceIndex >= 0) {
+            return admit(mesh, thinInstanceIndex);
+        }
+
+        if (!admit(mesh, thinInstanceIndex)) {
+            return false;
+        }
+
+        if (!usable || mesh.hasThinInstances) {
+            return true;
+        }
+
+        mesh.computeWorldMatrix();
+        const { centerWorld, radiusWorld } = mesh.getBoundingInfo().boundingSphere;
+        const dx = centerWorld.x - origin.x;
+        const dy = centerWorld.y - origin.y;
+        const dz = centerWorld.z - origin.z;
+        const along = dx * direction.x + dy * direction.y + dz * direction.z;
+        // Babylon widens the test by a line mesh's own threshold; no other mesh has one.
+        const threshold =
+            "intersectionThreshold" in mesh && typeof mesh.intersectionThreshold === "number"
+                ? mesh.intersectionThreshold
+                : 0;
+        const radius = radiusWorld * (1 + 1e-5) + threshold;
+        return dx * dx + dy * dy + dz * dz - along * along <= radius * radius;
+    };
+}
+
+/** Babylon's own pointer picks, each made with the predicate the scene holds under this name. */
+const POINTER_PICK_PREDICATES = ["pointerMovePredicate", "pointerDownPredicate", "pointerUpPredicate"] as const;
+
+/** A pick predicate as Babylon calls it: the mesh, and a thin instance's index or -1. */
+type PickPredicate = (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean;
+
+/**
+ * Put {@link alongRay} in front of the predicates Babylon picks with on a pointer move, press and
+ * release.
+ *
+ * Babylon picks the scene itself on every pointer move -- for the cursor and the action manager's
+ * triggers, which every node mesh carries -- with `scene.pointerMovePredicate`, so a move cost one
+ * unproject per node there too, besides the element's own picks. Babylon sets its default
+ * predicates on the first event, and a consumer may set its own at any time, so each property is
+ * replaced on this scene by one that wraps whatever is stored in it. A pick tests
+ * `scene.meshes[0]` first, so the wrapper builds the pick's world ray there, from the pointer and
+ * camera Babylon's own pointer picks use.
+ * @param scene - The scene.
+ */
+function filterPointerPicks(scene: Scene): void {
+    for (const key of POINTER_PICK_PREDICATES) {
+        const wrap = (base: PickPredicate | null | undefined): PickPredicate | null | undefined => {
+            if (!base) {
+                return base;
+            }
+
+            const ray = Ray.Zero();
+            let test = base;
+            return (mesh, thinInstanceIndex = -1) => {
+                if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
+                    const pointer = scene.unTranslatedPointer;
+                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
+                    test = alongRay(scene, ray, base);
+                }
+
+                return test(mesh, thinInstanceIndex);
+            };
+        };
+        let held = wrap(scene[key]);
+        Object.defineProperty(scene, key, {
+            configurable: true,
+            enumerable: true,
+            get: () => held,
+            set: (base: PickPredicate | null | undefined) => {
+                held = wrap(base);
+            },
+        });
+    }
 }
 
 /**
@@ -219,6 +330,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
         });
+        filterPointerPicks(scene);
         nodePointerRosters.set(scene, created);
         roster = created;
     }

@@ -247,7 +247,7 @@ export interface StyleCounts {
     readonly paintedBy: readonly LayerId[];
     /**
      * Per channel the layer writes, the layers the picture shows instead on its matched elements
-     * and on how many each: the {@link COVERS_LISTED} that cover most, then how many more layers
+     * and on how many each: the three that cover most, then how many more layers
      * cover it. A channel the layer wins everywhere has no entry. What answers "why don't I see my
      * look?" property by property.
      * @since 3.26.0
@@ -929,27 +929,34 @@ function countAdjustments(
     }
 }
 
+/** The tallies {@link countWins} adds one element's wins to. */
+interface WinTally {
+    /** The tally to add to. */
+    readonly painted: Partial<Record<Channel, number>>;
+    /** The tally of the other layers that won a channel it writes. */
+    readonly others: Map<LayerId, number>;
+    /** Told each channel the layer wins, with everything painted on the element. */
+    readonly undrawn?: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void;
+    /** The tally of the other layers that won each channel it writes, per channel. */
+    readonly perChannel?: Map<Channel, Map<LayerId, number>>;
+}
+
 /**
  * Count the channels one layer wins on one element, through the same walk `explain` takes.
  * @param stack - The stack with its bindings.
  * @param at - Where the element sits.
  * @param columns - What the session can read about elements of its kind.
  * @param layerId - The layer.
- * @param painted - The tally to add to.
- * @param others - The tally of the other layers that won a channel it writes.
- * @param undrawn - Told each channel the layer wins, with everything painted on the element.
- * @param perChannel - The tally of the other layers that won each channel it writes, per channel.
+ * @param tally - The tallies to add to.
  */
 function countWins(
     stack: readonly StackEntry[],
     at: Located,
     columns: ElementColumns,
     layerId: LayerId,
-    painted: Partial<Record<Channel, number>>,
-    others: Map<LayerId, number>,
-    undrawn?: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void,
-    perChannel?: Map<Channel, Map<LayerId, number>>,
+    tally: WinTally,
 ): void {
+    const { painted, others, undrawn, perChannel } = tally;
     const winners = new Map<Channel, LayerId>();
     const values: Partial<Record<Channel, unknown>> = {};
     paintOne(stack, at, columns, (winner, prepared, result) => {
@@ -1056,16 +1063,12 @@ export function styleCounts(
         countAdjustments(own, columns, index, adjusted);
 
         if (layer.enabled) {
-            countWins(
-                stack,
-                { target: layer.target, index },
-                columns,
-                layerId,
+            countWins(stack, { target: layer.target, index }, columns, layerId, {
                 painted,
                 others,
-                captions.add,
+                undrawn: captions.add,
                 perChannel,
-            );
+            });
         }
     }
 

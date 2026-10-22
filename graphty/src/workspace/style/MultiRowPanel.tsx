@@ -1,3 +1,4 @@
+/// <reference lib="es2023.array" />
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerReach, StyleRow } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
@@ -164,10 +165,7 @@ function manyOf(
     const linesOf = (channel: Channel): (Line | undefined)[] => rows.map((row) => lineOfRow(row, channel));
     // Where a row takes a write: the layer that already sets the channel, else its topmost layer.
     const homeOf = (row: FoundRow, channel: Channel): Layer | undefined =>
-        lineOfRow(row, channel)?.layer ??
-        layersOf(row)
-            .filter((layer) => !layer.locked)
-            .at(-1);
+        lineOfRow(row, channel)?.layer ?? layersOf(row).findLast((layer) => !layer.locked);
     // Copies of one binding differ only in each layer's own table: they count as one value.
     const key = (line: Line): string => {
         const { map: _map, ...binding } = line.binding ?? { by: "" };
@@ -405,7 +403,60 @@ function scopeWords(tree: readonly StyleRow[], picked: readonly FoundRow[], reac
     if (single === undefined && parts.length === 0 && later === "") {
         return "";
     }
-    return `${head}${parts.length === 0 ? "" : `: ${parts.join(", ")}`}.${later}`;
+    const tail = parts.length === 0 ? "" : `: ${parts.join(", ")}`;
+    return `${head}${tail}.${later}`;
+}
+
+/**
+ * What the kinds of several layer rows do: how many style nodes or edges, turning a kind on or off
+ * for all of them in one step, and the picker of which elements each kind styles.
+ * @param session - the element's session.
+ * @param store - the workspace store.
+ * @param layerRows - the layer rows (a folder has no pick of its own).
+ * @returns the kind control.
+ */
+function kindControl(
+    session: GraphSession,
+    store: ReturnType<typeof useWorkspace>["store"],
+    layerRows: readonly string[],
+): KindControl {
+    const has = (id: string, side: Target): boolean => {
+        const parts = session.styles.parts(id);
+        return (side === "node" ? parts?.node : parts?.edge) !== undefined;
+    };
+    return {
+        state: (side) => ({ on: layerRows.filter((id) => has(id, side)).length, of: layerRows.length }),
+        toggle: async (side, on) => {
+            const changed = await session.transaction(
+                `${on ? "styling" : "not styling"} ${side === "node" ? "nodes" : "edges"} on ${count(layerRows.length, "layer")}`,
+                async (tx) => {
+                    let n = 0;
+                    for (const id of layerRows) {
+                        if (await writeKind(session, tx, id, side, on)) {
+                            n++;
+                        }
+                    }
+                    return n;
+                },
+            );
+            const kind = side === "node" ? "nodes" : "edges";
+            store.set({
+                announcement: on
+                    ? `${count(changed, "layer")} now style ${kind}`
+                    : `${count(changed, "layer")} no longer style ${kind}`,
+            });
+        },
+        pick: (side, justOn, elsewhere) => (
+            <WhichPicker
+                key={side}
+                session={session}
+                rows={layerRows.filter((id) => has(id, side))}
+                side={side}
+                autoOpen={justOn}
+                {...elsewhere}
+            />
+        ),
+    };
 }
 
 /**
@@ -441,43 +492,7 @@ export function MultiRowPanel({ ids }: Readonly<{ ids: readonly string[] }>): Re
     const bulk: Bulk = { locked, last, setLast };
     // Layer rows only: a folder has no pick of its own.
     const layerRows = open.filter((row) => row.row.kind !== "folder").map((row) => row.row.id);
-    const has = (id: string, side: Target): boolean => {
-        const parts = session.styles.parts(id);
-        return (side === "node" ? parts?.node : parts?.edge) !== undefined;
-    };
-    const kinds: KindControl = {
-        state: (side) => ({ on: layerRows.filter((id) => has(id, side)).length, of: layerRows.length }),
-        toggle: async (side, on) => {
-            const changed = await session.transaction(
-                `${on ? "styling" : "not styling"} ${side === "node" ? "nodes" : "edges"} on ${count(layerRows.length, "layer")}`,
-                async (tx) => {
-                    let n = 0;
-                    for (const id of layerRows) {
-                        if (await writeKind(session, tx, id, side, on)) {
-                            n++;
-                        }
-                    }
-                    return n;
-                },
-            );
-            const kind = side === "node" ? "nodes" : "edges";
-            store.set({
-                announcement: on
-                    ? `${count(changed, "layer")} now style ${kind}`
-                    : `${count(changed, "layer")} no longer style ${kind}`,
-            });
-        },
-        pick: (side, justOn, elsewhere) => (
-            <WhichPicker
-                key={side}
-                session={session}
-                rows={layerRows.filter((id) => has(id, side))}
-                side={side}
-                autoOpen={justOn}
-                {...elsewhere}
-            />
-        ),
-    };
+    const kinds = kindControl(session, store, layerRows);
     const scope = scopeWords(tree, picked, reach);
     return (
         <Stack gap={0}>

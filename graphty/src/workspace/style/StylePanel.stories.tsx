@@ -47,9 +47,11 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
         return found as GraphtyElement;
     }, storyWaitOptions(1000));
     const { session } = element;
-    // The app loads the sample once the project's element is up.
+    // The app loads the sample once the project's element is up, then starts the graph's history
+    // (Workspace.tsx); that clear would cancel the switch to 2D below, so the open has to be over.
     await waitFor(() => {
         expect(session.data.statistics().nodeCount).toBe(77);
+        expect(session.history.pending.length + session.history.steps.length).toBe(0);
     }, storyWaitOptions(10_000));
     expect(session.config.startingRows).toBe(true);
     expect(session.config.editableBase).toBe(true);
@@ -199,6 +201,10 @@ function sceneStory(play: (scene: Scene) => Promise<void>): Story {
         play: async ({ canvasElement }) => {
             const scene = await loadScene(canvasElement);
             await play(scene);
+            // The key's node shapes arrive as pictures graphty-element draws after the frame.
+            await waitFor(() => {
+                expect(canvasElement.ownerDocument.querySelector("[data-node-picture-pending]")).toBeNull();
+            }, storyWaitOptions(5000));
             await scene.element.waitForStableFrame();
         },
     };
@@ -231,11 +237,16 @@ export const HoveredAtRest: Story = sceneStory(async () => {
     await openStyle("Hovered");
 });
 
-/** Key people's Shape "+": the Shape properties the layer does not set yet. */
+/**
+ * Key people's Shape "+": Size is set, so Shape is the one property left, and "+" adds its line
+ * at once (a menu of one item is one more click for nothing), waiting for a value.
+ */
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000));
+    await waitFor(() => {
+        expect(tab.querySelector('[data-section="node-shape"] .ws-row[data-line="node.shape"]')).not.toBeNull();
+    }, storyWaitOptions(1000));
 });
 
 /** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */
@@ -538,8 +549,12 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
         expect(found).not.toBeNull();
         return found as GraphtyElement;
     }, storyWaitOptions(1000));
+    // The open is finished when the workspace has started the graph's history (Workspace.tsx clears
+    // it once the sample is read): before that, the clear would cancel the switch to 2D below.
     await waitFor(() => {
+        const { history } = element.session;
         expect(element.session.data.statistics().nodeCount).toBe(115);
+        expect(history.pending.length + history.steps.length).toBe(0);
     }, storyWaitOptions(10_000));
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
@@ -576,7 +591,10 @@ export const FootballConference: Story = {
         await userEvent.click(
             await within(box).findByRole("button", { name: "Node color by attribute" }, storyWaitOptions(1000)),
         );
-        await userEvent.click(await page().findByRole("option", { name: "value" }, storyWaitOptions(1000)));
+        // The picker names each attribute with one fact about it ("value, 0 to 11").
+        const search = await page().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+        const picker = (search as HTMLElement).closest<HTMLElement>(".cm-quick-actions") ?? document.body;
+        await userEvent.click(await within(picker).findByRole("option", { name: /^value, / }, storyWaitOptions(1000)));
         const made = await waitFor(() => {
             const layer = session.styles
                 .list()

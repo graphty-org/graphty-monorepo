@@ -378,9 +378,10 @@ const real = (size, ...a) => {
     });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
 };
-// a step that did not do what it says, or a screen that is not the one named
+// a step that did not do what it says, or a screen that is not the one named. "typed nothing" is
+// matched itself: a batch stops at a failed --type, so a check after it in the batch no longer runs
 const MISSED =
-    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not click|only \d+ controls|SETUP FAILED|no live session|the tool failed|expected on screen, not there|expected gone, still on screen/;
+    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not click|only \d+ controls|SETUP FAILED|no live session|the tool failed|expected on screen, not there|expected gone, still on screen|typed nothing, not "/;
 
 // Each walk: a setup and a list of moves. A move's steps, one "--step value" per string as in a
 // setup file, run as one real.mjs --step; an --expect in it confirms the screen arrived. Then the page

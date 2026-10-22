@@ -13,6 +13,7 @@ export { LABEL_LOOKS, labelLook, labelLookChanges } from "./label-looks";
 export type {
     LabelAnimation,
     LabelBadge,
+    LabelDeclutterOrder,
     LabelGradientDirection,
     LabelGradientType,
     LabelIconPosition,

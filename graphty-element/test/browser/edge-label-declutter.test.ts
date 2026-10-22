@@ -36,7 +36,7 @@ describe("edge labels do not overlap", () => {
         container?.remove();
     });
 
-    async function draw(declutter: boolean): Promise<Graph> {
+    async function draw(declutter: boolean, words = "Bob"): Promise<Graph> {
         container = document.createElement("div");
         container.style.width = "640px";
         container.style.height = "480px";
@@ -53,7 +53,7 @@ describe("edge labels do not overlap", () => {
             name: "Every one",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.label": "Bob" },
+            set: { "edge.label": words },
         });
         await operationQueueOf(g).waitForCompletion();
         await g.setCameraState({ position: { x: 3, y: 3, z: -20 }, target: { x: 3, y: 3, z: 0 } });
@@ -96,5 +96,14 @@ describe("edge labels do not overlap", () => {
         }
         assert.strictEqual(drawn(g).length, 3);
         assert.strictEqual(g.edgeLabelCounts.hiddenByOverlap, 0);
+    });
+
+    it("counts no edge text with no words, and the picture still settles", async () => {
+        // An empty label column (a Cytoscape session's edges) gives each edge a label with no
+        // words, whose plane has no size and no place a number can say; watched, it kept the
+        // declutter re-deciding every frame and waitForStableFrame never resolved.
+        const g = await draw(true, "");
+        await g.waitForStableFrame();
+        assert.deepStrictEqual(g.edgeLabelCounts, { labeled: 0, edgeHidden: 0, hiddenByOverlap: 0 });
     });
 });

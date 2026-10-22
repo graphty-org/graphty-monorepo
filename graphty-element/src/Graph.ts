@@ -184,7 +184,14 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import {
+    alongRay,
+    nodeActionManagerOf,
+    nodePointerRosterOf,
+    pickAsDrawn,
+    pickNodeId,
+    pointerEventTime,
+} from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -1034,6 +1041,12 @@ export class Graph implements GraphContext {
                 ),
         };
 
+        // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).
+        dispatcherOf(this.session).services.viewport = () => {
+            const { clientWidth: width, clientHeight: height } = this.canvas;
+            return width > 0 && height > 0 ? { width, height } : null;
+        };
+
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
         // (design/sets 6.2): a held frame holds that work too.
         setsNotifierOfSession(this.session).useFrames((callback) => {
@@ -1181,6 +1194,9 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        this.layoutManager.drawArrivedPaint = () => {
+            this.updateManager.drawArrivedPaint();
+        };
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -3993,7 +4009,8 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const ray = this.scene.createPickingRay(x, y, null, null);
+            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {
@@ -4031,21 +4048,32 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
-        if (edgeId !== undefined) {
-            if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-                const add = event.shiftKey === true;
-                this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
-            }
-            this.session.elementClick({ edge: edgeId });
-        } else {
-            if (!secondary) {
-                this.selectionManager.deselect();
-                if (this.session.selection.edges.length > 0) {
-                    this.session.selection.clear();
-                }
-            }
-            this.session.emptyClick({ x, y, secondary });
+        if (edgeId === undefined) {
+            this.clickEmptyCanvas(x, y, secondary);
+            return;
         }
+
+        if (!(secondary && this.session.selection.edges.includes(edgeId))) {
+            const add = event.shiftKey === true;
+            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+        }
+        this.session.elementClick({ edge: edgeId });
+    }
+
+    /**
+     * A click on empty canvas: a primary click clears the selection; either reports the click.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param secondary - Whether it was the secondary button.
+     */
+    private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
+        if (!secondary) {
+            this.selectionManager.deselect();
+            if (this.session.selection.edges.length > 0) {
+                this.session.selection.clear();
+            }
+        }
+        this.session.emptyClick({ x, y, secondary });
     }
 
     /**
@@ -5197,7 +5225,13 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             // One at a time: every thumbnail is drawn at the same place, seen by the same mask.
             const is2D = this.getViewMode() === "2d";
-            shot = this.#thumbnailQueue.then(async () => nodeThumbnail(this.engine, this.scene, is2D, options));
+            shot = this.#thumbnailQueue.then(async () => {
+                // Drawn by a camera of its own from a mesh built now: a frozen list of what is
+                // drawn would leave that mesh out and the picture empty. nodeThumbnail draws in
+                // the same task, while the screenshot holds the frame loop that freezes it again.
+                this.updateManager.thawActiveMeshes();
+                return nodeThumbnail(this.engine, this.scene, is2D, options);
+            });
             this.#thumbnailQueue = shot.catch(() => undefined);
             this.#thumbnails.set(key, shot);
             // A failed picture is not kept: the next call tries again.
@@ -7353,9 +7387,10 @@ export class Graph implements GraphContext {
     // ===========================================
 
     /**
-     * Initialize XR (VR/AR): the session manager unless `xr.enabled` is false, and the canvas
-     * buttons when `xr.ui.enabled` is set. Nothing Babylon-side is allocated until a session is
-     * entered, and the browser is asked which modes it supports once, after the first frame.
+     * Initialize XR (VR/AR) when `xr.enabled` is set (it is off by default): the session manager,
+     * and the canvas buttons unless `xr.ui.enabled` is false. Nothing Babylon-side is allocated
+     * until a session is entered, and the browser is asked which modes it supports once, after the
+     * first frame.
      */
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
@@ -7376,21 +7411,24 @@ export class Graph implements GraphContext {
             this.drawXRButtons();
         });
         this.drawXRButtons();
-        this.scene.onAfterRenderObservable.addOnce(() => {
-            void this.xrAvailability.probe();
-        });
+        // Off, XR asks the browser nothing: both modes already read "disabled".
+        if (this.xrConfig().enabled) {
+            this.scene.onAfterRenderObservable.addOnce(() => {
+                void this.xrAvailability.probe();
+            });
+        }
     }
 
     /**
-     * Draw the canvas XR buttons (opt-in, `xr.ui.enabled`) from the current availability, once
+     * Draw the canvas XR buttons (`xr.ui.enabled`, with XR on) from the current availability, once
      * the browser has answered.
      */
     private drawXRButtons(): void {
         this.xrUIManager?.dispose();
         this.xrUIManager = null;
-        const { ui } = this.xrConfig();
+        const { enabled, ui } = this.xrConfig();
         const { reasons, vr, ar } = this.xrAvailability.capability;
-        if (!ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
+        if (!enabled || !ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
             return;
         }
 

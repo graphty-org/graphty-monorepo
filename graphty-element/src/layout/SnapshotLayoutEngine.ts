@@ -82,6 +82,14 @@ export interface SnapshotLayoutInput {
      * @since 3.29.0
      */
     nodeSizes?(): F32;
+    /**
+     * How wide and how tall the element draws each node, in scene units: its mesh's extent along
+     * x and along y, two per row. NaN for a row no node answers. A layout that spaces nodes by
+     * their boxes rather than by one size reads it.
+     * @returns two sizes per row
+     * @since 3.30.0
+     */
+    nodeExtents?(): F32;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
@@ -130,6 +138,8 @@ interface SnapshotLayoutHost {
      * @returns the values, or null when nothing carries the path
      */
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
+    drawPaint(): void;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -391,8 +401,25 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
-            nodeSizes: () =>
-                Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius)),
+            // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
+            // ponytail: a style pass still running is not waited for; its sizes are read as drawn
+            // now. Wait for it here if a layout is ever seen starting mid-pass.
+            nodeSizes: () => {
+                this.#host?.drawPaint();
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+            },
+            nodeExtents: () => {
+                this.#host?.drawPaint();
+                const out = new Float32Array(2 * n).fill(Number.NaN);
+                nodes.forEach((node, row) => {
+                    if (node !== undefined) {
+                        const { x, y } = node.drawnHalfExtents;
+                        out[2 * row] = 2 * x;
+                        out[2 * row + 1] = 2 * y;
+                    }
+                });
+                return out;
+            },
             signal: controller.signal,
             report: (progress) => {
                 if (!controller.signal.aborted) {

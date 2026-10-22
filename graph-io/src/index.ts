@@ -284,6 +284,7 @@ export {
     type JsonImportOptions,
     type JsonShapeMeta,
     jsonShapeOf,
+    sniffJsonDialect,
 } from "./formats/json/index.js";
 export {
     exportNeo4jFiles,

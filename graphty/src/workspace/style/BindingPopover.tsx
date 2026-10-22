@@ -181,18 +181,11 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     }
     const { descriptor, onSource } = props;
     const { channel } = descriptor;
-    const isColor = descriptor.accepts === "color";
     const isNumber = descriptor.accepts === "number";
     const name = channelWord(channel);
     const parts = props.layers === undefined ? dataParts(session, props, setDetail) : layerParts(session, props);
     const { binding, patch } = parts;
-    const plain = isColor && !detail && parts.categorical && !parts.asWritten;
-    // "More values than colors" only when there are: more groups than the palette in force holds.
-    // A choice made for it (a run's "Extend the palette") changes nothing while every group has a
-    // color of its own, so it is not offered then either.
-    const capacity = session.catalog.palettes().find((p) => p.id === (binding.palette ?? parts.palette))?.capacity;
-    const overflows =
-        parts.groups === undefined || capacity === undefined || capacity === null || parts.groups > capacity;
+    const numberParts = isNumber && !detail;
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -205,62 +198,146 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             />
             {parts.ramp}
             {parts.categorical ? (
-                <Stack gap={8}>
-                    {detail ? null : parts.readAs}
-                    {plain ? (
-                        <PaletteSelect session={session} value={binding.palette} shown={parts.palette} patch={patch} />
-                    ) : null}
-                    {parts.list}
-                    {plain && overflows ? (
-                        <PanelLabelsProvider showLabels>
-                            <FieldRow>
-                                <PanelField
-                                    label={`More ${parts.noun} than colors`}
-                                    kind="select"
-                                    width="fill"
-                                    data={[...OVERFLOW_WORDS[descriptor.target]]}
-                                    value={binding.overflow ?? "other"}
-                                    onChange={(overflow) => {
-                                        // Keep the palette the groups are drawn in: with none named, the
-                                        // element picks its own for the new overflow (a ramp for number
-                                        // groups), and "Extend the palette" would not extend the one shown.
-                                        const shown = session.catalog
-                                            .palettes()
-                                            .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
-                                        patch({
-                                            overflow: String(overflow) as LayerBinding["overflow"],
-                                            palette: binding.palette ?? shown,
-                                        });
-                                    }}
-                                />
-                            </FieldRow>
-                        </PanelLabelsProvider>
-                    ) : null}
-                </Stack>
+                <GroupsSection session={session} descriptor={descriptor} parts={parts} detail={detail} />
             ) : null}
-            {isNumber && !detail ? (
+            {numberParts ? (
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
             {detail || !parts.noValue ? null : (
                 <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
             )}
-            {isNumber && !detail ? (
-                <PanelLabelsProvider showLabels>
-                    <FieldRow>
-                        <PanelField
-                            label={`How ${name.toLowerCase()} meets the layers beneath`}
-                            kind="select"
-                            width="fill"
-                            data={[...COMBINE_WORDS]}
-                            value={binding.combine ?? "replace"}
-                            onChange={(mode) => {
-                                patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
-            ) : null}
+            {numberParts ? <CombineField name={name} binding={binding} patch={patch} /> : null}
         </Stack>
+    );
+}
+
+/**
+ * For groups: a way to read the value another way, the palette, the group list and what happens
+ * past the palette.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.descriptor - the bound property
+ * @param props.parts - what the source puts in the popover
+ * @param props.detail - whether a group's detail has taken the popover over
+ * @returns The section
+ */
+function GroupsSection({
+    session,
+    descriptor,
+    parts,
+    detail,
+}: Readonly<{
+    session: GraphSession;
+    descriptor: ChannelDescriptor;
+    parts: Parts;
+    detail: boolean;
+}>): React.JSX.Element {
+    const { binding, patch } = parts;
+    const isColor = descriptor.accepts === "color";
+    const plain = isColor && !detail && !parts.asWritten;
+    // "More values than colors" only when there are: more groups than the palette in force holds.
+    // A choice made for it (a run's "Extend the palette") changes nothing while every group has a
+    // color of its own, so it is not offered then either.
+    const overflows = overflowsPalette(session, binding, parts);
+    return (
+        <Stack gap={8}>
+            {detail ? null : parts.readAs}
+            {plain ? (
+                <PaletteSelect session={session} value={binding.palette} shown={parts.palette} patch={patch} />
+            ) : null}
+            {parts.list}
+            {plain && overflows ? <OverflowField session={session} descriptor={descriptor} parts={parts} /> : null}
+        </Stack>
+    );
+}
+
+/**
+ * Whether "More values than colors" applies: more groups than the palette in force holds. A choice
+ * made for it (a run's "Extend the palette") changes nothing while every group has a color of its
+ * own, so it is not offered then either.
+ * @param session - the element's session
+ * @param binding - the binding
+ * @param parts - what the source puts in the popover
+ * @returns whether the groups overflow the palette, or may
+ */
+function overflowsPalette(session: GraphSession, binding: LayerBinding, parts: Parts): boolean {
+    const capacity = session.catalog.palettes().find((p) => p.id === (binding.palette ?? parts.palette))?.capacity;
+    return parts.groups === undefined || capacity === undefined || capacity === null || parts.groups > capacity;
+}
+
+/**
+ * What happens past the palette: "More values than colors", "More layers than colors".
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.descriptor - the bound property
+ * @param props.parts - what the source puts in the popover
+ * @returns The field
+ */
+function OverflowField({
+    session,
+    descriptor,
+    parts,
+}: Readonly<{ session: GraphSession; descriptor: ChannelDescriptor; parts: Parts }>): React.JSX.Element {
+    const { binding, patch } = parts;
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>
+                <PanelField
+                    label={`More ${parts.noun} than colors`}
+                    kind="select"
+                    width="fill"
+                    data={[...OVERFLOW_WORDS[descriptor.target]]}
+                    value={binding.overflow ?? "other"}
+                    onChange={(overflow) => {
+                        // Keep the palette the groups are drawn in: with none named, the
+                        // element picks its own for the new overflow (a ramp for number
+                        // groups), and "Extend the palette" would not extend the one shown.
+                        const shown = session.catalog
+                            .palettes()
+                            .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
+                        patch({
+                            overflow: String(overflow) as LayerBinding["overflow"],
+                            palette: binding.palette ?? shown,
+                        });
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
+    );
+}
+
+/**
+ * Combine for a number: how the value meets the layers beneath.
+ * @param props - Component props
+ * @param props.name - the property's word
+ * @param props.binding - the binding
+ * @param props.patch - writes a change
+ * @returns The field
+ */
+function CombineField({
+    name,
+    binding,
+    patch,
+}: Readonly<{
+    name: string;
+    binding: LayerBinding;
+    patch: (change: Partial<LayerBinding>) => void;
+}>): React.JSX.Element {
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>
+                <PanelField
+                    label={`How ${name.toLowerCase()} meets the layers beneath`}
+                    kind="select"
+                    width="fill"
+                    data={[...COMBINE_WORDS]}
+                    value={binding.combine ?? "replace"}
+                    onChange={(mode) => {
+                        patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 
@@ -652,7 +729,15 @@ function openLayerFor(
  * @param props.patch - writes a change
  * @returns The ramp
  */
-function Ramp({ session, descriptor, layerId, binding, source, preview, patch }: PartProps): React.JSX.Element {
+function Ramp({
+    session,
+    descriptor,
+    layerId,
+    binding,
+    source,
+    preview,
+    patch,
+}: Readonly<PartProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const isColor = descriptor.accepts === "color";
     const domain = preview.domain ?? [0, 0];

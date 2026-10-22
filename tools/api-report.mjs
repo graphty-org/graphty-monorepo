@@ -161,6 +161,12 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "username",
     // a value the consumer's data holds: a source preview row's label (`name`, `title`, ...)
     "label",
+    // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
+    // text a reader typed into a find (FindContainsRow.text)
+    "folder",
+    "text",
+    // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
+    "locale",
 ]);
 
 const DECLARATION =

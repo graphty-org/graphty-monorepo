@@ -246,7 +246,8 @@ export const RunRowSettingsChanged: Story = {
         );
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
-        await inspector(canvasElement).findByRole("status", {}, storyWaitOptions(1000));
+        // The state bar's Rerun, not "the" status: the field's own Escape note is a live region too.
+        await inspector(canvasElement).findByRole("button", { name: "Rerun" }, storyWaitOptions(1000));
     },
 };
 

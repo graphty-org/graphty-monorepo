@@ -248,24 +248,9 @@ export function leafOf(card: Card): RuleTree | null {
     }
     switch (card.type) {
         case "number":
-            if (card.match === "top") {
-                return card.top === undefined || card.top < 1
-                    ? null
-                    : { kind: "threshold", path, top: card.top, ties: "all" };
-            }
-            return {
-                kind: "range",
-                attribute: path,
-                ...(card.min === undefined ? {} : { min: card.min }),
-                ...(card.max === undefined ? {} : { max: card.max }),
-            };
-        case "category": {
-            const values: RuleTree = { kind: "categories", attribute: path, values: card.values };
-            if (card.values.length === 0) {
-                return card.gaps ? { kind: "not", of: present(path) } : null;
-            }
-            return card.gaps ? { kind: "any", of: [values, { kind: "not", of: present(path) }] } : values;
-        }
+            return numberLeaf(card, path);
+        case "category":
+            return categoryLeaf(card, path);
         case "yes-no":
             return {
                 kind: "text",
@@ -275,19 +260,67 @@ export function leafOf(card: Card): RuleTree | null {
                 caseSensitive: true,
             };
         default:
-            if (card.match === "list") {
-                return (card.ids ?? []).length === 0 ? null : { kind: "member", of: { nodes: card.ids ?? [] } };
-            }
-            return card.text.trim() === ""
-                ? null
-                : {
-                      kind: "text",
-                      reads: path,
-                      mode: card.match,
-                      text: card.text.trim(),
-                      ...(card.caseSensitive ? { caseSensitive: true } : {}),
-                  };
+            return textLeaf(card, path);
     }
+}
+
+/** A card of one type. */
+type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
+
+/**
+ * A number card's leaf: its top N, or its range.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function numberLeaf(card: CardOf<"number">, path: string): RuleTree | null {
+    if (card.match === "top") {
+        return card.top === undefined || card.top < 1 ? null : { kind: "threshold", path, top: card.top, ties: "all" };
+    }
+    return {
+        kind: "range",
+        attribute: path,
+        ...(card.min === undefined ? {} : { min: card.min }),
+        ...(card.max === undefined ? {} : { max: card.max }),
+    };
+}
+
+/**
+ * A category card's leaf: its ticked values, and the elements without one when "(no value)" is.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while nothing is ticked.
+ */
+function categoryLeaf(card: CardOf<"category">, path: string): RuleTree | null {
+    const values: RuleTree = { kind: "categories", attribute: path, values: card.values };
+    if (card.values.length === 0) {
+        return card.gaps ? { kind: "not", of: present(path) } : null;
+    }
+    return card.gaps ? { kind: "any", of: [values, { kind: "not", of: present(path) }] } : values;
+}
+
+/**
+ * A text or name card's leaf: its fixed list of ids, or its typed text.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function textLeaf(card: CardOf<"text">, path: string): RuleTree | null {
+    if (card.match === "list") {
+        return (card.ids ?? []).length === 0 ? null : { kind: "member", of: { nodes: card.ids ?? [] } };
+    }
+    const text = card.text.trim();
+    // Present and absent are leafOf's own, before a card's type is read.
+    if (text === "" || card.match === "present" || card.match === "absent") {
+        return null;
+    }
+    return {
+        kind: "text",
+        reads: path,
+        mode: card.match,
+        text,
+        ...(card.caseSensitive ? { caseSensitive: true } : {}),
+    };
 }
 
 /**
@@ -410,8 +443,8 @@ function speaksNodes(leaf: RuleTree, edgeFields: readonly CardField[]): boolean 
  * @returns the card.
  */
 export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardField[], at: number): Card {
-    const field = (path: string): CardField | undefined => fields.find((each) => each.path === path);
-    const elsewhere: Card = {
+    const field: FieldFinder = (path) => fields.find((each) => each.path === path);
+    const elsewhere: CardOf<"fixed"> = {
         type: "fixed",
         key: `fixed:${String(at)}:${JSON.stringify(leaf)}`,
         leaf,
@@ -422,97 +455,151 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
     if (hasField !== undefined) {
         return presenceCard(hasField, "present");
     }
-    if (leaf.kind === "not") {
-        const not = presentPath(leaf.of);
-        const notField = not === undefined ? undefined : field(not);
-        return notField === undefined ? elsewhere : presenceCard(notField, "absent");
-    }
     switch (leaf.kind) {
+        case "not": {
+            const not = presentPath(leaf.of);
+            const notField = not === undefined ? undefined : field(not);
+            return notField === undefined ? elsewhere : presenceCard(notField, "absent");
+        }
         case "range": {
             const f = field(leaf.attribute);
             return f?.kind === "number"
                 ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
                 : elsewhere;
         }
-        case "threshold": {
-            const f = field(leaf.path);
-            if (f?.kind === "number" && leaf.above !== undefined && leaf.top === undefined) {
-                // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
-                return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
-            }
-            return f?.kind === "number" && leaf.top !== undefined && leaf.above === undefined
-                ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
-                : elsewhere;
-        }
-        case "expression": {
-            // A bare column name (find's `=email`) tests that the column holds a value: an ordinary
-            // card, "Has a value" (Yes for a yes-or-no column). The element reads the name.
-            // ponytail: an empty text reads as "has a value" here while the expression passes none;
-            // the card's count says what the card keeps.
-            const bare = selectorRule(
-                { match: "expression", where: `${leaf.where} != \`null\`` },
-                { comparisons: true },
-            );
-            const path = bare === undefined ? undefined : presentPath(bare.where);
-            const named = path === undefined ? undefined : field(path);
-            if (named?.kind === "yes-no") {
-                return { type: "yes-no", key: keyOf(named), field: named, match: "yes" };
-            }
-            return named === undefined
-                ? { ...elsewhere, words: ruleWords(leaf.where) }
-                : presenceCard(named, "present");
-        }
+        case "threshold":
+            return thresholdCard(leaf, field, elsewhere);
+        case "expression":
+            return expressionCard(leaf, field, elsewhere);
         case "categories": {
             const f = field(leaf.attribute);
             return f === undefined
                 ? elsewhere
                 : { type: "category", key: keyOf(f), field: f, match: "values", values: leaf.values, gaps: false };
         }
-        case "any": {
-            // "Group 3 or no value": a category card with "(no value)" ticked.
-            const [values, gap] = leaf.of;
-            const f = values?.kind === "categories" ? field(values.attribute) : undefined;
-            const gapPath = gap?.kind === "not" ? presentPath(gap.of) : undefined;
-            return f !== undefined && leaf.of.length === 2 && values.kind === "categories" && gapPath === f.path
-                ? { type: "category", key: keyOf(f), field: f, match: "values", values: values.values, gaps: true }
-                : elsewhere;
-        }
-        case "text": {
-            const f = field(leaf.reads);
-            if (f === undefined || leaf.mode === "regex") {
-                return elsewhere;
-            }
-            if (f.kind === "yes-no" && leaf.mode === "exact" && (leaf.text === "true" || leaf.text === "false")) {
-                return { type: "yes-no", key: keyOf(f), field: f, match: leaf.text === "true" ? "yes" : "no" };
-            }
-            return {
-                type: "text",
-                key: keyOf(f),
-                field: f,
-                match: leaf.mode,
-                text: leaf.text,
-                caseSensitive: leaf.caseSensitive === true,
-            };
-        }
+        case "any":
+            return gapsCard(leaf, field, elsewhere);
+        case "text":
+            return textCard(leaf, field, elsewhere);
         case "source": {
             // Offered once two loads are in; a rule kept after one was removed still draws.
             const f = field(SOURCE_PATH) ?? sourceField(fields[0]?.on ?? "node");
             return { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
         }
-        case "member": {
-            if (typeof leaf.of === "object" && "nodes" in leaf.of) {
-                // A fixed list of nodes reads as what it is, nodes picked by hand, whatever made it.
-                return { ...elsewhere, words: pickedWords(leaf.of.nodes.length, 0) };
-            }
-            if (typeof leaf.of === "object" && "set" in leaf.of) {
-                const set = session.sets.get(leaf.of.set)?.name ?? "a saved selection";
-                return { ...elsewhere, words: `In a saved selection: ${set}` };
-            }
-            return elsewhere;
-        }
+        case "member":
+            return memberCard(session, leaf, elsewhere);
         default:
             return elsewhere;
     }
+}
+
+/** Finds the field a path names. */
+type FieldFinder = (path: string) => CardField | undefined;
+
+/** A rule leaf of one kind. */
+type LeafOf<K extends RuleTree["kind"]> = Extract<RuleTree, { kind: K }>;
+
+/**
+ * A threshold's card: its top N, or "Above 16" said as it is.
+ * @param leaf - the leaf.
+ * @param field - finds a path's field.
+ * @param elsewhere - the fixed card for a leaf no card edits.
+ * @returns the card.
+ */
+function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
+    const f = field(leaf.path);
+    if (f?.kind !== "number") {
+        return elsewhere;
+    }
+    if (leaf.above !== undefined && leaf.top === undefined) {
+        // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
+        return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
+    }
+    return leaf.top !== undefined && leaf.above === undefined
+        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
+        : elsewhere;
+}
+
+/**
+ * An expression's card. A bare column name (find's `=email`) tests that the column holds a value:
+ * an ordinary card, "Has a value" (Yes for a yes-or-no column). The element reads the name.
+ * ponytail: an empty text reads as "has a value" here while the expression passes none; the card's
+ * count says what the card keeps.
+ * @param leaf - the leaf.
+ * @param field - finds a path's field.
+ * @param elsewhere - the fixed card for a leaf no card edits.
+ * @returns the card.
+ */
+function expressionCard(leaf: LeafOf<"expression">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
+    const bare = selectorRule({ match: "expression", where: `${leaf.where} != \`null\`` }, { comparisons: true });
+    const path = bare === undefined ? undefined : presentPath(bare.where);
+    const named = path === undefined ? undefined : field(path);
+    if (named === undefined) {
+        return { ...elsewhere, words: ruleWords(leaf.where) };
+    }
+    return named.kind === "yes-no"
+        ? { type: "yes-no", key: keyOf(named), field: named, match: "yes" }
+        : presenceCard(named, "present");
+}
+
+/**
+ * "Group 3 or no value": a category card with "(no value)" ticked.
+ * @param leaf - the leaf.
+ * @param field - finds a path's field.
+ * @param elsewhere - the fixed card for a leaf no card edits.
+ * @returns the card.
+ */
+function gapsCard(leaf: LeafOf<"any">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
+    const [values, gap] = leaf.of;
+    const f = values?.kind === "categories" ? field(values.attribute) : undefined;
+    const gapPath = gap?.kind === "not" ? presentPath(gap.of) : undefined;
+    return f !== undefined && leaf.of.length === 2 && values.kind === "categories" && gapPath === f.path
+        ? { type: "category", key: keyOf(f), field: f, match: "values", values: values.values, gaps: true }
+        : elsewhere;
+}
+
+/**
+ * A text leaf's card: Yes or No on a yes-or-no value, else a text card.
+ * @param leaf - the leaf.
+ * @param field - finds a path's field.
+ * @param elsewhere - the fixed card for a leaf no card edits.
+ * @returns the card.
+ */
+function textCard(leaf: LeafOf<"text">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
+    const f = field(leaf.reads);
+    if (f === undefined || leaf.mode === "regex") {
+        return elsewhere;
+    }
+    if (f.kind === "yes-no" && leaf.mode === "exact" && (leaf.text === "true" || leaf.text === "false")) {
+        return { type: "yes-no", key: keyOf(f), field: f, match: leaf.text === "true" ? "yes" : "no" };
+    }
+    return {
+        type: "text",
+        key: keyOf(f),
+        field: f,
+        match: leaf.mode,
+        text: leaf.text,
+        caseSensitive: leaf.caseSensitive === true,
+    };
+}
+
+/**
+ * A member leaf's card: a fixed list of nodes reads as what it is, nodes picked by hand, whatever
+ * made it; a saved selection by its name.
+ * @param session - the element's session.
+ * @param leaf - the leaf.
+ * @param elsewhere - the fixed card for a leaf no card edits.
+ * @returns the card.
+ */
+function memberCard(session: GraphSession, leaf: LeafOf<"member">, elsewhere: CardOf<"fixed">): Card {
+    if (typeof leaf.of === "object" && "nodes" in leaf.of) {
+        return { ...elsewhere, words: pickedWords(leaf.of.nodes.length, 0) };
+    }
+    if (typeof leaf.of === "object" && "set" in leaf.of) {
+        const set = session.sets.get(leaf.of.set)?.name ?? "a saved selection";
+        return { ...elsewhere, words: `In a saved selection: ${set}` };
+    }
+    return elsewhere;
 }
 
 /**
@@ -660,32 +747,9 @@ export function cardWords(session: GraphSession, card: Card): string {
     }
     switch (card.type) {
         case "number":
-            if (card.match === "top") {
-                if (card.top === undefined) {
-                    return `${name}: how many?`;
-                }
-                // A count of every element there is keeps them all, and says so.
-                const stats = session.data.statistics();
-                const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-                return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
-            }
-            if (card.min !== undefined && card.max !== undefined) {
-                return `${name} ${num(card.min)} to ${num(card.max)}`;
-            }
-            if (card.min !== undefined) {
-                return `${name} ${num(card.min)} or more`;
-            }
-            return card.max === undefined ? `${name}: any value` : `${name} up to ${num(card.max)}`;
-        case "category": {
-            const named = [
-                ...card.values.map((value) => valueName(session, path, value)),
-                ...(card.gaps ? ["(no value)"] : []),
-            ];
-            if (named.length === 0) {
-                return `${name}: pick values`;
-            }
-            return named.length > 3 ? `${name}: ${String(named.length)} values` : `${name}: ${named.join(", ")}`;
-        }
+            return numberWords(session, card, name);
+        case "category":
+            return categoryWords(session, card, name, path);
         case "yes-no":
             return `${name}: ${card.match}`;
         default: {
@@ -718,6 +782,51 @@ function sourceWords(session: GraphSession, card: Extract<Card, { type: "source"
     return named.length > 3
         ? `${card.field.name}: ${String(named.length)} sources`
         : `${card.field.name}: ${named.join(", ")}`;
+}
+
+/**
+ * A number card in words: its top N, or its range.
+ * @param session - the element's session.
+ * @param card - the card, matching neither present nor absent.
+ * @param name - its field's name.
+ * @returns the words.
+ */
+function numberWords(session: GraphSession, card: CardOf<"number">, name: string): string {
+    if (card.match === "top") {
+        if (card.top === undefined) {
+            return `${name}: how many?`;
+        }
+        // A count of every element there is keeps them all, and says so.
+        const stats = session.data.statistics();
+        const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
+        return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
+    }
+    if (card.min !== undefined && card.max !== undefined) {
+        return `${name} ${num(card.min)} to ${num(card.max)}`;
+    }
+    if (card.min !== undefined) {
+        return `${name} ${num(card.min)} or more`;
+    }
+    return card.max === undefined ? `${name}: any value` : `${name} up to ${num(card.max)}`;
+}
+
+/**
+ * A category card in words: its ticked values, or how many.
+ * @param session - the element's session.
+ * @param card - the card, matching neither present nor absent.
+ * @param name - its field's name.
+ * @param path - its field's path.
+ * @returns the words.
+ */
+function categoryWords(session: GraphSession, card: CardOf<"category">, name: string, path: string): string {
+    const named = [
+        ...card.values.map((value) => valueName(session, path, value)),
+        ...(card.gaps ? ["(no value)"] : []),
+    ];
+    if (named.length === 0) {
+        return `${name}: pick values`;
+    }
+    return named.length > 3 ? `${name}: ${String(named.length)} values` : `${name}: ${named.join(", ")}`;
 }
 
 /** A text mode in words. */
@@ -842,23 +951,31 @@ export async function writeKind(
         return false;
     }
     const node = parts?.node === undefined ? undefined : session.styles.get(parts.node);
-    let target: "node" | "edge" | "both" = other;
-    if (on) {
-        target = has(other) ? "both" : side;
+    if (!on) {
+        await tx.styles.writeRow(rowId, { target: other });
+        return true;
     }
-    const written = await tx.styles.writeRow(rowId, { target });
-    if (on) {
-        const added = side === "edge" ? written.edge : written.node;
-        const leaves = side === "edge" && node !== undefined ? nodeLeaves(session, node.selector) : [];
-        const selector: Selector =
-            leaves !== null && leaves.length > 0
-                ? selectorOf([{ type: "ends", key: "ends", reading: "clipped" }], leaves)
-                : { match: "everything" };
-        if (added !== undefined) {
-            await tx.styles.update(added, { selector });
-        }
+    const written = await tx.styles.writeRow(rowId, { target: has(other) ? "both" : side });
+    const added = side === "edge" ? written.edge : written.node;
+    if (added !== undefined) {
+        await tx.styles.update(added, { selector: newPartSelector(session, side, node) });
     }
     return true;
+}
+
+/**
+ * Where a new part starts: a new edge part follows the node cards through an Ends card (both
+ * ends); a new node part starts on every node.
+ * @param session - the element's session.
+ * @param side - the new part's kind.
+ * @param node - the row's node part, if it has one.
+ * @returns the new part's selector.
+ */
+function newPartSelector(session: GraphSession, side: Side, node: Layer | undefined): Selector {
+    const leaves = side === "edge" && node !== undefined ? nodeLeaves(session, node.selector) : [];
+    return leaves !== null && leaves.length > 0
+        ? selectorOf([{ type: "ends", key: "ends", reading: "clipped" }], leaves)
+        : { match: "everything" };
 }
 
 /**

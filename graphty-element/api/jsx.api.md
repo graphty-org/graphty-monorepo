@@ -47,6 +47,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import type { RetryOptions } from '@graphty/graph-io';

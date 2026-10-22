@@ -92,8 +92,37 @@ function paintedOverWords(paints: Paints): string {
     if (names.length === 0) {
         return "Painted over";
     }
-    const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
     return `Painted over by ${list}`;
+}
+
+/**
+ * What a row's states say: pinned, locked, hidden.
+ * @param row - the row.
+ * @returns the states in words.
+ */
+function rowStates(row: StyleRow): string[] {
+    return [
+        ...(row.pin === "none" ? [] : [`pinned to the ${row.pin}`]),
+        ...(row.locked ? ["locked"] : []),
+        ...(row.hidden ? ["hidden"] : []),
+    ];
+}
+
+/**
+ * How many a layer row matches: its nodes, or with none its edges.
+ * @param props - Component props
+ * @param props.paints - what the layer paints
+ * @returns The count
+ */
+function RowCount({ paints }: Readonly<{ paints: Paints }>): React.JSX.Element {
+    return (
+        <span className="ws-row-count" aria-hidden>
+            {paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined)
+                ? (paints.edges ?? "")
+                : paints.nodes}
+        </span>
+    );
 }
 
 /**
@@ -106,7 +135,11 @@ function paintedOverWords(paints: Paints): string {
 function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Element {
     return (
         <Tooltip label={words}>
-            <span role="img" aria-label={words} className="ws-row-over">
+            <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                role="img"
+                aria-label={words}
+                className="ws-row-over"
+            >
                 <GLYPHS.paintedOver size={12} aria-hidden />
             </span>
         </Tooltip>
@@ -259,11 +292,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
-        const states = [
-            ...(row.pin === "none" ? [] : [`pinned to the ${row.pin}`]),
-            ...(row.locked ? ["locked"] : []),
-            ...(row.hidden ? ["hidden"] : []),
-        ];
+        const states = rowStates(row);
         const toggles = [
             <ToggleIconButton
                 key="lock"
@@ -342,17 +371,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
-            count: over ? (
-                <PaintedOverMark words={overWords} />
-            ) : (
-                (group?.count ?? (
-                    <span className="ws-row-count" aria-hidden>
-                        {paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined)
-                            ? (paints.edges ?? "")
-                            : paints.nodes}
-                    </span>
-                ))
-            ),
+            count: over ? <PaintedOverMark words={overWords} /> : (group?.count ?? <RowCount paints={paints} />),
             swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),
@@ -396,7 +415,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const command = ROW_COMMANDS.find(
             (candidate) => candidate.applies(row) && candidate.rowKeys.some((key) => matchesKey(event, key)),
         );
-        if (command !== undefined && command.disabled(row, session) === null) {
+        if (command?.disabled(row, session) === null) {
             event.preventDefault();
             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
         }

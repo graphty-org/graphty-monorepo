@@ -8,6 +8,9 @@ Graphty supports WebXR for immersive graph exploration. View your graphs in virt
 
 ## Is VR or AR Available?
 
+XR is off by default. Turn it on with `element.xr = { enabled: true }`; it allocates nothing until
+a session is entered.
+
 `element.session.capabilities.xr` says which immersive modes this device can enter, and why not
 when it cannot. Read it; never probe `navigator.xr` yourself. The element asks the browser once,
 after its first frame, and `capabilities:changed` fires when the answer arrives, when a headset is
@@ -24,7 +27,7 @@ xr.active; // "vr" | "ar" | null: the session presenting now
 
 `"probing"` lasts until the browser answers, at most 1.5 seconds; a browser that does not answer
 in time reads `"unsupported"`. `"disabled"` means `xr.enabled` (or `xr.vr.enabled` /
-`xr.ar.enabled`) is `false`. XR is on by default and allocates nothing until a session is entered.
+`xr.ar.enabled`) is `false`, which is the default.
 
 ## A Mode Switcher
 
@@ -45,6 +48,8 @@ with `context: "xr"`.
 
     const element = document.querySelector("graphty-element");
     const select = document.getElementById("mode");
+    // XR on, with this page's own switcher instead of the element's canvas buttons.
+    element.xr = { enabled: true, ui: { enabled: false } };
 
     function render({ xr }) {
         for (const mode of ["vr", "ar"]) {
@@ -67,8 +72,8 @@ with `context: "xr"`.
 ```
 
 `element.setViewMode("vr")` does the same, and `graph.isVRSupported()` / `graph.isARSupported()`
-read the same fact. The element can also draw its own VR / AR buttons on the canvas; they are off
-unless you ask for them with `element.xr = { ui: { enabled: true } }`.
+read the same fact. With XR on, the element also draws its own VR / AR buttons on the canvas unless
+you turn them off with `xr.ui.enabled: false`, as the switcher above does.
 
 ## XR Configuration
 

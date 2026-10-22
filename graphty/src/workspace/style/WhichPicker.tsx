@@ -466,14 +466,19 @@ function WhichRow({
     const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
     const spoken = shown.map((each, at) => {
         const count = counts[each.key];
-        return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${count === undefined ? "" : `, ${many(count, side)}`}`;
+        const countWords = count === undefined ? "" : `, ${many(count, side)}`;
+        return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${countWords}`;
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
-        <div role="heading" aria-level={3} style={{ display: "contents" }}>
+        <div // NOSONAR(S6819): an undrawn heading around the disclosure button (the accordion pattern); an h3 would restyle the button's text
+            role="heading"
+            aria-level={3}
+            style={{ display: "contents" }}
+        >
             <UnstyledButton
                 ref={buttonRef}
                 className="ws-which-row"
@@ -690,18 +695,15 @@ function Cards({
     drawn.current = rows;
     // Named for the act, as other style steps are ("changing node size on Hubs"), so Undo reads
     // "Undid changing the conditions on Group 1."
-    const writer = useStepWriter(
-        session,
-        `changing the conditions on ${rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`}`,
-        () => {
-            for (const row of drawn.current) {
-                const now = session.styles.get(row.layer.id);
-                if (now !== undefined) {
-                    held.current.set(row.layer.id, now.selector);
-                }
+    const changed = rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`;
+    const writer = useStepWriter(session, `changing the conditions on ${changed}`, () => {
+        for (const row of drawn.current) {
+            const now = session.styles.get(row.layer.id);
+            if (now !== undefined) {
+                held.current.set(row.layer.id, now.selector);
             }
-        },
-    );
+        }
+    });
     const fields = useMemo(() => cardFields(session, side), [session, side]);
     const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
     const bulk = rows.length > 1;
@@ -1095,9 +1097,11 @@ async function announceEmpty(
             empty.push(row.name);
         }
     }
-    return empty.length === 0
-        ? undefined
-        : `${String(empty.length)} ${empty.length === 1 ? "layer now matches" : "layers now match"} nothing: ${empty.join(", ")}`;
+    if (empty.length === 0) {
+        return undefined;
+    }
+    const verb = empty.length === 1 ? "layer now matches" : "layers now match";
+    return `${String(empty.length)} ${verb} nothing: ${empty.join(", ")}`;
 }
 
 /**
@@ -1164,10 +1168,9 @@ function AddCondition({
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
     const otherTab = other?.on === "edge" ? "Edge" : "Node";
+    const otherKind = other?.on === "edge" ? "an edge" : "a node";
     const nothingWords =
-        other === undefined
-            ? "Nothing found"
-            : `${other.name} is ${other.on === "edge" ? "an edge" : "a node"} attribute; it is on the ${otherTab} tab`;
+        other === undefined ? "Nothing found" : `${other.name} is ${otherKind} attribute; it is on the ${otherTab} tab`;
     // The other kind's field is one step away: its tab, with a card on it.
     const goElsewhere =
         other === undefined || onElsewhere === undefined
@@ -1286,7 +1289,7 @@ function AddCondition({
                 </Button>
             </Combobox.Target>
             <Combobox.Dropdown>
-                <Combobox.Search
+                <Combobox.Search // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on a combobox
                     value={search}
                     onChange={(event) => {
                         setSearch(event.currentTarget.value);
@@ -1869,11 +1872,11 @@ function NumberCard({
         const up = (): void => {
             pressing.current = false;
         };
-        window.addEventListener("pointerdown", down, true);
-        window.addEventListener("pointerup", up, true);
+        globalThis.addEventListener("pointerdown", down, true);
+        globalThis.addEventListener("pointerup", up, true);
         return () => {
-            window.removeEventListener("pointerdown", down, true);
-            window.removeEventListener("pointerup", up, true);
+            globalThis.removeEventListener("pointerdown", down, true);
+            globalThis.removeEventListener("pointerup", up, true);
         };
     }, []);
     const commit = (leaving = false): void => {
@@ -1886,7 +1889,7 @@ function NumberCard({
             };
             if (leaving && pressing.current) {
                 // After the press's click, which a pointerup's task dispatches before a timeout.
-                window.addEventListener(
+                globalThis.addEventListener(
                     "pointerup",
                     () => {
                         setTimeout(() => {
@@ -2440,7 +2443,9 @@ function LayerLine({
     const count = useLeafCount(session, card === undefined ? null : leafOf(card), side);
     const words = card === undefined ? "no card" : withoutField(cardWords(session, card), field);
     return (
-        <div role="listitem">
+        <div // NOSONAR(S6819): a list item of an ARIA list drawn as a stack; an li would draw a bullet and indent
+            role="listitem"
+        >
             <UnstyledButton className="ws-card-layer-line" onClick={onPick}>
                 <Text size="xs" span fw={600}>
                     {row.name}

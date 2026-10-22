@@ -560,17 +560,9 @@ export function buildExportSnapshot(
     options: ExportBuildOptions = {},
 ): { snapshot: GraphSnapshot; notes: LossNote[] } {
     const notes: LossNote[] = [];
-    let neutralised = 0;
-    const cell =
-        options.neutraliseFormulas === true
-            ? <T>(value: T): T | string => {
-                  const written = neutraliseFormula(value);
-                  neutralised += written === value ? 0 : 1;
-                  return written;
-              }
-            : <T>(value: T): T => value;
+    const guard = formulaGuard(options.neutraliseFormulas === true);
+    const { cell } = guard;
     const current = session.data.snapshot();
-    const { knownFields } = session.config.data;
     const builder = new GraphBuilder({
         directed: current.directed,
         duplicateEdges: "keep",
@@ -586,7 +578,6 @@ export function buildExportSnapshot(
     const edges = rows.edges.map((row) => allEdges[row]);
     const kept = columnTest(options.columns);
     const nodeSkip = new Set([...NODE_STRUCTURE, ...(view.nodeStyle === undefined ? [] : NODE_STYLE_KEYS)]);
-    const edgeSkip = new Set([...EDGE_STRUCTURE, ...(view.edgeStyle === undefined ? [] : EDGE_STYLE_KEYS)]);
     // A loaded column under the reserved `graphty.` root is left out, never silently.
     const dropped = new Map<string, number>();
     for (const record of nodes) {
@@ -595,81 +586,27 @@ export function buildExportSnapshot(
 
     // An edge's reserved columns are counted only when the edges are written.
     const edgeDropped = options.nodesOnly === true ? new Map<string, number>() : dropped;
-
-    // The weight is the one the element stores and runs on -- read through edgeWeightPath, then
-    // the legacy `value` key, and folded under a repeatedEdges policy -- not the record's literal
-    // `weight`. Every exporter writes the weight role under its format's own weight name; the
-    // record's own keys (a custom weight path, `value`) are written as the attributes they are.
-    const weightKey = "weight";
-    const { weights, edgeToArc } = current;
-    let unweighable = 0;
-    edges.forEach((record, row) => {
-        const attributes = attributesOf(record, edgeSkip, cell, edgeDropped, kept);
-        const stored = weights === null ? undefined : weights[edgeToArc[rows.edges[row]]];
-        const weighted =
-            kept(weightKey) &&
-            stored !== undefined &&
-            (stored !== 1 || resolveEdgeWeight(record, knownFields.edgeWeightPath).source !== "default");
-        if (weighted) {
-            attributes[weightKey] = stored;
-        } else if (attributes.weight !== undefined && typeof attributes.weight !== "number") {
-            delete attributes.weight;
-            unweighable++;
-        }
-
-        builder.addEdgeRecord(
-            cell(record.source),
-            cell(record.target),
-            attributes,
-            typeof attributes[weightKey] === "number" ? weightKey : null,
-        );
+    const { edgeWeightPath } = session.config.data.knownFields;
+    const edgeSkip = new Set([...EDGE_STRUCTURE, ...(view.edgeStyle === undefined ? [] : EDGE_STYLE_KEYS)]);
+    const unweighable = writeEdges(builder, current, rows.edges, edgeWeightPath, {
+        edges,
+        skip: edgeSkip,
+        cell,
+        dropped: edgeDropped,
+        kept,
     });
-
     if (unweighable > 0 && options.nodesOnly !== true) {
         notes.push({
             code: "W_WEIGHT_NOT_NUMERIC",
             message: `${String(unweighable)} edge(s) carry a weight that is not a number, and it is not written`,
-            column: weightKey,
+            column: EXPORT_WEIGHT_KEY,
             count: unweighable,
         });
     }
 
     writePositions(builder, session, rows.nodes, options.format);
-
-    if (view.nodeStyle !== undefined) {
-        const color = builder.declareNodeColumn(NODE_COLOR);
-        const size = builder.declareNodeColumn(NODE_SIZE);
-        const shape = builder.declareNodeColumn(NODE_SHAPE);
-        nodes.forEach((_record, row) => {
-            const style = view.nodeStyle?.(rows.nodes[row]);
-            if (style?.color) {
-                builder.setNodeValue(color, row, colorCell(style.color));
-            }
-
-            if (style?.size !== undefined) {
-                builder.setNodeValue(size, row, style.size);
-            }
-
-            if (style?.shape !== undefined) {
-                builder.setNodeValue(shape, row, style.shape);
-            }
-        });
-    }
-
-    if (view.edgeStyle !== undefined) {
-        const color = builder.declareEdgeColumn(EDGE_COLOR);
-        const thickness = builder.declareEdgeColumn(EDGE_THICKNESS);
-        edges.forEach((_record, row) => {
-            const style = view.edgeStyle?.(rows.edges[row]);
-            if (style?.color) {
-                builder.setEdgeValue(color, row, colorCell(style.color));
-            }
-
-            if (style?.width !== undefined) {
-                builder.setEdgeValue(thickness, row, style.width);
-            }
-        });
-    }
+    writeNodeStyles(builder, rows.nodes, view);
+    writeEdgeStyles(builder, rows.edges, view);
 
     for (const [column, count] of dropped) {
         notes.push({
@@ -684,31 +621,13 @@ export function buildExportSnapshot(
 
     writeResults(
         session,
-        { nodes, edges, kept },
-        builder,
+        { builder, cell, nodes, edges, kept },
         options.nodesOnly === true ? [] : notes,
-        cell,
         options.groupRanks === true,
     );
-    const held = session.notes.counts().notes;
-    if (held > 0) {
-        if (options.notes === true) {
-            writeNotes(session, builder, notes, cell, rows);
-        }
+    writeHeldNotes(session, builder, notes, cell, options.notes === true ? rows : null);
 
-        notes.push({
-            code: "W_GRAPHTY_NOTES",
-            message:
-                options.notes === true
-                    ? `${String(held)} note(s) are not carried as notes: only their text is, in the ` +
-                      `graphty.notes.count and graphty.notes.text columns. Save them with notes.toDocument()`
-                    : `${String(held)} note(s) were left out. Export with { notes: true } to write their text ` +
-                      `as columns, or save them with notes.toDocument()`,
-            column: null,
-            count: held,
-        });
-    }
-
+    const neutralised = guard.count();
     if (neutralised > 0) {
         notes.push({
             code: "W_GRAPHTY_CSV_NEUTRALIZED",
@@ -721,32 +640,200 @@ export function buildExportSnapshot(
     return { snapshot: builder.freeze(), notes };
 }
 
+/** The weight column every exporter writes under its format's own weight name. */
+const EXPORT_WEIGHT_KEY = "weight";
+
 /**
- * Write every published result as attribute columns, named by the result's path.
- * @param session - The session.
- * @param written - The node and edge records written, in the builder's row order, and which
- * columns are written.
- * @param written.nodes - The node records.
- * @param written.edges - The edge records.
- * @param written.kept - Whether a column, by name or path, is written.
- * @param builder - The export's builder.
- * @param notes - Receives a note for each field no column could hold.
- * @param cell - What each column name and text value goes through.
- * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
+ * What each column name and text value goes through, and how many cells it changed.
+ * @param neutralise - Guard cells a spreadsheet would run as a formula.
+ * @returns The cell function and a counter of the cells it rewrote.
  */
-function writeResults(
-    session: GraphSession,
-    written: {
-        readonly nodes: readonly NodeRecord[];
+function formulaGuard(neutralise: boolean): { cell: <T>(value: T) => T | string; count: () => number } {
+    let neutralised = 0;
+    if (!neutralise) {
+        return { cell: <T>(value: T): T => value, count: () => 0 };
+    }
+
+    return {
+        cell: <T>(value: T): T | string => {
+            const written = neutraliseFormula(value);
+            neutralised += written === value ? 0 : 1;
+            return written;
+        },
+        count: () => neutralised,
+    };
+}
+
+/**
+ * Add every edge row. The weight is the one the element stores and runs on -- read through
+ * edgeWeightPath, then the legacy `value` key, and folded under a repeatedEdges policy -- not the
+ * record's literal `weight`. Every exporter writes the weight role under its format's own weight
+ * name; the record's own keys (a custom weight path, `value`) are written as the attributes they are.
+ * @param builder - The export's builder, its node rows already added.
+ * @param current - The session's snapshot, holding the stored weights.
+ * @param edgeRows - The session row of each edge written.
+ * @param edgeWeightPath - Where a record keeps its weight.
+ * @param out - The edge records written and how their attributes are written.
+ * @param out.edges - The edge records, in the order written.
+ * @param out.skip - The keys not written as attributes.
+ * @param out.cell - What each key and text value goes through.
+ * @param out.dropped - Counts, per `graphty.` column left out, the values it held.
+ * @param out.kept - Whether a column, by name, is written.
+ * @returns How many edges carried a weight that is not a number, left unwritten.
+ */
+function writeEdges(
+    builder: GraphBuilder,
+    current: GraphSnapshot,
+    edgeRows: readonly number[],
+    edgeWeightPath: Parameters<typeof resolveEdgeWeight>[1],
+    out: {
         readonly edges: readonly EdgeRecord[];
+        readonly skip: ReadonlySet<string>;
+        readonly cell: <T>(value: T) => T | string;
+        readonly dropped: Map<string, number>;
         readonly kept: (name: string) => boolean;
     },
+): number {
+    const { edges, cell, kept } = out;
+    const { weights, edgeToArc } = current;
+    let unweighable = 0;
+    edges.forEach((record, row) => {
+        const attributes = attributesOf(record, out.skip, cell, out.dropped, kept);
+        const stored = weights === null ? undefined : weights[edgeToArc[edgeRows[row]]];
+        const weighted =
+            kept(EXPORT_WEIGHT_KEY) &&
+            stored !== undefined &&
+            (stored !== 1 || resolveEdgeWeight(record, edgeWeightPath).source !== "default");
+        if (weighted) {
+            attributes[EXPORT_WEIGHT_KEY] = stored;
+        } else if (attributes.weight !== undefined && typeof attributes.weight !== "number") {
+            delete attributes.weight;
+            unweighable++;
+        }
+
+        builder.addEdgeRecord(
+            cell(record.source),
+            cell(record.target),
+            attributes,
+            typeof attributes[EXPORT_WEIGHT_KEY] === "number" ? EXPORT_WEIGHT_KEY : null,
+        );
+    });
+    return unweighable;
+}
+
+/**
+ * Write each node's drawn colour, size and shape, when the view supplies them.
+ * @param builder - The export's builder.
+ * @param nodeRows - The session row of each node written.
+ * @param view - Style, from the renderer.
+ */
+function writeNodeStyles(builder: GraphBuilder, nodeRows: readonly number[], view: ExportViewState): void {
+    if (view.nodeStyle === undefined) {
+        return;
+    }
+
+    const color = builder.declareNodeColumn(NODE_COLOR);
+    const size = builder.declareNodeColumn(NODE_SIZE);
+    const shape = builder.declareNodeColumn(NODE_SHAPE);
+    nodeRows.forEach((sessionRow, row) => {
+        const style = view.nodeStyle?.(sessionRow);
+        if (style?.color) {
+            builder.setNodeValue(color, row, colorCell(style.color));
+        }
+
+        if (style?.size !== undefined) {
+            builder.setNodeValue(size, row, style.size);
+        }
+
+        if (style?.shape !== undefined) {
+            builder.setNodeValue(shape, row, style.shape);
+        }
+    });
+}
+
+/**
+ * Write each edge's drawn colour and width, when the view supplies them.
+ * @param builder - The export's builder.
+ * @param edgeRows - The session row of each edge written.
+ * @param view - Style, from the renderer.
+ */
+function writeEdgeStyles(builder: GraphBuilder, edgeRows: readonly number[], view: ExportViewState): void {
+    if (view.edgeStyle === undefined) {
+        return;
+    }
+
+    const color = builder.declareEdgeColumn(EDGE_COLOR);
+    const thickness = builder.declareEdgeColumn(EDGE_THICKNESS);
+    edgeRows.forEach((sessionRow, row) => {
+        const style = view.edgeStyle?.(sessionRow);
+        if (style?.color) {
+            builder.setEdgeValue(color, row, colorCell(style.color));
+        }
+
+        if (style?.width !== undefined) {
+            builder.setEdgeValue(thickness, row, style.width);
+        }
+    });
+}
+
+/**
+ * Write the session's notes as columns when asked, and note what a file cannot carry of them.
+ * @param session - The session.
+ * @param builder - The export's builder.
+ * @param notes - Receives the note about the session's notes.
+ * @param cell - What each column name and text value goes through.
+ * @param asColumns - The session rows written, to write the notes' text as columns; null not to.
+ */
+function writeHeldNotes(
+    session: GraphSession,
     builder: GraphBuilder,
     notes: LossNote[],
     cell: <T>(value: T) => T | string,
-    groupRanks: boolean,
+    asColumns: ExportRows | null,
 ): void {
-    const { nodes, edges, kept } = written;
+    const held = session.notes.counts().notes;
+    if (held === 0) {
+        return;
+    }
+
+    if (asColumns !== null) {
+        writeNotes(session, builder, notes, cell, asColumns);
+    }
+
+    notes.push({
+        code: "W_GRAPHTY_NOTES",
+        message:
+            asColumns !== null
+                ? `${String(held)} note(s) are not carried as notes: only their text is, in the ` +
+                  `graphty.notes.count and graphty.notes.text columns. Save them with notes.toDocument()`
+                : `${String(held)} note(s) were left out. Export with { notes: true } to write their text ` +
+                  `as columns, or save them with notes.toDocument()`,
+        column: null,
+        count: held,
+    });
+}
+
+/** A published result, as the session's results hold it. */
+type PublishedResult = NonNullable<ReturnType<GraphSession["results"]["get"]>>;
+
+/** Where result columns are written: the builder, the cell guard and the rows in order. */
+interface ResultColumns {
+    readonly builder: GraphBuilder;
+    readonly cell: <T>(value: T) => T | string;
+    readonly nodes: readonly NodeRecord[];
+    readonly edges: readonly EdgeRecord[];
+    /** Whether a column, by name or path, is written. */
+    readonly kept: (name: string) => boolean;
+}
+
+/**
+ * Write every published result as attribute columns, named by the result's path.
+ * @param session - The session.
+ * @param out - The export's builder, its cell guard and the rows in the session's order.
+ * @param notes - Receives a note for each field no column could hold.
+ * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
+ */
+function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -759,40 +846,13 @@ function writeResults(
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
         for (const field of result.fields) {
             const path = session.results.path(root.runId, field.name);
-            if (!kept(path)) {
+            if (!out.kept(path)) {
                 continue;
             }
 
-            const name = cell(path);
-            const ranked = ranks !== undefined && (field.name === "group" || field.name === "sizes");
+            const name = out.cell(path);
             try {
-                if (ranked && field.name === "group") {
-                    nodes.forEach((record, row) => {
-                        const rank = ranks.get(result.node(record.id)?.group);
-                        if (rank !== undefined) {
-                            builder.setNodeValue(name, row, rank);
-                        }
-                    });
-                } else if (ranked) {
-                    const rows = (result.graph.sizes ?? []) as readonly Record<string, unknown>[];
-                    builder.setGraphValue(name, cell(rows.map((row, index) => ({ ...row, group: index + 1 }))));
-                } else if (field.kind === "node") {
-                    nodes.forEach((record, row) => {
-                        const value = result.node(record.id)?.[field.name];
-                        if (value !== undefined && value !== null) {
-                            builder.setNodeValue(name, row, cell(value));
-                        }
-                    });
-                } else if (field.kind === "edge") {
-                    edges.forEach((record, row) => {
-                        const value = result.edge(record.id)?.[field.name];
-                        if (value !== undefined && value !== null) {
-                            builder.setEdgeValue(name, row, cell(value));
-                        }
-                    });
-                } else if (result.graph[field.name] !== undefined && result.graph[field.name] !== null) {
-                    builder.setGraphValue(name, cell(result.graph[field.name]));
-                }
+                writeResultField(out, result, field, name, ranks);
             } catch (error) {
                 notes.push({
                     code: "W_RESULT_FIELD_DROPPED",
@@ -802,6 +862,51 @@ function writeResults(
                 });
             }
         }
+    }
+}
+
+/**
+ * Write one field of a published result as a column.
+ * @param out - The export's builder, its cell guard and the rows in order.
+ * @param result - The result.
+ * @param field - The field.
+ * @param name - The column name.
+ * @param ranks - A partition's group ranks, when groups are written as ranks.
+ */
+function writeResultField(
+    out: ResultColumns,
+    result: PublishedResult,
+    field: PublishedResult["fields"][number],
+    name: string,
+    ranks: ReturnType<typeof partitionGroupRanks> | undefined,
+): void {
+    const { builder, cell, nodes, edges } = out;
+    if (ranks !== undefined && field.name === "group") {
+        nodes.forEach((record, row) => {
+            const rank = ranks.get(result.node(record.id)?.group);
+            if (rank !== undefined) {
+                builder.setNodeValue(name, row, rank);
+            }
+        });
+    } else if (ranks !== undefined && field.name === "sizes") {
+        const rows = (result.graph.sizes ?? []) as readonly Record<string, unknown>[];
+        builder.setGraphValue(name, cell(rows.map((row, index) => ({ ...row, group: index + 1 }))));
+    } else if (field.kind === "node") {
+        nodes.forEach((record, row) => {
+            const value = result.node(record.id)?.[field.name];
+            if (value !== undefined && value !== null) {
+                builder.setNodeValue(name, row, cell(value));
+            }
+        });
+    } else if (field.kind === "edge") {
+        edges.forEach((record, row) => {
+            const value = result.edge(record.id)?.[field.name];
+            if (value !== undefined && value !== null) {
+                builder.setEdgeValue(name, row, cell(value));
+            }
+        });
+    } else if (result.graph[field.name] !== undefined && result.graph[field.name] !== null) {
+        builder.setGraphValue(name, cell(result.graph[field.name]));
     }
 }
 
@@ -850,7 +955,10 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
-    const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
+    const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {
+        kind: "format",
+        id: format,
+    });
     if (format !== "csv") {
         return {
             exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,

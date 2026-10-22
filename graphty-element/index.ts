@@ -44,7 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export { Edge } from "./src/Edge";
+export { Edge, type EdgeCapEnd } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -140,6 +140,7 @@ export type {
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
     FindNamedRow,
     FindOptions,
     FindResult,

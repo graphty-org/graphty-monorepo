@@ -212,14 +212,18 @@ describe("the keyboard", () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
         const before = element.getCameraState();
+        const held = framesHeld(element);
 
         await userEvent.keyboard("{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 20);
 
         const after = element.getCameraState();
         const turned = Math.abs(angleAround(after) - angleAround(before));
-        // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees.
-        assert.closeTo(turned, 0.16, 0.03, "one tap turns the camera about 9 degrees");
+        // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees. userEvent sends the key's down and
+        // up as two protocol commands, and on a busy machine frames are drawn between them: the
+        // key was then held that many frames, and a hold longer than the step turns every frame.
+        const frames = Math.max(8, held());
+        assert.closeTo(turned, frames * 0.02, 0.03, `one tap turns the camera ${String(frames)} frames of 0.02 rad`);
     });
 
     it("quick taps each turn a full step", async () => {
@@ -235,6 +239,34 @@ describe("the keyboard", () => {
         assert.closeTo(turned, 0.48, 0.06, "three taps turn the camera three steps");
     });
 });
+
+/**
+ * Count the frames drawn while a key is down on the element's canvas.
+ * @param element - The element.
+ * @returns A function returning the count so far.
+ */
+function framesHeld(element: Graphty): () => number {
+    const { canvas } = element.graph;
+    let down = false;
+    let frames = 0;
+    const onDown = (): void => {
+        down = true;
+    };
+    const onUp = (): void => {
+        down = false;
+    };
+    canvas.addEventListener("keydown", onDown, { capture: true });
+    canvas.addEventListener("keyup", onUp, { capture: true });
+    const observer = element.graph.getScene().onBeforeRenderObservable.add(() => {
+        frames += Number(down);
+    });
+    cleanups.push(() => {
+        canvas.removeEventListener("keydown", onDown, { capture: true });
+        canvas.removeEventListener("keyup", onUp, { capture: true });
+        observer.remove();
+    });
+    return () => frames;
+}
 
 /**
  * The camera's angle around the vertical axis through its target.

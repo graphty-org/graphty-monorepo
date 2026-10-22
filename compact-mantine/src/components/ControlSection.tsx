@@ -138,11 +138,11 @@ function SectionHeading({
     level,
     nameId,
     children,
-}: {
+}: Readonly<{
     level: number | undefined;
     nameId: string;
     children: React.ReactNode;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     if (level === undefined) {
         return <>{children}</>;
     }
@@ -183,6 +183,104 @@ function sectionName(id: string, label: string, technicalName: string | undefine
                 </>
             }
         />
+    );
+}
+
+/** Props for SectionLead. */
+interface SectionLeadProps {
+    /** Whether the lead is the expand button (the section holds rows and folds away). */
+    toggles: boolean;
+    /** Whether the section is expanded. */
+    isOpen: boolean;
+    /** Whether the text runs right to left. */
+    rtl: boolean;
+    /** The section's name element. */
+    name: React.ReactNode;
+    /** The expand button's name. */
+    toggleName: string;
+    /** The id of the section's content. */
+    contentId: string;
+    /** The one-line summary, drawn while it is shown. */
+    summary: React.ReactNode;
+    /** Whether the summary is shown. */
+    summaryShown: boolean;
+    /** The id of the summary. */
+    summaryId: string;
+    /** Expands or collapses the section. */
+    onToggle: (event: React.MouseEvent<HTMLButtonElement>) => void;
+    /** Sets an empty section up from its title, or undefined when the title does nothing. */
+    onTitleAdd: ActivationHandler | undefined;
+}
+
+/**
+ * The section header's lead: the expand button when the section folds away, else the title.
+ * @param props - Component props
+ * @param props.toggles - whether the lead is the expand button
+ * @param props.isOpen - whether the section is expanded
+ * @param props.rtl - whether the text runs right to left
+ * @param props.name - the section's name element
+ * @param props.toggleName - the expand button's name
+ * @param props.contentId - the id of the section's content
+ * @param props.summary - the one-line summary
+ * @param props.summaryShown - whether the summary is shown
+ * @param props.summaryId - the id of the summary
+ * @param props.onToggle - expands or collapses the section
+ * @param props.onTitleAdd - sets an empty section up from its title
+ * @returns the lead
+ */
+function SectionLead({
+    toggles,
+    isOpen,
+    rtl,
+    name,
+    toggleName,
+    contentId,
+    summary,
+    summaryShown,
+    summaryId,
+    onToggle,
+    onTitleAdd,
+}: Readonly<SectionLeadProps>): React.JSX.Element {
+    if (!toggles) {
+        // An empty section's title adds, as Figma's does. The
+        // pointer route only: the "+" is the keyboard route and
+        // the named control, so the title stays out of the tab
+        // order rather than being a second button with one name.
+        return (
+            <Box className="cm-section-lead" data-testid="control-section-lead" onClick={onTitleAdd}>
+                {name}
+            </Box>
+        );
+    }
+    return (
+        <UnstyledButton
+            type="button"
+            data-testid="control-section-toggle"
+            data-collapsible="true"
+            className="cm-section-lead cm-focus-inside"
+            aria-label={toggleName}
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            aria-describedby={summaryShown ? summaryId : undefined}
+            onClick={onToggle}
+        >
+            {/* The 16px slot in the gutter at x 0..16. A closed
+            section's caret points the way text runs. */}
+            <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
+                <Caret open={isOpen} rtl={rtl} />
+            </Box>
+            {name}
+            {summaryShown && (
+                <Box
+                    component="span"
+                    id={summaryId}
+                    data-testid="control-section-summary"
+                    className="cm-section-summary"
+                >
+                    {summary}
+                </Box>
+            )}
+        </UnstyledButton>
     );
 }
 
@@ -367,48 +465,19 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                 }}
             >
                 <SectionHeading level={headingLevel} nameId={nameId}>
-                    {toggles ? (
-                        <UnstyledButton
-                            type="button"
-                            data-testid="control-section-toggle"
-                            data-collapsible="true"
-                            className="cm-section-lead cm-focus-inside"
-                            aria-label={toggleName}
-                            aria-expanded={isOpen}
-                            aria-controls={contentId}
-                            aria-describedby={summaryShown ? summaryId : undefined}
-                            onClick={handleToggle}
-                        >
-                            {/* The 16px slot in the gutter at x 0..16. A closed
-                            section's caret points the way text runs. */}
-                            <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
-                                <Caret open={isOpen} rtl={isRtl(direction)} />
-                            </Box>
-                            {name}
-                            {summaryShown && (
-                                <Box
-                                    component="span"
-                                    id={summaryId}
-                                    data-testid="control-section-summary"
-                                    className="cm-section-summary"
-                                >
-                                    {summary}
-                                </Box>
-                            )}
-                        </UnstyledButton>
-                    ) : (
-                        // An empty section's title adds, as Figma's does. The
-                        // pointer route only: the "+" is the keyboard route and
-                        // the named control, so the title stays out of the tab
-                        // order rather than being a second button with one name.
-                        <Box
-                            className="cm-section-lead"
-                            data-testid="control-section-lead"
-                            onClick={empty && onAdd !== undefined ? onAdd : undefined}
-                        >
-                            {name}
-                        </Box>
-                    )}
+                    <SectionLead
+                        toggles={toggles}
+                        isOpen={isOpen}
+                        rtl={isRtl(direction)}
+                        name={name}
+                        toggleName={toggleName}
+                        contentId={contentId}
+                        summary={summary}
+                        summaryShown={summaryShown}
+                        summaryId={summaryId}
+                        onToggle={handleToggle}
+                        onTitleAdd={empty ? onAdd : undefined}
+                    />
                 </SectionHeading>
 
                 {hasConfiguredValues && (

@@ -19,7 +19,7 @@ import { GraphtyError } from "../errors";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
-import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
+import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
@@ -900,19 +900,10 @@ export class Draft implements LoadDraft {
             }
         }
         const command: DataImportCommand = {
-            op: "data.import",
-            source: read.source,
+            ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
-            mode: choices.mode ?? "replace",
-            ...(choices.layout === undefined ? {} : { layout: choices.layout }),
-            ...(choices.existing === undefined ? {} : { existing: choices.existing }),
-            ...(choices.styles === undefined ? {} : { styles: choices.styles }),
-            ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
-            held: plan.held,
-            ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
-            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
             ...keptChoices(choices),
             // A graph file's tables are the format's own, so only a table's roles are worth keeping.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),

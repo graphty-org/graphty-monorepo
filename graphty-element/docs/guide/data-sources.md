@@ -204,7 +204,9 @@ try {
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
 the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
 read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
-naming the format and, when the parser knows it, the line. A replacing load that stops at
+naming the format and, when the parser knows it, the line. A graphty project or document file (what
+`session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
+`details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 
@@ -367,8 +369,9 @@ await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "rec
 
 - `"recommended"`: once the load is in, the element chooses a layout for it. When every node
   arrived with a position it picks `fixed`, which draws each node at its stored position. When
-  some or none did, it picks a layout that computes a drawing suited to the graph's size and
-  shape.
+  none did, it picks a layout that computes a drawing suited to the graph's size and shape. When
+  only some did, it keeps those where the file put them and runs that computed layout over the
+  others alone (as a [scoped layout](./sets.md)), as long as the layout can hold nodes still.
 - `"keep"` (the default): the layout stays as it is. The stored positions are still where each
   node starts, so a force layout begins from the file's drawing instead of from random points.
 
@@ -392,6 +395,7 @@ saved it:
 | DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
 | XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
 | Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| vis-network JSON (`from` / `to`)  | each node's `x` and `y`                       | pixels                                                    | down                                                                       |
 | Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
 | CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
 

@@ -712,6 +712,20 @@ interface ResolvedRun {
     readonly name?: RunName;
 }
 
+/** A run's group folder, and what every group layer added to it shares. */
+interface GroupFolder {
+    /** The folder's id. */
+    readonly folder: string;
+    /** The run's layer each group layer takes its source from. */
+    readonly from: Layer;
+    /** The group path. */
+    readonly path: string;
+    /** What to call a group, when the run's style names them. */
+    readonly groupName: ((group: RunGroup) => string) | undefined;
+    /** The names of the folder's group layers so far; each new name is added to it. */
+    readonly taken: string[];
+}
+
 /** Starting runs, finding them, and taking them away. */
 class Runs implements SessionRunsApi {
     private readonly options: RunsApiOptions;
@@ -1854,11 +1868,15 @@ class Runs implements SessionRunsApi {
         // Largest first, each put at the bottom of the folder: the largest ends on top.
         const ids: LayerId[] = [];
         const values = preview.bins.filter((bin) => bin.value !== undefined && bin.count > 0);
-        const taken: string[] = [];
+        const into: GroupFolder = {
+            folder: folder.result.id,
+            from: layer,
+            path: binding.by,
+            groupName: style.groupName,
+            taken: [],
+        };
         for (const [at, bin] of values.entries()) {
-            ids.push(
-                this.addGroupLayer(draft, folder.result.id, layer, binding.by, bin, at + 1, style.groupName, taken),
-            );
+            ids.push(this.addGroupLayer(draft, into, bin, at + 1));
         }
 
         return ids;
@@ -1867,28 +1885,21 @@ class Runs implements SessionRunsApi {
     /**
      * Add one group's layer at the bottom of its folder.
      * @param draft - The draft.
-     * @param folder - The folder.
-     * @param from - The run's layer it takes its source from.
-     * @param path - The group path.
+     * @param into - The folder, and what every group layer in it shares.
      * @param bin - The group, as a preview of the run's colour binding counts and paints it.
      * @param bin.value - The group's value.
      * @param bin.count - How many nodes it holds.
      * @param bin.paints - The colour the run's layer paints it.
      * @param rank - Its place by size, 1 for the largest.
-     * @param groupName - What to call it.
-     * @param taken - The names of the folder's group layers so far; the new name is added to it.
      * @returns The layer's id.
      */
     private addGroupLayer(
         draft: Draft,
-        folder: string,
-        from: Layer,
-        path: string,
+        into: GroupFolder,
         bin: { readonly value?: unknown; readonly count: number; readonly paints: unknown },
         rank: number,
-        groupName: ((group: RunGroup) => string) | undefined,
-        taken: string[],
     ): LayerId {
+        const { folder, from, path, groupName, taken } = into;
         const { styles } = this.dispatcher.services;
         const paints = bin.paints as { readonly hex?: string } | string | null;
         const color = typeof paints === "string" ? paints : paints?.hex;
@@ -1973,7 +1984,12 @@ class Runs implements SessionRunsApi {
             if (bin.value !== undefined && bin.count > 0 && !held.has(categoryName(bin.value))) {
                 const paints = free.shift() ?? bin.paints;
                 used.add(hexOf(paints));
-                this.addGroupLayer(draft, folder.id, mine[0], path, { ...bin, paints }, at + 1, groupName, names);
+                this.addGroupLayer(
+                    draft,
+                    { folder: folder.id, from: mine[0], path, groupName, taken: names },
+                    { ...bin, paints },
+                    at + 1,
+                );
             }
         }
     }

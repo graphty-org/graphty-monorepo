@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
@@ -57,11 +57,14 @@ async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
  * @param canvasElement - the story's root.
  * @param name - the button's name.
  */
-async function press(canvasElement: HTMLElement, name: string): Promise<void> {
+async function press(canvasElement: HTMLElement, name: string | RegExp): Promise<void> {
     // In the toolbar: the style tree's "+" menu also offers Analyze.
     const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" }, storyWaitOptions(1000));
     await userEvent.click(await within(toolbar).findByRole("button", { name }, storyWaitOptions(1000)));
 }
+
+/** The View button, named with the dimension its words show ("View, 2D"). */
+const VIEW = /^View\b/;
 
 /** The body, where popovers render. */
 const body = (): ReturnType<typeof within> => within(document.body);
@@ -148,11 +151,12 @@ export const AfterLouvain: Story = {
         await userEvent.click(await body().findByRole("option", { name: /^Louvain/ }, storyWaitOptions(1000)));
         await userEvent.click(await body().findByRole("button", { name: /^Run\b/ }, storyWaitOptions(1000)));
         await Promise.all(element.session.runs.list());
+        // Run closes the popover and hands focus back to Analyze. A tooltip never opens on focus a
+        // script returns, so the capture shows Analyze focused with no tooltip over the canvas.
+        const toolbar = within(canvasElement).getByRole("toolbar", { name: "Canvas tools" });
+        const analyze = within(toolbar).getByRole("button", { name: "Analyze" });
+        await waitFor(() => expect(document.activeElement).toBe(analyze), storyWaitOptions(5000));
         await element.waitForStableFrame();
-        // Run closes the popover and hands focus back to Analyze. The play's clicks are synthetic,
-        // so the browser counts that focus as keyboard focus, and Analyze's tooltip shows after
-        // its 1000 ms keyboard-focus delay: wait for it, or the capture lands either side of it.
-        await body().findByRole("tooltip", { name: /^Analyze/ }, storyWaitOptions(5000));
     },
 };
 
@@ -170,7 +174,7 @@ export const ViewFlyout2D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
-        await press(canvasElement, "View");
+        await press(canvasElement, VIEW);
     },
 };
 
@@ -181,7 +185,7 @@ export const ViewFlyout3D: Story = {
         const element = await loadRings(canvasElement);
         await element.session.layout.setDimension("3d");
         await element.waitForStableFrame();
-        await press(canvasElement, "View");
+        await press(canvasElement, VIEW);
     },
 };
 

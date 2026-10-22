@@ -16,7 +16,6 @@
  */
 import "../../src/graphty-element";
 
-import { nothing } from "lit";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -391,6 +390,30 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        methods: ["UpdateManager.drawArrivedPaint"],
+        prepare: async (element, size) => {
+            const { graph } = element;
+            await graph
+                .getSession()
+                .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
+            const manager = updateManagerOf(graph);
+            return counting(
+                Node.prototype,
+                "applySessionPaint",
+                () => {
+                    manager.drawArrivedPaint();
+                },
+                (count) => {
+                    assert.strictEqual(count.calls, size, "every node was repainted");
+                    assert.isFalse(painter.hasPending, "and nothing is left to paint");
+                },
+            );
+        },
+    },
+    {
         methods: ["StylesApi.highlight"],
         prepare: async (element, size) => {
             const { graph } = element;
@@ -578,12 +601,14 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        // Lit's render draws nothing itself -- the element's container is placed in the shadow root
-        // when it connects (e63ee191b9), so an update never moves it -- and the frame after the
-        // update draws the graph in that container.
-        methods: ["Graphty.render"],
+        // Lit renders nothing: the element's container is placed in the shadow root when it
+        // connects (e63ee191b9) and the element's update skips Lit's template render, so an update
+        // never moves it -- and the frame after the update draws the graph in that container.
+        // render() still returns the container, as released.
+        methods: ["Graphty.render", "Graphty.update"],
         prepare: (element) => {
             let rendered: unknown;
+            let before: ChildNode[] = [];
             return Promise.resolve(
                 drawing(
                     element.graph,
@@ -591,12 +616,19 @@ const CASES: readonly Case[] = [
                     1,
                     async () => {
                         rendered = element.render();
+                        before = [...element.renderRoot.childNodes];
                         element.requestUpdate();
                         await element.updateComplete;
                         updateManagerOf(element.graph).renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual(rendered, nothing, "render draws nothing itself");
+                        assert.instanceOf(rendered, Element, "render returns the graph container");
+                        assert.isTrue(rendered.contains(element.graph.canvas));
+                        const after = [...element.renderRoot.childNodes];
+                        assert.isTrue(
+                            after.length === before.length && after.every((node, i) => node === before[i]),
+                            "an update adds, removes and moves nothing in the shadow root",
+                        );
                         assert.isTrue(
                             element.renderRoot.contains(element.graph.canvas),
                             "the drawing stays in the shadow root",

@@ -15,7 +15,7 @@ const HEXA_ALPHA_START = 7;
 export function typedColor(typed: string): string | undefined {
     // A keyword said as words ("dark green") is the keyword written together ("darkgreen").
     const trimmed = typed.trim();
-    const text = /^[a-z]+(\s+[a-z]+)+$/i.test(trimmed) ? trimmed.replace(/\s+/g, "") : trimmed;
+    const text = /^[a-z]+(\s+[a-z]+)+$/i.test(trimmed) ? trimmed.split(/\s+/).join("") : trimmed;
     const digits = trimmed.replace("#", "");
     if (/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(digits)) {
         return normalizeHexa(digits)?.slice(0, HEXA_ALPHA_START).toUpperCase();

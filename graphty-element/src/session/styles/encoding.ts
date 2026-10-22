@@ -997,32 +997,16 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         case "color":
             // An effect written off carries the one off colour, which the painter draws as nothing.
             return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
-        case "number": {
-            if (typeof value !== "number" || !Number.isFinite(value)) {
-                throw wrongKind("a number");
-            }
-
-            const { max, min } = descriptor;
-            if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
-        }
+        case "number":
+            return authoredNumber(descriptor, value, what, wrongKind);
         case "text":
             if (typeof value !== "string") {
                 throw wrongKind("text");
             }
 
             return value;
-        case "boolean": {
-            const read = value === true || value === "true" || value === 1;
-            if (!read && value !== false && value !== "false" && value !== 0) {
-                throw wrongKind("on or off");
-            }
-
-            return read;
-        }
+        case "boolean":
+            return authoredBoolean(value, wrongKind);
         case "enum":
             if (typeof value !== "string" || !(values ?? []).includes(value)) {
                 throw outOfRange(descriptor, value, what);
@@ -1038,6 +1022,49 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         default:
             throw unsupportedChannel(descriptor);
     }
+}
+
+/**
+ * A number channel's authored value, checked against the channel's range.
+ * @param descriptor - The channel.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @returns The number.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
+ */
+function authoredNumber(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    what: string,
+    wrongKind: (expected: string) => GraphtyError,
+): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw wrongKind("a number");
+    }
+
+    const { max, min } = descriptor;
+    if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
+ * A boolean channel's authored value: `true`, "true" and 1 read as on; `false`, "false" and 0 as off.
+ * @param value - The value as it was authored.
+ * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @returns The boolean.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for anything else.
+ */
+function authoredBoolean(value: ChannelValue, wrongKind: (expected: string) => GraphtyError): boolean {
+    const read = value === true || value === "true" || value === 1;
+    if (!read && value !== false && value !== "false" && value !== 0) {
+        throw wrongKind("on or off");
+    }
+
+    return read;
 }
 
 /**
@@ -1774,7 +1801,11 @@ function stepsOf(parts: AssemblyParts): readonly number[] | undefined {
     const [low, high] = context.domain;
     const cuts = Array.from({ length: groups - 1 }, (_, at) => low + ((high - low) * (at + 1)) / groups);
 
-    return Object.freeze(low <= high ? cuts : cuts.reverse());
+    if (low > high) {
+        cuts.reverse();
+    }
+
+    return Object.freeze(cuts);
 }
 
 /**
@@ -2444,11 +2475,6 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const tally = options.counted ?? column;
     const ends = previewEnds(column, prepared.domain);
     const scale = prepared.scale ?? "linear";
-    const orNull = (value: EncodedValue | undefined): EncodedValue | null => value ?? null;
-    let noValue = 0;
-    let outsideScale = 0;
-    let below = 0;
-    let above = 0;
     const base = {
         channel: prepared.channel,
         scale,
@@ -2460,90 +2486,131 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     };
 
     if (prepared.domain === null) {
-        const counts = new Map<string, number>();
-        for (const value of tally) {
-            const name = readCategory(value);
-            if (value === undefined || value === null) {
-                noValue++;
-            } else if (name === null) {
-                outsideScale++;
-            } else {
-                counts.set(name, (counts.get(name) ?? 0) + 1);
-            }
-        }
+        const { bins, noValue, outsideScale } = previewCategoryBins(prepared, tally);
 
-        const bins = [...prepared.categories, ...prepared.lumped].map((name): BindingPreviewBin => {
-            const value = prepared.categoryValues.get(name);
-
-            return { from: null, to: null, value, count: counts.get(name) ?? 0, paints: orNull(prepared.paint(value)) };
-        });
-
-        return { ...base, stepCounts: [], domain: null, bins, below, above, noValue, outsideScale };
+        return { ...base, stepCounts: [], domain: null, bins, below: 0, above: 0, noValue, outsideScale };
     }
 
     const { domain } = prepared;
+    const { stepCounts, bins, below, above, noValue, outsideScale } = previewScaleBins(
+        options,
+        prepared,
+        domain,
+        scale,
+        tally,
+    );
+
+    return { ...base, stepCounts, domain: [domain[0], domain[1]], bins, below, above, noValue, outsideScale };
+}
+
+/**
+ * A preview's paint, or null when it paints nothing.
+ * @param value - What the binding paints.
+ * @returns The value, or null.
+ */
+function orNull(value: EncodedValue | undefined): EncodedValue | null {
+    return value ?? null;
+}
+
+/**
+ * A categorical binding's preview bins: one per category, lumped ones last, with how many values
+ * fall in each.
+ * @param prepared - The prepared binding.
+ * @param tally - The values counted.
+ * @returns The bins and the values with no value or outside the scale.
+ */
+function previewCategoryBins(
+    prepared: PreparedBinding,
+    tally: readonly unknown[],
+): { bins: BindingPreviewBin[]; noValue: number; outsideScale: number } {
+    let noValue = 0;
+    let outsideScale = 0;
+    const counts = new Map<string, number>();
+    for (const value of tally) {
+        const name = readCategory(value);
+        if (value === undefined || value === null) {
+            noValue++;
+        } else if (name === null) {
+            outsideScale++;
+        } else {
+            counts.set(name, (counts.get(name) ?? 0) + 1);
+        }
+    }
+
+    const bins = [...prepared.categories, ...prepared.lumped].map((name): BindingPreviewBin => {
+        const value = prepared.categoryValues.get(name);
+
+        return { from: null, to: null, value, count: counts.get(name) ?? 0, paints: orNull(prepared.paint(value)) };
+    });
+
+    return { bins, noValue, outsideScale };
+}
+
+/** The bounds a scale preview counts values against. */
+interface PreviewBounds {
+    /** The domain's low end. */
+    readonly low: number;
+    /** The domain's high end. */
+    readonly high: number;
+    /** The bins' low end. */
+    readonly axisLow: number;
+    /** The bins' high end. */
+    readonly axisHigh: number;
+    /** How many bins. */
+    readonly binCount: number;
+    /** A stepped scale's cuts, empty for a continuous one. */
+    readonly cuts: readonly number[];
+    /** Whether the scale is stepped. */
+    readonly stepped: boolean;
+}
+
+/** What a scale preview counted. */
+interface PreviewTally {
+    /** Values per bin. */
+    readonly counts: number[];
+    /** Values per step, empty for a continuous scale. */
+    readonly stepCounts: number[];
+    /** Values below the domain. */
+    below: number;
+    /** Values above the domain. */
+    above: number;
+    /** Elements with no value. */
+    noValue: number;
+    /** Values the scale does not place. */
+    outsideScale: number;
+}
+
+/**
+ * A continuous or stepped binding's preview bins over its domain, or with `span: "data"` over the
+ * values' extent around it.
+ * @param options - The preview's options.
+ * @param prepared - The prepared binding.
+ * @param domain - Its domain.
+ * @param scale - Its scale's name.
+ * @param tally - The values counted.
+ * @returns The bins and the counts the preview reports.
+ */
+function previewScaleBins(
+    options: PreviewBindingOptions,
+    prepared: PreparedBinding,
+    domain: readonly [number, number],
+    scale: string,
+    tally: readonly unknown[],
+): Omit<PreviewTally, "counts"> & { bins: BindingPreviewBin[] } {
     const [low, high] = [Math.min(...domain), Math.max(...domain)];
     // The bins' extent: the domain, or with `span: "data"` the values' extent around it.
     const axis = options.span === "data" ? dataAxis(options, low, high) : null;
     const [axisLow, axisHigh] = axis ?? [low, high];
     const binCount = Math.max(1, Math.floor(options.bins ?? PREVIEW_BINS));
-    const map = scales.require(scale);
-    const context: ScaleContext = {
-        domain: axis ?? [domain[0], domain[1]],
-        range: [0, 1],
-        ...(binding.midpoint === undefined ? {} : { midpoint: binding.midpoint }),
-        ...(binding.exponent === undefined ? {} : { exponent: binding.exponent }),
-    };
+    const map = options.scales.require(scale);
     // A stepped scale is binned in the data's units; a continuous one in its own space.
     const stepped = prepared.steps !== undefined;
-    const place = (value: number): number => {
-        if (stepped) {
-            return axisHigh === axisLow ? 0 : (value - axisLow) / (axisHigh - axisLow);
-        }
-
-        const placed = map(value, context);
-        return typeof placed === "number" ? placed : Number.NaN;
-    };
+    const place = previewPlacer(options.binding, map, stepped, axis ?? [domain[0], domain[1]], [axisLow, axisHigh]);
     const ascending: readonly [number, number] =
         stepped || axis !== null ? [axisLow, axisHigh] : [domain[0], domain[1]];
-    const edges = Array.from({ length: binCount + 1 }, (_, at) => {
-        if (at === 0 || at === binCount) {
-            return ascending[at === 0 ? 0 : 1];
-        }
-
-        return valueAt(place, ascending, at / binCount);
-    });
-    const counts = new Array<number>(binCount).fill(0);
-    const cuts = prepared.steps ?? [];
-    const stepCounts = stepped ? new Array<number>(cuts.length + 1).fill(0) : [];
-
-    for (const value of tally) {
-        if (value === undefined || value === null) {
-            noValue++;
-            continue;
-        }
-
-        const number = readNumber(value);
-        const position = Number.isNaN(number) ? Number.NaN : place(number);
-        if (Number.isNaN(position)) {
-            outsideScale++;
-            continue;
-        }
-
-        if (stepped) {
-            stepCounts[cuts.filter((cut) => number >= cut).length]++;
-        }
-
-        if (number < low) {
-            below++;
-        } else if (number > high) {
-            above++;
-        }
-
-        if (number >= axisLow && number <= axisHigh) {
-            counts[Math.min(binCount - 1, Math.max(0, Math.floor(position * binCount)))]++;
-        }
-    }
+    const edges = previewEdges(place, ascending, binCount);
+    const bounds: PreviewBounds = { low, high, axisLow, axisHigh, binCount, cuts: prepared.steps ?? [], stepped };
+    const { counts, ...counted } = tallyPreview(tally, place, bounds);
 
     const bins = counts.map((count, at): BindingPreviewBin => {
         const middle = valueAt(place, ascending, (at + 0.5) / binCount);
@@ -2552,7 +2619,130 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         return { from: Math.min(from, to), to: Math.max(from, to), count, paints: orNull(prepared.paint(middle)) };
     });
 
-    return { ...base, stepCounts, domain: [domain[0], domain[1]], bins, below, above, noValue, outsideScale };
+    return { ...counted, bins };
+}
+
+/**
+ * Where a value sits on a preview's axis, from 0 to 1, or NaN when the scale does not place it.
+ * @param binding - The binding, for its midpoint and exponent.
+ * @param map - The scale.
+ * @param stepped - Whether the scale is stepped, so binned in the data's units.
+ * @param domain - The domain the scale maps.
+ * @param axis - The bins' extent.
+ * @returns The placer.
+ */
+function previewPlacer(
+    binding: RuleBinding,
+    map: ScaleFn,
+    stepped: boolean,
+    domain: [number, number],
+    axis: readonly [number, number],
+): (value: number) => number {
+    const [axisLow, axisHigh] = axis;
+    if (stepped) {
+        return (value) => (axisHigh === axisLow ? 0 : (value - axisLow) / (axisHigh - axisLow));
+    }
+
+    const context: ScaleContext = {
+        domain,
+        range: [0, 1],
+        ...(binding.midpoint === undefined ? {} : { midpoint: binding.midpoint }),
+        ...(binding.exponent === undefined ? {} : { exponent: binding.exponent }),
+    };
+
+    return (value) => {
+        const placed = map(value, context);
+        return typeof placed === "number" ? placed : Number.NaN;
+    };
+}
+
+/**
+ * The edges of a preview's bins, ends exact and the rest found by bisection.
+ * @param place - Where a value sits on the axis.
+ * @param ascending - The axis's ends, low first.
+ * @param binCount - How many bins.
+ * @returns The `binCount + 1` edges.
+ */
+function previewEdges(
+    place: (value: number) => number,
+    ascending: readonly [number, number],
+    binCount: number,
+): number[] {
+    return Array.from({ length: binCount + 1 }, (_, at) => {
+        if (at === 0) {
+            return ascending[0];
+        }
+
+        if (at === binCount) {
+            return ascending[1];
+        }
+
+        return valueAt(place, ascending, at / binCount);
+    });
+}
+
+/**
+ * Count a scale preview's values into its bins and steps.
+ * @param tally - The values counted.
+ * @param place - Where a value sits on the axis.
+ * @param bounds - The bounds counted against.
+ * @returns The counts.
+ */
+function tallyPreview(
+    tally: readonly unknown[],
+    place: (value: number) => number,
+    bounds: PreviewBounds,
+): PreviewTally {
+    const counted: PreviewTally = {
+        counts: new Array<number>(bounds.binCount).fill(0),
+        stepCounts: bounds.stepped ? new Array<number>(bounds.cuts.length + 1).fill(0) : [],
+        below: 0,
+        above: 0,
+        noValue: 0,
+        outsideScale: 0,
+    };
+
+    for (const value of tally) {
+        if (value === undefined || value === null) {
+            counted.noValue++;
+            continue;
+        }
+
+        const number = readNumber(value);
+        const position = Number.isNaN(number) ? Number.NaN : place(number);
+        if (Number.isNaN(position)) {
+            counted.outsideScale++;
+            continue;
+        }
+
+        countPlaced(counted, number, position, bounds);
+    }
+
+    return counted;
+}
+
+/**
+ * Count one placed value: its step, whether it falls outside the domain, and its bin.
+ * @param counted - The counts so far.
+ * @param number - The value.
+ * @param position - Where it sits on the axis.
+ * @param bounds - The bounds counted against.
+ */
+function countPlaced(counted: PreviewTally, number: number, position: number, bounds: PreviewBounds): void {
+    const { low, high, axisLow, axisHigh, binCount, cuts, stepped } = bounds;
+    if (stepped) {
+        counted.stepCounts[cuts.filter((cut) => number >= cut).length]++;
+    }
+
+    if (number < low) {
+        counted.below++;
+    } else if (number > high) {
+        counted.above++;
+    }
+
+    if (number >= axisLow && number <= axisHigh) {
+        counted.counts[Math.min(binCount - 1, Math.max(0, Math.floor(position * binCount)))]++;
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

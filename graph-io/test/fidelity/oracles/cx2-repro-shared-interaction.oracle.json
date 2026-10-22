@@ -1,0 +1,30 @@
+{
+    "sample": "cx2-repro-shared-interaction",
+    "file": "graph-io/test/corpus/styles/cx2/fidelity/repro-shared-interaction.cx2",
+    "sha256": "86bcc5e5b8288c4b2f5d64c7d3d8293e60d9271d4bb26512f9f131c66e144faa",
+    "program": "Cytoscape desktop",
+    "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
+    "route": "cytoscape-desktop",
+    "command": "session new; network load file file=<file>; view set current (the largest view); hide the WEST, SOUTH and EAST panels; resize the main window until the view is 1200 x 900; view fit content; GET /v1/networks/{net}/views/{view}.svg",
+    "standIn": false,
+    "network": {
+        "title": "repro",
+        "nodes": 16,
+        "views": 1,
+        "chosen": "the view with the most nodes",
+        "style": "repro-Style"
+    },
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900,
+        "zoom": 1.6961538461538461,
+        "center": [240, 240],
+        "background": "#FFFFFF"
+    },
+    "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
+    "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
+    "exportsAgreed": 3,
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
+    "date": "2026-10-18",
+    "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs cx2-repro-shared-interaction && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/cx2-repro-shared-interaction.svg"
+}

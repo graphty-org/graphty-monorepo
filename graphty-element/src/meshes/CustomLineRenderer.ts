@@ -31,6 +31,8 @@ export interface JoinedLineOptions {
     opacity?: number;
     /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
     worldWidth?: boolean;
+    /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
+    minScreenWidth?: number;
     /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
 }
@@ -381,6 +383,7 @@ void main(void) {
                     "projection",
                     "resolution",
                     "width",
+                    "minWidth",
                     "miterLimit",
                     "color",
                     "opacity",
@@ -394,6 +397,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         material.setFloat("width", options.width);
+        material.setFloat("minWidth", options.minScreenWidth ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
@@ -419,7 +423,9 @@ void main(void) {
         this.blendInPlace(mesh);
         mesh.metadata = {
             joinedLine: true,
-            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+            pattern: pattern
+                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+                : undefined,
         };
 
         return mesh;

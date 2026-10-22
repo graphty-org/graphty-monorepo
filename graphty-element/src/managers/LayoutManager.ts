@@ -20,7 +20,7 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
-import { paddedBox, sizedGroupBox } from "../layout/groupSizing";
+import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
 import {
     LayoutEngine,
     layoutEngineInternals,
@@ -2326,7 +2326,8 @@ export class LayoutManager implements Manager {
     /**
      * Grow a members' box by where a member's label draws its words: the words' rectangle on the
      * label plane's world bounds, taken relative to the member's mesh, around the member's box
-     * centre now (the plane follows its node, which may have moved since the last frame drew it).
+     * centre now (the plane follows its node, which may have moved since the last frame drew it),
+     * bounded as Cytoscape.js bounds a label ({@link labelBounds}).
      * @param id - The member.
      * @param at - The member's centre now.
      * @param min - The box's low corner, grown in place.
@@ -2347,10 +2348,21 @@ export class LayoutManager implements Manager {
         // the words' fractions run across from the plane's left and down from its top; y runs up
         const w = hi.x - lo.x;
         const h = hi.y - lo.y;
-        min[0] = Math.min(min[0], at.x + lo.x + words.left * w - origin.x);
-        max[0] = Math.max(max[0], at.x + lo.x + words.right * w - origin.x);
-        min[1] = Math.min(min[1], at.y + hi.y - words.bottom * h - origin.y);
-        max[1] = Math.max(max[1], at.y + hi.y - words.top * h - origin.y);
+        const box = labelBounds(
+            {
+                x0: at.x + lo.x + words.left * w - origin.x,
+                x1: at.x + lo.x + words.right * w - origin.x,
+                y0: at.y + hi.y - words.bottom * h - origin.y,
+                y1: at.y + hi.y - words.top * h - origin.y,
+            },
+            at.y,
+            label.emHeight * h,
+            label.pixelHeight * h,
+        );
+        min[0] = Math.min(min[0], box.x0);
+        max[0] = Math.max(max[0], box.x1);
+        min[1] = Math.min(min[1], box.y0);
+        max[1] = Math.max(max[1], box.y1);
     }
 
     /**

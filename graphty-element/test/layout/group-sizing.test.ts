@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { groupPadding, paddedBox, sizedGroupBox } from "../../src/layout/groupSizing";
+import { groupPadding, labelBounds, paddedBox, sizedGroupBox } from "../../src/layout/groupSizing";
 
 // a members' box 40 wide and 20 tall, centered on the origin
 const MIN = [-20, -10, 0];
@@ -40,5 +40,24 @@ describe("a group sized by its style", () => {
 
     it("pads an unsized group by the margin it is given", () => {
         assert.deepEqual(paddedBox(MIN, MAX, 3), { center: { x: 0, y: 0, z: 0 }, half: { x: 23, y: 13, z: 3 } });
+    });
+
+    it("bounds a member's label as Cytoscape.js does: the font size tall from the side touching its node, plus 2", () => {
+        // words drawn in a line box 14 tall for a 10 px font; y runs up, the node centered at y = 0
+        const below = labelBounds({ x0: -12, x1: 12, y0: -21, y1: -7 }, 0, 10, 1);
+        assert.deepEqual(below, { x0: -14, x1: 14, y0: -19, y1: -5 });
+        const above = labelBounds({ x0: -12, x1: 12, y0: 7, y1: 21 }, 0, 10, 1);
+        assert.deepEqual(above, { x0: -14, x1: 14, y0: 5, y1: 19 });
+        const across = labelBounds({ x0: -12, x1: 12, y0: -7, y1: 7 }, 0, 10, 1);
+        assert.deepEqual(across, { x0: -14, x1: 14, y0: -7, y1: 7 });
+    });
+
+    it("grows a label's bounds by 2 of its font's pixels, not 2 of the plane's units", () => {
+        // a 10 px font drawn 1 unit tall: a font pixel is a tenth of a unit, the margin a fifth
+        const box = labelBounds({ x0: -1.2, x1: 1.2, y0: -2.1, y1: -0.7 }, 0, 1, 0.1);
+        assert.closeTo(box.x0, -1.4, 1e-9);
+        assert.closeTo(box.x1, 1.4, 1e-9);
+        assert.closeTo(box.y0, -1.9, 1e-9);
+        assert.closeTo(box.y1, -0.5, 1e-9);
     });
 });

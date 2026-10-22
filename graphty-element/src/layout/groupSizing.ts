@@ -100,3 +100,36 @@ export function sizedGroupBox(
         pad,
     };
 }
+
+/** An axis-aligned rectangle on the layout plane; y runs up. */
+export interface PlaneRect {
+    readonly x0: number;
+    readonly x1: number;
+    readonly y0: number;
+    readonly y1: number;
+}
+
+/** How far Cytoscape.js 3.34.3 grows a label's bounds on every side (`updateBoundsFromLabel`'s `marginOfError`). */
+const LABEL_BOUNDS_MARGIN = 2;
+
+/**
+ * The box a member's label adds to a group sized with `includeLabels`, as Cytoscape.js 3.34.3 bounds a node's label
+ * (`updateBoundsFromLabel`): the font size per line tall, not the drawn line box, from the side that touches its node
+ * (the bottom of a label above the node's center, the top of one below it, the middle of one across it), then grown by
+ * 2 font pixels on every side.
+ * @param words - Where the label's words are drawn.
+ * @param nodeY - The member's center's y.
+ * @param em - The font size times the label's line count, in the same units.
+ * @param pixel - One font pixel, in the same units: the margin is 2 of them, not 2 of the plane's units.
+ * @returns The label's box.
+ */
+export function labelBounds(words: PlaneRect, nodeY: number, em: number, pixel: number): PlaneRect {
+    let low = (words.y0 + words.y1 - em) / 2;
+    if (words.y0 >= nodeY) {
+        low = words.y0;
+    } else if (words.y1 <= nodeY) {
+        low = words.y1 - em;
+    }
+    const m = LABEL_BOUNDS_MARGIN * pixel;
+    return { x0: words.x0 - m, x1: words.x1 + m, y0: low - m, y1: low + em + m };
+}

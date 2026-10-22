@@ -47,9 +47,11 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
         return found as GraphtyElement;
     }, storyWaitOptions(1000));
     const { session } = element;
-    // The app loads the sample once the project's element is up.
+    // The app loads the sample once the project's element is up, then starts the graph's history
+    // (Workspace.tsx); that clear would cancel the switch to 2D below, so the open has to be over.
     await waitFor(() => {
         expect(session.data.statistics().nodeCount).toBe(77);
+        expect(session.history.pending.length + session.history.steps.length).toBe(0);
     }, storyWaitOptions(10_000));
     expect(session.config.startingRows).toBe(true);
     expect(session.config.editableBase).toBe(true);

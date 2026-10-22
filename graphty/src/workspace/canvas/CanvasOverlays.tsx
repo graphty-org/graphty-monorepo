@@ -1,5 +1,6 @@
 import "./canvas.css";
 
+import type { LayoutWarningEvent } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
+import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { KeyRoom, LegendCard } from "./LegendCard";
@@ -131,6 +133,29 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     return reading;
 }
 
+/**
+ * Posts a notice for a layout's warning the app has words for (the location map's unplaced
+ * nodes), read from the element's `layout-warning` event.
+ */
+function useLayoutWarningNotice(): void {
+    const { element, store } = useWorkspace();
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const onWarning = (event: CustomEvent<LayoutWarningEvent>): void => {
+            const message = layoutWarningWords(event.detail.code, event.detail.params);
+            if (message !== null) {
+                store.set({ notice: { message } });
+            }
+        };
+        element.addEventListener("layout-warning", onWarning);
+        return () => {
+            element.removeEventListener("layout-warning", onWarning);
+        };
+    }, [element, store]);
+}
+
 /** Props for LoadingCard. */
 interface LoadingCardProps {
     /** The project being read. */
@@ -210,6 +235,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     const addData = useCommand("data.add");
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
+    useLayoutWarningNotice();
 
     if (session === null) {
         return null;

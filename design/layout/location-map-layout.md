@@ -699,7 +699,20 @@ element property and project setting `basemap` with its three shapes and `attrib
 read-only `basemapStatus` (`{ source, state: "off" | "loading" | "ready" | "fallback",
 attribution }`); the style channels `edge.route` and `edge.arcHeight` (`line.route`,
 `line.arcHeight`); the warning codes `W_LOCATION_UNPARSED`, `W_LOCATION_OUT_OF_RANGE`,
-`W_LOCATION_AMBIGUOUS` and `W_LOCATION_SWAPPED`; and the graph-samples dataset id `venice-transit`.
+`W_LOCATION_AMBIGUOUS` and `W_LOCATION_SWAPPED`; the catalog table `BASEMAP_SOURCE_DESCRIPTORS`
+(`{ id, plainName, kind: "plain" | "streets" | "satellite" | "terrain", coverage: "world" | "us",
+network }`, in the `./catalog` entry, where the design said `basemapSources`); the graph setting
+key `basemap` of `session.config.inEffect`, with the code `setting.needsMapLayout` while the layout
+draws no map; and the graph-samples dataset id `venice-transit`.
+
+The graphty app's controls, built on these: Map in the Layout popover, whose form shows Location,
+Latitude, Longitude (each a node column picker that reads "Automatic" while empty), Surface (Flat
+map or Globe) and Fit, with Format, Projection, Size, Unplaced (Tray or Leave in place) and Same
+place behind Advanced; a Map section in Graph settings, shown while `inEffect("basemap")` is true,
+with one list of the catalog's sources grouped Plain, Satellite, Streets and Topographic, then
+Custom (Tiles or Image, each with Address and Credit) and None; and a notice "N of M nodes
+unplaced" from the `W_LOCATION_UNPARSED` layout warning. The credits are the element's strip on the
+canvas.
 
 What the prototype does differently from the text above, and why: an unset `arcHeight` is 0.25 on a
 flat map but 0.1 on a globe (a quarter of a long great circle rose higher than the globe is wide);

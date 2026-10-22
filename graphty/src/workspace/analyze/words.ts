@@ -372,6 +372,20 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // The location map's options; an empty location column is found from the data.
+    "location-map.location": { label: "Location", empty: "Automatic" },
+    "location-map.latitude": { label: "Latitude", empty: "Automatic" },
+    "location-map.longitude": { label: "Longitude", empty: "Automatic" },
+    "location-map.surface": { label: "Surface", choices: { flat: "Flat map", globe: "Globe" } },
+    "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
+    "location-map.format": { label: "Format", choices: { auto: "Automatic" } },
+    "location-map.projection": {
+        label: "Projection",
+        choices: { auto: "Automatic", "web-mercator": "Web Mercator", equirectangular: "Equirectangular" },
+    },
+    "location-map.size": { label: "Size" },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -428,11 +442,11 @@ export function isPathFollow(algorithm: string, option: string): boolean {
 export function optionWords(
     algorithm: string,
     option: OptionDescriptor,
-): { label: string; choice: (value: string) => string; empty: string } {
+): { label: string; choice: (value: string) => string; empty?: string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
         label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
-        empty: words?.empty ?? "Not set",
+        empty: words?.empty,
         choice: (value) =>
             words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };

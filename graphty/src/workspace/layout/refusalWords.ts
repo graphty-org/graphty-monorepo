@@ -60,3 +60,17 @@ export function layoutRefusalWords(session: GraphSession, estimate: CostEstimate
             return "Cannot run on this graph";
     }
 }
+
+/**
+ * A layout's warning as a notice, in the app's words, or null for one the app does not show.
+ * @param code - the element's warning code.
+ * @param params - its values.
+ * @returns the notice's message, or null.
+ */
+export function layoutWarningWords(code: string, params: Readonly<Record<string, unknown>>): string | null {
+    if (code !== "W_LOCATION_UNPARSED") {
+        return null;
+    }
+    const unplaced = Number(params.missing ?? 0) + Number(params.unparsed ?? 0);
+    return `${unplaced.toLocaleString()} of ${Number(params.total ?? 0).toLocaleString()} nodes unplaced`;
+}

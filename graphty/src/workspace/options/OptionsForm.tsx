@@ -90,12 +90,14 @@ interface FieldProps extends Omit<
  * An attribute or partition option as a choice among the attributes the graph carries on the
  * option's side (nodes unless it says edges). A partition the element has resolved lists the
  * element's choices (its groupable columns, a run's community among them); otherwise it lists
- * attributes that are not plain numbers. An attribute option with no default can be left at None (null).
+ * attributes that are not plain numbers. An attribute option with no default can be left at None (null),
+ * or at the app's word for what empty means there ("Automatic").
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.option - The option descriptor
  * @param props.value - The value set
  * @param props.label - The app's words for it
+ * @param props.empty - What leaving it empty means, when not "None"
  * @param props.onChange - Called with the new value
  * @returns The select
  */
@@ -104,9 +106,14 @@ function AttributeField({
     option,
     value,
     label,
+    empty,
     onChange,
 }: Readonly<
-    Pick<FieldProps, "session" | "option" | "value"> & { label: string; onChange: (v: unknown) => void }
+    Pick<FieldProps, "session" | "option" | "value"> & {
+        label: string;
+        empty: string | undefined;
+        onChange: (v: unknown) => void;
+    }
 >): React.JSX.Element {
     const on = option.on ?? "node";
     const data =
@@ -120,7 +127,7 @@ function AttributeField({
         option.type === "attribute" &&
         (option.default === undefined || option.default === null || option.default === "");
     if (optional) {
-        data.unshift({ value: "", label: "None" });
+        data.unshift({ value: "", label: empty ?? "None" });
     }
     const fallback = typeof option.default === "string" && option.default !== "" ? option.default : null;
     const none = optional ? "" : null;
@@ -502,7 +509,16 @@ function OptionField({
                     />
                 );
             }
-            return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;
+            return (
+                <AttributeField
+                    session={session}
+                    option={option}
+                    value={value}
+                    label={label}
+                    empty={empty}
+                    onChange={set}
+                />
+            );
         case "node-id":
             return (
                 <NodeOption

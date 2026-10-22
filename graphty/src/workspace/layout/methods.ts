@@ -30,6 +30,7 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
     bipartite: "Two columns",
     layers: "Columns by group",
     fixed: "Keep positions",
+    "location-map": "Map",
 };
 
 /**

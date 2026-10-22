@@ -359,10 +359,15 @@ const DEFECTS = {
         }
         return s;
     },
+    // a second part drawn behind the first, a head's length back along the line (Graphviz's normalnormal)
     "a second arrowhead part at the target end": eachEdge((e) => {
         const head = e.arrows.find((a) => a.end === "target");
-        if (head !== undefined) {
-            e.arrows.push({ ...head });
+        const [a, b] = [e.points.at(-2), e.points.at(-1)];
+        if (head !== undefined && a !== undefined && b !== undefined) {
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+            const at = head.at ?? b;
+            const back: Pt = [at[0] - ((b[0] - a[0]) / len) * head.length, at[1] - ((b[1] - a[1]) / len) * head.length];
+            e.arrows.push({ ...head, at: back });
         }
     }),
     "edge dashes and gaps x2": eachEdge((e) => {

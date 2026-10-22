@@ -74,6 +74,8 @@ const FIELDS: Readonly<Record<string, string>> = {
     // The app's own copies of football and florentine-families, by their sample ids.
     "college-football": "Sports",
     florentine: "Social",
+    "office-email": "Social",
+    "paper-citations": "Science",
     "political-books": "Politics",
     dolphins: "Animals",
     "contiguous-usa": "Places",
@@ -105,6 +107,8 @@ const HOOKS: Readonly<Record<string, string>> = {
     football: "Conferences fall out of who played whom",
     "college-football": "Conferences fall out of who played whom",
     florentine: "How the Medici brokered power",
+    "office-email": "Six months of office email",
+    "paper-citations": "Thirty years of citations",
     "political-books": "Left, right and the few in between",
     dolphins: "A pod with two social circles",
     "contiguous-usa": "Borders as a network",
@@ -186,7 +190,7 @@ function firstSentence(text: string): string {
 }
 
 /**
- * The sample library: the app's four samples first, then every other dataset in graph-samples'
+ * The sample library: the app's own samples first, then every other dataset in graph-samples'
  * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
  * past the element's published ceilings is left out: its tile could only open an empty graph.
  * @param samples - The app's own samples.
@@ -211,7 +215,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                picture: dataset === undefined ? undefined : pictureOf(dataset),
+                picture: dataset === undefined ? sample.picture : pictureOf(dataset),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: ({ store }: LibraryActions) => {

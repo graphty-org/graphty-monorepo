@@ -67,16 +67,18 @@ describe("the start screen", () => {
             "Open the College football sample",
             "Open the Florentine families sample",
         ]);
-        // Then graph-samples' other datasets, the large ones too, without a second copy of the four,
-        // and without the three past graphty-element's ceilings (road-ny, com-dblp, ogbn-arxiv).
-        assert.lengthOf(names, 19);
+        // Then the two timed samples, then graph-samples' other datasets, the large ones too, without a
+        // second copy of the four, and without the three past graphty-element's ceilings (road-ny,
+        // com-dblp, ogbn-arxiv).
+        assert.deepEqual(names.slice(4, 6), ["Open the Office email sample", "Open the Paper citations sample"]);
+        assert.lengthOf(names, 21);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
         // Each shows the picture graph-samples publishes of its graph, the large ones and every
         // generator too, and the picture loads: no tile shows the plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
         for (const [i, picture] of pictures.entries()) {
-            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z0-9-]+\.webp$/, names[i] ?? "");
+            assert.match(picture?.src ?? "", /\/(data\/graph-samples\/v1|samples)\/[a-z0-9-]+\.webp$/, names[i] ?? "");
         }
         const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
             name: /^Generate a graph: /,
@@ -128,7 +130,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 19);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 21);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {

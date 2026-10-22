@@ -216,7 +216,8 @@ describe("the start page in the app's frame", () => {
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        assert.lengthOf(offered, opens.length);
+        // Plus the app's two timed samples, which have no graph-samples dataset.
+        assert.lengthOf(offered, opens.length + 2);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -237,6 +238,24 @@ describe("the start page in the app's frame", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
+        assert.isNull(store.get().notice);
+    });
+
+    it("opens the timed office email sample, every email an edge with its sent time", async () => {
+        const store = await startPage();
+
+        await userEvent.click(screen.getByRole("button", { name: "Open the Office email sample" }));
+        await waitFor(
+            () => {
+                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                    "graphty-element:not([data-start-page])",
+                );
+                assert.equal(element?.session.data.statistics().nodeCount, 48);
+                assert.equal(element?.session.data.statistics().edgeCount, 2102);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.equal(store.get().project?.name, "Office email");
         assert.isNull(store.get().notice);
     });
 

@@ -108,7 +108,7 @@ async function pickNebula(): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
     const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
-    await userEvent.click(within(gallery).getByRole("radio", { name: "Nebula" }));
+    await userEvent.click(within(gallery).getByRole("button", { name: "Nebula" }));
 }
 
 /**
@@ -205,7 +205,7 @@ describe("the graph's shader settings", () => {
             .shaders()
             .filter((shader) => shader.target === "background")
             .map((shader) => shader.plainName);
-        const tiles = within(within(gallery).getByRole("radiogroup", { name: "Shaders" })).getAllByRole("radio");
+        const tiles = within(within(gallery).getByRole("group", { name: "Shaders" })).getAllByRole("button");
         assert.isAbove(tiles.length, 0);
         assert.sameMembers(
             tiles.map((tile) => tile.getAttribute("aria-label")),

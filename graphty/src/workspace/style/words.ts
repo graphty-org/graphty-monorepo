@@ -1244,6 +1244,9 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     edge: "Line option",
 };
 
+/** The code dialog's link to the published guide to writing a shader. */
+export const PASTE_GUIDE_WORDS = "How to write one";
+
 /** The gallery's words: its search box, the last tile, and an empty result. */
 export const GALLERY_WORDS = {
     search: (tab: ShaderTab): string => (tab === "background" ? "Find background shader" : `Find ${tab} shader`),
@@ -1253,6 +1256,20 @@ export const GALLERY_WORDS = {
     place: "Place",
     origin: "Origin",
     project: "This project",
+    inUse: "In use",
+} as const;
+
+/**
+ * What a shader row's move announces, and its handle's position: "Pearl moved to 2 of 3",
+ * "Pearl is already first", "2 of 3".
+ */
+export const SHADER_MOVE_WORDS = {
+    moved: (shader: string, at: number, count: number): string =>
+        `${shader} moved to ${String(at)} of ${String(count)}`,
+    end: (shader: string, first: boolean): string => `${shader} is already ${first ? "first" : "last"}`,
+    position: (at: number, count: number): string => `${String(at)} of ${String(count)}`,
+    up: "Move up",
+    down: "Move down",
 } as const;
 
 /**

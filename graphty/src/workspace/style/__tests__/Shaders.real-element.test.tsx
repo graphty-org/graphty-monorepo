@@ -110,7 +110,7 @@ describe("style options and the Shaders gallery", () => {
         await userEvent.click(within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }));
         const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
         await userEvent.keyboard("glow");
-        const tile = await within(gallery).findByRole("radio", { name: "Glow" });
+        const tile = await within(gallery).findByRole("button", { name: "Glow" });
         assert.include(tile.textContent, "Shape option");
     });
 

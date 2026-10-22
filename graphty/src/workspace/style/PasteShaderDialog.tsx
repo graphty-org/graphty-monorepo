@@ -1,7 +1,7 @@
 import { ModalFooter, PanelField } from "@graphty/compact-mantine";
 import { type ShaderParams, type ShaderPlace, shaderTemplate } from "@graphty/graphty-element/catalog";
 import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/session";
-import { Button, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import { Anchor, Button, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -12,6 +12,7 @@ import {
     failureWords,
     FIRST_PLACE,
     GALLERY_WORDS,
+    PASTE_GUIDE_WORDS,
     PASTE_WAIT_WORDS,
     pasteProblemsWord,
     pasteProblemWords,
@@ -19,6 +20,9 @@ import {
     type ShaderTab,
     targetOfPlace,
 } from "./words";
+
+/** The published guide to writing a shader, which the dialog links to. */
+const SHADER_GUIDE_URL = "https://graphty.app/docs/graphty-element/guide/shaders";
 
 /** How long typing pauses before the text is checked. */
 const CHECK_PAUSE_MS = 300;
@@ -131,15 +135,21 @@ export function PasteShaderDialog({
         }
         const timer = setTimeout(() => {
             void session.shaders.check(text, options).then((checked) => {
-                if (textNow.current === text) {
-                    setResult(checked);
+                if (textNow.current !== text) {
+                    return;
+                }
+                setResult(checked);
+                // A place the text's own header names is where it draws: the field shows it.
+                const named = checked.ok ? checked.descriptor.place : undefined;
+                if (named !== undefined && named !== place && places.includes(named)) {
+                    setPlace(named);
                 }
             });
         }, CHECK_PAUSE_MS);
         return () => {
             clearTimeout(timer);
         };
-        // The options are the target and place, which the dependencies name.
+        // The options are the target and place, which the dependencies name; places follows tab.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session, text, target, place]);
 
@@ -283,6 +293,9 @@ export function PasteShaderDialog({
                         setText(event.currentTarget.value);
                     }}
                 />
+                <Anchor href={SHADER_GUIDE_URL} target="_blank" rel="noopener noreferrer" size="xs">
+                    {PASTE_GUIDE_WORDS}
+                </Anchor>
                 {problems.length > 0 && (
                     <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
                         role="list"

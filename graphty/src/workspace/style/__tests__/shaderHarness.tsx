@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { Workspace } from "../../Workspace";
 import { StylePanel } from "../StylePanel";
@@ -78,8 +78,9 @@ export async function mountElement(): Promise<Mounted> {
  * @param row - the row's layers.
  * @param width - the panel's width.
  */
-export function renderPanel(mounted: Mounted, row: LayerId[], width = 300): void {
-    const value = makeWorkspaceValue(createWorkspaceStore(), createRegistry([]), mounted.session, mounted.element);
+export function renderPanel(mounted: Mounted, row: LayerId[], width = 300): WorkspaceStore {
+    const store = createWorkspaceStore();
+    const value = makeWorkspaceValue(store, createRegistry([]), mounted.session, mounted.element);
     render(
         <WorkspaceContext.Provider value={value}>
             <PopoutManager>
@@ -89,6 +90,7 @@ export function renderPanel(mounted: Mounted, row: LayerId[], width = 300): void
             </PopoutManager>
         </WorkspaceContext.Provider>,
     );
+    return store;
 }
 
 /**

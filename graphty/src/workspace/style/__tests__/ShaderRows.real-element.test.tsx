@@ -4,7 +4,7 @@
  * named shader at its own place with focus on the new row, the Place dropdown lists only the
  * places a shader allows and moves it without touching the shape, which reads "Hidden" while the
  * shader draws instead of the node; rows reorder by drag and by Alt+Up; the settings show Minimum
- * size only for a shader that declares it; the tiles are a radio group the arrows move through;
+ * size only for a shader that declares it; the tiles are buttons the arrows move through;
  * and the panel never says Effects, Material, On top, On enter or On change. Every assertion reads
  * what the element reports: the layer stack, and what the panel shows.
  */
@@ -112,7 +112,7 @@ describe("the Shaders section", () => {
         const aura = idOf(mounted.session, "Aura");
         const reticle = idOf(mounted.session, "Reticle");
         const layer = await addNodeLayer(mounted.session, { "node.shaders": [{ shader: aura }, { shader: reticle }] });
-        renderPanel(mounted, [layer]);
+        const store = renderPanel(mounted, [layer]);
         const order = (): string[] => usesOn(mounted.session, layer).map((use) => use.shader);
 
         const [first, second] = await waitFor(() => {
@@ -134,6 +134,36 @@ describe("the Shaders section", () => {
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
         await waitFor(() => {
             assert.deepEqual(order(), [aura, reticle]);
+        });
+        assert.strictEqual(store.get().announcement, "Aura moved to 1 of 2", "a move says where the row went");
+        await waitFor(() => {
+            assert.match(document.activeElement?.getAttribute("aria-description") ?? "", /^1 of 2\./);
+        });
+        await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+        assert.strictEqual(store.get().announcement, "Aura is already first");
+        assert.deepEqual(order(), [aura, reticle]);
+    });
+
+    it("Move down in a row's right-click menu reorders without dragging; Move up is off on the first row", async () => {
+        const mounted = await mountElement();
+        const aura = idOf(mounted.session, "Aura");
+        const reticle = idOf(mounted.session, "Reticle");
+        const layer = await addNodeLayer(mounted.session, { "node.shaders": [{ shader: aura }, { shader: reticle }] });
+        renderPanel(mounted, [layer]);
+        const [first] = await waitFor(() => {
+            const rows = shaderRows();
+            assert.lengthOf(rows, 2);
+            return rows;
+        });
+        await userEvent.click(within(first).getByText("Aura"), { button: "right" });
+        const up = await screen.findByRole("menuitem", { name: "Move up" });
+        assert.isTrue(up.hasAttribute("data-disabled") || up.getAttribute("aria-disabled") === "true");
+        await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+        await waitFor(() => {
+            assert.deepEqual(
+                usesOn(mounted.session, layer).map((use) => use.shader),
+                [reticle, aura],
+            );
         });
     });
 
@@ -167,22 +197,75 @@ describe("the Shaders section", () => {
         assert.isNull(minimumSize(), "Frost declares no minimum size");
     });
 
-    it("the gallery's tiles are a radio group the arrow keys move through", async () => {
+    it("a shader added through the API shows a row like a built-in: name, Place dropdown, Minimum size", async () => {
         const mounted = await mountElement();
-        const layer = await addNodeLayer(mounted.session);
+        const added = await mounted.session.shaders.add(`/* graphty-shader 1
+{ "id": "acme/ring", "name": "Ring", "place": "around", "minSize": 40,
+  "params": [{ "name": "tint", "type": "color", "default": "#ffcc00" }] }
+*/
+vec4 shade(NodeInput n) {
+    float ring = 1.0 - smoothstep(0.0, 0.1, abs(length(n.uv) - 1.2));
+    return vec4(tint, ring);
+}
+`);
+        assert.isTrue(added.ok, JSON.stringify(added));
+        const ring = added.ok ? added.descriptor.id : "";
+        const layer = await addNodeLayer(mounted.session, { "node.shaders": [{ shader: ring }] }, "Ring on hover");
         renderPanel(mounted, [layer]);
+        const [row] = await waitFor(() => {
+            const rows = shaderRows();
+            assert.lengthOf(rows, 1);
+            return rows;
+        });
+        assert.include(row.textContent, "Ring");
+        const place = within(row).getByLabelText<HTMLInputElement>(/^Place of Ring/);
+        assert.strictEqual(place.value, "Around");
+
+        await userEvent.click(within(row).getByRole("button", { name: "Ring settings" }));
+        const minimum = await waitFor(() => {
+            const found = minimumSize();
+            assert.isNotNull(found, "a declared minimum size is a setting");
+            return found;
+        });
+        assert.equal(minimum.querySelector("input")?.value, "40");
+    });
+
+    it("the gallery's tiles are buttons the arrow keys move through, each describing what it shows", async () => {
+        const mounted = await mountElement();
+        const layer = await addNodeLayer(mounted.session, {
+            "node.shaders": [{ shader: idOf(mounted.session, "Reticle") }],
+        });
+        renderPanel(mounted, [layer]);
+        await waitFor(() => {
+            assert.lengthOf(shaderRows(), 1);
+        });
         const gallery = await openGallery();
-        const tiles = within(gallery).getByRole("radiogroup", { name: "Shaders" });
-        const radios = within(tiles).getAllByRole("radio");
-        assert.isAbove(radios.length, 2);
+        const tiles = within(gallery).getByRole("group", { name: "Shaders" });
+        const buttons = within(tiles)
+            .getAllByRole("button")
+            .filter((tile) => !tile.hasAttribute("aria-disabled"));
+        assert.isAbove(buttons.length, 2);
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, radios[0]);
+            assert.include(buttons, document.activeElement);
         });
+        const first = document.activeElement as HTMLElement;
+        const at = buttons.indexOf(first);
         await userEvent.keyboard("{ArrowRight}");
-        assert.strictEqual(document.activeElement, radios[1]);
+        assert.strictEqual(document.activeElement, buttons[at + 1]);
         await userEvent.keyboard("{ArrowLeft}");
-        assert.strictEqual(document.activeElement, radios[0]);
+        assert.strictEqual(document.activeElement, first);
+
+        // A screen reader hears the tile's place, facts and whether it is already in use.
+        const described = (name: string): string => {
+            const tile = within(tiles).getByRole("button", { name });
+            return document.getElementById(tile.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
+        };
+        const reticle = described("Reticle");
+        assert.include(reticle, "In use");
+        assert.include(reticle, "Around");
+        assert.include(reticle, "Animates");
+        assert.notInclude(described("Pearl"), "In use");
     });
 
     it("no element of the panel says On enter, On change, Effects, Material or On top", async () => {

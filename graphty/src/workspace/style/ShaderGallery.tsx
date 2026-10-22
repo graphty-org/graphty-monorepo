@@ -1,8 +1,8 @@
 import { ContextMenu } from "@graphty/compact-mantine";
-import type { ShaderDescriptor, ShaderPlace } from "@graphty/graphty-element/catalog";
+import { shaderAnimates, type ShaderDescriptor, type ShaderPlace } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Chip, Group, Menu, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import { Chip, Group, Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import {
@@ -107,18 +107,6 @@ export function PlaceDiagram({
 }
 
 /**
- * Whether a shader animates: it loops, or a parameter is bound to a clock by default.
- * @param descriptor - the catalog's entry.
- * @returns true when it moves.
- */
-function animates(descriptor: ShaderDescriptor): boolean {
-    return (
-        descriptor.motion.loop !== undefined ||
-        descriptor.params.some((param) => typeof param.default === "object" && param.default !== null)
-    );
-}
-
-/**
  * The tile's three neutral facts as small icons, each with its words as its text alternative:
  * whether it animates, its cost, whether it reacts to the scene's light.
  * @param props - Component props
@@ -126,18 +114,9 @@ function animates(descriptor: ShaderDescriptor): boolean {
  * @returns The icons
  */
 export function ShaderFacts({ descriptor }: Readonly<{ descriptor: ShaderDescriptor }>): React.JSX.Element {
-    const facts = [
-        ...(animates(descriptor)
-            ? [{ key: "animates", icon: GLYPHS.animates, words: SHADER_FACT_WORDS.animates }]
-            : []),
-        { key: "cost", icon: GLYPHS.cost, words: SHADER_FACT_WORDS.cost(descriptor.cost) },
-        ...(descriptor.reads.includes("light")
-            ? [{ key: "light", icon: GLYPHS.light, words: SHADER_FACT_WORDS.light }]
-            : []),
-    ];
     return (
         <span className="ws-shader-facts">
-            {facts.map(({ key, icon: Icon, words }) => (
+            {factsOf(descriptor).map(({ key, icon: Icon, words }) => (
                 <span
                     key={key}
                     role="img"
@@ -151,6 +130,23 @@ export function ShaderFacts({ descriptor }: Readonly<{ descriptor: ShaderDescrip
             ))}
         </span>
     );
+}
+
+/**
+ * A shader's three neutral facts, each with its icon and its words.
+ * @param descriptor - the shader
+ * @returns The facts that apply, in order.
+ */
+function factsOf(descriptor: ShaderDescriptor): { key: string; icon: (typeof GLYPHS)["cost"]; words: string }[] {
+    return [
+        ...(shaderAnimates(descriptor)
+            ? [{ key: "animates", icon: GLYPHS.animates, words: SHADER_FACT_WORDS.animates }]
+            : []),
+        { key: "cost", icon: GLYPHS.cost, words: SHADER_FACT_WORDS.cost(descriptor.cost) },
+        ...(descriptor.reads.includes("light")
+            ? [{ key: "light", icon: GLYPHS.light, words: SHADER_FACT_WORDS.light }]
+            : []),
+    ];
 }
 
 /**
@@ -254,7 +250,7 @@ interface ShaderGalleryProps {
 /**
  * The one shader gallery (decisions-v2, section 2.2), the same from the Node tab, the Edge tab and
  * the Background: a search field with focus; under it a place filter phrased as what the reader
- * wants, then the origin filter, both rows of chips that wrap; then the tiles, a radio group the
+ * wants, then the origin filter, both rows of chips that wrap; then the tiles, buttons the
  * arrows move through, each its picture, name, place badge and the animates, cost and light facts;
  * "New shader..." last. A search also finds the tab's own style options (Outline, Glow, Halo,
  * Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
@@ -328,6 +324,17 @@ export function ShaderGallery({
     };
     const tile = (descriptor: ShaderDescriptor): React.JSX.Element => {
         const reason = reasons.get(descriptor.id);
+        const inUse = marked.includes(descriptor.id);
+        // What a screen reader hears after the name: what the tile shows besides it.
+        const description = [
+            reason,
+            inUse ? GALLERY_WORDS.inUse : undefined,
+            tab === "background" ? undefined : placeWords(descriptor.place, tab),
+            ...factsOf(descriptor).map((fact) => fact.words),
+            reason === undefined ? originWords(descriptor) : undefined,
+        ]
+            .filter((part) => part !== undefined)
+            .join(", ");
         const button = (
             <GalleryTile
                 key={descriptor.id}
@@ -344,8 +351,9 @@ export function ShaderGallery({
                 }
                 facts={<ShaderFacts descriptor={descriptor} />}
                 second={reason ?? originWords(descriptor)}
+                description={description}
                 disabled={reason !== undefined}
-                marked={marked.includes(descriptor.id)}
+                marked={inUse}
                 stop={tabStop === descriptor.id}
                 onPick={pick}
             />
@@ -436,13 +444,14 @@ export function ShaderGallery({
                     ))}
                 </Group>
             </Chip.Group>
-            <div className="ws-gallery-grid" role="radiogroup" aria-label={GALLERY_WORDS.tiles}>
+            <div className="ws-gallery-grid" role="group" aria-label={GALLERY_WORDS.tiles}>
                 {found.map((option) => (
                     <GalleryTile
                         key={option.key}
                         id={`option:${option.key}`}
                         name={option.label}
                         second={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
+                        description={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
                         marked={false}
                         stop={tabStop === `option:${option.key}`}
                         onPick={pick}
@@ -474,9 +483,10 @@ export function ShaderGallery({
 }
 
 /**
- * One gallery tile, a radio of the tiles' group: the picture, the name, the place badge and the
- * facts, and a second line when there is one (its origin, an option's section, or why it cannot be
- * picked).
+ * One gallery tile, a button that adds what it shows: the picture, the name, the place badge and
+ * the facts, and a second line when there is one (its origin, an option's section, or why it cannot
+ * be picked). Its name is the shader's name; everything else it shows, and whether it is already in
+ * use, is its description, so a screen reader hears it all and not only the name.
  * @param props - Component props
  * @param props.id - what a pick hands back
  * @param props.name - the name
@@ -484,6 +494,7 @@ export function ShaderGallery({
  * @param props.badge - the place badge
  * @param props.facts - the facts' icons
  * @param props.second - the second line
+ * @param props.description - what it says after its name: its place, facts, origin, whether in use
  * @param props.disabled - whether it cannot be picked here
  * @param props.marked - whether it is already in the list
  * @param props.stop - whether it is the gallery's one Tab stop
@@ -497,6 +508,7 @@ function GalleryTile({
     badge,
     facts,
     second,
+    description,
     disabled = false,
     marked,
     stop,
@@ -511,23 +523,23 @@ function GalleryTile({
         badge?: React.ReactNode;
         facts?: React.ReactNode;
         second?: string;
+        description?: string;
         disabled?: boolean;
         marked: boolean;
         stop: boolean;
         onPick: (id: string) => void;
     }
 >): React.JSX.Element {
+    const describedBy = useId();
     const button = (
         <UnstyledButton
             {...handlers}
             className="ws-gallery-tile"
-            role="radio"
-            aria-checked={marked}
             aria-label={name}
+            aria-describedby={description === undefined || description === "" ? undefined : describedBy}
             data-shader={id}
             data-marked={marked ? "" : undefined}
             aria-disabled={disabled ? true : undefined}
-            aria-description={disabled ? second : undefined}
             tabIndex={stop && !disabled ? 0 : -1}
             onClick={() => {
                 if (!disabled) {
@@ -535,6 +547,11 @@ function GalleryTile({
                 }
             }}
             onKeyDown={(event) => {
+                // A project tile's context menu opens on Shift+F10 and the ContextMenu key.
+                handlers.onKeyDown?.(event);
+                if (event.defaultPrevented) {
+                    return;
+                }
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     if (!disabled) {
@@ -557,6 +574,9 @@ function GalleryTile({
                 <Text size="xs" c="dimmed" truncate>
                     {second}
                 </Text>
+            )}
+            {description !== undefined && description !== "" && (
+                <VisuallyHidden id={describedBy}>{description}</VisuallyHidden>
             )}
         </UnstyledButton>
     );

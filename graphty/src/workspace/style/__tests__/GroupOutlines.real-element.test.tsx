@@ -119,7 +119,7 @@ async function openGallery(): Promise<HTMLElement> {
  */
 async function addShader(name: string): Promise<void> {
     const gallery = await openGallery();
-    await userEvent.click(await within(gallery).findByRole("radio", { name }));
+    await userEvent.click(await within(gallery).findByRole("button", { name }));
     await waitFor(() => {
         assert.isNull(screen.queryByTestId("shader-gallery"), "the pick closes the gallery");
     });
@@ -293,13 +293,13 @@ describe("group outlines, Around the group in the gallery", () => {
         await userEvent.click(
             within(within(gallery).getByRole("radiogroup", { name: "Place" })).getByText("Around the group"),
         );
-        const tiles = within(within(gallery).getByRole("radiogroup", { name: "Shaders" })).getAllByRole("radio");
+        const tiles = within(within(gallery).getByRole("group", { name: "Shaders" })).getAllByRole("button");
         assert.sameMembers(
             tiles.map((tile) => tile.getAttribute("aria-label")),
             ["Hull", "Soap bubble"],
             "only the group outlines",
         );
-        await userEvent.click(within(gallery).getByRole("radio", { name: "Hull" }));
+        await userEvent.click(within(gallery).getByRole("button", { name: "Hull" }));
         await waitFor(() => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
         });

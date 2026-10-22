@@ -128,6 +128,23 @@ describe("the code dialog on the real element", () => {
         await page.viewport(1024, 768);
     });
 
+    it("pasted text whose header names Around turns the place field to Around; the guide is linked", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
+        assert.strictEqual(place.value, "On the node");
+        await userEvent.fill(box, FIXED_TEXT);
+        await waitFor(
+            () => {
+                assert.strictEqual(place.value, "Around", "the header's place is where it draws");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const guide = within(dialog).getByRole("link", { name: "How to write one" });
+        assert.strictEqual(guide.getAttribute("href"), "https://graphty.app/docs/graphty-element/guide/shaders");
+    });
+
     it("with the Behind chip, New shader... opens with Behind in its place field and the behind template", async () => {
         await mount();
         const box = await openNew("Behind");
@@ -289,7 +306,7 @@ describe("the code dialog on the real element", () => {
         await userEvent.click(
             within(within(gallery).getByRole("radiogroup", { name: "Origin" })).getByText("This project"),
         );
-        const tile = await within(gallery).findByRole("radio", { name: "Pulse ring" });
+        const tile = await within(gallery).findByRole("button", { name: "Pulse ring" });
         await userEvent.click(tile, { button: "right" });
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete from project/ }));
         await waitFor(() => {
@@ -299,6 +316,26 @@ describe("the code dialog on the real element", () => {
         await session.undo();
         await waitFor(() => {
             assert.lengthOf(session.shaders.list(), 1);
+        });
+    });
+
+    it("Shift+F10 on a focused project tile opens its menu with Delete from project ready for Enter", async () => {
+        const { session } = await mount();
+        const added = await session.shaders.add(FIXED_TEXT);
+        assert.isTrue(added.ok);
+
+        const gallery = await openGallery();
+        await userEvent.click(
+            within(within(gallery).getByRole("radiogroup", { name: "Origin" })).getByText("This project"),
+        );
+        const tile = await within(gallery).findByRole("button", { name: "Pulse ring" });
+        tile.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await screen.findByRole("menuitem", { name: /^Delete from project/ });
+        // Opened from the keyboard, the first row is highlighted, so Enter acts on it at once.
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.lengthOf(session.shaders.list(), 0);
         });
     });
 

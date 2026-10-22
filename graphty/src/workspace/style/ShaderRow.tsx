@@ -35,6 +35,7 @@ import {
     GALLERY_WORDS,
     GROUP_BY_WORDS,
     placeWords,
+    SHADER_MOVE_WORDS,
     shaderProblemWords,
 } from "./words";
 
@@ -365,8 +366,9 @@ function useRowDrag(
  * One row of a tab's Shaders section (decisions-v2, section 2.1): a drag handle, the picture, the
  * name, the place (a Place dropdown when the shader allows more than one, else a static label), the
  * settings button and a minus. Rows reorder by dragging the handle, or by Alt+Up and Alt+Down; the
- * order is the draw order inside one place. A group outline also has its Group by line. A
- * right-click opens Copy code, Duplicate and edit, and Remove. Every write is one undo step.
+ * order is the draw order inside one place; a move says where the row went. A group outline also
+ * has its Group by line. A right-click (or a long press) opens Copy code, Duplicate and edit, Move
+ * up, Move down and Remove, so a pointer can reorder without dragging. Every write is one undo step.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.entry - the row's use
@@ -408,6 +410,15 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
             .catch(fail("copied"));
     };
     const duplicate = duplicateAction(ctx, entry, name, onCode, fail);
+    // Moves the row by one, and says where it went, or that it is already at the end.
+    const move = (to: number): void => {
+        if (to < 0 || to >= count) {
+            store.set({ announcement: SHADER_MOVE_WORDS.end(name, to < 0) });
+            return;
+        }
+        store.set({ announcement: SHADER_MOVE_WORDS.moved(name, to + 1, count) });
+        onMove(entry.index, to);
+    };
     const removeName = `Remove ${name.toLowerCase()}`;
     const row = (
         <div // NOSONAR(S6848): catches Alt+Up and Alt+Down bubbling from the row's own controls to reorder it
@@ -427,10 +438,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
                     return;
                 }
                 event.preventDefault();
-                const to = entry.index + (event.key === "ArrowUp" ? -1 : 1);
-                if (to >= 0 && to < count) {
-                    onMove(entry.index, to);
-                }
+                move(entry.index + (event.key === "ArrowUp" ? -1 : 1));
             }}
         >
             <div className="ws-field" data-shader-use="">
@@ -441,7 +449,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
                         size="sm"
                         className="ws-drag-handle"
                         aria-label={`Move ${name.toLowerCase()}`}
-                        aria-description="Drag, or Alt+Up and Alt+Down"
+                        aria-description={`${SHADER_MOVE_WORDS.position(entry.index + 1, count)}. Drag, or Alt+Up and Alt+Down`}
                         {...handlers}
                     >
                         <GLYPHS.drag size={14} aria-hidden />
@@ -480,6 +488,26 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
             <ContextMenu target={row}>
                 {descriptor !== undefined && <Menu.Item onClick={copy}>Copy code</Menu.Item>}
                 {duplicate !== undefined && <Menu.Item onClick={duplicate}>Duplicate and edit</Menu.Item>}
+                {count > 1 && (
+                    <Menu.Item
+                        disabled={entry.index === 0}
+                        onClick={() => {
+                            move(entry.index - 1);
+                        }}
+                    >
+                        {SHADER_MOVE_WORDS.up}
+                    </Menu.Item>
+                )}
+                {count > 1 && (
+                    <Menu.Item
+                        disabled={entry.index === count - 1}
+                        onClick={() => {
+                            move(entry.index + 1);
+                        }}
+                    >
+                        {SHADER_MOVE_WORDS.down}
+                    </Menu.Item>
+                )}
                 <Menu.Item onClick={remove}>Remove</Menu.Item>
             </ContextMenu>
             {placeOf(entry) === "group" && use.off !== true && <GroupByLine ctx={ctx} entry={entry} fail={fail} />}

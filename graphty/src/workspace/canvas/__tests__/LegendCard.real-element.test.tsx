@@ -521,6 +521,28 @@ describe("the canvas key on the real element", () => {
             ["Aura"],
         );
 
+        // A shader a project adds is named by its catalog name, as a built-in is.
+        const added = await session.shaders.add(`/* graphty-shader 1
+{ "id": "acme/sticker", "name": "Sticker", "place": "replace" }
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb, step(length(n.uv), 0.9));
+}
+`);
+        assert.isTrue(added.ok, JSON.stringify(added));
+        const sticker = added.ok ? added.descriptor.id : "";
+        await session.styles.update(layer.id, {
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }, { shader: sticker }] },
+        });
+        await session.styles.settled();
+        await waitFor(() => {
+            const now = within(legend).getByRole("group", { name: "Shaders: Glowing" });
+            assert.deepEqual(
+                [...now.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+                ["Aura, Sticker"],
+            );
+        });
+
         // A shader the layer turns off draws nothing, so its block goes: no empty "Shaders" block.
         await session.styles.update(layer.id, { set: { "node.shaders": [{ shader: "uncertainty-aura", off: true }] } });
         await session.styles.settled();

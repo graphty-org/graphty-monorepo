@@ -106,14 +106,19 @@ check that would pass whatever the app did is no check.
 
 ## Changing a check
 
-The author of a UI change may re-record a route's steps. Removing or changing an existing outcome
-check -- or a helper or reader it uses -- is refused by `node tools/dry-run-check-guard.mjs`, which
-compares them with the merge base with `origin/golden`. Adding routes, checks, helpers and readers
-is free.
+The author of a UI change may re-record a route's steps: its `walk`, and any function in
+`routes.mjs` that only walks use. Everything that decides whether a route passes is protected:
+every check, a route's other properties, the imports and every declaration of `routes.mjs` a check
+uses (directly or through another), and all of `readers.mjs` and `run.mjs`. The pre-push gate runs
+`pnpm run check:dry-run-checks`, which compares them, without comments or layout, with the merge
+base with `origin/golden`, and refuses a branch that removes or changes one. Adding routes, checks,
+helpers and readers is free. A walk or a step that writes to something protected (`assert.ok = ...`,
+`this.checks = ...`) is always refused.
 
 When a check is wrong, change it on a branch of its own, from a different session than the change
-it failed on, holding only that change: every file the branch changes is under `graphty/dry-run/`,
-and every commit says why in a trailer:
+it failed on, holding only that change: every file its commits change is under `graphty/dry-run/`,
+and every commit says why in a trailer. Merge commits, such as the merge of `origin/golden` before
+the final tests, need no trailer, and commits already on `origin/master` are not counted.
 
 ```
 fix(graphty): read a team's name from its label column

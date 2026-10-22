@@ -14,8 +14,10 @@
  *    (tools/dry-run-check-guard.mjs). Each check is retried until it passes or 15 seconds pass, so it
  *    waits on its condition, never on a clock.
  *
- * This file imports nothing but node:assert, so tools/dry-run-check-guard.mjs can load any version
- * of it from git.
+ * tools/dry-run-check-guard.mjs reads this file without running it: every route's `checks` and
+ * other properties, every import, and every top-level declaration a check uses (directly or through
+ * another) are protected. A declaration only the walks use is a step, free to change, and may not
+ * write to anything protected.
  */
 import assert from "node:assert/strict";
 

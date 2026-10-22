@@ -16,9 +16,9 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, cardOf, keyOf, leafOf, newCard } from "../style/cards";
 import { keystrokeTarget } from "../style/useFocusLine";
 import { CardBody } from "../style/WhichPicker";
-import { focusBrush, reportTimeError, unitOf } from "../time/timeActions";
+import { reportTimeError, unitOf } from "../time/timeActions";
 import { countWords, windowWords } from "../time/timeWords";
-import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
+import { countStep, NEW, newId, offersTime, openStepEditor, stepWords, TIME_ROW, writeSteps } from "./filterSteps";
 import {
     applyName,
     applyTip,
@@ -36,6 +36,7 @@ import {
     statusWords,
     type StepMissing,
 } from "./filterWords";
+import { TimeCard } from "./TimeCard";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** What is left before the first step and after each step that is on, by step id. */
@@ -100,9 +101,6 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
     return outcomes;
 }
 
-/** The Filters row that stands for the time window. */
-const TIME_ROW = "time-window";
-
 /**
  * The Filters section: one row per step, as a sentence (its outcome on the row's second line)
  * and its Apply this step checkbox. "+" opens the step editor; a row opens it on that step; the
@@ -136,7 +134,8 @@ export function FiltersSection(): React.JSX.Element {
     };
 
     let before = outcomes?.start;
-    const window = session?.time.field === null ? null : (session?.time.current ?? null);
+    const timed = session !== null && session.time.field !== null;
+    const window = timed ? session.time.current : null;
     const stepItems: TreeNodeData[] = steps.map((step) => {
         const words = session === null ? "" : stepWords(session, step);
         const after = step.on ? outcomes?.after.get(step.id) : undefined;
@@ -172,30 +171,37 @@ export function FiltersSection(): React.JSX.Element {
         };
     });
 
-    // The time window is a filter row too: the same element state the dock moves, not a second
-    // window. Turning it off shows all time.
+    // The time window is a filter row too, while a time field is designated: the same element
+    // state the dock moves, not a second window. Its box turns the window on and off; the row opens
+    // its card.
     const items: TreeNodeData[] =
-        session === null || window === null
+        session === null || !timed
             ? stepItems
             : [
                   ...stepItems,
                   {
                       id: TIME_ROW,
-                      name: `Time ${windowWords(window, unitOf(session))}`,
+                      name: window === null ? "Time" : `Time ${windowWords(window, unitOf(session))}`,
                       icon: <GLYPHS.time size={14} aria-hidden />,
-                      description: `${countWords(session.visibility.summary.visibleNodes, "node")}, ${countWords(session.visibility.summary.visibleEdges, "edge")}`,
+                      description:
+                          window === null
+                              ? "off"
+                              : `${countWords(session.visibility.summary.visibleNodes, "node")}, ${countWords(session.visibility.summary.visibleEdges, "edge")}`,
                       descriptionVisible: true,
+                      dimmed: window === null,
                       strong: false,
                       actions: (
-                          <Tooltip label="Show all time">
+                          <Tooltip label={window === null ? "Apply the time window" : "Show all time"}>
                               <span data-pinned="">
                                   <Checkbox
                                       size="xs"
                                       aria-label="Apply the time window"
-                                      checked
-                                      onChange={() => {
+                                      checked={window !== null}
+                                      onChange={(event) => {
                                           session.time.pause();
-                                          session.time.window(null).then(() => undefined, reportTimeError(store));
+                                          session.time
+                                              .window(event.currentTarget.checked ? {} : null)
+                                              .then(() => undefined, reportTimeError(store));
                                       }}
                                   />
                               </span>
@@ -226,12 +232,12 @@ export function FiltersSection(): React.JSX.Element {
                     label="Filters"
                     items={items}
                     multiselect={false}
-                    selected={open !== undefined && steps.some((s) => s.id === open) ? [open] : []}
+                    selected={
+                        open !== undefined && (open === TIME_ROW || steps.some((s) => s.id === open)) ? [open] : []
+                    }
                     onSelect={(ids) => {
                         const id = ids.at(-1);
-                        if (id === TIME_ROW) {
-                            focusBrush();
-                        } else if (id !== undefined) {
+                        if (id !== undefined) {
                             openStepEditor(store, id);
                         }
                     }}
@@ -302,8 +308,8 @@ function usePreview(
     return preview?.key === key ? preview : null;
 }
 
-/** What a step keeps, as the editor's first field. */
-type Keep = "attribute" | "largest" | "neighbors";
+/** What a step keeps, as the editor's first field; `time` is the time window's card. */
+type Keep = "attribute" | "largest" | "neighbors" | "time";
 
 /** The editor's fields: what the step keeps, and for a value, the condition card that tests it. */
 interface Fields {
@@ -446,13 +452,15 @@ function sideOf(card: Card | null): CardField["on"] {
 /**
  * The Keep menu's choices.
  * @param neighbors - whether "the neighbors of the selection" is offered.
+ * @param time - whether "a time window" is offered.
  * @returns the choices.
  */
-function keepChoicesOf(neighbors: boolean): { value: string; label: string }[] {
+function keepChoicesOf(neighbors: boolean, time: boolean): { value: string; label: string }[] {
     return [
         { value: "attribute", label: "an attribute's value" },
         { value: "largest", label: "the largest component" },
         ...(neighbors ? [{ value: "neighbors", label: "the neighbors of the selection" }] : []),
+        ...(time ? [{ value: "time", label: "a time window" }] : []),
     ];
 }
 
@@ -480,7 +488,13 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     const steps = session?.visibility.steps ?? [];
     const step = steps.find((s) => s.id === id);
     const filled = id.startsWith(`${NEW}:`) ? id.slice(NEW.length + 1) : "";
-    const [fields, setFields] = useState<Fields>(() => (session === null ? BLANK : fieldsOf(session, step, filled)));
+    const timeRow = id === TIME_ROW;
+    const [fields, setFields] = useState<Fields>(() => {
+        if (timeRow) {
+            return { ...BLANK, keep: "time" };
+        }
+        return session === null ? BLANK : fieldsOf(session, step, filled);
+    });
     // What the editor opened with, so leaving a new step says it was not added only after an edit.
     const opened = useRef(fields);
     const set = (next: Partial<Fields>): void => {
@@ -537,10 +551,13 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // A step that would hide every node is never written: it is a value no node holds.
     const none = preview?.after.nodes === 0;
     // What the submit waits for, named in its tooltip while it is drawn disabled.
-    const missing = missingOf(rule, unchanged, fields.keep, card, none);
+    let missing = missingOf(rule, unchanged, fields.keep, card, none);
+    if (fields.keep === "time") {
+        missing = session?.time.field === null ? "attribute" : null;
+    }
     unadded.current = rule === null || session === null ? null : stepWords(session, { id: added, on: true, rule });
 
-    if (session === null || (step === undefined && id !== NEW && filled === "")) {
+    if (session === null || (step === undefined && id !== NEW && filled === "" && !timeRow)) {
         // Nothing to save on leaving: the step this editor was open on is gone (deleted), and the
         // last draw's save would write it back.
         leave.current = () => undefined;
@@ -552,11 +569,25 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     }
 
     // Neighbors is offered only with a selection to start from, or on a step that already has one.
-    const keepChoices = keepChoicesOf(seeds.length > 0 || fields.keep === "neighbors");
+    const keepChoices = keepChoicesOf(
+        seeds.length > 0 || fields.keep === "neighbors",
+        timeRow || fields.keep === "time" || offersTime(session),
+    );
     const choosable = stepFields(session);
     const attributeChoices = attributeChoicesOf(choosable);
 
     const commit = async (): Promise<void> => {
+        if (fields.keep === "time") {
+            // The window opens one step wide at the start of the data; the card stays open on it.
+            if (timeRow || session.time.field === null) {
+                return;
+            }
+            keep.current = false;
+            session.time.pause();
+            await session.time.window(session.time.current ?? {}).then(() => undefined, reportTimeError(store));
+            store.set({ inspected: { kind: "filter-step", id: TIME_ROW } });
+            return;
+        }
         // A press or Enter on an incomplete or unchanged rule adds nothing.
         if (rule === null || unchanged) {
             return;
@@ -632,7 +663,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                     event.preventDefault();
                     event.stopPropagation();
                     keep.current = false;
-                    focusStep(step?.id ?? PLUS);
+                    focusStep(step?.id ?? (timeRow ? TIME_ROW : PLUS));
                     store.set({
                         inspected: null,
                         announcement: cancelledWords(step === undefined ? null : stepWords(session, step)),
@@ -656,11 +687,12 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 value={fields.keep}
                 allowDeselect={false}
                 onChange={(value) => {
-                    if (value === "attribute" || value === "largest" || value === "neighbors") {
+                    if (value === "attribute" || value === "largest" || value === "neighbors" || value === "time") {
                         set({ keep: value });
                     }
                 }}
             />
+            {fields.keep === "time" && <TimeCard />}
             {fields.keep === "attribute" && (
                 <>
                     <Select
@@ -697,13 +729,13 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                     )}
                 </>
             )}
-            {rule !== null && preview !== null && (
+            {fields.keep !== "time" && rule !== null && preview !== null && (
                 // What the step would leave, in the words its row will use: "77 to 0 nodes".
                 <Text size="xs" c="dimmed">
                     {outcomeWords(true, preview.before, preview.after, overEdges({ id: added, on: true, rule }))}
                 </Text>
             )}
-            <Group gap="xs">
+            <Group gap="xs" hidden={timeRow}>
                 {/* Drawn disabled but focusable, so hover and focus show what is missing. */}
                 <Tooltip label={missing === null ? "" : missingTip(missing)} disabled={missing === null}>
                     <Button

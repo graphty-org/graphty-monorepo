@@ -47,6 +47,9 @@ export function stepWords(session: GraphSession, step: FilterStep): string {
     return ruleWords(step.rule, namerOf(session));
 }
 
+/** The Filters row, and the editor id, of the time window. */
+export const TIME_ROW = "time-window";
+
 /**
  * Opens the step editor in the inspector on the Data place.
  * @param store - the chrome store.
@@ -147,6 +150,9 @@ export function stepChange(session: GraphSession, fact: CodedFact<HistoryCode>):
  * @returns the name.
  */
 export function stepEditorName(session: GraphSession, id: string): string {
+    if (id === TIME_ROW) {
+        return "Time window";
+    }
     const step = session.visibility.steps.find((s) => s.id === id);
     return step === undefined ? "New filter step" : stepWords(session, step);
 }
@@ -158,4 +164,14 @@ export function stepEditorName(session: GraphSession, id: string): string {
  */
 export async function selectRule(session: Pick<GraphSession, "selection">, rule: RuleTree): Promise<void> {
     await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
+}
+
+/**
+ * Whether the graph has a column to put on a timeline: one designated, or one whose values read
+ * as time.
+ * @param session - the element's session.
+ * @returns true when the editor offers a time window.
+ */
+export function offersTime(session: GraphSession): boolean {
+    return session.time.field !== null || session.time.candidates().length > 0;
 }

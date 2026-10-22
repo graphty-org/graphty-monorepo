@@ -1,7 +1,7 @@
 /**
- * The timeline on the REAL graphty-element, driven by real input: the Time section designates the
- * time field and sets how windows move, the dock's brush is dragged with the mouse, Play and Pause
- * run the element's playback, the step buttons and keys move the window, and the header chip,
+ * The timeline on the REAL graphty-element, driven by real input: the Data place's Fields designate
+ * the time field, the Filters section's time card sets how windows move, the dock's brush is
+ * dragged with the mouse, Play and Pause run the element's smooth playback, the step buttons and keys move the window, and the header chip,
  * the Filters list, the Overview and Undo speak about it. Every assertion reads the element or
  * what the reader sees.
  */
@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, TimeStepEvent } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
@@ -64,12 +64,24 @@ function dataPlace(): ReturnType<typeof within> {
 }
 
 /**
- * Picks a column in the Time section's Time field menu, as the reader does.
+ * Picks a column in the Data place's Fields, Edge time (or Node time), as the reader does.
  * @param column - the option's name.
+ * @param row - the Fields row.
  */
-async function pickField(column: string): Promise<void> {
-    await userEvent.click(await dataPlace().findByRole("combobox", { name: "Time field" }));
+async function pickField(column: string, row: "Edge time" | "Node time" = "Edge time"): Promise<void> {
+    await userEvent.click(await dataPlace().findByRole("combobox", { name: row }));
     await userEvent.click(await screen.findByRole("option", { name: column }));
+}
+
+/**
+ * Opens the time window's card from the Filters section's Time row.
+ * @returns queries inside the card.
+ */
+async function timeCard(): Promise<ReturnType<typeof within>> {
+    if (screen.queryByTestId("time-card") === null) {
+        await userEvent.click(await dataPlace().findByRole("treeitem", { name: /^Time/ }));
+    }
+    return within(await screen.findByTestId("time-card"));
 }
 
 /**
@@ -86,12 +98,12 @@ async function designateSent(session: GraphSession): Promise<HTMLElement> {
 }
 
 /**
- * Picks an option of a Time section menu.
+ * Picks an option of a time card menu.
  * @param menu - the menu's name.
  * @param option - the option.
  */
 async function pickIn(menu: string, option: string | RegExp): Promise<void> {
-    await userEvent.click(await dataPlace().findByRole("combobox", { name: menu }));
+    await userEvent.click(await (await timeCard()).findByRole("combobox", { name: menu }));
     await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
@@ -109,14 +121,11 @@ describe("the timeline on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("designates the time field from the Time section, and the dock shows the data's span", async () => {
+    it("designates the time field from the Data place's Fields, and the dock shows the data's span", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
-        // The column that reads as time comes first in the menu.
-        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Time field" }));
-        const options = await screen.findAllByRole("option");
-        assert.equal(options[1].textContent, "sent", "after None, the time column");
-        await userEvent.click(options[1]);
+        assert.isNull(dataPlace().queryByRole("region", { name: "Time" }), "no Time section beside Fields");
+        await pickField("sent");
 
         const dock = await screen.findByRole("region", { name: "Timeline" });
         const extent = session.time.extent();
@@ -163,8 +172,8 @@ describe("the timeline on the real element", () => {
         // A step with no window only stores the step: every edge still shows.
         assert.isNull(session.time.current);
         assert.equal(session.visibility.summary.visibleEdges, 2102);
-        // Speed cycles 1x, 2x, 4x in the dock; the Time section no longer has a Speed row.
-        assert.isNull(dataPlace().queryByText("Speed"));
+        // Speed cycles 1x, 2x, 4x in the dock; the time card has no Speed row.
+        assert.isNull((await timeCard()).queryByText("Speed"));
         await userEvent.click(within(dock).getByRole("button", { name: "Speed 1x" }));
         await userEvent.click(within(dock).getByRole("button", { name: "Speed 2x" }));
         assert.equal(store.get().timeSpeed, 4);
@@ -180,7 +189,9 @@ describe("the timeline on the real element", () => {
         );
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         assert.isFalse(session.time.playing);
-        assert.equal(session.history.position, position + 1, "a play is one step");
+        await waitFor(() => {
+            assert.equal(session.history.position, position + 1, "a play is one step");
+        });
         await act(async () => {
             await session.undo();
         });
@@ -227,7 +238,9 @@ describe("the timeline on the real element", () => {
         const { session } = await open();
         const dock = await designateSent(session);
         await pickIn("Results", "Keep");
-        await userEvent.click(within(dataPlace().getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"));
+        await userEvent.click(
+            within((await timeCard()).getByRole("radiogroup", { name: "Mode" })).getByText("Cumulative"),
+        );
         await pickIn("Step", "Week");
         await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
         await waitFor(() => {
@@ -239,14 +252,15 @@ describe("the timeline on the real element", () => {
             assert.isNull(session.time.current);
         });
         assert.deepInclude(session.time.settings, { results: "keep", mode: "cumulative", step: "week" });
-        assert.equal(dataPlace().getByRole("combobox", { name: "Results" }).getAttribute("value"), "Keep");
-        assert.equal(dataPlace().getByRole("combobox", { name: "Step" }).getAttribute("value"), "Week");
+        const card = await timeCard();
+        assert.equal(card.getByRole("combobox", { name: "Results" }).getAttribute("value"), "Keep");
+        assert.equal(card.getByRole("combobox", { name: "Step" }).getAttribute("value"), "Week");
     });
 
     it("refuses a column with no times, leaving the field as it was", async () => {
         const { session, store } = await open();
         await designateSent(session);
-        await pickField("team");
+        await pickField("team", "Node time");
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "team has no times");
         });
@@ -324,10 +338,10 @@ describe("the timeline on the real element", () => {
         assert.equal(xs.size, 1, "the header after the time chip did not move");
     });
 
-    it("lines up the Time section's controls on one right edge", async () => {
+    it("lines up the time card's controls on one right edge", async () => {
         const { session } = await open();
         await designateSent(session);
-        const place = dataPlace();
+        const place = await timeCard();
         const rights = [
             place.getByRole("combobox", { name: "Time field" }),
             place.getByRole("combobox", { name: "Step" }),
@@ -435,7 +449,7 @@ describe("the Overview and the import of time", () => {
 
     it("suggests Number for a year column, and one press reads it as years", async () => {
         const { session, store } = await open(PAPERS);
-        await pickField("year");
+        await pickField("year", "Node time");
         await waitFor(() => {
             assert.equal(store.get().notice?.action?.label, "Number");
         });
@@ -466,7 +480,7 @@ describe("the Overview and the import of time", () => {
             config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,\n" },
         });
         await pickField("sent");
-        const untimed = await dataPlace().findByRole("radiogroup", { name: "Untimed" });
+        const untimed = await (await timeCard()).findByRole("radiogroup", { name: "Untimed" });
         await userEvent.click(
             screen.getByRole("region", { name: "Timeline" }).querySelector("[aria-label='Step forward']") as Element,
         );
@@ -474,6 +488,105 @@ describe("the Overview and the import of time", () => {
         await userEvent.click(within(untimed).getByText("Hide"));
         await waitFor(() => {
             assert.equal(live.visibility.summary.visibleEdges, shown - 1);
+        });
+    });
+
+    it("adds a time window as a filter step: Keep a time window, its field, Add step", async () => {
+        const { session } = await open();
+        await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter step" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "Keep" }));
+        await userEvent.click(await screen.findByRole("option", { name: "a time window" }));
+        const card = within(await screen.findByTestId("time-card"));
+        await userEvent.click(card.getByRole("combobox", { name: "Time field" }));
+        await userEvent.click(await screen.findByRole("option", { name: "sent" }));
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "sent" } });
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+
+        await waitFor(() => {
+            assert.isNotNull(session.visibility.window, "the window is on");
+        });
+        assert.isBelow(session.visibility.summary.visibleEdges, 2102);
+        // The Filters list holds it as a row, and the card stays open on it.
+        await dataPlace().findByRole("treeitem", { name: /^Time / });
+        await screen.findByTestId("time-card");
+        // The same field reads in Fields.
+        assert.equal(dataPlace().getByRole("combobox", { name: "Edge time" }).getAttribute("value"), "sent");
+    });
+
+    it("drags the whole window from between its two handles, the graph following, as one step", async () => {
+        const { session } = await open();
+        const dock = await designateSent(session);
+        const extent = session.time.extent();
+        assert.isNotNull(extent);
+        const start = extent?.from ?? 0;
+        const span = (extent?.to ?? 0) - start;
+        const from = start + span * 0.45;
+        const to = from + span * 0.1;
+        await act(async () => {
+            await session.time.window({ from, to, step: "week" });
+        });
+        const before = session.history.position;
+        const live: TimeStepEvent[] = [];
+        const off = session.on("time:step", (step) => {
+            live.push(step);
+        });
+
+        // The row under the bars, between the two handles: the middle of the brush.
+        const row = within(dock).getByTestId("histogram-brush");
+        await dragAcross(row, -row.getBoundingClientRect().width / 5);
+        off();
+
+        await waitFor(() => {
+            assert.isBelow(Number(session.visibility.window?.from), from - span / 10);
+        });
+        const { window } = session.visibility;
+        assert.closeTo(Number(window?.to) - Number(window?.from), to - from, 1, "the window keeps its width");
+        assert.isAbove(
+            live.filter((step) => step.cause === "seek").length,
+            1,
+            "the graph followed the drag before the release",
+        );
+        assert.equal(session.history.position, before + 1, "one drag, one step");
+        await act(async () => {
+            await session.undo();
+        });
+        assert.equal(Number(session.visibility.window?.from), from);
+    });
+
+    it("plays smoothly: the window slides by slivers of a step and elements come and go a few at a time", async () => {
+        const { session } = await open();
+        const dock = await designateSent(session);
+        await pickIn("Step", "Week");
+        const frames: TimeStepEvent[] = [];
+        const off = session.on("time:step", (step) => {
+            if (step.cause === "play") {
+                frames.push(step);
+            }
+        });
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isAtLeast(frames.length, 12, "frames played");
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        off();
+
+        const WEEK = 7 * 86_400_000;
+        const moves = frames.slice(1).map((frame, at) => frame.from - frames[at].from);
+        assert.isTrue(
+            moves.every((by) => by >= 0 && by < WEEK / 4),
+            `every frame moves a sliver of a week: ${moves.join(", ")}`,
+        );
+        assert.isTrue(
+            frames.some((frame) => (frame.from - frames[0].from) % WEEK !== 0),
+            "the window sits between whole steps",
+        );
+        // Each frame shows and hides only the edges its moving edges passed.
+        assert.isTrue(frames.slice(1).every((frame) => frame.entered.edges + frame.left.edges < 2102 / 4));
+        await waitFor(() => {
+            assert.equal(Number(session.visibility.window?.from), frames.at(-1)?.from, "paused where it slid to");
         });
     });
 });

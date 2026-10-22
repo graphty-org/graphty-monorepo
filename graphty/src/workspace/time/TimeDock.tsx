@@ -367,6 +367,18 @@ export function TimeDock(): React.JSX.Element | null {
                         },
                         onChange: (value) => {
                             time.pause();
+                            const at = time.current;
+                            if (
+                                at !== null &&
+                                at.mode !== "cumulative" &&
+                                value[1] - value[0] === Number(at.to) - Number(at.from)
+                            ) {
+                                // The whole window dragged: the graph follows the drag, row by row,
+                                // and the release records it.
+                                setDrag(null);
+                                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
+                                return;
+                            }
                             setDrag(value);
                         },
                         onChangeEnd: (value) => {

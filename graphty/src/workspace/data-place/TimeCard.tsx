@@ -1,18 +1,19 @@
 /**
- * The Data place's Time section (design/data/timeline-attribute.md section 6.6): designate the
- * time field and set how windows move. Every value is graphty-element's (`session.time`): the
- * field, its unit, and the step, mode, untimed rule and algorithm-results setting, which the
- * element keeps with the field (`time.settings`) so "Show all time" leaves them as they are.
+ * The time window's condition card, drawn by the filter step editor (Keep: a time window) and
+ * opened from the Filters section's Time row: the time field, its unit, and the step, mode,
+ * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
+ * which keeps the settings with the field (`time.settings`), so turning the window off leaves
+ * them as they are. The window itself moves in the timeline dock under the canvas.
  */
 
-import { ControlSection, FieldRow, PanelField, PanelLabelsProvider, SegmentedControl } from "@graphty/compact-mantine";
+import { FieldRow, PanelField, PanelLabelsProvider, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, TimeField, TimeResultsPolicy, TimeStep, TimeUnit } from "@graphty/graphty-element/session";
 import { Stack } from "@mantine/core";
 import React from "react";
 
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { designate, reportTimeError, unitOf } from "./timeActions";
+import { designate, reportTimeError, unitOf } from "../time/timeActions";
 import {
     autoLabel,
     CALENDAR_STEPS,
@@ -21,8 +22,8 @@ import {
     stepLabel,
     UNIT_CHOICES,
     UNTIMED_CHOICES,
-} from "./timeWords";
-import { useTimeVersion } from "./useTimeVersion";
+} from "../time/timeWords";
+import { useTimeVersion } from "../time/useTimeVersion";
 
 /** The Field menu's value for "no time field". */
 const NONE = "none";
@@ -60,10 +61,10 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
 }
 
 /**
- * The Time section: Field (and its unit for a number column), Step, Mode, Untimed and Results.
- * @returns the section.
+ * The time card: Time field (and its unit for a number column), Step, Mode, Untimed and Results.
+ * @returns the card.
  */
-export function TimeSection(): React.JSX.Element | null {
+export function TimeCard(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
     if (session === null) {
@@ -106,7 +107,7 @@ export function TimeSection(): React.JSX.Element | null {
     ];
 
     return (
-        <ControlSection label="Time">
+        <div data-testid="time-card">
             <PanelLabelsProvider showLabels>
                 <Stack gap={4}>
                     <FieldRow>
@@ -210,6 +211,6 @@ export function TimeSection(): React.JSX.Element | null {
                     )}
                 </Stack>
             </PanelLabelsProvider>
-        </ControlSection>
+        </div>
     );
 }

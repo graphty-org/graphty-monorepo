@@ -5,6 +5,9 @@ import React from "react";
 
 import { formatNumber } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { designate, unitOf } from "../time/timeActions";
+import { UNIT_CHOICES } from "../time/timeWords";
+import { useTimeVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
 import {
     columnChoices,
@@ -96,6 +99,7 @@ function PickRow({
 export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
+    useTimeVersion(session);
     if (session === null) {
         return null;
     }
@@ -145,6 +149,9 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
         const holder = roleHolder(attributes, row.side, role);
         const kind = KIND_OF[row.side];
         const offered = role === "weight" ? attributes.filter((a) => isNumeric(a) || a.name === holder) : attributes;
+        if (role === "time") {
+            return timeRows(row, holder, columnChoices(offered, source, row.side, holder));
+        }
         return (
             <PickRow
                 key={id}
@@ -159,6 +166,51 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
                     }
                 }}
             />
+        );
+    };
+    // Node time and Edge time designate the timeline's field (`session.time`), which reads it with
+    // the column's unit; a number column says which unit under it.
+    const timeRows = (row: FieldRowSpec, holder: string | null, choices: readonly string[]): React.JSX.Element => {
+        const { side } = row;
+        const designated = session.time.field?.[side];
+        const column = attributes.find((a) => a.kind === KIND_OF[side] && a.name === holder);
+        const unit = UNIT_CHOICES.find((choice) => choice.value === unitOf(session))?.label ?? null;
+        // The timeline reads one column: a pick on one side keeps the other side only when it names
+        // the same column.
+        const pick = (start: string | null, picked?: (typeof UNIT_CHOICES)[number]["value"]): void => {
+            const now = session.time.field ?? {};
+            const otherSide = side === "nodes" ? "edges" : "nodes";
+            const other = now[otherSide];
+            const keep = other !== undefined && (start === null || other.start === start);
+            const field = {
+                ...(keep ? { [otherSide]: other } : {}),
+                ...(start === null ? {} : { [side]: { start, ...(picked === undefined ? {} : { unit: picked }) } }),
+            };
+            designate(session, store, Object.keys(field).length === 0 ? null : field);
+        };
+        return (
+            <React.Fragment key={`${side}:time`}>
+                <PickRow
+                    label={row.label}
+                    value={holder}
+                    choices={choices}
+                    onPick={(picked) => {
+                        pick(picked);
+                    }}
+                />
+                {designated !== undefined && holder !== null && column !== undefined && isNumeric(column) ? (
+                    <PickRow
+                        label="Unit"
+                        name={`${row.label} unit`}
+                        value={unit}
+                        choices={UNIT_CHOICES.map((choice) => choice.label)}
+                        withNone={false}
+                        onPick={(label) => {
+                            pick(holder, UNIT_CHOICES.find((choice) => choice.label === label)?.value);
+                        }}
+                    />
+                ) : null}
+            </React.Fragment>
         );
     };
     const rowsOf = (side: FieldSide): (React.JSX.Element | null)[] =>

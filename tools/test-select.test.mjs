@@ -31,6 +31,8 @@ import {
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// the fixtures below live under the checkout so that they resolve its installed vitest
+mkdirSync(join(ROOT, "tmp"), { recursive: true });
 
 const rules = {
     everything: [/^pnpm-lock\.yaml$/u, globToRe(".github/workflows/**/*")],

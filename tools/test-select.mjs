@@ -87,7 +87,7 @@ export function globToRe(glob) {
         if (part === "*") {
             return "[^/]*";
         }
-        return part.replaceAll(/[.+?^${}()|[\]\\]/gu, "\\$&");
+        return part.replaceAll(/[.+?^${}()|[\]\\]/gu, String.raw`\$&`);
     };
     return new RegExp(
         `^${glob

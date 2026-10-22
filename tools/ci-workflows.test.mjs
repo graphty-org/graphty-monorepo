@@ -313,6 +313,12 @@ describe("the pre-push gate matches CI", () => {
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
             copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
+            // and the advisory test selector it starts beside the shards
+            copyFileSync(new URL("./test-select.mjs", import.meta.url), join(dir, "tools/test-select.mjs"));
+            copyFileSync(
+                new URL("./test-select-rules.json", import.meta.url),
+                join(dir, "tools/test-select-rules.json"),
+            );
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -348,7 +354,14 @@ describe("the pre-push gate matches CI", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "prepush-inputs.mjs",
+                "shard-verdict.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
@@ -3533,7 +3546,14 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "prepush-inputs.mjs",
+                "shard-verdict.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };

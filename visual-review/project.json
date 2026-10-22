@@ -26,5 +26,8 @@
                 "cwd": "visual-review"
             }
         }
+    },
+    "namedInputs": {
+        "testExtra": ["{workspaceRoot}/layout/project.json"]
     }
 }

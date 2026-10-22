@@ -56,5 +56,11 @@
                 "cwd": "graph-io"
             }
         }
+    },
+    "namedInputs": {
+        "testExtra": [
+            "{workspaceRoot}/graphty-element/package.json",
+            "{workspaceRoot}/design/graph-io/style-tool-defaults.md"
+        ]
     }
 }

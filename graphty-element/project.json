@@ -74,5 +74,11 @@
             },
             "dependsOn": ["build"]
         }
+    },
+    "namedInputs": {
+        "testExtra": [
+            "{workspaceRoot}/design/ui/studio/tool/files/**/*",
+            "{workspaceRoot}/design/documents/notes.schema.json"
+        ]
     }
 }

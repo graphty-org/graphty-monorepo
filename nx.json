@@ -81,8 +81,32 @@
             "cache": true
         },
         "test": {
-            "inputs": ["default", "^production", "{workspaceRoot}/vitest.shared.config.ts"],
+            "inputs": [
+                "default",
+                "^production",
+                "testRuntime",
+                "testExtra",
+                { "dependentTasksOutputFiles": "**/*", "transitive": true }
+            ],
             "cache": true
+        },
+        "coverage": {
+            "inputs": [
+                "default",
+                "^production",
+                "testRuntime",
+                "testExtra",
+                { "dependentTasksOutputFiles": "**/*", "transitive": true }
+            ]
+        },
+        "test:coverage": {
+            "inputs": [
+                "default",
+                "^production",
+                "testRuntime",
+                "testExtra",
+                { "dependentTasksOutputFiles": "**/*", "transitive": true }
+            ]
         },
         "build-storybook": {
             "dependsOn": ["^build"]
@@ -112,7 +136,28 @@
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc",
             "{workspaceRoot}/.github/workflows/**/*"
-        ]
+        ],
+        "testRuntime": [
+            "{workspaceRoot}/package.json",
+            "{workspaceRoot}/nx.json",
+            "{workspaceRoot}/patches/**/*",
+            "{workspaceRoot}/tools/test-slots.mjs",
+            "{workspaceRoot}/tools/run-tests.sh",
+            "{workspaceRoot}/tools/ci-test-matrix.mjs",
+            "{workspaceRoot}/tools/shard-verdict.mjs",
+            "{workspaceRoot}/tools/vitest-time-budget.mjs",
+            "{workspaceRoot}/tools/isolated-git-env.mjs",
+            "{workspaceRoot}/vitest-time-budget-allowlist.json",
+            { "env": "CI" },
+            { "env": "GRAPHTY_GPU_REQUIRE" },
+            { "env": "GRAPHTY_BROWSER_GPU" },
+            { "env": "GRAPHTY_GPU_NO_SUBGROUPS" },
+            { "env": "GRAPHTY_EGL_LIB_DIR" },
+            { "env": "GRAPHTY_LIFECYCLE_FULL" },
+            { "env": "GRAPHTY_COVERAGE_RUN" },
+            { "env": "VITEST_BUDGET_CHECK" }
+        ],
+        "testExtra": []
     },
     "generators": {
         "@nx/js:library": {

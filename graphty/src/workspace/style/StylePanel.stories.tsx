@@ -231,11 +231,16 @@ export const HoveredAtRest: Story = sceneStory(async () => {
     await openStyle("Hovered");
 });
 
-/** Key people's Shape "+": the Shape properties the layer does not set yet. */
+/**
+ * Key people's Shape "+": Size is set, so Shape is the one property left, and "+" adds its line
+ * at once (a menu of one item is one more click for nothing), waiting for a value.
+ */
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000));
+    await waitFor(() => {
+        expect(tab.querySelector('[data-section="node-shape"] .ws-row[data-line="node.shape"]')).not.toBeNull();
+    }, storyWaitOptions(1000));
 });
 
 /** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */
@@ -576,7 +581,10 @@ export const FootballConference: Story = {
         await userEvent.click(
             await within(box).findByRole("button", { name: "Node color by attribute" }, storyWaitOptions(1000)),
         );
-        await userEvent.click(await page().findByRole("option", { name: "value" }, storyWaitOptions(1000)));
+        // The picker names each attribute with one fact about it ("value, 0 to 11").
+        const search = await page().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+        const picker = (search as HTMLElement).closest<HTMLElement>(".cm-quick-actions") ?? document.body;
+        await userEvent.click(await within(picker).findByRole("option", { name: /^value, / }, storyWaitOptions(1000)));
         const made = await waitFor(() => {
             const layer = session.styles
                 .list()

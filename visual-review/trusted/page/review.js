@@ -4817,28 +4817,33 @@ function statusWhy(f) {
     return ` (${parts.filter(Boolean).join("; ")})`;
 }
 
-// What a Finish commits and posts, as the sheet's first lines. Once a passkey is known, a pull
-// request's Finish of rejects alone commits its signed record (`signed`).
-function commitAndPostLines(t, f, signed) {
-    const seed = t.pr === null;
-    const lines = [];
+// What a Finish commits, as the sheet's first line. Once a passkey is known, a pull request's
+// Finish of rejects alone commits its signed record (`signed`).
+function commitWhat(t, f, signed) {
     const kinds = [
         f.accepts > 0 ? plural(f.accepts, "accept") : null,
         f.excludes > 0 ? plural(f.excludes, "exclusion") : null,
     ].filter(Boolean);
-    if (kinds.length === 0 && signed && !seed && f.rejects > 0) {
-        lines.push(`Commit the signed record of ${plural(f.rejects, "reject")} to ${t.branch}.`);
-    } else if (kinds.length === 0) {
-        lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
-    } else if (seed) {
-        const day = new Date().toISOString().slice(0, 10);
-        lines.push(
-            `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request` +
-                `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`,
-        );
-    } else {
-        lines.push(`Commit ${kinds.join(" and ")} to ${t.branch}.`);
+    if (kinds.length === 0 && signed && t.pr !== null && f.rejects > 0) {
+        return `Commit the signed record of ${plural(f.rejects, "reject")} to ${t.branch}.`;
     }
+    if (kinds.length === 0) {
+        return f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.";
+    }
+    if (t.pr !== null) {
+        return `Commit ${kinds.join(" and ")} to ${t.branch}.`;
+    }
+    const day = new Date().toISOString().slice(0, 10);
+    return (
+        `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request` +
+        `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`
+    );
+}
+
+// What a Finish commits and posts, as the sheet's first lines.
+function commitAndPostLines(t, f, signed) {
+    const seed = t.pr === null;
+    const lines = [commitWhat(t, f, signed)];
     const posts = [
         f.rejects > 0 ? plural(f.rejects, "reject") : null,
         !seed && f.acceptNotes > 0 ? plural(f.acceptNotes, "accept note") : null,

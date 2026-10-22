@@ -657,16 +657,14 @@ function recordsSince(refs, cwd, reviews, keys, since) {
         return [];
     }
     const stamp = `${new Date(since).toISOString().replaceAll(/[-:]/g, "").slice(0, 15)}Z`;
+    const recent = (name) => !/^\d{8}T\d{6}Z/.test(name) || name >= stamp;
+    // Each record once, named where it was first found: the base's records by their path alone.
     const listed = new Map();
     for (const ref of refs) {
-        for (const line of gitOut(cwd, ["ls-tree", "-z", ref, "--", reviews]).toString("utf8").split("\0")) {
-            const [meta, path] = line.split("\t");
-            const name = path?.slice(reviews.length) ?? "";
-            if (path && (!/^\d{8}T\d{6}Z/.test(name) || name >= stamp)) {
-                const blob = meta.split(" ")[2];
-                if (!listed.has(blob)) {
-                    listed.set(blob, ref === refs[0] ? path : `${path} on ${ref.replace(/^refs\/remotes\//, "")}`);
-                }
+        const on = ref === refs[0] ? "" : ` on ${ref.replace(/^refs\/remotes\//, "")}`;
+        for (const { blob, path } of treeEntries(cwd, ref, reviews)) {
+            if (recent(path.slice(reviews.length)) && !listed.has(blob)) {
+                listed.set(blob, `${path}${on}`);
             }
         }
     }
@@ -675,6 +673,24 @@ function recordsSince(refs, cwd, reviews, keys, since) {
         .map(([blob, where]) => ({ where, doc: parseOr(blobs.get(blob) ?? Buffer.alloc(0)) }))
         .filter((r) => recordProblem(r.doc, keys) === null)
         .map((r) => ({ ...r, time: timeOf(r.doc.reviewedAt) }));
+}
+
+/**
+ * The files directly in a directory of a commit.
+ * @param {string} cwd the repository
+ * @param {string} ref the commit
+ * @param {string} dir the directory, with its slash
+ * @returns {{ blob: string, path: string }[]} each file's blob and path
+ */
+function treeEntries(cwd, ref, dir) {
+    return gitOut(cwd, ["ls-tree", "-z", ref, "--", dir])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean)
+        .map((line) => {
+            const [meta, path] = line.split("\t");
+            return { blob: meta.split(" ")[2], path };
+        });
 }
 
 /**

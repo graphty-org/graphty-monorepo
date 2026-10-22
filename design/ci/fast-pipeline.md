@@ -1,13 +1,14 @@
 # Fast pipeline: from development branch to graphty.app and npm
 
-Status: Proposed, 2026-10-21; the owner's open decisions are recorded in section 9. Issue #3262. Nothing below is built; until it is, the tools follow
-`design/ci/golden-local.md`.
+Status: Accepted, 2026-10-21, with the owner's decisions in section 9 (decision record
+`design/decisions/2026-10-21-fast-pipeline-adopted.md`). Issue #3262. It is built in the order of
+section 10; until each piece lands, the tools follow `design/ci/golden-local.md`.
 
 This document describes how a change in graphty-monorepo should travel from a development branch
 to the graphty.app web site and to npm. It keeps what works in the current landing design and the
 release train, and changes what makes large work take days to land.
 
-Once adopted it replaces these parts of `design/ci/golden-local.md`: the "full local gate on every
+It replaces these parts of `design/ci/golden-local.md`: the "full local gate on every
 landing" row of 3.1, and sections 4.2 (landing), 4.3 (screenshot review at the cut), 4.7 (what CI
 is for), 4.8 (the lock), the landing-failure rows of 4.13 and 4.14 (cut selection and the one-round
 grace before a revert). It replaces `design/ci/ci-cd-plan.md` except sections 7 (where the GPU,
@@ -21,8 +22,8 @@ Words used throughout:
 - **the cut** is a golden commit chosen for master, opened as a pull request (`golden-cut`), whose
   screenshots the owner approves and which GitHub CI checks once before it merges.
 - **the gate** is `tools/prepush.sh`, which runs CI's own test shard commands on this machine.
-- **the pipeline round** is the `/pipeline-round` skill: an agent session, run every 30 minutes,
-  that owns landing failures, reverts and cuts.
+- **the pipeline round** is the `/pipeline-round` skill: an agent session that owns landing
+  failures, reverts and cuts, and watches verification (section 4.3).
 - **the release train** is `release.yml`, which tests master's tip in full every 6 hours and
   publishes to npm when everything passes.
 - **Hosts** is `hosts.yml`, the macOS and Windows lane the release train runs.
@@ -149,7 +150,16 @@ stay.
 
 **What happens.** After a landing, `land.mjs` starts a verification run in the background, as it
 starts the screenshot preview today. No standing process, no timer. A run takes golden's newest
-commit; landings during it are covered by one queued follow-up run.
+commit. When it ends, it starts its own follow-up run if golden moved meanwhile, and keeps going
+until `golden-verified` reaches golden's tip; a landing that finds a run already going starts
+nothing.
+
+**State file.** Verification keeps its state in one durable file, `tmp/golden/verify.json` in the
+main checkout: the range under test (last verified commit to the commit being verified), the run's
+process id, its status (running, passed, failed, bisecting), the bisect's progress (the points
+tested and their results) and, once found, the culprit landing. It is written before each step
+starts and after each step ends, so a run killed at any point leaves a file that says where it
+stopped.
 
 **Testing.** `tools/prepush.sh` with `PREPUSH_ALL=1` on the packages affected since master, so every
 shard runs, including graphty-element's eleven browser and Storybook shards the gate today skips
@@ -165,10 +175,28 @@ new landings instead of in front of them.
 
 **On failure.** Verification bisects over the landing merge commits since the last verified commit
 (first parent only), rerunning only the failing shard or test file, several points at once when
-slots are free. The pipeline round reverts the culprit at once with `land.mjs revert`, with no
-one-round grace because branches merge golden, and comments on its issue and on the issues of open
-branches that contain it (`git branch -r --contains`). A failure needing two landings reverts the
-later one. A failure is reproduced and explained before anything is called a flake.
+slots are free, and records each point in the state file. The pipeline round reverts the culprit at
+once with `land.mjs revert`, with no one-round grace because branches merge golden, and comments on
+its issue and on the issues of open branches that contain it (`git branch -r --contains`). A
+failure needing two landings reverts the later one. A failure is reproduced and explained before
+anything is called a flake.
+
+**The pipeline round watches verification.** Verification finds and records; the pipeline round
+acts. Each round reads the state file and:
+
+- restarts a run whose status is running but whose process is gone, from the recorded range;
+- resumes a bisect that stopped, from the points already recorded, rather than starting over;
+- acts on a result: reverts the culprit, comments on the issues, and marks the result handled in
+  the file so no later round acts on it twice;
+- keeps a lessons file of resolved failure modes, like Anthropic's on-call `lessons.md`: each entry
+  names the symptom, how it was told apart from a real failure, and the fix. A round reads it before
+  diagnosing, and adds an entry whenever it resolves a failure mode the file did not already hold.
+
+**How fast a broken golden is reverted.** The loop that runs the pipeline round wakes as soon as the
+state file records a failure (it watches the file), with a 30-minute wake as the fallback. So a
+broken golden is reverted within minutes of verification naming the culprit, not at the next
+half-hour round. This is a session watching a file, not a daemon: when no session runs the loop,
+nothing acts, as today.
 
 **While golden is red.** Branches merge `golden-verified`, a ref verification moves forward, rather
 than golden's tip. A fast check that fails only in tests the branch's diff did not select, and that
@@ -337,7 +365,8 @@ are sensitive paths.
    CI's own capture must still match, so if another branch's code changed an image this branch
    signed, the owner sees it again: "unless the merge changes the screenshots" is enforced by capture.
 
-None of this changes trusted code (`gate.mjs`, `approval.mjs`, the gate step in ci.yml).
+None of this changes trusted code (`gate.mjs`, `approval.mjs`, the gate step in ci.yml); only the
+composed-tree gate of section 6.3 does.
 
 ### 6.3 When two signed branches combine
 
@@ -350,7 +379,7 @@ reject of it on any ref reachable from golden or master.
 
 This departs from "an approval covers one commit" on purpose: the binding moves from a whole tree to
 each image's exact bytes, which is what the owner looked at, and CI's capture still proves the code
-draws those bytes. This design recommends it; it changes the owner's trusted code (section 9) and
+draws those bytes. The owner adopted it (section 9); it changes the owner's trusted code and
 takes effect one cut later, because CI runs master's copy of the gate. The revocation rule applies
 now to the review page: an image with a newer signed reject on another ref is not "approved before".
 
@@ -366,17 +395,24 @@ gate step or the visual job.
 ## 7. Requirements carried over
 
 - Nothing reaches master with known errors: a full local run, then CI (`golden-local.md` 3.1).
+  This rule governs master; golden is protected by verification, bisect and revert instead.
 - Only the owner approves screenshots, with the passkey; every story needs an approved baseline
   (`visual-testing/design.md`; `decisions/2026-09-27-only-the-owner-accepts-chromatic-changes.md`).
 - This machine is never a CI runner (`visual-testing/local-previews.md`).
 - Master changes only through the cut and the release deploy key; signed land and revert commits;
   never copy commits; merged branches kept; every branch tied to an issue and pushed
   (`golden-local.md` 3.1, 4.1; CLAUDE.md "Landing changes").
-- Sessions drive the pipeline, with no standing daemon or timer (`golden-local.md` 3.2, 4.13):
-  verification is a background run `land.mjs` starts, and the pipeline round makes every revert.
+- Sessions drive the pipeline, with no standing daemon (`golden-local.md` 3.2, 4.13): the landing
+  script starts verification runs, which chain their own follow-ups, and the pipeline round makes
+  every revert.
+- The owner reviews screenshots before anything is offered to master (formerly "before pushing").
 - No step waits on the owner; breaking changes only with the owner's go, grouped into one major.
 - Paid GPU testing only at release; no silent fallbacks; never blame timing; no automatic retries;
-  quarantine only with the owner's yes (`ci-cd-plan.md` sections 7, 9).
+  quarantine only with the owner's yes (`ci-cd-plan.md` sections 7, 9). A GPU lane counts as stable
+  after three consecutive green release-train runs.
+- No nightly or fixed-interval job gates anything. Jobs that gate nothing may run on a schedule;
+  the nightly Hosts run moves off the release train's hours so the two never compete for macOS
+  runners.
 - Local testing as close to CI as possible; SonarQube local only (`sonarqube/design.md`).
 - The release train, holds, tag pattern, no `next` dist-tag, never disabling `release.yml`, runner
   and cache rules (`ci-cd-plan.md` sections 10 to 13).
@@ -391,10 +427,18 @@ gate step or the visual job.
 - **One pipeline round before reverting a broken landing** (`golden-local.md` 4.14). Changed: revert
   at once, because branches merge golden.
 - **The cut re-runs the full gate** (4.14). Dropped for verified commits; kept for a named commit.
-- **Screenshot review at the cut** (4.3). Changed: on the branch. Requirement 1 is met fully only
-  with the composed-tree gate; until then, one extra Face ID when two signed branches combine.
+- **Screenshot review at the cut** (4.3). Changed: on the branch. Until the composed-tree gate is
+  built, one extra Face ID when two signed branches combine.
 - **graphty.app deploys on every green master build** (`ci-cd-plan.md` section 11). Changed: beta
   does; graphty.app changes only on promotion, except append-only data.
+- **"Waiting for runners is the problem"** (`ci-cd-plan.md`). Dropped: measured waits are 2 to 4
+  seconds (section 1).
+- **Hosts on pull requests, and ci.yml's Mergify merge-queue handling.** To be removed: no pull
+  request but the cut runs CI, and Mergify is retired.
+- **Per-pull-request screenshot approvals** (`visual-testing/design.md`). Dropped, replaced by
+  signed trees, which composed approvals then refine (section 6.3).
+- **An approval covers only its exact tree.** Changed to composed approvals: each changed image
+  must be covered, byte for byte, by some signed approval not revoked by a later signed reject.
 - **Passes keyed by branch name or HEAD** (`tools/prepush-inputs.mjs`). Changed: keyed by inputs.
 - **Reduce CI and catch errors at release** (owner suggestion, 2026-10-21). Not adopted: runner use
   is under half the limit. Revisit past 10 minutes of queue.
@@ -412,6 +456,10 @@ Decided by the owner on 2026-10-21:
 4. **Docs and Storybooks wait for promotion**, because they are paired with the code they document.
    Only the append-only hosted data deploys on every green master build.
 5. **No npm beta channel.** The release train is unchanged.
+6. **Verification watches itself.** Runs chain until golden is verified and keep a state file; the
+   pipeline round is their watchdog, acts on their results and keeps a lessons file; its loop wakes
+   on a recorded failure (section 4.3).
+7. **The old rules in sections 7 and 8** are kept, narrowed or dropped as listed there.
 
 ## 10. Build order
 
@@ -419,12 +467,16 @@ Each step is useful alone and lands separately.
 
 1. Key passes by inputs; log lock, slot and preview waits; check in `tmp/with-browser.sh`.
 2. The selector in advisory mode, with the replay.
-3. Verification with bisect, `golden-verified`, verified-only cuts, and verification after `cut-fix`.
-4. The short-lock landing, once steps 2 and 3 show no misses.
-5. The composed-tree gate, if the owner authorizes it.
-6. Branch capture, `review/<branch>` refs, and `land.mjs` merging them.
-7. The beta repository, its deploy and the promotion workflow.
-8. The dry-run script, starting from the routes of the studio's most recent study.
+3. Verification with bisect, `golden-verified`, verified-only cuts, and verification after `cut-fix`;
+   self-chaining follow-up runs and the state file `tmp/golden/verify.json`.
+4. The pipeline round as verification's watchdog: restarting dead runs, resuming bisects, acting on
+   results, the lessons file, and the loop waking on a recorded failure with a 30-minute fallback.
+5. The short-lock landing, once steps 2 and 3 show no misses.
+6. The composed-tree gate (authorized by the owner, section 9).
+7. Branch capture, `review/<branch>` refs, and `land.mjs` merging them.
+8. The beta repository, its deploy and the promotion workflow.
+9. The dry-run script, starting from the routes of the studio's most recent study.
+10. Removing Hosts on pull requests and ci.yml's Mergify handling; moving the nightly Hosts run off
+    the release train's hours.
 
-Once adopted: record the decision in `design/decisions/`, and update CLAUDE.md and the
-pipeline-round skill.
+CLAUDE.md and the pipeline-round skill change as each step lands, not before.

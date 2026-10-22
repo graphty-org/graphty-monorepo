@@ -1145,6 +1145,11 @@ through the full pre-push gate, golden is pushed to `golden` on GitHub, and one 
 request takes golden to master. There are no per-change pull requests. The design, its history and
 its requirements are in `design/ci/golden-local.md`.
 
+The owner adopted a faster pipeline on 2026-10-21, `design/ci/fast-pipeline.md` (issue #3262): a
+fast check and a short lock at landing, full verification on golden afterwards, screenshots signed
+on the branch, and a beta site. It is being built piece by piece; until each piece lands, the
+procedures below still apply.
+
 How to land a change:
 
 1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):

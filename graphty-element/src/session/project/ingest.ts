@@ -390,6 +390,20 @@ interface EdgeBatch {
  * spelling its first edge chunk settled on.
  * @template K - the host's own description of an existing edge
  */
+
+/**
+ * The tables an import names: the draft's, or else the one named source it read, as a draft of it
+ * names its one table, so a file loads the same whichever door it came in by.
+ * @param command - The import.
+ * @returns The table names.
+ */
+function tablesOf(command: DataImportCommand): readonly string[] {
+    return Object.freeze([...(command.tables ?? (command.source.name === undefined ? [] : [command.source.name]))]);
+}
+
+/**
+ *
+ */
 export class Ingest<K extends KnownEdge> {
     private readonly logger: Logger = GraphtyLogger.getLogger(["graphty", "data"]);
 
@@ -590,11 +604,7 @@ export class Ingest<K extends KnownEdge> {
             const after = this.heldCounts();
             const loaded: LoadedSource = Object.freeze({
                 ...described,
-                // An import that names no tables read one named source, as a draft of it names
-                // its one table, so a file loads the same whichever door it came in by.
-                tables: Object.freeze([
-                    ...(command.tables ?? (command.source.name === undefined ? [] : [command.source.name])),
-                ]),
+                tables: tablesOf(command),
                 ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
                 added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
                 ...(this.leaveOutUnmatched && report.unmatched.rows > 0

@@ -1,5 +1,7 @@
 # Golden-local landing
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its landing model is replaced (the full-gate row of 3.1, sections 4.2, 4.3, 4.7 and 4.8, the landing-failure rows of 4.13, and 4.14); the rest remains in force, and the tools follow this document until the fast pipeline is built.
+
 Status: adopted by the owner on 2026-10-18. Decision record:
 `design/decisions/2026-10-18-golden-local-adopted.md`. This document replaces the merge half of
 `design/ci/ci-cd-plan.md` and the whole of the githerd design (see "Superseded documents" at the

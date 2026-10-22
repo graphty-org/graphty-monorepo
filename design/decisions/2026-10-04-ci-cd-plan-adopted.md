@@ -1,5 +1,7 @@
 # The CI/CD plan is adopted: a batched merge queue, a batch-aware visual gate, a daily release train
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Everything it adopted is replaced except the release train and the ad hoc release (sections 10 and 11 of design/ci/ci-cd-plan.md), which remain in force.
+
 > PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify parts; the release train and the ad hoc release (sections 10 and 11 of design/ci/ci-cd-plan.md) are current.
 
 Date: 2026-10-04

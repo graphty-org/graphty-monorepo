@@ -4,6 +4,7 @@ import { expect, fn, userEvent, within } from "@storybook/test";
 import { VariablePill } from "../../../src";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
+import { settleFocusTooltip } from "../../helpers/settled";
 
 /**
  * A value bound to a design variable: a pill holding the variable's name inside a number field,
@@ -124,5 +125,6 @@ export const PillFromTheKeyboard: Story = {
         const canvas = within(canvasElement);
         await userEvent.tab();
         await expect(canvas.getByRole("button", { name: "1 to 3, variable PageRank" })).toHaveFocus();
+        await settleFocusTooltip(canvasElement);
     },
 };

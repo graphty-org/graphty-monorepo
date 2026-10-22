@@ -1318,8 +1318,10 @@ export class UpdateManager implements Manager {
      * frame does first, and what a layout that reads node sizes asks for before it reads them
      * (`LayoutManager.drawArrivedPaint`), so it reads the sizes about to be drawn whether or not a
      * frame has run since the paint arrived.
+     * @param frameMs - How long the previous frame took, when the render loop runs this pass. A
+     *     layout asking for the sizes states none, so the whole repaint is applied first.
      */
-    drawArrivedPaint(): void {
+    drawArrivedPaint(frameMs = 0): void {
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
         // filter has just hidden must not contribute to this frame's bounding box or be picked.
         this.syncViewMasks();
@@ -1343,7 +1345,7 @@ export class UpdateManager implements Manager {
     private runUpdatePass(frameMs: number): void {
         this.frameCount++;
 
-        this.drawArrivedPaint();
+        this.drawArrivedPaint(frameMs);
         // Nothing painted is left to apply: a frame drawn now shows every element's style.
         if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
             this.dataManager.notePaintDrawn();

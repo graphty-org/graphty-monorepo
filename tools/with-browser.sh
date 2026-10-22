@@ -13,6 +13,10 @@
 # slot at once. The holder of each slot is written beside it (slotN.holder), and a wait for a slot is
 # recorded in the wait log, with who held the slots when it began (tools/wait-log.mjs,
 # <main checkout>/tmp/waits.jsonl). BROWSER_SLOT_POLL sets the seconds between looks (5).
+#
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs) the
+# command waits for slot 4 only, the one every other command tries last, so it never holds more than one
+# of the four and never one an ordinary command would have taken first.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
 dir=${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}
@@ -31,8 +35,10 @@ holders() {
 
 start=$(date +%s%3N)
 held_by=()
+slots="1 2 3 4"
+[ "${BROWSER_SLOT_PRIORITY:-}" = low ] && slots=4
 while :; do
-    for i in 1 2 3 4; do
+    for i in $slots; do
         exec {fd}>"$dir/slot$i"
         if flock -n "$fd"; then
             echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$dir/slot$i.holder"

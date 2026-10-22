@@ -8,8 +8,14 @@
 //       refreshes the latest commit and sets the fields given; run it when you stop working
 //   node tools/branch-note.mjs commit [--branch B]
 //       the post-commit hook's call: refreshes the latest commit, at most once per 10 minutes per branch
+//   node tools/branch-note.mjs busy --until <time|Nh|Nd|clear> --reason T [--branch B]
+//       marks the branch busy (a design study running for a day): the nightly branch sync (tools/branch-sync.mjs)
+//       then only checks it for conflicts, and never runs its checks or pushes to it; `clear` ends it
 //   node tools/branch-note.mjs new-issue --title T --branch B [--type T] [--priority P] [--effort E]
 //       opens an issue with a type, a priority and an effort label, and prints its number
+//
+// The note's `sync` line is written by the nightly branch sync: how far golden is merged into the branch,
+// and the landing that blocks it.
 //
 // A branch's issue: --issue, else `git config branch.<branch>.issue` (tools/worktree-new.sh writes it), else
 // the first number of three or more digits in the branch's name. The owner: --owner, else the Claude Code
@@ -21,7 +27,7 @@ import { homedir, hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const FIELDS = ["branch", "worktree", "owner", "latest commit", "done", "left", "next"];
+export const FIELDS = ["branch", "worktree", "owner", "latest commit", "done", "left", "next", "busy", "sync"];
 const PLACEHOLDER = "(not written yet)";
 const COMMIT_EVERY_MS = 10 * 60 * 1000;
 const TYPES = { fix: "bug", feat: "enhancement", docs: "documentation" };
@@ -52,6 +58,7 @@ export function noteBody(branch, fields) {
  */
 export function parseNote(body) {
     const fields = {};
+    if (!body) return fields;
     for (const [, key, value] of body.matchAll(/^- ([a-z ]+): (.*)$/gm)) {
         if (FIELDS.includes(key) && value !== PLACEHOLDER) fields[key] = value;
     }
@@ -135,8 +142,10 @@ export function writeNote(run, n, branch, fields) {
     const issue = readIssues(run, [n]).get(n);
     if (!issue) throw new Error(`issue #${n} not found`);
     const note = findNote(issue, branch);
-    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v));
-    const body = noteBody(branch, { ...(note ? parseNote(note.body) : {}), branch, ...given });
+    // A field given as null is removed (a busy marker cleared); one left undefined or empty is kept.
+    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v || v === null));
+    const merged = { ...(note ? parseNote(note.body) : {}), branch, ...given };
+    const body = noteBody(branch, Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== null)));
     if (note) {
         run(["api", "-X", "PATCH", `repos/{owner}/{repo}/issues/comments/${note.databaseId}`, "-f", `body=${body}`]);
     } else {
@@ -185,6 +194,32 @@ export function owner(given, env = process.env) {
         pid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
     }
     return `${userInfo().username}@${hostname()}`;
+}
+
+/**
+ * The busy line for `busy --until <when> --reason <why>`.
+ * @param until an ISO time, anything Date.parse reads, or a span from now: `24h`, `2d`
+ * @param reason why the branch is busy
+ * @param [now] the time
+ * @returns `until <ISO time> -- <reason>`
+ */
+export function busyLine(until, reason, now = Date.now()) {
+    const span = /^(\d+)([hd])$/.exec(until ?? "");
+    const at = span ? now + Number(span[1]) * (span[2] === "h" ? 3600e3 : 86400e3) : Date.parse(until);
+    if (!Number.isFinite(at)) throw new Error(`--until takes a time, 24h, 2d or clear, not ${until}`);
+    if (!reason) throw new Error("busy needs --reason");
+    return `until ${new Date(at).toISOString()} -- ${reason}`;
+}
+
+/**
+ * Whether a note's busy line holds now.
+ * @param fields parseNote's fields
+ * @param [now] the time
+ * @returns `{ until, reason }` while busy, else null
+ */
+export function busyNow(fields, now = Date.now()) {
+    const m = /^until (\S+) -- (.*)$/.exec(fields.busy ?? "");
+    return m && Date.parse(m[1]) > now ? { until: m[1], reason: m[2] } : null;
 }
 
 const latestCommit = (cwd) => git(cwd, ["log", "-1", "--format=%h %s (%cI)"]);
@@ -263,7 +298,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         return 0;
     }
     const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
-    if (!["start", "update", "commit"].includes(command) || !branch) return usage();
+    if (!["start", "update", "commit", "busy"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);
     if (!n) {
         console.error(`branch-note: ${branch} has no issue (give --issue N, or tools/worktree-new.sh --issue N)`);
@@ -273,6 +308,12 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         const main = dirname(git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
         if (!commitDue(main, branch)) return 0;
         writeNote(run, n, branch, { "latest commit": latestCommit(cwd) });
+        return 0;
+    }
+    if (command === "busy") {
+        const busy = o.until === "clear" ? null : busyLine(o.until, o.reason);
+        writeNote(run, n, branch, { busy });
+        console.error(`branch-note: ${branch} is ${busy ? `busy ${busy}` : "no longer busy"} (#${n})`);
         return 0;
     }
     if (command === "start") {
@@ -296,6 +337,7 @@ function usage() {
         "usage: node tools/branch-note.mjs start --issue N --branch B --worktree P [--owner O]\n" +
             "     | update [--branch B] [--done T] [--left T] [--next T] [--owner O] [--worktree P]\n" +
             "     | commit [--branch B]\n" +
+            "     | busy --until <time|24h|2d|clear> --reason T [--branch B]\n" +
             "     | new-issue --title T --branch B [--type T] [--priority P] [--effort E]",
     );
     return 1;

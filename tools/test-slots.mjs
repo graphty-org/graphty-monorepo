@@ -50,6 +50,11 @@
  *  - Liveness is a signal-0 check of the pid plus its start time from /proc, never pgrep (whose
  *    pattern matches its own command line).
  *
+ * The low-priority lane: a run with GRAPHTY_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs)
+ * queues behind every other run. Its ticket name starts with "~", which sorts after every ordinary ticket,
+ * so an ordinary run that arrives later still goes ahead of a waiting low one; a low run that already holds
+ * a slot keeps it (marked `granted` in its ticket) and counts against the limit for everyone.
+ *
  * Off on GitHub Actions (GITHUB_ACTIONS=true: one job per runner, nothing to share) and when
  * GRAPHTY_TEST_SLOTS=0. Not keyed on CI: tools/run-tests.sh sets CI=true for every local shard.
  */
@@ -207,6 +212,22 @@ function ancestors(pid) {
     return out;
 }
 
+const LOW = "~";
+
+/**
+ * A ticket's place in line: a low ticket's index among all of them (ordinary ones sort first); an ordinary
+ * ticket's index among the ordinary ones, plus the low tickets that already hold a slot.
+ * @param live the live tickets, sorted
+ * @param name this run's ticket
+ * @returns 0 for the first, -1 when the ticket is gone
+ */
+export function placeInLine(live, name) {
+    const at = live.findIndex((t) => t.name === name);
+    if (at === -1 || name.startsWith(LOW)) return at;
+    const granted = live.filter((t) => t.name.startsWith(LOW) && t.granted).length;
+    return live.filter((t) => !t.name.startsWith(LOW)).findIndex((t) => t.name === name) + granted;
+}
+
 const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`);
 
 /**
@@ -264,21 +285,27 @@ export async function acquire({
     if ((await look()).some((t) => mine.has(t.pid))) {
         return none; // this process or one it runs under already holds a slot
     }
-    const name = `${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
+    const low = env.GRAPHTY_SLOT_PRIORITY === "low" ? LOW : "";
+    const name = `${low}${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
     const tmp = join(dir, `.${name}`);
-    writeFileSync(tmp, JSON.stringify({ pid, start: startOf(pid), label, since: Date.now() }));
-    renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    const ticket = { pid, start: startOf(pid), label, since: Date.now() };
+    const writeTicket = (fields) => {
+        writeFileSync(tmp, JSON.stringify(fields));
+        renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    };
+    writeTicket(ticket);
     const release = () => rmSync(join(dir, name), { force: true });
     const start = Date.now();
     let holders = null;
     for (;;) {
         const live = await look();
-        const at = live.findIndex((t) => t.name === name);
+        const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
             return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
         }
         if (at < slots) {
+            if (low) writeTicket({ ...ticket, granted: true });
             if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
             return release;
         }

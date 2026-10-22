@@ -41,17 +41,6 @@ const DRAG_SLOP = 3;
 export const BRUSH_ROW_HEIGHT = 16;
 
 /**
- * A value kept on the scale and snapped to the step.
- * @param value - The value.
- * @param brush - The brush.
- * @returns The value.
- */
-function snap(value: number, brush: HistogramBrushProps): number {
-    const snapped = brush.min + Math.round((value - brush.min) / brush.step) * brush.step;
-    return Math.min(brush.max, Math.max(brush.min, snapped));
-}
-
-/**
  * A range moved by a distance, its width kept, stopped at the scale's ends.
  * @param range - The range.
  * @param by - How far.
@@ -85,7 +74,15 @@ export function HistogramBrush({
     plotHeight,
 }: Readonly<{ brush: HistogramBrushProps; plotHeight: number | string }>): React.JSX.Element {
     const [dragged, setDragged] = useState<[number, number] | null>(null);
-    const press = useRef<{ x: number; start: readonly [number, number]; moved: boolean; width: number } | null>(null);
+    // The range the gesture is at, read on release: the drawn `dragged` can be a render behind
+    // when moves arrive faster than React draws them (a quick flick, a finger).
+    const press = useRef<{
+        x: number;
+        start: readonly [number, number];
+        moved: boolean;
+        width: number;
+        at: [number, number] | null;
+    } | null>(null);
     const range = dragged ?? brush.value;
     const left = placeOf(range[0], brush);
     const right = placeOf(range[1], brush);
@@ -123,7 +120,7 @@ export function HistogramBrush({
 
                     const scale = event.currentTarget.parentElement?.getBoundingClientRect().width ?? 1;
                     event.currentTarget.setPointerCapture(event.pointerId);
-                    press.current = { x: event.clientX, start: brush.value, moved: false, width: scale };
+                    press.current = { x: event.clientX, start: brush.value, moved: false, width: scale, at: null };
                 }}
                 onPointerMove={(event) => {
                     const held = press.current;
@@ -137,14 +134,16 @@ export function HistogramBrush({
                     }
 
                     held.moved = true;
-                    const by = snap(brush.min + (dx / held.width) * (brush.max - brush.min), brush) - brush.min;
-                    move(shiftRange(held.start, by, brush));
+                    // Whole steps either way; shiftRange stops the range at the scale's ends.
+                    const by = Math.round(((dx / held.width) * (brush.max - brush.min)) / brush.step) * brush.step;
+                    held.at = shiftRange(held.start, by, brush);
+                    move(held.at);
                 }}
                 onPointerUp={() => {
                     const held = press.current;
                     press.current = null;
-                    if (held?.moved === true && dragged !== null) {
-                        brush.onChangeEnd?.(dragged);
+                    if (held?.moved === true && held.at !== null) {
+                        brush.onChangeEnd?.(held.at);
                     }
 
                     setDragged(null);

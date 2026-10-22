@@ -190,6 +190,10 @@ const css = `
 .cm-histogram-brush-body { cursor: grab; border-radius: 2px; outline: 1px solid transparent; }
 .cm-histogram-brush-body:active { cursor: grabbing; }
 .cm-histogram-brush-body:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+/* The track between the thumbs belongs to the body: a press there drags the whole range, not the
+   nearer thumb. Only the thumbs themselves take the pointer. */
+.cm-histogram-brush-thumbs { pointer-events: none; }
+.cm-histogram-brush-thumbs .cm-slider-thumb { pointer-events: auto; }
 .cm-chart-text {
     ${cmFont("body")}
     color: var(--cm-text-secondary);

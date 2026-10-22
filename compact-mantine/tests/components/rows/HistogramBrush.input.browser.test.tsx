@@ -6,7 +6,7 @@
 import { screen } from "@testing-library/react";
 import React, { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { commands } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { HistogramRow, RangeSlider } from "../../../src";
 import type { HistogramBin } from "../../../src/components/rows/ChartRow";
@@ -16,6 +16,8 @@ import { drag, press, release } from "../../harness/mouse";
 afterEach(resetHarness);
 
 const DAY = 86_400_000;
+/** The middle of the brush row, the 16px line the thumbs ride on. */
+const BRUSH_MIDDLE = 8;
 const T0 = Date.UTC(2025, 0, 1);
 /** Ten daily bins. */
 const BINS: HistogramBin[] = Array.from({ length: 10 }, (_, index) => ({
@@ -107,6 +109,38 @@ describe("HistogramRow's range brush", () => {
         await drag(body, { x: body.getBoundingClientRect().width / 2, y: 10 }, { x: 3 * dayWidth, y: 0 }, 6);
 
         expect(onEnd).toHaveBeenLastCalledWith([T0 + 5 * DAY, T0 + 7 * DAY]);
+    });
+
+    // The reader's "between the two dots": the row under the bars, where the thumbs' track runs.
+    it("moves both ends when the row between the two thumbs is dragged with the mouse", async () => {
+        const onEnd = vi.fn();
+        await renderThemed(<Brushed onEnd={onEnd} start={[T0 + 4 * DAY, T0 + 6 * DAY]} />);
+        const row = screen.getByTestId("histogram-brush");
+        const dayWidth = screen.getByTestId("histogram-plot").getBoundingClientRect().width / 10;
+
+        await drag(row, { x: row.getBoundingClientRect().width / 2, y: BRUSH_MIDDLE }, { x: 2 * dayWidth, y: 0 }, 6);
+
+        expect(onEnd).toHaveBeenLastCalledWith([T0 + 6 * DAY, T0 + 8 * DAY]);
+    });
+
+    it("moves both ends when a finger drags the row between the two thumbs", async () => {
+        const onEnd = vi.fn();
+        await renderThemed(<Brushed onEnd={onEnd} start={[T0 + 4 * DAY, T0 + 6 * DAY]} />);
+        const dayWidth = screen.getByTestId("histogram-plot").getBoundingClientRect().width / 10;
+
+        await commands.touchDrag('[data-testid="histogram-brush"]', -2 * dayWidth);
+
+        expect(onEnd).toHaveBeenLastCalledWith([T0 + 2 * DAY, T0 + 4 * DAY]);
+    });
+
+    it("moves both ends with the arrow keys on the window", async () => {
+        const onEnd = vi.fn();
+        await renderThemed(<Brushed onEnd={onEnd} start={[T0 + 4 * DAY, T0 + 6 * DAY]} />);
+        screen.getByRole("slider", { name: "Window" }).focus();
+
+        await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+
+        expect(onEnd).toHaveBeenLastCalledWith([T0 + 6 * DAY, T0 + 8 * DAY]);
     });
 
     it("jumps to a bar clicked outside the range, keeping its width", async () => {

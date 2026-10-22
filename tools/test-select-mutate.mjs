@@ -102,14 +102,17 @@ function scratch(head) {
         }).trim(),
     );
     const wt = join(main, ".worktrees", "select-mutate");
-    const git = (...a) => execFileSync("git", a, { cwd: existsSync(wt) ? wt : main, stdio: "inherit" });
+    const env = { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" };
+    const git = (...a) => execFileSync("git", a, { cwd: existsSync(wt) ? wt : main, stdio: "inherit", env });
     if (existsSync(wt)) {
         git("reset", "-q", "--hard");
         git("clean", "-qfd", "--", ".");
         git("checkout", "-q", "--detach", head);
     } else {
+        // the screenshot baselines are Git LFS objects no test reads; only the browser fonts are fetched
         git("worktree", "add", "-q", "--detach", wt, head);
     }
+    execFileSync("git", ["lfs", "pull", "--include", "visual-fonts/**"], { cwd: wt, stdio: "inherit" });
     execFileSync("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], { cwd: wt, stdio: "inherit" });
     return wt;
 }

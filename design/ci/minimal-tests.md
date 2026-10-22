@@ -1,6 +1,7 @@
 # Minimal tests: run only what a change can affect
 
-Status: Proposed, 2026-10-22. Issue #3276, part of the fast pipeline (#3262,
+Status: Built in part, 2026-10-22: `pnpm run test:changed`, `PREPUSH_SELECT=1` in the gate (off by
+default) and `tools/test-select-mutate.mjs` exist; mutation runs and the switch to on are next. Issue #3276, part of the fast pipeline (#3262,
 `design/ci/fast-pipeline.md`, section 5).
 
 Running tests is the slowest part of getting a change into graphty-monorepo. A golden landing waits

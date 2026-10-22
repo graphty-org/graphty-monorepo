@@ -788,8 +788,12 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
         const r = Math.hypot(x - mx, y - my);
         return { tangent: r > 1e-9 ? [-(y - my) / r, (x - mx) / r] : [1, 0], across: r };
     };
-    // a ring: every other subpath inside the outermost
-    if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(outerBox, b))) {
+    // a ring: every other subpath inside the outermost, or as good as: round a small node a zigzag's sharp turns are
+    // drawn through their own corners (Java2D's inner join), and the inner outline's turn there can poke a tenth of a
+    // pixel past the outer one's tip (xgmml-syn-bypass's B61)
+    const slack = 0.05 * Math.min(outerBox.x1 - outerBox.x0, outerBox.y1 - outerBox.y0);
+    const grown = { x0: outerBox.x0 - slack, y0: outerBox.y0 - slack, x1: outerBox.x1 + slack, y1: outerBox.y1 + slack };
+    if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(grown, b))) {
         const band = Math.abs(subpaths.reduce((sum, q) => sum + signedArea(q), 0));
         const width = (2 * band) / subpaths.reduce((sum, q) => sum + lengthOf(q), 0);
         if (!(width > 0)) {

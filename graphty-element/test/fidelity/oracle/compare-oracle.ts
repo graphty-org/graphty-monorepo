@@ -1719,8 +1719,14 @@ export function compareOracle(
     const flips = (o: PEdge, g: PEdge): boolean =>
         drawnFlip.get(g) ??
         (oid(g.source) !== o.source && oid(g.ownEnds?.source ?? g.source) !== (o.ownEnds?.source ?? o.source));
+    // Between unrelated layouts the fit relates no place to the oracle's, and its scale is the layouts' spread, not
+    // the drawing's: graphty's routes and the nodes that cut them are taken at the size-fitted scale instead, so a
+    // route is cut by nodes of its own drawing's size (json-vis-lesmiserables: routes carried at the fit's 0.207 and
+    // nodes at 0.838 left 11 px of a 116 px line, and its bend was judged on that sliver)
+    const edgeFrame = (p: Pt): Pt =>
+        transform?.unrelatedLayout === true ? [p[0] * lengthScale, p[1] * lengthScale] : toOracle(p);
     const routeOf = (o: PEdge, g: PEdge): Pt[] => {
-        const gp = g.points.map((p) => toOracle(p));
+        const gp = g.points.map((p) => edgeFrame(p));
         return flips(o, g) ? [...gp].reverse() : gp;
     };
     // Parallel edges are paired in id order, except that an edge whose route would fail goes to one whose route
@@ -1743,7 +1749,7 @@ export function compareOracle(
             return undefined;
         }
         const [w, h] = outerOf(n, "graphty");
-        const [cx, cy] = toOracle([n.cx, n.cy]);
+        const [cx, cy] = edgeFrame([n.cx, n.cy]);
         return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale };
     };
     // a node with no body (graphty's faceless node, the oracle's node found only by its label or by its lines' ends)
@@ -2457,6 +2463,16 @@ export function compareOracle(
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));
         j.add("stray.extra", "stray", `graphty:${s.tag}#${String(s.index)}`, drawn ? 0 : 1, null, s.text ?? s.tag);
+    }
+    // free text graphty draws (a caption's words aside, which withoutCaptions dropped), the label of a node it draws
+    // with no body among them: extra where the oracle draws those words nowhere near, or, between unrelated layouts,
+    // which relate no place, nowhere at all
+    const anywhere = transform?.unrelatedLayout === true;
+    const gFree = oracle.nodesOnly === true ? [] : graphty.texts.filter((t) => norm(t.content) !== "");
+    for (const [i, t] of [...gFree].sort((a, b) => cmp(a.content, b.content) || a.x - b.x || a.y - b.y).entries()) {
+        const words = norm(t.content);
+        const drawn = anywhere ? oTexts.some((o) => o.words.includes(words)) : textDrawn(t.content, toO(t.box), oTexts);
+        j.add("stray.extra", "stray", `graphty:text#${String(i)}`, drawn ? 0 : 1, null, t.content);
     }
 
     if (oracle.background !== null && graphty.background !== null) {

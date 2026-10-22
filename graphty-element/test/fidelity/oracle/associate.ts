@@ -767,7 +767,11 @@ const COVER_SLACK = 0.5;
  * @param line - the line, source end first
  * @returns the end and the route, or null for a line that shows beyond its arrowhead
  */
-function coveredLine(outline: readonly Pt[], line: readonly Pt[]): { end: "source" | "target"; points: Pt[] } | null {
+function coveredLine(
+    outline: readonly Pt[],
+    line: readonly Pt[],
+    tipAt?: (tip: Pt, mid: Pt) => "source" | "target" | null,
+): { end: "source" | "target"; points: Pt[] } | null {
     const gap = (a: Pt, b: Pt): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
     // inside it, or on one of its corners (the line's end on the arrowhead's notch)
     const under = (q: Pt): boolean => inPolygon(q, outline) || outline.some((c) => gap(q, c) <= COVER_SLACK);
@@ -777,9 +781,12 @@ function coveredLine(outline: readonly Pt[], line: readonly Pt[]): { end: "sourc
     }
     const tip = outline.reduce((best, q) => (gap(q, mid) > gap(best, mid) ? q : best));
     const [first, last] = [line[0], line.at(-1) ?? line[0]];
-    return gap(last, tip) >= gap(first, tip)
-        ? { end: "target", points: [last, tip] }
-        : { end: "source", points: [tip, first] };
+    const far = gap(last, tip) >= gap(first, tip) ? last : first;
+    // the way it points, where the edge's two nodes are known, says which end it caps: Graphviz runs a stub of a few
+    // pixels under its arrowhead from the source toward the tip (dot-real-softmaint odfpr1_0_3t_18 -> 371187), its end
+    // at the arrowhead's back the nearer the tip
+    const end = tipAt?.(tip, mid) ?? (far === last ? "target" : "source");
+    return end === "target" ? { end, points: [far, tip] } : { end, points: [tip, far] };
 }
 
 /**
@@ -1009,6 +1016,10 @@ const boxOfNode = (n: PNode): PBox => ({
     x1: n.cx + n.w / 2,
     y1: n.cy + n.h / 2,
 });
+
+/** How far apart two boxes are: 0 where they meet or overlap. */
+const boxGap = (a: PBox, b: PBox): number =>
+    Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
 
 /**
  * The largest end cap that draws nothing beyond its line: a dot or square as wide as the line. A line of no one
@@ -1700,8 +1711,23 @@ export function associate(
                         ? "source"
                         : "target";
                 };
+                // which end a head points to, where the edge's two nodes are known and drawn apart: a head pointing
+                // from the source's center toward the target's caps the target. Nodes drawn on one another say
+                // nothing: Pajek's head on a line from the source's center to the target's near outline points back
+                // at the source (pajek-iliad 125 -> 123)
+                const tipAt = (tip: Pt, mid: Pt): "source" | "target" | null => {
+                    const [from, to] = [nodes.get(ends[0]), nodes.get(ends[1])];
+                    if (from === undefined || to === undefined || boxGap(boxOfNode(from), boxOfNode(to)) <= 0) {
+                        return null;
+                    }
+                    const along = (tip[0] - mid[0]) * (to.cx - from.cx) + (tip[1] - mid[1]) * (to.cy - from.cy);
+                    if (along === 0) {
+                        return null;
+                    }
+                    return along > 0 ? "target" : "source";
+                };
                 const arrows = heads.map((h) => {
-                    const covered = heads.length === 1 ? coveredLine(h.points, line.points) : null;
+                    const covered = heads.length === 1 ? coveredLine(h.points, line.points, tipAt) : null;
                     if (covered !== null) {
                         ({ points } = covered);
                         return arrowFrom(h, points, covered.end, canvas);
@@ -1977,11 +2003,24 @@ export function associate(
     const pairOf = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
     const guidePairs = new Map<string, number>();
     const guideColors = new Map<string, Set<string>>();
+    const guideWays = new Set<string>();
     for (const e of guide.edges) {
         const k = pairOf(e.source, e.target);
+        guideWays.add(`${e.source}\u0000${e.target}`);
         guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
         guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
     }
+    // A line between two nodes drawn on one another runs between their outlines, which cross: which of its ends is
+    // the source's its ends do not say (cx-radiation-bibliography 30 -> 44, a hexagon and a round rectangle that
+    // overlap, drawn from 30's outline back to 44's, was read as 44 -> 30). The way graphty runs the edge does, where
+    // it runs it one way only; the line and its arrowheads keep their own ends.
+    const orientOverlapping = ([a, b]: [PNode, PNode]): [PNode, PNode] =>
+        a !== b &&
+        boxGap(boxOfNode(a), boxOfNode(b)) <= 0 &&
+        guideWays.has(`${b.id}\u0000${a.id}`) &&
+        !guideWays.has(`${a.id}\u0000${b.id}`)
+            ? [b, a]
+            : [a, b];
     // A group graphty draws (a WikiPathways complex) is an edge end too: an end that lands on one of its members may
     // end at the group's box. It stands in as a node with the group's id, its members' box.
     const groupEnds = guide.groups.flatMap((g) => {
@@ -2174,7 +2213,7 @@ export function associate(
         if (ends === null) {
             continue;
         }
-        const [a, b] = ends;
+        const [a, b] = orientOverlapping(ends);
         // a band is an edge only while graphty draws one between its nodes that no line of the drawing has taken
         if (p.stroke.painted === true && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) <= 0) {
             continue;

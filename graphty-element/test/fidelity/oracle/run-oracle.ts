@@ -227,7 +227,10 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     }
     if (options.write) {
         await commands.writeFile(`${ORACLE_OUT}/${id}.graphty.png`, shot, { encoding: "base64" });
-        if (raster !== null) {
+        // between unrelated layouts the oracle carried into graphty's frame is the fit of two unrelated arrangements
+        // (json-vis-siblings: stretched 4x and turned 106 degrees), no picture of anything: the report page shows the
+        // program's own drawing beside graphty's instead
+        if (raster !== null && report.transform?.unrelatedLayout === false) {
             await commands.writeFile(`${ORACLE_OUT}/${id}.aligned.png`, raster.images.oracleAligned, {
                 encoding: "base64",
             });

@@ -58,4 +58,28 @@ describe("a band drawn in pieces", () => {
         assert.strictEqual(band?.dashClass, "slashes");
         assert.isUndefined(band?.route);
     });
+
+    it("reads a straight double line drawn as short pieces on its two rows as straight, midway between the rows", () => {
+        // Cytoscape desktop's PARALLEL_LINES (cx-specimen-edges-lines): 1 x 1.5 pieces in turn on two rows 4.5 apart
+        const pieces = Array.from({ length: 120 }, (_, i) =>
+            slash(10 + Math.floor(i / 2), i % 2 === 0 ? 0 : 4.5, Math.PI / 2, 1, 1.5),
+        );
+        const band = bandPaintedAsFill(pieces);
+        assert.strictEqual(band?.dashClass, "double");
+        assert.isUndefined(band?.route, "straight, not zigzagged from one row to the other");
+        assert.closeTo(band?.ends[0][1] ?? 0, 2.25, 0.01);
+    });
+
+    it("reads a slanted double line whose pieces are not always drawn in turn on its rows as straight", () => {
+        // cys-syn-mappings 366->387: rows 0.8 apart, pieces 0.7 apart along, sorted along the line some fall twice on a row
+        const slope = -0.014;
+        const pieces = Array.from({ length: 400 }, (_, i) => {
+            const side = (i % 2 === 0) !== (i % 37 === 0) ? -0.4 : 0.4;
+            const x = 0.35 * i;
+            return slash(x - side * slope, x * slope + side, Math.PI / 2, 0.25, 0.25);
+        });
+        const band = bandPaintedAsFill(pieces);
+        assert.strictEqual(band?.dashClass, "double");
+        assert.isUndefined(band?.route, "straight, not zigzagged from one row to the other");
+    });
 });

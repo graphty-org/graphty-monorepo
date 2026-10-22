@@ -1717,6 +1717,21 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.deepEqual(r.failures["stray.extra"], ["graphty:annotation-shape#0"]);
     });
 
+    it("fails words graphty draws that the program draws nowhere near, a body-less node's label among them", () => {
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.texts = [text("kept words", 300, 200)];
+        const g = sceneOf("graphty", 600, 400, grid());
+        g.texts = [text("kept words", 302, 201)];
+        assert.deepEqual(failing(compareOracle("t", o, g)), []);
+        g.texts = [text("kept words", 302, 201), text("planted words", 450, 380)];
+        const r = compareOracle("t", o, g);
+        assert.deepEqual(r.failures["stray.extra"], ["graphty:text#1"]);
+        // a node graphty draws with no body, which the program does not draw at all: its label is graphty's alone
+        g.texts = [text("kept words", 302, 201)];
+        g.nodes = [...grid(), node("ghost", 450, 380, 40, { faceless: [text("PLANTED TEXT NODE", 450, 380)] })];
+        assert.include(compareOracle("t", o, g).failures["stray.extra"] ?? [], "graphty:text#0");
+    });
+
     it("matches a stray only to an annotation drawn over most of it", () => {
         const o = sceneOf("oracle", 600, 400, grid());
         o.strays = [
@@ -1826,6 +1841,46 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         );
         assert.strictEqual(related.properties["node.position"].passRate, 1);
         assert.strictEqual(related.properties["node.sizeToSpacing"].passRate, 1);
+    });
+
+    it("judges a bend between unrelated layouts on each route between its own drawing's nodes", () => {
+        // json-vis-lesmiserables: graphty's own layout, unrelated to the program's, fits at a quarter of the scale its
+        // node sizes fit, and its routes were cut by nodes that, at that scale, covered most of each line
+        const elsewhere: Pt[] = [
+            [50, 50],
+            [200, 50],
+            [100, 350],
+            [500, 60],
+            [550, 350],
+            [250, 380],
+        ];
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.edges = [
+            edge("e1", [
+                [120, 100],
+                [280, 100],
+            ]),
+        ];
+        // nodes a quarter the program's size, two of them close together in graphty's own layout
+        const g = sceneOf(
+            "graphty",
+            600,
+            400,
+            elsewhere.map(([x, y], i) => node(`n${String(i)}`, x, y, 10)),
+        );
+        // a line from n0 to n1, bowed a sixth of its length off its chord, or straight
+        const bowed = (depth: number): Pt[] =>
+            Array.from({ length: 21 }, (_, i): Pt => {
+                const t = i / 20;
+                return [55 + 140 * t, 50 + depth * 140 * 4 * t * (1 - t)];
+            });
+        g.edges = [edge("e1", bowed(1 / 6))];
+        const r = compareOracle("t", o, g, null, { ownLayouts: true });
+        assert.isTrue(r.transform?.unrelatedLayout);
+        assert.isBelow(r.transform?.scale ?? 1, (r.transform?.lengthScale ?? 0) / 3);
+        assert.strictEqual(r.properties["edge.curve"].passRate, 0, "a bent line against a straight one");
+        g.edges = [edge("e1", bowed(0))];
+        assert.strictEqual(compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"].passRate, 1);
     });
 
     it("reports a turned frame and a zoomed one instead of fitting them away", () => {

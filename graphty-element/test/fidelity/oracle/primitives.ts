@@ -792,7 +792,12 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
     // drawn through their own corners (Java2D's inner join), and the inner outline's turn there can poke a tenth of a
     // pixel past the outer one's tip (xgmml-syn-bypass's B61)
     const slack = 0.05 * Math.min(outerBox.x1 - outerBox.x0, outerBox.y1 - outerBox.y0);
-    const grown = { x0: outerBox.x0 - slack, y0: outerBox.y0 - slack, x1: outerBox.x1 + slack, y1: outerBox.y1 + slack };
+    const grown = {
+        x0: outerBox.x0 - slack,
+        y0: outerBox.y0 - slack,
+        x1: outerBox.x1 + slack,
+        y1: outerBox.y1 + slack,
+    };
     if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(grown, b))) {
         const band = Math.abs(subpaths.reduce((sum, q) => sum + signedArea(q), 0));
         const width = (2 * band) / subpaths.reduce((sum, q) => sum + lengthOf(q), 0);
@@ -920,14 +925,36 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
         const c = q.map(acrossOf);
         return Math.max(...c) - Math.min(...c);
     });
-    if (spread <= 2 * median(pieceAcross)) {
-        return result;
-    }
-    const centers = subpaths
+    const sorted = subpaths
         .map((q): Pt => [q.reduce((t, p) => t + p[0], 0) / q.length, q.reduce((t, p) => t + p[1], 0) / q.length])
         .sort((p, q) => alongOf(p) - alongOf(q));
+    // A double line's pieces lie in turn on its two rows, which reach across it as far apart as the rows are: its line
+    // runs midway between neighboring pieces on the two rows (cx-specimen-edges-lines PARALLEL_LINES, read through each
+    // piece's center, zigzagged from one row to the other).
+    const centers = dashClass === "double" ? midline(sorted, acrossOf) : sorted;
+    const reach = (pts: readonly Pt[]): number => Math.max(...pts.map(acrossOf)) - Math.min(...pts.map(acrossOf));
+    if (spread <= 2 * median(pieceAcross) || (dashClass === "double" && reach(centers) <= median(pieceAcross))) {
+        return result;
+    }
     const out = (c: Pt, a: number): Pt => [c[0] + (a - alongOf(c)) * u[0], c[1] + (a - alongOf(c)) * u[1]];
     return { ...result, route: [out(centers[0], a0), ...centers, out(centers[centers.length - 1], a1)] };
+}
+
+/**
+ * The line between a double line's two rows of pieces: the middle of each two neighboring pieces that lie on the two
+ * rows, a row apart across the line, and not of two on one row (pieces on the two rows are not drawn strictly in turn).
+ * @param centers - the pieces' centers, in order along the line
+ * @param across - how far across the line a point lies
+ * @returns the line's points
+ */
+function midline(centers: readonly Pt[], across: (p: Pt) => number): Pt[] {
+    const steps = centers.slice(1).map((c, i) => Math.abs(across(c) - across(centers[i])));
+    const rows = [...steps].sort((a, b) => a - b)[Math.floor(0.75 * steps.length)] ?? 0;
+    return centers
+        .slice(1)
+        .flatMap((c, i): Pt[] =>
+            steps[i] >= rows / 2 ? [[(c[0] + centers[i][0]) / 2, (c[1] + centers[i][1]) / 2]] : [],
+        );
 }
 
 /** How many times as long as its base a filled triangle must be to be read as a line tapering to a point. */

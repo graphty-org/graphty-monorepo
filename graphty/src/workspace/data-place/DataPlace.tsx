@@ -9,6 +9,7 @@ import { GLYPHS, SOURCE_GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleNotes } from "../styles/StyleNotes";
+import { TimeSection } from "../time/TimeSection";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";
 import { stepSource } from "./filterSteps";
@@ -303,6 +304,7 @@ export function DataPlace(): React.JSX.Element {
                 <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
             </ControlSection>
             <FiltersSection />
+            <TimeSection />
             <AttributesSection />
         </section>
     );

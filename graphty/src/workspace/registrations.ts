@@ -20,6 +20,7 @@ import { registration as settings } from "./settings/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
+import { registration as time } from "./time/commands";
 import { registration as toolbar } from "./toolbar/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
@@ -40,4 +41,5 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     dataPage,
     project,
     notes,
+    time,
 ];

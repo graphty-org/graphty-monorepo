@@ -1,0 +1,64 @@
+/* The timeline dock: under the canvas, above the table dock. It takes its own height, so it
+   never covers a node. */
+.tl-dock {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px 6px;
+    border-top: 1px solid var(--mantine-color-default-border);
+    background: var(--mantine-color-body);
+}
+
+.tl-bar {
+    min-height: 28px;
+}
+
+.tl-readout {
+    white-space: nowrap;
+    margin-inline-start: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.tl-counts {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.tl-spacer {
+    flex: 1 1 auto;
+}
+
+.tl-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.tl-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tl-brush {
+    margin-top: -6px;
+}
+
+/* Touch: 44px targets for the transport and the brush's thumbs. */
+@media (pointer: coarse) {
+    .tl-dock .mantine-ActionIcon-root {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .tl-brush .mantine-Slider-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    .tl-brush {
+        margin-block: 8px;
+    }
+}

@@ -1031,6 +1031,33 @@ radix sort and the time-sliced index build; the incremental mask pipeline (a ste
 masks in full); `spanOf`, `series`, `transition`, `commit`, the cursor; intervals (phase 4);
 the import-screen suggestion and `time.found`; the in-element benchmark.
 
+The app half (graphty app, `graphty/src/workspace/time/`):
+
+- **Dock** under the canvas while a field is designated: step back, play/pause, step forward,
+  the window readout (inclusive end, dates in UTC to agree with the element's bins), visible
+  counts, the field name and a close button that clears the window; then compact-mantine's
+  `HistogramRow` of the field (100 bins, bars in the window drawn in the accent), Mantine's
+  `RangeSlider` as the brush (thumbs snap to bins, one undoable step per drag), and a
+  `SparklineRow` of the selection's activity while something is selected. 44 px targets under a
+  coarse pointer. Space in the dock plays and pauses.
+- **Time section** in the Data place, after Filters: Time field (nodes and edges grouped, or
+  None), Unit for a number column (Epoch ms, Epoch s, Number), Step, Mode (Sliding,
+  Cumulative), Speed (1x, 2x, 4x; the app's preference, not saved) and Results (Mark out of
+  date, Keep, Re-run). An attribute's menu also has "Set as time".
+- **Header chip** beside the filter chip while a window is on: the tier 3 shell has no status
+  bar, so the chip is the Viewing slot. Comma and period step (switchable single keys); "Play or
+  pause time" is in Quick actions.
+
+Element additions the app needed: `time.window` takes a window with its bounds left out (they
+keep the current window's, or open one step at the start of the data), a first calendar window
+starts on the step's boundary, and `bins({ of: { nodes, incident: true } })` counts the edges at
+the given nodes, so a node selection over edge time has an activity line.
+
+Not built in the app: dragging the brush body (the thumbs and the track move it), wheel or pinch
+zoom of the time axis, a tap on a bar to jump, the T key, "jump to the selection's span"
+(`spanOf` is not built), the phone sparkline layout and bottom sheet, the import-screen time
+role suggestion and the Overview finding, and Storybook stories for each dock state.
+
 ### 8.4 For the owner
 
 Under the repository rule, additive API changes need no owner approval, and everything in

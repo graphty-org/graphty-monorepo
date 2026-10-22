@@ -61,3 +61,35 @@ export async function swipeOver(element: Element, distance: number): Promise<voi
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
+
+/**
+ * Presses the mouse on the middle of an element, moves it sideways in steps and releases it, as the
+ * reader drags a thumb or a handle.
+ * @param element - Where the press lands.
+ * @param dx - How far to move, in CSS pixels of the test page; negative moves left.
+ */
+export async function dragAcross(element: Element, dx: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const frame = window.frameElement;
+    const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
+    const steps = 10;
+    await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+    await session.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x: x + (dx * scale * step) / steps,
+            y,
+            button: "left",
+            buttons: 1,
+        });
+    }
+    await session.send("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: x + dx * scale,
+        y,
+        button: "left",
+        clickCount: 1,
+    });
+}

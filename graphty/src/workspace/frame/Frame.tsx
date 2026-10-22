@@ -17,6 +17,7 @@ import { NotesPlace } from "../notes/NotesPlace";
 import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
+import { TimeDock } from "../time/TimeDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
 import { focusIsLost, focusOpenedGraph } from "./focus";
@@ -134,6 +135,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                             <NoticeSlot />
                         </div>
                     </section>
+                    <TimeDock />
                     {dockOpen ? (
                         <section className="ws-dock" aria-label="Table" style={{ height: dockHeight }}>
                             <ResizeHandle

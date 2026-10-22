@@ -82,6 +82,8 @@ import {
     Spline,
     Square,
     SquareDashed,
+    StepBack,
+    StepForward,
     StickyNote,
     Sun,
     Table,
@@ -220,6 +222,9 @@ export const GLYPHS = {
     play: Play,
     pause: Pause,
     stop: Square,
+    // The timeline dock's transport.
+    stepBack: StepBack,
+    stepForward: StepForward,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

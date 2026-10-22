@@ -26,17 +26,16 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 import * as readers from "./readers.mjs";
 import { routes } from "./routes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
-const main = dirname(
-    spawnSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
-        encoding: "utf8",
-    }).stdout.trim(),
-);
+const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
+const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // NOSONAR(S4036): the developer's own git
+const main = dirname(commonDir.stdout.trim());
 const OUT = join(repo, "tmp/dry-run");
 const FILES = join(repo, "design/ui/studio/tool/files");
 // The GPU flags the design studio's tool proved on this machine (design/ui/studio/tool/real.mjs):
@@ -66,20 +65,29 @@ const TYPES = {
     ".woff2": "font/woff2",
 };
 
-function parseArgs(argv) {
-    const o = { only: null, workers: 4, list: false, dist: join(repo, "graphty/dist"), worker: null };
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        if (a === "--only") o.only = argv[++i].split(",").filter(Boolean);
-        else if (a === "--workers") o.workers = Number(argv[++i]);
-        else if (a === "--list") o.list = true;
-        else if (a === "--dist") o.dist = resolve(argv[++i]);
-        else if (a === "--worker") o.worker = argv[++i];
-        else {
-            console.error(`unknown argument ${a}; see the comment at the top of ${fileURLToPath(import.meta.url)}`);
-            process.exit(2);
-        }
+function options(argv) {
+    let v;
+    try {
+        ({ values: v } = parseArgs({
+            args: argv,
+            options: {
+                only: { type: "string" },
+                workers: { type: "string", default: "4" },
+                list: { type: "boolean", default: false },
+                dist: { type: "string", default: join(repo, "graphty/dist") },
+                worker: { type: "string" },
+            },
+        }));
+    } catch (err) {
+        console.error(`${err.message}; see the comment at the top of ${fileURLToPath(import.meta.url)}`);
+        process.exit(2);
     }
+    const o = {
+        ...v,
+        only: v.only ? v.only.split(",").filter(Boolean) : null,
+        workers: Number(v.workers),
+        dist: resolve(v.dist),
+    };
     if (!Number.isInteger(o.workers) || o.workers < 1 || o.workers > 4) {
         console.error("--workers must be 1 to 4 (the machine's shared browser cap)");
         process.exit(2);
@@ -121,7 +129,7 @@ async function runAll(o) {
     const codes = await Promise.all(
         Array.from({ length: workers }, (_, n) => {
             const child = spawn(
-                "bash",
+                "bash", // NOSONAR(S4036): developer tooling runs the developer's own bash
                 [
                     gate,
                     process.execPath,
@@ -169,7 +177,10 @@ async function runAll(o) {
     console.log("\nroute                                     result    time  feature");
     for (const r of results)
         console.log(`${r.id.padEnd(40)}  ${r.result.padEnd(8)} ${fmt(r.ms).padStart(7)}  ${r.feature}`);
-    for (const r of failed) console.log(`\n${r.id}: ${r.reason}${r.aria ? `\n  page at failure: ${r.aria}` : ""}`);
+    for (const r of failed) {
+        console.log(`\n${r.id}: ${r.reason}`);
+        if (r.aria) console.log(`  page at failure: ${r.aria}`);
+    }
     console.log(
         `\n${results.length - failed.length} of ${results.length} routes passed in ${fmt(wall)} on ${workers} browser(s): ` +
             `${fmt(routeMs)} of routes, and ${fmt(slotWait.firstMs)} waiting for the first browser slot (${fmt(slotWait.lastMs)} for the last). ` +
@@ -182,7 +193,8 @@ async function runAll(o) {
 
 function serve(dist) {
     const http = createServer(async (req, res) => {
-        const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, "");
+        const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
+        const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
         if (!f.startsWith(dist)) return res.writeHead(403).end();
         // any path that is not a file is the app's own page
@@ -282,7 +294,6 @@ async function runWorker(o) {
     const slotWaitMs = Date.now() - Number(process.env.DRY_RUN_STARTED || Date.now());
     const http = await serve(o.dist);
     const origin = `http://127.0.0.1:${http.address().port}/`;
-    let renderer = null;
     try {
         for (const route of picked) {
             // claim the route: the first worker to create its claim file walks it
@@ -292,10 +303,10 @@ async function runWorker(o) {
                 continue;
             }
             const result = { ...(await walk(chromium, route, origin)), slotWaitMs };
-            renderer ??= result.renderer;
             writeFileSync(join(OUT, "results", `${route.id}.json`), JSON.stringify(result, null, 1) + "\n");
+            const why = result.result === "pass" ? "" : `: ${result.reason}`;
             console.log(
-                `[browser ${o.worker}] ${result.result.padEnd(4)} ${fmt(result.ms).padStart(7)}  ${route.id}${result.result === "pass" ? "" : `: ${result.reason}`}`,
+                `[browser ${o.worker}] ${result.result.padEnd(4)} ${fmt(result.ms).padStart(7)}  ${route.id}${why}`,
             );
         }
     } finally {
@@ -343,7 +354,7 @@ async function walk(chromium, route, origin) {
         assert.deepEqual(pageErrors, [], "the page threw script errors");
         out.result = "pass";
     } catch (err) {
-        out.reason = `${stage}: ${err.message.split("\n").slice(0, 6).join(" ").replace(/\s+/g, " ")}`;
+        out.reason = `${stage}: ${err.message.split("\n").slice(0, 6).join(" ").replaceAll(/\s+/g, " ")}`;
         if (pageErrors.length) out.reason += ` (page errors: ${pageErrors.join("; ")})`;
         if (b) {
             const f = join(OUT, `${route.id}.aria.txt`);
@@ -364,7 +375,7 @@ async function walk(chromium, route, origin) {
 // ---------------------------------------------------------------- entry
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    const o = parseArgs(process.argv.slice(2));
+    const o = options(process.argv.slice(2));
     if (o.list) {
         for (const r of select(o.only))
             console.log(`${r.id.padEnd(40)} ${r.feature} (${r.from}; ${Object.keys(r.checks).length} checks)`);

@@ -29,6 +29,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
 
 export const ROUTES = "graphty/dry-run/routes.mjs";
 export const READERS = "graphty/dry-run/readers.mjs";
@@ -38,7 +39,7 @@ const HELPERS_END = /^\/\/ -+ the routes/m;
 const DECLARATION = /^(?:export\s+)?(?:async\s+)?(?:function\*?|const|let|class)\s+([A-Za-z_$][\w$]*)/;
 
 const git = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-const squash = (text) => text.replace(/\s+/g, " ").trim();
+const squash = (text) => text.replaceAll(/\s+/g, " ").trim();
 
 /**
  * A file's top-level declarations, by name: each runs from its first line to the next declaration.
@@ -125,7 +126,7 @@ export function checkChangeProblems(files, messages) {
     const problems = [];
     const outside = files.filter((f) => !f.startsWith("graphty/dry-run/"));
     if (outside.length) problems.push(`it also changes files outside graphty/dry-run/: ${outside.join(", ")}`);
-    const trailer = new RegExp(`^${TRAILER}:\\s*(.{10,})$`, "m");
+    const trailer = new RegExp(String.raw`^${TRAILER}:\s*(.{10,})$`, "m");
     const bare = messages.filter((m) => !trailer.test(m));
     if (!messages.length || bare.length)
         problems.push(`${bare.length || "no"} commit(s) lack a "${TRAILER}: <reason, 10 characters or more>" trailer`);
@@ -141,16 +142,21 @@ const show = (ref, path, cwd) => {
 };
 
 async function main(argv) {
-    const o = { base: null, head: "HEAD" };
-    for (let i = 0; i < argv.length; i++) {
-        if (argv[i] === "--base") o.base = argv[++i];
-        else if (argv[i] === "--head") o.head = argv[++i];
-        else if (argv[i] === "--self-test") return selfTest();
-        else {
-            console.error("usage: node tools/dry-run-check-guard.mjs [--base <ref>] [--head <ref>] | --self-test");
-            return 2;
-        }
+    let o;
+    try {
+        ({ values: o } = parseArgs({
+            args: argv,
+            options: {
+                base: { type: "string" },
+                head: { type: "string", default: "HEAD" },
+                "self-test": { type: "boolean" },
+            },
+        }));
+    } catch {
+        console.error("usage: node tools/dry-run-check-guard.mjs [--base <ref>] [--head <ref>] | --self-test");
+        return 2;
     }
+    if (o["self-test"]) return selfTest();
     const cwd = git(["rev-parse", "--show-toplevel"]).trim();
     const base = o.base ?? git(["merge-base", o.head, "origin/golden"], cwd).trim();
     const before = await protectedUnits(show(base, ROUTES, cwd), show(base, READERS, cwd));

@@ -9,10 +9,11 @@
 #                                         against this checkout. No network. About a second.
 #   tools/check-links.sh                  the above, plus every other github.com/graphty-org link
 #                                         over the network (set GITHUB_TOKEN to avoid rate limits)
-#   tools/check-links.sh --site <dir>     the above, plus links to https://graphty.app checked
-#                                         against <dir>, the site tools/assemble-pages-site.sh
-#                                         builds -- so a link is judged against what the next
-#                                         deploy publishes, not against what is live today --
+#   tools/check-links.sh --site <dir>     the above, plus links to https://graphty.app (and
+#                                         https://beta.graphty.app) checked against <dir>, the site
+#                                         tools/assemble-pages-site.sh builds -- the beta build this
+#                                         commit becomes and promotion publishes, not what is live
+#                                         today --
 #                                         every link inside that site's HTML (VitePress sidebars
 #                                         and nav, which VitePress itself does not check), and
 #                                         every Storybook deep link's story id
@@ -97,11 +98,11 @@ ARGS=(--offline --remap "$REPO_REMAP")
 if [ -n "$SITE" ]; then
     # A URL ending in "/" needs the index.html GitHub Pages would serve; the graph-samples
     # datasets under /data/ are downloaded only by the deploy, so they are not in a CI-built site.
-    ARGS+=(--remap "^https://graphty\.app/?((?:[^?#]*/)?)(?:[?#].*)?$ file://$SITE/\${1}index.html"
-        --remap "^https://graphty\.app/([^?#]*)(?:[?#].*)?$ file://$SITE/\$1"
+    ARGS+=(--remap "^https://(?:beta\.)?graphty\.app/?((?:[^?#]*/)?)(?:[?#].*)?$ file://$SITE/\${1}index.html"
+        --remap "^https://(?:beta\.)?graphty\.app/([^?#]*)(?:[?#].*)?$ file://$SITE/\$1"
         --exclude "^file://$SITE/data/")
 else
-    ARGS+=(--exclude '^https://graphty\.app')
+    ARGS+=(--exclude '^https://(beta\.)?graphty\.app')
 fi
 echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUTS") files"
 "$LYCHEE" "${ARGS[@]}" --files-from "$INPUTS" || FAILED=1

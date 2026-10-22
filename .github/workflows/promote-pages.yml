@@ -1,0 +1,102 @@
+name: Promote a beta build to graphty.app
+
+# graphty.app serves one beta build (a release of graphty-org/graphty-beta, tagged build-<commit>, which
+# deploy-pages.yml makes from every green master build and serves at beta.graphty.app). This workflow puts
+# the build you name on graphty.app, exactly as it was built, with one addition: the hosted datasets under
+# /data/graph-samples/v1/ are the union of that build's and the newest build's, because they are
+# append-only and a released package may name a dataset only a newer build has.
+#
+# Run it by hand from master (Actions, "Promote a beta build to graphty.app", Run workflow). Rolling back
+# is promoting an earlier build. After the deploy it records the build in the repository variable
+# PROMOTED_BUILD, which is how every later run knows what graphty.app serves. deploy-pages.yml also calls it,
+# with build "live", to give graphty.app new datasets without changing the build it serves. dry_run
+# assembles the site and stops before deploying.
+#
+# Reading and writing graphty-beta and PROMOTED_BUILD takes the GitHub App whose id and private key are the
+# secrets GRAPHTY_PAGES_APP_ID and GRAPHTY_PAGES_APP_KEY (see graphty-beta's README, "Setup").
+on:
+    workflow_dispatch:
+        inputs:
+            build:
+                description: "newest, or the build's commit (7 or more hex digits), as https://github.com/graphty-org/graphty-beta/releases lists them"
+                required: true
+                default: newest
+            dry_run:
+                description: "Assemble the site without deploying it"
+                type: boolean
+                default: false
+    workflow_call:
+        inputs:
+            build:
+                type: string
+                required: true
+            dry_run:
+                type: boolean
+                default: false
+        secrets:
+            GRAPHTY_PAGES_APP_ID:
+                required: true
+            GRAPHTY_PAGES_APP_KEY:
+                required: true
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+jobs:
+    # One job, in one concurrency group, so the build "live" names is read only after every earlier
+    # promotion has deployed and recorded itself: a datasets refresh never puts back the build before it.
+    # ponytail: a pending run replaces an older pending one, so a refresh queued behind a running deploy can
+    # cancel a promotion queued just before it (deploy-pages.yml skips its refresh while a promotion is
+    # queued, which leaves a window of seconds); the cancelled promotion shows as cancelled and is run again.
+    promote:
+        name: Promote to graphty.app
+        runs-on: ubuntu-24.04
+        concurrency:
+            group: graphty-app
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+
+            - id: app-token
+              uses: actions/create-github-app-token@v2
+              with:
+                  app-id: ${{ secrets.GRAPHTY_PAGES_APP_ID }}
+                  private-key: ${{ secrets.GRAPHTY_PAGES_APP_KEY }}
+                  owner: graphty-org
+                  repositories: graphty-beta,graphty-monorepo
+
+            - id: compose
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                  BUILD: ${{ inputs.build }}
+              run: |
+                  tag=$(tools/pages-builds.sh compose "$BUILD" ./public)
+                  echo "tag=$tag" >> "$GITHUB_OUTPUT"
+                  stamp=$(grep -o 'name="graphty-build" content="[^"]*"' public/index.html | sed 's/.*content="//; s/"$//')
+                  echo "Promoting $tag ($stamp) to graphty.app" | tee -a "$GITHUB_STEP_SUMMARY"
+
+            - uses: actions/configure-pages@v4
+
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
+
+            - name: Deploy to GitHub Pages
+              id: deployment
+              if: ${{ !inputs.dry_run }}
+              uses: actions/deploy-pages@v4
+
+            - name: Record the promoted build
+              if: ${{ !inputs.dry_run }}
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                  TAG: ${{ steps.compose.outputs.tag }}
+              run: |
+                  tools/pages-builds.sh promoted "$TAG"
+                  echo "graphty.app now serves $TAG" >> "$GITHUB_STEP_SUMMARY"

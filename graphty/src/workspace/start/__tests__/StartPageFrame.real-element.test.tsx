@@ -216,8 +216,8 @@ describe("the start page in the app's frame", () => {
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        // Plus the app's two timed samples, which have no graph-samples dataset.
-        assert.lengthOf(offered, opens.length + 2);
+        // Plus the app's four timed samples, which have no graph-samples dataset.
+        assert.lengthOf(offered, opens.length + 4);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -241,22 +241,28 @@ describe("the start page in the app's frame", () => {
         assert.isNull(store.get().notice);
     });
 
-    it("opens the timed office email sample, every email an edge with its sent time", async () => {
+    it("opens the timed campus contacts sample, every hour two students were close an edge", async () => {
         const store = await startPage();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Office email sample" }));
+        await userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" }));
         await waitFor(
             () => {
                 const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
                     "graphty-element:not([data-start-page])",
                 );
-                assert.equal(element?.session.data.statistics().nodeCount, 48);
-                assert.equal(element?.session.data.statistics().edgeCount, 2102);
+                assert.equal(element?.session.data.statistics().nodeCount, 615);
+                assert.equal(element?.session.data.statistics().edgeCount, 8142);
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.equal(store.get().project?.name, "Office email");
+        assert.equal(store.get().project?.name, "Campus contacts");
         assert.isNull(store.get().notice);
+        // Every edge's `time` reads as time, so the timeline can take it.
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        const time = element?.session.time.candidates().find((each) => each.column === "time");
+        assert.deepInclude(time, { kind: "edge", parsed: 8142, total: 8142 });
     });
 
     it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {

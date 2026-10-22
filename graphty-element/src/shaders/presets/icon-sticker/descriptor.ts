@@ -5,7 +5,7 @@
  * Catalog data only; the GLSL is in `./body.ts`.
  *
  * Bind `icon` per node with the `"index"` scale
- * (`encode: { "node.shaderParams.icon-sticker.icon": { by: "data.group", scale: "index" } }`):
+ * (`encode: { "node.shaders.icon-sticker.icon": { by: "data.group", scale: "index" } }`):
  * each group takes the next icon in the order it is first seen and keeps it when new groups
  * arrive. Icons 6 to 11 are the first six drawn as outlines.
  *

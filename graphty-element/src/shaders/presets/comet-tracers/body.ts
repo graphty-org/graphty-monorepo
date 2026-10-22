@@ -8,7 +8,7 @@
  * The tail takes the line's color (brightened, so a dark line still carries a visible comet) or
  * `tailColor`; the head is `headColor`. Edges touching a selected or hovered node burn brighter.
  *
- * The lab drew the comets added onto a dark sky. Here they are drawn premultiplied over, so they
+ * The lab drew the comets added onto a dark sky. Here they are blended over, so they
  * read on a light canvas too; the shared bloom pass makes crossing heads flare.
  */
 
@@ -31,6 +31,7 @@ vec4 shade(EdgeInput e) {
     float gain = intensity * (1.0 + 1.2 * lit);
     vec3 rgb = (tc * tailA * (1.0 - headA) + headColor * headA * (1.0 + 0.5 * bloom)) * gain;
     float a = clamp((1.0 - (1.0 - tailA) * (1.0 - headA)) * intensity, 0.0, 1.0);
-    return vec4(rgb, a);
+    // rgb is premultiplied by the comets' coverage; returned straight.
+    return vec4(rgb / max(a, 1e-4), a);
 }
 `;

@@ -24,20 +24,21 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import { shaderDescriptor } from "../catalog/shaderRegistry";
-import type { ShaderParams } from "../catalog/shaders";
+import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
-import type { BoundaryMember, BoundaryPass, BoundaryPick } from "../meshes/BoundaryPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
+import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
-import { boundariesOf } from "../session/styles/StylesApi";
+import { placeOfUse } from "../session/styles/channels";
+import { groupOutlinesOf } from "../session/styles/StylesApi";
 import type { GraphSession, SessionEventMap } from "../session/types";
 import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
@@ -357,7 +358,7 @@ export interface ShaderSceneSources {
     /** The graph's session: its style stack and its shaders. */
     readonly session: GraphSession;
     /** A drawn node's place, size and color; undefined for one not drawn. */
-    readonly member: (id: NodeId) => BoundaryMember | undefined;
+    readonly member: (id: NodeId) => OutlineMember | undefined;
 }
 
 /** A background shader the graph asks for, with what it is drawn over. */
@@ -372,8 +373,8 @@ interface ShaderBackground {
     readonly dome: PhotoDome | null;
 }
 
-/** The session events after which the boundary layers may draw other groups or members. */
-const BOUNDARY_EVENTS = [
+/** The session events after which the group outlines may draw other groups or members. */
+const OUTLINE_EVENTS = [
     "style:changed",
     "history:changed",
     "project:changed",
@@ -385,18 +386,18 @@ const BOUNDARY_EVENTS = [
 ] as const satisfies readonly (keyof SessionEventMap)[];
 
 /**
- * The scene-level shader passes of one graph: the background shader, the group boundaries and
+ * The scene-level shader passes of one graph: the background shader, the group outlines and
  * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
  * that names no shader loads none of them.
  */
 class ShaderScene {
     private background: BackgroundPass | null = null;
-    private boundary: BoundaryPass | null = null;
+    private outline: GroupOutlinePass | null = null;
     private bloom: BloomPass | null = null;
     private wanted: ShaderBackground | null = null;
     /** Counts background requests, so a slow resolution never draws over a newer one. */
     private backgroundTicket = 0;
-    private boundaryLoading = false;
+    private outlineLoading = false;
     private readonly budget: RenderTargetBudget;
     private readonly stops: (() => void)[] = [];
     private disposed = false;
@@ -414,7 +415,7 @@ class ShaderScene {
     ) {
         this.budget = new RenderTargetBudget(() => QUALITY_LEVELS[guard.quality.level].targetBudgetBytes);
         const { session } = sources;
-        for (const event of BOUNDARY_EVENTS) {
+        for (const event of OUTLINE_EVENTS) {
             this.stops.push(
                 session.on(event, () => {
                     this.sync();
@@ -424,7 +425,7 @@ class ShaderScene {
 
         this.stops.push(
             session.on("shader:status", ({ id }) => {
-                this.boundary?.forget(id);
+                this.outline?.forget(id);
                 if (this.wanted?.id === id) {
                     void this.showBackground();
                 }
@@ -434,10 +435,10 @@ class ShaderScene {
         );
         lendSceneShaders(scene, () => {
             const background = this.background?.guardedDrawn();
-            const boundary = this.boundary?.guardedDrawn();
+            const outline = this.outline?.guardedDrawn();
             return {
-                heavy: background?.heavy === true || boundary?.heavy === true,
-                moving: [...(background?.moving ?? []), ...(boundary?.moving ?? [])],
+                heavy: background?.heavy === true || outline?.heavy === true,
+                moving: [...(background?.moving ?? []), ...(outline?.moving ?? [])],
             };
         });
         this.sync();
@@ -453,13 +454,13 @@ class ShaderScene {
     }
 
     /**
-     * The boundary under a point.
+     * The group outline under a point.
      * @param x - CSS pixels from the canvas's left edge.
      * @param y - CSS pixels from the canvas's top edge.
      * @returns The layer and group, or null.
      */
-    boundaryAt(x: number, y: number): BoundaryPick | null {
-        return this.boundary?.pick(x, y) ?? null;
+    groupOutlineAt(x: number, y: number): GroupOutlinePick | null {
+        return this.outline?.pick(x, y) ?? null;
     }
 
     /**
@@ -468,10 +469,10 @@ class ShaderScene {
      */
     passes(): {
         readonly background: BackgroundPass | null;
-        readonly boundary: BoundaryPass | null;
+        readonly outline: GroupOutlinePass | null;
         readonly bloom: BloomPass | null;
     } {
-        return { background: this.background, boundary: this.boundary, bloom: this.bloom };
+        return { background: this.background, outline: this.outline, bloom: this.bloom };
     }
 
     /** Release every pass and listener. */
@@ -484,8 +485,8 @@ class ShaderScene {
         lendSceneShaders(this.scene, () => ({ heavy: false, moving: [] }));
         this.background?.dispose();
         this.background = null;
-        this.boundary?.dispose();
-        this.boundary = null;
+        this.outline?.dispose();
+        this.outline = null;
         this.bloom?.dispose();
         this.bloom = null;
     }
@@ -531,7 +532,7 @@ class ShaderScene {
             runtime,
             this.guard,
             this.budget,
-            (count) => this.boundary?.tints(count) ?? [],
+            (count) => this.outline?.tints(count) ?? [],
         );
         const color = Color4.FromHexString(wanted.color);
         const drawn = await this.background.show(
@@ -546,17 +547,23 @@ class ShaderScene {
         }
     }
 
-    /** Allocate or release the boundary and bloom passes as the style stack now asks. */
+    /** Allocate or release the group outline and bloom passes as the style stack now asks. */
     private sync(): void {
         const { session } = this.sources;
         const layers = session.styles.list().filter((layer) => layer.enabled);
-        const wantsBoundary = layers.some((layer) => layer.target === "node" && layer.boundary !== undefined);
-        if (wantsBoundary) {
-            this.boundary?.invalidate();
-            void this.loadBoundary();
-        } else if (this.boundary !== null) {
-            this.boundary.dispose();
-            this.boundary = null;
+        const wantsOutlines = layers.some(
+            (layer) =>
+                layer.target === "node" &&
+                ((layer.set?.["node.shaders"] ?? []) as readonly ShaderUse[]).some(
+                    (use) => use.off !== true && placeOfUse(use) === "group",
+                ),
+        );
+        if (wantsOutlines) {
+            this.outline?.invalidate();
+            void this.loadOutlines();
+        } else if (this.outline !== null) {
+            this.outline.dispose();
+            this.outline = null;
         }
 
         const project = shadersControllerOf(session)?.descriptors() ?? [];
@@ -571,26 +578,26 @@ class ShaderScene {
         }
     }
 
-    /** Load and allocate the boundary pass, once. */
-    private async loadBoundary(): Promise<void> {
+    /** Load and allocate the group outline pass, once. */
+    private async loadOutlines(): Promise<void> {
         const controller = shadersControllerOf(this.sources.session);
         const host = this.host();
-        if (this.boundary !== null || this.boundaryLoading || controller === undefined || host === null) {
+        if (this.outline !== null || this.outlineLoading || controller === undefined || host === null) {
             return;
         }
 
-        this.boundaryLoading = true;
+        this.outlineLoading = true;
         try {
-            const [runtime, module] = await Promise.all([host.runtime(), import("../meshes/BoundaryPass")]);
-            if (this.disposed || this.boundary !== null) {
+            const [runtime, module] = await Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]);
+            if (this.disposed || this.outline !== null) {
                 return;
             }
 
             const { session, member } = this.sources;
-            this.boundary = new module.BoundaryPass(
+            this.outline = new module.GroupOutlinePass(
                 this.scene,
                 {
-                    boundaries: () => boundariesOf(session.styles),
+                    outlines: () => groupOutlinesOf(session.styles),
                     member,
                     shader: (id) => controller.drawable(id),
                 },
@@ -601,7 +608,7 @@ class ShaderScene {
             // Asked again now it exists: the stack may have changed while it loaded.
             this.sync();
         } finally {
-            this.boundaryLoading = false;
+            this.outlineLoading = false;
         }
     }
 
@@ -1430,7 +1437,7 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Give the scene-level shaders (the background shader, group boundaries, the shared bloom)
+     * Give the scene-level shaders (the background shader, group outlines, the shared bloom)
      * their graph. Until it is called none of them draws; a background shader asked for before
      * is drawn then.
      * @param sources - The graph's session and its nodes' places.
@@ -1443,14 +1450,14 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * The group boundary under a point, by its layer and group.
+     * The group outline under a point, by its layer and group.
      * @param x - CSS pixels from the canvas's left edge.
      * @param y - CSS pixels from the canvas's top edge.
-     * @returns The boundary, or null.
+     * @returns The outline, or null.
      * @internal
      */
-    pickBoundary(x: number, y: number): BoundaryPick | null {
-        return this.shaderScene?.boundaryAt(x, y) ?? null;
+    pickGroupOutline(x: number, y: number): GroupOutlinePick | null {
+        return this.shaderScene?.groupOutlineAt(x, y) ?? null;
     }
 
     /**
@@ -1459,7 +1466,7 @@ export class RenderManager implements Manager {
      * @internal
      */
     shaderPasses(): ReturnType<ShaderScene["passes"]> {
-        return this.shaderScene?.passes() ?? { background: null, boundary: null, bloom: null };
+        return this.shaderScene?.passes() ?? { background: null, outline: null, bloom: null };
     }
 
     /**

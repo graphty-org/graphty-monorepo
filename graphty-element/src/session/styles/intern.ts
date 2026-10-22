@@ -422,12 +422,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // written to a node already on screen rebuilds nothing, and binding a varying parameter on
     // 10,000 nodes keeps one source mesh. A mesh-path surface that needs its own program is the
     // drawing package's to key when it lands.
-    "node.shader": "content",
-    "node.shaderParams": "content",
-    "node.effects": "content",
-    "edge.shader": "content",
-    "edge.shaderParams": "content",
-    "edge.effects": "content",
+    "node.shaders": "content",
+    "edge.shaders": "content",
     // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",

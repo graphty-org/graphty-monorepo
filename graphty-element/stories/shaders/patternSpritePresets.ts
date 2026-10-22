@@ -43,7 +43,7 @@ export const PATTERN_SPRITE_PRESETS: readonly PatternSpritePreset[] = [
 /**
  * The id a layer names a preset by: its bare id, checked against the catalog.
  * @param id - The preset's bare id.
- * @returns The id to write in `node.shader`, `node.shaderParams` and `encode` keys.
+ * @returns The id to write in a `node.shaders` use and its `encode` keys.
  */
 export function patternPresetId(id: string): string {
     if (shaderDescriptor(id) === undefined) {

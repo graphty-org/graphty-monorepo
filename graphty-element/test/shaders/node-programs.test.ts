@@ -55,17 +55,32 @@ describe("the batch program", () => {
         assert.include(fragment, "graphty_u_shade(graphty_in)");
     });
 
-    it("an effect reads its own entered and exited times, a billboard the node's", () => {
-        assert.include(batchProgram("effect", { params: [] }, BODY).fragment, "vec2 graphty_times = vDeco0.xy;");
+    it("a stacking square reads its own entered and exited times, the square in place of the node the node's", () => {
+        assert.include(batchProgram("around", { params: [] }, BODY).fragment, "vec2 graphty_times = vDeco0.xy;");
         assert.include(
-            batchProgram("sprite", { params: [] }, BODY).fragment,
+            batchProgram("replace", { params: [] }, BODY).fragment,
             "vec2 graphty_times = vec2(graphty_s0.w, graphty_s1.x);",
         );
     });
 
-    it("a billboard draws its halo, ring and glow; an effect does not", () => {
+    it("a billboard draws its halo, ring and glow; a stacking square does not", () => {
         assert.include(batchProgram("impostor", { params: [] }, BODY).fragment, "graphty_decoration(");
-        assert.notInclude(batchProgram("effect", { params: [] }, BODY).fragment, "graphty_decoration(");
+        assert.notInclude(batchProgram("over", { params: [] }, BODY).fragment, "graphty_decoration(");
+    });
+
+    it("masks over inside the node's outline and around outside it; behind sits at the node's back", () => {
+        assert.include(batchProgram("over", { params: [] }, BODY).fragment, "if (graphty_r > vInner) { discard; }");
+        assert.include(batchProgram("around", { params: [] }, BODY).fragment, "if (graphty_r < vInner) { discard; }");
+        assert.notInclude(batchProgram("behind", { params: [] }, BODY).fragment, "discard; }\n    vec2 graphty_uv");
+        assert.include(batchProgram("behind", { params: [] }, BODY).vertex, "center.z + graphty_real");
+        assert.include(batchProgram("over", { params: [] }, BODY).vertex, "center.z - graphty_real");
+    });
+
+    it("premultiplies a stacking square's straight alpha before it blends", () => {
+        assert.include(
+            batchProgram("around", { params: [] }, BODY).fragment,
+            "gl_FragColor = vec4(graphty_out.rgb * graphty_out.a, graphty_out.a);",
+        );
     });
 });
 

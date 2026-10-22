@@ -153,7 +153,7 @@ describe("the lit-surface presets on a real element", () => {
         assert.deepEqual(compileErrors(element), []);
         for (const [name, params] of rangeEnds(preset.descriptor)) {
             await element.session.styles.update(layer, {
-                set: { "node.shader": probe, "node.shaderParams": { [probe]: params } },
+                set: { "node.shaders": [{ shader: probe, params: params }] },
             });
             await element.session.styles.settled();
             const { rgba } = await canvasPixels(element);
@@ -174,7 +174,7 @@ describe("the lit-surface presets on a real element", () => {
         assert.isAbove(everyFrameAnimationsOn(scene), 0, "a moving preset keeps the frames coming");
         const shader = presetId(id);
         await element.session.styles.update(layer, {
-            set: { "node.shader": shader, "node.shaderParams": { [shader]: { [speed]: 0 } } },
+            set: { "node.shaders": [{ shader: shader, params: { [speed]: 0 } }] },
         });
         await element.session.styles.settled();
         await drawnFrames(scene, 3);

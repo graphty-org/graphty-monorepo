@@ -38,7 +38,7 @@ import {
     Viewport,
 } from "@babylonjs/core";
 
-import { type ShaderParamDescriptor, type ShaderParams, type ShaderProblem, slotRoleOf } from "../../catalog/shaders";
+import { drawingOf, type ShaderParamDescriptor, type ShaderParams, type ShaderProblem } from "../../catalog/shaders";
 import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
@@ -439,8 +439,9 @@ export class ShaderRuntime {
      * @returns The pixel count.
      */
     private areaOf(shader: HostShader): number {
-        if (slotRoleOf(shader.registration.descriptor) === "effect") {
-            // The largest square an effect draws on at the quality level now.
+        const drawing = drawingOf(shader.registration.descriptor);
+        if (drawing === "node-square" || drawing === "edge-along") {
+            // The largest square a stacking use draws on at the quality level now.
             return this.uniforms.effectCap * this.uniforms.effectCap;
         }
 
@@ -485,9 +486,8 @@ export class ShaderRuntime {
             this.engine.wipeCaches(true);
         }
 
-        const drawn = shader.registration.descriptor;
-        const premultiplied = slotRoleOf(drawn) === "effect" || drawn.target === "group";
-        return pngOf(pixels, THUMBNAIL_SIZE, premultiplied);
+        // Bodies return straight alpha in every place, and the picture is drawn with no blending.
+        return pngOf(pixels, THUMBNAIL_SIZE);
     }
 
     /**
@@ -558,10 +558,9 @@ function forgetSource(name: string): void {
  * A PNG of RGBA pixels read from a render target, whose rows run bottom up.
  * @param pixels - The pixels.
  * @param size - The side, in pixels.
- * @param premultiplied - Whether the colors are premultiplied by alpha.
  * @returns The PNG.
  */
-function pngOf(pixels: Uint8Array, size: number, premultiplied: boolean): Promise<Blob> {
+function pngOf(pixels: Uint8Array, size: number): Promise<Blob> {
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -575,11 +574,10 @@ function pngOf(pixels: Uint8Array, size: number, premultiplied: boolean): Promis
         const from = (size - 1 - y) * size * 4;
         for (let x = 0; x < size * 4; x += 4) {
             const a = pixels[from + x + 3];
-            const scale = premultiplied && a > 0 ? 255 / a : 1;
             const to = y * size * 4 + x;
-            image.data[to] = Math.min(255, pixels[from + x] * scale);
-            image.data[to + 1] = Math.min(255, pixels[from + x + 1] * scale);
-            image.data[to + 2] = Math.min(255, pixels[from + x + 2] * scale);
+            image.data[to] = pixels[from + x];
+            image.data[to + 1] = pixels[from + x + 1];
+            image.data[to + 2] = pixels[from + x + 2];
             image.data[to + 3] = a;
         }
     }

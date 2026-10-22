@@ -43,10 +43,10 @@ import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { uniformValueOf } from "../shaders/runtime/wrap";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
-/** The background layer's name; the boundary layer is kept after it. */
+/** The background layer's name; the group outline layer is kept after it. */
 export const BACKGROUND_LAYER = "graphty-background-shader";
 
-/** One boundary group that tints a background (`BackgroundInput.groupTint`), as drawn on the canvas. */
+/** One group outline that tints a background (`BackgroundInput.groupTint`), as drawn on the canvas. */
 export interface BackgroundTint {
     /** Its center, -1..1 across the canvas, y up. */
     readonly x: number;
@@ -106,7 +106,7 @@ export class BackgroundPass {
      * @param runtime - The shader runtime, for the scene uniforms and motion claims.
      * @param guard - The frame guard, for the quality level and the target size.
      * @param budget - The scene's shader render-target budget.
-     * @param tints - The largest boundary groups on screen, at most the count asked for, largest
+     * @param tints - The largest outlined groups on screen, at most the count asked for, largest
      *     first, read before each frame.
      */
     constructor(

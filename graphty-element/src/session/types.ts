@@ -1955,14 +1955,17 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 /**
- * A click on a group boundary a style layer draws (`LayerSpec.boundary`): its layer, and the
- * group's `groupBy` value (null for a layer drawing one boundary).
+ * A click on a group outline a style layer draws (a use at the place `group` on its
+ * `node.shaders`): its layer, its shader, and the group's `groupBy` value (null for a use drawing
+ * one outline).
  * @since 3.36.0
  */
-export interface BoundaryClick {
-    /** The layer whose boundary was clicked. */
+export interface GroupOutlineClick {
+    /** The layer whose outline was clicked. */
     readonly layer: LayerId;
-    /** The group's `groupBy` value; null for a layer drawing one boundary. */
+    /** The outline's shader. */
+    readonly shader: string;
+    /** The group's `groupBy` value; null for a use drawing one outline. */
     readonly group: string | number | boolean | null;
 }
 
@@ -2022,12 +2025,12 @@ export interface SessionEventMap {
      */
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
     /**
-     * A click landed on a group boundary a style layer draws (`LayerSpec.boundary`), and on no
-     * node or edge: the layer, and the group's `groupBy` value (null for a layer drawing one
-     * boundary). The topmost boundary under the pointer is the one reported.
+     * A click landed on a group outline a style layer draws (a use at the place `group`), and on
+     * no node or edge: the layer, the shader, and the group's `groupBy` value (null for a use
+     * drawing one outline). The topmost outline under the pointer is the one reported.
      * @since 3.36.0
      */
-    "canvas:boundary-click": BoundaryClick;
+    "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
@@ -3015,10 +3018,10 @@ export interface ElementSession extends GraphSession {
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
     /**
-     * Publishes `canvas:boundary-click`; the renderer calls it for a click on a group boundary.
-     * @param target - The boundary's layer and group.
+     * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
+     * @param target - The outline's layer, shader and group.
      */
-    boundaryClick(target: BoundaryClick): void;
+    groupOutlineClick(target: GroupOutlineClick): void;
 }
 
 /**

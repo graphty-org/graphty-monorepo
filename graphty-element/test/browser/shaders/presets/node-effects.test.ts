@@ -131,7 +131,7 @@ function onSelected(id: string): LayerSpec {
         name: id,
         target: "node",
         selector: { match: "state", state: "selected" },
-        set: { "node.effects": { [presetId(id)]: true } },
+        set: { "node.shaders": [{ shader: presetId(id) }] },
     };
 }
 
@@ -178,14 +178,14 @@ describe("the shockwave", () => {
 });
 
 describe("element.drawnShaders()", () => {
-    it("reports a node effect drawn and its entrance playing, and each group a boundary outlines", async () => {
+    it("reports a node effect drawn and its entrance playing, and each group a group outline outlines", async () => {
         const element = await mounted([
             onSelected("shockwave"),
             {
                 name: "Groups",
+                set: { "node.shaders": [{ shader: "metaball-hull", groupBy: "data.degree" }] },
                 target: "node",
                 selector: { match: "everything" },
-                boundary: { shader: "metaball-hull", groupBy: "data.degree" },
             },
         ]);
         assert.isUndefined(element.drawnShaders().nodes.get(presetId("shockwave")), "nothing selected, nothing drawn");
@@ -200,7 +200,7 @@ describe("element.drawnShaders()", () => {
         });
         const layer = element.session.styles.list().find((each) => each.name === "Groups")?.id;
         const outlined = (): readonly unknown[] =>
-            element.drawnShaders().boundaries.find((each) => each.layer === layer)?.groups ?? [];
+            element.drawnShaders().groupOutlines.find((each) => each.layer === layer)?.groups ?? [];
         await until(element, "one outline per degree", () => outlined().length === NODES.length);
         assert.sameMembers(
             [...outlined()],
@@ -216,7 +216,7 @@ describe("the change flash", () => {
                 name: "Flash",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.effects": { [presetId("change-flash")]: true } },
+                set: { "node.shaders": [{ shader: presetId("change-flash") }] },
             },
         ]);
         const scene = element.graph.getScene();
@@ -238,19 +238,21 @@ describe("the aura and the satellites", () => {
                 name: "Aura and moons",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.effects": { [aura]: true, [moons]: true } },
+                set: { "node.shaders": [{ shader: aura }, { shader: moons }] },
                 encode: {
-                    [`node.effects.${aura}.intensity`]: { by: "data.uncertainty" },
-                    [`node.effects.${moons}.moons`]: { by: "data.degree" },
+                    [`node.shaders.${aura}.intensity`]: { by: "data.uncertainty" },
+                    [`node.shaders.${moons}.moons`]: { by: "data.degree" },
                 },
             },
         ]);
         await until(element, "both effects draw on every node", () => batchesHolding(element, NODES.length) === 2);
-        const merged = element.session.styles.explain({ node: "c" }).merged["node.effects"];
-        assert.deepInclude(merged?.[aura], { intensity: 2 });
-        assert.deepInclude(merged?.[moons], { moons: 12 });
-        assert.notProperty(merged?.[aura], "moons");
-        assert.notProperty(merged?.[moons], "intensity");
+        const merged = element.session.styles.explain({ node: "c" }).merged["node.shaders"] ?? [];
+        const auraParams = merged.find((use) => use.shader === aura)?.params;
+        const moonParams = merged.find((use) => use.shader === moons)?.params;
+        assert.deepInclude(auraParams, { intensity: 2 });
+        assert.deepInclude(moonParams, { moons: 12 });
+        assert.notProperty(auraParams, "moons");
+        assert.notProperty(moonParams, "intensity");
     });
 });
 
@@ -270,13 +272,13 @@ describe("every node-effect preset", () => {
                     name: "Low",
                     target: "node",
                     selector: { match: "ids", nodes: ["a"] },
-                    set: { "node.effects": { [shader]: ends("min") } },
+                    set: { "node.shaders": [{ shader: shader, params: ends("min") }] },
                 },
                 {
                     name: "High",
                     target: "node",
                     selector: { match: "ids", nodes: ["b", "c"] },
-                    set: { "node.effects": { [shader]: ends("max") } },
+                    set: { "node.shaders": [{ shader: shader, params: ends("max") }] },
                 },
             ]);
             await until(element, `${id} draws on every node`, () => batchesHolding(element, NODES.length) === 1);

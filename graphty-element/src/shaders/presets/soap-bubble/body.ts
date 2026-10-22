@@ -47,7 +47,7 @@ vec4 shade(GroupInput g) {
     // Anti-alias the rim: the element discards past the sphere's edge, where the film is brightest.
     float edge = length(n.xy);
     a *= 1.0 - smoothstep(1.0 - 1.5 * fwidth(edge), 1.0, edge);
-    // Premultiplied, over the groups beneath.
-    return vec4(min(c, vec3(1.0)) * a, a);
+    // Straight alpha, over the groups beneath.
+    return vec4(min(c, vec3(1.0)), a);
 }
 `;

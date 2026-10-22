@@ -23,7 +23,7 @@ export async function flow(element: Graphty): Promise<void> {
         name: "Flow",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.shader": "acme/flow", "edge.shaderParams": { speed: 2 } },
+        set: { "edge.shaders": [{ shader: "acme/flow", params: { speed: 2 } }] },
     });
 }
 // #endregion example

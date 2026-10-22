@@ -4,9 +4,9 @@
  *
  * - **Background**: a background shader, set like a color (`element.background`), drawn behind
  *   every node and label at 30 frames a second or fewer.
- * - **Group outlines**: a style layer's `boundary` draws one shape around each group of its nodes;
+ * - **Group outlines**: a use at the place `group` on a style layer's `node.shaders` draws one shape around each group of its nodes;
  *   a community layer and a subgroup layer above it give nested outlines.
- * - **Bubbles**: a boundary of form `"sphere"`, one thin-film sphere around each group.
+ * - **Bubbles**: a group outline of form `"sphere"`, one thin-film sphere around each group.
  * - **Bloom**: a node surface that declares `bloom` glows; the scene allocates one shared bloom
  *   pass while a layer names such a shader.
  *
@@ -275,15 +275,19 @@ export const GroupOutlines: Story = {
         communities([
             {
                 name: "Communities",
+                set: { "node.shaders": [{ shader: "demo/hull", groupBy: "data.community" }] },
                 target: "node",
                 selector: { match: "has", path: "data.community" },
-                boundary: { shader: "demo/hull", groupBy: "data.community" },
             },
             {
                 name: "Subgroups",
+                set: {
+                    "node.shaders": [
+                        { shader: "demo/hull", params: { look: "outline", outline: 2 }, groupBy: "data.sub" },
+                    ],
+                },
                 target: "node",
                 selector: { match: "has", path: "data.sub" },
-                boundary: { shader: "demo/hull", params: { look: "outline", outline: 2 }, groupBy: "data.sub" },
             },
         ]),
     play: async ({ canvasElement }) => {
@@ -297,9 +301,9 @@ export const Bubbles: Story = {
         const element = communities([
             {
                 name: "Bubbles",
+                set: { "node.shaders": [{ shader: "demo/bubble", groupBy: "data.community" }] },
                 target: "node",
                 selector: { match: "has", path: "data.community" },
-                boundary: { shader: "demo/bubble", groupBy: "data.community" },
             },
         ]);
         element.background = { backgroundType: "color", color: "#1b2330" };
@@ -318,7 +322,7 @@ export const Bloom: Story = {
                 name: "Lanterns",
                 target: "node",
                 selector: { match: "ids", nodes: ["c0n0", "c1n0", "c2n0"] },
-                set: { "node.shader": "demo/lantern", "node.size": 1.6 },
+                set: { "node.shaders": [{ shader: "demo/lantern" }], "node.size": 1.6 },
             },
         ]);
         element.background = { backgroundType: "color", color: "#0d1117" };

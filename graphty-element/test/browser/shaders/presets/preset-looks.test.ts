@@ -111,7 +111,7 @@ async function mounted(
         name: "Surface",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+        set: { "node.shaders": [{ shader: shader, params: params }] },
     });
     await operationQueueOf(element.graph).waitForCompletion();
     const scene = element.graph.getScene();

@@ -1,5 +1,5 @@
 /**
- * @file What the scene passes (the background and the boundaries) share: a program compiled as an
+ * @file What the scene passes (the background and the group outlines) share: a program compiled as an
  * `EffectWrapper` whose two stages are inline in Babylon's shader store, its parameters as plain
  * uniforms, and a render target sized by the shader quality level and its memory budget.
  *

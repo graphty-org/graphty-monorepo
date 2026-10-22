@@ -11,7 +11,7 @@ import { assert, describe, it } from "vitest";
 import { checkShaderBody, inferShaderReads } from "../../../src/catalog/shaderGlsl";
 import { drawingOf, type ShaderDescriptor } from "../../../src/catalog/shaders";
 import { formatShaderText, parseShaderText, readShaderDescriptor } from "../../../src/catalog/shaderText";
-import { kernelReach } from "../../../src/meshes/BoundaryPass";
+import { kernelReach } from "../../../src/meshes/GroupOutlinePass";
 import { SCENE_PRESETS } from "../../../stories/shaders/scenePresets";
 
 /** One row of the design's parameter table: name, type, default, range, primary. */
@@ -116,7 +116,7 @@ describe("the scene presets", () => {
                     (param) => param.name === name,
                 )?.values ?? []
             ).map((entry) => entry.value);
-        assert.deepEqual(values("nebula", "tintBy"), ["none", "boundaries"]);
+        assert.deepEqual(values("nebula", "tintBy"), ["none", "groups"]);
         assert.deepEqual(values("metaball-hull", "look"), ["goo", "membrane", "outline"]);
     });
 

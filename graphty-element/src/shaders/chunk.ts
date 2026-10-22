@@ -19,11 +19,11 @@ import type { HostShader, RenderQualityChange, ShaderHost } from "../session/sha
 import { readCrashMarker } from "./crashMarker";
 import type { ShaderRuntime } from "./runtime";
 
-/** What the scene passes (background, boundaries) draw of shaders, by scene. */
+/** What the scene passes (background, group outlines) draw of shaders, by scene. */
 const SCENE_SHADERS = new WeakMap<Scene, () => { readonly heavy: boolean; readonly moving: readonly string[] }>();
 
 /**
- * Lend the frame guard and the flashing check what a scene's background and boundaries draw of
+ * Lend the frame guard and the flashing check what a scene's background and group outlines draw of
  * shaders of any origin, beside what its nodes and edges draw.
  * @param scene - The scene.
  * @param reader - Whether a heavy shader draws there, and the moving ones' text hashes.

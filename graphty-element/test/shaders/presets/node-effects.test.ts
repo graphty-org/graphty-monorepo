@@ -191,7 +191,15 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
             const drawnId = presetId(id);
             const registered = shaderDescriptor(drawnId);
             assert.isDefined(registered);
-            assert.deepEqual(registered.params, descriptor.params);
+            // A declared minimum size adds its `minSize` parameter, as it does for any registrant.
+            assert.deepEqual(
+                registered.params.filter((param) => param.name !== "minSize"),
+                descriptor.params.filter((param) => param.name !== "minSize"),
+            );
+            assert.strictEqual(
+                registered.params.find((param) => param.name === "minSize")?.default,
+                descriptor.minSize,
+            );
             assert.deepEqual(registered.reads, descriptor.reads);
             assert.strictEqual(registered.reach, descriptor.reach);
         });

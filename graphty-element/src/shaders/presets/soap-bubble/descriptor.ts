@@ -1,6 +1,6 @@
 /**
  * @file The catalog entry of the `soap-bubble` preset, Soap bubble (design/rendering/shader-styles.md
- * section 7.5): a group boundary of form `"sphere"`, one thin-film bubble around each group of a
+ * section 7.5): a group outline of form `"sphere"`, one thin-film bubble around each group of a
  * layer's nodes, nested for subgroups. Catalog data only; the GLSL is in `./body.ts`.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.

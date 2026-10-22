@@ -102,11 +102,11 @@ import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
 import type {
     AlgorithmKey,
-    BoundaryAtResult,
     DrawnShaders,
     EdgeId,
     ElementAtResult,
     FormatId,
+    GroupOutlineAtResult,
     Scope,
     ScopeInput,
 } from "./catalog/types";
@@ -885,7 +885,7 @@ export class Graph implements GraphContext {
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
-        // The background shader, group boundaries and bloom read the stack and the nodes' places.
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
         this.renderManager.bindShaderScene({
             session: this.session,
             member: (id) => {
@@ -4101,12 +4101,12 @@ export class Graph implements GraphContext {
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
         if (edgeId === undefined) {
-            const boundary = this.renderManager.pickBoundary(x, y);
-            if (boundary === null) {
+            const outline = this.renderManager.pickGroupOutline(x, y);
+            if (outline === null) {
                 this.clickEmptyCanvas(x, y, secondary);
             } else {
                 this.clearSelectionOnPrimary(secondary);
-                this.session.boundaryClick(boundary);
+                this.session.groupOutlineClick(outline);
             }
             return;
         }
@@ -5016,32 +5016,32 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The group boundary under a point, where no node and no edge is; see
-     * `Graphty.boundaryAt`.
+     * The group outline under a point, where no node and no edge is; see
+     * `Graphty.groupOutlineAt`.
      * @param point - The point, in CSS pixels from the element's top-left corner.
      * @param point.x - X coordinate
      * @param point.y - Y coordinate
-     * @returns `{ kind: "boundary", layer, group }`, or `null` when no boundary is there.
+     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
      */
-    boundaryAt(point: { x: number; y: number }): BoundaryAtResult | null {
+    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
         if (this.elementAt(point) !== null) {
             return null;
         }
 
-        const hit = this.renderManager.pickBoundary(point.x, point.y);
-        return hit === null ? null : { kind: "boundary", layer: hit.layer, group: hit.group };
+        const hit = this.renderManager.pickGroupOutline(point.x, point.y);
+        return hit === null ? null : { kind: "group-outline", layer: hit.layer, shader: hit.shader, group: hit.group };
     }
 
     /**
      * What the shaders draw now; see `Graphty.drawnShaders`.
-     * @returns Per node shader its counts, and the boundaries drawn last frame.
+     * @returns Per node shader its counts, and the group outlines drawn last frame.
      */
     drawnShaders(): DrawnShaders {
         const nodes = NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map();
-        const boundaries = this.renderManager.shaderPasses().boundary?.drawn() ?? [];
+        const outlines = this.renderManager.shaderPasses().outline?.drawn() ?? [];
         return {
             nodes,
-            boundaries: boundaries.map(({ layer, groups }) => ({ layer, groups: [...groups] })),
+            groupOutlines: outlines.map(({ layer, shader, groups }) => ({ layer, shader, groups: [...groups] })),
         };
     }
 

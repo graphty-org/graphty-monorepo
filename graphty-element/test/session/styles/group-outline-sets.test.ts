@@ -1,5 +1,5 @@
 /**
- * @file Which groups a stack's boundary layers draw (design/rendering/shader-styles.md sections
+ * @file Which groups a stack's group outlines draw (design/rendering/shader-styles.md sections
  * 2.2 and 3.2): a layer's matched nodes grouped by `groupBy`, bottom layer first, nodes without a
  * value in no group, disabled layers drawing nothing, and at most 32 groups across the stack.
  */
@@ -10,7 +10,7 @@ import { z } from "zod";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import { ColorStyle, ImageData } from "../../../src/config/common";
 import { GraphBackground } from "../../../src/config/GraphStyle";
-import { boundariesOf, BOUNDARY_GROUP_CAP } from "../../../src/session/styles/StylesApi";
+import { GROUP_OUTLINE_CAP, groupOutlinesOf } from "../../../src/session/styles/StylesApi";
 import { FIELD_TARGETS } from "../../../src/shaders/runtime/scenePrograms";
 import { defineShader } from "../../../src/simple/defineShader";
 import { makeSession } from "../helpers";
@@ -26,8 +26,8 @@ afterAll(() => {
     clearRegisteredShadersForTesting();
 });
 
-describe("boundariesOf", () => {
-    it("groups each boundary layer's nodes by groupBy, bottom layer first", async () => {
+describe("groupOutlinesOf", () => {
+    it("groups each group outline's nodes by groupBy, bottom layer first", async () => {
         const { session } = makeSession({ directed: false });
         await session.data.addNodes([
             { id: "a", community: 1, sub: "x" },
@@ -35,19 +35,19 @@ describe("boundariesOf", () => {
             { id: "c", community: 2, sub: "y" },
             { id: "d" },
         ]);
-        assert.deepEqual(boundariesOf(session.styles), [], "no boundary layer, no boundaries");
+        assert.deepEqual(groupOutlinesOf(session.styles), [], "no group outline, no group outlines");
 
         const outer = await session.styles.add({
             name: "Communities",
+            set: { "node.shaders": [{ shader: "e6/hull", groupBy: "data.community" }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: "e6/hull", groupBy: "data.community" },
         });
         const inner = await session.styles.add({
             name: "Subgroups",
+            set: { "node.shaders": [{ shader: "e6/hull", groupBy: "data.sub" }] },
             target: "node",
             selector: { match: "has", path: "data.sub" },
-            boundary: { shader: "e6/hull", groupBy: "data.sub" },
         });
         await session.styles.add({
             name: "Plain",
@@ -57,7 +57,7 @@ describe("boundariesOf", () => {
         });
 
         assert.deepEqual(
-            boundariesOf(session.styles).map(({ layer, groups, left }) => ({ layer, groups, left })),
+            groupOutlinesOf(session.styles).map(({ layer, groups, left }) => ({ layer, groups, left })),
             [
                 {
                     layer: outer.id,
@@ -81,23 +81,23 @@ describe("boundariesOf", () => {
 
         await session.styles.update(inner.id, { enabled: false });
         assert.deepEqual(
-            boundariesOf(session.styles).map(({ layer }) => layer),
+            groupOutlinesOf(session.styles).map(({ layer }) => layer),
             [outer.id],
-            "a disabled layer draws no boundary",
+            "a disabled layer draws no group outline",
         );
         session.dispose();
     });
 
-    it("draws one boundary around a layer without groupBy", async () => {
+    it("draws one group outline around a layer without groupBy", async () => {
         const { session } = makeSession({ directed: false });
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await session.styles.add({
             name: "All",
+            set: { "node.shaders": [{ shader: "e6/hull" }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: "e6/hull" },
         });
-        assert.deepEqual(boundariesOf(session.styles)[0]?.groups, [{ key: null, members: ["a", "b"] }]);
+        assert.deepEqual(groupOutlinesOf(session.styles)[0]?.groups, [{ key: null, members: ["a", "b"] }]);
         session.dispose();
     });
 
@@ -106,41 +106,41 @@ describe("boundariesOf", () => {
         await session.data.addNodes(Array.from({ length: 40 }, (_, i) => ({ id: `n${String(i)}`, group: i })));
         await session.styles.add({
             name: "Thirty",
+            set: { "node.shaders": [{ shader: "e6/hull", groupBy: "data.group" }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: "e6/hull", groupBy: "data.group" },
         });
-        const [layer] = boundariesOf(session.styles);
-        assert.lengthOf(layer.groups, BOUNDARY_GROUP_CAP);
-        assert.strictEqual(layer.left, 40 - BOUNDARY_GROUP_CAP, "the rest are counted as left out");
+        const [layer] = groupOutlinesOf(session.styles);
+        assert.lengthOf(layer.groups, GROUP_OUTLINE_CAP);
+        assert.strictEqual(layer.left, 40 - GROUP_OUTLINE_CAP, "the rest are counted as left out");
         session.dispose();
     });
 
-    it("reports a layer's groups past the cap as shader.boundary-cap, and nothing under it", async () => {
+    it("reports a layer's groups past the cap as shader.group outline-cap, and nothing under it", async () => {
         const { session } = makeSession({ directed: false });
         await session.data.addNodes(Array.from({ length: 33 }, (_, i) => ({ id: `n${String(i)}`, group: i })));
         const layer = await session.styles.add({
             name: "Thirty-three",
+            set: { "node.shaders": [{ shader: "e6/hull", groupBy: "data.group" }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: "e6/hull", groupBy: "data.group" },
         });
         assert.deepInclude(session.styles.counts(layer.id).undrawn, {
-            code: "shader.boundary-cap",
-            params: { left: 1, limit: BOUNDARY_GROUP_CAP },
+            code: "shader.group-cap",
+            params: { left: 1, limit: GROUP_OUTLINE_CAP },
         });
 
         await session.data.removeNodes(["n32"]);
         assert.notInclude(
             session.styles.counts(layer.id).undrawn.map(({ code }) => code),
-            "shader.boundary-cap",
+            "shader.group-cap",
             "32 groups all draw",
         );
         session.dispose();
     });
 
     it("caps groups at what the field targets hold, so no field group is left out by them", () => {
-        assert.strictEqual(BOUNDARY_GROUP_CAP, FIELD_TARGETS * 4);
+        assert.strictEqual(GROUP_OUTLINE_CAP, FIELD_TARGETS * 4);
     });
 });
 

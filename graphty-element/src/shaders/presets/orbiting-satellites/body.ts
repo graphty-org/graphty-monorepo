@@ -5,8 +5,8 @@
  * Moons on a tilted orbit round the node: how many from `moons` (bind it per node, to degree for
  * instance), how fast from `speed`. Each node's orbit plane turns by its seed, so neighbors do not
  * move in lockstep; a moon passing behind the node is hidden by it, a nearer moon is drawn larger,
- * and each trails a faint arc along the orbit. The ring takes the node's color. The result is
- * premultiplied: a moon covers what is beneath it, its halo and trail add light.
+ * and each trails a faint arc along the orbit. The ring takes the node's color. A moon covers what
+ * is beneath it; its halo and trail add light.
  */
 
 export const BODY = `
@@ -49,6 +49,8 @@ vec4 shade(NodeInput n) {
         alpha = alpha * (1.0 - core) + core + 0.5 * (halo + trail);
     }
 
-    return vec4(rgb, clamp(alpha, 0.0, 1.0));
+    // rgb is summed premultiplied; returned straight.
+    float a = clamp(alpha, 0.0, 1.0);
+    return vec4(rgb / max(a, 1e-4), a);
 }
 `;

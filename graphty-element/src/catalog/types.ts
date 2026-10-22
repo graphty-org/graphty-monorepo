@@ -26,7 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
-import type { LayerBoundary, ShaderDescriptor, ShaderEffects, ShaderParamSets, ShaderText } from "./shaders";
+import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -63,14 +63,15 @@ export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
 
 /**
- * What `element.boundaryAt(point)` finds under a point: a group boundary a style layer draws
- * (`LayerSpec.boundary`), by its layer and group, the topmost boundary layer first. `group` is the
- * group's `groupBy` value, null for a layer drawing one boundary.
+ * What `element.groupOutlineAt(point)` finds under a point: a group outline a style layer draws (a
+ * use at the place `group` on its `node.shaders`), by its layer, its shader and its group, the
+ * topmost outline first. `group` is the group's `groupBy` value, null for a use drawing one outline.
  * @since 3.36.0
  */
-export interface BoundaryAtResult {
-    readonly kind: "boundary";
+export interface GroupOutlineAtResult {
+    readonly kind: "group-outline";
     readonly layer: LayerId;
+    readonly shader: string;
     readonly group: string | number | boolean | null;
 }
 
@@ -82,16 +83,17 @@ export interface BoundaryAtResult {
  */
 export interface DrawnShaders {
     /**
-     * Per node shader id (surfaces, sprites and effects): how many nodes draw it now, and how many
-     * of them are playing its entrance (a reticle's snap, a shockwave's ring) at this moment.
+     * Per node shader id, at any place: how many uses of it nodes draw now, and how many of them
+     * are playing their entrance (a reticle's snap, a shockwave's ring) at this moment.
      */
     readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
     /**
-     * The group boundaries drawn on the last frame, bottom layer first: each layer's id and the
-     * `groupBy` value of each group it outlines (null for a layer drawing one boundary).
+     * The group outlines drawn on the last frame, bottom first: each one's layer, shader and the
+     * `groupBy` value of each group it outlines (null for a use drawing one outline).
      */
-    readonly boundaries: readonly {
+    readonly groupOutlines: readonly {
         readonly layer: LayerId;
+        readonly shader: string;
         readonly groups: readonly (string | number | boolean | null)[];
     }[];
 }
@@ -836,12 +838,8 @@ export type Channel =
     | "edge.labelBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
-    | "node.shader"
-    | "node.shaderParams"
-    | "node.effects"
-    | "edge.shader"
-    | "edge.shaderParams"
-    | "edge.effects"
+    | "node.shaders"
+    | "edge.shaders"
     | "edge.taper"
     | "edge.lift"
     | "edge.labelWrapWidth"
@@ -910,18 +908,19 @@ export interface Rgba {
 export type { LabelStyle } from "./label-style";
 
 /**
- * A literal value written to a channel. The shader channels take maps: `node.shaderParams` a
- * {@link ShaderParamSets}, `node.effects` a {@link ShaderEffects}.
+ * A literal value written to a channel. The shader channels (`node.shaders`, `edge.shaders`) take
+ * a list of {@link ShaderUse}.
  */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba | ShaderParamSets | ShaderEffects;
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
 
 /**
  * An `encode` key that binds one shader parameter per element:
- * `"<channel>.<shader id>.<parameter id>"`, such as `"node.shaderParams.acme/marble.spin"` or
- * `"node.effects.uncertainty-aura.intensity"`. The parameter must be declared `varies`.
+ * `"<target>.shaders.<shader id>.<parameter id>"`, such as `"node.shaders.uncertainty-aura.intensity"`.
+ * It binds that parameter on the layer's own uses of the shader. The parameter must be declared
+ * `varies`.
  * @since 3.36.0
  */
-export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects"}.${string}.${string}`;
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -1216,12 +1215,6 @@ export interface LayerSpec {
      * see {@link LayerUnmatchedGroup}. Written by the element; absent when everything matched.
      */
     unmatched?: readonly LayerUnmatchedGroup[];
-    /**
-     * Draw a boundary around this layer's nodes: one shape around all of them, or one per
-     * distinct value of `groupBy`. Node layers only.
-     * @since 3.36.0
-     */
-    boundary?: LayerBoundary;
 }
 
 /**

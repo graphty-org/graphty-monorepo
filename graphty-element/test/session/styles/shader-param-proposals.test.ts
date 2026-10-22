@@ -19,7 +19,7 @@ describe("proposing a binding for a shader parameter", () => {
         ]);
         const proposal = session.styles.proposeEncoding({
             column: { kind: "node", name: "uncertainty" },
-            channel: "node.effects.uncertainty-aura.intensity",
+            channel: "node.shaders.uncertainty-aura.intensity",
         });
         assert.isTrue(proposal.ok);
         if (!proposal.ok) {
@@ -30,23 +30,26 @@ describe("proposing a binding for a shader parameter", () => {
             name: "Aura",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.effects": { "uncertainty-aura": true } },
-            encode: { "node.effects.uncertainty-aura.intensity": proposal.binding },
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }] },
+            encode: { "node.shaders.uncertainty-aura.intensity": proposal.binding },
         });
-        const low = session.styles.explain({ node: "a" }).merged["node.effects"]?.["uncertainty-aura"];
-        const high = session.styles.explain({ node: "c" }).merged["node.effects"]?.["uncertainty-aura"];
+        const paramsOn = (node: string): unknown =>
+            session.styles.explain({ node }).merged["node.shaders"]?.find((use) => use.shader === "uncertainty-aura")
+                ?.params;
+        const low = paramsOn("a");
+        const high = paramsOn("c");
         assert.deepInclude(low, { intensity: 0 });
         assert.deepInclude(high, { intensity: 2 });
     });
 
-    it("describes the parameter as a number on its map channel, and refuses what is not an address", () => {
-        const descriptor = shaderParamChannel("node.shaderParams.glass-marble.spin");
-        assert.strictEqual(descriptor.channel, "node.shaderParams");
+    it("describes the parameter as a number on its list channel, and refuses what is not an address", () => {
+        const descriptor = shaderParamChannel("node.shaders.glass-marble.spin");
+        assert.strictEqual(descriptor.channel, "node.shaders");
         assert.strictEqual(descriptor.accepts, "number");
         assert.strictEqual(descriptor.min, 0);
         assert.strictEqual(descriptor.max, 2);
         try {
-            shaderParamChannel("node.shaderParams.glass-marble.twist");
+            shaderParamChannel("node.shaders.glass-marble.twist");
             assert.fail("a parameter that does not vary is refused");
         } catch (error) {
             assert.isTrue(isGraphtyError(error) && error.code === "E_UNKNOWN_SHADER_PARAM");

@@ -20,7 +20,7 @@ import { ViewWatch } from "./viewWatch";
 const EDGE_SHADER_ALPHA_INDEX = 1e9;
 
 /** What an edge shader batch draws on. */
-export type EdgeShaderRole = "surface" | "effect";
+export type EdgeShaderRole = "paint" | "along";
 
 /** How the line a shader batch draws on is sized, as the plain line batch of the same edge is. */
 export interface ShadedLineOptions {
@@ -44,7 +44,7 @@ const scratchB = new Vector3();
  * texture. A surface blends straight alpha over, as the line does; an effect premultiplied over
  * or added, writing no depth, `reach` times the line's width.
  * @param scene - The scene.
- * @param role - Surface or effect.
+ * @param role - `paint` (the line's own surface) or `along` (a strip over the line).
  * @param shader - The shader.
  * @param data - The scene's data textures.
  * @param runtime - The shader runtime.
@@ -61,10 +61,10 @@ export function shadedLineMesh(
 ): Mesh {
     const { descriptor, glsl } = shader.registration;
     const name = `graphtyEdge${role}${shader.hash.slice(0, 24)}`;
-    const program = edgeShaderProgram(role === "surface" ? "look" : "effect", descriptor, glsl);
+    const program = edgeShaderProgram(role, descriptor, glsl);
     ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
     let blend: "combine" | "premultiplied" | "add" = "combine";
-    if (role === "effect") {
+    if (role === "along") {
         blend = descriptor.blend === "add" ? "add" : "premultiplied";
     }
 
@@ -83,8 +83,8 @@ export function shadedLineMesh(
     const material = mesh.material as ShaderMaterial;
     material.setUniformBuffer(SCENE_BLOCK, runtime.uniforms.buffer);
     material.setTexture(data.paramSampler, data.paramTexture);
-    material.setFloat("edgeReach", role === "effect" ? Math.max(1, descriptor.reach ?? 1) : 1);
-    if (role === "effect") {
+    material.setFloat("edgeReach", role === "along" ? Math.max(1, descriptor.reach ?? 1) : 1);
+    if (role === "along") {
         material.disableDepthWrite = true;
     }
 

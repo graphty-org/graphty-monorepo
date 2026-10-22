@@ -1,14 +1,14 @@
 /**
  * @file The pieces that make a group outline enclose its whole group
  * (design/rendering/shader-studio/decisions.md section 5.5): the minimum spanning tree its
- * connectors run along, the connector's kernel as picking reads it, and which boundary layers
+ * connectors run along, the connector's kernel as picking reads it, and which group outlines
  * share a level.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { fieldAt, levelJoins, spanningTree } from "../../src/meshes/BoundaryPass";
-import type { BoundaryLayerGroups } from "../../src/session/styles/StylesApi";
+import { fieldAt, levelJoins, spanningTree } from "../../src/meshes/GroupOutlinePass";
+import type { GroupOutlineSet } from "../../src/session/styles/StylesApi";
 
 /**
  * The total length of a tree's edges.
@@ -101,14 +101,14 @@ describe("fieldAt with connectors", () => {
 
 describe("levelJoins", () => {
     /**
-     * A boundary layer.
+     * A group outline.
      * @param layer - Its id.
      * @param shader - Its shader.
      * @param members - Its one group's members.
      * @returns It.
      */
-    function layer(layer: string, shader: string, members: string[]): BoundaryLayerGroups {
-        return { layer, boundary: { shader }, groups: [{ key: null, members }], left: 0 };
+    function layer(layer: string, shader: string, members: string[]): GroupOutlineSet {
+        return { layer, use: { shader }, groups: [{ key: null, members }], left: 0 };
     }
 
     it("puts sibling layers of one shader on one level, and a subset of a level above it", () => {

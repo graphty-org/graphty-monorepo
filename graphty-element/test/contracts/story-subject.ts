@@ -87,8 +87,8 @@ const SUBJECT_TREE = "Styles/";
  * typography at all, so it picks out no one subject. Those stories are still checked under
  * "size" and "weight".
  *
- * "effect" joined it with the shader channels. In `node.effects` it means the shader effects a
- * layer adds; in a story name -- `WireframeEffectLayers` -- it is the name of the style editor's
+ * "effect" joined it with the first shader channels, whose effects map meant the shader effects
+ * a layer added; in a story name -- `WireframeEffectLayers` -- it is the name of the style editor's
  * Effects group, which holds the outline, the glow, the halo and the wireframe too, so it picks
  * out no one subject. Those stories are still checked under "wireframe", "glow" and the rest.
  *

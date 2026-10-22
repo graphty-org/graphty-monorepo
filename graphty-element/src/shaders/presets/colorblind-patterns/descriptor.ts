@@ -4,7 +4,7 @@
  * read apart without telling colors apart. Catalog data only; the GLSL is in `./body.ts`.
  *
  * Bind `pattern` per node with the `"index"` scale
- * (`encode: { "node.shaderParams.colorblind-patterns.pattern": { by: "data.group", scale: "index" } }`):
+ * (`encode: { "node.shaders.colorblind-patterns.pattern": { by: "data.group", scale: "index" } }`):
  * each group takes the next pattern in the order it is first seen and keeps it when new groups
  * arrive.
  *

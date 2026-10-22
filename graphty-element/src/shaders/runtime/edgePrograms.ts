@@ -13,7 +13,7 @@
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderDescriptor, ShaderSlotRole } from "../../catalog/shaders";
+import type { ShaderDescriptor } from "../../catalog/shaders";
 import { EDGE_JOIN_FRAGMENT_SHADER, EDGE_STATE_BITS } from "../../meshes/edgeJoinShader";
 import { PARAM_TEXTURE } from "./nodeLayout";
 import { paramLocals } from "./nodePrograms";
@@ -33,25 +33,27 @@ export interface EdgeShaderProgram {
 
 /**
  * The fragment stage that draws one edge shader on the line's pieces.
- * @param role - An edge look (straight alpha, replacing the line's color) or an edge effect
- *     (premultiplied, over the line).
+ * @param place - `paint` (replacing the line's color, blended straight over as the line is) or
+ *     `along` (a strip over the line). Bodies return straight alpha in both; `along` is
+ *     premultiplied here for its premultiplied (or additive) blend.
  * @param descriptor - The shader's catalog facts.
  * @param body - Its GLSL body.
  * @returns The program.
  */
 export function edgeShaderProgram(
-    role: ShaderSlotRole,
+    place: "paint" | "along",
     descriptor: Pick<ShaderDescriptor, "params">,
     body: string,
 ): EdgeShaderProgram {
     const { params } = descriptor;
     const period = TIME_PERIOD.toFixed(1);
     const finish =
-        role === "look"
+        place === "paint"
             ? `    if (graphty_bad(graphty_out)) { graphty_out = graphty_in.color; }
     return vec4(graphty_out.rgb, graphty_out.a * coverage);`
             : `    if (graphty_bad(graphty_out)) { graphty_out = vec4(0.0); }
-    return graphty_out * coverage;`;
+    float graphty_a = clamp(graphty_out.a, 0.0, 1.0);
+    return vec4(graphty_out.rgb * graphty_a, graphty_a) * coverage;`;
     const fragment = `${EDGE_JOIN_FRAGMENT_SHADER}
 ${fragmentPrelude()}
 uniform highp sampler2D ${PARAM_TEXTURE};

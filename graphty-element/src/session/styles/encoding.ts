@@ -912,8 +912,6 @@ function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberForma
                 return writeNumber === null ? String(scaled) : writeNumber(scaled);
             };
         }
-        case "shader":
-            return (scaled): EncodedValue | undefined => (typeof scaled === "string" ? scaled : undefined);
         case "boolean":
             return (scaled): EncodedValue | undefined => {
                 if (scaled === "true" || scaled === 1) {
@@ -1085,16 +1083,9 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             }
 
             return value;
-        case "shader":
-            if (typeof value !== "string") {
-                throw wrongKind('a shader id, or "none"');
-            }
-
-            return value;
-        case "shaderParams":
-        case "shaderEffects":
-            if (typeof value !== "object" || value === null || Array.isArray(value) || isRgba(value)) {
-                throw wrongKind("a map keyed by shader id");
+        case "shaderUses":
+            if (!Array.isArray(value)) {
+                throw wrongKind('a list of shader uses, such as [{ shader: "lock-on-reticle" }]');
             }
 
             return prototypeFreeMap(value);
@@ -1252,9 +1243,9 @@ function assertChannelTakesScale(descriptor: ChannelDescriptor, scale: string, n
         );
     }
 
-    if (accepts === "shaderParams" || accepts === "shaderEffects") {
+    if (accepts === "shaderUses") {
         throw badBinding(
-            `${channel} carries a map, which no scale produces; bind one parameter with "${channel}.<shader>.<parameter>".`,
+            `${channel} carries a list, which no scale produces; bind one parameter with "${channel}.<shader>.<parameter>".`,
             { channel },
         );
     }
@@ -2883,7 +2874,7 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
 
 /**
  * The channel a bound shader parameter reads as: a number or a color between the parameter's
- * declared ends, landing in its shader map.
+ * declared ends, landing on the layer's uses of its shader.
  * @param address - Where the binding points.
  * @returns A descriptor the binding is prepared against.
  * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
@@ -2928,10 +2919,10 @@ export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescri
 
 /**
  * The descriptor a shader parameter declared `varies` is bound as, by its encode address: a number
- * or a color between the parameter's declared ends, on the map channel the value lands in. What an
+ * or a color between the parameter's declared ends, on the list channel the value lands in. What an
  * editor's vary picker reads for a parameter, as it reads `channelDescriptor` for a channel.
- * @param address - The address, `"<target>.<shaderParams|effects>.<shader id>.<parameter id>"`.
- * @returns The descriptor; its `channel` is the address's map channel.
+ * @param address - The address, `"<target>.shaders.<shader id>.<parameter id>"`.
+ * @returns The descriptor; its `channel` is the address's list channel.
  * @throws A `GraphtyError`: `E_BAD_COMMAND` for a string that is not an address,
  *   `E_UNKNOWN_SHADER` and `E_UNKNOWN_SHADER_PARAM` as {@link shaderParamDescriptor}.
  * @since 3.36.0
@@ -2941,7 +2932,7 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
     if (target === null) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
-            message: `"${address}" is not a shader parameter address: "<target>.<shaderParams|effects>.<shader>.<parameter>".`,
+            message: `"${address}" is not a shader parameter address: "<target>.shaders.<shader>.<parameter>".`,
             source: "style",
             details: { address },
         });
@@ -2952,7 +2943,7 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
 
 /**
  * Prepare a binding of one shader parameter: prepared as a number or a color, each value then
- * written into its shader map as `{ [shader]: { [parameter]: value } }`, one shared object per
+ * written onto the layer's uses of its shader as `{ [shader]: { [parameter]: value } }`, one shared object per
  * distinct value.
  * @param address - Where the binding points.
  * @param options - Everything preparing it was given.
@@ -2987,7 +2978,7 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
             return undefined;
         }
 
-        const color = typeof value === "object" && value !== null && "hex" in value ? (value as ColorValue).hex : null;
+        const color = typeof value === "object" && value !== null && "hex" in value ? value.hex : null;
         const plain = color ?? (integer && typeof value === "number" ? Math.round(value) : value);
         let made = patches.get(plain);
         if (made === undefined) {

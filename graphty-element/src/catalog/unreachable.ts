@@ -358,16 +358,7 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
                 "these channels write to be the ones drawn.",
         }),
     ),
-    ...(
-        [
-            "node.shader",
-            "node.shaderParams",
-            "node.effects",
-            "edge.shader",
-            "edge.shaderParams",
-            "edge.effects",
-        ] as const
-    ).map((channel): UnpaintedChannel => ({
+    ...(["node.shaders", "edge.shaders"] as const).map((channel): UnpaintedChannel => ({
         channel,
         ...unownedDefect(
             "THE ELEMENT SHIPS NO SHADER PRESET YET, so the only value this gate can write to these " +

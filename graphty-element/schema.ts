@@ -26,7 +26,7 @@
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
-export type { LayerBoundary, ShaderEffects, ShaderParams, ShaderParamSets, ShaderText } from "./src/catalog/shaders";
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     Binding,
     BindingNumberFormat,

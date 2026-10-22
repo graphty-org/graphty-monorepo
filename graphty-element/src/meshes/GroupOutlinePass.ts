@@ -1,7 +1,8 @@
 /**
- * @file Group boundaries (design/rendering/shader-styles.md sections 3.2, 4.2 and 5): one shape
- * around each group of a boundary layer's nodes, drawn behind the graph, nested when several
- * boundary layers stack.
+ * @file Group outlines (design/rendering/shader-styles.md sections 3.2, 4.2 and 5): one shape
+ * around each group of the nodes carrying a use at the place `group`, drawn behind the graph,
+ * nested when several
+ * outlines stack.
  *
  * - **Form `"field"`** (metaball hulls): each member's kernel `(1 - d^2)^2`, of radius `reach` x
  *   its drawn radius, is splatted additively into one channel of a field target, four groups to a
@@ -9,12 +10,12 @@
  *   pixels x members. The shader then reads the field and its gradient on the group's box.
  * - **Form `"sphere"`** (soap bubbles): one sphere per group, around its members' centroid.
  *
- * **Nesting.** Boundary layers are numbered bottom up (`GroupInput.depth`); a lower layer's
+ * **Nesting.** Outlines are numbered bottom up (`GroupInput.depth`); a lower layer's
  * kernels and spheres are drawn larger, so a community layer's outline rings the outlines of a
  * subcommunity layer above it. Lower layers are drawn first.
  *
  * **Every frame drawn, nothing at rest.** The members' places are read before each frame the
- * scene draws, so the boundaries follow a running layout; a graph drawn on demand that is not
+ * scene draws, so the outlines follow a running layout; a graph drawn on demand that is not
  * moving draws no frame and the pass costs nothing.
  *
  * **Picking is on the CPU**, from the same kernels and spheres projected on screen: a point inside
@@ -42,16 +43,16 @@ import {
     Viewport,
 } from "@babylonjs/core";
 
-import { motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
+import { fixedParamsOf, motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { QUALITY_LEVELS, type RenderTargetBudget, type ShaderGuard } from "../managers/ShaderGuard";
 import type { HostShader } from "../session/shaders";
-import type { BoundaryGroupKey, BoundaryLayerGroups } from "../session/styles/StylesApi";
+import type { GroupKey, GroupOutlineSet } from "../session/styles/StylesApi";
 import {
-    boundaryProgram,
     FIELD_SAMPLERS,
     FIELD_TARGETS,
+    outlineProgram,
     SPLAT_ATTRIBUTES,
     splatProgram,
 } from "../shaders/runtime/scenePrograms";
@@ -60,22 +61,22 @@ import { uniformValueOf } from "../shaders/runtime/wrap";
 import { BACKGROUND_LAYER, type BackgroundTint } from "./BackgroundPass";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
-/** The boundary layer's name. */
-export const BOUNDARY_LAYER = "graphty-boundary-shader";
+/** The outline's name. */
+export const OUTLINE_LAYER = "graphty-group-outline";
 
-/** A boundary kernel's radius when its shader names no `reach`, in member radii. */
-export const DEFAULT_BOUNDARY_REACH = 3;
+/** A outline kernel's radius when its shader names no `reach`, in member radii. */
+export const DEFAULT_OUTLINE_REACH = 3;
 
-/** How much larger each boundary layer beneath the top one draws, per layer of nesting. */
+/** How much larger each outline beneath the top one draws, per layer of nesting. */
 export const NEST_STEP = 0.35;
 
-/** A field target's size, as a fraction of the boundary target's. */
+/** A field target's size, as a fraction of the outline target's. */
 const FIELD_SCALE = 0.5;
 
 /** An 8-bit field stores a quarter of the summed kernel, so four overlaps fit before it clips. */
 const BYTE_FIELD_SCALE = 0.25;
 
-/** The summed kernel a point must reach to pick a field boundary. */
+/** The summed kernel a point must reach to pick a field outline. */
 export const PICK_FIELD = 0.5;
 
 /** The camera mask nothing draws with but the field targets, so the main camera skips the splats. */
@@ -96,7 +97,7 @@ const QUAD_POSITIONS = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
 const QUAD_INDICES = [0, 1, 2, 0, 2, 3];
 
 /** A member as the pass reads it before each frame. */
-export interface BoundaryMember {
+export interface OutlineMember {
     /** Its center in graph-root space. */
     readonly x: number;
     readonly y: number;
@@ -108,24 +109,25 @@ export interface BoundaryMember {
 }
 
 /** What the pass reads from its graph. */
-export interface BoundarySources {
-    /** The boundary layers the stack draws, bottom first. */
-    readonly boundaries: () => readonly BoundaryLayerGroups[];
+export interface OutlineSources {
+    /** The outlines the stack draws, bottom first. */
+    readonly outlines: () => readonly GroupOutlineSet[];
     /** A drawn node's place, size and color; undefined for one not drawn. */
-    readonly member: (id: NodeId) => BoundaryMember | undefined;
-    /** A boundary shader the element may draw, or null (unknown, held, failed, off). */
+    readonly member: (id: NodeId) => OutlineMember | undefined;
+    /** A outline shader the element may draw, or null (unknown, held, failed, off). */
     readonly shader: (id: string) => Promise<HostShader | null>;
 }
 
-/** What a pick on a boundary found. */
-export interface BoundaryPick {
+/** What a pick on a group outline found. */
+export interface GroupOutlinePick {
     readonly layer: string;
-    readonly group: BoundaryGroupKey;
+    readonly shader: string;
+    readonly group: GroupKey;
 }
 
 /** One group as it was laid out for the last frame. */
 interface PlacedGroup {
-    readonly key: BoundaryGroupKey;
+    readonly key: GroupKey;
     readonly index: number;
     readonly color: readonly [number, number, number, number];
     /** Field: its members' discs on screen, render pixels (x, y, r) per member. */
@@ -140,12 +142,12 @@ interface PlacedGroup {
     readonly slot: number;
 }
 
-/** One boundary layer as it was laid out for the last frame. */
+/** One outline as it was laid out for the last frame. */
 interface PlacedLayer {
     readonly layer: string;
     readonly shader: HostShader;
     readonly effect: SceneEffect;
-    readonly params: BoundaryLayerGroups["boundary"]["params"];
+    readonly params: ShaderParams | undefined;
     readonly sphere: boolean;
     readonly depth: number;
     readonly groups: readonly PlacedGroup[];
@@ -175,7 +177,7 @@ const scratch = new Vector3();
 const projected = new Vector3();
 
 /**
- * A group's box in the boundary target's pixels, clamped to the target.
+ * A group's box in the outline target's pixels, clamped to the target.
  * @param box - The box in canvas pixels: left, top, right, bottom.
  * @param toTarget - Target pixels per canvas pixel.
  * @param size - The target's size.
@@ -195,8 +197,8 @@ function pixelBox(
     return x1 <= x0 || y1 <= y0 ? null : [x0, y0, x1, y1];
 }
 
-/** The boundaries of one scene. */
-export class BoundaryPass {
+/** The outlines of one scene. */
+export class GroupOutlinePass {
     private readonly renderer: EffectRenderer;
     private readonly layer: Layer;
     private readonly observer: Observer<Scene>;
@@ -208,8 +210,8 @@ export class BoundaryPass {
     private readonly fields: FieldTarget[] = [];
     private target: { readonly texture: RenderTargetTexture; readonly release: () => void } | null = null;
     private fieldBytes: { readonly key: string; readonly release: () => void } | null = null;
-    private groups: readonly BoundaryLayerGroups[] = [];
-    /** Per boundary layer, whether it shares the level of the layer beneath; see {@link levelJoins}. */
+    private groups: readonly GroupOutlineSet[] = [];
+    /** Per outline, whether it shares the level of the layer beneath; see {@link levelJoins}. */
     private joins: readonly boolean[] = [];
     private stale = true;
     private placed: readonly PlacedLayer[] = [];
@@ -217,40 +219,40 @@ export class BoundaryPass {
     private disposed = false;
     /** Each field group's spanning tree, by layer and group. */
     private trees = new Map<string, GroupTree>();
-    /** How many frames drew boundaries, for tests and tools. */
+    /** How many frames drew outlines, for tests and tools. */
     draws = 0;
     /** How many spanning trees were built, for tests and tools: one per group whose members moved. */
     treesBuilt = 0;
 
     /**
-     * Start drawing a scene's boundaries.
+     * Start drawing a scene's outlines.
      * @param scene - The scene.
-     * @param sources - The graph's boundary layers, members and shaders.
+     * @param sources - The graph's outlines, members and shaders.
      * @param runtime - The shader runtime, for the scene uniforms and motion claims.
      * @param guard - The frame guard, for the quality level and the target size.
      * @param budget - The scene's shader render-target budget.
      */
     constructor(
         private readonly scene: Scene,
-        private readonly sources: BoundarySources,
+        private readonly sources: OutlineSources,
         private readonly runtime: ShaderRuntime,
         private readonly guard: ShaderGuard,
         private readonly budget: RenderTargetBudget,
     ) {
         const engine = scene.getEngine();
         this.renderer = new EffectRenderer(engine);
-        this.layer = new Layer(BOUNDARY_LAYER, null, scene, true);
+        this.layer = new Layer(OUTLINE_LAYER, null, scene, true);
         this.layer.alphaBlendingMode = Constants.ALPHA_PREMULTIPLIED;
         this.layer.isEnabled = false;
         orderLayers(scene);
 
         const program = splatProgram();
-        ShaderStore.ShadersStore.graphtyBoundarySplatVertexShader = program.vertex;
-        ShaderStore.ShadersStore.graphtyBoundarySplatFragmentShader = program.fragment;
+        ShaderStore.ShadersStore.graphtyOutlineSplatVertexShader = program.vertex;
+        ShaderStore.ShadersStore.graphtyOutlineSplatFragmentShader = program.fragment;
         this.splatMaterial = new ShaderMaterial(
-            "graphty-boundary-splat",
+            "graphty-outline-splat",
             scene,
-            { vertex: "graphtyBoundarySplat", fragment: "graphtyBoundarySplat" },
+            { vertex: "graphtyOutlineSplat", fragment: "graphtyOutlineSplat" },
             {
                 attributes: [...program.attributes],
                 uniforms: [...program.uniforms],
@@ -269,7 +271,7 @@ export class BoundaryPass {
         });
     }
 
-    /** Read the boundary layers again before the next frame: the stack, the data or a run changed. */
+    /** Read the outlines again before the next frame: the stack, the data or a run changed. */
     invalidate(): void {
         this.stale = true;
         this.requestFrame();
@@ -285,19 +287,19 @@ export class BoundaryPass {
     }
 
     /**
-     * The boundary under a point, the topmost layer first.
+     * The outline under a point, the topmost layer first.
      * @param x - CSS pixels from the canvas's left edge.
      * @param y - CSS pixels from the canvas's top edge.
      * @returns The layer and group, or null.
      */
-    pick(x: number, y: number): BoundaryPick | null {
+    pick(x: number, y: number): GroupOutlinePick | null {
         const engine = this.scene.getEngine();
         const scaling = engine.getHardwareScalingLevel();
         const px = x / scaling;
         const py = engine.getRenderHeight() - y / scaling;
         for (let i = this.placed.length - 1; i >= 0; i--) {
             const placed = this.placed[i];
-            let best: { key: BoundaryGroupKey; score: number } | null = null;
+            let best: { key: GroupKey; score: number } | null = null;
             for (const group of placed.groups) {
                 const score = placed.sphere ? sphereScore(group, px, py) : fieldAt(group.discs, px, py, group.bridges);
                 if (score >= (placed.sphere ? 0 : PICK_FIELD) && (best === null || score > best.score)) {
@@ -306,7 +308,7 @@ export class BoundaryPass {
             }
 
             if (best !== null) {
-                return { layer: placed.layer, group: best.key };
+                return { layer: placed.layer, shader: placed.shader.id, group: best.key };
             }
         }
 
@@ -315,15 +317,17 @@ export class BoundaryPass {
 
     /**
      * What the pass drew last, for tests and tools.
-     * @returns Per layer drawn: its id, its groups' keys and its depth.
+     * @returns Per outline drawn: its layer, its shader, its groups' keys and its depth.
      */
     drawn(): readonly {
         readonly layer: string;
+        readonly shader: string;
         readonly depth: number;
-        readonly groups: readonly BoundaryGroupKey[];
+        readonly groups: readonly GroupKey[];
     }[] {
         return this.placed.map((placed) => ({
             layer: placed.layer,
+            shader: placed.shader.id,
             depth: placed.depth,
             groups: placed.groups.map((group) => group.key),
         }));
@@ -331,7 +335,7 @@ export class BoundaryPass {
 
     /**
      * How many member kernels the last frame splatted into the field targets, for tests and tools:
-     * a field boundary costs one kernel per member, never a pass over the members per pixel.
+     * a field outline costs one kernel per member, never a pass over the members per pixel.
      * @returns The count.
      */
     splats(): number {
@@ -356,7 +360,7 @@ export class BoundaryPass {
      */
     async fieldOf(
         layer: string,
-        key: BoundaryGroupKey,
+        key: GroupKey,
     ): Promise<{ width: number; height: number; values: Float32Array; centers: Float32Array } | null> {
         const group = this.placed.find((placed) => placed.layer === layer)?.groups.find((each) => each.key === key);
         const field = group === undefined || group.slot < 0 ? undefined : this.fields[Math.floor(group.slot / 4)];
@@ -491,8 +495,8 @@ export class BoundaryPass {
 
         const effect = sceneEffect(
             this.scene.getEngine(),
-            `graphtyBoundary${shader.hash.slice(0, 24)}${descriptor.form === "sphere" ? "s" : "f"}`,
-            boundaryProgram(descriptor, glsl),
+            `graphtyOutline${shader.hash.slice(0, 24)}${descriptor.form === "sphere" ? "s" : "f"}`,
+            outlineProgram(descriptor, glsl),
         );
         const entry: { effect: SceneEffect; ready: boolean | undefined } = { effect, ready: undefined };
         this.effects.set(key, entry);
@@ -504,11 +508,11 @@ export class BoundaryPass {
         return null;
     }
 
-    /** Before each frame: lay the groups out, splat the fields and draw the boundaries. */
+    /** Before each frame: lay the groups out, splat the fields and draw the outlines. */
     private frame(): void {
         if (this.stale) {
             this.stale = false;
-            this.groups = this.sources.boundaries();
+            this.groups = this.sources.outlines();
             this.joins = levelJoins(this.groups);
         }
 
@@ -533,7 +537,7 @@ export class BoundaryPass {
         this.draws++;
     }
 
-    /** Hold a motion claim while a drawn boundary loops with a speed that is not 0. */
+    /** Hold a motion claim while a drawn outline loops with a speed that is not 0. */
     private follow(): void {
         const moves = this.placed.some((placed) => placed.groups.length > 0 && movesWith(placed));
         if (moves && this.releaseMotion === null) {
@@ -545,7 +549,7 @@ export class BoundaryPass {
     }
 
     /**
-     * Lay out every drawable boundary layer for this frame: members' places on screen, each
+     * Lay out every drawable outline for this frame: members' places on screen, each
      * group's box, sphere and field slot, and the splats of the field targets.
      * @returns The layers, bottom first.
      */
@@ -563,7 +567,7 @@ export class BoundaryPass {
         let level = -1;
         let below = -2;
         const drawable = this.groups.flatMap((layer, i) => {
-            const shader = this.shaderOf(layer.boundary.shader);
+            const shader = this.shaderOf(layer.use.shader);
             const effect = shader === null ? null : this.effectOf(shader);
             if (shader === null || effect === null) {
                 return [];
@@ -571,7 +575,7 @@ export class BoundaryPass {
 
             level += this.joins[i] && below === i - 1 ? 0 : 1;
             below = i;
-            return [{ layer, shader, effect, depth: level }];
+            return [{ layer, shader, effect, depth: level, at: i }];
         });
         const top = level;
         for (const field of this.fields) {
@@ -583,11 +587,11 @@ export class BoundaryPass {
 
         let slot = 0;
         const out: PlacedLayer[] = [];
-        drawable.forEach(({ layer, shader, effect, depth }) => {
+        drawable.forEach(({ layer, shader, effect, depth, at }) => {
             const { descriptor } = shader.registration;
             const sphere = descriptor.form === "sphere";
             const nest = 1 + NEST_STEP * (top - depth);
-            const reach = kernelReach(descriptor, layer.boundary.params) * nest;
+            const reach = kernelReach(descriptor, fixedParamsOf(layer.use.params)) * nest;
             const groups: PlacedGroup[] = [];
             layer.groups.forEach((group, index) => {
                 const members = group.members.flatMap((id) => {
@@ -643,7 +647,11 @@ export class BoundaryPass {
                     return;
                 }
 
-                const tree = this.treeOf(`${layer.layer}\u0000${String(group.key)}`, members, trees);
+                const tree = this.treeOf(
+                    `${layer.layer}\u0000${layer.use.shader}\u0000${String(at)}\u0000${String(group.key)}`,
+                    members,
+                    trees,
+                );
                 const { bridges, ends } = connectorsOf(tree.edges, members, discs, reach);
                 let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
                 for (let i = 0; i < members.length; i++) {
@@ -669,7 +677,15 @@ export class BoundaryPass {
                 });
                 slot++;
             });
-            out.push({ layer: layer.layer, shader, effect, params: layer.boundary.params, sphere, depth, groups });
+            out.push({
+                layer: layer.layer,
+                shader,
+                effect,
+                params: fixedParamsOf(layer.use.params),
+                sphere,
+                depth,
+                groups,
+            });
         });
 
         for (const field of this.fields) {
@@ -687,7 +703,7 @@ export class BoundaryPass {
      * @param next - The trees kept for the next frame.
      * @returns The tree.
      */
-    private treeOf(key: string, members: readonly BoundaryMember[], next: Map<string, GroupTree>): GroupTree {
+    private treeOf(key: string, members: readonly OutlineMember[], next: Map<string, GroupTree>): GroupTree {
         const known = this.trees.get(key);
         let same = known?.at.length === members.length * 3;
         for (let i = 0; same && i < members.length; i++) {
@@ -751,7 +767,7 @@ export class BoundaryPass {
      * @param reach - The kernel radius, in member radii.
      * @param ends - The connectors: the two members' indices of each.
      */
-    private splat(slot: number, members: readonly BoundaryMember[], reach: number, ends: readonly number[]): void {
+    private splat(slot: number, members: readonly OutlineMember[], reach: number, ends: readonly number[]): void {
         const field = this.fieldTarget(Math.floor(slot / 4));
         const channel = slot % 4;
         const needed = (field.count + members.length + ends.length / 2) * SPLAT_STRIDE;
@@ -763,7 +779,7 @@ export class BoundaryPass {
             field.buffer = null;
         }
 
-        const put = (a: BoundaryMember, b: BoundaryMember, radius: number): void => {
+        const put = (a: OutlineMember, b: OutlineMember, radius: number): void => {
             const at = field.count * SPLAT_STRIDE;
             field.splats.set([a.x, a.y, a.z, radius, b.x, b.y, b.z, 0, 0, 0, 0, 0], at);
             field.splats[at + 8 + channel] = 1;
@@ -792,7 +808,7 @@ export class BoundaryPass {
             return field;
         }
 
-        const mesh = new Mesh(`graphty-boundary-splat-${String(index)}`, this.scene);
+        const mesh = new Mesh(`graphty-outline-splat-${String(index)}`, this.scene);
         const quad = new VertexData();
         quad.positions = QUAD_POSITIONS;
         quad.indices = QUAD_INDICES;
@@ -808,7 +824,7 @@ export class BoundaryPass {
         }
 
         const size = this.fieldSize();
-        const texture = sceneTarget(this.scene, `graphty-boundary-field-${String(index)}`, size.size, size.halfFloat);
+        const texture = sceneTarget(this.scene, `graphty-outline-field-${String(index)}`, size.size, size.halfFloat);
         texture.renderList = [mesh];
         field = { texture, mesh, splats: new Float32Array(SPLAT_STRIDE * 8), buffer: null, count: 0, members: 0 };
         this.fields[index] = field;
@@ -853,9 +869,9 @@ export class BoundaryPass {
     }
 
     /**
-     * The boundary target and the field targets at the size the quality level asks for, remade
+     * The outline target and the field targets at the size the quality level asks for, remade
      * when that changed; null when the render-target budget has no room.
-     * @returns The boundary target.
+     * @returns The outline target.
      */
     private sizedTargets(): RenderTargetTexture | null {
         const engine = this.scene.getEngine();
@@ -897,7 +913,7 @@ export class BoundaryPass {
             return null;
         }
 
-        const texture = sceneTarget(this.scene, "graphty-boundary-target", size, false);
+        const texture = sceneTarget(this.scene, "graphty-outline-target", size, false);
         this.target = { texture, release };
         this.layer.texture = texture;
         return texture;
@@ -924,7 +940,7 @@ export class BoundaryPass {
 
     /**
      * Bind the field targets to a program's field samplers, the first target standing in for any
-     * missing. A sphere boundary reads no field, so it binds none.
+     * missing. A sphere outline reads no field, so it binds none.
      * @param program - The program.
      * @param sphere - Whether the layer draws spheres rather than fields.
      */
@@ -942,9 +958,9 @@ export class BoundaryPass {
     }
 
     /**
-     * Draw every group into the boundary target, lowest layer first, each premultiplied over what
+     * Draw every group into the outline target, lowest layer first, each premultiplied over what
      * is beneath it, on its own box.
-     * @param target - The boundary target.
+     * @param target - The outline target.
      * @param placed - The layers laid out for this frame.
      */
     private composite(target: RenderTargetTexture, placed: readonly PlacedLayer[]): void {
@@ -1019,31 +1035,30 @@ export class BoundaryPass {
 }
 
 /**
- * Keep the scene's background layers in order: the background shader first, the boundaries next,
+ * Keep the scene's background layers in order: the background shader first, the outlines next,
  * every other layer after them.
  * @param scene - The scene.
  */
 export function orderLayers(scene: Scene): void {
-    const order = [BACKGROUND_LAYER, BOUNDARY_LAYER];
+    const order = [BACKGROUND_LAYER, OUTLINE_LAYER];
     const rank = (name: string): number => (order.includes(name) ? order.indexOf(name) : order.length);
     scene.layers.sort((a, b) => rank(a.name) - rank(b.name));
 }
 
 /**
- * Per boundary layer, whether it shares the level of the layer beneath it: it names the same
+ * Per outline, whether it shares the level of the layer beneath it: it names the same
  * shader as that layer and none of its members is in that level already. So a folder of community
  * layers, each with its own outline of one shader, draws its outlines side by side at one size,
  * as one layer grouping by community would; a layer over a subset of a level's nodes (a
  * subcommunity) starts a level above it, which draws smaller, so the level beneath rings it.
- * @param layers - The boundary layers, bottom first.
+ * @param layers - The outlines, bottom first.
  * @returns One flag per layer; the first is false.
  */
-export function levelJoins(layers: readonly BoundaryLayerGroups[]): boolean[] {
+export function levelJoins(layers: readonly GroupOutlineSet[]): boolean[] {
     let level = new Set<NodeId>();
     return layers.map((layer, i) => {
         const members = layer.groups.flatMap((group) => group.members);
-        const joins =
-            i > 0 && layer.boundary.shader === layers[i - 1].boundary.shader && members.every((id) => !level.has(id));
+        const joins = i > 0 && layer.use.shader === layers[i - 1].use.shader && members.every((id) => !level.has(id));
         if (!joins) {
             level = new Set();
         }
@@ -1057,7 +1072,7 @@ export function levelJoins(layers: readonly BoundaryLayerGroups[]): boolean[] {
 }
 
 /**
- * A field boundary's kernel radius, in member radii: the value of the parameter its `reachParam`
+ * A field outline's kernel radius, in member radii: the value of the parameter its `reachParam`
  * names (clamped to that parameter's range), else its `reach`, else the default.
  * @param descriptor - The shader's catalog facts.
  * @param params - The layer's parameter values over the defaults.
@@ -1075,7 +1090,7 @@ export function kernelReach(
         return Math.max(Math.min(value, max), min, 1e-3);
     }
 
-    return descriptor.reach ?? DEFAULT_BOUNDARY_REACH;
+    return descriptor.reach ?? DEFAULT_OUTLINE_REACH;
 }
 
 /**
@@ -1180,7 +1195,7 @@ export function spanningTree(at: Float32Array): Uint32Array {
  */
 function connectorsOf(
     edges: Uint32Array,
-    members: readonly BoundaryMember[],
+    members: readonly OutlineMember[],
     discs: Float32Array,
     reach: number,
 ): { bridges: Float32Array; ends: number[] } {

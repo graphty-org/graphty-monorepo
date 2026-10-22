@@ -235,7 +235,7 @@ describe("the pattern, state and sprite presets", () => {
             name: "Mandalas",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": patternPresetId("mandala") },
+            set: { "node.shaders": [{ shader: patternPresetId("mandala") }] },
         });
         const covers = (): Readonly<Record<string, unknown>> => session.styles.counts(fill.id).covers;
         const byMandalas = { layers: [{ layerId: mandalas.id, count: 2 }], more: 0 };
@@ -247,7 +247,7 @@ describe("the pattern, state and sprite presets", () => {
             name: "Stickers",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": patternPresetId("icon-sticker") },
+            set: { "node.shaders": [{ shader: patternPresetId("icon-sticker") }] },
         });
         assert.deepEqual(covers()["node.shape"], { layers: [{ layerId: stickers.id, count: 2 }], more: 0 });
         assert.isUndefined(covers()["node.color"], "the sticker rides on the fill color");
@@ -271,15 +271,12 @@ describe('a pattern or an icon bound with the "index" scale', () => {
             name: "By team",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": id },
-            encode: { [`node.shaderParams.${id}.${param}`]: { by: "data.team", scale: "index" } },
+            set: { "node.shaders": [{ shader: id }] },
+            encode: { [`node.shaders.${id}.${param}`]: { by: "data.team", scale: "index" } },
         });
         await session.styles.settled();
         const valueOf = (node: string): unknown =>
-            (
-                session.styles.explain({ node }).merged["node.shaderParams"]?.[id] as
-                    Record<string, unknown> | undefined
-            )?.[param];
+            session.styles.explain({ node }).merged["node.shaders"]?.find((use) => use.shader === id)?.params?.[param];
         assert.deepEqual(["a", "b", "c"].map(valueOf), [0, 1, 0]);
 
         // New groups, one of them sorting before every old one, arrive ahead of the old nodes.

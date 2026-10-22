@@ -3,7 +3,7 @@
  * Satellites, Shockwave and Change flash.
  *
  * Each story sets its effect the way a consumer does, with one style layer naming the preset in
- * `node.effects`, over a palette layer that colors the nodes by group, on a dark canvas like the
+ * `node.shaders`, over a palette layer that colors the nodes by group, on a dark canvas like the
  * shader lab's. An effect draws around its node and never replaces it, so every node keeps its
  * palette color.
  *
@@ -137,7 +137,7 @@ function effectLayer(
         name,
         target: "node",
         selector,
-        set: { "node.effects": { [shader]: params } },
+        set: { "node.shaders": [{ shader: shader, params: params }] },
         ...extra(shader),
     });
 }
@@ -300,7 +300,7 @@ function effectStory(
 export const Aura = effectStory(
     "uncertainty-aura",
     effectLayer("Aura", { match: "everything" }, (shader) => ({
-        encode: { [`node.effects.${shader}.intensity`]: { by: "data.uncertainty" } },
+        encode: { [`node.shaders.${shader}.intensity`]: { by: "data.uncertainty" } },
     })),
     { name: "Aura", slots: NODES.length },
 );
@@ -343,7 +343,7 @@ export const ReticleAtRest = effectStory(
 export const Satellites = effectStory(
     "orbiting-satellites",
     effectLayer("Satellites", { match: "everything" }, (shader) => ({
-        encode: { [`node.effects.${shader}.moons`]: { by: "data.degree" } },
+        encode: { [`node.shaders.${shader}.moons`]: { by: "data.degree" } },
     })),
     { name: "Satellites", slots: NODES.length },
 );
@@ -359,10 +359,10 @@ export const AuraAndSatellites: Story = {
                 name: "Aura and moons",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.effects": { [aura]: true, [moons]: { moonColor: "#ffd38a" } } },
+                set: { "node.shaders": [{ shader: aura }, { shader: moons, params: { moonColor: "#ffd38a" } }] },
                 encode: {
-                    [`node.effects.${aura}.intensity`]: { by: "data.uncertainty" },
-                    [`node.effects.${moons}.moons`]: { by: "data.degree" },
+                    [`node.shaders.${aura}.intensity`]: { by: "data.uncertainty" },
+                    [`node.shaders.${moons}.moons`]: { by: "data.degree" },
                 },
             },
         ]);
@@ -430,7 +430,7 @@ export const AuraOverTheCap: Story = {
                     name: "Aura",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.effects": { [aura]: { intensity: 1.6 } } },
+                    set: { "node.shaders": [{ shader: aura, params: { intensity: 1.6 } }] },
                 },
             ],
             { quality: "medium" },

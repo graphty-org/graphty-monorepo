@@ -153,7 +153,7 @@ describe("a card and a shape on two layers", () => {
         name: "Card",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": "guide/card" },
+        set: { "node.shaders": [{ shader: "guide/card" }] },
     };
     const box: LayerSpec = {
         name: "Box",

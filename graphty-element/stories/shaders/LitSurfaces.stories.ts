@@ -102,7 +102,7 @@ function render(id: string, params: ShaderParams): Element {
         name: "Surface",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+        set: { "node.shaders": [{ shader: shader, params: params }] },
     });
     element.nodeData = NODES.map((node) => ({ ...node }));
     element.edgeData = EDGES.map((edge) => ({ ...edge }));

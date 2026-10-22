@@ -64,8 +64,8 @@
                     "label": "none"
                 },
                 {
-                    "value": "boundaries",
-                    "label": "boundaries"
+                    "value": "groups",
+                    "label": "groups"
                 }
             ]
         }
@@ -108,7 +108,7 @@ vec4 shade(BackgroundInput inp) {
     // dark dust lanes
     float dust = smoothstep(0.45, 0.75, fbm(p * 2.7 + 3.0 * q));
     vec3 tint = vec3(0.0); float tw = 0.0;
-    // The community tint (tintBy "boundaries") sums the four largest groups here; off by default.
+    // The community tint (tintBy "groups") sums the four largest groups here; off by default.
     if (tw > 0.0) gas = mix(gas, tint / tw * 1.4, clamp(tw, 0.0, 1.0) * communityTint);
     vec3 c = gas * body * density * (1.0 - 0.7 * dust);
     c += gas * 0.08 * density;

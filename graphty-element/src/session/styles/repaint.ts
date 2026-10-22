@@ -56,7 +56,7 @@
  */
 
 import { withLabelLook } from "../../catalog/label-looks";
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
@@ -71,6 +71,7 @@ import {
     labelPatchOf,
     mergeChannelValue,
     parseShaderParamAddress,
+    placeOfUse,
 } from "./channels";
 import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
@@ -492,7 +493,7 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
         return "number";
     }
 
-    if (accepts === "labelStyle" || accepts === "shaderParams" || accepts === "shaderEffects") {
+    if (accepts === "labelStyle" || accepts === "shaderUses") {
         return "merge";
     }
 
@@ -874,15 +875,19 @@ function combined(combine: Combine, beneath: number, painted: number): number {
 }
 
 /**
- * A shape painted over a card: the topmost layer's is drawn, so a card a lower layer wrote on
- * this element is taken back. A look that paints the shape (not a card) stays.
- * @param shaders - The `node.shader` column.
+ * A shape painted over a `replace` use: the topmost layer's is drawn, so a `replace` use a lower
+ * layer wrote on this element is taken back. A use at any other place stays.
+ * @param shaders - The `node.shaders` column.
  * @param index - The element.
  */
-function dropCardUnderShape(shaders: ChannelColumn, index: number): void {
-    const id = readColumn(shaders, index);
-    if (typeof id === "string" && shaderDescriptor(id)?.place === "replace") {
-        clearColumn(shaders, index);
+function dropReplaceUnderShape(shaders: ChannelColumn, index: number): void {
+    const uses = readColumn(shaders, index);
+    if (
+        shaders.kind === "merge" &&
+        Array.isArray(uses) &&
+        (uses as readonly ShaderUse[]).some((use) => placeOfUse(use) === "replace")
+    ) {
+        shaders.values[index] = (uses as readonly ShaderUse[]).filter((use) => placeOfUse(use) !== "replace");
     }
 }
 
@@ -1620,9 +1625,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
         let current = 0;
         const readCurrent = (path: Path): unknown => elements.value(current, path);
-        // A card and a shape follow "the topmost layer wins" (see dropCardUnderShape).
+        // A `replace` use and a shape follow "the topmost layer wins" (see dropReplaceUnderShape).
         const shapes = store.columns.get("node.shape");
-        const shaders = store.columns.get("node.shader");
+        const shaders = store.columns.get("node.shaders");
 
         /**
          * Paint one element: every channel of the layer. Built once per layer, not per element.
@@ -1658,7 +1663,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 if (channel.column === shaders) {
                     shaderHere = true;
                 } else if (channel.column === shapes && shaders !== undefined && !shaderHere) {
-                    dropCardUnderShape(shaders, index);
+                    dropReplaceUnderShape(shaders, index);
                 }
             }
         };

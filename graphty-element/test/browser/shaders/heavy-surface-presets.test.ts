@@ -239,7 +239,7 @@ describe("the heavy and glowing surface presets, every parameter at each end of 
                     name: "Probe",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.color": "#3366cc", "node.size": 3, "node.shader": probe },
+                    set: { "node.color": "#3366cc", "node.size": 3, "node.shaders": [{ shader: probe }] },
                 },
             ],
         );
@@ -258,8 +258,7 @@ describe("the heavy and glowing surface presets, every parameter at each end of 
                 set: {
                     "node.color": "#3366cc",
                     "node.size": 3,
-                    "node.shader": probe,
-                    "node.shaderParams": { [probe]: set },
+                    "node.shaders": [{ shader: probe, params: set }],
                 },
             });
             await operationQueueOf(element.graph).waitForCompletion();
@@ -296,7 +295,12 @@ describe("the heavy and glowing surface presets on a graph", () => {
 
             const element = await mounted(nodes, [
                 color,
-                { name: "Surface", target: "node", selector: { match: "everything" }, set: { "node.shader": id } },
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
             ]);
             await until(element, "the preset's batch draws with a compiled program", () => drawsReady(element, 1));
             const after = await pixelAt(element, pointOf(element, "a", 0.3));
@@ -311,7 +315,14 @@ describe("motion", () => {
     it("a still preset claims no frame", async () => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
-            [{ name: "Dew", target: "node", selector: { match: "everything" }, set: { "node.shader": "dew-drop" } }],
+            [
+                {
+                    name: "Dew",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: "dew-drop" }] },
+                },
+            ],
         );
         await until(element, "the dew drop draws", () => drawsReady(element, 1));
         await drawnFrames(element.graph.getScene(), 3);
@@ -326,7 +337,14 @@ describe("motion", () => {
     ])("%s claims frames while %s is above 0 and rests at 0", async (id, speed) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
-            [{ name: "Surface", target: "node", selector: { match: "everything" }, set: { "node.shader": id } }],
+            [
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
+            ],
         );
         const scene = element.graph.getScene();
         await until(element, "the preset draws", () => drawsReady(element, 1));
@@ -335,7 +353,7 @@ describe("motion", () => {
         const layer = element.session.styles.list().find((each) => each.name === "Surface");
         assert.isDefined(layer);
         await element.session.styles.update(layer.id, {
-            set: { "node.shader": id, "node.shaderParams": { [id]: { [speed]: 0 } } },
+            set: { "node.shaders": [{ shader: id, params: { [speed]: 0 } }] },
         });
         await until(element, "at speed 0 the loop rests", () => everyFrameAnimationsOn(scene) === 0);
     });
@@ -345,7 +363,14 @@ describe("the shared bloom", () => {
     it.each([["lantern-glow"], ["dew-drop"]])("%s allocates the bloom pass", async (id) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
-            [{ name: "Surface", target: "node", selector: { match: "everything" }, set: { "node.shader": id } }],
+            [
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
+            ],
         );
         const scene = element.graph.getScene();
         await until(element, "the bloom pass is allocated", () =>
@@ -361,7 +386,7 @@ describe("the shared bloom", () => {
                     name: "Surface",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.shader": "glass-marble" },
+                    set: { "node.shaders": [{ shader: "glass-marble" }] },
                 },
             ],
         );
@@ -382,7 +407,12 @@ describe("the small-size program", () => {
         "%s draws its small-size program while the median node is under 12 px, at rest",
         async (id) => {
             const element = await mounted(GRID, [
-                { name: "Surface", target: "node", selector: { match: "everything" }, set: { "node.shader": id } },
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
             ]);
             await until(
                 element,
@@ -395,7 +425,14 @@ describe("the small-size program", () => {
     it.each(HEAVY.map((id) => [id] as const))("%s keeps its full program when its nodes are large", async (id) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
-            [{ name: "Surface", target: "node", selector: { match: "everything" }, set: { "node.shader": id } }],
+            [
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
+            ],
         );
         await until(element, "the batch draws", () => drawsReady(element, 1));
         await element.waitForStableFrame();

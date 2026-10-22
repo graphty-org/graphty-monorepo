@@ -69,8 +69,8 @@ function surfaceScene(
         target: "node",
         selector: { match: "everything" },
         set: {
-            "node.shader": shader,
-            ...(options.params === undefined ? {} : { "node.shaderParams": { [shader]: options.params } }),
+            "node.shaders": [{ shader: shader }],
+            ...(options.params === undefined ? {} : { "node.shaders": /* TODO params */ { [shader]: options.params } }),
         },
         ...(options.encode === undefined ? {} : { encode: options.encode }),
     });
@@ -144,7 +144,7 @@ export const LanternGlow: Story = {
     render: () =>
         surfaceScene("lantern-glow", {
             params: { flicker: 0 },
-            encode: { "node.shaderParams.lantern-glow.intensity": { by: "data.value", range: [0.15, 1.6] } },
+            encode: { "node.shaders.lantern-glow.intensity": { by: "data.value", range: [0.15, 1.6] } },
             background: "#04050a",
         }),
     play: played("LanternGlow"),

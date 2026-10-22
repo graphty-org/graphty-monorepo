@@ -64,7 +64,6 @@ import { englishReading, type ReadingOptions, type RunResult } from "./src/sessi
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
-    BoundaryClick,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -97,6 +96,7 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
     HistoryCode,
     HistoryOutcome,
@@ -454,7 +454,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // ---------------------------------------------------------------------------------------------
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
-export type { LayerBoundary, ShaderEffects, ShaderParams, ShaderParamSets, ShaderText } from "./src/catalog/shaders";
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     AttributeDescriptor,
     AttributeRole,

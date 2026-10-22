@@ -39,7 +39,7 @@ export const EDGE_PRESETS: readonly EdgePreset[] = [
 /**
  * The id a layer names a preset by: its bare id, checked against the catalog.
  * @param id - The preset's bare id.
- * @returns The id to write in `edge.shader` or `edge.effects`.
+ * @returns The id to write in an `edge.shaders` use.
  */
 export function presetId(id: string): string {
     if (shaderDescriptor(id) === undefined) {

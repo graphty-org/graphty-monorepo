@@ -61,7 +61,7 @@
     ]
 }
 */
-// The lab's metaball hulls as a boundary: the element splats the members' kernels into the field
+// The lab's metaball hulls as a group outline: the element splats the members' kernels into the field
 // this reads (g.field, g.fieldGradient), so the lab's texture taps become the field's values.
 vec4 shade(GroupInput g) {
     float v = g.field;

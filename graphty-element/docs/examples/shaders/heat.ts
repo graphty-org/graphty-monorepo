@@ -23,7 +23,7 @@ export async function heat(element: Graphty): Promise<void> {
         name: "Heat",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": "acme/heat", "node.shaderParams": { hot: "#ff0000" } },
+        set: { "node.shaders": [{ shader: "acme/heat", params: { hot: "#ff0000" } }] },
     });
 }
 // #endregion example

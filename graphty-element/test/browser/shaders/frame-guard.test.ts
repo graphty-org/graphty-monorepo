@@ -238,7 +238,7 @@ function qualityEvents(element: Graphty): RenderQualityChange[] {
 
 describe("the frame guard", () => {
     it("steps quality down on GPU-bound 80 ms frames and fires graphty-render-quality", async () => {
-        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shader": "e4/spin" });
+        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shaders": [{ shader: "e4/spin" }] });
         const scene = element.graph.getScene();
         await until(element, "the loop sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
         const seen = qualityEvents(element);
@@ -262,7 +262,7 @@ describe("the frame guard", () => {
                 { id: "b", x: 0.1, y: 0 },
                 { id: "c", x: 0, y: 0.1 },
             ],
-            { "node.shader": "e4/slow", "node.size": 40 },
+            { "node.shaders": [{ shader: "e4/slow" }], "node.size": 40 },
         );
         const scene = element.graph.getScene();
         await until(element, "the heavy sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
@@ -280,7 +280,7 @@ describe("the frame guard", () => {
     });
 
     it("changes nothing for CPU-bound slow frames", async () => {
-        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shader": "e4/spin" });
+        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shaders": [{ shader: "e4/spin" }] });
         const scene = element.graph.getScene();
         await until(element, "the loop sprite holds its frame claim", () => everyFrameAnimationsOn(scene) > 0);
         const seen = qualityEvents(element);
@@ -340,7 +340,7 @@ describe("the frame guard", () => {
     it("changes nothing with guard: false", async () => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
-            { "node.shader": "e4/spin" },
+            { "node.shaders": [{ shader: "e4/spin" }] },
             {
                 before: (made) => {
                     made.shaderSettings = { quality: "high", guard: false };
@@ -373,7 +373,7 @@ describe("motion", () => {
             window.matchMedia = real;
         });
 
-        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shader": "e4/spin" });
+        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shaders": [{ shader: "e4/spin" }] });
         const drawing = (): NodeShaderDrawing | undefined => NodeShaderDrawing.peek(element.graph.getScene());
         await until(element, "the sprite draws", () => [...(drawing()?.stats().slots.values() ?? [])].includes(1));
         assert.deepEqual(element.session.shaders.status("e4/spin"), {
@@ -432,7 +432,7 @@ describe("the level's caps and detail", () => {
                 { id: "a", x: -3, y: 0 },
                 { id: "b", x: 3, y: 0 },
             ],
-            { "node.effects": { "e4/ring": {} } },
+            { "node.shaders": [{ shader: "e4/ring", params: {} }] },
         );
         await element.waitForStableFrame();
         const node = element.graph.getNode("a");
@@ -470,7 +470,7 @@ describe("the level's caps and detail", () => {
                 { id: "a", x: -150, y: 0 },
                 { id: "b", x: 150, y: 0 },
             ],
-            { "node.shader": "e4/heavy" },
+            { "node.shaders": [{ shader: "e4/heavy" }] },
         );
         const batch = (): string | undefined =>
             element.graph.getScene().meshes.find((mesh) => mesh.name.startsWith("graphtyNodeimpostor"))?.material?.name;
@@ -478,7 +478,7 @@ describe("the level's caps and detail", () => {
     });
 
     it("keeps the full program when its nodes are large on screen", async () => {
-        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shader": "e4/heavy" });
+        const element = await mounted([{ id: "a", x: 0, y: 0 }], { "node.shaders": [{ shader: "e4/heavy" }] });
         const scene = element.graph.getScene();
         const mesh = (): ReturnType<typeof scene.getMeshByName> =>
             scene.meshes.find((each) => each.name.startsWith("graphtyNodeimpostor")) ?? null;

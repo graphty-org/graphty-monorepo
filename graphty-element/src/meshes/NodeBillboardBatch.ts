@@ -36,6 +36,9 @@ const QUAD_INDICES = [0, 1, 2, 0, 2, 3];
 /** Scratch for the on-screen test, so the per-frame walk allocates nothing. */
 const scratchCenter = new Vector3();
 
+/** The places a stacking square draws at: over, around or behind the node. */
+export type SquarePlace = "over" | "around" | "behind";
+
 /** What one slot draws: every float of its attributes, in {@link BATCH_ATTRIBUTES} order. */
 export interface SlotValues {
     /** x, y, z in graph-root space, then the drawn radius. */
@@ -54,8 +57,8 @@ export interface SlotValues {
  * Every node drawn with one shader on camera-facing squares, as instances of one mesh: one draw
  * call however many nodes carry it (design/rendering/shader-styles.md section 5).
  *
- * For an **impostor** surface (a sphere material on a round node) each square ray-casts the exact
- * sphere; for a **sprite** it is the flat picture. Either way the batch draws the outline ring,
+ * For an **impostor** (a `paint` use on a round node) each square ray-casts the exact sphere; at
+ * **`replace`** it is the shader's flat picture in place of the node. Either way the batch draws the outline ring,
  * glow and halo from the radius itself, because the highlight layer's shaders would outline the
  * square, and the node's own mesh stays in the scene as an invisible pick proxy, so picking is by
  * the node's drawn radius and never by a shader's alpha.
@@ -96,7 +99,7 @@ export class NodeBillboardBatch {
     /**
      * Start a batch for one shader.
      * @param scene - The scene.
-     * @param role - What it draws: impostor surfaces, sprites or effects.
+     * @param role - What it draws: impostor surfaces, or squares at `replace`, `over`, `around` or `behind`.
      * @param shader - The shader.
      * @param data - The scene's parameter-set and state-time textures.
      * @param runtime - The shader runtime, for the scene uniforms and the motion claim.
@@ -188,6 +191,8 @@ export class NodeBillboardBatch {
             material.setVector2("graphty_resolution", new Vector2(engine.getRenderWidth(), engine.getRenderHeight()));
             material.setFloat("graphty_effectCap", this.runtime.uniforms.effectCap);
             material.setFloat("graphty_freeze", this.runtime.uniforms.frozenTime(this.shader.hash));
+            // CSS pixels to render pixels, for a use's minimum size.
+            material.setFloat("graphty_pixelRatio", 1 / Math.max(engine.getHardwareScalingLevel(), 1e-6));
         });
         // See CustomLineRenderer: a ShaderMaterial re-derives its defines on every readiness check,
         // and everything set on it later is a uniform.
@@ -210,7 +215,12 @@ export class NodeBillboardBatch {
     private chooseDetail(): void {
         const { lowDetail } = this.shader.registration;
         const camera = this.mesh.getScene().activeCamera;
-        if (lowDetail === undefined || this.role === "effect" || camera === null || this.liveCount === 0) {
+        if (
+            lowDetail === undefined ||
+            (this.role !== "impostor" && this.role !== "replace") ||
+            camera === null ||
+            this.liveCount === 0
+        ) {
             return;
         }
 

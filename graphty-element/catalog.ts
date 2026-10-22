@@ -80,15 +80,13 @@ export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks"
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
 // Shaders as catalog data: targets and places, the descriptor `session.catalog.shaders()` lists,
-// the maps a layer writes, the channels a shader covers, the shader text format read and written
+// the uses a layer lists, the channels a shader covers, the shader text format read and written
 // with no DOM, and a working template for each place.
 export type {
-    LayerBoundary,
     ShaderClock,
     ShaderClockBinding,
     ShaderCost,
     ShaderDescriptor,
-    ShaderEffects,
     ShaderGlyph,
     ShaderInput,
     ShaderMotion,
@@ -97,19 +95,18 @@ export type {
     ShaderParamChoice,
     ShaderParamDescriptor,
     ShaderParams,
-    ShaderParamSets,
+    ShaderParamValue,
     ShaderPlace,
     ShaderPreview,
     ShaderProblem,
     ShaderProblemCode,
     ShaderRegistration,
     ShaderRequirement,
-    ShaderSlot,
-    ShaderSlotRole,
     ShaderSource,
     ShaderTarget,
     ShaderText,
     ShaderTextResult,
+    ShaderUse,
     ShaderWebGpu,
 } from "./src/catalog/shaders";
 export { shaderCovers } from "./src/catalog/shaders";

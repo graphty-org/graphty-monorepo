@@ -26,7 +26,6 @@ import {
     shaderSourceNow,
 } from "../catalog/shaderRegistry";
 import {
-    drawingOf,
     type ShaderDescriptor,
     type ShaderParams,
     type ShaderPlace,
@@ -34,6 +33,7 @@ import {
     type ShaderRegistration,
     type ShaderTarget,
     type ShaderText,
+    type ShaderUse,
     timingOf,
 } from "../catalog/shaders";
 import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC, type ShaderTextOptions } from "../catalog/shaderText";
@@ -42,6 +42,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { sha256Hex } from "../utils/sha256";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { ProjectState } from "./project/state";
+import { placeOfUse } from "./styles/channels";
 import { type SessionStylesApi, setShaderTrust } from "./styles/StylesApi";
 import type { SessionEventMap } from "./types";
 
@@ -114,10 +115,9 @@ export interface ShaderAddOptions {
     /** When the header's id is taken: refuse (the default) or add under the next free id. */
     readonly onTaken?: "refuse" | "rename";
     /**
-     * Also write the shader to this layer, as its surface or an added effect, in the same undoable
-     * step. A layer that paints the other target (a node shader on an edge layer) is refused with
-     * `shader.apply-target`. Effects are keyed by id, so an effect this layer and a layer beneath
-     * it both add draws once, its parameters merged by name with the upper layer's winning.
+     * Also write the shader to this layer, as a use at its own place added to the end of the
+     * layer's shader list, in the same undoable step. A layer that paints the other target (a node
+     * shader on an edge layer) is refused with `shader.apply-target`.
      */
     readonly apply?: { readonly layer: LayerId };
 }
@@ -200,7 +200,7 @@ export interface SessionShaders {
     /**
      * @param id - Any shader the catalog lists.
      * @returns Whether it draws now, and if not, why. A background that reads the graph's groups
-     *   while no layer draws a boundary draws, and says so with `shader.no-data`.
+     *   while no layer draws a group outline draws, and says so with `shader.no-data`.
      */
     status(id: string): ShaderStatus;
     /**
@@ -498,33 +498,22 @@ function bodyLineOf(text: string, body: string): number {
 }
 
 /**
- * Every shader id a layer names: its surfaces, its effects and its boundary.
+ * Every shader id a layer names on its shader lists.
  * @param spec - The layer.
  * @returns The ids.
  */
 export function idsNamedBy(spec: LayerSpec): Set<string> {
     const ids = new Set<string>();
     const set = (spec.set ?? {}) as Record<string, unknown>;
-    for (const channel of ["node.shader", "edge.shader"]) {
-        if (typeof set[channel] === "string") {
-            ids.add(set[channel]);
-        }
-    }
-
-    for (const channel of ["node.effects", "edge.effects", "node.shaderParams", "edge.shaderParams"]) {
-        const map = set[channel];
-        if (typeof map === "object" && map !== null) {
-            for (const [id, value] of Object.entries(map)) {
-                // A plain parameter value in shaderParams is for the drawn shader, not an id.
-                if (value !== false && (typeof value === "object" || channel.endsWith("effects"))) {
-                    ids.add(id);
+    for (const channel of ["node.shaders", "edge.shaders"]) {
+        const list = set[channel];
+        if (Array.isArray(list)) {
+            for (const use of list as readonly ShaderUse[]) {
+                if (use.off !== true && typeof use.shader === "string") {
+                    ids.add(use.shader);
                 }
             }
         }
-    }
-
-    if (spec.boundary !== undefined) {
-        ids.add(spec.boundary.shader);
     }
 
     return ids;
@@ -549,7 +538,8 @@ function differingDefaults(text: ShaderDescriptor, known: ShaderDescriptor): Sha
 }
 
 /**
- * The patch that writes a shader to a layer: its surface, an added effect, or its boundary.
+ * The patch that writes a shader to a layer: a use at its own place, added at the end of the
+ * layer's list for the shader's target.
  * @param spec - The layer.
  * @param descriptor - The shader.
  * @param params - Parameter values to write with it.
@@ -557,43 +547,21 @@ function differingDefaults(text: ShaderDescriptor, known: ShaderDescriptor): Sha
  * @throws A `GraphtyError` with `E_SHADER_KIND` for a background, which no layer draws.
  */
 function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: ShaderParams = {}): Partial<LayerSpec> {
-    const set = { ...spec.set } as Record<string, unknown>;
-    const given = Object.keys(params).length > 0;
-    const surface = (side: "node" | "edge"): void => {
-        set[`${side}.shader`] = descriptor.id;
-        if (given) {
-            set[`${side}.shaderParams`] = { ...(set[`${side}.shaderParams`] as object), [descriptor.id]: params };
-        }
-    };
-    const drawing = drawingOf(descriptor);
-    switch (drawing) {
-        case "node-paint":
-        case "node-replace":
-            surface("node");
-            break;
-        case "edge-paint":
-            surface("edge");
-            break;
-        case "node-square":
-        case "edge-along": {
-            const channel = drawing === "node-square" ? "node.effects" : "edge.effects";
-            const effects = Object.assign(Object.create(null) as Record<string, unknown>, set[channel]);
-            effects[descriptor.id] = given ? params : true;
-            set[channel] = effects;
-            break;
-        }
-        case "group":
-            return { boundary: { shader: descriptor.id, ...(given ? { params } : {}) } };
-        default:
-            throw new GraphtyError({
-                code: "E_SHADER_KIND",
-                message: `"${descriptor.id}" draws on the ${descriptor.target}, which no style layer draws.`,
-                source: "style",
-                details: { id: descriptor.id, target: descriptor.target, expected: ["node", "edge", "group"] },
-            });
+    if (descriptor.target === "background") {
+        throw new GraphtyError({
+            code: "E_SHADER_KIND",
+            message: `"${descriptor.id}" draws on the ${descriptor.target}, which no style layer draws.`,
+            source: "style",
+            details: { id: descriptor.id, target: descriptor.target, expected: ["node", "edge", "group"] },
+        });
     }
 
-    return { set: set };
+    const channel = descriptor.target === "edge" ? "edge.shaders" : "node.shaders";
+    const set = { ...spec.set } as Record<string, unknown>;
+    const held = Array.isArray(set[channel]) ? (set[channel] as readonly ShaderUse[]) : [];
+    const use: ShaderUse = { shader: descriptor.id, ...(Object.keys(params).length > 0 ? { params } : {}) };
+    set[channel] = [...held, use];
+    return { set };
 }
 
 /**
@@ -902,7 +870,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
-     * A background that reads the graph's groups (`members`) while no layer draws a boundary: it
+     * A background that reads the graph's groups (`members`) while no layer draws a group outline: it
      * draws as if there were none, and says so.
      * @param descriptor - The shader's facts.
      * @returns The status, or null when it has what it reads.
@@ -912,7 +880,13 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return null;
         }
 
-        return styles.list().some((layer) => layer.boundary !== undefined)
+        return styles
+            .list()
+            .some((layer) =>
+                ((layer.set?.["node.shaders"] ?? []) as readonly ShaderUse[]).some(
+                    (use) => placeOfUse(use) === "group",
+                ),
+            )
             ? null
             : {
                   state: host === null ? "not-checked" : "ready",

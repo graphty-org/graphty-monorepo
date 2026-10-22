@@ -494,15 +494,21 @@ function sampleInput(kind: ShaderDrawing): string {
 }
 
 /**
- * The statements after the shader ran that frame its result: the gray node under an effect's
- * disc, the dots at an edge's ends, the group's members over its outline.
+ * The statements after the shader ran that frame its result: the gray node over the middle of a
+ * look around or behind it (under a look over it), the dots at an edge's ends, the group's
+ * members over its outline.
  * @param kind - The drawing.
+ * @param place - The shader's own place.
  * @returns The GLSL.
  */
-function sampleFinish(kind: ShaderDrawing): string {
+function sampleFinish(kind: ShaderDrawing, place?: string): string {
     switch (kind) {
         case "node-square":
-            return `    if (graphty_r2 < 1.0) { graphty_out = ${SAMPLE_GRAY}; }`;
+            // Over the node: the look over its gray disc, nothing outside it. Around or behind:
+            // the gray node over the look's middle.
+            return place === "over"
+                ? `    graphty_out = graphty_r2 < 1.0 ? vec4(mix(${SAMPLE_GRAY}.rgb, graphty_out.rgb, clamp(graphty_out.a, 0.0, 1.0)), 1.0) : vec4(0.0);`
+                : `    if (graphty_r2 < 1.0) { graphty_out = ${SAMPLE_GRAY}; }`;
         case "edge-paint":
         case "edge-along":
             return `    if (!graphty_onEdge) { graphty_out = vec4(0.0); }
@@ -625,7 +631,7 @@ ${sampleInput(kind)}
     if (graphty_bad(graphty_out)) {
         graphty_out = ${SAMPLE_FALLBACK[kind]};
     }
-${sampleFinish(kind)}
+${sampleFinish(kind, descriptor.place)}
 
     gl_FragColor = graphty_out;
 }

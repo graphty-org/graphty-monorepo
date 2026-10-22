@@ -1,11 +1,11 @@
 /**
  * The scene presets (design/rendering/shader-styles.md section 7.5): the Nebula background, and
- * the Soap bubble and Hull group boundaries.
+ * the Soap bubble and Hull group outlines.
  *
  * Each story sets its shader the way a consumer does: the nebula as the element's background
- * (`element.background`), a boundary as a style layer's `boundary`, grouped by a data path. The
+ * (`element.background`), a group outline as a use at the place `group` on a style layer's `node.shaders`, grouped by a data path. The
  * nodes are three communities, each a hub and two separate subgroups, colored by community from a
- * layer beneath; a boundary takes its group's mean color. The controls are the preset's parameters.
+ * layer beneath; a group outline takes its group's mean color. The controls are the preset's parameters.
  *
  * The nebula drifts and the bubbles swirl; in a visual capture their motion is switched off with
  * the reader's own setting (`shaderSettings.motion`), so the picture is the same on every run.
@@ -25,7 +25,7 @@ const COLORS = ["#e0703a", "#2f9e8f", "#6a5acd"] as const;
 
 /**
  * Three communities around three centers, each a hub and two subgroups of three nodes in clusters
- * of their own on either side of it, so a subgroup's boundary nests inside its community's. A
+ * of their own on either side of it, so a subgroup's group outline nests inside its community's. A
  * fixed layout spaced as a force layout spaces nodes of this size, about ten node radii apart.
  */
 const NODES = COLORS.flatMap((color, community) => {
@@ -104,12 +104,12 @@ function communities(layers: readonly LayerInput[], background: Graphty["backgro
     element.layoutConfig = { dim: 2 };
     element.viewMode = "2d";
     // A bubble or hull reaches well past its outermost node, and the camera frames the nodes:
-    // keep room at every edge so the boundaries stay on the canvas.
+    // keep room at every edge so the group outlines stay on the canvas.
     element.fitInsets = { top: 110, right: 110, bottom: 110, left: 110 };
     return element;
 }
 
-/** A dark canvas for the boundaries, which glow and shimmer best on one. */
+/** A dark canvas for the group outlines, which glow and shimmer best on one. */
 const DARK: Graphty["background"] = { backgroundType: "color", color: "#10141c" };
 
 /**
@@ -202,13 +202,13 @@ async function settled(canvasElement: HTMLElement, story: string): Promise<void>
 }
 
 /**
- * A story of a boundary preset over the communities, with a second layer for the subgroups.
+ * A story of a group outline preset over the communities, with a second layer for the subgroups.
  * @param id - The preset.
  * @param name - The story's name.
  * @param overrides - Defaults this story changes.
  * @returns The story.
  */
-function boundaryStory(id: string, name: string, overrides: ShaderParams = {}): Story {
+function outlineStory(id: string, name: string, overrides: ShaderParams = {}): Story {
     return {
         name,
         ...controls(id, overrides),
@@ -219,15 +219,15 @@ function boundaryStory(id: string, name: string, overrides: ShaderParams = {}): 
                 [
                     {
                         name: "Communities",
+                        set: { "node.shaders": [{ shader, params, groupBy: "data.community" }] },
                         target: "node",
                         selector: { match: "has", path: "data.community" },
-                        boundary: { shader, params, groupBy: "data.community" },
                     },
                     {
                         name: "Subgroups",
+                        set: { "node.shaders": [{ shader, params, groupBy: "data.sub" }] },
                         target: "node",
                         selector: { match: "has", path: "data.sub" },
-                        boundary: { shader, params, groupBy: "data.sub" },
                     },
                 ],
                 DARK,
@@ -257,19 +257,23 @@ export const Nebula: Story = {
 /** The nebula tinted by the groups of an outline layer: the gas takes each community's color. */
 export const NebulaTintedByGroups: Story = {
     name: "Nebula tinted by groups",
-    ...controls("nebula", { tintBy: "boundaries" }),
+    ...controls("nebula", { tintBy: "groups" }),
     render: (args) =>
         communities(
             [
                 {
                     name: "Communities",
+                    set: {
+                        "node.shaders": [
+                            {
+                                shader: presetId("metaball-hull"),
+                                params: { look: "outline", outline: 1.5, fillOpacity: 0 },
+                                groupBy: "data.community",
+                            },
+                        ],
+                    },
                     target: "node",
                     selector: { match: "has", path: "data.community" },
-                    boundary: {
-                        shader: presetId("metaball-hull"),
-                        params: { look: "outline", outline: 1.5, fillOpacity: 0 },
-                        groupBy: "data.community",
-                    },
                 },
             ],
             {
@@ -284,16 +288,16 @@ export const NebulaTintedByGroups: Story = {
 };
 
 /** A thin-film bubble around each community, and smaller ones around its subgroups inside it. */
-export const SoapBubble = boundaryStory("soap-bubble", "Soap bubble");
+export const SoapBubble = outlineStory("soap-bubble", "Soap bubble");
 
 /** The hull as translucent goo with a bright rim (the default look). */
-export const HullGoo = boundaryStory("metaball-hull", "Hull goo");
+export const HullGoo = outlineStory("metaball-hull", "Hull goo");
 
 /** The hull as an iridescent soap-film membrane. */
-export const HullMembrane = boundaryStory("metaball-hull", "Hull membrane", { look: "membrane" });
+export const HullMembrane = outlineStory("metaball-hull", "Hull membrane", { look: "membrane" });
 
 /** The hull as a clean contour, nested like an Euler diagram. */
-export const HullOutline = boundaryStory("metaball-hull", "Hull outline", { look: "outline" });
+export const HullOutline = outlineStory("metaball-hull", "Hull outline", { look: "outline" });
 
 /**
  * One Hull layer per community, as a folder of community layers draws them: sibling layers of one
@@ -307,9 +311,11 @@ export const HullPerCommunityLayer: Story = {
         communities(
             COLORS.map((_, community) => ({
                 name: `Community ${String(community)}`,
+                set: {
+                    "node.shaders": [{ shader: presetId("metaball-hull"), params: paramsOf("metaball-hull", args) }],
+                },
                 target: "node" as const,
                 selector: { match: "expression" as const, where: `data.community == \`${String(community)}\`` },
-                boundary: { shader: presetId("metaball-hull"), params: paramsOf("metaball-hull", args) },
             })),
             DARK,
         ),

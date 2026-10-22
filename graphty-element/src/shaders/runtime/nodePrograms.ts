@@ -31,7 +31,8 @@ export const BATCH_ATTRIBUTES = [
     "graphtyParams",
     // seed, parameter-set row, state bits, state-time row
     "graphtyMeta",
-    // billboard: halo (rgb packed, scale, opacity); effect: entered and exited stamps
+    // billboard: halo (rgb packed, scale, opacity); square: entered and exited stamps; w: the
+    // use's minimum size in CSS pixels (0: none)
     "graphtyDeco0",
     // billboard: ring (rgb packed, on), glow (rgb packed, strength)
     "graphtyDeco1",
@@ -49,6 +50,7 @@ export const BATCH_UNIFORMS = [
     "graphty_reach",
     "graphty_effectCap",
     "graphty_freeze",
+    "graphty_pixelRatio",
 ] as const;
 
 /** The mesh path's two instanced attributes: the varying parameters, then the meta of the batch. */
@@ -139,39 +141,67 @@ export interface BatchProgram {
     readonly samplers: readonly string[];
 }
 
-/** Which batch a program draws for. */
-export type BatchRole = "impostor" | "sprite" | "effect";
+/**
+ * Which batch a program draws for: a `paint` impostor on a round node, or a square at `replace`,
+ * `over`, `around` or `behind`.
+ */
+export type BatchRole = "impostor" | "replace" | "over" | "around" | "behind";
+
+/**
+ * Whether a role draws a stacking square (`over`, `around`, `behind`) rather than the node's own
+ * look.
+ * @param role - The role.
+ * @returns True for the three stacking places.
+ */
+function stacks(role: BatchRole): boolean {
+    return role === "over" || role === "around" || role === "behind";
+}
 
 /**
  * The vertex stage of a batch: one camera-facing square per slot, in view space at the node's
- * center, big enough for the effect's reach or the billboard's halo, ring and glow.
+ * center, big enough for the shader's reach or the billboard's halo, ring and glow.
+ *
+ * `minSize` (the slot's `graphtyDeco0.w`, CSS pixels) applies at `replace`, `around` and `behind`:
+ * the square is drawn at least that wide, by drawing the look as if the node's radius were larger
+ * (`n.uv` keeps the outline it draws at 1); `vInner` is the node's own outline in those units.
  * @param role - The batch.
  * @returns The GLSL.
  */
 function batchVertex(role: BatchRole): string {
-    const extent =
-        role === "effect"
-            ? "graphty_reach"
-            : `max(max(1.0, graphtyDeco0.y), max(graphtyDeco1.y > 0.5 ? ${RING_OUTER.toFixed(2)} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
-    // Effects on nodes under 3 px on screen are not drawn. An effect's square is no wider than the
-    // quality level's cap (section 5) round a node of up to a third of it; round a bigger node only
-    // the band beyond the radius is held to the cap's share. Past it the square shrinks and the
-    // fragment stage squeezes the effect's look into it (vFit), so its own falloff still reaches
+    const square = stacks(role);
+    // The billboard's square holds its halo, ring and glow; the square in place of the node also
+    // its reach.
+    const decorated = (least: string): string =>
+        `max(max(${least}, graphtyDeco0.y), max(graphtyDeco1.y > 0.5 ? ${RING_OUTER.toFixed(2)} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
+    let extent = "graphty_reach";
+    if (role === "impostor") {
+        extent = decorated("1.0");
+    } else if (role === "replace") {
+        extent = decorated("graphty_reach");
+    }
+    // A use with no minimum size is not drawn on a node under 3 px on screen. A square is no wider
+    // than the quality level's cap (section 5) round a node of up to a third of it; round a bigger
+    // node only the band beyond the radius is held to the cap's share. Past it the square shrinks
+    // and the fragment stage squeezes the look into it (vFit), so its own falloff still reaches
     // zero at the square's edge.
-    const tooSmall = role === "effect" ? "vPixelSize < 3.0 ||" : "";
-    const fit =
-        role === "effect"
-            ? "min(1.0, (1.0 + 0.5 * graphty_effectCap / max(radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6), 1e-6) * (graphty_reach - 1.0) / graphty_reach) / graphty_reach)"
-            : "1.0";
-    // An effect's square sits at the node's front, one radius toward the camera, so the edges that
-    // meet the node (they end at its surface) never hide it while a nearer node still does; in
-    // perspective it is scaled back to the place and size it has at the node's center.
-    const place =
-        role === "effect"
-            ? `float graphty_k = projection[3][3] > 0.5 ? 1.0 : max(center.z - radius, 1e-3) / max(center.z, 1e-3);
-    vec4 at = vec4((center.xy + corner * radius) * graphty_k, center.z - radius, 1.0);
+    const tooSmall = square ? "(graphtyDeco0.w <= 0.0 && graphty_pixel < 3.0) ||" : "";
+    const sized = role === "replace" || role === "around" || role === "behind";
+    const grow = sized
+        ? `max(1.0, 0.5 * graphtyDeco0.w * graphty_pixelRatio / max(graphty_pixel * ${extent}, 1e-6))`
+        : "1.0";
+    const fit = square
+        ? "min(1.0, (1.0 + 0.5 * graphty_effectCap / max(radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6), 1e-6) * (graphty_reach - 1.0) / graphty_reach) / graphty_reach)"
+        : "1.0";
+    // A square over or around the node sits at the node's front, one radius toward the camera, so
+    // the edges that meet the node (they end at its surface) never hide it while a nearer node
+    // still does; one behind sits at its back, so the node covers its middle. In perspective it is
+    // scaled back to the place and size it has at the node's center.
+    const depth = role === "behind" ? "center.z + graphty_real" : "center.z - graphty_real";
+    const place = square
+        ? `float graphty_k = projection[3][3] > 0.5 ? 1.0 : max(${depth}, 1e-3) / max(center.z, 1e-3);
+    vec4 at = vec4((center.xy + corner * radius) * graphty_k, ${depth}, 1.0);
     vFit = vec2(${extent} * graphty_fit, ${extent});`
-            : "vec4 at = center + vec4(corner * radius, 0.0, 0.0);";
+        : "vec4 at = center + vec4(corner * radius, 0.0, 0.0);";
     return `precision highp float;
 attribute vec3 position;
 ${BATCH_ATTRIBUTES.map((name) => `attribute vec4 ${name};`).join("\n")}
@@ -181,6 +211,7 @@ uniform mat4 projection;
 uniform vec2 graphty_resolution;
 uniform float graphty_reach;
 uniform float graphty_effectCap;
+uniform float graphty_pixelRatio;
 varying vec2 vUV;
 varying vec3 vViewPos;
 varying vec4 vColor;
@@ -190,17 +221,22 @@ varying vec4 vDeco0;
 varying vec4 vDeco1;
 varying float vRadius;
 varying float vPixelSize;
-${role === "effect" ? "varying vec2 vFit;" : ""}
+varying float vInner;
+${square ? "varying vec2 vFit;" : ""}
 void main() {
-    float radius = graphtyCenter.w * length(world[0].xyz);
+    float graphty_real = graphtyCenter.w * length(world[0].xyz);
     vec4 center = view * world * vec4(graphtyCenter.xyz, 1.0);
     vec4 clipCenter = projection * center;
+    float graphty_pixel = graphty_real * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6);
+    float graphty_grow = ${grow};
+    float radius = graphty_real * graphty_grow;
     float graphty_fit = ${fit};
     vec2 corner = position.xy * ${extent} * graphty_fit;
     ${place}
     gl_Position = projection * at;
-    vPixelSize = radius * abs(projection[1][1]) * 0.5 * graphty_resolution.y / max(abs(clipCenter.w), 1e-6);
-    if (${tooSmall} radius <= 0.0) {
+    vPixelSize = graphty_pixel * graphty_grow;
+    vInner = 1.0 / graphty_grow;
+    if (${tooSmall} graphty_real <= 0.0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     }
 
@@ -238,8 +274,96 @@ vec4 graphty_decoration(float d) {
 `;
 
 /**
+ * The fragment statements that fill the input's `uv` and `normal` for a role, and leave
+ * `graphty_deco` (the billboard's halo, ring and glow) and, for the impostor, `graphty_z`.
+ * @param role - The batch.
+ * @returns The GLSL.
+ */
+function surfaceInput(role: BatchRole): string {
+    if (stacks(role)) {
+        // Squeezed to the cap (vFit: the square's half width and the look's reach, in radii), the
+        // ring from the radius out is mapped onto the reach, so the look keeps its node-sized
+        // middle and all of its falloff. Over draws only inside the node's outline; around only
+        // outside it; behind everywhere, the node covering its middle.
+        let mask = "";
+        if (role === "over") {
+            mask = "if (graphty_r > vInner) { discard; }";
+        } else if (role === "around") {
+            mask = "if (graphty_r < vInner) { discard; }";
+        }
+
+        return `
+    float graphty_r = length(vUV);
+    ${mask}
+    vec2 graphty_uv = vUV;
+    if (vFit.x < vFit.y) {
+        float graphty_to = vFit.x > 1.0
+            ? 1.0 + (graphty_r - 1.0) * (vFit.y - 1.0) / (vFit.x - 1.0)
+            : graphty_r * vFit.y / max(vFit.x, 1e-6);
+        graphty_uv *= graphty_to / max(graphty_r, 1e-6);
+    }
+    vec4 graphty_deco = vec4(0.0);
+    graphty_in.uv = graphty_uv;
+    graphty_in.normal = vec3(graphty_uv, 0.0);`;
+    }
+
+    if (role === "replace") {
+        // The square in place of the node: the look out to its reach, over the halo, ring and
+        // glow drawn from the node's own outline. The normal faces the camera.
+        return `
+    float graphty_d = length(vUV);
+    vec4 graphty_deco = graphty_decoration(graphty_d / vInner);
+    graphty_in.uv = vUV;
+    graphty_in.normal = vec3(0.0, 0.0, -1.0);`;
+    }
+
+    // An impostor ray-casts the sphere inside the outline; outside it only the decoration draws.
+    return `
+    float graphty_d = length(vUV);
+    vec4 graphty_deco = graphty_decoration(graphty_d);
+    if (graphty_d > 1.0) {
+        if (graphty_deco.a <= 0.002) { discard; }
+        gl_FragColor = graphty_deco;
+        return;
+    }
+    float graphty_z = sqrt(max(1.0 - graphty_d * graphty_d, 0.0));
+    graphty_in.uv = vUV;
+    graphty_in.normal = vec3(vUV, -graphty_z);`;
+}
+
+/**
+ * The fragment statements after the body ran. Bodies return straight alpha in every place: a
+ * stacking square premultiplies it for its premultiplied (or additive) blend; the impostor and
+ * the square in place of the node blend it straight over, the decoration beneath.
+ * @param role - The batch.
+ * @returns The GLSL.
+ */
+function surfaceFinish(role: BatchRole): string {
+    if (stacks(role)) {
+        return `
+    if (graphty_bad(graphty_out)) { graphty_out = vec4(0.0); }
+    graphty_out.a = clamp(graphty_out.a, 0.0, 1.0);
+    if (graphty_out.a <= 0.002) { discard; }
+    gl_FragColor = vec4(graphty_out.rgb * graphty_out.a, graphty_out.a);`;
+    }
+
+    const fallback = role === "replace" ? "vec4(0.0)" : "graphty_in.color";
+    // The square in place of the node draws the look out to its reach, never past it.
+    const reach =
+        role === "replace" ? "if (max(abs(vUV.x), abs(vUV.y)) > graphty_reach) { graphty_out = vec4(0.0); }" : "";
+    return `
+    ${reach}
+    if (graphty_bad(graphty_out)) { graphty_out = ${fallback}; }
+    graphty_out.a = clamp(graphty_out.a, 0.0, 1.0);
+    float graphty_a = graphty_out.a + graphty_deco.a * (1.0 - graphty_out.a);
+    if (graphty_a <= 0.002) { discard; }
+    gl_FragColor = vec4((graphty_out.rgb * graphty_out.a + graphty_deco.rgb * graphty_deco.a * (1.0 - graphty_out.a)) / graphty_a, graphty_a);`;
+}
+
+/**
  * The program a batch draws one shader with.
- * @param role - Impostor surfaces (a ray-cast sphere), sprites (flat) or effects.
+ * @param role - A `paint` impostor (a ray-cast sphere), or a square at `replace`, `over`,
+ *     `around` or `behind`.
  * @param descriptor - The shader's catalog facts.
  * @param body - Its GLSL body.
  * @returns The program.
@@ -250,47 +374,7 @@ export function batchProgram(
     body: string,
 ): BatchProgram {
     const { params } = descriptor;
-    const effect = role === "effect";
-    // An effect draws round the node, never over its own fill; squeezed to the cap (vFit: the
-    // square's half width and the effect's reach, in radii), the ring from the radius out is
-    // mapped onto the reach, so the look keeps its node-sized middle and all of its falloff.
-    // An impostor's normal is the sphere's; a sprite's faces the camera.
-    const flatNormal = role === "impostor" ? "vec3(vUV, -graphty_z)" : "vec3(0.0, 0.0, -1.0)";
-    const surface = effect
-        ? `
-    float graphty_r = length(vUV);
-    if (graphty_r < 1.0) { discard; }
-    vec2 graphty_uv = vUV;
-    if (vFit.x < vFit.y) {
-        float graphty_to = vFit.x > 1.0
-            ? 1.0 + (graphty_r - 1.0) * (vFit.y - 1.0) / (vFit.x - 1.0)
-            : graphty_r * vFit.y / max(vFit.x, 1e-6);
-        graphty_uv *= graphty_to / graphty_r;
-    }
-    graphty_in.uv = graphty_uv;
-    graphty_in.normal = vec3(graphty_uv, 0.0);`
-        : `
-    float graphty_d = length(vUV);
-    vec4 graphty_deco = graphty_decoration(graphty_d);
-    if (graphty_d > 1.0) {
-        if (graphty_deco.a <= 0.002) { discard; }
-        gl_FragColor = graphty_deco;
-        return;
-    }
-    float graphty_z = sqrt(max(1.0 - graphty_d * graphty_d, 0.0));
-    graphty_in.uv = vUV;
-    graphty_in.normal = ${flatNormal};`;
-    const finish = effect
-        ? `
-    if (graphty_bad(graphty_out)) { graphty_out = vec4(0.0); }
-    if (graphty_out.a <= 0.002 && dot(graphty_out.rgb, graphty_out.rgb) <= 0.00001) { discard; }
-    gl_FragColor = graphty_out;`
-        : `
-    if (graphty_bad(graphty_out)) { graphty_out = graphty_in.color; }
-    float graphty_a = graphty_out.a + graphty_deco.a * (1.0 - graphty_out.a);
-    if (graphty_a <= 0.002) { discard; }
-    gl_FragColor = vec4((graphty_out.rgb * graphty_out.a + graphty_deco.rgb * graphty_deco.a * (1.0 - graphty_out.a)) / graphty_a, graphty_a);`;
-
+    const square = stacks(role);
     const fragment = `${fragmentPrelude()}
 ${NODE_FUNCTIONS}
 varying vec2 vUV;
@@ -302,10 +386,12 @@ varying vec4 vDeco0;
 varying vec4 vDeco1;
 varying float vRadius;
 varying float vPixelSize;
-${effect ? "varying vec2 vFit;" : ""}
+varying float vInner;
+${square ? "varying vec2 vFit;" : ""}
 uniform mat4 view;
 uniform float graphty_freeze;
-${effect ? "" : BILLBOARD_DECORATION}
+uniform float graphty_reach;
+${square ? "" : BILLBOARD_DECORATION}
 ${paramGlobals(params)}
 #line 1
 ${prefixBody(body, params)}
@@ -314,16 +400,16 @@ void main() {
 ${paramLocals(params, "vParams", "int(vMeta.y + 0.5)")}
 ${mainPrelude(params)}
     graphty_NodeInput graphty_in;
-${surface}
+${surfaceInput(role)}
     // The point in world orientation, so a camera turning round the node sees another side of it.
     graphty_in.local = transpose(mat3(view)) * graphty_in.normal;
     graphty_in.viewDir = normalize(vViewPos);
     graphty_in.color = vColor;
     graphty_in.size = vRadius;
     graphty_in.pixelSize = vPixelSize;
-${stateInput("vMeta", effect ? "vDeco0.xy" : null, "graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x")}
+${stateInput("vMeta", square ? "vDeco0.xy" : null, "graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x")}
     vec4 graphty_out = graphty_u_shade(graphty_in);
-${finish}
+${surfaceFinish(role)}
 }
 `;
 

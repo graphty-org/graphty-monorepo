@@ -3,7 +3,7 @@
  * Edge glow and Edge change.
  *
  * Each story sets its look the way a consumer does, with one style layer naming the preset in
- * `edge.shader` (a surface) or `edge.effects` (an effect), over a palette layer that colors the
+ * a use on `edge.shaders` (at `paint` or `along`), over a palette layer that colors the
  * nodes and edges by group, on a dark canvas like the shader lab's. The graph's edges take every
  * route the element draws -- straight, curved and bent -- and each preset follows the route.
  *
@@ -220,7 +220,7 @@ export const Fiber: Story = {
                 name: "Fiber",
                 target: "edge",
                 selector: { match: "everything" },
-                set: { "edge.shader": shader, "edge.shaderParams": { [shader]: paramsOf("fiber-optic", storyArgs) } },
+                set: { "edge.shaders": [{ shader: shader, params: paramsOf("fiber-optic", storyArgs) }] },
             },
             14,
         );
@@ -243,9 +243,10 @@ export const LightPackets: Story = {
                 target: "edge",
                 selector: { match: "everything" },
                 set: {
-                    "edge.shader": fiber,
-                    "edge.shaderParams": { [fiber]: paramsOf("fiber-optic", storyArgs, true) },
-                    "edge.effects": { [packets]: paramsOf("fiber-packets", storyArgs, true) },
+                    "edge.shaders": [
+                        { shader: fiber, params: paramsOf("fiber-optic", storyArgs, true) },
+                        { shader: packets, params: paramsOf("fiber-packets", storyArgs, true) },
+                    ],
                 },
             },
             14,
@@ -266,8 +267,8 @@ export const Comets: Story = {
             name: "Comets",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.effects": { [shader]: paramsOf("comet-tracers", storyArgs) } },
-            encode: { [`edge.effects.${shader}.speed`]: { by: "data.weight", range: [0.4, 2] as [number, number] } },
+            set: { "edge.shaders": [{ shader: shader, params: paramsOf("comet-tracers", storyArgs) }] },
+            encode: { [`edge.shaders.${shader}.speed`]: { by: "data.weight", range: [0.4, 2] as [number, number] } },
         });
     },
     play: async ({ canvasElement }) => {
@@ -286,7 +287,7 @@ export const EdgeGlow: Story = {
                 name: "Glow",
                 target: "edge",
                 selector: { match: "everything" },
-                set: { "edge.effects": { [shader]: paramsOf("edge-glow", storyArgs) } },
+                set: { "edge.shaders": [{ shader: shader, params: paramsOf("edge-glow", storyArgs) }] },
             },
             4,
         );
@@ -306,7 +307,7 @@ export const EdgeChange: Story = {
             name: "Changes",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.effects": { [shader]: paramsOf("edge-change", storyArgs) } },
+            set: { "edge.shaders": [{ shader: shader, params: paramsOf("edge-change", storyArgs) }] },
         });
     },
     play: async ({ canvasElement }) => {

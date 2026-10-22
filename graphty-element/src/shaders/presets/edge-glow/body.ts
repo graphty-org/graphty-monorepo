@@ -25,6 +25,8 @@ vec4 shade(EdgeInput e) {
     vec3 coreColor = mix(c, vec3(1.0), 0.2 + 0.7 * glint) * (0.85 + 1.5 * glint) * (1.0 + 0.5 * bloom * glint);
     float haloA = clamp(halo * (0.6 + glint), 0.0, 1.0);
     vec3 rgb = (coreColor * aa + c * haloA * (1.0 - aa)) * (1.0 + 0.8 * lit);
-    return vec4(rgb, clamp(1.0 - (1.0 - aa) * (1.0 - haloA), 0.0, 1.0));
+    // rgb is premultiplied by the core's and the halo's coverage; returned straight.
+    float a = clamp(1.0 - (1.0 - aa) * (1.0 - haloA), 0.0, 1.0);
+    return vec4(rgb / max(a, 1e-4), a);
 }
 `;

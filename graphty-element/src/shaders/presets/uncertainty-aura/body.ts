@@ -5,7 +5,7 @@
  * `intensity` is how uncertain a node is, and is meant to be bound per node (`encode`): near 0 the
  * haze hugs the surface and keeps still; near 2 it spreads out, churns into turbulent smoke and
  * flickers. The smoke is sampled by direction rather than by angle, so no seam runs through it
- * (the lab's version had one where the angle wraps). The result is premultiplied, so it tints a
+ * (the lab's version had one where the angle wraps). The result is blended over, so it tints a
  * light canvas and glows on a dark one. The flicker is slow (at most two noise cells a second), so
  * it never flashes, and every moving part scales with `churn`, so `churn` 0 holds it still.
  */
@@ -37,6 +37,6 @@ vec4 shade(NodeInput n) {
     a = clamp(a * edge * (0.6 + 0.6 * u), 0.0, 1.0);
     vec3 col = mix(auraColor, n.color.rgb, tint);
     col = mix(col, col * vec3(0.8, 0.85, 1.2), u * 0.3) + vec3(0.15) * wisps * u;
-    return vec4(col * a, a * 0.8);
+    return vec4(col / 0.8, a * 0.8);
 }
 `;

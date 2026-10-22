@@ -62,6 +62,8 @@ vec4 shade(NodeInput n) {
     float dark = max(fillAA(d - lw - 1.5 * px), strokeAA(r - RR, lw * 0.6 + 1.5 * px) * tickMask) * fade;
     float shadow = 0.45 * dark * (1.0 - lineA);
     vec3 hud = hudColor * (1.0 + 1.5 * lockOn) + vec3(0.5 * lockOn);
-    return vec4(hud * lineA + vec3(0.02, 0.06, 0.04) * shadow, lineA + shadow);
+    // Straight alpha: the lines' and the shadow's light over their coverage.
+    float a = lineA + shadow;
+    return vec4((hud * lineA + vec3(0.02, 0.06, 0.04) * shadow) / max(a, 1e-4), a);
 }
 `;

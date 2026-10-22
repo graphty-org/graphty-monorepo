@@ -1,6 +1,6 @@
 /**
  * @file The catalog entry of the `metaball-hull` preset, Hull (design/rendering/shader-styles.md
- * section 7.5): a group boundary of form `"field"`, a gooey hull around each group of a layer's
+ * section 7.5): a group outline of form `"field"`, a gooey hull around each group of a layer's
  * nodes, drawn as translucent goo, an iridescent membrane or a clean outline. Catalog data only;
  * the GLSL is in `./body.ts`.
  *

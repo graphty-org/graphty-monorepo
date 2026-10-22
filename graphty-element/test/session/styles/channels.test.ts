@@ -309,12 +309,8 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
-    "node.shader",
-    "node.shaderParams",
-    "node.effects",
-    "edge.shader",
-    "edge.shaderParams",
-    "edge.effects",
+    "node.shaders",
+    "edge.shaders",
     "edge.taper",
     "edge.lift",
 ];
@@ -343,9 +339,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-five node channels and one hundred and thirty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 155);
-        assert.strictEqual(channelsFor("edge").length, 135);
+    it("splits into one hundred and fifty-three node channels and one hundred and thirty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 153);
+        assert.strictEqual(channelsFor("edge").length, 133);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -689,10 +685,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWeight",
         "edge.labelItalic",
         // Unset, no shader parameter is set and no effect is drawn.
-        "node.shaderParams",
-        "node.effects",
-        "edge.shaderParams",
-        "edge.effects",
+        "node.shaders",
+        "edge.shaders",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -756,7 +750,6 @@ describe("what a style editor needs to draw a row", () => {
         number: "number",
         boolean: "boolean",
         enum: "string",
-        shader: "string",
     };
 
     it("gives every channel a short name and a group of its own target", () => {

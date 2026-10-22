@@ -17,7 +17,7 @@
 
 import type { Scene } from "@babylonjs/core";
 
-import { motionOf, type ShaderParamDescriptor, type ShaderParams, slotRoleOf, timingOf } from "../catalog/shaders";
+import { drawingOf, motionOf, type ShaderParamDescriptor, type ShaderParams, timingOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
 import type { GraphSession } from "../session/types";
@@ -212,7 +212,7 @@ export class EdgeShaderDrawing {
         name: string,
         line: ShadedLineOptions,
     ): ShadedEdgeBatch | null {
-        return this.batchOf("surface", edge, id, cache, name, line) as ShadedEdgeBatch | null;
+        return this.batchOf("paint", edge, id, cache, name, line) as ShadedEdgeBatch | null;
     }
 
     /**
@@ -231,7 +231,7 @@ export class EdgeShaderDrawing {
         name: string,
         line: ShadedLineOptions,
     ): EdgeEffectBatch | null {
-        return this.batchOf("effect", edge, id, cache, name, line) as EdgeEffectBatch | null;
+        return this.batchOf("along", edge, id, cache, name, line) as EdgeEffectBatch | null;
     }
 
     /**
@@ -365,7 +365,7 @@ export class EdgeShaderDrawing {
 
     /**
      * A batch of one role, once its program compiled.
-     * @param role - Surface or effect.
+     * @param role - `paint` or `along`.
      * @param edge - The edge asking.
      * @param id - The shader's id.
      * @param cache - The mesh cache.
@@ -374,7 +374,7 @@ export class EdgeShaderDrawing {
      * @returns The batch, or null while it cannot draw.
      */
     private batchOf(
-        role: "surface" | "effect",
+        role: "paint" | "along",
         edge: ShadedEdge,
         id: string,
         cache: MeshCache,
@@ -382,12 +382,12 @@ export class EdgeShaderDrawing {
         line: ShadedLineOptions,
     ): EdgeLineBatch | null {
         const shader = this.shader(id, edge);
-        const wanted = role === "surface" ? "look" : "effect";
         const { renderer, runtime, textures: data } = this;
         if (
             shader === null ||
             shader.registration.descriptor.target !== "edge" ||
-            slotRoleOf({ target: "edge", place: shader.registration.descriptor.place }) !== wanted ||
+            !(shader.registration.descriptor.places ?? []).includes(role) ||
+            drawingOf(shader.registration.descriptor, role) !== `edge-${role}` ||
             renderer === null ||
             runtime === null ||
             data === null
@@ -400,7 +400,7 @@ export class EdgeShaderDrawing {
             () => renderer.shadedLineMesh(this.scene, role, shader, data, runtime, line),
             this.scene,
             (mesh, scene, retire) =>
-                role === "surface"
+                role === "paint"
                     ? new renderer.ShadedEdgeBatch(mesh, scene, retire, shader, runtime, data)
                     : new renderer.EdgeEffectBatch(mesh, scene, retire, shader, runtime, data),
         ) as ShadedEdgeBatch;

@@ -1,13 +1,13 @@
 /**
  * @file The programs of the scene-level shaders (design/rendering/shader-styles.md sections 4.2
- * and 5): the background, drawn into its own render target; the splat that sums each boundary
- * member's kernel into a field target; and the boundary, drawn into the boundary target from that
+ * and 5): the background, drawn into its own render target; the splat that sums each group outline
+ * member's kernel into a field target; and the group outline, drawn into the outline target from that
  * field (form `"field"`) or as one sphere per group (form `"sphere"`). Both targets are shown
  * behind the graph.
  *
  * Built from the same pieces as the sample program (`wrap.ts`): the prelude, the library, the
  * renamed body and the NaN guard. Each parameter is one plain uniform, since a background is
- * drawn once and a boundary once per layer.
+ * drawn once and a group outline once per use.
  *
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -31,9 +31,9 @@ export const FIELD_TARGETS = 8;
 /** The samplers of the field targets, one per target. */
 export const FIELD_SAMPLERS = Array.from({ length: FIELD_TARGETS }, (_, i) => `graphty_field${String(i)}`);
 
-/** The boundary program's uniforms beside the parameters and the scene block. */
-export const BOUNDARY_UNIFORMS = [
-    // the boundary target's size in pixels, and canvas pixels per target pixel
+/** The group outline program's uniforms beside the parameters and the scene block. */
+export const OUTLINE_UNIFORMS = [
+    // the outline target's size in pixels, and canvas pixels per target pixel
     "graphty_resolution",
     // 1 / field width, 1 / field height, canvas pixels per field texel, the field's value scale
     "graphty_fieldTexel",
@@ -46,7 +46,7 @@ export const BOUNDARY_UNIFORMS = [
     "graphty_freeze",
 ] as const;
 
-/** How many boundary groups tint a background: the largest ones on screen. */
+/** How many group outlines tint a background: the largest ones on screen. */
 export const BACKGROUND_TINTS = 4;
 
 /** Each tinting group's place (x, y on the canvas, -1..1; its radius in canvas heights; its weight). */
@@ -108,7 +108,7 @@ ${mainPrelude(params)}
     graphty_in.viewDir = normalize(graphty_b.xyz / graphty_b.w - graphty_eye);
     graphty_in.resolution = graphty_resolution;
     graphty_in.time = graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x;
-    // The largest boundary groups' colors, each a soft disc around its group on the canvas.
+    // The largest group outlines' colors, each a soft disc around its group on the canvas.
     vec3 graphty_tint = vec3(0.0);
     float graphty_tintWeight = 0.0;
     vec2 graphty_aspect = vec2(graphty_resolution.x / max(graphty_resolution.y, 1.0), 1.0);
@@ -222,13 +222,13 @@ void main() {
 }
 
 /**
- * The boundary program of one shader: drawn once per group, on the group's box of the boundary
+ * The group outline program of one shader: drawn once per group, on the group's box of the outline
  * target, premultiplied over what the groups beneath drew.
  * @param descriptor - The shader's catalog facts.
  * @param body - Its GLSL body.
  * @returns The program.
  */
-export function boundaryProgram(descriptor: Pick<ShaderDescriptor, "params" | "form">, body: string): SceneProgram {
+export function outlineProgram(descriptor: Pick<ShaderDescriptor, "params" | "form">, body: string): SceneProgram {
     const { params } = descriptor;
     const sphere = descriptor.form === "sphere";
     const fieldRead = sphere
@@ -294,7 +294,9 @@ ${input}
         graphty_out = vec4(0.0);
     }
 
-    gl_FragColor = clamp(graphty_out, 0.0, 1.0);
+    // Bodies return straight alpha; the outline target blends premultiplied.
+    float graphty_a = clamp(graphty_out.a, 0.0, 1.0);
+    gl_FragColor = vec4(clamp(graphty_out.rgb * graphty_a, 0.0, 1.0), graphty_a);
 }
 `;
 
@@ -302,7 +304,7 @@ ${input}
         vertex: SCREEN_VERTEX,
         fragment,
         attributes: ["position"],
-        uniforms: [...BOUNDARY_UNIFORMS, ...params.map((param) => `graphty_p_${param.name}`)],
+        uniforms: [...OUTLINE_UNIFORMS, ...params.map((param) => `graphty_p_${param.name}`)],
         uniformBuffers: [SCENE_BLOCK],
         samplers: sphere ? [] : [...FIELD_SAMPLERS],
     };

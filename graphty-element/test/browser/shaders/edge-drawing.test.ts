@@ -229,7 +229,7 @@ describe("edge surfaces", () => {
                     name: "Red",
                     target: "edge",
                     selector: { match: "has", path: "data.shaded" },
-                    set: { "edge.shader": "e5/red" },
+                    set: { "edge.shaders": [{ shader: "e5/red" }] },
                 },
             ],
         );
@@ -318,7 +318,7 @@ describe("edge effects", () => {
                     name: "Glow",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.width": 8, "edge.color": "#444444", "edge.effects": { "e5/glow": true } },
+                    set: { "edge.width": 8, "edge.color": "#444444", "edge.shaders": [{ shader: "e5/glow" }] },
                 },
                 {
                     name: "Curve",
@@ -457,7 +457,7 @@ describe("removed edges", () => {
                     name: "Effect",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.effects": { [effect]: true } },
+                    set: { "edge.shaders": [{ shader: effect }] },
                 },
             ],
         );

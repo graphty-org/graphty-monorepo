@@ -11,7 +11,7 @@ import { drawingOf } from "../../../src/catalog/shaders";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createGraphSession, type GraphSession } from "../../../src/session";
-import { drawnEffects } from "../../../src/session/styles/channels";
+import { drawnUses } from "../../../src/session/styles/channels";
 
 /**
  * A session of six nodes with an uncertainty and a degree each.
@@ -33,8 +33,7 @@ async function sessionOf(): Promise<GraphSession> {
  * @returns Its parameters, or undefined.
  */
 function effectParams(session: GraphSession, node: string, effect: string): Record<string, unknown> | undefined {
-    const value = session.styles.explain({ node }).merged["node.effects"]?.[effect];
-    return typeof value === "object" ? value : undefined;
+    return session.styles.explain({ node }).merged["node.shaders"]?.find((use) => use.shader === effect)?.params;
 }
 
 /**
@@ -44,7 +43,7 @@ function effectParams(session: GraphSession, node: string, effect: string): Reco
  * @returns The ids.
  */
 function drawnIds(session: GraphSession, node: string): readonly string[] {
-    return drawnEffects(session.styles.explain({ node }).merged["node.effects"]).drawn.map(([id]) => id);
+    return drawnUses(session.styles.explain({ node }).merged["node.shaders"]).stacked.map(({ use }) => use.shader);
 }
 
 const everything = (name: string, rest: Omit<LayerSpec, "name" | "target" | "selector">): LayerSpec => ({
@@ -73,10 +72,10 @@ describe("the node-effect presets in the style stack", () => {
         const session = await sessionOf();
         await session.styles.add(
             everything("Aura and moons", {
-                set: { "node.effects": { "uncertainty-aura": true, "orbiting-satellites": true } },
+                set: { "node.shaders": [{ shader: "uncertainty-aura" }, { shader: "orbiting-satellites" }] },
                 encode: {
-                    "node.effects.uncertainty-aura.intensity": { by: "data.uncertainty" },
-                    "node.effects.orbiting-satellites.moons": { by: "data.degree" },
+                    "node.shaders.uncertainty-aura.intensity": { by: "data.uncertainty" },
+                    "node.shaders.orbiting-satellites.moons": { by: "data.degree" },
                 },
             }),
         );
@@ -100,15 +99,17 @@ describe("the node-effect presets in the style stack", () => {
         session.dispose();
     });
 
-    it("stacks a reticle from one layer with a shockwave from another, and a higher false removes one", async () => {
+    it("stacks a reticle from one layer with a shockwave from another, and a higher off removes one", async () => {
         const session = await sessionOf();
-        await session.styles.add(everything("Reticle", { set: { "node.effects": { "lock-on-reticle": true } } }));
-        await session.styles.add(everything("Shockwave", { set: { "node.effects": { shockwave: true } } }));
+        await session.styles.add(everything("Reticle", { set: { "node.shaders": [{ shader: "lock-on-reticle" }] } }));
+        await session.styles.add(everything("Shockwave", { set: { "node.shaders": [{ shader: "shockwave" }] } }));
         await session.styles.settled();
         const drawn = (): readonly string[] => drawnIds(session, "n0");
         assert.deepEqual(drawn(), ["lock-on-reticle", "shockwave"]);
 
-        await session.styles.add(everything("No reticle", { set: { "node.effects": { "lock-on-reticle": false } } }));
+        await session.styles.add(
+            everything("No reticle", { set: { "node.shaders": [{ shader: "lock-on-reticle", off: true }] } }),
+        );
         await session.styles.settled();
         assert.deepEqual(drawn(), ["shockwave"]);
         session.dispose();
@@ -120,8 +121,8 @@ describe("the node-effect presets in the style stack", () => {
         try {
             await session.styles.add(
                 everything("Moons by data", {
-                    set: { "node.effects": { "orbiting-satellites": true } },
-                    encode: { "node.effects.orbiting-satellites.speed": { by: "data.degree" } },
+                    set: { "node.shaders": [{ shader: "orbiting-satellites" }] },
+                    encode: { "node.shaders.orbiting-satellites.speed": { by: "data.degree" } },
                 }),
             );
         } catch (error) {

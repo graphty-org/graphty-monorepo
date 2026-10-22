@@ -27,9 +27,8 @@ import {
     type ShaderParamDescriptor,
     type ShaderProblem,
     type ShaderRegistration,
-    type ShaderSlot,
     type ShaderSource,
-    slotRoleOf,
+    type ShaderTarget,
 } from "./shaders";
 import { readShaderDescriptor, settleShaderPlace } from "./shaderText";
 
@@ -542,12 +541,13 @@ export function shaderDescriptor(id: string): ShaderDescriptor | undefined {
 }
 
 /**
- * The ids of every shader for one single shader channel, for a refusal that lists what would have
- * been right.
- * @param slot - The target and slot role.
+ * The ids of every shader a layer's shader list of one target can use (a node list takes node and
+ * group shaders), for a refusal that lists what would have been right.
+ * @param target - The list's target.
  * @returns The ids.
  */
-export function shaderIdsFor(slot: ShaderSlot): readonly string[] {
+export function shaderIdsFor(target: "node" | "edge"): readonly string[] {
+    const takes: readonly ShaderTarget[] = target === "node" ? ["node", "group"] : ["edge"];
     const pasted = [...pastedSources].flatMap((source) =>
         source.ids().flatMap((id) => {
             const descriptor = source.descriptor(id);
@@ -556,7 +556,7 @@ export function shaderIdsFor(slot: ShaderSlot): readonly string[] {
     );
 
     return [...shaderDescriptors(), ...pasted]
-        .filter((descriptor) => descriptor.target === slot.target && slotRoleOf(descriptor) === slot.role)
+        .filter((descriptor) => takes.includes(descriptor.target))
         .map((descriptor) => descriptor.id);
 }
 

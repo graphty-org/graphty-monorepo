@@ -1,7 +1,7 @@
 /**
  * @file The scene-level shaders drawn on a real graph (design/rendering/shader-styles.md, package
  * E6): a background shader is drawn behind every node and never over a label, and drawn again
- * only when it moves or the camera does; two boundary layers draw nested outlines; boundaries
+ * only when it moves or the camera does; two group outlines draw nested outlines; group outlines
  * follow a running force layout; a real click on an outline reports its layer and group; the
  * shared bloom is allocated once while a layer names a bloom shader, on screen or not.
  */
@@ -17,8 +17,8 @@ import { operationQueueOf } from "../../../src/Graph";
 import type { RenderManager } from "../../../src/managers/RenderManager";
 import { BACKGROUND_LAYER } from "../../../src/meshes/BackgroundPass";
 import { BLOOM_LAYER } from "../../../src/meshes/BloomPass";
-import { BOUNDARY_LAYER } from "../../../src/meshes/BoundaryPass";
-import type { BoundaryClick } from "../../../src/session/types";
+import { OUTLINE_LAYER } from "../../../src/meshes/GroupOutlinePass";
+import type { GroupOutlineClick } from "../../../src/session/types";
 import { defineShader } from "../../../src/simple/defineShader";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point } from "../../helpers/real-input";
@@ -39,7 +39,7 @@ beforeAll(() => {
         params: { drift: { type: "number", default: 0, min: 0, max: 2 } },
         glsl: "vec4 shade(BackgroundInput b) { return vec4(0.0, 0.0, 0.5 + 0.5 * sin(b.time * drift), 1.0); }",
     });
-    // An outline where the field crosses 0.5: red on the lowest boundary layer, blue above it.
+    // An outline where the field crosses 0.5: red on the lowest group outline, blue above it.
     defineShader({
         id: "e6/outline",
         reach: 5,
@@ -274,29 +274,29 @@ describe("a background shader", () => {
     });
 });
 
-describe("group boundaries", () => {
+describe("group outlines", () => {
     const nodes = [
         { id: "a", x: -3, y: 0, group: 1, inner: true },
         { id: "b", x: 0, y: 0, group: 1 },
         { id: "c", x: 3, y: 0, group: 1 },
-        // Outside every boundary, so the camera frames the outlines too.
+        // Outside every group outline, so the camera frames the outlines too.
         { id: "far-left", x: -9, y: 4 },
         { id: "far-right", x: 9, y: -4 },
     ];
     const outer: LayerSpec = {
         name: "Outer",
+        set: { "node.shaders": [{ shader: "e6/outline" }] },
         target: "node",
         selector: { match: "has", path: "data.group" },
-        boundary: { shader: "e6/outline" },
     };
     const inner: LayerSpec = {
         name: "Inner",
+        set: { "node.shaders": [{ shader: "e6/outline", groupBy: "data.inner" }] },
         target: "node",
         selector: { match: "has", path: "data.inner" },
-        boundary: { shader: "e6/outline", groupBy: "data.inner" },
     };
 
-    it("draw nested outlines for two boundary layers", async () => {
+    it("draw nested outlines for two group outlines", async () => {
         const element = await mounted(nodes, [
             { name: "Small", target: "node", selector: { match: "everything" }, set: { "node.size": 1 } },
             outer,
@@ -306,9 +306,9 @@ describe("group boundaries", () => {
         await until(
             element,
             "both layers draw",
-            () => (renderManager.shaderPasses().boundary?.drawn().length ?? 0) === 2,
+            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 2,
         );
-        const drawn = renderManager.shaderPasses().boundary?.drawn() ?? [];
+        const drawn = renderManager.shaderPasses().outline?.drawn() ?? [];
         assert.deepEqual(
             drawn.map(({ depth, groups }) => ({ depth, groups })),
             [
@@ -316,7 +316,7 @@ describe("group boundaries", () => {
                 { depth: 1, groups: [true] },
             ],
         );
-        assert.strictEqual(element.graph.getScene().layers[0]?.name, BOUNDARY_LAYER);
+        assert.strictEqual(element.graph.getScene().layers[0]?.name, OUTLINE_LAYER);
 
         // Walking left from node a: the inner (blue) outline is met before the outer (red) one.
         const start = screen(element, -3, 0);
@@ -343,16 +343,16 @@ describe("group boundaries", () => {
         const scene = element.graph.getScene();
         await until(
             element,
-            "the boundary draws",
-            () => (renderManager.shaderPasses().boundary?.drawn().length ?? 0) === 1,
+            "the group outline draws",
+            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 1,
         );
-        const pass = renderManager.shaderPasses().boundary;
+        const pass = renderManager.shaderPasses().outline;
         const layer = idOf(element, "Outer");
         const node = element.graph.getDataManager().nodes.get("a");
         // Not awaited: the layout's run is what the loop below watches.
         const running = element.graph.setLayout("ngraph", { dim: 2 });
 
-        // While the layout moves the nodes, each frame's boundary is laid out from that frame's places.
+        // While the layout moves the nodes, each frame's group outline is laid out from that frame's places.
         let moved = 0;
         let before = node?.getPosition().x;
         for (let frame = 0; frame < 300 && moved < 3; frame++) {
@@ -365,7 +365,11 @@ describe("group boundaries", () => {
             moved++;
             before = at.x;
             const point = screen(element, at.x, at.y);
-            assert.deepEqual(pass?.pick(point.x, point.y), { layer, group: null }, "node a stays inside its boundary");
+            assert.deepEqual(
+                pass?.pick(point.x, point.y),
+                { layer, shader: "e6/outline", group: null },
+                "node a stays inside its group outline",
+            );
         }
 
         await running;
@@ -378,23 +382,33 @@ describe("group boundaries", () => {
         await until(
             element,
             "both layers draw",
-            () => (renderManager.shaderPasses().boundary?.drawn().length ?? 0) === 2,
+            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 2,
         );
-        const clicks: BoundaryClick[] = [];
-        cleanups.push(element.session.on("canvas:boundary-click", (detail) => clicks.push(detail)));
+        const clicks: GroupOutlineClick[] = [];
+        cleanups.push(element.session.on("canvas:group-outline-click", (detail) => clicks.push(detail)));
 
-        // Between nodes b and c, on no node and no edge: inside the outer boundary only.
+        // Between nodes b and c, on no node and no edge: inside the outer group outline only.
         const between = screen(element, 1.5, 0.8);
         assert.isNull(element.elementAt(between), "nothing else is there");
-        assert.deepEqual(element.boundaryAt(between), { kind: "boundary", layer: idOf(element, "Outer"), group: null });
+        assert.deepEqual(element.groupOutlineAt(between), {
+            kind: "group-outline",
+            layer: idOf(element, "Outer"),
+            shader: "e6/outline",
+            group: null,
+        });
         await click(element, between);
         await until(element, "the click is reported", () => clicks.length > 0);
-        assert.deepEqual(clicks, [{ layer: idOf(element, "Outer"), group: null }]);
+        assert.deepEqual(clicks, [{ layer: idOf(element, "Outer"), shader: "e6/outline", group: null }]);
 
-        // Beside node a, inside both: the topmost boundary layer answers.
+        // Beside node a, inside both: the topmost group outline answers.
         const beside = screen(element, -3, 1);
-        assert.deepEqual(element.boundaryAt(beside), { kind: "boundary", layer: idOf(element, "Inner"), group: true });
-        assert.isNull(element.boundaryAt({ x: 4, y: 4 }), "the far corner is outside every boundary");
+        assert.deepEqual(element.groupOutlineAt(beside), {
+            kind: "group-outline",
+            layer: idOf(element, "Inner"),
+            shader: "e6/outline",
+            group: true,
+        });
+        assert.isNull(element.groupOutlineAt({ x: 4, y: 4 }), "the far corner is outside every group outline");
     });
 });
 
@@ -411,7 +425,7 @@ describe("the shared bloom", () => {
             name: "Lanterns",
             target: "node",
             selector: { match: "ids", nodes: ["missing"] },
-            set: { "node.shader": "e6/lantern" },
+            set: { "node.shaders": [{ shader: "e6/lantern" }] },
         });
         await until(element, "the bloom is allocated", () => renderManager.shaderPasses().bloom !== null);
         const pass = renderManager.shaderPasses().bloom;
@@ -421,7 +435,7 @@ describe("the shared bloom", () => {
             name: "More lanterns",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": "e6/lantern" },
+            set: { "node.shaders": [{ shader: "e6/lantern" }] },
         });
         await element.graph.waitForStableFrame();
         await drawnFrames(scene, 2);

@@ -39,7 +39,7 @@ export const NODE_EFFECT_PRESETS: readonly NodeEffectPreset[] = [
 /**
  * The id a layer names a preset by: its bare id, checked against the catalog.
  * @param id - The preset's bare id.
- * @returns The id to write in `node.effects`.
+ * @returns The id to write in a `node.shaders` use.
  */
 export function presetId(id: string): string {
     if (shaderDescriptor(id) === undefined) {

@@ -197,7 +197,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             assert.strictEqual(result.success, true, result.message);
             const { shaders } = graph.getSession();
             assert.strictEqual(shaders.status("user/glow").state, "held");
-            assert.strictEqual(layerNamed("glowing")?.set?.["node.shader"], "user/glow");
+            assert.deepEqual(layerNamed("glowing")?.set?.["node.shaders"], [{ shader: "user/glow" }]);
         });
 
         it("refuses text that fails the checks, writing nothing", async () => {

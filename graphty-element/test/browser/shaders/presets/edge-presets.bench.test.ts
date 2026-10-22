@@ -72,8 +72,8 @@ async function mountWide(kind: ShaderDrawing, shader: string, params: ShaderPara
     await element.setViewMode("2d");
     const set =
         kind === "edge-paint"
-            ? { "edge.shader": shader, "edge.shaderParams": { [shader]: params } }
-            : { "edge.effects": { [shader]: params } };
+            ? { "edge.shaders": [{ shader: shader, params: params }] }
+            : { "edge.shaders": [{ shader: shader, params: params }] };
     await element.session.styles.add({
         name: "Wide",
         target: "edge",

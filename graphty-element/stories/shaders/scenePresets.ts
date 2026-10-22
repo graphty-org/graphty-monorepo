@@ -1,6 +1,6 @@
 /**
  * @file The scene presets (design/rendering/shader-styles.md section 7.5): the nebula background
- * and the soap-bubble and hull boundaries, each as its catalog entry and its GLSL body, for their
+ * and the soap-bubble and hull group outlines, each as its catalog entry and its GLSL body, for their
  * stories and tests.
  *
  * A layer names a preset by its bare id, which the preset list (`src/shaders/presets/index.ts`)
@@ -34,7 +34,7 @@ export const SCENE_PRESETS: readonly ScenePreset[] = [
 /**
  * The id a layer or a background names a scene preset by: its bare id, checked against the catalog.
  * @param id - The preset's bare id.
- * @returns The id to write in `background.shader` or `boundary.shader`.
+ * @returns The id to write in `background.shader` or a `node.shaders` use.
  */
 export function presetId(id: string): string {
     if (shaderDescriptor(id) === undefined) {

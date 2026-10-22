@@ -34,6 +34,7 @@ vec4 shade(NodeInput n) {
     float ripple = ringAt(r + 0.55, age - 0.08) * 0.35;
     vec3 c = ringColor * (ring + vec3(ripple)) * ringGlow;
     float a = clamp(max(max(c.r, c.g), c.b), 0.0, 1.0);
-    return vec4(c, a * 0.8);
+    // Straight alpha: the ring's light over its coverage.
+    return vec4(c / max(a, 1e-4), a * 0.8);
 }
 `;

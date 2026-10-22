@@ -172,7 +172,6 @@ import {
 import { paintingOf } from "./styles/StylesApi";
 import type {
     AccelerationControllerLike,
-    BoundaryClick,
     CommandOutcome,
     CreateGraphSessionOptions,
     ElementSession,
@@ -180,6 +179,7 @@ import type {
     FindResult,
     GraphSession,
     GraphSettingKey,
+    GroupOutlineClick,
     HistoryOutcome,
     PositionEntry,
     ProjectConfig,
@@ -1059,11 +1059,15 @@ class Session implements ElementSession {
     }
 
     /**
-     * Publishes `canvas:boundary-click`.
-     * @param target - The boundary's layer and group.
+     * Publishes `canvas:group-outline-click`.
+     * @param target - The outline's layer, shader and group.
      */
-    boundaryClick(target: BoundaryClick): void {
-        publish(this.watchers, "canvas:boundary-click", { layer: target.layer, group: target.group });
+    groupOutlineClick(target: GroupOutlineClick): void {
+        publish(this.watchers, "canvas:group-outline-click", {
+            layer: target.layer,
+            shader: target.shader,
+            group: target.group,
+        });
     }
 
     /**

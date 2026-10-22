@@ -1151,14 +1151,15 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_PALETTE"
 /**
-* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
-* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
 * @since 3.36.0
 */
 | "E_UNKNOWN_SHADER"
 /**
-* A layer names a shader of the wrong kind for where it is written: an effect id in
-* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
 * @since 3.36.0
 */
 | "E_SHADER_KIND"

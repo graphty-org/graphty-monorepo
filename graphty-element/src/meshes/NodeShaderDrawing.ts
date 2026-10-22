@@ -39,18 +39,18 @@ import {
 
 import {
     drawingOf,
-    drawnShaderParams,
+    fixedParamsOf,
     motionOf,
-    type ShaderEffects,
     type ShaderParamDescriptor,
     type ShaderParams,
-    type ShaderParamSets,
-    slotRoleOf,
+    type ShaderPlace,
+    type ShaderUse,
     timingOf,
 } from "../catalog/shaders";
 import type { Rgba } from "../catalog/types";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
+import { drawnUses } from "../session/styles/channels";
 import type { GraphSession } from "../session/types";
 import type { LazyShaderHost } from "../shaders/chunk";
 import {
@@ -64,7 +64,7 @@ import {
 } from "../shaders/runtime/nodeLayout";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { batchUploadFrames } from "./FrameRoster";
-import type { NodeBillboardBatch, SlotValues } from "./NodeBillboardBatch";
+import type { NodeBillboardBatch, SlotValues, SquarePlace } from "./NodeBillboardBatch";
 import type { NodeEffectBatch } from "./NodeEffectBatch";
 
 /** The most elements per shader that play their entrance at once. */
@@ -85,22 +85,18 @@ export type NodeShaderState = keyof typeof STATE_BITS;
 /** The column of each stamp in a node's two state texels. */
 const STAMP_COLUMN = { selected: 0, hovered: 1, pinned: 2, entered: 3, exited: 4, changed: 5 } as const;
 
-/** Which path draws a node's surface or sprite. */
-export type SurfacePath = "impostor" | "sprite" | "mesh";
-
-/** The `shader` block of a resolved node style: what the shader channels painted. */
-export interface NodeShaderStyle {
-    readonly id?: string;
-    readonly params?: ShaderParamSets;
-    readonly effects?: ShaderEffects;
-}
+/**
+ * Which path draws a node's `paint` or `replace` use: an impostor (`paint` on a round node), the
+ * square in place of the node (`replace`), or the node's own mesh (`paint` on any other shape).
+ */
+export type SurfacePath = "impostor" | "replace" | "mesh";
 
 /** What a node hands the drawing on every paint. */
 export interface NodeShaderLook {
     /** The node's mesh (an instance of its source). */
     readonly mesh: AbstractMesh;
-    /** What the shader channels painted. */
-    readonly style: NodeShaderStyle | undefined;
+    /** The node's resolved shader uses (`node.shaders`). */
+    readonly uses: readonly ShaderUse[] | undefined;
     /** The path its mesh was built for, or null when its surface is drawn plainly. */
     readonly path: SurfacePath | null;
     /** The resolved color, 0..255 per channel. */
@@ -155,7 +151,10 @@ interface BatchEntry {
 
 /** A node's place in a batch. */
 interface Slot {
+    /** The shader id. */
     readonly id: string;
+    /** The use's fixed parameter values. */
+    params: ShaderParams | undefined;
     readonly batch: NodeBillboardBatch;
     readonly index: number;
     /** The entered stamp, or NEVER: at rest. */
@@ -178,6 +177,7 @@ interface Entry {
     surface: Slot | null;
     /** The id drawn on the mesh path, or null. */
     meshShader: string | null;
+    /** The stacking uses (over, around, behind), by {@link useKey}. */
     readonly effects: Map<string, Slot>;
 }
 
@@ -187,20 +187,31 @@ const DRAWINGS = new WeakMap<Scene, NodeShaderDrawing>();
 /** The bulk repaint each scene's update manager lends; see {@link NodeShaderDrawing.lendRepaint}. */
 const REPAINTS = new WeakMap<Scene, (nodes: readonly ShadedNode[]) => void>();
 
-/**
- * The effects a node's look wants drawn, with their parameter values: every effect not turned off,
- * none when the node is not drawn.
- * @param look - The node's look.
- * @returns The parameter values per effect id.
- */
-function wantedEffects(look: NodeShaderLook): Map<string, ShaderParams> {
-    const wanted = new Map<string, ShaderParams>();
-    for (const [id, value] of Object.entries(look.style?.effects ?? {})) {
-        if (value === false || (typeof value === "object" && value.visible === false) || !look.drawn) {
-            continue;
-        }
+/** One stacking use a node draws: the use and its place. */
+interface WantedUse {
+    readonly use: ShaderUse;
+    readonly place: SquarePlace;
+}
 
-        wanted.set(id, typeof value === "object" ? value : {});
+/**
+ * The stacking uses a node's look wants drawn (over, around, behind), keyed by place, shader and
+ * how many uses of that shader at that place come before it, so two uses of one shader draw apart
+ * and keep their slots across repaints. None when the node is not drawn.
+ * @param look - The node's look.
+ * @returns The uses by key.
+ */
+function wantedUses(look: NodeShaderLook): Map<string, WantedUse> {
+    const wanted = new Map<string, WantedUse>();
+    if (!look.drawn) {
+        return wanted;
+    }
+
+    const seen = new Map<string, number>();
+    for (const { use, place } of drawnUses(look.uses).stacked) {
+        const base = `${place}|${use.shader}`;
+        const nth = seen.get(base) ?? 0;
+        seen.set(base, nth + 1);
+        wanted.set(`${base}|${String(nth)}`, { use, place: place as SquarePlace });
     }
 
     return wanted;
@@ -503,20 +514,22 @@ export class NodeShaderDrawing {
     }
 
     /**
-     * Which path draws a node's surface or sprite now. Starts resolving and compiling what is not
-     * ready, and draws the node again once it is; until then the node is drawn plainly.
+     * Which path draws a node's `paint` or `replace` use now. Starts resolving and compiling what
+     * is not ready, and draws the node again once it is; until then the node is drawn plainly.
      * @param node - The node.
-     * @param id - The shader id the node's style names.
+     * @param id - The shader id the use names.
+     * @param place - The use's place.
      * @param round - Whether the node's shape is a sphere.
      * @returns The path, or null to draw the node plainly.
      */
-    surfacePath(node: ShadedNode, id: string, round: boolean): SurfacePath | null {
+    surfacePath(node: ShadedNode, id: string, place: ShaderPlace, round: boolean): SurfacePath | null {
         const shader = this.resolved(id, node);
-        if (shader === null) {
+        const { descriptor } = shader?.registration ?? {};
+        if (shader === null || descriptor === undefined || !(descriptor.places ?? []).includes(place)) {
             return null;
         }
 
-        const kind = drawingOf(shader.registration.descriptor);
+        const kind = drawingOf(descriptor, place);
         if (kind === "node-paint" && !round) {
             return this.renderer !== null && !this.scene.getEngine().isWebGPU ? "mesh" : null;
         }
@@ -525,13 +538,13 @@ export class NodeShaderDrawing {
             return null;
         }
 
-        const role = kind === "node-replace" ? "sprite" : "impostor";
+        const role = kind === "node-replace" ? "replace" : "impostor";
         return this.batchFor(role, shader, node) === null ? null : role;
     }
 
     /**
-     * Draw a node's shaders from its paint: its surface or sprite slot, its mesh-path attributes
-     * and its effects.
+     * Draw a node's shaders from its paint: its `paint` or `replace` slot, its mesh-path
+     * attributes and its stacking uses.
      * @param node - The node.
      * @param look - What it looks like now.
      */
@@ -540,19 +553,16 @@ export class NodeShaderDrawing {
             return;
         }
 
-        const effects = look.style?.effects;
-        const hasEffects = effects !== undefined && Object.keys(effects).length > 0;
+        const { stacked } = drawnUses(look.uses);
         const entry = this.entries.get(node);
-        if (entry === undefined && look.path === null && !hasEffects) {
+        if (entry === undefined && look.path === null && stacked.length === 0) {
             return;
         }
 
         if (this.runtime === null || this.data === null || this.renderer === null) {
-            // Nothing loaded yet: an effect starts the load and draws the node again after.
-            if (hasEffects) {
-                for (const id of Object.keys(effects)) {
-                    this.resolved(id, node);
-                }
+            // Nothing loaded yet: a stacking use starts the load and draws the node again after.
+            for (const { use } of stacked) {
+                this.resolved(use.shader, node);
             }
 
             return;
@@ -941,7 +951,7 @@ export class NodeShaderDrawing {
      * @returns The batch once its program compiled, else null.
      */
     private batchFor(
-        role: "impostor" | "sprite" | "effect",
+        role: "impostor" | "replace" | SquarePlace,
         shader: HostShader,
         node: ShadedNode,
     ): NodeBillboardBatch | null {
@@ -961,9 +971,9 @@ export class NodeShaderDrawing {
         }
 
         const batch =
-            role === "effect"
-                ? new renderer.NodeEffectBatch(this.scene, shader, data, runtime)
-                : new renderer.NodeBillboardBatch(this.scene, role, shader, data, runtime);
+            role === "impostor" || role === "replace"
+                ? new renderer.NodeBillboardBatch(this.scene, role, shader, data, runtime)
+                : new renderer.NodeEffectBatch(this.scene, role, shader, data, runtime);
         const entry: BatchEntry = { batch, ready: undefined };
         this.batches.set(key, entry);
         this.waitOn(shader.id, node);
@@ -1050,7 +1060,8 @@ export class NodeShaderDrawing {
      * @param look - Its look.
      */
     private paintSurface(entry: Entry, look: NodeShaderLook): void {
-        const id = look.style?.id;
+        const surface = drawnUses(look.uses).exclusive?.use;
+        const id = surface?.shader;
         const known = id === undefined ? undefined : this.known.get(id)?.shader;
         const renderer = this.renderer as Renderer;
         const data = this.data as NodeShaderData;
@@ -1070,7 +1081,7 @@ export class NodeShaderDrawing {
         }
 
         const { descriptor } = known.registration;
-        const values = drawnShaderParams(look.style?.params, id);
+        const values = fixedParamsOf(surface?.params);
         const row = data.paramRow(id, descriptor.params, values);
         const params = this.varying(descriptor.params, values);
         const meta: [number, number, number, number] = [entry.seed, row, entry.bits, entry.row];
@@ -1099,6 +1110,8 @@ export class NodeShaderDrawing {
             entry.surface = this.newSlot(id, batch, entry, timingOf(descriptor).enter);
             data.stamp(entry.row, "entered", entry.surface.entered);
         }
+
+        entry.surface.params = values;
 
         // The node's mesh stays as the pick proxy: picked by its radius, never drawn.
         const source = (look.mesh as InstancedMesh).sourceMesh as Mesh | undefined;
@@ -1160,12 +1173,12 @@ export class NodeShaderDrawing {
      * @param look - Its look.
      */
     private paintEffects(entry: Entry, look: NodeShaderLook): void {
-        const wanted = wantedEffects(look);
+        const wanted = wantedUses(look);
         const data = this.data as NodeShaderData;
-        /** Effects whose shader may not draw now: dropped at once, with no exit. */
+        /** Uses whose shader may not draw now: dropped at once, with no exit. */
         const dropped = new Set<string>();
-        for (const [id, values] of wanted) {
-            this.paintEffect(entry, look, data, id, values, dropped);
+        for (const [key, use] of wanted) {
+            this.paintEffect(entry, look, data, key, use, dropped);
         }
 
         this.retireEffects(entry, look, wanted, dropped);
@@ -1173,43 +1186,46 @@ export class NodeShaderDrawing {
     }
 
     /**
-     * Draw one effect the node wants, in its own slot; one whose shader may not draw now is added
-     * to `dropped`.
+     * Draw one stacking use the node wants, in its own slot; one whose shader may not draw now is
+     * added to `dropped`.
      * @param entry - The node's entry.
      * @param look - Its look.
      * @param data - The shader data.
-     * @param id - The effect's shader id.
-     * @param values - Its parameter values.
-     * @param dropped - Effects whose shader may not draw now.
+     * @param key - The use's key (see {@link wantedUses}).
+     * @param wanted - The use and its place.
+     * @param dropped - Uses whose shader may not draw now.
      */
     private paintEffect(
         entry: Entry,
         look: NodeShaderLook,
         data: NodeShaderData,
-        id: string,
-        values: ShaderParams,
+        key: string,
+        wanted: WantedUse,
         dropped: Set<string>,
     ): void {
+        const id = wanted.use.shader;
         const shader = this.resolved(id, entry.node);
+        const descriptor = shader?.registration.descriptor;
         if (
             shader === null ||
-            shader.registration.descriptor.target !== "node" ||
-            slotRoleOf({ target: "node", place: shader.registration.descriptor.place }) !== "effect"
+            descriptor === undefined ||
+            descriptor.target !== "node" ||
+            !(descriptor.places ?? []).includes(wanted.place)
         ) {
             if (shader === null && this.known.get(id)?.shader === null) {
-                dropped.add(id);
+                dropped.add(key);
             }
 
             return;
         }
 
-        const batch = this.batchFor("effect", shader, entry.node);
+        const batch = this.batchFor(wanted.place, shader, entry.node);
         if (batch === null) {
             return;
         }
 
-        const { descriptor } = shader.registration;
-        let slot = entry.effects.get(id);
+        const values = fixedParamsOf(wanted.use.params);
+        let slot = entry.effects.get(key);
         if (slot !== undefined && slot.batch !== batch) {
             this.releaseSlot(slot);
             slot = undefined;
@@ -1218,7 +1234,8 @@ export class NodeShaderDrawing {
         slot ??= this.newSlot(id, batch, entry, timingOf(descriptor).enter);
         slot.exited = NEVER;
         slot.exitEnds = 0;
-        entry.effects.set(id, slot);
+        slot.params = values;
+        entry.effects.set(key, slot);
         const row = data.paramRow(id, descriptor.params, values);
         const params = this.varying(descriptor.params, values);
         const meta: [number, number, number, number] = [entry.seed, row, entry.bits, entry.row];
@@ -1240,16 +1257,16 @@ export class NodeShaderDrawing {
     private retireEffects(
         entry: Entry,
         look: NodeShaderLook,
-        wanted: ReadonlyMap<string, ShaderParams>,
+        wanted: ReadonlyMap<string, WantedUse>,
         dropped: ReadonlySet<string>,
     ): void {
-        for (const [id, slot] of entry.effects) {
-            if ((wanted.has(id) && !dropped.has(id)) || (slot.exitEnds > 0 && !dropped.has(id))) {
+        for (const [key, slot] of entry.effects) {
+            if ((wanted.has(key) && !dropped.has(key)) || (slot.exitEnds > 0 && !dropped.has(key))) {
                 continue;
             }
 
-            const exit = timingOf(this.known.get(id)?.shader?.registration.descriptor).exit ?? 0;
-            if (exit > 0 && look.drawn && this.runtime !== null && !dropped.has(id)) {
+            const exit = timingOf(this.known.get(slot.id)?.shader?.registration.descriptor).exit ?? 0;
+            if (exit > 0 && look.drawn && this.runtime !== null && !dropped.has(key)) {
                 // Kept drawing while its exit plays.
                 slot.exited = this.runtime.uniforms.now();
                 slot.exitEnds = performance.now() + exit * 1000;
@@ -1258,7 +1275,7 @@ export class NodeShaderDrawing {
                 this.rewriteTimes(entry, look, slot);
             } else {
                 this.releaseSlot(slot);
-                entry.effects.delete(id);
+                entry.effects.delete(key);
             }
         }
     }
@@ -1281,16 +1298,17 @@ export class NodeShaderDrawing {
     ): SlotValues {
         const { x, y, z } = look.mesh.position;
         const radius = look.drawn ? look.radius : 0;
-        const effect = slot.batch.role === "effect";
+        const effect = slot.batch.role !== "impostor" && slot.batch.role !== "replace";
         const { halo, glow } = look;
+        const minSize = this.minSizeOf(slot);
         return {
             center: [x, y, z, radius],
             color: [look.color.r / 255, look.color.g / 255, look.color.b / 255, look.opacity],
             params,
             meta,
             deco0: effect
-                ? [slot.entered, slot.exited, 0, 0]
-                : [halo === null ? 0 : packHex(halo.color), halo?.scale ?? 0, halo?.opacity ?? 0, 0],
+                ? [slot.entered, slot.exited, 0, minSize]
+                : [halo === null ? 0 : packHex(halo.color), halo?.scale ?? 0, halo?.opacity ?? 0, minSize],
             deco1: effect
                 ? [0, 0, 0, 0]
                 : [
@@ -1300,6 +1318,19 @@ export class NodeShaderDrawing {
                       glow?.strength ?? 0,
                   ],
         };
+    }
+
+    /**
+     * A slot's minimum on-screen size, in CSS pixels: the use's `minSize`, else its shader's
+     * default, 0 for a shader that declares none.
+     * @param slot - The slot.
+     * @returns The size.
+     */
+    private minSizeOf(slot: Slot): number {
+        const param = this.known
+            .get(slot.id)
+            ?.shader?.registration.descriptor.params.find((each) => each.name === "minSize");
+        return param === undefined ? 0 : Math.max(0, uniformValueOf(param, slot.params?.minSize)[0]);
     }
 
     /**
@@ -1314,8 +1345,7 @@ export class NodeShaderDrawing {
             return;
         }
 
-        const values = look.style?.effects?.[slot.id];
-        const set = typeof values === "object" ? values : undefined;
+        const set = slot.params;
         const { descriptor } = shader.registration;
         const params = this.varying(descriptor.params, set);
         const meta: [number, number, number, number] = [
@@ -1342,7 +1372,7 @@ export class NodeShaderDrawing {
      */
     private newSlot(id: string, batch: NodeBillboardBatch, entry: Entry, enter: number | undefined): Slot {
         const index = batch.acquire();
-        const slot: Slot = { id, batch, index, entered: NEVER, exited: NEVER, exitEnds: 0 };
+        const slot: Slot = { id, params: undefined, batch, index, entered: NEVER, exited: NEVER, exitEnds: 0 };
         const now = performance.now();
         if (enter === undefined || enter <= 0 || now - entry.causedAt > CAUSE_WINDOW_MS || this.runtime === null) {
             return slot;
@@ -1535,7 +1565,7 @@ export class NodeShaderDrawing {
             }
 
             const { descriptor } = shader.registration;
-            const values = drawnShaderParams(entry.look.style?.params, shader.id);
+            const values = fixedParamsOf(drawnUses(entry.look.uses).exclusive?.use.params);
             if (this.speedOf(descriptor, values, this.varying(descriptor.params, values)) === 0) {
                 continue;
             }

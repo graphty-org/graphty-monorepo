@@ -21,7 +21,7 @@ export async function heat(element: Graphty): Promise<void> {
         name: "Heat",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": "acme/heat", "node.shaderParams": { hot: "#ff0000" } },
+        set: { "node.shaders": [{ shader: "acme/heat", params: { hot: "#ff0000" } }] },
     });
 }
 ```
@@ -35,9 +35,9 @@ A shader draws on one **target**, read from its entry function:
 
 | Entry function                  | Target       | Where a layer sets it                                                      |
 | ------------------------------- | ------------ | -------------------------------------------------------------------------- |
-| `vec4 shade(NodeInput n)`       | `node`       | `node.shader` (`paint`, `replace`) or `node.effects` (the others)          |
-| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shader` (`paint`) or `edge.effects` (`along`)                        |
-| `vec4 shade(GroupInput g)`      | `group`      | a layer's `boundary: { shader: "<id>" }`                                   |
+| `vec4 shade(NodeInput n)`       | `node`       | `node.shaders`: `[{ shader: "<id>", place? }]`                             |
+| `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shaders`: `[{ shader: "<id>" }]`                                     |
+| `vec4 shade(GroupInput g)`      | `group`      | `node.shaders`, at the place `group`: `[{ shader: "<id>", groupBy? }]`     |
 | `vec4 shade(BackgroundInput b)` | `background` | `element.background = { backgroundType: "color", shader: { id: "<id>" } }` |
 
 Each shader also has a **place**, where it draws. It is `"paint"` unless the shader gives `place`,
@@ -58,10 +58,20 @@ written for one may be used at any of the four. `places` narrows that list, for 
 wrong somewhere (an `around` ring with an empty middle declares `places: ["around", "behind"]`).
 `paint`, `along` and `group` stay where they are.
 
+A layer lists its shaders, each a use `{ shader, place?, params?, groupBy?, off? }`; `place`
+defaults to the shader's own. Layers stack bottom to top, and a layer's list keeps its order. At
+`paint` and `replace` the last use wins and covers the other place's beneath it; every other place
+stacks (at most four per element). `{ shader: "acme/ring", off: true }` removes that shader from
+the elements the layer matches, wherever the layers beneath put it. The same shader may be listed
+twice with different parameters.
+
 A `replace` shader covers the shape, size-of-shape and border channels of the layers beneath it. It
 and a shape follow "the topmost layer wins": a `node.shape` on a layer above the shader's layer
 draws the shape on those nodes, and the shader is not drawn there. `styles.explain()` names a
-channel a drawn shader hides with `coveredBy`.
+channel a drawn shader hides with `coveredBy`, and `styles.agreement()` counts them as `covered`.
+
+A use at a place its shader does not allow is refused by `styles.add` with
+`shader.place-unsupported` `{ shader, place, allowed }` in the refusal's `errors[].fact`.
 
 ### An edge's paint
 
@@ -82,7 +92,7 @@ export async function flow(element: Graphty): Promise<void> {
         name: "Flow",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.shader": "acme/flow", "edge.shaderParams": { speed: 2 } },
+        set: { "edge.shaders": [{ shader: "acme/flow", params: { speed: 2 } }] },
     });
 }
 ```
@@ -104,8 +114,10 @@ vec4 shade(NodeInput n) {
 }
 ```
 
-A group outline: a soft fill with a bright rim around each group of a layer's nodes, written to a
-layer as `boundary: { shader: "acme/hull" }`.
+A group outline: a soft fill with a bright rim around each group of nodes, written to a layer as
+`"node.shaders": [{ shader: "acme/hull", groupBy: "data.community" }]`. A node is a member while it
+carries the use; a higher layer's `{ shader: "acme/hull", off: true }` takes the nodes it matches
+out, and the outline is drawn again around the rest.
 
 ```glsl
 /* graphty-shader 1
@@ -115,7 +127,7 @@ vec4 shade(GroupInput g) {
     float inside = smoothstep(0.45, 0.55, g.field);
     float rim = inside - smoothstep(0.55, 0.7, g.field);
     float a = 0.2 * inside + 0.8 * rim;
-    return vec4(tint * a, a);
+    return vec4(tint, a);
 }
 ```
 
@@ -191,18 +203,15 @@ body that starts with `gl_` or `graphty_`, or holds `__`, is refused with `shade
 
 ### Setting parameters on a layer
 
-`node.shaderParams` (and `edge.shaderParams`) takes a plain `{ name: value }` object, applied to
-whichever shader the node draws and merged over its defaults: `{ hot: "#ff0000" }`. It may instead
-hold one set per shader id, `{ "acme/heat": { hot: "#ff0000" } }`, of which only the drawn shader's
-applies. A higher layer wins per parameter. An effect's parameters go in its entry in
-`node.effects`: `{ "acme/ring": { tint: "#00ff00" } }`, or `true` for the defaults.
+A use's `params` hold its values over the shader's defaults: `{ shader: "acme/heat", params: { hot:
+"#ff0000" } }`.
 
 A parameter declared `varies: true` (a number, an integer or a color; at most 4 per shader) can take
 a value per node from your data, with `encode` and the address
-`"node.shaderParams.<shader id>.<parameter>"`:
+`"node.shaders.<shader id>.<parameter>"`, which sets it on the layer's own uses of that shader:
 
 ```js
-encode: { "node.shaderParams.acme/heat.hot": { by: "data.score", scale: "linear" } }
+encode: { "node.shaders.acme/heat.hot": { by: "data.score", scale: "linear" } }
 ```
 
 ## The inputs
@@ -211,7 +220,7 @@ encode: { "node.shaderParams.acme/heat.hot": { by: "data.score", scale: "linear"
 
 | Field           | Type    | Meaning                                                                                                                                              |
 | --------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uv`            | `vec2`  | Across the node, from -1 to 1 in x and y (y up); the node's edge is at length 1. On an effect, in node radii, out to `reach`.                        |
+| `uv`            | `vec2`  | Across the node, in node radii (y up): the node's outline is at length 1 in every place; a square-drawn place reaches out to `reach`.                |
 | `local`         | `vec3`  | The point on the node in the node's own orientation, so a camera turning round the node sees another side of a pattern.                              |
 | `normal`        | `vec3`  | The surface normal in view space: x right, y up, and a point facing the camera has negative z. A card's normal faces the camera.                     |
 | `viewDir`       | `vec3`  | The direction from the camera to the point, in view space.                                                                                           |
@@ -307,9 +316,8 @@ encode: { "node.shaderParams.acme/heat.hot": { by: "data.score", scale: "linear"
 written (`#ff8000` is `vec3(1.0, 0.5, 0.0)`), and what `shade()` returns is written in the same
 space, with no conversion.
 
-- A `paint` or `replace` shader returns straight alpha: the color, and how opaque it is.
-- An **effect** and a **group outline** return premultiplied alpha: the color already multiplied
-  by its alpha, so `vec4(tint * a, a)`. Pixels it leaves at 0 show what is beneath.
+- Every place returns straight alpha: the color, and how opaque it is, `vec4(tint, a)`. The element
+  premultiplies before it blends. Pixels it leaves at alpha 0 show what is beneath.
 - A **background** fills the canvas: its alpha is ignored.
 
 A result that is not a number (a division by zero) is replaced with the color beneath.
@@ -323,8 +331,9 @@ A result that is not a number (a division by zero) is replaced with the color be
 domain: [0, 0.3] }`, reads the seconds since a moment mapped onto `range` (default `[0, 1]`,
   clamped). That is how a shader plays in or out: when it draws is its layer's condition.
 - `minSize`: the smallest size, in CSS pixels, the square of `replace`, `around` and `behind` is
-  drawn at, so a far node stays findable. Declaring it adds a number parameter `minSize` with that
-  default.
+  drawn at, so a far node stays findable; the look is drawn as if the node were that large. Declaring
+  it adds a number parameter `minSize` with that default. A use whose `minSize` is 0 (or a shader
+  that declares none) is not drawn on a node under 3 pixels on screen; one with a minimum size is.
 - `lowDetail` (in shader text, a second entry `vec4 shadeFar(NodeInput n)` beside `shade`): a
   cheaper body the element draws while nodes are small on screen.
 - `preview`: the parameters and the time, in seconds, a thumbnail is drawn at.

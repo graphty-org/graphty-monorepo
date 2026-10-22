@@ -221,17 +221,16 @@ vec4 shade(EdgeInput e) {
 }
 
 /**
- * The channels a layer sets to draw a shader: `edge.shader` for a surface, `edge.effects` for an
- * effect.
+ * What a layer sets to draw a shader: one use on `edge.shaders`, at its own place.
  * @param descriptor - The shader's catalog facts.
  * @param id - The id to name it by.
  * @param params - Its parameters.
  * @returns The `set` of the layer.
  */
 function setOf(descriptor: ShaderDescriptor, id: string, params: ShaderParams): Record<string, unknown> {
-    return drawingOf(descriptor) === "edge-paint"
-        ? { "edge.shader": id, "edge.shaderParams": { [id]: params } }
-        : { "edge.effects": { [id]: params } };
+    return {
+        "edge.shaders": [{ shader: id, place: drawingOf(descriptor) === "edge-paint" ? "paint" : "along", params }],
+    };
 }
 
 const LINE: LayerSpec = {
@@ -308,7 +307,7 @@ describe("the edge presets on a graph", () => {
                     name: "Fiber",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.shader": presetId("fiber-optic") },
+                    set: { "edge.shaders": [{ shader: presetId("fiber-optic") }] },
                 },
             ],
         );
@@ -370,7 +369,7 @@ describe("the edge presets on a graph", () => {
                         name: "Effect",
                         target: "edge",
                         selector: { match: "everything" },
-                        set: { "edge.effects": { [shader]: true } },
+                        set: { "edge.shaders": [{ shader: shader }] },
                     },
                 ],
                 "off",
@@ -428,7 +427,7 @@ describe("motion", () => {
                     name: "Fiber",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.shader": presetId("fiber-optic") },
+                    set: { "edge.shaders": [{ shader: presetId("fiber-optic") }] },
                 },
             ],
         );
@@ -448,11 +447,13 @@ describe("motion", () => {
             name: "Effect",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.effects": { [shader]: true } },
+            set: { "edge.shaders": [{ shader: shader }] },
         });
         const scene = element.graph.getScene();
         await until(element, "a loop on screen keeps the frames coming", () => everyFrameAnimationsOn(scene) > 0);
-        await element.session.styles.update(layer.id, { set: { "edge.effects": { [shader]: { [speed]: 0 } } } });
+        await element.session.styles.update(layer.id, {
+            set: { "edge.shaders": [{ shader: shader, params: { [speed]: 0 } }] },
+        });
         await until(element, "at speed 0 the loop rests", () => everyFrameAnimationsOn(scene) === 0);
     });
 });
@@ -468,7 +469,7 @@ describe("the shared bloom", () => {
                     name: "Effect",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.effects": { [presetId(id)]: true } },
+                    set: { "edge.shaders": [{ shader: presetId(id) }] },
                 },
             ],
         );
@@ -488,7 +489,7 @@ describe("the shared bloom", () => {
                     name: "Effect",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.effects": { [presetId("comet-tracers")]: true } },
+                    set: { "edge.shaders": [{ shader: presetId("comet-tracers") }] },
                 },
             ],
         );
@@ -533,7 +534,7 @@ describe("edge change", () => {
                     name: "Changes",
                     target: "edge",
                     selector: { match: "everything" },
-                    set: { "edge.effects": { [presetId("edge-change")]: true } },
+                    set: { "edge.shaders": [{ shader: presetId("edge-change") }] },
                 },
             ],
         );

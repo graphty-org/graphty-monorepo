@@ -116,10 +116,10 @@ function renderSurfaces(): Element {
         set: { "edge.color": "#2f7fbf", "edge.width": 16, "edge.arrowHead": "normal" },
     });
     add({ name: "Nodes", target: "node", selector: { match: "everything" }, set: { "node.color": "#5b6b7a" } });
-    add(lookLayer("fiber", { "edge.shader": "demo/fiber", "edge.color": "#e0703a" }));
+    add(lookLayer("fiber", { "edge.shaders": [{ shader: "demo/fiber" }], "edge.color": "#e0703a" }));
     add(lookLayer("taper", { "edge.taper": 0.2 }));
-    add(lookLayer("curved", { "edge.curvature": true, "edge.effects": { "demo/glow": true } }));
-    add(lookLayer("bent", { "edge.bends": "0.5,0.25", "edge.effects": { "demo/glow": true } }));
+    add(lookLayer("curved", { "edge.curvature": true, "edge.shaders": [{ shader: "demo/glow" }] }));
+    add(lookLayer("bent", { "edge.bends": "0.5,0.25", "edge.shaders": [{ shader: "demo/glow" }] }));
     element.nodeData = ROW_NODES;
     element.edgeData = ROW_EDGES;
     element.layout = "fixed";

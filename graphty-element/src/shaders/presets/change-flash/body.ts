@@ -30,6 +30,8 @@ vec4 shade(NodeInput n) {
     float ring = strokeAA(r - (1.0 + k * 1.3), 0.04 + k * 0.05) * (1.0 - k);
     float e = ((star * glint * 1.6 + core) * f + ring * 0.8) * (1.0 - smoothstep(2.0, 2.5, r));
     vec3 col = mix(flashColor, n.color.rgb, 0.25);
-    return vec4(col * e, clamp(e, 0.0, 1.0) * 0.75);
+    // Straight alpha: the flash's light over its coverage.
+    float a = clamp(e, 0.0, 1.0) * 0.75;
+    return vec4(col * e / max(a, 1e-4), a);
 }
 `;

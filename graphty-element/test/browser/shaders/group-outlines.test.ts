@@ -14,7 +14,7 @@ import type { Graphty } from "../../../index.js";
 import { shaderDescriptor } from "../../../src/catalog/shaderRegistry";
 import { operationQueueOf } from "../../../src/Graph";
 import type { RenderManager } from "../../../src/managers/RenderManager";
-import type { BoundaryPass } from "../../../src/meshes/BoundaryPass";
+import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
 import { presetId } from "../../../stories/shaders/scenePresets";
 import lesMiserablesGexf from "../../helpers/corpus/gexf/lesmiserables.gexf?raw";
 import karateGml from "../../helpers/corpus/gml/karate.gml?raw";
@@ -51,12 +51,12 @@ async function mounted(): Promise<Graphty> {
 }
 
 /**
- * The element's boundary pass, once it exists.
+ * The element's group outline pass, once it exists.
  * @param element - The element.
  * @returns The pass, or null.
  */
-function passOf(element: Graphty): BoundaryPass | null {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses().boundary;
+function passOf(element: Graphty): GroupOutlinePass | null {
+    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses().outline;
 }
 
 /**
@@ -86,12 +86,12 @@ interface Enclosure {
 
 /**
  * Read a group's field and measure its outline: the texels at or above the level are inside.
- * @param pass - The boundary pass.
+ * @param pass - The group outline pass.
  * @param layer - The layer.
  * @param level - The outline's level (the hull's threshold).
  * @returns The measure.
  */
-async function enclosure(pass: BoundaryPass, layer: string, level: number): Promise<Enclosure> {
+async function enclosure(pass: GroupOutlinePass, layer: string, level: number): Promise<Enclosure> {
     const field = await pass.fieldOf(layer, null);
     assert.isNotNull(field, `layer ${layer} draws from a field`);
     const { width, height, values, centers } = field;
@@ -160,9 +160,9 @@ async function hullPerCommunity(element: Graphty, format: string, data: string):
     for (const community of [...communities].sort((a, b) => a - b)) {
         const layer = await element.session.styles.add({
             name: `Community ${String(community)}`,
+            set: { "node.shaders": [{ shader: HULL }] },
             target: "node",
             selector: { match: "expression", where: `results.louvain.group == \`${String(community)}\`` },
-            boundary: { shader: HULL },
         });
         layers.push(layer.id);
     }
@@ -185,7 +185,7 @@ describe("group outlines enclose the whole group", () => {
     ])("%s with Louvain: each community's outline holds every member, in one region", async (_, format, data) => {
         const element = await mounted();
         const layers = await hullPerCommunity(element, format, data);
-        const pass = passOf(element) as BoundaryPass;
+        const pass = passOf(element) as GroupOutlinePass;
         const level = defaultThreshold();
         const measured = await Promise.all(layers.map((layer) => enclosure(pass, layer, level)));
         assert.deepEqual(
@@ -205,13 +205,13 @@ describe("group outlines enclose the whole group", () => {
         await element.graph.setLayout("fixed", { dim: 2 });
         const layer = await element.session.styles.add({
             name: "Everyone",
+            set: { "node.shaders": [{ shader: HULL }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: HULL },
         });
         await element.graph.waitForSettled();
         await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
-        const measured = await enclosure(passOf(element) as BoundaryPass, layer.id, defaultThreshold());
+        const measured = await enclosure(passOf(element) as GroupOutlinePass, layer.id, defaultThreshold());
         assert.deepEqual(measured, { outside: 0, regions: 1, apart: 0 });
     });
 
@@ -225,13 +225,13 @@ describe("group outlines enclose the whole group", () => {
         await element.graph.setLayout("fixed", { dim: 2 });
         await element.session.styles.add({
             name: "Everyone",
+            set: { "node.shaders": [{ shader: HULL }] },
             target: "node",
             selector: { match: "everything" },
-            boundary: { shader: HULL },
         });
         await element.graph.waitForSettled();
         await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
-        const pass = passOf(element) as BoundaryPass;
+        const pass = passOf(element) as GroupOutlinePass;
         const built = pass.treesBuilt;
         const { draws } = pass;
         assert.strictEqual(pass.connectors(), 1, "the far member is joined by one connector");
@@ -264,9 +264,9 @@ describe("group outlines enclose the whole group", () => {
             layers.push(
                 await element.session.styles.add({
                     name: `Community ${String(community)}`,
+                    set: { "node.shaders": [{ shader: HULL }] },
                     target: "node",
                     selector: { match: "expression", where: `data.community == \`${String(community)}\`` },
-                    boundary: { shader: HULL },
                 }),
             );
         }
@@ -281,7 +281,7 @@ describe("group outlines enclose the whole group", () => {
         );
         for (const layer of layers) {
             const undrawn = element.session.styles.counts(layer.id).undrawn.map(({ code }) => code);
-            assert.notInclude(undrawn, "shader.boundary-cap");
+            assert.notInclude(undrawn, "shader.group-cap");
         }
     });
 });

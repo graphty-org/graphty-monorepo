@@ -207,8 +207,8 @@ export const Patterns: Story = {
                 name: "Patterns",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
-                encode: { [`node.shaderParams.${shader}.pattern`]: { by: "data.group", scale: "index" } },
+                set: { "node.shaders": [{ shader: shader, params: params }] },
+                encode: { [`node.shaders.${shader}.pattern`]: { by: "data.group", scale: "index" } },
             },
         ]);
     },
@@ -226,7 +226,7 @@ export const FoilShimmer: Story = {
                 name: "Search hits",
                 target: "node",
                 selector: { match: "ids", nodes: PICKED },
-                set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+                set: { "node.shaders": [{ shader: shader, params: params }] },
             },
         ]);
     },
@@ -244,13 +244,13 @@ export const Hologram: Story = {
                 name: "Ghosts",
                 target: "node",
                 selector: { match: "ids", nodes: PICKED },
-                set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+                set: { "node.shaders": [{ shader: shader, params: params }] },
             },
             {
                 name: "Hovered",
                 target: "node",
                 selector: { match: "state", state: "hovered" },
-                set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+                set: { "node.shaders": [{ shader: shader, params: params }] },
             },
         ]);
     },
@@ -269,7 +269,7 @@ export const Frost: Story = {
                     name: "Pinned",
                     target: "node",
                     selector: { match: "state", state: "pinned" },
-                    set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+                    set: { "node.shaders": [{ shader: shader, params: params }] },
                 },
             ],
             PICKED,
@@ -288,8 +288,8 @@ export const Sticker: Story = {
             name: `Stickers, ${finish}`,
             target: "node",
             selector: { match: "ids", nodes: [0, 1, 2, 3].map((column) => `n${String(row * 4 + column)}`) },
-            set: { "node.shader": shader, "node.shaderParams": { [shader]: { ...params, finish } } },
-            encode: { [`node.shaderParams.${shader}.icon`]: { by: "data.group", scale: "index" } },
+            set: { "node.shaders": [{ shader: shader, params: { ...params, finish } }] },
+            encode: { [`node.shaders.${shader}.icon`]: { by: "data.group", scale: "index" } },
         }));
         return render(rows);
     },
@@ -307,10 +307,10 @@ export const Mandala: Story = {
                 name: "Mandalas",
                 target: "node",
                 selector: { match: "everything" },
-                set: { "node.shader": shader, "node.shaderParams": { [shader]: params } },
+                set: { "node.shaders": [{ shader: shader, params: params }] },
                 encode: {
-                    [`node.shaderParams.${shader}.folds`]: { by: "data.rank" },
-                    [`node.shaderParams.${shader}.hueShift`]: { by: "data.hue" },
+                    [`node.shaders.${shader}.folds`]: { by: "data.rank" },
+                    [`node.shaders.${shader}.hueShift`]: { by: "data.hue" },
                 },
             },
         ]);

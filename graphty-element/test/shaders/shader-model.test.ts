@@ -15,7 +15,7 @@ import {
     shaderDescriptor,
     shaderDescriptors,
 } from "../../src/catalog/shaderRegistry";
-import { drawingOf, drawnShaderParams, type ShaderRegistration } from "../../src/catalog/shaders";
+import { drawingOf, type ShaderRegistration } from "../../src/catalog/shaders";
 import { shaderTemplate } from "../../src/catalog/shaderTemplate";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { isGraphtyError } from "../../src/errors";
@@ -306,8 +306,8 @@ describe("registering", () => {
     });
 });
 
-describe("a layer's plain shader parameters", () => {
-    it("apply to whichever shader is drawn, merged over the defaults, the higher layer winning", async () => {
+describe("a use's shader parameters", () => {
+    it("go with the use: a higher layer's paint use wins with its own values", async () => {
         defineShader({ id: "acme/heat", params: { hot: "#ff5500", cold: "#2255ff" }, glsl: NODE_BODY });
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);
@@ -315,17 +315,20 @@ describe("a layer's plain shader parameters", () => {
             name: "Heat",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": "acme/heat", "node.shaderParams": { "acme/heat": { cold: "#000000" } } },
+            set: { "node.shaders": [{ shader: "acme/heat", params: { cold: "#000000" } }] },
         });
         await session.styles.add({
             name: "Hotter",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shaderParams": { hot: "#ff0000" } },
+            set: { "node.shaders": [{ shader: "acme/heat", params: { hot: "#ff0000" } }] },
         });
-        const merged = session.styles.explain({ node: "a" }).merged["node.shaderParams"];
-        assert.deepEqual(drawnShaderParams(merged, "acme/heat"), { hot: "#ff0000", cold: "#000000" });
-        assert.deepEqual(session.styles.counts(session.styles.list()[1].id).undrawn, [], "a plain value is used");
+        const merged = session.styles.explain({ node: "a" }).merged["node.shaders"];
+        assert.deepEqual(
+            merged?.map((use) => ({ ...use })),
+            [{ shader: "acme/heat", params: { hot: "#ff0000" } }],
+        );
+        assert.deepEqual(session.styles.counts(session.styles.list()[1].id).undrawn, []);
         session.dispose();
     });
 });
@@ -336,7 +339,12 @@ describe("a card and a shape: the topmost layer's is drawn", () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);
         const card = (name: string) =>
-            ({ name, target: "node", selector: { match: "everything" }, set: { "node.shader": "acme/card" } }) as const;
+            ({
+                name,
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "acme/card" }] },
+            }) as const;
         const box = (name: string) =>
             ({ name, target: "node", selector: { match: "everything" }, set: { "node.shape": "box" } }) as const;
 

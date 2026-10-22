@@ -172,7 +172,7 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
 
 /**
  * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared
- * `varies`, named by its address (`"node.effects.uncertainty-aura.intensity"`) in place of a channel.
+ * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`) in place of a channel.
  * @since 3.36.0
  */
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {

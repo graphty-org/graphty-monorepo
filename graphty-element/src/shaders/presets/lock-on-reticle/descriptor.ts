@@ -11,6 +11,8 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     plainName: "Reticle",
     target: "node",
     place: "around",
+    // Drawn at least 40 CSS px wide, so a selected node far away stays findable.
+    minSize: 40,
     categories: Object.freeze(["Attention"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "hudColor", plainName: "Color", type: "color", default: "#5cffb0", primary: true },

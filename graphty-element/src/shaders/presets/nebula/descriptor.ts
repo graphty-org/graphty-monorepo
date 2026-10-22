@@ -32,7 +32,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
             default: "none",
             values: Object.freeze([
                 Object.freeze({ value: "none", label: "None" }),
-                Object.freeze({ value: "boundaries", label: "Boundaries" }),
+                Object.freeze({ value: "groups", label: "Groups" }),
             ]),
         }),
     ]),

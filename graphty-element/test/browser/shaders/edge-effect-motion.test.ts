@@ -103,7 +103,7 @@ async function mounted(): Promise<{ element: Graphty; layer: string }> {
         name: "Comets",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.effects": { [presetId("comet-tracers")]: true } },
+        set: { "edge.shaders": [{ shader: presetId("comet-tracers") }] },
     });
     return { element, layer: layer.id };
 }
@@ -133,7 +133,7 @@ describe("a looping edge effect on a graph drawn on demand", () => {
             name: "Comets",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.width": 24, "edge.effects": { [presetId("comet-tracers")]: true } },
+            set: { "edge.width": 24, "edge.shaders": [{ shader: presetId("comet-tracers") }] },
         });
         await element.session.data.addNodes(Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}` })));
         await element.session.data.addEdges(
@@ -166,7 +166,7 @@ describe("a looping edge effect on a graph drawn on demand", () => {
             name: "Comets",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.effects": { [presetId("comet-tracers")]: true } },
+            set: { "edge.shaders": [{ shader: presetId("comet-tracers") }] },
         });
         element.layout = "fixed";
         element.layoutConfig = { dim: 3 };
@@ -191,9 +191,9 @@ describe("a looping edge effect on a graph drawn on demand", () => {
         await until("the effect draws", () => effectState(element).live === 1);
         await keepsDrawing(element, "first load");
         const id = presetId("comet-tracers");
-        await element.session.styles.update(layer, { set: { "edge.effects": { [id]: { visible: false } } } });
+        await element.session.styles.update(layer, { set: { "edge.shaders": [] } });
         await until("hidden, the effect lets the frames rest", () => !effectState(element).moving);
-        await element.session.styles.update(layer, { set: { "edge.effects": { [id]: true } } });
+        await element.session.styles.update(layer, { set: { "edge.shaders": [{ shader: id }] } });
         await until("shown again, the effect draws", () => effectState(element).live === 1);
         await keepsDrawing(element, "shown again");
     });

@@ -5,7 +5,7 @@
  * beneath it is covered. Catalog data only; the GLSL is in `./body.ts`.
  *
  * Bind `folds` (extra mirror folds) and `hueShift` per node to tell nodes apart:
- * `encode: { "node.shaderParams.mandala.folds": { by: "data.degree" } }`.
+ * `encode: { "node.shaders.mandala.folds": { by: "data.degree" } }`.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

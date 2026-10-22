@@ -7,8 +7,8 @@
  * The sky turns with the camera. Every motion runs at `drift`, so at drift 0 the backdrop is
  * still and the element draws it again only when the camera moves.
  *
- * `tintBy: boundaries` colors the gas near the largest groups of the graph's boundary layers
- * with each group's color (`BackgroundInput.groupTint`); with no boundary layer it changes
+ * `tintBy: groups` colors the gas near the largest groups of the graph's group outlines
+ * with each group's color (`BackgroundInput.groupTint`); with no group outline it changes
  * nothing.
  */
 

@@ -209,7 +209,7 @@
                         "type": "number"
                     },
                     "shader": {
-                        "description": "A node surface or sprite shader from the shader catalog to draw the nodes with, by its id",
+                        "description": "A node shader from the shader catalog to draw the nodes with, by its id, at its own place",
                         "type": "string"
                     },
                     "shaderText": {

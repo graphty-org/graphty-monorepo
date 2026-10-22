@@ -440,16 +440,6 @@ export const BLUE_ORANGE_COLORS: readonly ["#2166ac", "#4393c3", "#92c5de", "#d1
 export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"];
 
 // @public
-export interface BoundaryAtResult {
-    // (undocumented)
-    readonly group: string | number | boolean | null;
-    // (undocumented)
-    readonly kind: "boundary";
-    // (undocumented)
-    readonly layer: LayerId;
-}
-
-// @public
 export const BUILTIN_PRESETS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
@@ -938,8 +928,9 @@ export { defineSource }
 
 // @public
 export interface DrawnShaders {
-    readonly boundaries: readonly {
+    readonly groupOutlines: readonly {
         readonly layer: LayerId;
+        readonly shader: string;
         readonly groups: readonly (string | number | boolean | null)[];
     }[];
     readonly nodes: ReadonlyMap<string, {
@@ -2255,10 +2246,6 @@ export class Graph implements GraphContext {
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
-    boundaryAt(point: {
-        x: number;
-        y: number;
-    }): BoundaryAtResult | null;
     // (undocumented)
     camera: CameraManager;
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
@@ -2334,6 +2321,10 @@ export class Graph implements GraphContext {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     getZoomToPointer(): boolean;
+    groupOutlineAt(point: {
+        x: number;
+        y: number;
+    }): GroupOutlineAtResult | null;
     importCameraPresets(presets: Record<string, CameraState>): void;
     init(): Promise<void>;
     // (undocumented)
@@ -2713,10 +2704,6 @@ export class Graphty extends LitElement {
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
-    boundaryAt(point: {
-        x: number;
-        y: number;
-    }): BoundaryAtResult | null;
     get cameraPlaced(): boolean;
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
@@ -2797,6 +2784,10 @@ export class Graphty extends LitElement {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     get graph(): Graph;
+    groupOutlineAt(point: {
+        x: number;
+        y: number;
+    }): GroupOutlineAtResult | null;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
     importCameraPresets(presets: Record<string, CameraState>): void;
@@ -3138,14 +3129,15 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_PALETTE"
 /**
-* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
-* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
 * @since 3.36.0
 */
 | "E_UNKNOWN_SHADER"
 /**
-* A layer names a shader of the wrong kind for where it is written: an effect id in
-* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
 * @since 3.36.0
 */
 | "E_SHADER_KIND"
@@ -3750,6 +3742,18 @@ export const GREEN_SUCCESS: {
 
 // @public
 export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"];
+
+// @public
+export interface GroupOutlineAtResult {
+    // (undocumented)
+    readonly group: string | number | boolean | null;
+    // (undocumented)
+    readonly kind: "group-outline";
+    // (undocumented)
+    readonly layer: LayerId;
+    // (undocumented)
+    readonly shader: string;
+}
 
 // @public
 export interface HighlightSuggestion {
@@ -5660,7 +5664,7 @@ export class RenderManager implements Manager {
     holdFrames(): () => void;
     init(): Promise<void>;
     // @internal
-    pickBoundary(x: number, y: number): BoundaryPick | null;
+    pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
     requestFrame(): void;
     // (undocumented)
     scene: Scene;

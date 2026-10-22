@@ -288,7 +288,7 @@ describe("the pattern, state and sprite presets on a graph", () => {
                 name: shader,
                 target: "node",
                 selector: { match: "ids", nodes: [`n${String(at)}`] },
-                set: { "node.shader": shader },
+                set: { "node.shaders": [{ shader: shader }] },
             });
         }
 
@@ -319,7 +319,7 @@ describe("frost on a pinned-state layer", () => {
                     name: "Pinned",
                     target: "node",
                     selector: { match: "state", state: "pinned" },
-                    set: { "node.shader": patternPresetId("frost") },
+                    set: { "node.shaders": [{ shader: patternPresetId("frost") }] },
                 },
             ],
         );

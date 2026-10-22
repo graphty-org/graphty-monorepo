@@ -15,6 +15,7 @@ import jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
+import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
 import { drawnText } from "./config/RichTextStyle";
@@ -41,7 +42,6 @@ import {
     NodeShaderDrawing,
     type NodeShaderLook,
     type NodeShaderState,
-    type NodeShaderStyle,
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { readColor } from "./meshes/readColor";
@@ -51,7 +51,7 @@ import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
-import { toColorValue } from "./session/styles/channels";
+import { drawnUses, toColorValue } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
@@ -274,25 +274,23 @@ function labelBorders(borders: LabelStyle["borders"]): { width: number; color: s
 }
 
 /**
- * What the shader channels painted on a node: the `shader` block of its resolved style, which the
- * painter writes from `node.shader`, `node.shaderParams` and `node.effects`.
+ * The shader uses resolved on a node: its style's `shaders`, which the painter writes from
+ * `node.shaders`.
  * @param style - The resolved style.
- * @returns The block, or undefined when no shader channel painted it.
+ * @returns The uses, or undefined when no layer wrote any.
  */
-function shaderStyleOf(style: NodeStyleConfig): NodeShaderStyle | undefined {
-    return (style as NodeStyleConfig & { shader?: NodeShaderStyle }).shader;
+function shaderUsesOf(style: NodeStyleConfig): readonly ShaderUse[] | undefined {
+    return (style as NodeStyleConfig & { shaders?: readonly ShaderUse[] }).shaders;
 }
 
 /**
- * Whether a shader block names anything to draw: a surface or sprite other than "none", or an effect.
- * @param shader - The block.
- * @returns True when it does.
+ * Whether a node's uses name anything it draws itself (every place but `group`).
+ * @param uses - The uses.
+ * @returns True when they do.
  */
-function namesShader(shader: NodeShaderStyle | undefined): boolean {
-    return (
-        (shader?.id !== undefined && shader.id !== "none") ||
-        (shader?.effects !== undefined && Object.keys(shader.effects).length > 0)
-    );
+function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
+    const { exclusive, stacked } = drawnUses(uses);
+    return exclusive !== null || stacked.length > 0;
 }
 
 /**
@@ -1233,7 +1231,7 @@ export class Node {
      * @returns True when it does.
      */
     private drawnByBatch(): boolean {
-        return this.shaderPath === "impostor" || this.shaderPath === "sprite";
+        return this.shaderPath === "impostor" || this.shaderPath === "replace";
     }
 
     /**
@@ -1247,19 +1245,21 @@ export class Node {
         meshKey: string,
         style: NodeStyleConfig,
     ): { meshKey: string; style: NodeStyleConfig; path: SurfacePath | null } {
-        const id = shaderStyleOf(style)?.id;
-        if (id === undefined || id === "none" || this.drawnAsGroup) {
+        const surface = drawnUses(shaderUsesOf(style)).exclusive;
+        if (surface === null || this.drawnAsGroup) {
             return { meshKey, style, path: null };
         }
 
+        const id = surface.use.shader;
         const drawing = NodeShaderDrawing.of(this.context.getScene(), this.context.getSession?.());
         const round = ROUND_SHAPES.has(style.shape?.type ?? "");
-        const path = drawing?.surfacePath(this, id, round) ?? null;
+        const path = drawing?.surfacePath(this, id, surface.place, round) ?? null;
         if (path === null) {
             return { meshKey, style, path };
         }
 
-        const shaped = path === "sprite" ? { ...style, shape: { ...style.shape, type: "sphere" as const } } : style;
+        // In place of the node, its mesh is kept only as the pick proxy: a sphere of its radius.
+        const shaped = path === "replace" ? { ...style, shape: { ...style.shape, type: "sphere" as const } } : style;
         return { meshKey: `${meshKey}|shader:${path}:${id}`, style: shaped, path };
     }
 
@@ -1277,9 +1277,9 @@ export class Node {
         // none: it is handed on once, here, and never kept for a later paint.
         const cause = this.pendingShaderCause;
         this.pendingShaderCause = undefined;
-        const shader = shaderStyleOf(style);
+        const uses = shaderUsesOf(style);
         const scene = this.context.getScene();
-        const drawing = namesShader(shader)
+        const drawing = namesShader(uses)
             ? NodeShaderDrawing.of(scene, this.context.getSession?.())
             : (this.shaderDrawing ?? NodeShaderDrawing.peek(scene) ?? null);
         if (drawing === null) {
@@ -1294,12 +1294,12 @@ export class Node {
         // States first: a state that brought this shader (a pin onto a pinned-state layer) is
         // then the cause the new slot's entrance plays for.
         this.syncShaderStates();
-        drawing.paint(this, this.shaderLook(style, shader));
+        drawing.paint(this, this.shaderLook(style, uses));
     }
 
     /**
      * The resolved color the node was last painted with (r, g and b 0..255, a 0..1), or null
-     * before its first paint. What a boundary averages over its members.
+     * before its first paint. What a group outline averages over its members.
      * @returns The color.
      * @internal
      */
@@ -1310,10 +1310,10 @@ export class Node {
     /**
      * What the shader drawing draws this node with.
      * @param style - The resolved style.
-     * @param shader - Its shader block.
+     * @param uses - Its resolved shader uses.
      * @returns The look.
      */
-    private shaderLook(style: NodeStyleConfig, shader: NodeShaderStyle | undefined): NodeShaderLook {
+    private shaderLook(style: NodeStyleConfig, uses: readonly ShaderUse[] | undefined): NodeShaderLook {
         const painted = style.texture?.color;
         const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
         const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
@@ -1325,7 +1325,7 @@ export class Node {
         const glowColor = glow?.color;
         return {
             mesh: this.mesh,
-            style: shader,
+            uses,
             path: this.shaderPath,
             color,
             opacity,
@@ -1374,16 +1374,13 @@ export class Node {
     }
 
     /**
-     * Whether an enabled node layer of the session names a node shader or effect.
+     * Whether an enabled node layer of the session names node shaders.
      * @returns True when one does.
      */
     private layersNameANodeShader(): boolean {
         const layers = this.context.getSession?.()?.styles.list() ?? [];
         return layers.some(
-            (layer) =>
-                layer.enabled &&
-                layer.target === "node" &&
-                (layer.set?.["node.shader"] !== undefined || layer.set?.["node.effects"] !== undefined),
+            (layer) => layer.enabled && layer.target === "node" && layer.set?.["node.shaders"] !== undefined,
         );
     }
 

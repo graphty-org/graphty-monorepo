@@ -113,19 +113,19 @@ function render(): Element {
         name: "Lit",
         target: "node",
         selector: { match: "ids", nodes: ["sphere", "ringed", "box"] },
-        set: { "node.shader": "demo/lit" },
+        set: { "node.shaders": [{ shader: "demo/lit" }] },
     });
     add({
         name: "Star",
         target: "node",
         selector: { match: "ids", nodes: ["star"] },
-        set: { "node.shader": "demo/star" },
+        set: { "node.shaders": [{ shader: "demo/star" }] },
     });
     add({
         name: "Ring",
         target: "node",
         selector: { match: "ids", nodes: ["ringed"] },
-        set: { "node.effects": { "demo/ring": true } },
+        set: { "node.shaders": [{ shader: "demo/ring" }] },
     });
     element.nodeData = NODES;
     element.edgeData = EDGES;

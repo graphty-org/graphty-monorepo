@@ -38,7 +38,7 @@ const FIBER: LayerSpec = {
     name: "Fiber",
     target: "edge",
     selector: { match: "everything" },
-    set: { "edge.shader": presetId("fiber-optic") },
+    set: { "edge.shaders": [{ shader: presetId("fiber-optic") }] },
 };
 
 /**

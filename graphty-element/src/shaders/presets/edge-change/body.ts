@@ -24,7 +24,7 @@ vec4 shade(EdgeInput e) {
         }
         float line = 1.0 - smoothstep(0.8, 1.0, s);
         float a = e.color.a * line * (1.0 - 0.5 * k);
-        return vec4(mix(base, vec3(0.6, 0.1, 0.1), k) * a, a);
+        return vec4(mix(base, vec3(0.6, 0.1, 0.1), k), a);
     }
 
     float since = min(e.sinceEntered, e.sinceChanged < 0.0 ? 10000.0 : e.sinceChanged);
@@ -43,6 +43,6 @@ vec4 shade(EdgeInput e) {
     vec3 hot = mix(blackbody(heat) * (1.0 + heat), flashColor, heat * heat);
     vec3 col = mix(mix(base, hot, clamp(heat * 1.3, 0.0, 1.0)), flashColor, tip);
     float a = clamp(line * max(heat, tip), 0.0, 1.0);
-    return vec4(col * a, a);
+    return vec4(col, a);
 }
 `;

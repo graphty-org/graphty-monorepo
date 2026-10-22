@@ -42,6 +42,7 @@ vec4 shade(EdgeInput e) {
     float lit = max(max(e.selected, e.hovered), max(e.sourceSelected, e.targetSelected));
     c *= (1.0 + 1.2 * lit) * (1.0 + 0.5 * bloom * core);
     a = clamp(a, 0.0, 1.0) * inside;
-    return vec4(c * inside, a);
+    // c is the packets' summed light; returned straight over their coverage.
+    return vec4(c * inside / max(a, 1e-4), a);
 }
 `;

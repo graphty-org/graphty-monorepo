@@ -17,7 +17,7 @@
 
 import { z } from "zod";
 
-import { slotRoleOf } from "../../catalog/shaders";
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
@@ -72,7 +72,7 @@ const NodeStyleParamsSchema = z
         shader: z
             .string()
             .optional()
-            .describe("A node surface or sprite shader from the shader catalog to draw the nodes with, by its id"),
+            .describe("A node shader from the shader catalog to draw the nodes with, by its id, at its own place"),
         shaderText: z
             .string()
             .optional()
@@ -147,7 +147,7 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     }
 
     if (params.shader !== undefined) {
-        set["node.shader"] = params.shader;
+        set["node.shaders"] = [{ shader: params.shader }];
     }
 
     // "Not visible" is said as fully transparent, because hiding an element is the visibility
@@ -386,12 +386,8 @@ export const findAndStyleNodes: GraphCommand = {
                 };
             }
 
-            const { id } = added.descriptor;
-            if (slotRoleOf(added.descriptor) === "effect") {
-                set["node.effects"] = { [id]: true };
-            } else {
-                set["node.shader"] = id;
-            }
+            const use: ShaderUse = { shader: added.descriptor.id };
+            set["node.shaders"] = [...((set["node.shaders"] as readonly ShaderUse[] | undefined) ?? []), use];
         }
 
         return addLayer(writer, layerSpecOf(layerName, "node", selector, set, connectedBy), unsupported, "node");

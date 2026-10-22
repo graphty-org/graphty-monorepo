@@ -157,7 +157,7 @@ describe("thumbnails, for every origin", () => {
 describe("saving a registered shader with the look", () => {
     it("embeds its text, holds it on a page without it, and draws the page's own where it is", async () => {
         defineShader({ id: "parity/heat", params: { hot: "#ff5500" }, glsl: HEAT });
-        const { element } = await mounted({ "node.shader": "parity/heat" });
+        const { element } = await mounted({ "node.shaders": [{ shader: "parity/heat" }] });
         const saved = element.session.styles.toDocument();
         const carried = saved.shaders?.find((entry) => entry.id === "parity/heat");
         assert.ok(carried, "the document carries the registered shader");
@@ -190,7 +190,7 @@ describe("the flashing check, for every origin", () => {
             motion: "loop",
             glsl: "vec4 shade(NodeInput n) { float on = step(0.5, fract(n.time * 10.0)); return vec4(vec3(on), 1.0); }",
         });
-        const { element } = await mounted({ "node.size": 6, "node.effects": { "parity/strobe": true } });
+        const { element } = await mounted({ "node.size": 6, "node.shaders": [{ shader: "parity/strobe" }] });
         const scene = element.graph.getScene();
         const frozen = (): boolean => element.session.shaders.status("parity/strobe").state === "still";
         for (let i = 0; i < 900 && !frozen(); i++) {

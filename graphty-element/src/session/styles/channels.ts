@@ -57,7 +57,8 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import type { ShaderEffects, ShaderParams, ShaderParamSets, ShaderSlot } from "../../catalog/shaders";
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
@@ -575,12 +576,8 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
-    "node.shader": string;
-    "node.shaderParams": ShaderParamSets;
-    "node.effects": ShaderEffects;
-    "edge.shader": string;
-    "edge.shaderParams": ShaderParamSets;
-    "edge.effects": ShaderEffects;
+    "node.shaders": readonly ShaderUse[];
+    "edge.shaders": readonly ShaderUse[];
     "edge.taper": number;
     "edge.lift": number;
     "edge.labelTextAlign": LabelTextAlign;
@@ -674,12 +671,11 @@ export type ChannelValueKind =
     | "enum"
     | "labelStyle"
     | "nothing"
-    /** A shader id from the catalog, for the slot `shaderSlot` names, or `"none"`. @since 3.36.0 */
-    | "shader"
-    /** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
-    | "shaderParams"
-    /** Effects by id, merged by id then by parameter. @since 3.36.0 */
-    | "shaderEffects";
+    /**
+     * A list of shader uses ({@link ShaderUse}), resolved across layers by place: see
+     * `node.shaders`. @since 3.36.0
+     */
+    | "shaderUses";
 
 /**
  * Whether a value is the whole number an "enum" channel with a `min` takes beside its words: a
@@ -808,11 +804,11 @@ export interface ChannelDescriptor {
      */
     readonly modifies?: Channel;
     /**
-     * The target and slot role of the shaders the channel names, on a shader channel: what a
-     * picker offers for it. Absent on every other channel.
+     * The target whose shaders the channel's uses name, on a shader list channel: what a picker
+     * offers for it (a node list also takes group outlines). Absent on every other channel.
      * @since 3.36.0
      */
-    readonly shaderSlot?: ShaderSlot;
+    readonly shaderTarget?: "node" | "edge";
 }
 
 /**
@@ -831,9 +827,6 @@ export type ChannelCaveatCode = "outline.sharedWidth";
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
-
-/** What `node.shader` takes to draw no shader: the plain shape, covering a shader beneath. */
-export const SHADER_NONE = "none";
 
 /** What an effect colour channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
 export const EFFECT_OFF = "none";
@@ -1953,52 +1946,31 @@ const LOOK_AND_VISIBILITY = {
     ),
 };
 
-/** What the shader channels draw, written once and read by all six. */
+/** What the shader list channels draw, written once and read by both. */
 const SHADER_CAVEAT =
-    "A shader decides the color of each pixel of what it is drawn on. `shader` names the surface " +
-    'or sprite drawn (the highest layer wins; "none" draws the plain shape), `shaderParams` the ' +
-    "parameters per shader id (only the drawn shader's set applies), and `effects` the effects by " +
-    "id, which stack instead of replacing each other, at most four per element.";
-
-/** Where each shader channel lands in a parsed style's `shader` block. */
-const SHADER_STYLE_FIELD = { shader: "id", shaderParams: "params", effects: "effects" } as const;
-
-/** The names of a target's three shader channels. */
-type ShaderChannelName = "shader" | "shaderParams" | "effects";
+    "Each entry uses one shader at a place: `paint` and `replace` draw one per element, the highest " +
+    "winning; every other place stacks, at most four per element. `off: true` removes a shader the " +
+    "layers beneath put on these elements.";
 
 /**
- * The three shader channels of one target.
+ * The shader list channel of one target.
  * @param target - Nodes or edges.
- * @returns The channels, keyed by name: `shader` and `shaderParams` name looks, `effects` effects.
+ * @returns The channel.
  */
-function shaderChannels<T extends "node" | "edge">(target: T): Record<`${T}.${ShaderChannelName}`, ChannelDescriptor> {
-    const title = target === "node" ? "Node" : "Edge";
-    const row = (
-        name: ShaderChannelName,
-        accepts: ChannelValueKind,
-        plainName: string,
-        role: ShaderSlot["role"],
-    ): ChannelDescriptor => ({
-        channel: `${target}.${name}` as Channel,
+function shaderChannel(target: "node" | "edge"): ChannelDescriptor {
+    return {
+        channel: `${target}.shaders`,
         target,
-        plainName: `${title} ${plainName}`,
-        shortName: plainName,
-        // An edge's look sits in its line group: the surface is the line's pattern, an effect
-        // runs along the line.
+        plainName: `${target === "node" ? "Node" : "Edge"} shaders`,
+        shortName: "Shaders",
+        // An edge's shaders sit in its line group: they paint the line or run along it.
         group: target === "node" ? "effects" : "line",
-        accepts,
-        stylePath: `shader.${SHADER_STYLE_FIELD[name]}`,
+        accepts: "shaderUses",
+        stylePath: "shaders",
         renderable: true,
         caveat: SHADER_CAVEAT,
-        shaderSlot: { target, role },
-        ...(name === "shader" ? { off: SHADER_NONE, default: SHADER_NONE } : {}),
-    });
-
-    return {
-        [`${target}.shader`]: row("shader", "shader", "Shader", "look"),
-        [`${target}.shaderParams`]: row("shaderParams", "shaderParams", "Shader parameters", "look"),
-        [`${target}.effects`]: row("effects", "shaderEffects", "Effects", "effect"),
-    } as Record<`${T}.${ShaderChannelName}`, ChannelDescriptor>;
+        shaderTarget: target,
+    };
 }
 
 /**
@@ -3827,8 +3799,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         ...labelFieldChannels("edge")["edge.labelBackground"],
         ...LOOK_AND_VISIBILITY["edge.labelBackground"],
     },
-    ...shaderChannels("node"),
-    ...shaderChannels("edge"),
+    "node.shaders": shaderChannel("node"),
+    "edge.shaders": shaderChannel("edge"),
     "edge.taper": {
         channel: "edge.taper",
         target: "edge",
@@ -4054,30 +4026,39 @@ export function readRenamedChannels<T extends { readonly set?: object; readonly 
 }
 
 // ---------------------------------------------------------------------------------------------
-// Shader maps: merged by id, then by parameter
+// Shader lists: resolved by place
 // ---------------------------------------------------------------------------------------------
 
-/** The most effects drawn on one element. */
-export const EFFECT_CAP = 4;
+/** The most stacking uses (every place but `paint`, `replace` and `group`) drawn on one element. */
+export const STACK_CAP = 4;
 
-/** Where each merged effects map keeps how high each of its effects was last written. */
-const EFFECT_HEIGHTS = Symbol("graphty.effectHeights");
+/** Where a resolved list keeps the uses the last layer merged into it wrote. */
+const LATEST = Symbol("graphty.latestUses");
 
-/** A merged effects map, carrying the heights of its entries out of sight of `Object.entries`. */
-type HeightedEffects = Record<string, ShaderParams | boolean> & { [EFFECT_HEIGHTS]?: Map<string, number> };
+/** A resolved list, carrying the last layer's uses out of sight of iteration. */
+type ResolvedUses = ShaderUse[] & { [LATEST]?: ReadonlySet<ShaderUse> };
 
 /**
- * Whether a channel's values are maps merged by id: `shaderParams` and `effects`.
+ * Whether a channel's values are shader use lists: `node.shaders` and `edge.shaders`.
  * @param channel - The channel.
- * @returns True for the four map channels.
+ * @returns True for the two list channels.
  */
-export function isShaderMapChannel(channel: string): boolean {
-    return /^(?:node|edge)\.(?:shaderParams|effects)$/.test(channel);
+export function isShaderListChannel(channel: string): boolean {
+    return channel === "node.shaders" || channel === "edge.shaders";
 }
 
 /**
- * Stack one parameter set over another, the higher winning per parameter, into a fresh object
- * with no prototype.
+ * Where one use draws: its own place, else its shader's.
+ * @param use - The use.
+ * @returns The place, or undefined for a shader the catalog does not list.
+ */
+export function placeOfUse(use: ShaderUse): ShaderPlace | undefined {
+    return use.place ?? shaderDescriptor(use.shader)?.place;
+}
+
+/**
+ * Stack a parameter set over another, the higher winning per parameter, into a fresh object with
+ * no prototype.
  * @param held - The parameters beneath, or undefined.
  * @param over - The parameters this layer writes.
  * @returns The merged parameters.
@@ -4098,151 +4079,142 @@ function mergeParams(held: unknown, over: object): Record<string, unknown> {
 }
 
 /**
- * Stack one `shaderParams` map over another: by shader id, then by parameter.
- * @param held - What the layers beneath painted, or undefined.
+ * Resolve one layer's shader uses over what the layers beneath resolved, in list order:
+ *
+ * - `{ shader, off: true }` removes every use of that shader beneath (and earlier in the list);
+ * - a use at `paint` or `replace` removes any use beneath at either, so the last one wins;
+ * - every other use stacks on top.
+ *
+ * A parameter map instead of a list (`{ [shader]: { param: value } }`, what a parameter bound per
+ * element paints) sets those parameters on the uses of that shader the last layer wrote, or, when
+ * it wrote none, on every use of it beneath.
+ * @param held - What the layers beneath resolved, or undefined.
  * @param over - What this layer paints.
- * @returns The merged map, a fresh object with no prototype.
+ * @returns The resolved list, a fresh array.
  */
-export function mergeShaderParams(held: unknown, over: object): ShaderParamSets {
-    const entries = Object.entries(over);
-    const flat = entries.filter(([, value]) => typeof value !== "object" || value === null);
-    if ((typeof held !== "object" || held === null) && flat.length === 0) {
-        // Nothing beneath: the layer's own map, which preparation already made prototype-free.
-        return over as ShaderParamSets;
+export function mergeShaderUses(held: unknown, over: unknown): readonly ShaderUse[] {
+    const beneath: readonly ShaderUse[] = Array.isArray(held) ? (held as ShaderUse[]) : [];
+    if (!Array.isArray(over)) {
+        return patchUses(beneath, over);
     }
 
-    const merged = Object.create(null) as Record<string, ShaderParams | number | string | boolean>;
-    if (typeof held === "object" && held !== null) {
-        Object.assign(merged, held);
-    }
-
-    // A plain `{ name: value }` is for whichever shader is drawn: it stays a plain entry, and is
-    // written over every shader's set beneath, so the higher layer still wins per parameter.
-    const record = merged as Record<string, unknown>;
-    for (const [name, value] of flat) {
-        for (const [id, set] of Object.entries(record)) {
-            if (typeof set === "object" && set !== null) {
-                record[id] = mergeParams(set, { [name]: value });
-            }
-        }
-
-        record[name] = value;
-    }
-
-    for (const [id, params] of entries) {
-        if (typeof params === "object" && params !== null) {
-            merged[id] = mergeParams(merged[id], params) as ShaderParams;
-        }
-    }
-
-    return merged;
-}
-
-/**
- * The height each entry of an effects map was last written at.
- * @param map - The map.
- * @returns The heights; an entry never stacked over sits at 0.
- */
-function heightsOf(map: unknown): Map<string, number> {
-    return (map as HeightedEffects | undefined)?.[EFFECT_HEIGHTS] ?? new Map<string, number>();
-}
-
-/**
- * Stack one `effects` map over another: by effect id, then by parameter. `false` switches an
- * effect off, `true` turns it on keeping the parameters beneath, an object turns it on and merges
- * its parameters. Each entry keeps the place its id first appeared (bottom layer first) and
- * records the height it was last turned on at, which decides which effects draw past the cap.
- * @param held - What the layers beneath painted, or undefined.
- * @param over - What this layer paints.
- * @returns The merged map, a fresh object with no prototype.
- */
-export function mergeEffects(held: unknown, over: object): ShaderEffects {
-    if (typeof held !== "object" || held === null) {
-        // Nothing beneath: the layer's own map, every entry at the first height.
-        return over as ShaderEffects;
-    }
-
-    const merged = Object.create(null) as HeightedEffects;
-    const before = heightsOf(held);
-    const heights = new Map(before);
-    const height = Math.max(0, ...before.values()) + 1;
-    Object.assign(merged, held);
-
-    for (const [id, value] of Object.entries(over)) {
-        const beneath = merged[id];
-        if (value === false) {
-            merged[id] = false;
+    let out: ShaderUse[] = [...beneath];
+    const latest = new Set<ShaderUse>();
+    for (const use of over as readonly ShaderUse[]) {
+        if (use.off === true) {
+            out = out.filter((each) => each.shader !== use.shader);
             continue;
         }
 
-        if (value === true) {
-            merged[id] = typeof beneath === "object" ? beneath : true;
-        } else if (typeof value === "object" && value !== null) {
-            merged[id] = mergeParams(typeof beneath === "object" ? beneath : undefined, value) as ShaderParams;
+        if (isExclusivePlace(placeOfUse(use))) {
+            out = out.filter((each) => !isExclusivePlace(placeOfUse(each)));
         }
 
-        heights.set(id, height);
+        out.push(use);
+        latest.add(use);
     }
 
-    Object.defineProperty(merged, EFFECT_HEIGHTS, { value: heights, enumerable: false });
-
-    return merged;
+    return withLatest(out, latest);
 }
 
 /**
- * The effects an element draws from its merged map: every entry that is on and not hidden by
- * `visible: false`, at most {@link EFFECT_CAP}, the highest-written kept, in the order their ids
- * first appeared.
- * @param effects - The merged map, or undefined.
- * @returns The drawn effects with their parameters, and how many were left out by the cap.
+ * A list with the uses the last layer wrote attached.
+ * @param list - The list.
+ * @param latest - The uses.
+ * @returns The list.
  */
-export function drawnEffects(effects: ShaderEffects | undefined): {
-    readonly drawn: readonly (readonly [string, ShaderParams])[];
+function withLatest(list: ShaderUse[], latest: ReadonlySet<ShaderUse>): readonly ShaderUse[] {
+    Object.defineProperty(list, LATEST, { value: latest, enumerable: false });
+    return list;
+}
+
+/**
+ * Set parameters per shader on a resolved list (see {@link mergeShaderUses}).
+ * @param beneath - The list.
+ * @param patch - Parameters by shader id.
+ * @returns The patched list, a fresh array.
+ */
+function patchUses(beneath: readonly ShaderUse[], patch: unknown): readonly ShaderUse[] {
+    if (typeof patch !== "object" || patch === null) {
+        return beneath;
+    }
+
+    const latest = (beneath as ResolvedUses)[LATEST] ?? new Set<ShaderUse>();
+    const kept = new Set<ShaderUse>();
+    const out = [...beneath];
+    for (const [id, params] of Object.entries(patch)) {
+        if (typeof params !== "object" || params === null) {
+            continue;
+        }
+
+        const own = out.some((use) => use.shader === id && latest.has(use));
+        out.forEach((use, at) => {
+            if (use.shader === id && (!own || latest.has(use))) {
+                const patched = { ...use, params: mergeParams(use.params, params) as ShaderUse["params"] };
+                out[at] = patched;
+                if (latest.has(use)) {
+                    kept.add(patched);
+                }
+            }
+        });
+    }
+
+    for (const use of latest) {
+        if (out.includes(use)) {
+            kept.add(use);
+        }
+    }
+
+    return withLatest(out, kept);
+}
+
+/**
+ * What one element draws from its resolved list: the one use at `paint` or `replace`, if any,
+ * and the stacking uses (not `group`), at most {@link STACK_CAP}, the highest kept.
+ * @param uses - The resolved list, or undefined.
+ * @returns The covering use, the stacking ones with their places, and how many the cap left out.
+ */
+export function drawnUses(uses: readonly ShaderUse[] | undefined): {
+    readonly exclusive: { readonly use: ShaderUse; readonly place: ShaderPlace } | null;
+    readonly stacked: readonly { readonly use: ShaderUse; readonly place: ShaderPlace }[];
     readonly left: number;
 } {
-    if (effects === undefined) {
-        return { drawn: [], left: 0 };
+    let exclusive: { use: ShaderUse; place: ShaderPlace } | null = null;
+    const stacked: { use: ShaderUse; place: ShaderPlace }[] = [];
+    for (const use of uses ?? []) {
+        const place = placeOfUse(use);
+        if (place === undefined || place === "group" || use.off === true) {
+            continue;
+        }
+
+        if (isExclusivePlace(place)) {
+            exclusive = { use, place };
+        } else {
+            stacked.push({ use, place });
+        }
     }
 
-    const heights = heightsOf(effects);
-    const on = Object.entries(effects).filter(
-        ([, value]) => value !== false && !(typeof value === "object" && value.visible === false),
-    );
-    const kept = new Set(
-        [...on]
-            .map(([id], order) => ({ id, order, height: heights.get(id) ?? 0 }))
-            .sort((a, b) => b.height - a.height || b.order - a.order)
-            .slice(0, EFFECT_CAP)
-            .map((entry) => entry.id),
-    );
-    const drawn = on
-        .filter(([id]) => kept.has(id))
-        .map(([id, value]): readonly [string, ShaderParams] => [id, value === true ? {} : (value as ShaderParams)]);
-
-    return { drawn, left: on.length - drawn.length };
+    const left = Math.max(0, stacked.length - STACK_CAP);
+    return { exclusive, stacked: stacked.slice(left), left };
 }
 
 /**
- * Stack a value over what lies beneath on a channel whose values merge field by field: a label
- * style, a parameter map or an effects map.
+ * Stack a value over what lies beneath on a channel whose values merge rather than replace: a
+ * label style (field by field) or a shader list (resolved by place).
  * @param channel - The channel.
  * @param held - What the layers beneath painted, or undefined.
  * @param over - What this layer paints.
  * @returns The merged value.
  */
 export function mergeChannelValue(channel: string, held: unknown, over: object): object {
-    if (channel.endsWith(".shaderParams")) {
-        return mergeShaderParams(held, over);
-    }
-
-    return channel.endsWith(".effects") ? mergeEffects(held, over) : mergeLabelStyle(held, over);
+    return isShaderListChannel(channel) ? mergeShaderUses(held, over) : mergeLabelStyle(held, over);
 }
 
-/** Where a parameter address points: the map channel, the shader and the parameter. */
+/** Where a parameter address points: the list channel, the shader and the parameter. */
 export interface ShaderParamTarget {
-    /** The map channel the value lands in. */
+    /** The list channel the value lands in. */
     readonly channel: Channel;
-    /** The shader or effect id. */
+    /** The shader id. */
     readonly shader: string;
     /** The parameter id. */
     readonly param: string;
@@ -4250,12 +4222,12 @@ export interface ShaderParamTarget {
 
 /**
  * Read an `encode` key that addresses one shader parameter:
- * `"<target>.<shaderParams|effects>.<shader id>.<parameter id>"`.
+ * `"<target>.shaders.<shader id>.<parameter id>"`.
  * @param name - The key.
  * @returns Where it points, or null when it is not a parameter address.
  */
 export function parseShaderParamAddress(name: string): ShaderParamTarget | null {
-    const match = /^(node|edge)\.(shaderParams|effects)\.(.+)\.([^./]+)$/.exec(name);
+    const match = /^(node|edge)\.(shaders)\.(.+)\.([^./]+)$/.exec(name);
     if (match === null) {
         return null;
     }
@@ -4264,12 +4236,20 @@ export function parseShaderParamAddress(name: string): ShaderParamTarget | null 
 }
 
 /**
- * A shader map as the repaint holds it: a deep copy with no prototype anywhere, so no key can
- * reach `Object.prototype` however it is spelled.
- * @param value - A map a layer wrote, already checked.
+ * A shader list or parameter map as the repaint holds it: a deep copy with no prototype on any
+ * map, so no key can reach `Object.prototype` however it is spelled.
+ * @param value - A value a layer wrote, already checked.
  * @returns The copy.
  */
 export function prototypeFreeMap(value: object): Record<string, unknown> {
+    if (Array.isArray(value)) {
+        return Object.freeze(
+            value.map((entry: unknown) =>
+                typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry,
+            ),
+        ) as unknown as Record<string, unknown>;
+    }
+
     const copy = Object.create(null) as Record<string, unknown>;
     for (const [key, entry] of Object.entries(value)) {
         copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;

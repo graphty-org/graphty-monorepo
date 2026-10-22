@@ -73,7 +73,7 @@ export async function mountLitScene(
         name: "Surface",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": shader, "node.shaderParams": { [shader]: options.params ?? {} } },
+        set: { "node.shaders": [{ shader: shader, params: options.params ?? {} }] },
     });
     await operationQueueOf(element.graph).waitForCompletion();
     await untilDrawn(element, options.only === true ? 0 : 1);

@@ -35,14 +35,7 @@
  */
 
 import { shaderDescriptor } from "../../catalog/shaderRegistry";
-import {
-    shaderCovers,
-    type ShaderDescriptor,
-    type ShaderEffects,
-    type ShaderParamSets,
-    type ShaderSlot,
-    slotRoleOf,
-} from "../../catalog/shaders";
+import { shaderCovers, type ShaderUse } from "../../catalog/shaders";
 import type {
     Channel,
     ChannelValue,
@@ -63,16 +56,15 @@ import {
     CHANNEL_DESCRIPTORS,
     CHANNELS,
     type ChannelValues,
-    drawnEffects,
-    EFFECT_CAP,
+    drawnUses,
     isChannel,
-    isShaderMapChannel,
+    isShaderListChannel,
     labelFieldOf,
     labelPatchOf,
     mergeChannelValue,
     mergeLabelStyle,
     parseShaderParamAddress,
-    SHADER_NONE,
+    STACK_CAP,
 } from "./channels";
 import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
@@ -346,11 +338,11 @@ export interface ChannelCovers {
  * | Code | Params |
  * | --- | --- |
  * | `caption.noArrow` | `channel`: the caption channel; `arrow`: the arrow channel at that end (`edge.arrowHead`, `edge.arrowTail`), which is `"none"` on those edges -- an undirected graph draws no head until a layer sets one; `count`: how many edges |
- * | `shader.unknown` | `channel` (or `"boundary"`); `shader`: an id the catalog does not list, so what lies beneath is drawn; `count` |
- * | `shader.target-mismatch` | `channel` (or `"boundary"`); `shader`; `expected`, `found`: the target that channel takes and the shader's, or when the targets agree, the role it takes and the shader's; `count` |
- * | `shader.param-unused` | `shader`, `param`: a parameter set for a shader not drawn on those elements; `count` |
- * | `shader.effect-cap` | `left`: the most effects left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
- * | `shader.boundary-cap` | `left`: how many of the layer's groups draw no outline, because the graph already draws `limit` (32) outlines across its layers, lowest layers first |
+ * | `shader.unknown` | `channel`; `shader`: an id the catalog does not list, so what lies beneath is drawn; `count` |
+ * | `shader.target-mismatch` | `channel`; `shader`; `expected`, `found`: the target the list takes and the shader's; `count` |
+ * | `shader.place-unsupported` | `channel`; `shader`; `place`: a place the shader does not allow, so the use draws nothing; `count` |
+ * | `shader.stack-cap` | `left`: the most stacking uses left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
+ * | `shader.group-cap` | `left`: how many of the layer's groups draw no outline, because the graph already draws `limit` (32) outlines across its layers, lowest layers first |
  * | `edge.lift-needs-flat-layout` | `count`: how many edges the layer lifts that are drawn flat, because the view is not a flat layout in 3D (`edge.lift` rises out of a flat layout's plane, so it draws only there) |
  *
  * New codes may be added in a minor release: word an unknown one generically.
@@ -360,9 +352,9 @@ export type UndrawnCode =
     | "caption.noArrow"
     | "shader.unknown"
     | "shader.target-mismatch"
-    | "shader.param-unused"
-    | "shader.effect-cap"
-    | "shader.boundary-cap"
+    | "shader.place-unsupported"
+    | "shader.stack-cap"
+    | "shader.group-cap"
     | "edge.lift-needs-flat-layout";
 
 /**
@@ -743,6 +735,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
     const order: Painting[] = [];
 
     const stack = prepareStack(sources);
+    const useLayers = new Map<ShaderUse, LayerId>();
     paintOne(stack, at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
         const { channel } = prepared;
         // Label styles stack field by field, as the repaint stacks them, and a label field
@@ -750,7 +743,9 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         const labelField = labelFieldOf(channel);
         if (labelField !== undefined) {
             merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
-        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" || isShaderMapChannel(channel)) {
+        } else if (isShaderListChannel(channel)) {
+            merged[channel] = mergeListValue(channel, merged[channel], result, layer.id, useLayers);
+        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle") {
             merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
         } else {
             merged[channel] = result;
@@ -782,7 +777,13 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         values: Object.freeze({ ...painting.values }),
     }));
 
-    const covering = coveringShader(at.target, merged, (channel) => winners.get(channel)?.layer.id, ranksOf(stack));
+    const covering = coveringShader(
+        at.target,
+        merged,
+        useLayers,
+        (channel) => winners.get(channel)?.layer.id,
+        ranksOf(stack),
+    );
     const channels: ChannelExplanation[] = [];
     for (const channel of CHANNELS) {
         const winner = winners.get(channel);
@@ -857,28 +858,27 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
         for (const index of indices) {
             totals[target]++;
             winners.clear();
-            const shader = { value: undefined as unknown, layerId: undefined as LayerId | undefined };
+            const list: Channel = `${target}.shaders`;
+            let uses: unknown;
+            const useLayers = new Map<ShaderUse, LayerId>();
             let shapeLayer: LayerId | undefined;
             paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
-                if (prepared.channel === `${target}.shader`) {
-                    shader.value = result;
-                    shader.layerId = layer.id;
+                if (prepared.channel === list) {
+                    uses = mergeListValue(list, uses, result, layer.id, useLayers);
                 } else if (prepared.channel === "node.shape") {
                     shapeLayer = layer.id;
                 }
 
                 if (only === undefined || prepared.channel === only) {
-                    const held = winners.get(prepared.channel)?.value;
-                    const value = isShaderMapChannel(prepared.channel)
-                        ? mergeChannelValue(prepared.channel, held, result as object)
-                        : result;
+                    const value = prepared.channel === list ? uses : result;
                     winners.set(prepared.channel, { layerId: layer.id, value });
                 }
             });
             const covering = coveringShader(
                 target,
-                { [`${target}.shader`]: shader.value },
-                (channel) => (channel === "node.shape" ? shapeLayer : shader.layerId),
+                { [list]: uses },
+                useLayers,
+                (channel) => (channel === "node.shape" ? shapeLayer : undefined),
                 rankOf,
             );
 
@@ -1029,61 +1029,65 @@ interface WinTally {
 }
 
 /**
- * The shader drawn on an element, when it covers channels: the layer that won `<target>.shader`
- * and the channels its shader is drawn in place of.
+ * Stack one layer's shader list over what lies beneath, as the repaint does, and note which layer
+ * wrote each use.
+ * @param channel - The list channel.
+ * @param held - What the layers beneath resolved.
+ * @param result - What this layer paints.
+ * @param layerId - This layer.
+ * @param useLayers - Which layer wrote each use, added to.
+ * @returns The resolved list.
+ */
+function mergeListValue(
+    channel: Channel,
+    held: unknown,
+    result: unknown,
+    layerId: LayerId,
+    useLayers: Map<ShaderUse, LayerId>,
+): unknown {
+    const merged = mergeChannelValue(channel, held, result as object) as readonly ShaderUse[];
+    for (const use of merged) {
+        if (!useLayers.has(use)) {
+            useLayers.set(use, layerId);
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * The shader drawn on an element at `paint` or `replace`, when it covers channels: its layer and
+ * the channels it is drawn in place of.
  * @param target - Nodes or edges.
- * @param values - What the element is painted, read for `<target>.shader`.
- * @param winnerOf - The layer that won a channel.
+ * @param values - What the element is painted, read for `<target>.shaders`.
+ * @param useLayers - Which layer wrote each use.
+ * @param winnerOf - The layer that won a channel (read for `node.shape`).
  * @param rankOf - A layer's place in the stack, bottom first.
  * @returns The covering layer and its channels, or null when no shader that covers anything is
- *   drawn (none, "none", an id the catalog does not list, one for another place, or a card under
- *   a shape a higher layer sets).
+ *   drawn (none, an id the catalog does not list, or a `replace` under a shape a higher layer sets).
  */
 function coveringShader(
     target: SelectorTarget,
     values: Readonly<Record<string, unknown>>,
+    useLayers: ReadonlyMap<ShaderUse, LayerId>,
     winnerOf: (channel: Channel) => LayerId | undefined,
     rankOf: (layerId: LayerId) => number,
 ): { readonly layerId: LayerId; readonly covers: readonly Channel[] } | null {
-    const channel: Channel = `${target}.shader`;
-    const id = values[channel];
-    const layerId = winnerOf(channel);
-    const descriptor = typeof id === "string" && id !== SHADER_NONE ? shaderDescriptor(id) : undefined;
-    if (descriptor === undefined || layerId === undefined) {
+    const uses = values[`${target}.shaders`];
+    const { exclusive } = drawnUses(Array.isArray(uses) ? (uses as readonly ShaderUse[]) : undefined);
+    const descriptor = exclusive === null ? undefined : shaderDescriptor(exclusive.use.shader);
+    const layerId = exclusive === null ? undefined : useLayers.get(exclusive.use);
+    if (exclusive === null || descriptor === undefined || layerId === undefined || descriptor.target !== target) {
         return null;
     }
 
-    const place = CHANNEL_DESCRIPTORS[channel].shaderSlot;
-    if (place === undefined || placeMismatch(place, descriptor) !== null) {
-        return null;
-    }
-
-    // A `replace` shader and a shape: the topmost layer's is drawn.
-    const shape = descriptor.place === "replace" ? winnerOf("node.shape") : undefined;
+    // A `replace` use and a shape: the topmost layer's is drawn.
+    const shape = exclusive.place === "replace" ? winnerOf("node.shape") : undefined;
     if (shape !== undefined && rankOf(shape) > rankOf(layerId)) {
         return null;
     }
 
-    return { layerId, covers: shaderCovers(descriptor) };
-}
-
-/**
- * How a shader differs from the place it is written to.
- * @param place - The target and role the place takes.
- * @param descriptor - The shader.
- * @returns `{ expected, found }`: the targets when they differ, else the roles when they differ;
- *   null when it fits.
- */
-function placeMismatch(
-    place: ShaderSlot,
-    descriptor: Pick<ShaderDescriptor, "target" | "place">,
-): { readonly expected: string; readonly found: string } | null {
-    if (descriptor.target !== place.target) {
-        return { expected: place.target, found: descriptor.target };
-    }
-
-    const role = slotRoleOf(descriptor);
-    return role === place.role ? null : { expected: place.role, found: role };
+    return { layerId, covers: shaderCovers(descriptor, exclusive.place) };
 }
 
 /** Each prepared stack's rank lookup, built once per stack. */
@@ -1113,6 +1117,8 @@ interface ElementWins {
     readonly values: Partial<Record<Channel, unknown>>;
     /** What the counted layer itself painted. */
     readonly own: Partial<Record<Channel, unknown>>;
+    /** Which layer wrote each shader use. */
+    readonly useLayers: ReadonlyMap<ShaderUse, LayerId>;
 }
 
 /**
@@ -1127,27 +1133,26 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
     const winners = new Map<Channel, LayerId>();
     const values: Partial<Record<Channel, unknown>> = {};
     const own: Partial<Record<Channel, unknown>> = {};
+    const useLayers = new Map<ShaderUse, LayerId>();
     paintOne(stack, at, columns, (winner, prepared, result) => {
         const { channel } = prepared;
         winners.set(channel, winner.id);
-        values[channel] = isShaderMapChannel(channel)
-            ? mergeChannelValue(channel, values[channel], result as object)
+        values[channel] = isShaderListChannel(channel)
+            ? mergeListValue(channel, values[channel], result, winner.id, useLayers)
             : result;
         if (winner.id === layerId) {
-            own[channel] = isShaderMapChannel(channel)
-                ? mergeChannelValue(channel, own[channel], result as object)
-                : result;
+            own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
         }
     });
 
-    return { winners, values, own };
+    return { winners, values, own, useLayers };
 }
 
 /**
  * Count the channels one layer wins on one element, through the same walk `explain` takes.
  *
- * A map channel (`shaderParams`, `effects`) merges rather than replaces, so a layer counts as
- * painting it wherever it writes it, and no layer above covers it. A channel a drawn shader covers
+ * A shader list resolves rather than replaces, so a layer counts as painting it wherever it
+ * writes it, and no layer above covers it. A channel a drawn shader covers
  * (a sprite's shape rows) is covered by the shader's layer.
  * @param stack - The stack with its bindings.
  * @param at - Where the element sits.
@@ -1164,7 +1169,13 @@ function countWins(
 ): void {
     const found = walkWins(stack, at, columns, layerId);
     const { painted, others, perChannel, undrawn } = tally;
-    const covering = coveringShader(at.target, found.values, (channel) => found.winners.get(channel), ranksOf(stack));
+    const covering = coveringShader(
+        at.target,
+        found.values,
+        found.useLayers,
+        (channel) => found.winners.get(channel),
+        ranksOf(stack),
+    );
     const cover = (channel: Channel, by: LayerId): void => {
         if (by !== layerId) {
             others.set(by, (others.get(by) ?? 0) + 1);
@@ -1182,7 +1193,7 @@ function countWins(
 
         if (covering?.covers.includes(channel) === true && (winner === layerId || channel in found.own)) {
             cover(channel, covering.layerId);
-        } else if (winner === layerId || (isShaderMapChannel(channel) && channel in found.own)) {
+        } else if (winner === layerId || (isShaderListChannel(channel) && channel in found.own)) {
             painted[channel] = (painted[channel] ?? 0) + 1;
         } else {
             cover(channel, winner);
@@ -1212,27 +1223,31 @@ function countFact(tally: ShaderFactTally, code: UndrawnCode, params: Record<str
 }
 
 /**
- * Check one shader id a layer wrote on one channel.
+ * Check one shader use a layer wrote on its list.
  * @param tally - Where facts are counted.
- * @param channel - The channel.
- * @param id - The id.
+ * @param channel - The list channel.
+ * @param use - The use.
  */
-function checkShaderId(tally: ShaderFactTally, channel: Channel, id: string): void {
-    const descriptor = shaderDescriptor(id);
+function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse): void {
+    const descriptor = shaderDescriptor(use.shader);
+    const target = channel === "node.shaders" ? ["node", "group"] : ["edge"];
     if (descriptor === undefined) {
-        countFact(tally, "shader.unknown", { channel, shader: id });
-    } else {
-        const place = CHANNEL_DESCRIPTORS[channel].shaderSlot;
-        const mismatch = place === undefined ? null : placeMismatch(place, descriptor);
-        if (mismatch !== null) {
-            countFact(tally, "shader.target-mismatch", { channel, shader: id, ...mismatch });
-        }
+        countFact(tally, "shader.unknown", { channel, shader: use.shader });
+    } else if (!target.includes(descriptor.target)) {
+        countFact(tally, "shader.target-mismatch", {
+            channel,
+            shader: use.shader,
+            expected: channel.slice(0, 4),
+            found: descriptor.target,
+        });
+    } else if (use.off !== true && use.place !== undefined && !(descriptor.places ?? []).includes(use.place)) {
+        countFact(tally, "shader.place-unsupported", { channel, shader: use.shader, place: use.place });
     }
 }
 
 /**
- * A tally of what a layer's shader channels write that draws nothing: an id the catalog does not
- * list or of the wrong kind, parameters for a shader not drawn, effects past the cap.
+ * A tally of what a layer's shader list writes that draws nothing: an id the catalog does not
+ * list, of the wrong target or at a place it does not allow, and stacking uses past the cap.
  * @param target - Nodes or edges.
  * @returns The tally, and a function to read it out as facts.
  */
@@ -1241,32 +1256,18 @@ function shaderTally(target: SelectorTarget): {
     readonly facts: () => readonly CodedFact<UndrawnCode>[];
 } {
     const tally: ShaderFactTally = new Map();
-    const shader: Channel = `${target}.shader`;
-    const params: Channel = `${target}.shaderParams`;
-    const effects: Channel = `${target}.effects`;
+    const list: Channel = `${target}.shaders`;
     let capped = 0;
     let left = 0;
 
     return {
         add({ own, values }): void {
-            const id = own[shader];
-            if (typeof id === "string" && id !== SHADER_NONE) {
-                checkShaderId(tally, shader, id);
+            const mine = own[list] as readonly ShaderUse[] | undefined;
+            for (const use of mine ?? []) {
+                checkShaderUse(tally, list, use);
             }
 
-            for (const effect of Object.keys((own[effects] as ShaderEffects | undefined) ?? {})) {
-                checkShaderId(tally, effects, effect);
-            }
-
-            for (const [set, values_] of Object.entries((own[params] as ShaderParamSets | undefined) ?? {})) {
-                if (set !== values[shader] && typeof values_ === "object") {
-                    for (const param of Object.keys(values_)) {
-                        countFact(tally, "shader.param-unused", { shader: set, param });
-                    }
-                }
-            }
-
-            const lost = own[effects] === undefined ? 0 : drawnEffects(values[effects] as ShaderEffects).left;
+            const lost = mine === undefined ? 0 : drawnUses(values[list] as readonly ShaderUse[]).left;
             if (lost > 0) {
                 capped++;
                 left = Math.max(left, lost);
@@ -1276,7 +1277,7 @@ function shaderTally(target: SelectorTarget): {
             Object.freeze([
                 ...[...tally.values()].map((entry) => ({ code: entry.code, params: entry.params })),
                 ...(capped > 0
-                    ? [{ code: "shader.effect-cap" as const, params: { left, limit: EFFECT_CAP, count: capped } }]
+                    ? [{ code: "shader.stack-cap" as const, params: { left, limit: STACK_CAP, count: capped } }]
                     : []),
             ]),
     };
@@ -1321,29 +1322,6 @@ function captionTally(directed: boolean): {
                 })),
             ),
     };
-}
-
-/**
- * What a layer's boundary shader does not draw: nothing when the layer names none, matches
- * nothing, or names a boundary shader; else one fact saying the shader is unknown or of another
- * kind, with how many elements it would have drawn.
- * @param boundary - The boundary shader the layer names, if any.
- * @param matched - How many elements the layer matched.
- * @returns The facts.
- */
-function boundaryFactsOf(boundary: string | undefined, matched: number): CodedFact<UndrawnCode>[] {
-    const descriptor = boundary === undefined ? undefined : shaderDescriptor(boundary);
-    const mismatch = descriptor === undefined ? null : placeMismatch({ target: "group", role: "look" }, descriptor);
-    if (boundary === undefined || matched === 0 || (descriptor !== undefined && mismatch === null)) {
-        return [];
-    }
-
-    return [
-        {
-            code: descriptor === undefined ? "shader.unknown" : "shader.target-mismatch",
-            params: { channel: "boundary", shader: boundary, ...mismatch, count: matched },
-        },
-    ];
 }
 
 /**
@@ -1423,8 +1401,6 @@ export function styleCounts(
         }
     }
 
-    const boundaryFacts = boundaryFactsOf(layer.boundary?.shader, matched);
-
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
     const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({
         code,
@@ -1442,7 +1418,6 @@ export function styleCounts(
         undrawn: Object.freeze([
             ...captions.facts(),
             ...shaders.facts(),
-            ...boundaryFacts,
             ...(flatLifts > 0 ? [{ code: "edge.lift-needs-flat-layout" as const, params: { count: flatLifts } }] : []),
         ]),
         ...topFacts(layer.selector, columns, indices),

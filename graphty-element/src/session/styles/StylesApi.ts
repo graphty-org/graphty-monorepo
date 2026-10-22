@@ -76,7 +76,7 @@
  */
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
-import { isShaderId, type LayerBoundary } from "../../catalog/shaders";
+import { isShaderId, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -135,7 +135,14 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { channelDescriptor, isChannel, readRenamedChannels, toColorValue } from "./channels";
+import {
+    channelDescriptor,
+    isChannel,
+    mergeShaderUses,
+    placeOfUse,
+    readRenamedChannels,
+    toColorValue,
+} from "./channels";
 import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
 import {
     type BindingPreview,
@@ -650,7 +657,7 @@ export interface StylesApi {
      * the code `E_BAD_COMMAND` that `encode()` would reject with.
      *
      * `channel` may also be a shader parameter declared `varies`, by its address
-     * (`"node.effects.uncertainty-aura.intensity"`, since 3.36.0): the binding then maps onto the
+     * (`"node.shaders.uncertainty-aura.intensity"`, since 3.36.0): the binding then maps onto the
      * parameter's declared range, and is written under that address in a layer's `encode`.
      * @param spec - What `encode()` would be asked.
      * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
@@ -4884,14 +4891,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
             // Groups past the outline cap draw nothing; said here, never dropped silently.
-            const left = boundariesOf(api).find((each) => each.layer === id)?.left ?? 0;
+            const left = groupOutlinesOf(api)
+                .filter((each) => each.layer === id)
+                .reduce((sum, each) => sum + each.left, 0);
             return left === 0
                 ? counts
                 : {
                       ...counts,
                       undrawn: Object.freeze([
                           ...counts.undrawn,
-                          { code: "shader.boundary-cap" as const, params: { left, limit: BOUNDARY_GROUP_CAP } },
+                          { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
                       ]),
                   };
         },
@@ -5015,44 +5024,48 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     PAINTING.set(api, painting);
-    BOUNDARIES.set(api, () => boundaryGroups(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
+    OUTLINES.set(api, () => groupOutlineSets(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
     return api;
 }
 
 /**
- * The most boundary groups one graph draws, across every layer (`shader.boundary-cap`): the field
+ * The most group outlines one graph draws, across every layer (`shader.group-cap`): the field
  * targets hold as many (eight targets of four groups), so no group drawn from a field is ever left
  * out by them.
  */
-export const BOUNDARY_GROUP_CAP = 32;
+export const GROUP_OUTLINE_CAP = 32;
 
-/** A group's key: its `groupBy` value, or null for a layer drawing one boundary. */
-export type BoundaryGroupKey = string | number | boolean | null;
+/** A group's key: its `groupBy` value, or null for a use drawing one outline. */
+export type GroupKey = string | number | boolean | null;
 
-/** One boundary layer as it draws: its groups and their members, bottom layer first. */
-export interface BoundaryLayerGroups {
-    /** The layer. */
+/**
+ * One use at the place `group` as it draws: its groups and their members, bottom first. A node is a
+ * member when it still carries the use after the stack is resolved.
+ */
+export interface GroupOutlineSet {
+    /** The layer the use is on. */
     readonly layer: LayerId;
-    /** Its boundary member. */
-    readonly boundary: LayerBoundary;
+    /** The use. */
+    readonly use: ShaderUse;
     /** Its groups, in the order their values were first seen. */
-    readonly groups: readonly { readonly key: BoundaryGroupKey; readonly members: readonly NodeId[] }[];
+    readonly groups: readonly { readonly key: GroupKey; readonly members: readonly NodeId[] }[];
     /** How many groups the cap left out. */
     readonly left: number;
 }
 
-/** Each stack's boundary reader, by the API that owns it; see {@link boundariesOf}. */
-const BOUNDARIES = new WeakMap<SessionStylesApi, () => readonly BoundaryLayerGroups[]>();
+/** Each stack's outline reader, by the API that owns it; see {@link groupOutlinesOf}. */
+const OUTLINES = new WeakMap<SessionStylesApi, () => readonly GroupOutlineSet[]>();
 
 /**
- * The boundaries a stack draws now: every enabled node layer with a `boundary` member, its
- * matched nodes grouped by `groupBy`. A node without a `groupBy` value is in no group. At most
- * {@link BOUNDARY_GROUP_CAP} groups across the whole stack, lowest layers first.
+ * The group outlines a stack draws now: one per (layer, use at `group`, `groupBy` value), around
+ * the nodes that carry that use once the stack's `node.shaders` lists are resolved. A node without
+ * a `groupBy` value is in no group. At most {@link GROUP_OUTLINE_CAP} groups across the whole
+ * stack, lowest layers first.
  * @param api - A stack {@link createStylesApi} built (anything else draws none).
- * @returns The boundary layers, bottom first.
+ * @returns The outlines, bottom first.
  */
-export function boundariesOf(api: object): readonly BoundaryLayerGroups[] {
-    return BOUNDARIES.get(api as SessionStylesApi)?.() ?? [];
+export function groupOutlinesOf(api: object): readonly GroupOutlineSet[] {
+    return OUTLINES.get(api as SessionStylesApi)?.() ?? [];
 }
 
 /**
@@ -5060,7 +5073,7 @@ export function boundariesOf(api: object): readonly BoundaryLayerGroups[] {
  * @param value - The value.
  * @returns The key, or undefined for no value.
  */
-function groupKeyOf(value: unknown): BoundaryGroupKey | undefined {
+function groupKeyOf(value: unknown): GroupKey | undefined {
     if (value === undefined || value === null) {
         return undefined;
     }
@@ -5071,62 +5084,74 @@ function groupKeyOf(value: unknown): BoundaryGroupKey | undefined {
 }
 
 /**
- * The boundary groups of a painting stack.
+ * The group outlines of a painting stack.
  * @param stack - The stack as it paints, bottom first.
  * @param sources - The stack's sources, for the graph's nodes and their values.
  * @param nodeIndex - A node's index by id.
- * @returns The boundary layers.
+ * @returns The outlines.
  */
-function boundaryGroups(
+function groupOutlineSets(
     stack: readonly CompiledLayer[],
     sources: StylesSources,
     nodeIndex: (id: NodeId) => number | undefined,
-): readonly BoundaryLayerGroups[] {
+): readonly GroupOutlineSet[] {
     const layers = stack.filter(
-        (entry) => entry.layer.enabled && entry.layer.target === "node" && entry.layer.boundary !== undefined,
+        (entry) =>
+            entry.layer.enabled &&
+            entry.layer.target === "node" &&
+            Array.isArray(entry.layer.set?.["node.shaders"]) &&
+            (entry.layer.set["node.shaders"] as readonly ShaderUse[]).length > 0,
     );
-    if (layers.length === 0) {
+    const owner = new Map<ShaderUse, LayerId>();
+    for (const { layer } of layers) {
+        for (const use of layer.set?.["node.shaders"] as readonly ShaderUse[]) {
+            owner.set(use, layer.id);
+        }
+    }
+
+    const grouped = [...owner.keys()].filter((use) => use.off !== true && placeOfUse(use) === "group");
+    if (grouped.length === 0) {
         return [];
     }
 
-    const nodes = [...(sources.resolveScope?.(WHOLE_GRAPH).nodes ?? [])];
-    let room = BOUNDARY_GROUP_CAP;
-    return layers.map(({ layer, selector }) => {
-        const boundary = layer.boundary as LayerBoundary;
-        const groups = new Map<BoundaryGroupKey, NodeId[]>();
-        const dropped = new Set<BoundaryGroupKey>();
-        for (const id of nodes) {
-            const index = nodeIndex(id);
-            if (index === undefined || (selector.test !== null && !selector.test(index))) {
-                continue;
-            }
-
-            const key =
-                boundary.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, boundary.groupBy));
-            if (key === undefined) {
-                continue;
-            }
-
-            let members = groups.get(key);
-            if (members === undefined) {
-                if (room === 0) {
-                    dropped.add(key);
-                    continue;
-                }
-
-                room--;
-                members = [];
-                groups.set(key, members);
-            }
-
-            members.push(id);
+    // Per use, its members by group, in the order the nodes are met.
+    const members = new Map<ShaderUse, Map<GroupKey, NodeId[]>>(grouped.map((use) => [use, new Map()]));
+    for (const id of sources.resolveScope?.(WHOLE_GRAPH).nodes ?? []) {
+        const index = nodeIndex(id);
+        if (index === undefined) {
+            continue;
         }
 
+        let uses: readonly ShaderUse[] = [];
+        for (const { layer, selector } of layers) {
+            if (selector.test === null || selector.test(index)) {
+                uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
+            }
+        }
+
+        for (const use of uses) {
+            const groups = members.get(use);
+            const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
+            if (groups === undefined || key === undefined) {
+                continue;
+            }
+
+            const list = groups.get(key) ?? [];
+            list.push(id);
+            groups.set(key, list);
+        }
+    }
+
+    let room = GROUP_OUTLINE_CAP;
+    return grouped.map((use) => {
+        const all = [...(members.get(use) ?? [])];
+        const kept = all.slice(0, room);
+        room -= kept.length;
         return Object.freeze({
-            layer: layer.id,
-            boundary,
-            groups: Object.freeze([...groups].map(([key, members]) => ({ key, members }))),
-            left: dropped.size,
+            layer: owner.get(use) as LayerId,
+            use,
+            groups: Object.freeze(kept.map(([key, list]) => ({ key, members: list }))),
+            left: all.length - kept.length,
         });
     });
 }

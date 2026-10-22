@@ -157,7 +157,7 @@ function events(watched: GraphSession): {
 function documentWithTint(extra: Record<string, unknown> = {}): StyleDocument {
     return {
         version: 1,
-        layers: [{ ...MARBLES, name: "Tinted", set: { "node.shader": "user/tint" } }],
+        layers: [{ ...MARBLES, name: "Tinted", set: { "node.shaders": [{ shader: "user/tint" }] } }],
         shaders: [{ id: "user/tint", text: TINT }],
         ...extra,
     };
@@ -236,24 +236,28 @@ describe("session.shaders", () => {
         const steps = s.history.steps.length;
         const added = await s.shaders.add(TINT, { apply: { layer } });
         assert.isTrue(added.ok);
-        assert.strictEqual(s.styles.get(layer)?.set?.["node.shader"], "user/tint");
+        assert.deepEqual(s.styles.get(layer)?.set?.["node.shaders"], [{ shader: "user/tint" }]);
         assert.strictEqual(s.history.steps.length, steps + 1);
         assert.deepEqual(s.history.steps.at(-1)?.fact, { code: "shader.add", params: { id: "user/tint", layer } });
 
         await s.undo();
         assert.lengthOf(s.shaders.list(), 0);
-        assert.isUndefined(s.styles.get(layer)?.set?.["node.shader"]);
+        assert.isUndefined(s.styles.get(layer)?.set?.["node.shaders"]);
         assert.strictEqual(s.styles.get(layer)?.set?.["node.color"], "#3366cc");
 
         await s.redo();
         assert.lengthOf(s.shaders.list(), 1);
-        assert.strictEqual(s.styles.get(layer)?.set?.["node.shader"], "user/tint");
+        assert.deepEqual(s.styles.get(layer)?.set?.["node.shaders"], [{ shader: "user/tint" }]);
     });
 
-    it("applies an effect as an added effect, keeping the layer's others", async () => {
+    it("applies a shader as a use added to the end of the layer's list, keeping the others", async () => {
         const { session: s, layer } = await session();
+        await s.shaders.add(TINT, { apply: { layer } });
         await s.shaders.add(RING, { apply: { layer } });
-        assert.deepEqual({ ...(s.styles.get(layer)?.set?.["node.effects"] as object) }, { "user/ring": true });
+        assert.deepEqual(s.styles.get(layer)?.set?.["node.shaders"], [
+            { shader: "user/tint" },
+            { shader: "user/ring" },
+        ]);
     });
 
     it("replaces and removes as undoable steps", async () => {
@@ -290,7 +294,15 @@ describe("session.shaders", () => {
         const report = await s.styles.applyTemplate(documentWithTint());
         assert.deepEqual(report.shaders, [{ code: "shader.held", params: { ids: ["user/tint"] } }]);
         assert.strictEqual(s.shaders.status("user/tint").state, "held");
-        assert.isTrue(s.styles.list().some((layer) => layer.set?.["node.shader"] === "user/tint"));
+        assert.isTrue(
+            s.styles
+                .list()
+                .some((layer) =>
+                    ((layer.set?.["node.shaders"] ?? []) as readonly { shader: string }[]).some(
+                        (use) => use.shader === "user/tint",
+                    ),
+                ),
+        );
     });
 
     it("holds a document's shader even when the document asks to run it", async () => {
@@ -571,7 +583,7 @@ describe("session.shaders", () => {
         defineShader({ id: "acme/heat", params: { hot: "#ff5500" }, glsl: HEAT_BODY });
         try {
             const { session: s, layer } = await session();
-            await s.styles.update(layer, { set: { "node.shader": "acme/heat" } });
+            await s.styles.update(layer, { set: { "node.shaders": [{ shader: "acme/heat" }] } });
             const document = s.styles.toDocument();
             const carried = document.shaders?.find((entry) => entry.id === "acme/heat");
             assert.ok(carried, "the registered shader's text is in the document");
@@ -679,9 +691,9 @@ describe("session.shaders", () => {
         const added = await s.shaders.add(text, { apply: { layer } });
         assert.isTrue(added.ok && added.descriptor.id === "uncertainty-aura");
         assert.lengthOf(s.shaders.list(), 0);
-        assert.deepEqual(JSON.parse(JSON.stringify(s.styles.get(layer)?.set?.["node.effects"])), {
-            "uncertainty-aura": { tint: 0.9 },
-        });
+        assert.deepEqual(JSON.parse(JSON.stringify(s.styles.get(layer)?.set?.["node.shaders"])), [
+            { shader: "uncertainty-aura", params: { tint: 0.9 } },
+        ]);
 
         const duplicate = await s.shaders.source("uncertainty-aura", { duplicate: true });
         assert.include(duplicate, '"id": "user/uncertainty-aura"');
@@ -691,10 +703,10 @@ describe("session.shaders", () => {
         assert.strictEqual(await s.shaders.source("user/tint"), TINT);
     });
 
-    it("says a background that tints by groups has nothing to tint by when no layer draws a boundary", async () => {
+    it("says a background that tints by groups has nothing to tint by when no layer draws a group outline", async () => {
         const { session: s, layer } = await session();
         assert.deepEqual(s.shaders.status("nebula").problem, { code: "shader.no-data", params: { input: "members" } });
-        await s.styles.update(layer, { boundary: { shader: "metaball-hull" } });
+        await s.styles.update(layer, { set: { "node.shaders": [{ shader: "metaball-hull" }] } });
         assert.isUndefined(s.shaders.status("nebula").problem);
     });
 

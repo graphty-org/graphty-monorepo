@@ -158,7 +158,7 @@ async function frame(element: Graphty): Promise<Uint8Array> {
 function tintDocument(extra: Record<string, unknown> = {}): StyleDocument {
     return {
         version: 1,
-        layers: [{ ...MARBLES, name: "Tinted", set: { "node.shader": "user/tint" } }],
+        layers: [{ ...MARBLES, name: "Tinted", set: { "node.shaders": [{ shader: "user/tint" }] } }],
         shaders: [{ id: "user/tint", text: TINT }],
         ...extra,
     };
@@ -241,7 +241,7 @@ describe("shaders in the element's engine", () => {
             assert.strictEqual(added.problems[0].params.line, 10);
         }
 
-        assert.isUndefined(element.session.styles.get(layer)?.set?.["node.shader"]);
+        assert.isUndefined(element.session.styles.get(layer)?.set?.["node.shaders"]);
         assert.lengthOf(element.session.shaders.list(), 0);
         assert.isTrue(element.graph.engine.areAllEffectsReady(), "the failed effect is still in the engine");
         const drawn = await untilResting(element);
@@ -332,9 +332,9 @@ describe("shaders in the element's engine", () => {
     it("undoes an add with apply in one step", async () => {
         const { element, layer } = await mounted();
         await element.session.shaders.add(TINT, { apply: { layer } });
-        assert.strictEqual(element.session.styles.get(layer)?.set?.["node.shader"], "user/tint");
+        assert.deepEqual(element.session.styles.get(layer)?.set?.["node.shaders"], [{ shader: "user/tint" }]);
         await element.session.undo();
         assert.lengthOf(element.session.shaders.list(), 0);
-        assert.isUndefined(element.session.styles.get(layer)?.set?.["node.shader"]);
+        assert.isUndefined(element.session.styles.get(layer)?.set?.["node.shaders"]);
     });
 });

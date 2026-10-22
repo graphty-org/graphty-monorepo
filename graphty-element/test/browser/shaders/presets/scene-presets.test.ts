@@ -1,9 +1,9 @@
 /**
  * @file The scene presets drawn by a real element (design/rendering/shader-styles.md section 8,
- * package P6): the nebula background and the soap-bubble and hull boundaries compile and draw;
+ * package P6): the nebula background and the soap-bubble and hull group outlines compile and draw;
  * every parameter at each end of its range draws without a NaN; motion is honored (each rests at
  * speed 0, and the nebula at drift 0 is drawn again only when the camera moves); none flashes more
- * than three times a second at its fastest; the nebula takes the boundaries' colors only when
+ * than three times a second at its fastest; the nebula takes the group outlines' colors only when
  * asked; and a hull on a 10,000-node community layer splats one kernel per member.
  *
  * Each drawing case leaves a PNG under tmp/scene-presets/ for a person to look at.
@@ -132,23 +132,23 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
- * A boundary layer over the communities.
- * @param shader - The boundary shader.
+ * A group outline over the communities.
+ * @param shader - The group outline shader.
  * @param params - Its parameters.
  * @param groupBy - The data path it groups by.
  * @returns The layer.
  */
-function boundaryLayer(shader: string, params: ShaderParams = {}, groupBy = "data.community"): LayerSpec {
+function outlineLayer(shader: string, params: ShaderParams = {}, groupBy = "data.community"): LayerSpec {
     return {
-        name: `Boundary ${groupBy}`,
+        name: `Outline ${groupBy}`,
         target: "node",
         selector: { match: "has", path: groupBy },
-        boundary: { shader, params, groupBy },
+        set: { "node.shaders": [{ shader, params, groupBy }] },
     };
 }
 
 /**
- * Mount a preset: the nebula as the background, a boundary as one community layer.
+ * Mount a preset: the nebula as the background, a group outline as one community layer.
  * @param id - The preset, or a shader registered from one.
  * @param kind - The preset's kind.
  * @param params - Its parameters.
@@ -168,8 +168,8 @@ async function showing(
         return element;
     }
 
-    const element = await mounted([boundaryLayer(id, params)], options);
-    await until(element, `${id} draws`, () => (passesOf(element).boundary?.drawn()[0]?.groups.length ?? 0) === 3);
+    const element = await mounted([outlineLayer(id, params)], options);
+    await until(element, `${id} draws`, () => (passesOf(element).outline?.drawn()[0]?.groups.length ?? 0) === 3);
     return element;
 }
 
@@ -203,9 +203,11 @@ async function setParams(element: Graphty, id: string, kind: string, params: Sha
     if (kind === "background") {
         element.background = { backgroundType: "color", color: "#000000", shader: { id, params } };
     } else {
-        const layer = element.session.styles.list().find((each) => each.boundary !== undefined);
+        const layer = element.session.styles.list().find((each) => each.set?.["node.shaders"] !== undefined);
         assert.isDefined(layer);
-        await element.session.styles.update(layer.id, { boundary: { shader: id, params, groupBy: "data.community" } });
+        await element.session.styles.update(layer.id, {
+            set: { "node.shaders": [{ shader: id, params, groupBy: "data.community" }] },
+        });
         await element.session.styles.settled();
     }
 
@@ -342,8 +344,8 @@ describe("the scene presets on a real element", () => {
 
     it.each(["goo", "membrane", "outline"])("the hull draws its %s look around nested subgroups", async (look) => {
         const shader = presetId("metaball-hull");
-        const element = await mounted([boundaryLayer(shader, { look }), boundaryLayer(shader, { look }, "data.sub")]);
-        await until(element, "both layers draw", () => passesOf(element).boundary?.drawn().length === 2);
+        const element = await mounted([outlineLayer(shader, { look }), outlineLayer(shader, { look }, "data.sub")]);
+        await until(element, "both layers draw", () => passesOf(element).outline?.drawn().length === 2);
         await commands.writeFile(
             `tmp/scene-presets/hull-${look}.png`,
             await pngOf(await canvasPixels(element)),
@@ -351,7 +353,7 @@ describe("the scene presets on a real element", () => {
         );
         assert.deepEqual(
             passesOf(element)
-                .boundary?.drawn()
+                .outline?.drawn()
                 .map(({ depth }) => depth),
             [0, 1],
         );
@@ -388,7 +390,7 @@ describe("the scene presets on a real element", () => {
         const scene = element.graph.getScene();
         const pass = passesOf(element).background;
         if (pass === null) {
-            // A boundary moves on every frame it draws.
+            // A group outline moves on every frame it draws.
             await drawnFrames(scene, 3);
             assert.isAbove(everyFrameAnimationsOn(scene), 0, "it keeps the frames coming");
             await setParams(element, shader, drawingOf(descriptor), { [speed]: 0 });
@@ -498,22 +500,22 @@ describe("the scene presets on a real element", () => {
         assert.isBelow(total / (width * height), 0.01, "the stars are a sprinkle, not a blizzard");
     });
 
-    it("the nebula takes the boundaries' colors only with tintBy boundaries", async () => {
+    it("the nebula takes the group outlines' colors only with tintBy group outlines", async () => {
         const nebula = presetId("nebula");
-        const element = await mounted([boundaryLayer(presetId("metaball-hull"), { look: "outline", fillOpacity: 0 })]);
+        const element = await mounted([outlineLayer(presetId("metaball-hull"), { look: "outline", fillOpacity: 0 })]);
         element.background = {
             backgroundType: "color",
             color: "#000000",
             shader: { id: nebula, params: { drift: 0 } },
         };
         await until(element, "the nebula draws", () => passesOf(element).background?.shown === true);
-        await until(element, "the hulls draw", () => (passesOf(element).boundary?.tints(4).length ?? 0) === 3);
+        await until(element, "the hulls draw", () => (passesOf(element).outline?.tints(4).length ?? 0) === 3);
         const plain = (await canvasPixels(element)).rgba;
 
         element.background = {
             backgroundType: "color",
             color: "#000000",
-            shader: { id: nebula, params: { drift: 0, tintBy: "boundaries" } },
+            shader: { id: nebula, params: { drift: 0, tintBy: "groups" } },
         };
         await drawnFrames(element.graph.getScene(), 3);
         const tinted = await canvasPixels(element);
@@ -567,14 +569,14 @@ describe("the scene presets on a real element", () => {
                 y: 300 * Math.sin(angle) + Math.floor(k / 35) * 4,
             };
         });
-        const element = await mounted([boundaryLayer(presetId("metaball-hull"))], { nodes });
+        const element = await mounted([outlineLayer(presetId("metaball-hull"))], { nodes });
         const pass = await (async () => {
             await until(
                 element,
                 "the hulls draw",
-                () => (passesOf(element).boundary?.drawn()[0]?.groups.length ?? 0) === 8,
+                () => (passesOf(element).outline?.drawn()[0]?.groups.length ?? 0) === 8,
             );
-            return passesOf(element).boundary;
+            return passesOf(element).outline;
         })();
         // The field costs members x kernel area: each member's kernel is splatted once, and the
         // hull's program reads the field per pixel of its group's box, never the members.

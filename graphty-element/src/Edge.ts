@@ -4,7 +4,7 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import { drawnShaderParams, type ShaderEffects, type ShaderParamSets, timingOf } from "./catalog/shaders";
+import { fixedParamsOf, type ShaderParams, type ShaderUse, timingOf } from "./catalog/shaders";
 import {
     type AdHocData,
     DEFAULT_SELECTION_STYLE,
@@ -56,7 +56,7 @@ import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from ".
 import { isPositive } from "./meshes/shapeOutlines";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
-import { drawnEffects } from "./session/styles/channels";
+import { placeOfUse } from "./session/styles/channels";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -184,35 +184,54 @@ interface EdgeOpts {
     metadata?: object;
 }
 
-/** The `shader` block of a resolved edge style: what the edge shader channels painted. */
-interface EdgeShaderStyle {
-    readonly id?: string;
-    readonly params?: ShaderParamSets;
-    readonly effects?: ShaderEffects;
-}
+/** Most uses along one edge drawn at once; past it the highest are kept. */
+const ALONG_CAP = 4;
 
 /**
- * What the edge shader channels painted on an edge: the `shader` block the painter writes from
- * `edge.shader`, `edge.shaderParams` and `edge.effects`.
+ * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
+ * `edge.shaders`.
  * @param style - The resolved style.
- * @returns The block, or undefined when no shader channel painted it.
+ * @returns The uses, or undefined when no layer wrote any.
  */
-function shaderStyleOf(style: EdgeStyleConfig | null): EdgeShaderStyle | undefined {
-    if (style === null) {
-        return undefined;
-    }
-
-    return (style as EdgeStyleConfig & { shader?: EdgeShaderStyle }).shader;
+function shaderUsesOf(style: EdgeStyleConfig | null): readonly ShaderUse[] | undefined {
+    return style === null ? undefined : (style as EdgeStyleConfig & { shaders?: readonly ShaderUse[] }).shaders;
 }
 
 /**
- * The edge surface a style names, or null for none (unset, or `"none"`).
+ * The edge's `paint` use: the last one, which the resolution leaves alone.
+ * @param style - The resolved style.
+ * @returns The use, or undefined for none.
+ */
+function paintUseOf(style: EdgeStyleConfig | null): ShaderUse | undefined {
+    const paints = (shaderUsesOf(style) ?? []).filter((use) => use.off !== true && placeOfUse(use) === "paint");
+    return paints.at(-1);
+}
+
+/**
+ * The edge surface a style names, or null for none.
  * @param style - The resolved style.
  * @returns The id.
  */
 function surfaceOf(style: EdgeStyleConfig | null): string | null {
-    const id = shaderStyleOf(style)?.id;
-    return id === undefined || id === "none" ? null : id;
+    return paintUseOf(style)?.shader ?? null;
+}
+
+/**
+ * The uses along an edge, keyed by shader and how many uses of it come before, at most
+ * {@link ALONG_CAP}, the highest kept.
+ * @param style - The resolved style.
+ * @returns The shader id and fixed parameters of each, by key.
+ */
+function alongUsesOf(
+    style: EdgeStyleConfig,
+): readonly (readonly [string, { readonly id: string; readonly params: ShaderParams | undefined }])[] {
+    const along = (shaderUsesOf(style) ?? []).filter((use) => use.off !== true && placeOfUse(use) === "along");
+    const seen = new Map<string, number>();
+    return along.slice(Math.max(0, along.length - ALONG_CAP)).map((use) => {
+        const nth = seen.get(use.shader) ?? 0;
+        seen.set(use.shader, nth + 1);
+        return [`${use.shader}|${String(nth)}`, { id: use.shader, params: fixedParamsOf(use.params) }] as const;
+    });
 }
 
 /**
@@ -744,7 +763,7 @@ export class Edge {
      * @returns One entry per effect drawn.
      */
     get drawnEffects(): { id: string; points: Vector3[] }[] {
-        return [...this.effectRuns].flatMap(([id, run]) => {
+        return [...this.effectRuns.values()].flatMap((run) => {
             const last = run.slots.at(-1);
             if (run.batch.disposed || last === undefined) {
                 return [];
@@ -752,7 +771,7 @@ export class Edge {
 
             const points = run.slots.map((slot) => run.batch.endsOf(slot)[0]);
             points.push(run.batch.endsOf(last)[1]);
-            return [{ id, points }];
+            return [{ id: run.batch.shader.id, points }];
         });
     }
 
@@ -1425,16 +1444,15 @@ export class Edge {
         }
 
         const scene = this.context.getScene();
-        const block = shaderStyleOf(style);
         const surface = surfaceOf(style);
-        const names = surface !== null || Object.keys(block?.effects ?? {}).length > 0;
+        const names = surface !== null || alongUsesOf(style).length > 0;
         const drawing = names
             ? EdgeShaderDrawing.of(scene, this.context.getSession?.())
             : (EdgeShaderDrawing.peek(scene) ?? null);
 
         const batch = this.lineBatch;
         if (batch?.widened === true) {
-            this.syncLineShading(style, batch, drawing, surface, block);
+            this.syncLineShading(style, batch, drawing, surface);
         } else {
             this.lineStatic = null;
             this.surfaceEnteredFor = null;
@@ -1453,14 +1471,12 @@ export class Edge {
      * @param batch - The line batch, widened.
      * @param drawing - The scene's edge shader drawing, or null when there is none.
      * @param surface - The surface's id, or null for none.
-     * @param block - The style's shader block.
      */
     private syncLineShading(
         style: EdgeStyleConfig,
         batch: EdgeLineBatch,
         drawing: EdgeShaderDrawing | null,
         surface: string | null,
-        block: EdgeShaderStyle | undefined,
     ): void {
         const shader =
             surface !== null && this.lineBuilt === `surface:${surface}`
@@ -1476,7 +1492,7 @@ export class Edge {
         }
 
         const look = this.staticLook(style, shader === null ? EDGE_NEVER : this.surfaceEntered);
-        const values = surface === null ? undefined : drawnShaderParams(block?.params, surface);
+        const values = surface === null ? undefined : fixedParamsOf(paintUseOf(style)?.params);
         this.lineStatic =
             shader !== null && drawing !== null ? drawing.staticValues(look, shader, values) : edgeStaticValues(look);
         this.lineSpeed = shader !== null && drawing !== null ? drawing.speedOf(shader, values) : 0;
@@ -1522,14 +1538,14 @@ export class Edge {
     }
 
     /**
-     * One run of slots per edge effect the style draws (at most four, `drawnEffects`), each placed
-     * with the line's own points; an effect no longer drawn plays its exit, if it has one.
+     * One run of slots per use along the edge (at most four, `alongUsesOf`), each placed with the
+     * line's own points; a use no longer drawn plays its exit, if it has one.
      * @param style - The resolved style.
      * @param drawing - The scene's edge shader drawing.
      */
     private syncEffects(style: EdgeStyleConfig, drawing: EdgeShaderDrawing): void {
         const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
-        const wanted = this.isRenderVisible() && width > 0 ? drawnEffects(shaderStyleOf(style)?.effects).drawn : [];
+        const wanted = this.isRenderVisible() && width > 0 ? alongUsesOf(style) : [];
         if (wanted.length === 0 && this.effectRuns.size === 0) {
             return;
         }
@@ -1537,15 +1553,15 @@ export class Edge {
         const is2D = EdgeMesh.drawsFlat(this.context.getScene());
         const line = Edge.effectLineOf(style, width, is2D);
         const kept = new Set<string>();
-        for (const [id, values] of wanted) {
+        for (const [key, { id, params: values }] of wanted) {
             const name = `edge-effect|${id}|${String(width)}|${is2D ? "2d" : "3d"}`;
             const batch = drawing.effectBatch(this, id, this.context.getMeshCache(), name, line);
             if (batch === null) {
                 continue;
             }
 
-            kept.add(id);
-            const run = this.effectRunFor(id, batch, drawing);
+            kept.add(key);
+            const run = this.effectRunFor(key, batch, drawing);
             run.values = drawing.staticValues(this.staticLook(style, run.entered), batch.shader, values);
             run.speed = drawing.speedOf(batch.shader, values);
             for (const slot of run.slots) {

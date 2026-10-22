@@ -56,11 +56,12 @@ vec4 shade(GroupInput g) {
         // Outline: a faint wash of the group's color inside and a clean contour on the hull.
         float width = max(outline, 1.0);
         float line = 1.0 - smoothstep(width - 1.0, width, abs(sd));
-        // The wash adds light without covering what is beneath (premultiplied, alpha 0).
-        rgb = col * 0.22 * inside * fillOpacity * (1.0 - line) + col * line;
-        a = line;
+        rgb = col;
+        a = max(line, 0.22 * inside * fillOpacity * (1.0 - line));
+        return vec4(rgb, a);
     }
 
-    return vec4(rgb, a);
+    // rgb is premultiplied by the hull's coverage; returned straight.
+    return vec4(rgb / max(a, 1e-4), a);
 }
 `;

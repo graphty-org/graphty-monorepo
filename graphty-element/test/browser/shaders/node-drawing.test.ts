@@ -244,7 +244,7 @@ describe("node surfaces", () => {
             name: "Flat",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shader": "e3/flat" },
+            set: { "node.shaders": [{ shader: "e3/flat" }] },
         });
         await operationQueueOf(element.graph).waitForCompletion();
         await until(
@@ -283,7 +283,7 @@ describe("plain nodes beside shaded ones", () => {
                     name: "Flat",
                     target: "node",
                     selector: { match: "ids", nodes: ["shaded"] },
-                    set: { "node.shader": "e3/flat" },
+                    set: { "node.shaders": [{ shader: "e3/flat" }] },
                 },
             ],
         );
@@ -305,7 +305,7 @@ describe("node sprites", () => {
                     name: "Sticker",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.shader": "e3/sticker", "node.color": "#3366cc" },
+                    set: { "node.shaders": [{ shader: "e3/sticker" }], "node.color": "#3366cc" },
                 },
             ],
         );
@@ -335,7 +335,7 @@ describe("node sprites", () => {
                     name: "Sticker",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.shader": "e3/sticker", "node.color": "#3366cc", "node.label": "Bee" },
+                    set: { "node.shaders": [{ shader: "e3/sticker" }], "node.color": "#3366cc", "node.label": "Bee" },
                 },
             ],
         );
@@ -364,7 +364,7 @@ describe("node effects", () => {
                     name: "Spin",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.effects": { "e3/spin": true } },
+                    set: { "node.shaders": [{ shader: "e3/spin" }] },
                 },
             ],
         );
@@ -389,7 +389,7 @@ describe("node effects", () => {
                 name: "Reticle",
                 target: "node",
                 selector: { match: "state", state: "selected" },
-                set: { "node.effects": { "e3/reticle": true } },
+                set: { "node.shaders": [{ shader: "e3/reticle" }] },
             },
         ]);
         // The effect resolves on first use; one node selected first loads it.
@@ -427,7 +427,7 @@ describe("node effects", () => {
             name: "Reticle",
             target: "node",
             selector: { match: "state", state: "selected" },
-            set: { "node.effects": { "e3/reticle": true } },
+            set: { "node.shaders": [{ shader: "e3/reticle" }] },
         });
         await until(element, "both reticles are drawn", () => batchHolds(element, 2));
         assert.strictEqual(
@@ -449,8 +449,7 @@ describe("loops and the active-mesh freeze", () => {
                     selector: { match: "everything" },
                     set: {
                         "node.shape": "box",
-                        "node.shader": "e3/pulse",
-                        "node.shaderParams": { "e3/pulse": { speed: 0.9 } },
+                        "node.shaders": [{ shader: "e3/pulse", params: { speed: 0.9 } }],
                     },
                 },
             ],
@@ -488,7 +487,7 @@ describe("loops and the active-mesh freeze", () => {
                         name: "Pulse",
                         target: "node",
                         selector: { match: "everything" },
-                        set: { "node.shader": "e3/pulse" },
+                        set: { "node.shaders": [{ shader: "e3/pulse" }] },
                     },
                 ],
             );

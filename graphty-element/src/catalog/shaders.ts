@@ -147,27 +147,13 @@ export function drawingOf(
 }
 
 /**
- * Whether a shader is drawn in place of its target's paint (`"look"`: `paint` and `replace`, a
- * group outline, the background) or stacks on it (`"effect"`). The single shader channels and the
- * effects maps key on it until the shader lists replace them.
- * @since 3.36.0
+ * Whether a place draws one use per element, the topmost winning, and covering the other (`paint`
+ * and `replace`), rather than stacking.
+ * @param place - The place.
+ * @returns True for `paint` and `replace`.
  */
-export type ShaderSlotRole = "look" | "effect";
-
-/** What a single shader channel takes: a target and a slot role. @since 3.36.0 */
-export interface ShaderSlot {
-    readonly target: ShaderTarget;
-    readonly role: ShaderSlotRole;
-}
-
-/**
- * The slot role of a shader at its own place.
- * @param descriptor - Its target and place.
- * @returns `"effect"` for a node square that is not `replace` and for `along`, else `"look"`.
- */
-export function slotRoleOf(descriptor: Pick<ShaderDescriptor, "target" | "place">): ShaderSlotRole {
-    const drawing = drawingOf(descriptor);
-    return drawing === "node-square" || drawing === "edge-along" ? "effect" : "look";
+export function isExclusivePlace(place: ShaderPlace | undefined): boolean {
+    return place === "paint" || place === "replace";
 }
 
 /**
@@ -417,10 +403,10 @@ export interface ShaderDescriptor {
     readonly reach?: number;
     /** Stacking places and group outlines: how the result combines. Absent means `"over"`. */
     readonly blend?: "over" | "add";
-    /** Boundaries: a splatted field or one sphere per group. Absent means `"field"`. */
+    /** Group outlines: a splatted field or one sphere per group. Absent means `"field"`. */
     readonly form?: "field" | "sphere";
     /**
-     * Boundaries of form `"field"`: the number parameter whose value is each member's kernel
+     * Group outlines of form `"field"`: the number parameter whose value is each member's kernel
      * radius, in member radii, in place of `reach`, so a reader can grow or shrink the blobs.
      * @since 3.36.0
      */
@@ -433,56 +419,55 @@ export interface ShaderDescriptor {
 export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
 
 /**
- * The parameter values a layer writes to `node.shaderParams` or `edge.shaderParams`: plain
- * `{ name: value }` entries for whichever shader is drawn (`{ hot: "#ff0000" }`), or a set per
- * shader id (`{ "acme/heat": { hot: "#ff0000" } }`), of which only the drawn shader's applies. A
- * higher layer wins per parameter; values the layer leaves out keep the defaults.
+ * A parameter value a use sets: a number, a color or a word, a switch, or a number or color bound
+ * to a clock ({@link ShaderClockBinding}).
  * @since 3.36.0
  */
-export type ShaderParamSets = Readonly<Record<string, ShaderParams | number | string | boolean>>;
+export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
 
 /**
- * The parameter values for the drawn shader from a merged `shaderParams` map: its plain
- * `{ name: value }` entries, then the drawn shader's own set over them.
- * @param sets - The merged map.
- * @param id - The drawn shader.
- * @returns Its values, or undefined when the map holds none for it.
+ * A use's fixed parameter values: its parameters without the ones bound to a clock.
+ * @param params - The use's parameters.
+ * @returns The fixed values, or undefined when it sets none.
  */
-export function drawnShaderParams(sets: ShaderParamSets | undefined, id: string): ShaderParams | undefined {
-    if (sets === undefined) {
+export function fixedParamsOf(params: ShaderUse["params"]): ShaderParams | undefined {
+    if (params === undefined) {
         return undefined;
     }
 
-    const plain = Object.entries(sets).filter(([, value]) => typeof value !== "object");
-    const ownEntry = sets[id];
-    const own = typeof ownEntry === "object" ? ownEntry : undefined;
-    if (plain.length === 0) {
-        return own;
-    }
-
-    return { ...(Object.fromEntries(plain) as ShaderParams), ...own };
+    const fixed = Object.entries(params).filter(([, value]) => !isClockBinding(value));
+    return fixed.length === Object.keys(params).length
+        ? (params as ShaderParams)
+        : (Object.fromEntries(fixed) as ShaderParams);
 }
 
 /**
- * Effects by id: `true` turns one on with its defaults, `false` switches off one a layer beneath
- * adds, an object turns it on with those parameters. The reserved key `visible: false` keeps the
- * entry and its parameters but draws nothing (an editor's eye).
+ * One use of a shader on a style layer's `node.shaders` or `edge.shaders` list: which shader,
+ * where it draws, and with what parameters.
+ *
+ * Across layers (bottom to top, then list order within a layer): at `paint` and `replace` the last
+ * use wins and covers the other place's; every other place stacks. `{ shader, off: true }` removes
+ * every use of that shader the layers beneath put on the elements this layer matches.
+ *
+ * ```ts
+ * set: { "node.shaders": [{ shader: "lock-on-reticle", params: { hudColor: "#00ff88" } }] }
+ * ```
  * @since 3.36.0
  */
-export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
-
-/**
- * A layer's boundary: one shape around the layer's matched nodes, or one per distinct value of
- * `groupBy`.
- * @since 3.36.0
- */
-export interface LayerBoundary {
-    /** A boundary shader id. */
+export interface ShaderUse {
+    /** The shader's id. */
     readonly shader: string;
-    /** Its parameters. */
-    readonly params?: ShaderParams;
-    /** A data path; one boundary per distinct value. Absent: one boundary around every node. */
+    /** Where it draws. Default: the shader's own place. */
+    readonly place?: ShaderPlace;
+    /** Parameter values over its defaults, `minSize` and clock bindings included. */
+    readonly params?: Readonly<Record<string, ShaderParamValue>>;
+    /**
+     * At `group` only: a data path; one outline per distinct value among the nodes carrying the
+     * use. Absent: one outline around all of them.
+     */
     readonly groupBy?: string;
+    /** Remove this shader, wherever the layers beneath put it, from the elements this layer matches. */
+    readonly off?: true;
 }
 
 /**
@@ -525,8 +510,8 @@ export type ShaderProblemCode =
     | "shader.still"
     | "shader.program-cap"
     | "shader.param-unused"
-    | "shader.effect-cap"
-    | "shader.boundary-cap"
+    | "shader.stack-cap"
+    | "shader.group-cap"
     | "shader.apply-target"
     | "shader.no-data"
     | "shader.no-canvas";
@@ -623,8 +608,8 @@ const CARD_COVERS: readonly Channel[] = [
 ];
 
 /**
- * Every channel one shader covers on an element it is drawn on at its own place: what is no longer
- * drawn there, whichever layer beneath wrote it.
+ * Every channel one shader covers on an element it is drawn on at a place (its own by default):
+ * what is no longer drawn there, whichever layer beneath wrote it.
  *
  * - `replace` covers every shape channel.
  * - A node's `paint` covers flat, unlit and wireframe.
@@ -636,11 +621,15 @@ const CARD_COVERS: readonly Channel[] = [
  * `replace` and a shape follow "the topmost layer wins": a `node.shape` on a layer above the
  * shader's draws the shape on those nodes, and the shader is not drawn there.
  * @param descriptor - The shader.
+ * @param place - Where the use draws; absent means the shader's own place.
  * @returns The covered channels.
  * @since 3.36.0
  */
-export function shaderCovers(descriptor: Pick<ShaderDescriptor, "target" | "place" | "reads">): readonly Channel[] {
-    const drawing = drawingOf(descriptor);
+export function shaderCovers(
+    descriptor: Pick<ShaderDescriptor, "target" | "place" | "reads">,
+    place: ShaderPlace | undefined = descriptor.place,
+): readonly Channel[] {
+    const drawing = drawingOf(descriptor, place);
     let covered: Channel[];
     switch (drawing) {
         case "node-replace":
@@ -687,8 +676,8 @@ export function isShaderId(id: unknown, namespaced = false): id is string {
 }
 
 /**
- * Whether a string can name a parameter: a GLSL identifier with no `__`, not `visible` (the
- * effects map's eye) and not starting `gl_` or `graphty_`.
+ * Whether a string can name a parameter: a GLSL identifier with no `__`, not `visible` (reserved)
+ * and not starting `gl_` or `graphty_`.
  * @param name - The candidate.
  * @returns True when it can.
  */

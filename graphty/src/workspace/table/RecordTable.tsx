@@ -12,6 +12,7 @@ import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
 import { formatNumber } from "../inspector/words";
+import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
 /** How many records past the drawn rows a window reads, above and below. */
@@ -145,7 +146,15 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => tableValue(row.record[column.attribute ?? column.id]),
+                    : (row) =>
+                          tableValue(
+                              timeValue(
+                                  session,
+                                  kind,
+                                  column.attribute ?? column.id,
+                                  row.record[column.attribute ?? column.id],
+                              ),
+                          ),
         };
     });
 

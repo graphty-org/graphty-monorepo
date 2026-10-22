@@ -1,36 +1,188 @@
 /**
  * The timeline dock (design/data/timeline-attribute.md section 6.6): under the canvas while a time
- * field is designated. The transport and the readout on the first row; the histogram of the
- * designated field, the brush over it, and the selection's activity under it. Everything it shows
- * is graphty-element's (`session.time`); the app holds only a drag in progress and writes the words.
+ * field is designated. The transport, the speed and the readout on the first row; the histogram of
+ * the designated field with its range brush and the selection's activity on the second. Everything
+ * it shows is graphty-element's (`session.time`): the bins, their step, the window and whether it is
+ * at either end. The app holds only a drag in progress and writes the words.
  */
 
 import "./time.css";
 
-import { HistogramRow, SparklineRow } from "@graphty/compact-mantine";
-import type { TimeBin, TimeWindow } from "@graphty/graphty-element/session";
-import { ActionIcon, Group, RangeSlider, Text, Tooltip } from "@mantine/core";
-import React, { useState } from "react";
+import { HistogramRow } from "@graphty/compact-mantine";
+import type { GraphSession, TimeBin, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
+import {
+    ActionIcon,
+    Button,
+    Group,
+    NumberInput,
+    Popover,
+    Text,
+    TextInput,
+    Tooltip,
+    UnstyledButton,
+} from "@mantine/core";
+import { useElementSize } from "@mantine/hooks";
+import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { announceWindow, stepWindow, togglePlay, unitOf } from "./timeActions";
-import { countWords, instantWords, rangeWords, windowWords } from "./timeWords";
+import { announceWindow, reportTimeError, stepWindow, togglePlay, unitOf } from "./timeActions";
+import { countWords, finerThanDay, instantWords, intervalOf, rangeWords, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
-/** How many bars the histogram draws. */
-const BINS = 100;
+/** The narrowest a bar is drawn: the element is asked for at most one bin per this many pixels. */
+const PX_PER_BIN = 3;
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
 /**
- * Whether a bin overlaps a window.
+ * How far a brush thumb moves: a fixed calendar step's length, a day for months and longer, or the
+ * bins' own number step.
+ * @param step - the bins' step.
+ * @returns milliseconds, or ordinal units.
+ */
+function brushStep(step: TimeStep | undefined): number {
+    if (typeof step === "number") {
+        return step;
+    }
+    if (step === "hour") {
+        return HOUR;
+    }
+    return step === "week" ? 7 * DAY : DAY;
+}
+
+/**
+ * The readout: a range being dragged, else the window, else the whole span.
+ * @param drag - the range being dragged, or null.
+ * @param window - the window, or null.
+ * @param extent - the data's span.
+ * @param extent.from - its start.
+ * @param extent.to - its end.
+ * @param unit - how the field reads numbers.
+ * @returns the words.
+ */
+function readoutWords(
+    drag: readonly [number, number] | null,
+    window: TimeWindow | null,
+    extent: { readonly from: number; readonly to: number },
+    unit: TimeUnit,
+): string {
+    if (drag !== null) {
+        const step = window?.step;
+        return rangeWords(drag[0], drag[1], unit, step) + (finerThanDay(step) && unit !== "ordinal" ? " UTC" : "");
+    }
+    return window === null ? rangeWords(extent.from, extent.to, unit) : windowWords(window, unit);
+}
+
+/**
+ * Whether a bin overlaps a range.
  * @param bin - the bin.
- * @param from - the window's start.
- * @param to - the window's end, excluded.
+ * @param range - the range, `[from, to)`.
  * @returns true when they overlap.
  */
-function overlaps(bin: TimeBin, from: number, to: number): boolean {
-    return bin.start < to && bin.end > from;
+function overlaps(bin: TimeBin, range: readonly [number, number]): boolean {
+    return bin.start < range[1] && bin.end > range[0];
+}
+
+/**
+ * The readout's popover: type the first and last day of the window.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @param props.store - the chrome store.
+ * @param props.unit - how the field reads numbers.
+ * @param props.range - the range shown now.
+ * @param props.readout - the readout's words.
+ * @returns the readout button and its popover.
+ */
+function ReadoutEntry({
+    session,
+    store,
+    unit,
+    range,
+    readout,
+}: Readonly<{
+    session: GraphSession;
+    store: WorkspaceStore;
+    unit: TimeUnit;
+    range: readonly [number, number];
+    readout: string;
+}>): React.JSX.Element {
+    const [opened, setOpened] = useState(false);
+    const [from, setFrom] = useState("");
+    const [to, setTo] = useState("");
+    const ordinal = unit === "ordinal";
+    // An inclusive last value back to the half-open end the element takes: one unit past it.
+    const grain = ordinal ? 1 : DAY;
+    const submit = (): void => {
+        const start = session.time.parse(from);
+        const last = session.time.parse(to);
+        if (start === null || last === null || last < start) {
+            store.set({ notice: { message: "Not a range of dates" } });
+            return;
+        }
+        session.time.pause();
+        session.time.window({ from: start, to: last + grain }).then(() => {
+            announceWindow(session, store);
+        }, reportTimeError(store));
+        setOpened(false);
+    };
+    const field = (label: string, value: string, set: (next: string) => void): React.JSX.Element =>
+        ordinal ? (
+            <NumberInput
+                size="xs"
+                label={label}
+                value={value}
+                hideControls
+                onChange={(next) => {
+                    set(String(next));
+                }}
+            />
+        ) : (
+            <TextInput
+                size="xs"
+                label={label}
+                value={value}
+                onChange={(event) => {
+                    set(event.currentTarget.value);
+                }}
+            />
+        );
+    return (
+        <Popover opened={opened} onChange={setOpened} position="top-start" withArrow trapFocus returnFocus>
+            <Popover.Target>
+                <UnstyledButton
+                    className="tl-readout"
+                    data-testid="time-readout"
+                    aria-label={`Time window ${readout}`}
+                    onClick={() => {
+                        setFrom(instantWords(range[0], unit));
+                        setTo(instantWords(range[1] - grain, unit));
+                        setOpened((open) => !open);
+                    }}
+                >
+                    {readout}
+                </UnstyledButton>
+            </Popover.Target>
+            <Popover.Dropdown>
+                <form
+                    className="tl-range-form"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        submit();
+                    }}
+                >
+                    {field("From", from, setFrom)}
+                    {field("To", to, setTo)}
+                    <Button size="compact-xs" type="submit">
+                        Set
+                    </Button>
+                </form>
+            </Popover.Dropdown>
+        </Popover>
+    );
 }
 
 /**
@@ -40,10 +192,21 @@ function overlaps(bin: TimeBin, from: number, to: number): boolean {
 export function TimeDock(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
-    // The speed is read when play starts; drawn here so a change shows on the play tooltip.
     const speed = useWorkspaceState((state) => state.timeSpeed);
-    // The brush while a thumb is dragged; written to the element once, on release.
+    // The brush while it is dragged; written to the element once, on release.
     const [drag, setDrag] = useState<[number, number] | null>(null);
+    const { ref, width } = useElementSize();
+
+    // A run the Re-run setting could not re-run says so.
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+        return session.on("time:rerun-failed", ({ error }) => {
+            store.set({ notice: { message: runFailureWords(error.code as never), error: true } });
+        });
+    }, [session, store]);
+
     const extent = session?.time.field ? session.time.extent() : null;
     if (session === null || extent === null) {
         return null;
@@ -53,35 +216,45 @@ export function TimeDock(): React.JSX.Element | null {
     const onEdges = time.field?.edges !== undefined;
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
-    const width = Math.max(1, Math.round((extent.to - extent.from) / BINS));
-    const max = extent.from + width * BINS;
-    const clamp = (value: number): number => Math.min(max, Math.max(extent.from, value));
-    const shown: [number, number] = drag ?? [
-        clamp(window === null ? extent.from : Number(window.from)),
+    const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
+    const all = time.bins({ maxCount }) ?? [];
+    const visible = time.bins({ maxCount, scope: "visible" }) ?? [];
+    const first = all.at(0);
+    const last = all.at(-1);
+    const min = first?.start ?? extent.from;
+    const max = last?.end ?? extent.to;
+    const clamp = (value: number): number => Math.min(max, Math.max(min, value));
+    const range: [number, number] = drag ?? [
+        clamp(window === null ? min : Number(window.from)),
         clamp(window === null ? max : Number(window.to)),
     ];
-    const bins = time.bins({ count: BINS, from: extent.from, to: max }) ?? [];
-    const countOf = (bin: TimeBin): number => (onEdges ? bin.edges : bin.nodes);
-    const step = window?.step;
+    const countOf = (bin: TimeBin | undefined): number => {
+        if (bin === undefined) {
+            return 0;
+        }
+        return onEdges ? bin.edges : bin.nodes;
+    };
     const { nodes, edges } = session.selection;
     const profile =
-        nodes.length + edges.length === 0
-            ? null
-            : time.bins({ count: BINS, from: extent.from, to: max, of: { nodes, edges, incident: true } });
-    const readout = window === null ? rangeWords(extent.from, extent.to, unit) : windowWords(window, unit);
+        nodes.length + edges.length === 0 ? null : time.bins({ maxCount, of: { nodes, edges, incident: true } });
+    const step = window?.step;
+    const readout = readoutWords(drag, window, extent, unit);
     const { visibleEdges, visibleNodes } = session.visibility.summary;
-    const fieldName = time.field?.edges?.start ?? time.field?.nodes?.start ?? "";
-    const { playing } = time;
-    const valueText = (index: 0 | 1): string =>
-        index === 0 ? instantWords(shown[0], unit, step) : rangeWords(shown[1] - 1, shown[1], unit, step);
+    const { playing, atStart, atEnd } = time;
+    const valueText = (value: number, thumb: 0 | 1): string =>
+        thumb === 0 ? instantWords(value, unit, step) : rangeWords(value - 1, value, unit, step);
+    const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
+    const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
 
     return (
         <section
             className="tl-dock"
             aria-label="Timeline"
+            ref={ref}
             onKeyDown={(event) => {
-                // Space plays and pauses from anywhere in the dock but a button, which Space presses.
-                if (event.key === " " && !(event.target instanceof HTMLButtonElement)) {
+                // Space plays and pauses from anywhere in the dock but a button or a field.
+                const target = event.target as HTMLElement;
+                if (event.key === " " && !(target instanceof HTMLButtonElement) && target.tagName !== "INPUT") {
                     event.preventDefault();
                     togglePlay(session, store);
                 }
@@ -92,6 +265,7 @@ export function TimeDock(): React.JSX.Element | null {
                     <ActionIcon
                         variant="subtle"
                         aria-label="Step back"
+                        disabled={atStart}
                         onClick={() => {
                             stepWindow(session, store, -1);
                         }}
@@ -99,7 +273,7 @@ export function TimeDock(): React.JSX.Element | null {
                         <GLYPHS.stepBack size={16} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
-                <Tooltip label={playing ? "Pause" : `Play, ${String(speed)}x`}>
+                <Tooltip label={playing ? "Pause" : "Play"}>
                     <ActionIcon
                         variant={playing ? "light" : "subtle"}
                         aria-label={playing ? "Pause" : "Play"}
@@ -114,6 +288,7 @@ export function TimeDock(): React.JSX.Element | null {
                     <ActionIcon
                         variant="subtle"
                         aria-label="Step forward"
+                        disabled={atEnd}
                         onClick={() => {
                             stepWindow(session, store, 1);
                         }}
@@ -121,78 +296,103 @@ export function TimeDock(): React.JSX.Element | null {
                         <GLYPHS.stepForward size={16} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
-                <Text size="xs" fw={500} className="tl-readout" data-testid="time-readout">
-                    {readout}
-                </Text>
+                <Tooltip label="Speed">
+                    <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        className="tl-speed"
+                        aria-label={`Speed ${String(speed)}x`}
+                        onClick={() => {
+                            store.set({ timeSpeed: nextSpeed });
+                            // A play in progress goes on at the new speed.
+                            if (time.playing) {
+                                time.pause();
+                                time.play({ interval: intervalOf(nextSpeed) });
+                            }
+                        }}
+                    >
+                        {`${String(speed)}x`}
+                    </Button>
+                </Tooltip>
+                <ReadoutEntry session={session} store={store} unit={unit} range={range} readout={readout} />
                 <Text size="xs" c="dimmed" className="tl-counts">
                     {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
                 </Text>
-                <span className="tl-spacer" />
-                <Text size="xs" c="dimmed" className="tl-field">
-                    <GLYPHS.time size={12} aria-hidden /> {fieldName}
-                </Text>
-                {window === null ? null : (
-                    <Tooltip label="Show all time">
-                        <ActionIcon
-                            variant="subtle"
-                            aria-label="Show all time"
-                            onClick={() => {
-                                time.pause();
-                                time.window(null).then(
-                                    () => undefined,
-                                    () => undefined,
-                                );
-                            }}
-                        >
-                            <GLYPHS.close size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
             </Group>
-            <div className="tl-chart">
+            <div className="tl-chart" data-panel-start="">
                 <HistogramRow
                     label={`${noun === "edge" ? "Edges" : "Nodes"} over time`}
-                    bins={bins.map((bin) => ({
-                        label: `${rangeWords(bin.start, bin.end, unit)}: ${countWords(countOf(bin), noun)}`,
-                        count: countOf(bin),
-                        highlighted: overlaps(bin, shown[0], shown[1]),
-                    }))}
-                    minLabel={instantWords(extent.from, unit)}
-                    maxLabel={instantWords(extent.to - 1, unit)}
-                />
-                <RangeSlider
-                    className="tl-brush"
-                    size="sm"
-                    label={null}
-                    min={extent.from}
-                    max={max}
-                    step={width}
-                    minRange={width}
-                    value={shown}
-                    thumbFromLabel="Window start"
-                    thumbToLabel="Window end"
-                    thumbProps={(index) => ({ "aria-valuetext": valueText(index) })}
-                    onChange={(value) => {
-                        time.pause();
-                        setDrag(value);
+                    bins={all.map((bin, index) => {
+                        const inside = window !== null && overlaps(bin, range);
+                        const shown = countOf(visible[index]);
+                        return {
+                            label: `${rangeWords(bin.start, bin.end, unit, bin.step)}: ${countWords(countOf(bin), noun)}`,
+                            count: shown,
+                            ghost: countOf(bin),
+                            from: bin.start,
+                            to: bin.end,
+                            // Lit only for a bin holding something the window shows; outside it, dimmed.
+                            highlighted: inside && shown > 0,
+                            dimmed: window !== null && !inside,
+                        };
+                    })}
+                    minLabel={window === null ? "" : instantWords(min, unit, first?.step)}
+                    maxLabel={window === null ? "" : instantWords(max - 1, unit, last?.step)}
+                    {...(profile === null || profile.length === 0
+                        ? {}
+                        : { overlay: { label: "Selection over time", values: profile.map(countOf) } })}
+                    brush={{
+                        min,
+                        max,
+                        step: Math.min(brushStep(first?.step), brushStep(step)),
+                        value: range,
+                        startLabel: "Window start",
+                        endLabel: "Window end",
+                        bodyLabel: "Window",
+                        valueText,
+                        rangeText: (value) => rangeWords(value[0], value[1], unit, step),
+                        thumbLabel: (value) => {
+                            const bin = binAt(value);
+                            return bin === undefined
+                                ? instantWords(value, unit, step)
+                                : `${rangeWords(bin.start, bin.end, unit, bin.step)}: ${countWords(countOf(bin), noun)}`;
+                        },
+                        onChange: (value) => {
+                            time.pause();
+                            setDrag(value);
+                        },
+                        onChangeEnd: (value) => {
+                            // One gesture, one undoable step.
+                            time.pause();
+                            time.window({ ...(window ?? {}), from: value[0], to: value[1] }).then(
+                                () => {
+                                    setDrag(null);
+                                    announceWindow(session, store);
+                                },
+                                (error: unknown) => {
+                                    setDrag(null);
+                                    reportTimeError(store)(error);
+                                },
+                            );
+                        },
                     }}
-                    onChangeEnd={(value) => {
-                        // One gesture, one undoable step.
-                        time.window({ ...(window ?? {}), from: value[0], to: value[1] }).then(
-                            () => {
-                                setDrag(null);
-                                announceWindow(session, store);
-                            },
-                            () => {
-                                setDrag(null);
-                            },
-                        );
-                    }}
                 />
-                {profile === null ? null : (
-                    <SparklineRow label="Selection over time" values={profile.map(countOf)} minLabel="" maxLabel="" />
-                )}
             </div>
+            {window === null ? null : (
+                <Tooltip label="Show all time">
+                    <ActionIcon
+                        className="tl-all"
+                        variant="subtle"
+                        aria-label="Show all time"
+                        onClick={() => {
+                            time.pause();
+                            time.window(null).then(() => undefined, reportTimeError(store));
+                        }}
+                    >
+                        <GLYPHS.allTime size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            )}
         </section>
     );
 }

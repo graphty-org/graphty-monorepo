@@ -4,7 +4,17 @@
  * the element lines up calendar steps and bins in UTC.
  */
 
-import type { TimeResultsPolicy, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
+import type {
+    CodedFact,
+    TimeNoticeCode,
+    TimeResultsPolicy,
+    TimeStep,
+    TimeUnit,
+    TimeWindow,
+} from "@graphty/graphty-element/session";
+
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 
 /** The calendar steps a date window can take, in order. */
 export const CALENDAR_STEPS = ["hour", "day", "week", "month", "quarter", "year"] as const;
@@ -31,6 +41,76 @@ export function stepLabel(step: TimeStep): string {
     return typeof step === "number" ? String(step) : STEP_WORDS[step];
 }
 
+/**
+ * The Step menu's Auto entry, naming the step it picked when there is one.
+ * @param picked - the step in use, or undefined with no window.
+ * @returns "Auto (Week)", or "Auto".
+ */
+export function autoLabel(picked: TimeStep | undefined): string {
+    return picked === undefined ? "Auto" : `Auto (${stepLabel(picked)})`;
+}
+
+/**
+ * Whether a step is finer than a day, so its readouts name the zone they are in.
+ * @param step - the step.
+ * @returns true for an hour or less.
+ */
+export function finerThanDay(step: TimeStep | undefined): boolean {
+    return step === "hour" || (typeof step === "number" && step < DAY);
+}
+
+/** The Untimed choices: whether elements with no time stay in every window. */
+export const UNTIMED_CHOICES = [
+    { value: "inside", label: "Show" },
+    { value: "outside", label: "Hide" },
+] as const;
+
+/**
+ * A notice from designating a field, in words, and the unit its action sets, if any.
+ * @param notice - the element's notice.
+ * @returns the words and the suggested unit.
+ */
+export function noticeOf(notice: CodedFact<TimeNoticeCode>): { message: string; unit?: TimeUnit } {
+    const { path, count, suggested } = notice.params as { path: string; count?: number; suggested?: TimeUnit };
+    switch (notice.code) {
+        case "time.unparsed":
+            return { message: `${countWords(count ?? 0, "value")} in ${path} are not times` };
+        case "time.parsed-loosely":
+            return { message: `${countWords(count ?? 0, "value")} in ${path} read loosely as dates` };
+        default:
+            return {
+                message: suggested === "ordinal" ? `${path} looks like years` : `${path} looks like seconds`,
+                ...(suggested === undefined ? {} : { unit: suggested }),
+            };
+    }
+}
+
+/**
+ * Why a column cannot be the time field, from the element's refusal.
+ * @param column - the column.
+ * @param reason - the refusal's reason code.
+ * @returns the words.
+ */
+export function refusalWords(column: string, reason: unknown): string {
+    switch (reason) {
+        case "no-times":
+            return `${column} has no times`;
+        case "declared-not-time":
+            return `${column} is set as another kind`;
+        default:
+            return `${column} cannot be the time field`;
+    }
+}
+
+/**
+ * What a unit choice is called on its action button.
+ * @param unit - the unit.
+ * @returns "Number", "Epoch s".
+ */
+export function unitLabel(unit: TimeUnit): string {
+    return UNIT_CHOICES.find((choice) => choice.value === unit)?.label ?? unit;
+}
+
 /** The algorithm-results choices, as the Time section's menu words them. */
 export const RESULTS_CHOICES: readonly { readonly value: TimeResultsPolicy; readonly label: string }[] = [
     { value: "stale", label: "Mark out of date" },
@@ -44,9 +124,6 @@ export const UNIT_CHOICES: readonly { readonly value: TimeUnit; readonly label: 
     { value: "s", label: "Epoch s" },
     { value: "ordinal", label: "Number" },
 ];
-
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
 
 /**
  * How finely a date is written for a step: to the minute below a day, to the month for months
@@ -106,7 +183,9 @@ export function rangeWords(from: number, to: number, unit: TimeUnit, step?: Time
  * @returns the words.
  */
 export function windowWords(window: TimeWindow, unit: TimeUnit): string {
-    return rangeWords(Number(window.from), Number(window.to), unit, window.step);
+    const words = rangeWords(Number(window.from), Number(window.to), unit, window.step);
+    // Readouts finer than a day name their zone: the element's calendar is UTC.
+    return unit !== "ordinal" && finerThanDay(window.step) ? `${words} UTC` : words;
 }
 
 /**

@@ -287,7 +287,7 @@ export const START_SAMPLES: readonly StartSample[] = [
         name: "Office email",
         sentence:
             "Emails between 48 people in four teams over six months, each with the time it was sent. Good for watching activity rise and fall over time.",
-        size: "48 people",
+        size: "48 nodes, 2,102 edges",
         url: `${import.meta.env.BASE_URL}samples/office-email.json`,
         picture: `${import.meta.env.BASE_URL}samples/office-email.webp`,
     },
@@ -296,7 +296,7 @@ export const START_SAMPLES: readonly StartSample[] = [
         name: "Paper citations",
         sentence:
             "Papers from 1995 to 2024 and the older papers they cite, each with its year. Good for watching a field grow year by year.",
-        size: "159 papers",
+        size: "159 nodes, 453 edges",
         url: `${import.meta.env.BASE_URL}samples/paper-citations.json`,
         picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
     },

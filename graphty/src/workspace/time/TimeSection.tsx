@@ -1,128 +1,109 @@
 /**
  * The Data place's Time section (design/data/timeline-attribute.md section 6.6): designate the
- * time field and set how the window moves. Every value is graphty-element's (`session.time`): the
- * field, its unit, and the window's step, mode and algorithm-results option. Only the playback
- * speed is the app's, a reader preference.
+ * time field and set how windows move. Every value is graphty-element's (`session.time`): the
+ * field, its unit, and the step, mode, untimed rule and algorithm-results setting, which the
+ * element keeps with the field (`time.settings`) so "Show all time" leaves them as they are.
  */
 
 import { ControlSection, FieldRow, PanelField, PanelLabelsProvider, SegmentedControl } from "@graphty/compact-mantine";
-import type {
-    CodedFact,
-    GraphSession,
-    TimeField,
-    TimeNoticeCode,
-    TimeResultsPolicy,
-    TimeStep,
-    TimeUnit,
-    TimeWindowInput,
-} from "@graphty/graphty-element/session";
-import { Input, Stack } from "@mantine/core";
+import type { GraphSession, TimeField, TimeResultsPolicy, TimeStep, TimeUnit } from "@graphty/graphty-element/session";
+import { Stack } from "@mantine/core";
 import React from "react";
 
 import type { WorkspaceStore } from "../state/store";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { unitOf } from "./timeActions";
+import { useWorkspace } from "../state/WorkspaceContext";
+import { designate, reportTimeError, unitOf } from "./timeActions";
 import {
+    autoLabel,
     CALENDAR_STEPS,
-    intervalOf,
     ORDINAL_STEPS,
     RESULTS_CHOICES,
-    SPEEDS,
     stepLabel,
     UNIT_CHOICES,
+    UNTIMED_CHOICES,
 } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
 /** The Field menu's value for "no time field". */
 const NONE = "none";
+/** The Step menu's value for the automatic step. */
+const AUTO = "auto";
 
 /**
- * A notice from designating a field, in words.
- * @param notice - the element's notice.
- * @returns one short line.
- */
-function noticeWords(notice: CodedFact<TimeNoticeCode>): string {
-    const { path, count } = notice.params as { path: string; count?: number };
-    switch (notice.code) {
-        case "time.unparsed":
-            return `${String(count)} values in ${path} are not times`;
-        case "time.parsed-loosely":
-            return `${String(count)} values in ${path} were read as dates loosely`;
-        default:
-            return `${path} looks like seconds: set its unit to Epoch s`;
-    }
-}
-
-/**
- * Designates a column as the time field (or none), and says what the element found in it.
+ * Changes how windows move, and says why when the element refuses.
  * @param session - the element's session.
  * @param store - the chrome store.
- * @param field - the field, or null.
- */
-function designate(session: GraphSession, store: WorkspaceStore, field: TimeField | null): void {
-    session.time.pause();
-    session.time.setField(field).then(
-        (result) => {
-            const words = result.notices.map(noticeWords);
-            if (words.length > 0) {
-                store.set({ notice: { message: words.join(". ") } });
-            }
-        },
-        () => {
-            store.set({ notice: { message: "That attribute cannot be the time field." } });
-        },
-    );
-}
-
-/**
- * Changes the window's settings; with no window yet, the element opens one at the start.
- * @param session - the element's session.
  * @param patch - what changes.
  */
-function retune(session: GraphSession, patch: TimeWindowInput): void {
-    session.time.window(patch).then(
-        () => undefined,
-        () => undefined,
-    );
+function retune(
+    session: GraphSession,
+    store: WorkspaceStore,
+    patch: Parameters<GraphSession["time"]["setSettings"]>[0],
+): void {
+    session.time.setSettings(patch).then(() => undefined, reportTimeError(store));
 }
 
 /**
- * The Time section: Field (and its unit for a number column), Step, Mode, Speed and Results.
+ * The field a menu value names.
+ * @param picked - `"edge:sent"`, or the None value.
+ * @param unit - a unit to read numbers in, or none to keep the column's.
+ * @returns the field, or null.
+ */
+function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
+    const at = picked.indexOf(":");
+    if (at < 0) {
+        return null;
+    }
+    const start = picked.slice(at + 1);
+    const source = unit === undefined ? { start } : { start, unit };
+    return picked.startsWith("edge:") ? { edges: source } : { nodes: source };
+}
+
+/**
+ * The Time section: Field (and its unit for a number column), Step, Mode, Untimed and Results.
  * @returns the section.
  */
 export function TimeSection(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
-    const speed = useWorkspaceState((state) => state.timeSpeed);
     if (session === null) {
         return null;
     }
     const { time } = session;
     const attributes = session.data.attributes().filter((a) => a.origin !== "result");
-    const { field } = time;
+    const { field, settings } = time;
     const designated = field?.edges ?? field?.nodes;
     const kind = field?.edges === undefined ? "node" : "edge";
     const value = designated === undefined ? NONE : `${kind}:${designated.start}`;
     const column = attributes.find((a) => `${a.kind}:${a.name}` === value);
     const numeric = column?.type === "number" || column?.type === "integer";
     const unit: TimeUnit = unitOf(session);
-    const window = time.current;
+    const extent = time.extent();
+    const untimed =
+        extent === null
+            ? 0
+            : extent.nodes.untimed + extent.nodes.unparsed + extent.edges.untimed + extent.edges.unparsed;
     const steps: readonly TimeStep[] = unit === "ordinal" ? ORDINAL_STEPS : CALENDAR_STEPS;
-    const groups = (["node", "edge"] as const).flatMap((on) => {
+    // The columns that read as time come first, from the element; then every other column.
+    const candidates = time.candidates();
+    const timed = new Set(candidates.map((c) => `${c.kind}:${c.column}`));
+    const others = (["node", "edge"] as const).flatMap((on) => {
         const items = attributes
-            .filter((a) => a.kind === on)
+            .filter((a) => a.kind === on && !timed.has(`${a.kind}:${a.name}`))
             .map((a) => ({ value: `${a.kind}:${a.name}`, label: a.name }));
         return items.length === 0 ? [] : [{ group: on === "node" ? "Nodes" : "Edges", items }];
     });
-    const sourceOf = (picked: string, pickedUnit?: TimeUnit): TimeField | null => {
-        const at = picked.indexOf(":");
-        if (at < 0) {
-            return null;
-        }
-        const start = picked.slice(at + 1);
-        const source = pickedUnit === undefined ? { start } : { start, unit: pickedUnit };
-        return picked.startsWith("edge:") ? { edges: source } : { nodes: source };
-    };
+    const groups = [
+        ...(candidates.length === 0
+            ? []
+            : [
+                  {
+                      group: "Times",
+                      items: candidates.map((c) => ({ value: `${c.kind}:${c.column}`, label: c.column })),
+                  },
+              ]),
+        ...others,
+    ];
 
     return (
         <ControlSection label="Time">
@@ -143,8 +124,9 @@ export function TimeSection(): React.JSX.Element | null {
                         />
                     </FieldRow>
                     {designated !== undefined && numeric ? (
-                        <Input.Wrapper size="xs" label="Unit">
+                        <FieldRow>
                             <SegmentedControl
+                                label="Unit"
                                 fullWidth
                                 size="xs"
                                 value={unit}
@@ -153,7 +135,7 @@ export function TimeSection(): React.JSX.Element | null {
                                     designate(session, store, sourceOf(value, picked as TimeUnit));
                                 }}
                             />
-                        </Input.Wrapper>
+                        </FieldRow>
                     ) : null}
                     {designated === undefined ? null : (
                         <>
@@ -162,57 +144,65 @@ export function TimeSection(): React.JSX.Element | null {
                                     label="Step"
                                     kind="select"
                                     width="fill"
-                                    data={steps.map((s) => ({ value: String(s), label: stepLabel(s) }))}
-                                    value={window?.step === undefined ? null : String(window.step)}
-                                    placeholder="Auto"
+                                    data={[
+                                        { value: AUTO, label: autoLabel(time.current?.step) },
+                                        ...steps.map((s) => ({ value: String(s), label: stepLabel(s) })),
+                                    ]}
+                                    value={String(settings.step)}
                                     onChange={(picked) => {
-                                        const step = Number.isNaN(Number(picked))
-                                            ? (picked as TimeStep)
-                                            : Number(picked);
-                                        retune(session, { step });
+                                        const text = String(picked);
+                                        let step: TimeStep | "auto" = text as TimeStep;
+                                        if (text === AUTO) {
+                                            step = "auto";
+                                        } else if (!Number.isNaN(Number(text))) {
+                                            step = Number(text);
+                                        }
+                                        retune(session, store, { step });
                                     }}
                                 />
                             </FieldRow>
-                            <Input.Wrapper size="xs" label="Mode">
+                            <FieldRow>
                                 <SegmentedControl
+                                    label="Mode"
                                     fullWidth
                                     size="xs"
-                                    value={time.mode}
+                                    value={settings.mode}
                                     data={[
                                         { value: "sliding", label: "Sliding" },
                                         { value: "cumulative", label: "Cumulative" },
                                     ]}
                                     onChange={(picked) => {
-                                        retune(session, { mode: picked === "cumulative" ? "cumulative" : "sliding" });
+                                        retune(session, store, {
+                                            mode: picked === "cumulative" ? "cumulative" : "sliding",
+                                        });
                                     }}
                                 />
-                            </Input.Wrapper>
-                            <Input.Wrapper size="xs" label="Speed">
-                                <SegmentedControl
-                                    fullWidth
-                                    size="xs"
-                                    value={String(speed)}
-                                    data={SPEEDS.map((s) => ({ value: String(s), label: `${String(s)}x` }))}
-                                    onChange={(picked) => {
-                                        const next = Number(picked) as 1 | 2 | 4;
-                                        store.set({ timeSpeed: next });
-                                        // A play in progress goes on at the new speed.
-                                        if (time.playing) {
-                                            time.pause();
-                                            time.play({ interval: intervalOf(next) });
-                                        }
-                                    }}
-                                />
-                            </Input.Wrapper>
+                            </FieldRow>
+                            {untimed > 0 ? (
+                                <FieldRow>
+                                    <SegmentedControl
+                                        label="Untimed"
+                                        fullWidth
+                                        size="xs"
+                                        value={settings.missing}
+                                        data={UNTIMED_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                        onChange={(picked) => {
+                                            retune(session, store, {
+                                                missing: picked === "outside" ? "outside" : "inside",
+                                            });
+                                        }}
+                                    />
+                                </FieldRow>
+                            ) : null}
                             <FieldRow>
                                 <PanelField
                                     label="Results"
                                     kind="select"
                                     width="fill"
                                     data={RESULTS_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                    value={window?.results ?? "stale"}
+                                    value={settings.results}
                                     onChange={(picked) => {
-                                        retune(session, { results: picked as TimeResultsPolicy });
+                                        retune(session, store, { results: picked as TimeResultsPolicy });
                                     }}
                                 />
                             </FieldRow>

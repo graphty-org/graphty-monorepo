@@ -12,6 +12,7 @@ import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
+import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
 import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
@@ -357,7 +358,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const stale = staleOf(session, row);
         const description = [
             ...(group?.color === undefined ? [] : [group.color]),
-            ...(stale === null ? [] : [staleWords(stale)]),
+            ...(stale === null ? [] : [staleWords(stale, unitOf(session))]),
             ...states,
             ...(over ? [overWords] : []),
         ];

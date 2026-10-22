@@ -62,6 +62,7 @@ import {
     Minus,
     MoreHorizontal,
     MousePointerClick,
+    MoveHorizontal,
     Network,
     Orbit,
     Paintbrush,
@@ -225,6 +226,8 @@ export const GLYPHS = {
     // The timeline dock's transport.
     stepBack: StepBack,
     stepForward: StepForward,
+    // The whole span of the data: the window opened wide.
+    allTime: MoveHorizontal,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

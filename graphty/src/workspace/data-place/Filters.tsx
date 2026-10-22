@@ -16,6 +16,8 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, cardOf, keyOf, leafOf, newCard } from "../style/cards";
 import { keystrokeTarget } from "../style/useFocusLine";
 import { CardBody } from "../style/WhichPicker";
+import { focusBrush, reportTimeError, unitOf } from "../time/timeActions";
+import { countWords, windowWords } from "../time/timeWords";
 import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
     applyName,
@@ -98,6 +100,9 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
     return outcomes;
 }
 
+/** The Filters row that stands for the time window. */
+const TIME_ROW = "time-window";
+
 /**
  * The Filters section: one row per step, as a sentence (its outcome on the row's second line)
  * and its Apply this step checkbox. "+" opens the step editor; a row opens it on that step; the
@@ -131,7 +136,8 @@ export function FiltersSection(): React.JSX.Element {
     };
 
     let before = outcomes?.start;
-    const items: TreeNodeData[] = steps.map((step) => {
+    const window = session?.time.field === null ? null : (session?.time.current ?? null);
+    const stepItems: TreeNodeData[] = steps.map((step) => {
         const words = session === null ? "" : stepWords(session, step);
         const after = step.on ? outcomes?.after.get(step.id) : undefined;
         // A step over an edge column changes both counts, so it names both; the element counts both.
@@ -166,6 +172,38 @@ export function FiltersSection(): React.JSX.Element {
         };
     });
 
+    // The time window is a filter row too: the same element state the dock moves, not a second
+    // window. Turning it off shows all time.
+    const items: TreeNodeData[] =
+        session === null || window === null
+            ? stepItems
+            : [
+                  ...stepItems,
+                  {
+                      id: TIME_ROW,
+                      name: `Time ${windowWords(window, unitOf(session))}`,
+                      icon: <GLYPHS.time size={14} aria-hidden />,
+                      description: `${countWords(session.visibility.summary.visibleNodes, "node")}, ${countWords(session.visibility.summary.visibleEdges, "edge")}`,
+                      descriptionVisible: true,
+                      strong: false,
+                      actions: (
+                          <Tooltip label="Show all time">
+                              <span data-pinned="">
+                                  <Checkbox
+                                      size="xs"
+                                      aria-label="Apply the time window"
+                                      checked
+                                      onChange={() => {
+                                          session.time.pause();
+                                          session.time.window(null).then(() => undefined, reportTimeError(store));
+                                      }}
+                                  />
+                              </span>
+                          </Tooltip>
+                      ),
+                  },
+              ];
+
     const plus = (
         <Tooltip label="Add filter step">
             <ActionIcon
@@ -182,8 +220,8 @@ export function FiltersSection(): React.JSX.Element {
     );
 
     return (
-        <ControlSection label="Filters" actions={plus} empty={steps.length === 0}>
-            {steps.length === 0 ? null : (
+        <ControlSection label="Filters" actions={plus} empty={items.length === 0}>
+            {items.length === 0 ? null : (
                 <Tree
                     label="Filters"
                     items={items}
@@ -191,14 +229,18 @@ export function FiltersSection(): React.JSX.Element {
                     selected={open !== undefined && steps.some((s) => s.id === open) ? [open] : []}
                     onSelect={(ids) => {
                         const id = ids.at(-1);
-                        if (id !== undefined) {
+                        if (id === TIME_ROW) {
+                            focusBrush();
+                        } else if (id !== undefined) {
                             openStepEditor(store, id);
                         }
                     }}
                     rowMenu={(node) => (
                         <Menu.Item
                             onClick={() => {
-                                if (session !== null) {
+                                if (session !== null && node.id === TIME_ROW) {
+                                    session.time.window(null).then(() => undefined, reportTimeError(store));
+                                } else if (session !== null) {
                                     // The next row takes focus, or the one above when the last
                                     // goes, or "+" when none is left.
                                     const at = steps.findIndex((s) => s.id === node.id);
@@ -704,13 +746,18 @@ export function FilterChip(): React.JSX.Element | null {
         return null;
     }
     const words = chipWords(session.visibility.summary, session.visibility.steps);
-    const on = session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step));
+    // The time window is one of the filters in force, as the Filters list shows it.
+    const window = session.time.field === null ? null : session.time.current;
+    const on = [
+        ...session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step)),
+        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),
+    ];
     return (
         <Tooltip label={chipTip(on)} multiline maw={280}>
             <Button
                 variant="subtle"
                 size="compact-xs"
-                aria-label={`Filter: ${words}`}
+                aria-label={`Filter: ${words}${window === null ? "" : ", time window"}`}
                 leftSection={<GLYPHS.filter size={12} aria-hidden />}
                 onClick={() => {
                     store.set({ page: "panels", place: "data" });

@@ -1,5 +1,5 @@
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { stepWindow, togglePlay } from "./timeActions";
+import { seekEdge, stepWindow, togglePlay } from "./timeActions";
 
 /**
  * Why a timeline command cannot run now, or null.
@@ -14,7 +14,7 @@ function noTimeline({ session }: CommandContext): string | null {
     return session.time.field === null ? "No time field is set" : null;
 }
 
-/** The timeline's commands: step back and forward (comma, period) and play or pause. */
+/** The timeline's commands: step back and forward (comma, period), jump to either end (Shift with them) and play or pause. */
 export const registration = defineRegistration({
     owner: "time",
     commands: [
@@ -41,6 +41,34 @@ export const registration = defineRegistration({
             run: ({ session, workspace }) => {
                 if (session !== null) {
                     stepWindow(session, workspace, 1);
+                }
+            },
+        },
+        {
+            id: "time.start",
+            label: "Jump time to the start",
+            group: "View",
+            // Shift+comma: the key it types, whatever the layout calls it.
+            keys: ["<"],
+            keywords: ["timeline", "window", "first", "beginning"],
+            disabled: noTimeline,
+            run: ({ session, workspace }) => {
+                if (session !== null) {
+                    seekEdge(session, workspace, "start");
+                }
+            },
+        },
+        {
+            id: "time.end",
+            label: "Jump time to the end",
+            group: "View",
+            // Shift+period.
+            keys: [">"],
+            keywords: ["timeline", "window", "last"],
+            disabled: noTimeline,
+            run: ({ session, workspace }) => {
+                if (session !== null) {
+                    seekEdge(session, workspace, "end");
                 }
             },
         },

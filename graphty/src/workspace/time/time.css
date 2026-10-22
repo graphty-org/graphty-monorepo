@@ -1,6 +1,7 @@
 /* The timeline dock: under the canvas, above the table dock. It takes its own height, so it
    never covers a node. */
 .tl-dock {
+    position: relative;
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
@@ -12,28 +13,47 @@
 
 .tl-bar {
     min-height: 28px;
+    min-width: 0;
+    overflow: hidden;
+    /* Room for "Show all time", drawn at the bar's end but reached after the brush by Tab. */
+    padding-inline-end: 32px;
 }
 
+/* The readout at body size: the dock's one line of text. Tabular figures keep it still while it
+   changes. */
 .tl-readout {
+    flex-shrink: 0;
     white-space: nowrap;
     margin-inline-start: 4px;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
+    border-radius: 4px;
+    padding-inline: 4px;
 }
 
+.tl-readout:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* The counts give way first on a narrow dock: the readout and the transport keep their room. */
 .tl-counts {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
 
-.tl-spacer {
-    flex: 1 1 auto;
+.tl-speed {
+    min-width: 32px;
+    font-variant-numeric: tabular-nums;
 }
 
-.tl-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
+.tl-all {
+    position: absolute;
+    top: 4px;
+    inset-inline-end: 8px;
 }
 
 .tl-chart {
@@ -42,23 +62,28 @@
     gap: 2px;
 }
 
-.tl-brush {
-    margin-top: -6px;
+.tl-range-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
 }
 
-/* Touch: 44px targets for the transport and the brush's thumbs. */
+.tl-range-form .mantine-InputWrapper-root {
+    width: 120px;
+}
+
+/* Touch: 44px targets for the transport. The brush's thumbs take theirs from the theme. */
 @media (pointer: coarse) {
     .tl-dock .mantine-ActionIcon-root {
         min-width: 44px;
         min-height: 44px;
     }
+}
 
-    .tl-brush .mantine-Slider-thumb {
-        width: 28px;
-        height: 28px;
-    }
-
-    .tl-brush {
-        margin-block: 8px;
-    }
+/* The header's time chip: a fixed width and tabular figures, so the header does not move while
+   time plays. */
+.tl-chip-words {
+    min-width: 200px;
+    justify-content: flex-start;
+    font-variant-numeric: tabular-nums;
 }

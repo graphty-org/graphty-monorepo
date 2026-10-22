@@ -111,9 +111,10 @@ const TEAMS = ["Engineering", "Design", "Sales", "Operations"];
  */
 function officeEmail(): object {
     const rand = mulberry32(2025);
-    const people = FIRST_NAMES.map((name, i) => ({
+    // A person is called by their name: `label` is the column graphty-element names a node by.
+    const people = FIRST_NAMES.map((label, i) => ({
         id: `p${String(i + 1).padStart(2, "0")}`,
-        name,
+        label,
         team: TEAMS[i % 4],
     }));
     const start = Date.UTC(2025, 0, 1);

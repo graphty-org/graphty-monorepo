@@ -14,7 +14,6 @@ import {
     type LoadFromSourceOptions,
     registry,
     SOURCE_FORMAT_PREFIX,
-    type SourceDescriptor,
     type SourceListing,
     type SourceListQuery,
     type SourceProbe,
@@ -38,8 +37,8 @@ import { toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, SOURCE_ATTR, sourceLoadsOf } from "./ids";
+import { descriptorOf } from "./pending";
 import type {
-    PendingSourceLoad,
     SourceCheck,
     SourceCounts,
     SourceInput,
@@ -56,16 +55,6 @@ const ERROR_LIMIT = 100;
 
 /** How many nodes a preview shows when the caller names no cap. */
 const PREVIEW_NODES = 25;
-
-/**
- * A source's descriptor, read from the registry without loading the source's code.
- * @param id - the source id
- * @returns the descriptor, or undefined for an id no source has
- */
-function descriptorOf(id: string): SourceDescriptor | undefined {
-    ensureGraphSamplesSource();
-    return registry.listSources().find((info) => info.id === id)?.descriptor;
-}
 
 /**
  * The scheme, host and port of an endpoint.
@@ -789,51 +778,6 @@ function refreshBatch(
         },
         steps,
     };
-}
-
-/**
- * Whether an endpoint is on this machine or a local network.
- * @param endpoint - the endpoint, or null
- * @returns true for loopback, RFC 1918 and `.local` hosts
- */
-function isLocalNetwork(endpoint: string | null): boolean {
-    if (endpoint === null) {
-        return false;
-    }
-
-    const host = new URL(endpoint).hostname.replaceAll(/(?:^\[)|(?:\]$)/g, "");
-    return (
-        host === "localhost" ||
-        host === "::1" ||
-        host.endsWith(".local") ||
-        host.startsWith("127.") ||
-        host.startsWith("10.") ||
-        host.startsWith("192.168.") ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-    );
-}
-
-/**
- * The source loads an opened project holds but has not run.
- * @param host - the session pieces
- * @returns one entry per waiting load
- */
-export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad[] {
-    return host.ledger
-        .loads()
-        .filter((record) => host.pending.has(record.key))
-        .map((record) => {
-            const slot = host.credentialSlotOf(record.key);
-            return Object.freeze({
-                id: record.key,
-                source: record.source,
-                endpoint: record.endpoint,
-                hasQuery: typeof record.config.query === "string" || record.config.mapping !== undefined,
-                isLocalNetwork: isLocalNetwork(record.endpoint),
-                authRequired: descriptorOf(record.source)?.authRequired ?? "none",
-                ...(slot === undefined ? {} : { credentialSlot: slot }),
-            });
-        });
 }
 
 /**

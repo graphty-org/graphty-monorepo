@@ -3,7 +3,7 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 599979,
+        ".": 666485,
         "./session": 433500,
         "./schema": 14259,
         "./catalog": 146797,

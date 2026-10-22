@@ -84,12 +84,11 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
-import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
-import * as sourceLoad from "./sources/load";
 import { type LoadFacts, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
+import { pendingSourceLoads } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource } from "./sources/provenance";
 import type {
     CollapseResult,
@@ -617,7 +616,9 @@ export class SessionData implements SessionDataApi {
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
         if (source.source !== undefined) {
-            await sourceLoad.importSource(this.sourceHost(), { ...source, source: source.source }, options);
+            await (
+                await import("./sources/load")
+            ).importSource(this.sourceHost(), { ...source, source: source.source }, options);
             return;
         }
 
@@ -841,7 +842,8 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
-        return sourceLoad.testSource(this.sourceHost(), source, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.testSource(host, source, options));
     }
 
     /**
@@ -857,7 +859,8 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
-        return sourceLoad.listSource(this.sourceHost(), source, query, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.listSource(host, source, query, options));
     }
 
     /**
@@ -868,7 +871,8 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
-        return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+        const host = this.sourceHost();
+        return import("./sources/expand").then((module) => module.expandNodes(host, ids, options));
     }
 
     /**
@@ -907,7 +911,8 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
-        return sourceExpand.collapseNode(this.sourceHost(), id);
+        const host = this.sourceHost();
+        return import("./sources/expand").then((module) => module.collapseNode(host, id));
     }
 
     /**
@@ -917,7 +922,8 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        return sourceLoad.more(this.sourceHost(), options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.more(host, options));
     }
 
     /**
@@ -928,7 +934,8 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
-        return sourceLoad.previewSource(this.sourceHost(), source, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.previewSource(host, source, options));
     }
 
     /**
@@ -939,7 +946,8 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
-        return sourceLoad.checkSource(this.sourceHost(), load, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.checkSource(host, load, options));
     }
 
     /**
@@ -950,7 +958,8 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
-        return sourceLoad.refreshSource(this.sourceHost(), load, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.refreshSource(host, load, options));
     }
 
     /**
@@ -961,7 +970,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadSample");
-        await sourceLoad.loadSample(this.sourceHost(), id, options);
+        await (await import("./sources/load")).loadSample(this.sourceHost(), id, options);
     }
 
     /**
@@ -995,7 +1004,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return sourceLoad.pendingSourceLoads(this.sourceHost());
+        return pendingSourceLoads(this.sourceHost());
     }
 
     /**
@@ -1006,7 +1015,8 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        return sourceLoad.runPendingSourceLoad(this.sourceHost(), id, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options));
     }
 
     /**

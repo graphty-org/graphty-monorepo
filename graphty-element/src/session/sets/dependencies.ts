@@ -182,7 +182,8 @@ class Collector {
                 return;
             case "range":
             case "categories":
-                this.path(node.attribute);
+            case "text":
+                this.attributeRule(node);
                 return;
             case "degree":
             case "component":
@@ -197,7 +198,7 @@ class Collector {
                 this.scope(node.of);
                 return;
             case "item":
-                this.item(node.item);
+                this.itemRule(node.item);
                 return;
             case "threshold":
                 this.path(node.path);
@@ -218,7 +219,30 @@ class Collector {
         }
     }
 
-    item(item: unknown): void {
+    /**
+     * A range, categories or text rule: the attribute it reads, and the topology when it reads ids
+     * or edge ends.
+     * @param node - The rule.
+     */
+    private attributeRule(node: Loose): void {
+        const read = node.kind === "text" ? node.reads : node.attribute;
+        if (read === "id") {
+            // The id moves only with the graph's own shape.
+            this.add({ kind: "topology" });
+        } else {
+            this.path(read);
+        }
+
+        if (node.nodes === "ends") {
+            this.add({ kind: "topology" });
+        }
+    }
+
+    /**
+     * An item rule: the run whose result it names, and the execution when it pins one.
+     * @param item - The rule's item.
+     */
+    private itemRule(item: unknown): void {
         if (!isObject(item)) {
             return;
         }

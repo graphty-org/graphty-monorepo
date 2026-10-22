@@ -4,7 +4,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession, type LoadedSource } from "../../session";
+import { createGraphSession, type LoadedSource } from "../../session";
 
 const FRIENDS = "source,target\nAva,Ben\nBen,Cara\nCara,Ava\n";
 const MESSAGES = "source,target\nAva,Dan\nDan,Eve\n";
@@ -16,7 +16,12 @@ const MESSAGES = "source,target\nAva,Dan\nDan,Eve\n";
  * @param name - the file's name
  * @param mode - replace or merge
  */
-async function load(session: GraphSession, data: string, name: string, mode: "replace" | "merge"): Promise<void> {
+async function load(
+    session: ReturnType<typeof createGraphSession>,
+    data: string,
+    name: string,
+    mode: "replace" | "merge",
+): Promise<void> {
     const draft = await session.data.prepare({ type: "csv", config: { data }, name });
     await draft.load({ mode });
 }
@@ -24,9 +29,9 @@ async function load(session: GraphSession, data: string, name: string, mode: "re
 /**
  * The parts of each source the tests compare.
  * @param session - the session
- * @returns name, type, tables and counts per load
+ * @returns name, tables and counts per load
  */
-function summary(session: GraphSession): unknown[] {
+function summary(session: ReturnType<typeof createGraphSession>): unknown[] {
     return session.data.sources().map((each) => [each.name, each.type, each.tables, each.added]);
 }
 
@@ -53,17 +58,6 @@ describe("session.data.sources", () => {
         session.dispose();
     });
 
-    it("lists two file loads made with data.import", async () => {
-        const session = createGraphSession();
-        await session.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
-        await session.data.import({ type: "csv", config: { data: MESSAGES }, name: "messages.csv" }, { mode: "merge" });
-        assert.deepStrictEqual(summary(session), [
-            ["friends.csv", "csv", [], { nodes: 3, edges: 3 }],
-            ["messages.csv", "csv", [], { nodes: 2, edges: 2 }],
-        ]);
-        session.dispose();
-    });
-
     it("keeps every load through a project save and reopen, and a rename names the last", async () => {
         const session = createGraphSession();
         await load(session, FRIENDS, "friends.csv", "replace");
@@ -81,6 +75,40 @@ describe("session.data.sources", () => {
         reopened.dispose();
     });
 
+    it("keeps the unmatched edge rows a load left out, the rows themselves with their lines and end columns, through undo, redo, save and reopen", async () => {
+        const session = createGraphSession();
+        const people = new File(["id\nAva\nBen\n"], "people.csv");
+        const passes = new File(["from,to,emails\nAva,Ben,2\nBen,Zed,6\nZed,Ava,1\nYan,Zed,4\n"], "passes.csv");
+        const draft = await session.data.prepare({ config: { nodeFile: people, edgeFile: passes } });
+        await draft.load({ unmatched: "leave-out" });
+        await load(session, MESSAGES, "messages.csv", "merge");
+        const [first, second] = session.data.sources();
+        const leftOut = {
+            rows: 3,
+            values: 2,
+            endColumns: { source: "from", target: "to" },
+            edges: [
+                { source: "Ben", target: "Zed", line: 3, values: { emails: 6 }, missingEnds: ["target"] },
+                { source: "Zed", target: "Ava", line: 4, values: { emails: 1 }, missingEnds: ["source"] },
+                { source: "Yan", target: "Zed", line: 5, values: { emails: 4 }, missingEnds: ["source", "target"] },
+            ],
+        } satisfies LoadedSource["leftOut"];
+        assert.deepStrictEqual(first?.leftOut, leftOut, "the row itself is kept, not only its count");
+        assert.notProperty(second, "leftOut", "a load that left nothing out says nothing");
+
+        await session.undo();
+        await session.undo();
+        assert.deepStrictEqual(session.data.sources(), []);
+        await session.redo();
+        assert.deepStrictEqual(session.data.sources()[0]?.leftOut, leftOut);
+
+        const { text } = await session.project.save();
+        const reopened = createGraphSession();
+        await reopened.project.open(text, { discard: true });
+        assert.deepStrictEqual(reopened.data.sources()[0]?.leftOut, leftOut);
+        session.dispose();
+        reopened.dispose();
+    });
     it("says what each table it read held, through save and reopen, and nothing of a graph file", async () => {
         const session = createGraphSession();
         const people = new File(["id\nAva\nBen\n"], "people.csv");

@@ -16,7 +16,15 @@
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 
 import { sourceDescriptors } from "../catalog/sources";
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
+import {
+    type EdgeId,
+    type FieldDescriptor,
+    type NodeId,
+    PROJECT_FILE,
+    type ResultShape,
+    type RunId,
+    type SetDefinitionInput,
+} from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { SessionData } from "./data";
@@ -642,9 +650,6 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
-        ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
-        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
-        ...(fileStyles.length === 0 ? {} : { fileStyles }),
         // Written only when a value is named, so a project without names saves as before.
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
@@ -654,6 +659,9 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
                       label,
                   })),
               }),
+        ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
+        // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
+        ...(fileStyles.length === 0 ? {} : { fileStyles }),
     };
 }
 
@@ -704,7 +712,7 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
     }
 
     const { result } = entry;
-    const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
+    const { op: _op, as: _as, applySuggestedStyles: _style, restoreLayer: _restore, ...command } = entry.command;
     const nodeColumn: NodeId[] = [];
     const nodeValues: Readonly<Record<string, unknown>>[] = [];
     for (const node of ids.nodes) {
@@ -1000,6 +1008,20 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * What kind of graphty document a text is, as `open` would read it.
+ * @param text - The file's text.
+ * @returns `"project"` for a saved project, `"document"` for another graphty document, or null
+ *     when the text is not a graphty document (a data file, or nothing `open` reads).
+ */
+export function documentKind(text: string): "project" | "document" | null {
+    try {
+        return readDocument(text).members.has("graphty-session") ? "project" : "document";
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Parse a file and sort its members.
  * @param text - The file's text.
  * @returns The document.
@@ -1151,10 +1173,9 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         tx.notes.remove(note.id);
     }
 
-    for (const layer of tx.styles.list()) {
-        if (!layer.locked) {
-            await tx.styles.remove(layer.id);
-        }
+    // Every row of the style tree, folders with their layers; the element's own layers stay.
+    for (const row of tx.styles.tree()) {
+        await tx.styles.deleteRow(row.id);
     }
 
     for (const set of tx.sets.list()) {
@@ -1269,12 +1290,31 @@ function isLoadedSource(value: unknown): value is LoadedSource {
         return false;
     }
 
-    const { tableRows } = value;
+    const { leftOut, tableRows } = value;
     return (
         (tableRows === undefined ||
             (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
         typeof value.added.nodes === "number" &&
-        typeof value.added.edges === "number"
+        typeof value.added.edges === "number" &&
+        (leftOut === undefined ||
+            (isObject(leftOut) &&
+                typeof leftOut.rows === "number" &&
+                typeof leftOut.values === "number" &&
+                (leftOut.endColumns === undefined ||
+                    (isObject(leftOut.endColumns) &&
+                        typeof leftOut.endColumns.source === "string" &&
+                        typeof leftOut.endColumns.target === "string")) &&
+                (leftOut.edges === undefined ||
+                    (Array.isArray(leftOut.edges) &&
+                        leftOut.edges.every(
+                            (edge) =>
+                                isObject(edge) &&
+                                isObject(edge.values) &&
+                                (edge.line === undefined || typeof edge.line === "number") &&
+                                (edge.missingEnds === undefined ||
+                                    (Array.isArray(edge.missingEnds) &&
+                                        edge.missingEnds.every((end) => end === "source" || end === "target"))),
+                        )))))
     );
 }
 
@@ -1465,31 +1505,27 @@ async function readProject(
 
                 // A file written before caveats carried facts has none to read back.
                 const caveats: Caveats = { facts: [], ...run.caveats };
-
-                canned.set(run.id, {
-                    result: createRunResult({
-                        runId: run.id,
-                        shape: run.shape,
-                        fields: run.fields,
-                        measured: run.measured,
-                        graph: run.graph,
-                        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) =>
-                            nodeIds.has(node) ? node : undefined,
-                        ),
-                        // Edges are keyed by position in the data; data that differs leaves them out.
-                        edges: sameData
-                            ? rowsOf(
-                                  edgeIds.map((_, at) => at),
-                                  run.edges.columns,
-                                  (at) => edgeIds[at],
-                              )
-                            : [],
-                        caveats,
-                        durationMs: run.durationMs,
-                    }),
-                    caveats,
+                const result = createRunResult({
+                    runId: run.id,
+                    shape: run.shape,
                     fields: run.fields,
+                    measured: run.measured,
+                    graph: run.graph,
+                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                    // Edges are keyed by position in the data; data that differs leaves them out.
+                    edges: sameData
+                        ? rowsOf(
+                              edgeIds.map((_, at) => at),
+                              run.edges.columns,
+                              (at) => edgeIds[at],
+                          )
+                        : [],
+                    caveats,
+                    durationMs: run.durationMs,
                 });
+                // The summary too, as a fresh execution hands it over: the run's record (its count,
+                // its groups) is read from it.
+                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
                     await tx.runs.start(algorithm, params, {
@@ -1700,23 +1736,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-/**
- * How a project file is named and typed: what `element.downloadProject()` gives the file, and
- * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
- * @example
- * ```typescript
- * const handle = await showSaveFilePicker({
- *     suggestedName: projectFileName(session.project.name),
- *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
- * });
- * ```
- */
-export const PROJECT_FILE = Object.freeze({
-    /** The file name's ending, with its leading dot. */
-    extension: ".graphty.json",
-    /** The file's media type. */
-    mediaType: "application/vnd.graphty+json",
-} as const);
+export { PROJECT_FILE } from "../catalog/types";
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`

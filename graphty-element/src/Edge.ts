@@ -4,11 +4,19 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import type { AdHocData, EdgeStyleConfig, RichTextStyleType } from "./config";
+import {
+    type AdHocData,
+    DEFAULT_SELECTION_STYLE,
+    type EdgeStyleConfig,
+    type GraphSelectionStyleConfig,
+    type RichTextStyleType,
+} from "./config";
+import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
+import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
@@ -95,6 +103,13 @@ function points(flat: readonly number[]): Vector3[] {
 }
 
 /**
+ * How far a selected edge's band is pushed back in depth (a material's `zOffset`, which scales
+ * with the slope, and `zOffsetUnits`, which a band facing the camera needs), so the line it marks
+ * wins every pixel they share and the band shows only beside it, as a casing.
+ */
+const HALO_DEPTH_OFFSET = 2;
+
+/**
  * The caption one end of an edge should be drawing, or undefined when it should draw none.
  *
  * Words are what switch a caption on, exactly as they switch a label on: `StylePainter` sets a
@@ -110,7 +125,7 @@ function points(flat: readonly number[]): Vector3[] {
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
 function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType | undefined {
-    return block?.enabled === true ? block : undefined;
+    return drawnText(block);
 }
 
 /**
@@ -349,6 +364,18 @@ export class Edge {
     /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
     private lineIsCurve = false;
 
+    /** The batch this edge's selection halo is drawn from while it is selected; see `paintHalo`. */
+    private haloBatch: EdgeLineBatch | null = null;
+
+    /** Which slots of {@link Edge.haloBatch} draw the halo, as {@link Edge.lineSlots} do the line. */
+    private haloSlots: number[] = [];
+
+    /** Whether the halo follows a curve. */
+    private haloIsCurve = false;
+
+    /** What the halo was drawn from, or null when none is drawn; see `paintHalo`. */
+    private haloKey: string | null = null;
+
     /**
      * Whether this edge is drawn as a self-loop's teardrop or fanned out of a bundle of edges
      * between the same two nodes: a run of slots, like a curve.
@@ -468,11 +495,13 @@ export class Edge {
      */
     private renderVisible = true;
 
+    /** Whether the style stack hid this edge (`edge.visible` false), which only stops drawing it. */
+    private styleHidden = false;
+
     /**
      * Whether this edge is in the session's selection.
      *
-     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected} for what is and
-     * is not drawn from it today.
+     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected}.
      */
     private selected = false;
 
@@ -783,7 +812,7 @@ export class Edge {
         // below from putting an arrowhead back on screen for an edge the mask has taken off it:
         // placing a cap IS showing it -- the collapsed matrix the mask wrote is overwritten by
         // the placement -- and those branches run on any frame an endpoint moves.
-        if (!this.renderVisible) {
+        if (!this.isRenderVisible()) {
             return;
         }
 
@@ -961,7 +990,7 @@ export class Edge {
         const paint = this.currentPaint();
 
         this.sessionPaint = paint;
-        this.paintFrom(paint.meshKey, paint.style);
+        this.paintMarked(paint);
     }
 
     /**
@@ -988,7 +1017,100 @@ export class Edge {
         }
 
         this.sessionPaint = paint;
+        this.paintMarked(paint);
+    }
+
+    /**
+     * Draw a paint, with the selection halo over it when this edge is selected.
+     *
+     * The line keeps its own paint, as a selected node keeps its own: like a node's halo the mark
+     * is drawn from the selection mask, never from a layer (see `GraphSelectionStyle`).
+     * @param paint - The paint the style stack resolved.
+     */
+    private paintMarked(paint: EdgePaint): void {
         this.paintFrom(paint.meshKey, paint.style);
+        this.paintHalo(paint.style);
+
+        const hidden = paint.style.visible === false;
+        if (hidden !== this.styleHidden) {
+            this.styleHidden = hidden;
+            this.applyRenderState();
+        }
+    }
+
+    /**
+     * Draw, move or drop the band of the configured edge selection colour, at the configured
+     * opacity, along this edge's line: the edge's halo.
+     *
+     * THE SELECTION STYLE'S THREE EDGE SETTINGS (`edgeColor`, `edgeScale`, `edgeOpacity`). The
+     * band is `edgeScale` times twice the line's width and is drawn BEHIND the line, pushed back
+     * in depth, so the line keeps its own paint down the middle and the band shows on both sides
+     * as a casing. It used to read the node halo's settings: a pale gold band at 0.4 opacity
+     * beside a one-pixel line, which on a dense drawing could not be told from the grey edges.
+     * Before that it recoloured the line itself, darkened until it stood 3:1 from the canvas: on
+     * a light canvas that turned gold into a dark olive nobody had configured.
+     * @param style - The line's resolved style; the band follows its width and its curve.
+     */
+    private paintHalo(style: EdgeStyleConfig): void {
+        const { graph } = this.context.getStyles().config;
+        // A band a layer painted; else, while selected, the selection settings' band -- unless the
+        // starting rows are on, where the Selected row draws it as a style instead.
+        let selection: Pick<GraphSelectionStyleConfig, "edgeColor" | "edgeScale" | "edgeOpacity"> | null = null;
+        if (style.band?.color !== undefined) {
+            selection = {
+                edgeColor: style.band.color,
+                edgeScale: style.band.scale ?? DEFAULT_SELECTION_STYLE.edgeScale,
+                edgeOpacity: style.band.opacity ?? DEFAULT_SELECTION_STYLE.edgeOpacity,
+            };
+        } else if (this.selected && graph.startingRows !== true) {
+            selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
+        }
+        const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
+        const curve = style.line?.bezier === true;
+        const key =
+            selection === null
+                ? null
+                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(curve)}`;
+        const gone = this.haloBatch?.mesh.isDisposed() ?? true;
+
+        if (key === this.haloKey && (key === null || !gone)) {
+            return;
+        }
+
+        this.releaseHalo();
+        this.haloKey = key;
+
+        if (selection === null || key === null) {
+            return;
+        }
+
+        const { edgeColor: color, edgeOpacity: opacity } = selection;
+        this.haloBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: key, width, color },
+            { line: { type: "solid", color, opacity, width, bezier: curve } },
+            this.context.getScene(),
+        );
+        // Behind the line: the batch is the band's alone, so its material can be pushed back.
+        if (this.haloBatch?.mesh.material) {
+            this.haloBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
+            this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
+        }
+        this.haloSlots = this.haloBatch ? [this.haloBatch.acquire()] : [];
+        this.haloIsCurve = curve;
+        // The band has no place until the next update puts it on the line.
+        this.invalidatePositionCache();
+    }
+
+    /** Hand the halo's slots back to its batch, so a deselected edge draws no band. */
+    private releaseHalo(): void {
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.release(slot);
+        }
+
+        this.haloBatch = null;
+        this.haloSlots = [];
+        this.haloKey = null;
     }
 
     /**
@@ -1231,7 +1353,7 @@ export class Edge {
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         let rebuilt = false;
 
-        const wantedLabel = style.label?.enabled === true ? style.label : undefined;
+        const wantedLabel = drawnText(style.label);
         const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
 
         if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {
@@ -1287,6 +1409,10 @@ export class Edge {
 
         if (rebuilt) {
             this.invalidatePositionCache();
+            // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
+            if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
+                LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
+            }
         }
     }
 
@@ -1351,11 +1477,18 @@ export class Edge {
         }
 
         this.readRoute(style);
-        // A straight line is one slot: hand back the rest of a run.
+        // A straight line is one slot: hand back the rest of a run, the band's as well as the line's
+        // (a selected edge's band followed the bends in a run of its own).
         while (!this.lineIsCurve && this.lineSlots.length > 1) {
             const slot = this.lineSlots.pop();
             if (slot !== undefined) {
                 batch.release(slot);
+            }
+        }
+        while (!this.lineIsCurve && this.haloSlots.length > 1) {
+            const slot = this.haloSlots.pop();
+            if (slot !== undefined) {
+                this.haloBatch?.release(slot);
             }
         }
 
@@ -1420,6 +1553,7 @@ export class Edge {
         this.disposed = true;
 
         this.releaseLine();
+        this.releaseHalo();
 
         if (this.arrowCap && !this.arrowCap.isDisposed()) {
             this.arrowCap.dispose();
@@ -1483,7 +1617,7 @@ export class Edge {
      * @returns True when it is drawn.
      */
     isRenderVisible(): boolean {
-        return this.renderVisible;
+        return this.renderVisible && !this.styleHidden;
     }
 
     /**
@@ -1516,14 +1650,7 @@ export class Edge {
     }
 
     /**
-     * Say whether this edge is selected.
-     *
-     * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
-     * ONE batch per edge style (`EdgeMesh.lineBatch` interns it under `edge-style-<id>`), so a
-     * per-edge colour or alpha is not available without giving the selected edge a mesh of its
-     * own; see the report accompanying this change for what that needs. Recording it here rather
-     * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
-     * element -- rather than a style layer -- the owner of the answer.
+     * Say whether this edge is selected, and draw it marked or plain to match (see `paintMarked`).
      * @param selected - What the selection mask says about this edge.
      * @returns True when this changed the state.
      */
@@ -1533,6 +1660,7 @@ export class Edge {
         }
 
         this.selected = selected;
+        this.updateStyle();
 
         return true;
     }
@@ -1550,7 +1678,11 @@ export class Edge {
             return;
         }
 
-        const drawn = this.renderVisible;
+        const drawn = this.isRenderVisible();
+
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.setDrawn(slot, drawn);
+        }
 
         this.setBatchedPiecesDrawn(drawn);
         this.setLineDrawn(drawn);
@@ -1630,7 +1762,9 @@ export class Edge {
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
-            this.placeCurve(this.lineBatch, srcPoint, dstPoint);
+            const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
+            this.placeOutline(curve);
+            this.placeGradient(curve);
         } else if (this.lineBatch) {
             // A line that was fanned out or looped holds a run: hand back all but its first slot.
             while (this.lineSlots.length > 1) {
@@ -1646,6 +1780,12 @@ export class Edge {
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
+        }
+
+        if (this.haloBatch && this.haloIsCurve) {
+            this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
+        } else if (this.haloBatch) {
+            this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
         }
     }
 
@@ -1821,7 +1961,7 @@ export class Edge {
             cut === null || cutAt === null
                 ? [...route.slice(3 * span.first, 3 * span.last + 3), ...this.lineEndBefore(last, end).asArray()]
                 : [...path.slice(1, cut.keep + 1).flatMap((p) => p.asArray()), ...cutAt.asArray()];
-        this.placeRun(batch, [lineStart.x, lineStart.y, lineStart.z, ...body]);
+        this.placeLineRun(batch, [lineStart.x, lineStart.y, lineStart.z, ...body]);
         return true;
     }
 
@@ -1853,12 +1993,16 @@ export class Edge {
      * every time an endpoint moved; now the run grows or shrinks to the curve's point count and
      * each segment is a matrix write.
      * @param batch - The batch the run is in.
+     * @param slots - The run's slots, grown or shrunk in place.
      * @param srcPoint - Where the curve starts.
      * @param dstPoint - Where it ends.
+     * @returns The curve's points, which the line's outline and gradient are placed along too.
      */
-    private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+    private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): number[] {
         const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
-        this.placeRun(batch, EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius));
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
+        this.placeRun(batch, slots, flat);
+        return flat;
     }
 
     /**
@@ -1866,7 +2010,8 @@ export class Edge {
      * leaves the source node toward the first bend outside it, through the bends, to its target port
      * or to where it meets the target node -- each end trimmed for its arrow cap along its own
      * segment -- with the corners rounded when the line is also curved. Bends inside a node are
-     * passed over, as a tool that clips a line at the outlines draws it.
+     * passed over, as a tool that clips a line at the outlines draws it. A selected edge's band
+     * follows the same run.
      * @param batch - The batch the run is in.
      * @param src - The source node's center.
      * @param dst - The target node's center.
@@ -1884,7 +2029,7 @@ export class Edge {
         const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
         if (ring !== null) {
             // ponytail: a ring's arrow caps are not placed; no program draws one on a ring that misses its node
-            this.placeRun(batch, Edge.curveThroughBends(line, ring));
+            this.placeLineRun(batch, Edge.curveThroughBends(line, ring));
             return true;
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
@@ -1923,7 +2068,7 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
-        this.placeRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
+        this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
         return true;
     }
 
@@ -2025,27 +2170,26 @@ export class Edge {
     /**
      * Draw a run of straight segments, one slot each, through points.
      * @param batch - The batch the run is in.
+     * @param slots - The run's slots, grown or shrunk in place.
      * @param flat - The points, flat x, y, z.
      */
-    private placeRun(batch: EdgeLineBatch, flat: readonly number[]): void {
-        const segments = flat.length / 3 - 1;
+    private placeRun(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
+        Edge.placeBand(batch, slots, flat);
+    }
 
-        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
-        // slot goes, which must not happen in the middle of re-sizing a run.
-        while (this.lineSlots.length < segments) {
-            this.lineSlots.push(batch.acquire());
+    /**
+     * Lay this edge's line along points, and everything drawn along the line with it: its run of
+     * slots, the selection band, the outline, the underlay and overlay bands and the gradient's
+     * pieces.
+     * @param batch - The line's batch.
+     * @param flat - The points, flat x, y, z.
+     */
+    private placeLineRun(batch: EdgeLineBatch, flat: readonly number[]): void {
+        this.placeRun(batch, this.lineSlots, flat);
+        if (this.haloBatch) {
+            this.placeRun(this.haloBatch, this.haloSlots, flat);
         }
 
-        while (this.lineSlots.length > Math.max(1, segments)) {
-            const slot = this.lineSlots.pop();
-
-            if (slot !== undefined) {
-                batch.release(slot);
-            }
-        }
-
-        // One write per piece, each with its neighbours, so the pieces meet at their corners.
-        batch.placeRun(this.lineSlots, flat);
         this.placeOutline(flat);
         this.placeGradient(flat);
     }
@@ -2194,6 +2338,9 @@ export class Edge {
      */
     private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
         const segments = flat.length / 3 - 1;
+
+        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
+        // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
             slots.push(batch.acquire());
         }

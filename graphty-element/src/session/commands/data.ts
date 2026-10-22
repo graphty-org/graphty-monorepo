@@ -29,7 +29,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
+import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -45,6 +45,7 @@ import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply"
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
+import type { Selector } from "../styles/selector";
 import type { HistoryCode, LoadedSource, LoadedSourceKind, LoadMapping, NodeRecordInput, RowUpdate } from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
@@ -149,8 +150,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
+     * graph), so a record repeating one is counted as the real merge counts it.
      */
-    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    readonly measure?: {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: number;
+        readonly pairs?: ReadonlySet<string>;
+    };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**
@@ -158,6 +165,10 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
+    readonly tables?: readonly string[];
+    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.
@@ -165,10 +176,6 @@ export interface DataImportCommand {
     readonly styles?: "file" | "none";
     /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
     readonly styleOptions?: FileStyleOptions;
-    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
-    readonly tables?: readonly string[];
-    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
-    readonly tableRows?: readonly ("nodes" | "edges")[];
     /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
     readonly origin?: LoadedSourceKind;
     /** For a joined table: the load it was joined onto. */
@@ -185,6 +192,8 @@ export interface HeldRows {
     readonly nodes: readonly Record<string, unknown>[];
     /** Edge records. */
     readonly edges: readonly Record<string, unknown>[];
+    /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly edgeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -201,6 +210,35 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+}
+
+/** The load choices a `data.import` command carries. */
+export type ImportChoices = Pick<
+    DataImportCommand,
+    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds" | "mapping"
+>;
+
+/**
+ * The one `data.import` command `session.data.import` and `LoadDraft.load` both send, so a file
+ * loads the same whichever of the two loads it.
+ * @param source - Where the rows come from.
+ * @param choices - The load choices; one left out is left out of the command.
+ * @param held - The rows a draft already read, loaded in place of reading the source again.
+ * @returns The command.
+ */
+export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
+    const optional = Object.fromEntries(
+        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds", "mapping"] as const)
+            .filter((key) => choices[key] !== undefined)
+            .map((key) => [key, choices[key]]),
+    );
+    return {
+        op: "data.import",
+        source,
+        mode: choices.mode ?? "replace",
+        ...optional,
+        ...(held === undefined ? {} : { held }),
+    };
 }
 
 /**
@@ -265,7 +303,7 @@ interface DataLabelCommand {
     readonly op: "data.label";
     /** The value path: `data.<column>` or `results.<run>.<field>`. */
     readonly path: Path;
-    /** The value, compared as text, so `3` and `"3"` are one value. */
+    /** The value, compared as the legend spells it, so `3` and `"3"` are one value. */
     readonly value: string | number | boolean;
     /** The name, or null to remove it. */
     readonly label: string | null;
@@ -336,6 +374,22 @@ export interface DataService {
      * @param draft - The command's draft.
      */
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
+}
+
+/** A session's stable edge identity, read from its current snapshot. */
+export interface EdgeIdentityService {
+    /**
+     * An edge's stable identity: its file id, else its ordinal among its pair's edges in its load.
+     * @param id - The session edge id.
+     * @returns The member, or undefined when the graph holds no such edge.
+     */
+    member(id: EdgeId): EdgeMember | undefined;
+    /**
+     * The session ids of the edges stable members name now.
+     * @param members - The members.
+     * @returns One entry per member: its edge's id, or undefined when it binds no single edge.
+     */
+    idsOf(members: readonly EdgeMember[]): (EdgeId | undefined)[];
 }
 
 /** The graph value naming where the graph was last loaded from. */
@@ -640,7 +694,7 @@ function importLabel(command: DataImportCommand): string {
  * @param command - The import.
  * @returns `data.import` with `name` and `type`, each null when unknown.
  */
-function importFact(command: DataImportCommand): CodedFact<"data.import"> {
+export function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     const { type, config, name } = command.source;
     const file = config?.file as { name?: unknown } | undefined;
     const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;
@@ -695,7 +749,13 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             adviseLayout(ctx, () => sceneScale);
         }
 
+        const replacing = command.mode !== "merge" && command.measure === undefined;
+        const picked = replacing ? pickedEdges(ctx) : [];
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        if (outcome !== null && outcome !== undefined) {
+            await repickEdges(picked, ctx);
+        }
+
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
@@ -705,6 +765,62 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
+
+/** A user layer naming edges by id, with each edge's stable identity before a replacing load. */
+interface PickedEdges {
+    readonly id: LayerId;
+    readonly selector: Extract<Selector, { match: "ids" }>;
+    readonly members: readonly (EdgeMember | undefined)[];
+}
+
+/**
+ * The user layers whose `ids` selector names edges, read before a replacing load: a session edge
+ * id is a counter that never rewinds, so the same file loaded again issues new ids.
+ * @param ctx - The import's context.
+ * @returns Each such layer with its edges' stable identities.
+ */
+function pickedEdges(ctx: UndoableContext): PickedEdges[] {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return [];
+    }
+
+    const picked: PickedEdges[] = [];
+    for (const { layer } of ctx.state.styles) {
+        const { selector } = layer;
+        if (layer.locked || selector.match !== "ids" || selector.edges === undefined || selector.edges.length === 0) {
+            continue;
+        }
+
+        picked.push({ id: layer.id, selector, members: selector.edges.map((edge) => identity.member(edge)) });
+    }
+
+    return picked;
+}
+
+/**
+ * Point each hand-picked layer at the ids the replacing load gave the same edges, in the load's
+ * step, so loading the same file again keeps the layer's members. An edge the new graph does not
+ * hold keeps its old id, which matches nothing.
+ * @param picked - What {@link pickedEdges} read before the load.
+ * @param ctx - The import's context.
+ */
+async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext): Promise<void> {
+    const identity = ctx.services.edgeIdentity;
+    if (identity === undefined) {
+        return;
+    }
+
+    for (const { id, selector, members } of picked) {
+        const bound = members.filter((member): member is EdgeMember => member !== undefined);
+        const ids = identity.idsOf(bound);
+        let at = 0;
+        const edges = (selector.edges ?? []).map((edge, k) => (members[k] === undefined ? edge : (ids[at++] ?? edge)));
+        if (edges.some((edge, k) => edge !== selector.edges?.[k])) {
+            await ctx.inline({ op: "style.patch", action: "update", id, patch: { selector: { ...selector, edges } } });
+        }
+    }
+}
 
 /**
  * Choose the layout recommended for what an import loads, once it is loaded, merged into the
@@ -916,6 +1032,7 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     },
 };
 
+/** The data ops' definitions. */
 const dataLabel: UndoableDefinition<DataLabelCommand> = {
     op: "data.label",
     undo: {
@@ -960,7 +1077,6 @@ const dataLabel: UndoableDefinition<DataLabelCommand> = {
     },
 };
 
-/** The data ops' definitions. */
 export const DATA_DEFINITIONS = [
     dataApply,
     dataImport,

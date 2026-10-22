@@ -30,6 +30,9 @@ export const COMMANDS: Readonly<{
     readonly "algo.remove": {
         readonly undo: "undoable";
     };
+    readonly "algo.move": {
+        readonly undo: "undoable";
+    };
     readonly batch: {
         readonly undo: "undoable";
     };
@@ -57,10 +60,10 @@ export const COMMANDS: Readonly<{
     readonly "data.setSource": {
         readonly undo: "undoable";
     };
-    readonly "data.setFileStyles": {
+    readonly "data.label": {
         readonly undo: "undoable";
     };
-    readonly "data.label": {
+    readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
     readonly "style.patch": {
@@ -156,7 +159,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

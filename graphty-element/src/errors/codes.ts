@@ -40,8 +40,12 @@ export type GraphtyErrorCode =
      */
     | "E_BAD_LAYER"
     /**
-     * A style layer's selector does not parse. `details` carry the character offset. The caller
-     * corrects the selector; the layer is not added.
+     * A style layer's selector does not parse. `details.reason` is a stable code naming the
+     * mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+     * reading the message; an expression's refusal also carries the character offset
+     * (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+     * the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+     * caller corrects the selector; the layer is not added.
      */
     | "E_BAD_SELECTOR"
     /**
@@ -56,8 +60,10 @@ export type GraphtyErrorCode =
      */
     | "E_SELECTOR_EMPTY"
     /**
-     * A universal selector is combined with an encoding bound to a run, which would ask the
-     * element to paint elements the run never measured. The caller scopes the layer to the
+     * A universal selector is combined with an encoding bound to a run that paints a value for a
+     * missing result (`missing: { value }`), which would ask the element to paint elements the run
+     * never measured. Without `missing`, such a layer is accepted: an element with no result is
+     * not painted. The caller scopes the layer to the
      * elements that carry the run's result.
      */
     | "E_UNSCOPED_RUN_ENCODING"
@@ -220,6 +226,12 @@ export type GraphtyErrorCode =
      */
     | "E_PROTECTED"
     /**
+     * The target is locked by the reader: a style layer whose row, or a folder holding it, has
+     * the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
+     * caller unlocks the row first, or leaves the layer as it is.
+     */
+    | "E_LOCKED"
+    /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
      * unreadable file. `details` carry the url and the status where there was one, and `cause`
      * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
@@ -232,6 +244,14 @@ export type GraphtyErrorCode =
      * corrects the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
+    /**
+     * A graphty project or document file (one `session.project.save` writes) was handed to a data
+     * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+     * opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+     * that opens it. Nothing in the session changed. The caller opens the file with
+     * `session.project.open`, which reads data files too.
+     */
+    | "E_PROJECT_FILE_AS_DATA"
     /**
      * An edge table declares no endpoint columns and contains none of the accepted pairs
      * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
@@ -583,6 +603,12 @@ export type GraphtyWarningCode =
      */
     | "W_ALPHA_IGNORED"
     /**
+     * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
+     * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
+     * size sits, and `params.value` the size.
+     */
+    | "W_TEXT_TOO_SMALL"
+    /**
      * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
      * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
      * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
@@ -668,8 +694,10 @@ const CODE_TABLE = {
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",
+    E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
     E_EMPTY_LOAD: "E_EMPTY_LOAD",

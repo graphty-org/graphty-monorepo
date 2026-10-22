@@ -1,0 +1,104 @@
+{
+    "friends.csv": {
+        "nodes": 20,
+        "edges": 41,
+        "directed": null,
+        "loadedWeight": {
+            "attribute": "weight",
+            "meaning": null
+        },
+        "top": [
+            ["Farah", 0.0639],
+            ["Hana", 0.0594],
+            ["Milo", 0.0565],
+            ["Chloe", 0.0555]
+        ],
+        "weight": {
+            "attribute": "weight",
+            "meaning": "strength"
+        }
+    },
+    "friends-v2.csv": {
+        "nodes": 20,
+        "edges": 41,
+        "directed": null,
+        "loadedWeight": {
+            "attribute": "weight",
+            "meaning": null
+        },
+        "top": [
+            ["Ava", 0.0801],
+            ["Farah", 0.0656],
+            ["Hana", 0.0643],
+            ["Ivan", 0.0614]
+        ],
+        "weight": {
+            "attribute": "weight",
+            "meaning": "strength"
+        }
+    },
+    "team.csv": {
+        "nodes": 12,
+        "edges": 16,
+        "directed": null,
+        "loadedWeight": {
+            "attribute": "weight",
+            "meaning": null
+        },
+        "top": [
+            ["Hal", 0.1293],
+            ["Ida", 0.1224],
+            ["Di", 0.1177],
+            ["Jo", 0.1166]
+        ],
+        "weight": {
+            "attribute": "weight",
+            "meaning": "strength"
+        }
+    },
+    "team-v2.csv": {
+        "nodes": 14,
+        "edges": 21,
+        "directed": null,
+        "loadedWeight": {
+            "attribute": "weight",
+            "meaning": null
+        },
+        "top": [
+            ["Di", 0.1339],
+            ["Hal", 0.1305],
+            ["Ed", 0.1245],
+            ["Ida", 0.1217]
+        ],
+        "weight": {
+            "attribute": "weight",
+            "meaning": "strength"
+        }
+    },
+    "bus-stops.csv": {
+        "nodes": 10,
+        "edges": 17,
+        "directed": null,
+        "loadedWeight": null,
+        "top": [
+            ["Harbor", 0.3273],
+            ["Clinic", 0.142],
+            ["Library", 0.0963],
+            ["Stadium", 0.0895]
+        ],
+        "weight": null
+    },
+    "trails.csv": {
+        "nodes": 9,
+        "edges": 13,
+        "directed": null,
+        "loadedWeight": null,
+        "top": [
+            ["Summit", 0.3025],
+            ["Ridge", 0.2387],
+            ["Meadow", 0.0946],
+            ["Falls", 0.0749]
+        ],
+        "weight": null
+    }
+}

@@ -31,12 +31,14 @@ import type {
     EdgeId,
     MeasurementDeclaration,
     Path,
+    ReadableValue,
     RunId,
     ScopeInput,
     SourceKey,
+    StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -52,6 +54,8 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    importCommand,
+    importFact,
     type ImportSource,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -63,6 +67,7 @@ import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
+import { readableValues } from "./readable";
 import {
     primaryResultColumn,
     type ResolvedResult,
@@ -104,6 +109,7 @@ import type {
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
+import { STRUCTURE_VALUES } from "./styles/sources";
 import type {
     ColumnHistogram,
     DatasetLoadOptions,
@@ -120,6 +126,7 @@ import type {
     LoadChoices,
     LoadedSource,
     LoadedSourceKind,
+    LoadedWeight,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -141,7 +148,10 @@ import type {
     SessionRecordSource,
     ValueCounts,
 } from "./types";
-import { type LabelledValue, valueLabelsAt } from "./valueLabels";
+import { valueLabelsAt } from "./valueLabels";
+
+/** A value a column holds that can be given a name (`data.label`) or counted. */
+type ColumnScalar = string | number | boolean;
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -160,12 +170,12 @@ interface DataWrites {
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
     setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
-    /** Dispatch `data.label`. */
-    label(path: Path, value: LabelledValue, label: string | null): Promise<unknown>;
-    /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
-    valueLabels(): ReadonlyMap<string, string>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Dispatch `data.label`. */
+    label(path: Path, value: ColumnScalar, label: string | null): Promise<unknown>;
+    /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
+    valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
@@ -215,6 +225,14 @@ interface PageSources {
      * @returns the ids
      */
     runIds(): readonly RunId[];
+    /**
+     * What one element carries for a value path, through the source rules and bindings read.
+     * @param kind - Nodes or edges.
+     * @param index - The element's dense index.
+     * @param path - The value path.
+     * @returns The value, or undefined for none.
+     */
+    valueAt(kind: "node" | "edge", index: number, path: Path): unknown;
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -649,7 +667,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options, "sample", {
+        await this.importVia(send, recordsSource(graph, name), options, false, "sample", {
             generator: name,
             params: { ...params },
         });
@@ -687,7 +705,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(snapshot, name), load, "sample", {
+        await this.importVia(send, recordsSource(snapshot, name), load, false, "sample", {
             dataset: name,
             ...(baseUrl === undefined ? {} : { baseUrl }),
         });
@@ -698,6 +716,8 @@ export class SessionData implements SessionDataApi {
      * @param dispatch - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
+     * @param fromFile - Whether the source is a graph file the caller opened (not a generated
+     *   graph or a downloaded dataset), whose label column then names the nodes.
      * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
      * @param sample - For a generated graph or a dataset: what it was, for the project file.
      * @returns Settles once the last chunk is in the graph.
@@ -706,6 +726,7 @@ export class SessionData implements SessionDataApi {
         dispatch: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        fromFile = true,
         origin?: LoadedSourceKind,
         sample?: LoadFacts["sample"],
     ): Promise<void> {
@@ -737,22 +758,37 @@ export class SessionData implements SessionDataApi {
             return;
         }
 
-        const command = (resolved: ImportSource): DataImportCommand => ({
-            op: "data.import",
-            source: resolved,
-            mode: options.mode ?? "replace",
-            ...(origin === undefined ? {} : { origin }),
-            ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(options.existing === undefined ? {} : { existing: options.existing }),
-            ...(options.styles === undefined ? {} : { styles: options.styles }),
-            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
-        });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolving = resolveImportSource(source);
         const resolved = resolving instanceof Promise ? await resolving : resolving;
         resolvedConfig = resolved.config ?? source.config;
-        await send(command(resolved));
+        const imported = importCommand(resolved, options);
+        const step: DataImportCommand = origin === undefined ? imported : { ...imported, origin };
+        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+        const { knownFields } = this.readConfig();
+        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+        // A new graph from a graph file names its nodes by the file's label column, as a draft's
+        // load of it does, unless a label path is configured already. A node without one is still
+        // named by its id. A merge keeps how the graph it joins names its nodes.
+        const names =
+            fromFile &&
+            step.mode !== "merge" &&
+            knownFields.nodeLabelPath === null &&
+            step.source.type !== undefined &&
+            step.source.type !== "csv";
+        const before: BatchCommand["steps"] = [
+            ...(resets
+                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                : []),
+            ...(names
+                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                : []),
+        ];
+        // The batch is the import in the history, so it carries the import's fact: a page load's
+        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+        await send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
     }
 
     /**
@@ -1105,7 +1141,17 @@ export class SessionData implements SessionDataApi {
                 config: () => this.readConfig(),
                 graph: () => {
                     const slice = this.writes.slice();
-                    return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+                    const snapshot = this.current();
+                    const pairs = new Set<string>();
+                    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+                        const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
+                        const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
+                        pairs.add(pairKey(source, target));
+                        if (!snapshot.directed) {
+                            pairs.add(pairKey(target, source)); // NOSONAR(S2234): the reverse pair, so an undirected edge matches either way
+                        }
+                    }
+                    return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
                 importer: () => this.noting(this.writes.importer(), () => bytesFacts(source.config)),
                 measure: (command, config) => this.writes.measure(command, config),
@@ -1553,7 +1599,15 @@ export class SessionData implements SessionDataApi {
 
         const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
         const revision = this.pages.revision();
-        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        const found = this.pages.search(text, {
+            offset,
+            limit,
+            kinds: new Set(kinds),
+            scope,
+            edgeNameJoiner: options.edgeNameJoiner,
+            scopeInput: options.scope,
+            ...(options.booleanWords === undefined ? {} : { booleanWords: options.booleanWords }),
+        });
         return { ...found, offset, revision: String(revision) };
     }
 
@@ -2022,97 +2076,6 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Name one value of a path, or take its name away. One undoable step.
-     * @param path - The value path.
-     * @param value - The value.
-     * @param label - The name, or null.
-     * @returns Settles once the name is recorded.
-     */
-    async setValueLabel(path: Path, value: LabelledValue, label: string | null): Promise<void> {
-        this.requireLive("setValueLabel");
-        await this.writes.label(path, value, label);
-    }
-
-    /**
-     * The names given to a path's values.
-     * @param path - The value path.
-     * @returns The names, by the value as text.
-     */
-    valueLabels(path: Path): ReadonlyMap<string, string> {
-        return valueLabelsAt(this.writes.valueLabels(), path);
-    }
-
-    /**
-     * How many elements carry each value of a value path.
-     * @param path - the value path, or `"id"`
-     * @param options - which kind to count
-     * @param options.kind - nodes or edges; by default edges for a data path only edges carry
-     * @returns the counts, most elements first
-     */
-    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
-        const snapshot = this.current();
-        const kinds = path.startsWith("data.")
-            ? new Set(
-                  this.attributes()
-                      .filter((each) => each.path === path)
-                      .map((each) => each.kind),
-              )
-            : undefined;
-        const kind = options.kind ?? (kinds?.has("edge") === true && !kinds.has("node") ? "edge" : "node");
-        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const read = this.valueReader(snapshot, kind, path);
-        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
-        let missing = 0;
-        for (let index = 0; index < total; index++) {
-            const value = read(index);
-            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-                counts.set(value, (counts.get(value) ?? 0) + 1);
-            } else {
-                missing++;
-            }
-        }
-
-        const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
-        return Object.freeze({ values: Object.freeze(values), missing, total });
-    }
-
-    /**
-     * Reads one value path per element index: the node id, a data column or a run's field.
-     * @param snapshot - the snapshot the indices address
-     * @param kind - nodes or edges
-     * @param path - the value path
-     * @returns the reader; it returns undefined for an element carrying nothing
-     */
-    private valueReader(snapshot: GraphSnapshot, kind: "node" | "edge", path: Path): (index: number) => unknown {
-        if (path === "id" && kind === "node") {
-            return (index) => snapshot.ids.idOf(index);
-        }
-
-        if (path.startsWith("results.")) {
-            const rest = path.slice("results.".length);
-            const dot = rest.indexOf(".");
-            const result = dot < 0 ? undefined : this.pages.run(rest.slice(0, dot))?.result;
-            const field = rest.slice(dot + 1);
-            if (result === undefined || result === null) {
-                return () => undefined;
-            }
-
-            return kind === "node"
-                ? (index) => result.node(snapshot.ids.idOf(index))?.[field]
-                : (index) => {
-                      const counter = snapshot.edges.value(EDGE_ID_COLUMN, index);
-                      return typeof counter === "number" ? result.edge(edgeIdOf(counter))?.[field] : undefined;
-                  };
-        }
-
-        const key = path.startsWith("data.") ? path.slice("data.".length) : path;
-        return kind === "node"
-            ? (index) => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[key]
-            : (index) => this.records?.edgeAttributes(index)?.[key];
-    }
-
-    /**
      * What the last load did.
      * @returns the report, or null when nothing has been loaded into this graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -2121,6 +2084,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
+    }
+
+    /**
+     * The weight the graph was loaded with, and the meaning chosen for it at load.
+     * @returns the weight, or null when the last load read none
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    loadedWeight(): LoadedWeight | null {
+        const attribute = this.lastImport()?.weights.attribute ?? null;
+        return attribute === null
+            ? null
+            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
     }
 
     /**
@@ -2177,6 +2152,51 @@ export class SessionData implements SessionDataApi {
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The values every node carries from the graph's structure, with their catalog names.
+     * @returns degree, and on a directed graph in-degree and out-degree
+     */
+    structureValues(): readonly StructureValue[] {
+        // In and out degree only on a directed graph, where they differ from degree.
+        return this.statistics().directedness === "directed"
+            ? STRUCTURE_VALUES
+            : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
+    }
+
+    /**
+     * Every value a rule or a binding can read: the node id, the data columns and the fields
+     * finished runs published per element.
+     * @returns the values, the node id first, then the data columns, then each run's fields
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    readableValues(): readonly ReadableValue[] {
+        const snapshot = this.current();
+        const declarations = this.writes.declarations();
+        const runs: Run[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            if (run !== undefined) {
+                runs.push(run);
+            }
+        }
+
+        return readableValues({
+            snapshot,
+            directed: this.statistics().directedness === "directed",
+            attributes: this.attributes(),
+            declarationOf: (column) => declarations.get(declarationKey(column)),
+            runs,
+            layersReading: (path, on) =>
+                this.writes
+                    .readers()
+                    .styles.filter(
+                        ({ layer, reads }) =>
+                            layer.target === on && reads.some((read) => read === path || read.startsWith(`${path}.`)),
+                    )
+                    .map(({ layer }) => ({ kind: "layer" as const, id: layer.id })),
+        });
     }
 
     /**
@@ -2269,6 +2289,27 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Name one value of a path, or take its name away. One undoable step.
+     * @param path - The value path.
+     * @param value - The value.
+     * @param label - The name, or null.
+     * @returns Settles once the name is recorded.
+     */
+    async setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void> {
+        this.requireLive("setValueLabel");
+        await this.writes.label(path, value, label);
+    }
+
+    /**
+     * The names given to a path's values.
+     * @param path - The value path.
+     * @returns The names, by the value as the legend spells it.
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string> {
+        return valueLabelsAt(this.writes.valueLabels(), path);
+    }
+
+    /**
      * How one data column's values are distributed.
      * @param column - the column
      * @param options - the bin count and, for a numeric column, the scale
@@ -2300,7 +2341,7 @@ export class SessionData implements SessionDataApi {
 
         const limit = resolveBinCount(options.bins);
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let present = 0;
         for (let index = 0; index < count; index++) {
             const value = valueAt(index);
@@ -2316,6 +2357,36 @@ export class SessionData implements SessionDataApi {
             .map(([value, n]) => Object.freeze({ value, count: n }));
         const listed = values.reduce((sum, each) => sum + each.count, 0);
         return Object.freeze({ kind: "categorical", values: Object.freeze(values), otherCount: present - listed });
+    }
+
+    /**
+     * How many elements carry each value of a readable path.
+     * @param path - the value path, or `"id"`
+     * @param options - which kind to count
+     * @param options.kind - nodes or edges; by default the kind the path is listed on
+     * @returns the counts, most elements first
+     */
+    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
+        const snapshot = this.current();
+        const kind =
+            options.kind ??
+            (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
+        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<ColumnScalar, number>();
+        let missing = 0;
+        for (let index = 0; index < total; index++) {
+            const value =
+                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            } else {
+                missing++;
+            }
+        }
+
+        const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
+        return Object.freeze({ values: Object.freeze(values), missing, total });
     }
 
     /**

@@ -7,7 +7,7 @@ values are those that differ from their property's most common value; opaque one
 copies values (an unexplained passthrough or the exceptions), exception ones from the exceptions rule alone.
 Tool values are elements drawn with the writing program's default.
 
-454 inputs, 451 with styles; at most 15 node and 16 edge rules.
+455 inputs, 452 with styles; at most 15 node and 16 edge rules.
 
 | Input | Import | Nodes | Edges | Node rules | Edge rules | Varying | Opaque | Exceptions | Approximated | Tool values | Declared selecting nothing | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -136,6 +136,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/generated/random-100.gv | ok | 100 | 100 | 4 | 6 | 502 | 90% | 0% | 0 | 1381 | 0 |  |
 | dot/generated/random-1000.gv | ok | 1000 | 1000 | 4 | 6 | 5209 | 90% | 0% | 0 | 13805 | 0 |  |
 | dot/generated/random-10000.gv.gz | ok | 10000 | 10000 | 4 | 6 | 52057 | 90% | 0% | 0 | 137999 | 0 |  |
+| dot/generated/random-10000.gv.gz (cut) | ok | 300 | 153 | 4 | 6 | 1197 | 93% | 0% | 0 | 3263 | 0 |  |
 | dot/generated/tamper-block-truncated.gv | ok | 75 | 131 | 6 | 7 | 153 | 3% | 0% | 0 | 1553 | 0 | W_STYLE_BLOCK_IGNORED |
 | dot/generated/tamper-native-edited.gv | ok | 75 | 131 | 7 | 7 | 277 | 9% | 0% | 0 | 75 | 0 |  |
 | dot/generated/tamper-node-added.gv | ok | 76 | 131 | 6 | 7 | 153 | 3% | 0% | 0 | 1565 | 0 | W_STYLE_BLOCK_IGNORED |

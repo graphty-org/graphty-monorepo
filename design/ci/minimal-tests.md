@@ -1,8 +1,8 @@
 # Minimal tests: run only what a change can affect
 
-Status: Built in part, 2026-10-22: `pnpm run test:changed`, `PREPUSH_SELECT=1` in the gate (off by
-default) and `tools/test-select-mutate.mjs` exist; mutation runs and the switch to on are next. Issue #3276, part of the fast pipeline (#3262,
-`design/ci/fast-pipeline.md`, section 5).
+Status: Built, 2026-10-22: `pnpm run test:changed`, selection in the gate (on by default since the
+misses mutation testing found were fixed; section 5.1) and `tools/test-select-mutate.mjs`. Issue #3276,
+part of the fast pipeline (#3262, `design/ci/fast-pipeline.md`, section 5).
 
 Running tests is the slowest part of getting a change into graphty-monorepo. A golden landing waits
 for every test shard of every package nx calls affected, and graphty-element's ten browser and
@@ -61,9 +61,11 @@ run here does.
 
 ### 1.2 Landing check: selection in the gate
 
-`tools/prepush-tests.mjs` already computes the selector's answer for every push and writes it to
-`tmp/test-select/advisory.jsonl` beside what it actually ran. With `PREPUSH_SELECT=1` it uses the
-answer:
+`tools/prepush-tests.mjs` computes the selector's answer for every push and writes it to
+`tmp/test-select/advisory.jsonl` beside what it actually ran. By default (`PREPUSH_SELECT` unset or `1`) it
+asks about every shard of the matrix but the "never" ones -- not only the shards of nx's affected packages
+and not through the "when-paths-change" policy, both of which drop shards the selector runs whole -- builds
+the packages it then runs that nx did not call affected, and uses the answer:
 
 - **none**: the shard is skipped, with a line naming the reason (only design notes changed, only a
   test of another shard changed).
@@ -89,10 +91,16 @@ A selected pass is recorded in the pass store (`tmp/prepush-passes/`) under its 
 counts as a pass of the whole shard, so a later full run, or verification, cannot skip a shard
 because a subset of it passed.
 
-### 1.3 Verification and the release train stay full
+### 1.3 Verification, the cut and the release train stay full
 
 Verification sets `PREPUSH_ALL=1`, and the gate ignores `PREPUSH_SELECT` whenever `PREPUSH_ALL` is
-set. The release train runs CI's full suite on the commit it releases. Neither changes. They are
+set. A push to golden-cut or master (`land.mjs cut` and `cut-fix` set `PREPUSH_SELECT_BASE` to
+`origin/golden-cut`) never selects either, and its gate key says so, so a selected gate's pass never
+stands in for it.
+
+The off switch: `PREPUSH_SELECT=0` on one push runs every affected shard whole. For every push on the
+machine, set `SELECT_DEFAULT` in `tools/prepush-tests.mjs` back to `"0"` and put it live with
+`tools/live.sh gate <branch>`. The release train runs CI's full suite on the commit it releases. Neither changes. They are
 what makes selection safe to use earlier: a miss in the gate is found by the next verification
 run, bisected to its landing and reverted by the pipeline round, and it never reaches master or
 npm. Every miss still costs a revert and a second landing, so selection must be right, not just
@@ -144,7 +152,8 @@ path pattern and what a change to it runs:
   `existsSync`, `import.meta.glob`, `execFileSync`, `spawn` or `new Worker` runs on any change to
   its package other than another test, because what it reads is invisible to the graph. These are
   the docs-example checks, the build-output and package-structure tests, the API parity checks.
-- **nothing**: design notes, agent settings, the screenshot baselines and approvals, root Markdown.
+- **nothing**: design notes, agent settings, the screenshot baselines and approvals, root Markdown --
+  unless a test imports or names the file, which is asked first (2.4).
 - **also run**: a path one package reads from another without importing it, with the packages it
   then runs (graph-io's corpus also runs graphty-element and cytoscape-extensions).
 
@@ -154,7 +163,14 @@ under one lane never stands in for another.
 
 ### 2.4 Anything unknown runs the whole shard
 
-A changed file that no import, rule or test accounts for runs its whole package. A package whose
+A changed file that no import, rule or test accounts for runs its whole package. A root file (outside
+every package) is asked about in this order: does a test import it, or a root file that imports it
+(the root import graph: `tools/wait-log.mjs` counts as `tools/test-slots.mjs`, which is in "everything");
+does a string literal in a package's test-side files or test and lint configs name its path, a folder
+above it, or (under `tools/`) its file name; does an "also run" or "nothing" rule match it. Only then is
+it unknown, and an unknown root file runs everything, except code under `tools/` that nothing reads,
+which runs nothing and is listed. A deleted or renamed file (the change is read with `--no-renames`) runs
+its whole package, because no graph built at the head can have an edge to it. A package whose
 graph could not be built runs whole. A new kind of import the selector does not parse shows up as
 an unexplained file and runs whole. Over-selection costs minutes; under-selection costs a revert.
 
@@ -271,6 +287,24 @@ argument has holes wherever a reader is not recognised, so three checks look for
 - **Verification**, the backstop: the full gate on golden's newest commit after landings. A failure
   there that the landing's selected run passed is a miss by definition.
 
+### 5.1 The first mutation run, 2026-10-22
+
+An adversarial run of 29 mutations found these misses, each now fixed at its cause and covered by a
+case in `tools/test-select.test.mjs` ("misses found by mutation testing") and re-run against the fixed
+selector:
+
+| Change                                   | Test it broke                                     | Cause                                              | Fix                                              |
+| ---------------------------------------- | ------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| `tools/wait-log.mjs`                     | every Node vitest config                          | reached only through `tools/test-slots.mjs`        | root import graph                                |
+| root `.prettierrc`                       | graph-io and cytoscape-extensions reference tests | read by a generator in a child process             | `alsoRun` entry                                  |
+| `design/` fixtures, schema, style record | graphty, graphty-element, graph-io tests          | `^design/` noTests rule applied first              | graphs and literals asked before noTests         |
+| a docs page a generator test compares    | graph-io and cytoscape-extensions reference tests | `promisify(execFile)(` not opaque                  | opaque pattern counts `child_process`, `node:fs` |
+| a deleted JSON a test imports            | its importer                                      | no edge at the head                                | deleted paths run the package                    |
+| a root helper that gained an import      | visual-review and githerd tests                   | cached graph kept old edges                        | graphs carry hashes of outside files             |
+| `tools/eslint-rules/*`                   | graphty's restricted-imports test                 | ESLint loads its config at run time                | `eslint.config.*` read for names                 |
+| graphty-element source                   | its browser and interactions tests                | shards dropped by the path policy before selection | the selector is asked about every shard          |
+| `graphty/public/samples/*`               | graphty's OpensCentered test                      | served by URL from Vite's publicDir                | `public/` is a whole-package rule                |
+
 Every miss caused by a change becomes, in the same fix, a rule in `tools/test-select-rules.json` (or
 an nx input, section 4), a mutation case that reproduces it, and an entry in
 `design/ci/test-selection-replay.md` naming the reader that was not seen. A package with a second
@@ -287,7 +321,7 @@ Speed first, safety from the checks above:
    remote-logger, and the Node projects of compact-mantine and graphty), plus the Node-only packages
    proposed next: graph-io, graph-samples, layout, algorithms-default, cytoscape-extensions and
    graphty-element's default project. Each package with no miss joins the `fileLevel` list.
-3. **When that run shows no misses**, `PREPUSH_SELECT` defaults to on in the gate's live copy. The
+3. **Done 2026-10-22.** `PREPUSH_SELECT` defaults to on in the gate's live copy. The
    advisory log keeps running beside it, so replays keep measuring.
 4. **Browser projects** join `fileLevelBrowser` one package at a time as their background mutation
    runs come back clean, smallest first (compact-mantine, graphty's app tests, graph-io-browser,
@@ -295,8 +329,8 @@ Speed first, safety from the checks above:
 5. **Nx 24** (section 4) runs in parallel on its own branch; step 4 of it waits for the replay
    comparison to come back empty.
 
-To turn selection off for one push: `PREPUSH_SELECT=0`. For every push on the machine: set the
-default back to off in the gate's live copy with `tools/live.sh gate <branch>`, or remove a package
+To turn selection off for one push: `PREPUSH_SELECT=0`. For every push on the machine: set
+`SELECT_DEFAULT` in `tools/prepush-tests.mjs` back to `"0"` and put it live with `tools/live.sh gate <branch>`, or remove a package
 from `fileLevel` to stop file-level selection in that package only. Nothing that runs after the
 gate (verification, CI on the cut, the release train) depends on the setting, so turning it off
 never needs anything else changed.

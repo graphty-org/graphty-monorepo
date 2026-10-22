@@ -1,6 +1,7 @@
 import { Modal, UnstyledButton } from "@mantine/core";
-import { Link, X } from "lucide-react";
 import React, { useState } from "react";
+
+import { GLYPHS } from "../glyphs";
 
 /** The network sources being built (issue #2907): a badge, the name, and what each is. */
 const SOURCES = [
@@ -43,7 +44,7 @@ export function NetworkDataDialog({
                     <header>
                         <Modal.Title component="h2">Open network data</Modal.Title>
                         <UnstyledButton className="ws-land-net-x" aria-label="Close" onClick={onClose}>
-                            <X aria-hidden />
+                            <GLYPHS.close aria-hidden />
                         </UnstyledButton>
                     </header>
                     <div className="ws-land-net-body">
@@ -82,7 +83,7 @@ export function NetworkDataDialog({
                             }}
                         >
                             <label className="ws-land-net-field">
-                                <Link aria-hidden />
+                                <GLYPHS.webAddress aria-hidden />
                                 <input
                                     type="url"
                                     placeholder="Or paste a web address"

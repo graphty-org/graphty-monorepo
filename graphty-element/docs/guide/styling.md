@@ -207,7 +207,7 @@ data:
 | `graphty.notes.latest`                      | The text of the newest of those notes                                                                                     |
 | `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                   |
 | `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                   |
-| `graphty.indegree`, `graphty.outdegree`     | How many edges reach a node, and how many leave it                                                                        |
+| `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                        |
 | `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
 
 They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
@@ -665,8 +665,8 @@ await element.session.styles.add({
 A binding takes `by` (the path), `scale` (`linear`, `log`, `sqrt`, `bins`, `quantile`, `ordinal`,
 `passthrough`, ...), and optionally a `palette`, a `domain`, a `clamp`, a `range`, a `map`, an
 `overflow` policy and a `missing` rule. `missing` defaults to `skip`, which leaves an element with
-no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"` or
-`"extend"`) says what a categorical colour does with more groups than its palette has colours;
+no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"shape"`,
+`"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
 ### A table of values, and what it leaves alone
@@ -765,7 +765,17 @@ chosen nodes and edges, with each chosen edge three times the default width.
 than being painted beside it, and with no `set` it uses the element's own highlight color. Use it
 for a selection-like "show me this one" view; an algorithm's own picture never goes through it.
 
-## The element's own layers
+## Folders, pins, locks and hiding
+
+`styles.tree()` reads your layers as rows of a tree, the way a layers panel shows them: folders,
+pins, a reader's lock and hidden rows. The tree is the paint order. See
+[Folders, Pins and Locks](./style-tree.md), and for the rest of what a layers panel needs:
+[One Row for Nodes and Edges](./style-rows-both-kinds.md),
+[Everything, Selected and Hovered](./starting-rows.md), [Rules and Text Matching](./style-rules.md),
+[Previewing a Binding](./binding-preview.md), [One Color for One Value](./value-entries.md) and
+[Colors Across Rows](./colors-across-rows.md).
+
+## Layers the element owns
 
 Every graph starts with two layers the element owns: the defaults every node and edge is drawn
 from, and the one that paints the selection. They are `locked`: removing, editing or moving one is

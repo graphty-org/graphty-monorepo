@@ -10,12 +10,18 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 `setLayout` takes either an engine name from the table below or a layout id from
 `catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
-`ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+`ngraph`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+
+`"force-2d"` is deprecated and is removed at the next major release. It still works, as the
+`force` layout drawn by its flat `arf` engine: `setLayout("force-2d")` is
+`element.session.layout.set("force", { engine: "arf" })`. For a flat force layout use
+`{ dim: 2 }` instead, or the 2D view.
 
 | Layout               | Type                      | Best For                                  | Dimensions |
 | -------------------- | ------------------------- | ----------------------------------------- | ---------- |
 | `ngraph`             | Force-directed            | General graphs                            | 2D/3D      |
 | `d3`                 | Force-directed            | Web-standard                              | 2D/3D      |
+| `arf`                | Force-directed            | Even spread over a flat disc              | 2D         |
 | `circular`           | Geometric                 | Cycles, small graphs                      | 2D/3D      |
 | `grid`               | Geometric                 | Regular structures                        | 2D         |
 | `radial`             | Geometric                 | Distance from one node                    | 2D         |
@@ -37,7 +43,7 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 The eight `graphviz-*` layouts are Graphviz itself, compiled to WebAssembly, and need the optional
 package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
 
-The last three are live simulations: they keep stepping until the arrangement comes to rest
+`forceatlas2`, `spring` and `spring-electrical` are live simulations: they keep stepping until the arrangement comes to rest
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
@@ -398,17 +404,17 @@ element.addEventListener("error", (event) => {
 
 ## 2D vs 3D
 
-Most layouts support both dimensions:
+Switching the view between 2D and 3D runs the layout again for that view. In the 2D view every
+layout is drawn flat, whatever `dim` it was given. In the 3D view a layout with a `dim` option can
+still be drawn flat:
 
 ```typescript
-// 3D layout (default)
+// 3D (the default in the 3D view)
 graph.setLayout("ngraph", { dim: 3 });
 
-// 2D layout
+// Flat, in the 3D view
 graph.setLayout("ngraph", { dim: 2 });
 ```
-
-For 2D layouts, also set the view mode:
 
 ```html
 <graphty-element layout="d3" view-mode="2d"></graphty-element>
@@ -419,6 +425,9 @@ view can show a flat layout. In 2D mode the layout is always computed in 2D: a `
 replaced by `dim: 2`, and a `layout-warning` event with code `W_DIMENSION_OVERRIDDEN` reports it,
 with the options as given in `params.requested` and the values used in `params.used`. Switching
 back to 3D builds the layout with the `dim` it was given again.
+
+`element.session.layout.arrangedDimension` says how many dimensions the current layout places
+nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dimension, cannot.
 
 ## Edge weights
 

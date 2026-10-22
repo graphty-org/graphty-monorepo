@@ -35,6 +35,14 @@ import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
+/** A layer writing one fixed colour, for the colour replacement door. */
+const DOOR_RED: LayerSpec = {
+    name: "door red",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.color": "#ff0000" },
+};
+
 /** How the doors tests call a door. */
 export type DoorCall =
     | {
@@ -456,6 +464,9 @@ const TOOLS = exempt("Registers or lists assistant tools; it runs none of them."
 const PALETTE_DEFAULTS = exempt(
     "Chooses the palette a layer written later takes when it names none; a project file saves the layer's resolved palette, and a reapply rewrites layers through style.patch.",
 );
+const HIGHLIGHT_DEFAULT = exempt(
+    "Chooses the colour a highlight written later takes when it names none; a project file saves the layer's resolved colour.",
+);
 const QUEUE = exempt("Schedules work; the doors that queue work have their own rows.");
 const EVENTS = exempt("Publishes and subscribes to events; it changes no state.");
 const KEYS = exempt("API keys are secrets of this machine, never saved in a project file.");
@@ -606,13 +617,19 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     cap: READ,
     truncated: READ,
     origin: READ,
+    originPaths: READ,
+    layerSelector: READ,
     has: READ,
-    hovered: READ,
-    hover: exempt("The node under the pointer is view state, not saved in a project file."),
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,
+    count: READ,
+    checkRule: READ,
     clear: SELECTION,
+    hovered: READ,
+    hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+    hoverPreview: READ,
+    previewHover: exempt("A preview of the hover look on the selection is view state, like the pointer."),
     // The doors test selects node "d1" before calling it.
     promote: calls(
         ["door set"],
@@ -646,6 +663,11 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    steps: READ,
+    setSteps: calls(
+        [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
+        [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
+    ),
 };
 
 /** A layer the style doors add. */
@@ -670,6 +692,70 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     remove: calls(["no-such-layer"], [{ op: "style.patch", action: "remove", id: "no-such-layer" }]),
     move: calls(["no-such-layer", null], [{ op: "style.patch", action: "move", id: "no-such-layer", before: null }]),
     removeBySource: calls([() => false], [{ op: "style.patch", action: "removeBySource", ids: [] }]),
+    addRow: calls(
+        [{ name: "door row", target: "both", selector: { match: "everything" }, set: { color: "#ff0000" } }],
+        [
+            {
+                op: "style.patch",
+                action: "addRow",
+                spec: {
+                    name: "door row",
+                    target: "both",
+                    selector: { match: "everything" },
+                    set: { color: "#ff0000" },
+                },
+            },
+        ],
+    ),
+    writeRow: calls(
+        ["no-such-layer", { name: "renamed" }],
+        [{ op: "style.patch", action: "writeRow", id: "no-such-layer", write: { name: "renamed" } }],
+    ),
+    parts: READ,
+    colors: READ,
+    // One fixed colour written by a layer the call sets up; the swap is one update of it.
+    replaceColor: {
+        kind: "dispatches",
+        op: "style.patch",
+        call: {
+            kind: "call",
+            args: [["door-red_1"], "#FF0000", "#00ff00"],
+            around: async (target) => {
+                await (target as { add(spec: LayerSpec): PromiseLike<unknown> }).add(DOOR_RED);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [
+            {
+                op: "style.patch",
+                action: "update",
+                id: "door-red_1",
+                patch: { set: { "node.color": "#00ff00" } },
+            },
+        ],
+    },
+    layersUnder: READ,
+    // Many layers patched in one step: here one, the layer the call sets up.
+    updateMany: {
+        kind: "dispatches",
+        op: "style.patch",
+        call: {
+            kind: "call",
+            args: [[{ id: "door-red_1", patch: { set: { "node.color": "#00ff00" } } }]],
+            around: async (target) => {
+                await (target as { add(spec: LayerSpec): PromiseLike<unknown> }).add(DOOR_RED);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [
+            {
+                op: "style.patch",
+                action: "update",
+                id: "door-red_1",
+                patch: { set: { "node.color": "#00ff00" } },
+            },
+        ],
+    },
     encode: calls(
         [{ run: "no-such-run", field: "value", channel: "node.color" }],
         [{ op: "style.encode", spec: { run: "no-such-run", field: "value", channel: "node.color" } }],
@@ -678,6 +764,8 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    highlightStyle: READ,
+    defaultValue: READ,
     mark: calls(
         [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
         [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
@@ -687,6 +775,9 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     settled: READ,
     explain: READ,
     agreement: READ,
+    preview: READ,
+    sequence: READ,
+    layerGroups: READ,
     counts: READ,
     legendOf: READ,
     resolveToStatic: calls(
@@ -697,12 +788,44 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         ["no-such-layer", "node.color", 0, true],
         [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
     ),
+    // A value entry patches the layer it names, and an unknown one patches nothing.
+    setValueEntry: calls(
+        ["no-such-layer", "node.color", 0, "#ff0000"],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
+    categories: READ,
+    groups: READ,
+    setValueEntries: calls(
+        ["no-such-layer", "data.group", [{ channel: "node.shape", value: 0, entry: "box" }]],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
+    setFoldBelow: calls(
+        ["no-such-layer", "data.group", 3],
+        [{ op: "style.patch", action: "update", id: "no-such-layer", patch: {} }],
+    ),
+    valueAt: READ,
     applyTemplate: calls(
         [{ version: 1, layers: [] }],
         [{ op: "style.template", document: { version: 1, layers: [] } }],
     ),
     toDocument: READ,
+    tree: READ,
+    addFolder: calls(["door folder"], [{ op: "style.patch", action: "addFolder", name: "door folder" }]),
+    renameRow: calls(
+        ["no-such-row", "renamed"],
+        [{ op: "style.patch", action: "renameRow", id: "no-such-row", name: "renamed" }],
+    ),
+    moveRow: calls(
+        ["no-such-row", { parent: null, index: 0 }],
+        [{ op: "style.patch", action: "moveRow", id: "no-such-row", to: { parent: null, index: 0 } }],
+    ),
+    pinRow: calls(["no-such-row", "top"], [{ op: "style.patch", action: "pinRow", id: "no-such-row", pin: "top" }]),
+    lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
+    hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
+    deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
+    restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
     setDefaultPalettes: PALETTE_DEFAULTS,
+    setHighlightColor: HIGHLIGHT_DEFAULT,
 };
 
 /**
@@ -725,10 +848,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             session: READ,
             nodeLabelCounts: READ,
             labelOf: READ,
+            edgeLabelCounts: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
+            attributeChangedCallback: LIFECYCLE,
             firstUpdated: LIFECYCLE,
             asyncFirstUpdated: LIFECYCLE,
             render: LIFECYCLE,
@@ -792,6 +917,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
+            lighting: VIEW_SETTING,
             autoRotate: VIEW_SETTING,
             fitInsets: VIEW_SETTING,
             pixelRatio: VIEW_SETTING,
@@ -806,11 +932,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
+            zoomToPointer: CAMERA,
+            viewInsets: CAMERA,
             runAlgorithmsOnLoad: assigns(true, [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
             historyKeys: INPUT,
             enableDetailedProfiling: PROFILING,
             xr: XR,
             captureScreenshot: CAPTURE,
+            nodeThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -842,6 +971,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             downloadProject: exempt(
                 "Hands the saved project to the reader as a file; it changes nothing a project saves.",
             ),
+            downloadGraph: exempt("Hands an export to the reader as a file; it changes nothing a project saves."),
             autosave: AUTOSAVE_SETTING,
             autosaveRestore: AUTOSAVE_SETTING,
             autosaveOptions: AUTOSAVE_SETTING,
@@ -879,6 +1009,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForSettled: READ,
             waitForStableFrame: READ,
             isFrameStable: READ,
+            cameraPlaced: READ,
             batchOperations: BATCH,
             on: LISTEN,
             addListener: LISTEN,
@@ -897,6 +1028,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             nodeScreenPosition: READ,
+            nodesInRect: READ,
             screenToWorld: READ,
             elementAt: READ,
             setData: calls(
@@ -964,6 +1096,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             eventManager: READ,
             nodeLabelCounts: READ,
             labelOf: READ,
+            edgeLabelCounts: READ,
             onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
@@ -1087,7 +1220,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getViewMode: READ,
             setStartingCameraDistance: CAMERA,
             getAutoFrame: READ,
+            isCameraPlaced: READ,
             setAutoFrame: CAMERA,
+            getZoomToPointer: READ,
+            setZoomToPointer: CAMERA,
+            getLighting: READ,
+            setLighting: VIEW_SETTING,
+            getViewInsets: READ,
+            setViewInsets: CAMERA,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             needsRayUpdate: READ,
             getConfig: READ,
@@ -1112,6 +1252,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isFrameStable: READ,
             waitForStableFrame: READ,
             captureScreenshot: CAPTURE,
+            nodeThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -1206,6 +1347,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getPosition: READ,
             isPinned: READ,
             roundRadius: READ,
+            drawnFill: READ,
             drawnRadius: READ,
             borderReach: READ,
             framingHalf: READ,
@@ -1276,6 +1418,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            emptyClick: EVENTS,
+            elementClick: EVENTS,
         },
     },
     {
@@ -1395,6 +1539,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             snapshotStale: READ,
+            directed: READ,
             holdsNoRows: READ,
             // Strict state's check after every derivation pass.
             sliceProblems: READ,
@@ -1439,6 +1584,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             restoring: RENDER,
             replacing: RENDER,
             graphWritesWaiting: RENDER,
+            drawArrivedPaint: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,
@@ -1679,7 +1825,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
+            loadedWeight: READ,
             source: READ,
+            sources: READ,
             renameSource: {
                 kind: "dispatches",
                 op: "data.setSource",
@@ -1693,7 +1841,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return () => Promise.resolve();
                     },
                 },
-                expect: [{ op: "data.setSource", source: { type: "json", name: "Door source", config: {} } }],
+                expect: [
+                    {
+                        op: "data.setSource",
+                        source: { type: "json", name: "Door source", config: {} },
+                        sources: [
+                            {
+                                type: "json",
+                                config: {},
+                                tables: [],
+                                added: { nodes: 2, edges: 1 },
+                                name: "Door source",
+                            },
+                        ],
+                    },
+                ],
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
@@ -1786,7 +1948,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             },
             attributes: READ,
+            readableValues: READ,
+            structureValues: READ,
             histogram: READ,
+            valueCounts: READ,
             declare: {
                 kind: "dispatches",
                 op: "data.declare",
@@ -1808,6 +1973,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             },
+            setValueLabel: calls(
+                ["data.group", 1, "First"],
+                [{ op: "data.label", path: "data.group", value: 1, label: "First" }],
+            ),
+            valueLabels: READ,
             statistics: READ,
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
@@ -1822,7 +1992,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
-                [imports("replace", { type: "json", config: { data: TINY_JSON } })],
+                [
+                    {
+                        op: "batch",
+                        fact: { code: "data.import", params: { name: null, type: "json" } },
+                        steps: [
+                            { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
+                            imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                        ],
+                    },
+                    // A graph file names its nodes by its label column, as a draft's load does.
+                    { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
+                    imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                ],
             ),
             // The generated graph's records, through the JSON reader.
             generate: calls(
@@ -1867,6 +2049,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             type: READ,
             tables: READ,
             mapping: READ,
+            graphtyDocument: READ,
             missing: READ,
             resolve: READ,
             // Measured in a scratch session; this one is untouched.
@@ -1880,6 +2063,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     {
                         op: "data.import",
                         source: { type: "json", config: { data: TINY_JSON } },
+                        tables: ["json"],
                         mode: "replace",
                         held: {
                             nodes: [{ id: "j1" }, { id: "j2" }],
@@ -1900,12 +2084,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             start: calls(["degree"], [RUN_DEGREE]),
+            answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
+            move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
             bindings: READ,
             painting: READ,
+            layers: READ,
             queue: READ,
         },
     },
@@ -2159,6 +2346,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             engine: READ,
             options: READ,
             dimension: READ,
+            arrangedDimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
         },
@@ -2194,10 +2382,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsOnLoad: READ,
             background: READ,
             selectionStyle: READ,
+            startingRows: READ,
+            editableBase: READ,
+            runPlacement: READ,
             layoutBehavior: READ,
             author: READ,
             name: READ,
             acceleration: READ,
+            inEffect: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },
     },
@@ -2281,6 +2473,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            rule: READ,
+            previewSteps: READ,
         },
     },
     {
@@ -2472,6 +2666,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawHeld: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
+            applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
         },

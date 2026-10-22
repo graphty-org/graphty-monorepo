@@ -374,6 +374,7 @@ export class JsonDataSource extends DataSource {
             return;
         }
 
+        refuseGraphtyDocument(data);
         if (!(yield* this.readWholeDocument(jsonString, data))) {
             yield* this.readByPaths(jsonString, data);
         }
@@ -945,4 +946,28 @@ export class JsonDataSource extends DataSource {
         // question, and passes the record through.
         return true;
     }
+}
+
+/**
+ * Refuse a graphty project or document file handed over as data: read as JSON it holds no nodes
+ * or edges, so it would load as an empty graph with nothing said.
+ * @param data - The parsed file.
+ * @throws A `GraphtyError` with `E_PROJECT_FILE_AS_DATA` when the file is a graphty document or a
+ *     bare member of one (a `kind` that starts with `graphty-` and an integer `version`).
+ */
+function refuseGraphtyDocument(data: unknown): void {
+    if (!isObject(data) || typeof data.kind !== "string" || !data.kind.startsWith("graphty-")) {
+        return;
+    }
+
+    if (data.kind !== "graphty-document" && !Number.isInteger(data.version)) {
+        return;
+    }
+
+    throw new GraphtyError({
+        code: "E_PROJECT_FILE_AS_DATA",
+        source: "data",
+        message: `This is a graphty ${data.kind === "graphty-document" ? "document" : data.kind} file, not graph data. Open it with session.project.open.`,
+        details: { kind: data.kind, use: "project.open" },
+    });
 }

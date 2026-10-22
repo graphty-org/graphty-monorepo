@@ -63,7 +63,8 @@ export interface SnapshotLayoutInput {
     readonly added: NodeMask | null;
     /**
      * The values of the node attribute an option names, one per row, `undefined` where a node has
-     * none. The option's value is a path into the node's data, dot separated (`"geo.lat"`).
+     * none. The option's value is a path into the node's data, dot separated (`"geo.lat"`), an
+     * attribute as `data.<key>`, or a run's result field as `results.<run>.<field>`.
      * @param optionName - the option naming the attribute
      * @returns the values, or null when the option is not set to a path
      */
@@ -132,6 +133,13 @@ interface SnapshotLayoutHost {
     fail(error: unknown): void;
     /** An asynchronous answer has arrived and wants a frame to be published in. */
     arrived(): void;
+    /**
+     * The values at a `data.<key>` or `results.<run>.<field>` path, by row of `graph`.
+     * @returns the values, or null when nothing carries the path
+     */
+    column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
+    drawPaint(): void;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -365,9 +373,20 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             added,
             column: (optionName) => {
                 const path = options[optionName];
-                return typeof path === "string" && path !== ""
-                    ? nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)))
-                    : null;
+                if (typeof path !== "string" || path === "") {
+                    return null;
+                }
+
+                // A run's result, or an attribute named the way an algorithm's option names one,
+                // is read through the session; a bare path is read from each node's own data.
+                if (path.startsWith("results.") || path.startsWith("data.")) {
+                    const read = this.#host?.column?.(graph, path);
+                    if (read !== undefined) {
+                        return read;
+                    }
+                }
+
+                return nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)));
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
@@ -382,9 +401,15 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
-            nodeSizes: () =>
-                Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius)),
+            // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
+            // ponytail: a style pass still running is not waited for; its sizes are read as drawn
+            // now. Wait for it here if a layout is ever seen starting mid-pass.
+            nodeSizes: () => {
+                this.#host?.drawPaint();
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+            },
             nodeExtents: () => {
+                this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
                 nodes.forEach((node, row) => {
                     if (node !== undefined) {

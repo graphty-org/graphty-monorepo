@@ -3,6 +3,9 @@
  * with a value, so that the same words find the same things in every search box.
  */
 
+import type { TextMatchMode } from "../catalog/types";
+import { GraphtyError } from "../errors";
+
 /** Where a match fell, best first: the whole value, the start of a word, or anywhere. */
 type TextMatch = "whole" | "word-start" | "anywhere";
 
@@ -53,4 +56,60 @@ export function matchText(query: string, value: string): TextMatch | null {
     }
 
     return found;
+}
+
+/**
+ * The one test of a value against typed text, for a mode: what a selection's text search and a
+ * rule's `text` leaf both run, so a search and the rule it becomes never disagree.
+ * @param text - What was typed.
+ * @param mode - How to compare it: contains (`substring`), equals (`exact`), starts with, ends
+ *     with, or a regular expression (`regex`).
+ * @param fold - How both sides are folded before comparing, or null to compare them as given. A
+ *     `regex` ignores case whenever `fold` is not null.
+ * @returns The test of one value, as text.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
+ */
+export function textMatcher(
+    text: string,
+    mode: TextMatchMode,
+    fold: ((value: string) => string) | null,
+): (value: string) => boolean {
+    if (mode === "regex") {
+        const pattern = compilePattern(text, fold === null ? "" : "i");
+        return (value) => pattern.test(value);
+    }
+
+    const same = fold ?? ((value: string): string => value);
+    const wanted = same(text);
+    switch (mode) {
+        case "exact":
+            return (value) => same(value) === wanted;
+        case "starts-with":
+            return (value) => same(value).startsWith(wanted);
+        case "ends-with":
+            return (value) => same(value).endsWith(wanted);
+        default:
+            return (value) => same(value).includes(wanted);
+    }
+}
+
+/**
+ * Compile a typed regular expression, refusing one that does not parse.
+ * @param text - The pattern.
+ * @param flags - The flags.
+ * @returns The expression.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the parse error.
+ */
+export function compilePattern(text: string, flags = ""): RegExp {
+    try {
+        return new RegExp(text, flags);
+    } catch (error) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `"${text}" is not a regular expression: ${error instanceof Error ? error.message : String(error)}`,
+            source: "run",
+            details: { text, mode: "regex" },
+            cause: error,
+        });
+    }
 }

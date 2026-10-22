@@ -70,8 +70,10 @@ const CODES_FROM_THE_DESIGN = [
     "E_DUPLICATE_EDGE",
     "E_DUPLICATE_PLUGIN",
     "E_PROTECTED",
+    "E_LOCKED",
     "E_FETCH_FAILED",
     "E_PARSE_FAILED",
+    "E_PROJECT_FILE_AS_DATA",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
     "E_EMPTY_LOAD",
@@ -148,6 +150,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
+        case "E_LOCKED":
         case "E_UNSAVED_CHANGES":
         case "E_AUTOSAVE_ENTRY_TAKEN":
         case "E_AUTOSAVE_UNKNOWN_ENTRY":
@@ -158,6 +161,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":
+        case "E_PROJECT_FILE_AS_DATA":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
         case "E_EMPTY_LOAD":

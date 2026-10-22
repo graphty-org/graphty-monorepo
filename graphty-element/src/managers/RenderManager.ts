@@ -1,10 +1,12 @@
 import {
     Color3,
     Color4,
+    DirectionalLight,
     Engine,
     EngineStore,
     HemisphericLight,
     Logger,
+    Material,
     NullEngine,
     PhotoDome,
     Quaternion,
@@ -15,15 +17,18 @@ import {
     WebGPUEngine,
 } from "@babylonjs/core";
 
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -252,9 +257,6 @@ function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } 
  */
 const GRAPH_ROOT_NAME = "graph-root";
 
-/** What the scene is cleared to when nothing names a colour. Whitesmoke. */
-const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
-
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
 
@@ -321,6 +323,25 @@ const READER_INPUT_EVENTS = [
 ] as const;
 
 /**
+ * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
+ * is white, toward +x+y), and the key light's intensity and direction in camera space.
+ *
+ * - studio: fill 0.45 and key 0.55 from above-right of the camera, plus the node rim (NodeLighting).
+ *   Measured: no pixel clipped to white, brightest 1.13x the style lightness, median 0.88x, sphere
+ *   lightness spread 0.282.
+ * - headlight: fill 0.4 with a lighter ground, and a 0.45 light from just beside the camera.
+ *   Brightest 0.99x the style lightness, median 0.88x, spread 0.226.
+ * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
+ * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
+ */
+const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+    studio: { fill: 0.45, ground: 0.35, key: 0.55, keyDirection: new Vector3(0.6, -0.6, 1) },
+    headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
+    matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+    flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+};
+
+/**
  * Manages Babylon.js scene, engine, and render loop
  */
 export class RenderManager implements Manager {
@@ -368,6 +389,12 @@ export class RenderManager implements Manager {
         observers: [] as readonly unknown[],
         contents: [] as unknown[],
     };
+    /** The hemispheric fill light; see {@link applyLighting}. */
+    private readonly hemi: HemisphericLight;
+    /** The key (or head) light, a directional light that turns with the camera. */
+    private readonly key: DirectionalLight;
+    /** The key light's direction in camera space (x right, y up, z forward). */
+    private readonly keyInCameraSpace = new Vector3(0, 0, 1);
     /** Whether the last frame drawn left the camera, size or background other than the one before. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
@@ -410,22 +437,24 @@ export class RenderManager implements Manager {
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
-     * canvas. This one does the same thing without scrolling.
+     * canvas; this one focuses without scrolling. It does not cancel the event: a canceled
+     * pointerdown suppresses the browser's mousedown and mouseup, so a host page's popover or menu
+     * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
+     * `user-select: none` keeps a drag from selecting page text instead.
      *
      * NO FOCUS RING FOR A POINTER. Focus given by script is shown with a ring whenever the browser
      * thinks the reader is on the keyboard -- after a key press, or on a page nothing had focused
      * yet -- so turning the graph with the mouse outlined the whole canvas in blue. Focus that came
-     * from a pointer hides the outline until the canvas loses focus; focus that comes any other way
-     * (Tab, a key, the page's script) keeps the browser's own `:focus-visible` ring.
-     * @param evt - The pointer down or up event on the canvas
+     * from a pointer hides the outline until the canvas loses focus or a key is pressed in it (the
+     * reader is on the keyboard then); focus that comes any other way (Tab, a key, the page's
+     * script) keeps the browser's own `:focus-visible` ring.
      */
-    private readonly focusOnPointer = (evt: PointerEvent): void => {
-        evt.preventDefault();
+    private readonly focusOnPointer = (): void => {
         this.canvas.style.outline = "none";
         this.canvas.focus({ preventScroll: true });
     };
 
-    /** The canvas lost focus: the next focus, from whatever source, shows the browser's ring. */
+    /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
     private readonly restoreFocusRing = (): void => {
         this.canvas.style.outline = "";
     };
@@ -459,6 +488,7 @@ export class RenderManager implements Manager {
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
         this.canvas.addEventListener("pointerup", this.focusOnPointer);
         this.canvas.addEventListener("blur", this.restoreFocusRing);
+        this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
@@ -494,9 +524,22 @@ export class RenderManager implements Manager {
         // Setup cameras
         this.setupCameras();
 
-        // Setup lighting with ground color for fill from below
-        const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
-        light.groundColor = new Color3(0.35, 0.35, 0.35);
+        // Two lights at most, neither with any specular, so nothing a light adds is ever white: a
+        // hemispheric fill from above, and a key that keeps its place relative to the camera.
+        this.hemi = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
+        this.hemi.specular = Color3.Black();
+        this.key = new DirectionalLight("key-light", new Vector3(0, 0, 1), this.scene);
+        this.key.specular = Color3.Black();
+        this.scene.onBeforeRenderObservable.add(() => {
+            const camera = this.scene.activeCamera;
+            if (camera) {
+                this.key.direction = Vector3.TransformNormal(
+                    this.keyInCameraSpace,
+                    camera.getWorldMatrix(),
+                ).normalize();
+            }
+        });
+        this.applyLighting(DEFAULT_LIGHTING);
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
@@ -538,6 +581,7 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
+        this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.removeEventListener(type, this.owe);
         }
@@ -982,6 +1026,55 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Light the scene's 3D nodes one of the {@link Lighting} ways. Takes effect on the next frame,
+     * for the nodes on screen and every node built afterwards.
+     *
+     * The numbers are the ones measured in `stories/experiments/NodeLighting.stories.ts` (25
+     * shapes x 4 colors x 12 rotations). Node materials are frozen, and a frozen material keeps the
+     * shader it compiled -- which lights it counts, whether it has a rim -- so every frozen material
+     * is thawed, recompiled on the next frame and frozen again after it.
+     * @param lighting - The lighting.
+     */
+    applyLighting(lighting: Lighting): void {
+        const { hemi, key, scene } = this;
+        const light = LIGHTS[lighting];
+        hemi.intensity = light.fill;
+        hemi.groundColor = new Color3(light.ground, light.ground, light.ground);
+        key.setEnabled(light.key > 0);
+        key.intensity = light.key;
+        this.keyInCameraSpace.copyFrom(light.keyDirection);
+
+        scene.metadata = { ...(scene.metadata as Record<string, unknown> | null), lighting };
+
+        const thawed: Material[] = [];
+        for (const material of scene.materials) {
+            if (material.isFrozen) {
+                material.unfreeze();
+                thawed.push(material);
+            }
+
+            if (isNodeMaterial(material)) {
+                lightNodeMaterial(material, lighting);
+                for (const mesh of material.getBindedMeshes()) {
+                    outlineNodeMesh(mesh, lighting);
+                }
+            }
+
+            material.markAsDirty(Material.AllDirtyFlag);
+        }
+
+        if (thawed.length > 0) {
+            scene.onAfterRenderObservable.addOnce(() => {
+                for (const material of thawed) {
+                    material.freeze();
+                }
+            });
+        }
+
+        this.requestFrame();
+    }
+
+    /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
@@ -1048,7 +1141,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });
@@ -1068,7 +1161,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });

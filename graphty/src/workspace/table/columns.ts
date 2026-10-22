@@ -49,6 +49,30 @@ const KEYS: Readonly<Record<RecordKind, readonly TableColumnChoice[]>> = {
 };
 
 /**
+ * What an edge's two ends are called: From and To, or on an undirected graph, where an edge has
+ * no first end, Node A and Node B. The table's headers and the edge's inspector both use them.
+ * @param session - the element's session.
+ * @returns the two names, the source's first.
+ */
+export function edgeEnds(session: GraphSession): readonly [string, string] {
+    return session.data.statistics().directedness === "undirected" ? ["Node A", "Node B"] : ["From", "To"];
+}
+
+/**
+ * The key columns of a kind, the edge's ends named as this graph's direction names them.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @returns the key columns.
+ */
+function keysOf(session: GraphSession, kind: RecordKind): readonly TableColumnChoice[] {
+    if (kind === "node") {
+        return KEYS.node;
+    }
+    const [from, to] = edgeEnds(session);
+    return KEYS.edge.map((key) => ({ ...key, header: key.id === "source" ? from : to }));
+}
+
+/**
  * A run's result as a column of this table, as graphty-element reads it: undefined when the run
  * has no result yet, or publishes no value per record of this kind (a bare fact, an edge metric on
  * the Nodes tab), which the element refuses with `E_BAD_COMMAND`.
@@ -87,13 +111,14 @@ function resultColumn(session: GraphSession, run: Run, kind: RecordKind): PageCo
  * @returns the columns in the chooser's order.
  */
 export function columnChoices(session: GraphSession, kind: RecordKind): TableColumnChoice[] {
+    const keys = keysOf(session, kind);
     const attributes = session.data
         .attributes()
         .filter(
             (attribute: AttributeDescriptor) =>
                 attribute.kind === kind &&
                 attribute.origin !== "result" &&
-                !KEYS[kind].some((key) => key.id === attribute.name),
+                !keys.some((key) => key.id === attribute.name),
         )
         .map((attribute): TableColumnChoice => ({
             id: `a:${attribute.name}`,
@@ -118,7 +143,7 @@ export function columnChoices(session: GraphSession, kind: RecordKind): TableCol
             },
         ];
     });
-    return [...KEYS[kind], ...attributes, ...results];
+    return [...keys, ...attributes, ...results];
 }
 
 /**

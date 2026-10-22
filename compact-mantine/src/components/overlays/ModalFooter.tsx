@@ -7,9 +7,10 @@ import type { ComponentPropsWithoutRef, JSX } from "react";
 export interface ModalFooterProps extends BoxProps, Omit<ComponentPropsWithoutRef<"div">, keyof BoxProps> {}
 
 /**
- * The button bar at the bottom of a Modal (design/figma-spec.md 8.5): 40 tall
- * across the modal's full width, a 1px divider above it, padding 0 8 0 16, its
- * buttons end-aligned 8px apart. Put it last inside the Modal's children, with
+ * The button bar at the bottom of a Modal (design/figma-spec.md 8.5): 48 tall
+ * across the modal's full width, a 1px divider above it, padding 0 16, its
+ * buttons end-aligned 8px apart (12px above and below 24px buttons, so they
+ * clear the modal's rounded corner and stay comfortable to tap). Put it last inside the Modal's children, with
  * the secondary action (Cancel) first and the primary or danger action last.
  * @param props - Box props and div attributes
  * @param props.className - Extra classes, merged with the footer's own

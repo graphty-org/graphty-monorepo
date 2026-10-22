@@ -1,0 +1,17 @@
+{
+ "commit": "58556989e835b5ba127606e9ec126f3d0d2b188d",
+ "toolCommit": "5fef541f82ce37ef63615cb2662b5c9492113bb3",
+ "uncommittedChanges": false,
+ "buildStamp": "58556989e835 graphty@0.8.68",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-17T12:49:02.240Z",
+ "setup": [],
+ "task": "T49B",
+ "followUp": "given 2026-10-17T12:50:21.089Z"
+}

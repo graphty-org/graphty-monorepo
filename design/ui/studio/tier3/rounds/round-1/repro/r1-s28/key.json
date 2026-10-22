@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: 6 nodes 6 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: 6 nodes",
+     "color": "#0000ff"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#0000ff": 6,
+   "#6366f1": 18
+  },
+  "edges": {
+   "#a9a9a9": 59
+  }
+ }
+}

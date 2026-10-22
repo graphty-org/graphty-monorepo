@@ -142,6 +142,7 @@ export interface AlgorithmDescriptor {
     shape: ResultShape;
     // (undocumented)
     technicalName: string;
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 // @public
@@ -153,6 +154,7 @@ export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean"
 // @public
 export interface AttributeDescriptor {
     completeness: number;
+    holdsNodeIds?: true;
     // (undocumented)
     kind: "node" | "edge";
     // (undocumented)
@@ -180,7 +182,11 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
+    valuesAreColors?: true;
 }
+
+// @public
+export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
@@ -188,16 +194,20 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 // @public
 export type Binding = {
     value: ChannelValue;
+    combine?: CombineMode;
 } | {
     template: readonly string[];
 } | {
     by: Path;
+    combine?: CombineMode;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
+    colors?: string[];
     domain?: [number, number] | "auto";
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
+    otherwise?: string | number;
     other?: {
         threshold: number;
         value: string | number;
@@ -206,6 +216,7 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
+    format?: BindingNumberFormat;
     unmapped?: "skip";
     stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
@@ -213,6 +224,7 @@ export type Binding = {
     midpoint?: number;
     bins?: number;
     exponent?: number;
+    choices?: string[];
 };
 
 // @public
@@ -265,6 +277,23 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 export function camerasForMode(mode: DrawingMode): readonly CameraDescriptor[];
 
 // @public
+export const CANVAS_KEY_DESCRIPTORS: readonly CanvasKeyDescriptor[];
+
+// @public
+export type CanvasKeyAction = "zoom-in" | "zoom-out" | "pan-up" | "pan-down" | "pan-left" | "pan-right" | "turn-up" | "turn-down" | "turn-left" | "turn-right" | "roll-left" | "roll-right";
+
+// @public
+export interface CanvasKeyDescriptor {
+    readonly action: CanvasKeyAction;
+    readonly keys: readonly string[];
+    readonly plainName: string;
+    readonly view: CanvasKeyView;
+}
+
+// @public
+export type CanvasKeyView = "2d" | "3d";
+
+// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -300,23 +329,33 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.nodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.nodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
 
 // @public
+export type ChannelCaveatCode = "outline.sharedWidth";
+
+// @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     readonly caveat?: string;
+    readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;
     readonly default?: string | number | boolean;
+    readonly exclusiveMin?: boolean;
+    readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly max?: number;
     readonly min?: number;
+    readonly modifies?: Channel;
+    readonly off?: string | number;
+    readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shortName: string;
+    readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
     readonly unsupportedReason?: string;
@@ -382,6 +421,9 @@ export interface DefectWaiver {
 export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
 
 // @public
+export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
+
+// @public
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
@@ -403,6 +445,15 @@ export interface DetectionInput {
 export type DrawingMode = "2d" | "3d";
 
 // @public
+export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[];
+
+// @public
+export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[];
+
+// @public
+export type EdgeArrowKind = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
+
+// @public
 export type EdgeId = string;
 
 // @public
@@ -419,7 +470,7 @@ export interface EdgeMember {
 }
 
 // @public
-export type EdgeReading = "induced" | "listed" | "clipped";
+export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 
 // @public
 export type EdgeRef = EdgeId | EdgeMember;
@@ -440,6 +491,7 @@ export interface FieldBand {
 
 // @public
 export interface FieldDescriptor {
+    directedOnly?: boolean;
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
@@ -484,6 +536,8 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    description?: string;
+    exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
     // (undocumented)
@@ -499,6 +553,19 @@ export interface FormatDescriptor {
 
 // @public
 export function formatDescriptor(id: string): FormatDescriptor | undefined;
+
+// @public
+export interface FormatExportVariant {
+    // (undocumented)
+    extensions: readonly string[];
+    id: string;
+    // (undocumented)
+    mimeTypes: readonly string[];
+    options: readonly OptionDescriptor[];
+    // (undocumented)
+    plainName: string;
+    preset: Readonly<Record<string, unknown>>;
+}
 
 // @public
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
@@ -531,6 +598,13 @@ export { GeneratorParamDescriptor }
 
 export { GeneratorParams }
 
+// @public
+export interface GlyphDescriptor<Id extends string = string> {
+    readonly glyph: string;
+    readonly id: Id;
+    readonly plainName: string;
+}
+
 export { GraphListing }
 
 // @public
@@ -554,8 +628,12 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -570,8 +648,10 @@ export type GraphtyErrorCode =
 */
 | "E_SELECTOR_EMPTY"
 /**
-* A universal selector is combined with an encoding bound to a run, which would ask the
-* element to paint elements the run never measured. The caller scopes the layer to the
+* A universal selector is combined with an encoding bound to a run that paints a value for a
+* missing result (`missing: { value }`), which would ask the element to paint elements the run
+* never measured. Without `missing`, such a layer is accepted: an element with no result is
+* not painted. The caller scopes the layer to the
 * elements that carry the run's result.
 */
 | "E_UNSCOPED_RUN_ENCODING"
@@ -734,6 +814,12 @@ export type GraphtyErrorCode =
 */
 | "E_PROTECTED"
 /**
+* The target is locked by the reader: a style layer whose row, or a folder holding it, has
+* the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
+* caller unlocks the row first, or leaves the layer as it is.
+*/
+| "E_LOCKED"
+/**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
 * unreadable file. `details` carry the url and the status where there was one, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
@@ -746,6 +832,14 @@ export type GraphtyErrorCode =
 * corrects the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A graphty project or document file (one `session.project.save` writes) was handed to a data
+* import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+* opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+* that opens it. Nothing in the session changed. The caller opens the file with
+* `session.project.open`, which reads data files too.
+*/
+| "E_PROJECT_FILE_AS_DATA"
 /**
 * An edge table declares no endpoint columns and contains none of the accepted pairs
 * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
@@ -1070,6 +1164,9 @@ export type GraphtyErrorCode =
 | "E_INTERNAL";
 
 // @public
+export type GroupMatchCode = "group.new" | "group.gone";
+
+// @public
 export function isAttributeType(value: unknown): value is AttributeType;
 
 // @public
@@ -1097,7 +1194,7 @@ export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
@@ -1106,10 +1203,16 @@ export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radia
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
 
 // @public
-export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
+export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "kelly", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
 
 // @public
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
+
+// @public
+export const LABEL_LOOKS: readonly LabelLookDescriptor[];
+
+// @public
+export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
 
 // @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
@@ -1134,6 +1237,22 @@ export type LabelIconPosition = "left" | "right";
 
 // @public
 export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" | "inside-top" | "inside-bottom" | "inside-left" | "inside-right" | "inside-top-left" | "inside-top-right" | "inside-bottom-left" | "inside-bottom-right" | "automatic";
+
+// @public
+export function labelLook(id: string): LabelLookDescriptor | undefined;
+
+// @public
+export function labelLookChanges(style: LabelStyle): (keyof LabelStyle)[];
+
+// @public
+export interface LabelLookDescriptor {
+    readonly id: LabelLookId;
+    readonly plainName: string;
+    readonly style: Readonly<Omit<LabelStyle, "look" | "enabled">>;
+}
+
+// @public
+export type LabelLookId = "default" | "card" | "dark" | "pill" | "callout";
 
 // @public
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
@@ -1173,6 +1292,7 @@ export interface LabelStyle {
     letterSize?: number;
     lineHeight?: number;
     location?: LabelLocation;
+    look?: LabelLookId;
     marginBottom?: number;
     marginLeft?: number;
     marginRight?: number;
@@ -1194,6 +1314,7 @@ export interface LabelStyle {
     panelShadowColor?: string;
     panelShadowOffsetX?: number;
     panelShadowOffsetY?: number;
+    pickable?: boolean;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -1262,6 +1383,7 @@ export interface LayerSpec {
     kind?: LayerKind;
     // (undocumented)
     name: string;
+    row?: LayerId;
     // (undocumented)
     selector: Selector;
     // (undocumented)
@@ -1270,8 +1392,19 @@ export interface LayerSpec {
     source?: LayerSource;
     // (undocumented)
     target?: "node" | "edge";
+    unmatched?: readonly LayerUnmatchedGroup[];
     // (undocumented)
     userData?: Record<string, unknown>;
+}
+
+// @public
+export interface LayerUnmatchedGroup {
+    readonly code: GroupMatchCode;
+    readonly params: {
+        readonly path: Path;
+        readonly value: string | number | boolean;
+        readonly dropped?: boolean;
+    };
 }
 
 // @public
@@ -1430,7 +1563,13 @@ export interface MetricAvailability {
 }
 
 // @public
+export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[];
+
+// @public
 export type NodeId = string | number;
+
+// @public
+export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
 // @public
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
@@ -1564,6 +1703,35 @@ export interface QueryValidation {
 }
 
 // @public
+export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
+
+// @public
+export interface ReadableValue {
+    readonly completeness: number;
+    readonly end?: "source" | "target";
+    readonly fits: readonly ReadableChannelKind[];
+    readonly from: "element" | "data" | "run";
+    readonly holdsNodeIds?: true;
+    readonly kind: ReadableValueKind;
+    readonly on: "node" | "edge";
+    readonly path: Path;
+    readonly plainName: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+    readonly runId?: RunId;
+    readonly technicalName: string;
+    readonly tests: readonly RuleTestKind[];
+    readonly usedBy?: readonly AttributeUse[];
+    readonly valueCount?: number;
+    readonly valuesAreColors?: true;
+}
+
+// @public
+export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];
 
 // @public
@@ -1600,10 +1768,12 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -1665,7 +1835,22 @@ export type RuleTree = {
     readonly kind: "threshold";
     readonly path: Path;
     readonly top?: number;
+    readonly ties?: TopTies;
     readonly above?: number;
+}
+/**
+* The elements whose text for one value passes a text test: "name contains bob", "id matches
+* `[13579]$`". The same matcher a selection's text search runs. A number or a yes-or-no value
+* is read as its text; an element without a value fails. Reading `"id"` speaks nodes; a value
+* path speaks each half whose elements carry it, as a `range` leaf does.
+*/
+| {
+    readonly kind: "text";
+    readonly reads: Path;
+    readonly mode: TextMatchMode;
+    readonly text: string;
+    readonly caseSensitive?: boolean;
+    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -1740,12 +1925,14 @@ export type Selector = {
 /**
 * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-* See `TopRanking` for the policy.
+* See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+* instead, so the top can hold more than `n` (see {@link TopTies}).
 */
 | {
     match: "top";
     path: Path;
     n: number;
+    ties?: TopTies;
 } | {
     match: "everything";
 }
@@ -1758,6 +1945,27 @@ export type Selector = {
 | {
     match: "member";
     of: Scope;
+}
+/**
+* The elements a rule tree holds, re-evaluated as the data changes: what a rule set holds,
+* without keeping a set. `edges` is how the edges are read beside a rule about nodes (default
+* `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
+* number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
+*/
+| {
+    match: "rule";
+    where: RuleTree;
+    edges?: EdgeReading;
+}
+/**
+* The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
+* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
+* each change with no step.
+* @since 3.26.0
+*/
+| {
+    match: "state";
+    state: "selected" | "hovered";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
@@ -1856,14 +2064,34 @@ export { SourceInfo }
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StructureValue {
+    readonly path: Path;
+    readonly plainName: string;
+    readonly technicalName: string;
+}
+
+// @public
 export interface StyleDocument {
     // (undocumented)
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
 }
+
+// @public
+export type StyleDocumentRow = ({
+    layer: number;
+} | {
+    folder: string;
+    children: readonly StyleDocumentRow[];
+}) & {
+    pin?: "top" | "bottom" | "none";
+    locked?: boolean;
+    hidden?: boolean;
+};
 
 // @public
 export interface SuggestedName {
@@ -1872,6 +2100,9 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @public
+export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
 // @public
 export interface ThemeDescriptor {
@@ -1885,6 +2116,9 @@ export interface ThemeDescriptor {
 
 // @public
 export function toColorValue(value: string | Rgba | null | undefined): ColorValue | null;
+
+// @public
+export type TopTies = "fewer" | "all";
 
 // @public
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[];

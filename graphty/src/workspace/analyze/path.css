@@ -1,0 +1,25 @@
+/* A From or To field's node list opens over the form, so opening and closing it never moves the
+   controls under the pointer (a press on Find path would otherwise miss as the list closes). */
+.ws-path-field {
+    position: relative;
+}
+
+.ws-path-list {
+    position: absolute;
+    z-index: 1;
+    top: 100%;
+    right: 0;
+    left: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 5px;
+    background: var(--cm-bg-menu);
+    box-shadow: var(--mantine-shadow-md);
+}
+
+/* A form in the Analyze popover has no gutter to its left, where a fold's chevron hangs in the
+   right panel: the Advanced row starts on the form's own edge, chevron included. */
+.ws-analyze .cm-subgroup-control {
+    width: 100%;
+    margin-inline-start: 0;
+}

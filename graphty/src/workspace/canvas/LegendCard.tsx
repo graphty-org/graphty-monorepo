@@ -88,12 +88,23 @@ function ShapePicture({
             })
             .catch(() => {
                 // The glyph stays.
+                if (live) {
+                    setSrc("");
+                }
             });
         return () => {
             live = false;
         };
     }, [element, shape]);
-    return src === null || shape === null ? (
+    if (shape !== null && element !== null && src === null) {
+        // Marked while the picture is drawn, so a story or a test can wait for the final key.
+        return (
+            <span data-node-picture-pending="" style={{ display: "inline-flex" }}>
+                <CatalogGlyph channel={channel} value={value} />
+            </span>
+        );
+    }
+    return src === null || src === "" || shape === null ? (
         <CatalogGlyph channel={channel} value={value} />
     ) : (
         <img src={src} alt="" width={PICTURE_PX} height={PICTURE_PX} data-node-picture="" />

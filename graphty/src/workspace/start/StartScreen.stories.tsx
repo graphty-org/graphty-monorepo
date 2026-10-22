@@ -31,10 +31,31 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
     }
 }
 
+/**
+ * Waits until the start page's graph is drawn as it stays: its sample loaded, Louvain's
+ * communities colored and named in the caption, and a stable frame of that. The graph loads after
+ * the page has rendered, so a picture taken before then shows the page without it.
+ * @param canvasElement - the story's root.
+ */
+async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
+    await waitFor(() => {
+        expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
+    }, storyWaitOptions(30_000));
+    const element = canvasElement.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the start page drew no <graphty-element>");
+    }
+    await element.waitForStableFrame();
+}
+
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Start screen",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A story with a play of its own waits for the graph first, as this one does.
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+    },
     // Every story starts from a first launch: the usage data card unanswered, single-key
     // shortcuts on. The answer is the reader's and lives in this browser, so it is reset here.
     beforeEach: async () => {
@@ -53,6 +74,7 @@ export const FirstRun: Story = {};
 /** What is collected, open (`#/start-screen/disclosure`). */
 export const Disclosure: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "What is collected");
     },
 };
@@ -60,6 +82,7 @@ export const Disclosure: Story = {
 /** Answered Share usage data: the answer line, and the chip says so (`#/start-screen/answered`). */
 export const Answered: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "Share usage data");
     },
 };
@@ -67,6 +90,7 @@ export const Answered: Story = {
 /** Answered No thanks (`#/start-screen/declined`). */
 export const Declined: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "No thanks");
     },
 };
@@ -103,6 +127,7 @@ export const NetworkData: Story = {
         answerUsageData("declined");
     },
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "Open network data");
         await waitFor(
             () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
@@ -114,6 +139,7 @@ export const NetworkData: Story = {
 /** A file dragged over the window (`#/start-screen/drop-target`). */
 export const DropTarget: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         const root = canvasElement.querySelector(".ws-land");
         if (root === null) {
             throw new Error("no start screen");

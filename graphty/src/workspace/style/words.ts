@@ -302,6 +302,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.halo": "Halo",
     "node.haloScale": "Halo size",
     "node.wireframe": "Wireframe",
+    "node.meshDetail": "Mesh detail",
     "node.flat": "Flat shading",
     "node.unlit": "Unlit",
     "node.marker": "Marker",

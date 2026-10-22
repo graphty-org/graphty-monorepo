@@ -186,16 +186,16 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
 }
 
 /**
- * Dispose what a node's rebuild replaces -- its mesh, the label parented to it and its drag
- * handler -- ahead of the rebuild. A repaint of many nodes disposes every one of them first, inside
- * the bulk teardown, and only then builds the new meshes: built in between, the new meshes would
- * fill the scene lists the teardown emptied, and each later dispose would search them (#2749).
+ * Dispose what a node's rebuild replaces -- its mesh and the label parented to it -- ahead of the
+ * rebuild. The drag handler is kept: it lives as long as the node, reads `node.mesh` whenever it
+ * acts, and holds the hover, which a dispose would end while the pointer is still on the node.
+ * A repaint of many nodes disposes every one of them first, inside the bulk teardown, and only
+ * then builds the new meshes: built in between, the new meshes would fill the scene lists the
+ * teardown emptied, and each later dispose would search them (#2749).
  * The rebuild then finds the mesh disposed and builds a new one, as it does after a 2D/3D switch.
  * @param node - A node {@link nodeRebuildsFor} said is rebuilt.
  */
 export function releaseNodeMesh(node: Node): void {
-    node.dragHandler?.dispose();
-    node.dragHandler = undefined;
     node.label?.dispose();
     node.label = undefined;
     if (!node.mesh.isDisposed()) {
@@ -2019,14 +2019,7 @@ export class Node {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
-            if (existing && !existing.isDisposed()) {
-                existing.setEnabled(false);
-            }
-
-            if (kind === "halo") {
-                this.ringLabel(null);
-            }
-
+            this.hideOverlay(kind, existing);
             return;
         }
 
@@ -2050,21 +2043,32 @@ export class Node {
             // passed through.
             Node.paintHalo(overlay, look);
             this.ringLabel(look.scale);
-        } else {
-            this.contextPoint = overlay;
-        }
-
-        if (kind === "halo") {
             // The node's own geometry, scaled about its centre: every point of the node's surface
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.mesh.scaling).scaleInPlace(selection.scale);
         } else {
+            this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
+    }
+
+    /**
+     * Stop drawing one of this node's overlays, keeping it for the next time it is wanted.
+     * @param kind - Which overlay.
+     * @param existing - The overlay, when one was built.
+     */
+    private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
+        if (existing && !existing.isDisposed()) {
+            existing.setEnabled(false);
+        }
+
+        if (kind === "halo") {
+            this.ringLabel(null);
+        }
     }
 
     /**

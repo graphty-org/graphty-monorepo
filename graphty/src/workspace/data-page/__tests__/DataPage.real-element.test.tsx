@@ -821,7 +821,8 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([STAFF], "staff.csv"));
         const grid = await screen.findByRole("grid", { name: "Rows of staff.csv" }, { timeout: TIMEOUT_MS });
-        await screen.findByText("All 12 rows");
+        // The count drawn above the table, not the status line that says it out loud.
+        await screen.findByText("All 12 rows", { selector: "p" });
         await waitFor(() => {
             // The header and all 12 rows, with no scroll inside the table.
             assert.lengthOf(within(grid).getAllByRole("row"), 13);
@@ -849,12 +850,10 @@ describe("the Data page on the real element", () => {
         );
         assert.isNotNull(screen.getByText("Weight: km (farther)"));
 
-        // The reset beside a chosen role says what it does on hover: compact-mantine's
-        // ResetButton names itself in its title.
-        assert.equal(
-            screen.getByRole("button", { name: "Reset km to default" }).getAttribute("title"),
-            "Reset km to default",
-        );
+        // The reset beside a chosen role says what it does on hover, in compact-mantine's tooltip.
+        await userEvent.hover(screen.getByRole("button", { name: "Reset km to default" }));
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        assert.equal(tip.textContent, "Reset km to default");
     });
 
     it("says an edge table with no weight counts each edge 1", async () => {

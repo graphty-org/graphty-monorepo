@@ -51,6 +51,11 @@ the study's word for a link; the app never shows it. `open` -- the start page's 
 file", "Open network data"; samples are reached by "Samples" and a card named "Open the <sample>
 sample"); the study does not measure finding it. `first` -- every prompt
 opens "This is your first time"; the app's "first" is in an analysis's description, on no route.
+`red`, `blue`, `green`, `dark`, `orange`, `purple`, `yellow` -- the color each task's result is
+graded by (`answers.md`); every way to set a color shows the swatches' names, so the name gives no
+route. `Les Miserables`, `Zachary's karate club`, `college football` -- the samples' names as
+phrases, which the start screen prints on their cards; a prompt cannot ask for a sample without
+naming it.
 
 ## The tasks
 
@@ -81,11 +86,11 @@ category column, read back from the key: T51.
 
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. It comes with a few ready-made networks. Open the one about the characters of Les
-  Miserables and have a first look around. Tell us how many characters it holds, how many ties
-  link them, and which character has the most ties to others."
+  Miserables and explore it for a minute. Tell us how many characters it holds, how many ties
+  join them, and which character has the most ties to others."
 - **Prompt B (karate club):** "This is your first time using this program, and it has just
   opened. It comes with a few ready-made networks. Open the one about Zachary's karate club and
-  have a first look around. Tell us how many members it holds, how many ties link them,
+  explore it for a minute. Tell us how many members it holds, how many ties join them,
   and which member has the most ties to others."
 - **Measures:** the first minutes before any styling: where a newcomer looks first, and whether the
   counts and the one with the most ties are read from the screen.
@@ -95,11 +100,11 @@ category column, read back from the key: T51.
 ### T38. Your own file, then one kind of person (two datasets)
 
 - **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
-  A colleague exported the food bank's volunteer list from another program as volunteers.graphml,
+  A colleague exported the food bank's volunteer roster from another program as volunteers.graphml,
   and you have it on this computer. Bring it into the program and tell us how many people and how
-  many ties it holds. Then make every board member and every staff member blue on the drawing, and
+  many ties it holds. Then make every board member and every staff member blue in the picture, and
   leave the volunteers as they are."
-- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague exported her sources for her waterfront zoning story from another program as sources.graphml, and you have it on this computer. Bring it into the program and tell us how many sources and how many ties it holds. Then make every company and every agency blue on the drawing, and leave the people as they are."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague exported her sources for her waterfront zoning story from another program as sources.graphml, and you have it on this computer. Bring it into the program and tell us how many sources and how many ties it holds. Then make every company and every agency blue in the picture, and leave the people as they are."
 - **Card type reached:** category (the file's `role` or `kind` column).
 - **Kept on purpose:** `board`, `staff`, `volunteer`, `company`, `agency`, `people`, `person` -- the
   file's own values, which the participant must find on screen to pick by.
@@ -109,25 +114,25 @@ category column, read back from the key: T51.
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of the characters of Les Miserables. For a printed handout,
   make every character dark green."
-- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. For a sports newsletter's colors, make every team orange."
+- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of college football teams. For the school newsletter's colors, make every team orange."
 - **Measures:** the time to the first styled graph (`criteria.md`, bar 4) on its simplest route.
 
 ### T40. Picked out by letters in a name (two datasets)
 
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of the characters of Les Miserables. Mark every married woman
-  -- every character whose name has 'Mme' in it -- in purple on the drawing, and leave everyone
+  -- every character whose name has 'Mme' in it -- in purple in the picture, and leave everyone
   else as they are. Tell us how many there are."
 - **Prompt B (yeast genes):** "This is your first time using this program, and it has just opened.
   Your network of 331 yeast genes is on this computer as yeast-galactose.graphml. Bring it into the
   program. Mark every gene of the galactose pathway -- every gene whose name begins with GAL -- in
-  purple on the drawing, and leave every other gene as it is. Tell us how many there are."
+  purple in the picture, and leave every other gene as it is. Tell us how many there are."
 - **Card type reached:** text ("contains" or "starts with").
 - **Kept on purpose:** `gene`, `yeast`, `galactose`, `mme`, `gal` -- the data's own words.
 
 ### T41. Two facts at once (two datasets)
 
-- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the program. Before the summer drive you will phone everyone who finished food-safety training. Make red every person who finished the training and whose phone number is missing, so you can chase it. Everyone else stays as they are. Tell us their names."
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the program. Before the summer drive you will phone everyone who finished food-safety training. Make red every person who finished the training and whose phone number is missing, so you can chase it. Everyone else stays as they are. Tell us their names."
 - **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Make red every source who agreed to speak on the record and whose email address is missing. Everyone else stays as they are. Tell us their names."
 - **Card types reached:** yes/no, and "has no value" on a text column, combined.
 - **Kept on purpose:** `training`, `phone`, `record`, `email` -- the file's own column words.
@@ -138,10 +143,10 @@ category column, read back from the key: T51.
 ### T42. At or over a line (two datasets)
 
 - **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
-  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
-  program. Make orange everyone who gave 20 or more hours this quarter, and leave everyone else as
+  The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the
+  program. Make orange everyone who gave at least 20 hours this quarter, and leave everyone else as
   they are. Tell us how many people that is."
-- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Make orange every source who gave 10,000 dollars or more in political donations, and leave everyone else as they are. Tell us how many that is."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Make orange every source who gave at least 10,000 dollars in campaign donations, and leave everyone else as they are. Tell us how many that is."
 - **Card type reached:** number (a range with its low end set).
 - **Kept on purpose:** `hours`, `donations`, `quarter` -- the file's own words.
 - **Round 1:** not run; its two sessions go to T51. It runs at 4 in round 2 (`criteria.md`, round
@@ -150,10 +155,10 @@ category column, read back from the key: T51.
 ### T43. Bigger for more (two datasets)
 
 - **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
-  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
-  program. For the annual report, draw each person bigger the more hours they gave this quarter, so
-  the busiest stand out at a glance. Tell us who gave the most."
-- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Draw each source bigger the more they gave in political donations, so the biggest donors stand out at a glance. Tell us who gave the most."
+  The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the
+  program. For the annual report, draw people who gave many hours this quarter bigger than people
+  who gave few, so the busiest stand out at a glance. Tell us who gave the most."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Draw sources who gave large campaign donations bigger than sources who gave little, so the biggest donors stand out at a glance. Tell us who gave the most."
 - **Measures:** whether a newcomer finds a way to make a look follow a number.
 - **Kept on purpose:** `hours`, `donations` -- as T42. `draw` -- the everyday verb for what the
   picture shows; the app says "drawn" in the spoken names of unset color lines, and the wording
@@ -162,11 +167,11 @@ category column, read back from the key: T51.
 ### T44. Names on the drawing (two datasets)
 
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
-  opened. Open the ready-made network of the characters of Les Miserables. Put every character's
-  name on the drawing, so that a reader can spot Cosette by eye."
+  opened. Open the ready-made network of the characters of Les Miserables. Have every character's
+  name appear in the picture, so that a reader can spot Cosette by eye."
 - **Prompt B (volunteers):** "This is your first time using this program, and it has just opened.
-  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
-  program. Put every person's name on the drawing, so that the board can spot Lucy Grant by eye."
+  The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the
+  program. Have every person's name appear in the picture, so that the board can spot Lucy Grant by eye."
 - **Not scored as new findings:** a new name drawn too small at the default framing, and the
   default font naming no fallback; both are open owner decisions (`../owner-decisions.md`).
 - **Kept on purpose:** `cosette`, `lucy`, `grant` -- data; `board` -- the food bank's board, and a
@@ -177,10 +182,10 @@ category column, read back from the key: T51.
 ### T45. Ties apart from the people (two datasets)
 
 - **Prompt A (neighbors):** "This is your first time using this program, and it has just opened.
-  You keep a list of who knows whom on your street, neighbors.csv, on this computer. Bring it into
+  You track who knows whom on your street in neighbors.csv, which is on this computer. Bring it into
   the program. Make the family ties thick and red so they stand out, and leave the people and every
   other tie as they are."
-- **Prompt B (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Make every tie linking two characters who share 5 or more chapters thick and blue, and leave the characters and every other tie as they are."
+- **Prompt B (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Make every tie joining two characters who share at least 5 chapters thick and blue, and leave the characters and every other tie as they are."
 - **Card types reached:** category on a tie (A), number on a tie (B).
 - **Kept on purpose:** `neighbors`, `street`, `share` -- data; `chapters` -- data (the ties' own
   column is `shared_chapters`).
@@ -188,12 +193,12 @@ category column, read back from the key: T51.
 ### T46. Clusters found by the program, one in red (two datasets)
 
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
-  opened. Open the ready-made network of the characters of Les Miserables. Have the program work
+  opened. Open the ready-made network of the characters of Les Miserables. Have the program figure
   out the circles of characters who appear together, each circle in its own color. Then make
   the circle Javert belongs to bright red, and leave the colors of the other circles as they are. Tell us
   how many characters are in Javert's circle."
 - **Prompt B (College football):** "This is your first time using this program, and it has just
-  opened. Open the ready-made network of American college football teams. Have the program work
+  opened. Open the ready-made network of college football teams. Have the program figure
   out clusters of teams that often play one another, each cluster in its own color --
   not the conferences in the file, the program's own clusters. Then make Nebraska's cluster
   bright red, and leave the colors of the other clusters as they are. Tell us how many teams are in it."
@@ -205,23 +210,23 @@ category column, read back from the key: T51.
 
 ### T47. Every cluster at once, colors kept (two datasets)
 
-- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program work out the circles of characters who appear together, each circle in its own color. Then draw the characters of every circle as cubes instead of balls, without changing the color of any circle."
-- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. Have the program work out clusters of teams that often play one another, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, without changing the color of any cluster."
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program figure out the circles of characters who appear together, each circle in its own color. Then draw the characters of every circle as cubes instead of balls, while every circle's color stays as it is."
+- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of college football teams. Have the program figure out clusters of teams that often play one another, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, while every cluster's color stays as it is."
 - **Route under study:** whether the clusters are changed together, and whether the field that
   holds a different color for each cluster is left alone. A route through the whole drawing's own
   look also passes and is recorded.
 - **Kept on purpose:** `cube`, `ball` -- everyday words; the app's names for these looks are Box
-  and Icosphere, which the prompt avoids. `conference` -- data, as T46. `draw` -- as T43; a
+  and Icosphere, which the prompt avoids. `conference` -- data, as T46. `cluster` (B) -- as T46. `draw` -- as T43; a
   participant who reads the folder's unset color line by its spoken name is recorded.
 
 ### T48. Cluster colors on only some people (two datasets)
 
-- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the program. Have the program work out the circles of people who work shifts together, each circle in its own color. Then keep those colors only on people who have finished food-safety training; everyone else looks the way they did when the file first opened. Tell us how many people keep a circle's color."
-- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Have the program work out clusters of sources that deal with one another, each cluster in its own color. Then keep those colors only on sources who agreed to speak on the record; everyone else looks the way they did when the file first opened. Tell us how many sources keep a cluster color."
+- **Prompt A (volunteers):** "This is your first time using this program, and it has just opened. The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the program. Have the program figure out the circles of people who do shifts together, each circle in its own color. Then let only the people who have finished food-safety training stay in their circle's color; everyone else appears as they did when the file first opened. Tell us how many people still have a circle's color."
+- **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Have the program figure out clusters of sources that deal with one another, each cluster in its own color. Then let only the sources who agreed to speak on the record stay in their cluster's color; everyone else appears as they did when the file first opened. Tell us how many sources still have a cluster color."
 - **Route under study:** picking by data across several clusters at once: on the run's folder or
   on several of its layers picked together, against one layer at a time or a covering layer
   (graded `Route:`, `answers.md`).
-- **Kept on purpose:** `training`, `record` -- data.
+- **Kept on purpose:** `training`, `record` -- data. `cluster` (B) -- as T46.
 
 ### T49. Put it back (two datasets)
 
@@ -231,24 +236,25 @@ category column, read back from the key: T51.
 - **Prompt B (karate club):** "This is your first time using this program, and it has just opened.
   Open the ready-made network of Zachary's karate club, and make every member yellow."
 - **Follow-up** (given by the tool at the first `--end`):
-    - A: "Your editor liked the drawing better the way it was when you opened it. Put it back exactly
+    - A: "Your editor liked the picture better the way it was when you opened it. Put it back exactly
       as it was."
-    - B: "The coach liked the drawing better the way it was when you opened it. Put it back exactly
+    - B: "The coach liked the picture better the way it was when you opened it. Put it back exactly
       as it was."
 - **Measures:** how a newcomer reverses a change: the arrow at the top, Control+Z, typing the old
   color back, or removing what they made. Words avoided as well: undo, revert, reset, restore,
   default, original.
-- **Kept on purpose:** `back` -- "put it back" is the everyday phrase for the job; the only "Back"
-  on screen is the arrow that returns the analysis list, which no route here needs.
+- **Kept on purpose:** `back`, `put` -- "put it back" is the everyday phrase for the job; the only "Back"
+  on screen is the arrow that returns the analysis list, which no route here needs, and the start
+  screen's "Put" is in a sample's description, on no route.
 
 ### T50. What a colleague's color picks out (two datasets)
 
 - **Prompt A (lesmis-poster):** "This is your first time using this program, and it has just
-  opened. A colleague sent you their project, lesmis-poster.graphty.json, which is on this
+  opened. A colleague sent you lesmis-poster.graphty.json, a project of theirs, which is on this
   computer. Open it. Some characters are orange. Tell us which characters are orange and
   what they have in common that made the project color them orange."
 - **Prompt B (volunteers-thanks):** "This is your first time using this program, and it has just
-  opened. A colleague sent you their project, volunteers-thanks.graphty.json, which is on this
+  opened. A colleague sent you volunteers-thanks.graphty.json, a project of theirs, which is on this
   computer. Open it. Some people are green. Tell us how many people are green and what
   they have in common that made the project color them green."
 - **Measures:** finding what one look applies to, and reading why, from a project the participant
@@ -262,7 +268,7 @@ category column, read back from the key: T51.
 ### T51. Each kind its own color (two datasets)
 
 - **Prompt A (volunteers):** "This is your first time using this program, and it has just opened.
-  The food bank's volunteer list, volunteers.graphml, is on this computer. Bring it into the
+  The food bank's volunteer roster, volunteers.graphml, is on this computer. Bring it into the
   program. Draw board members, staff and volunteers each in a different color, and tell us which
   color stands for the board."
 - **Prompt B (sources):** "This is your first time using this program, and it has just opened. A
@@ -324,6 +330,22 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-21 (round 1's tool dry run 2, wording check on build 758b8e8081): 44 prompt words and 14
+  phrases were on screen. Reworded, with no task's result changed: the volunteers' "list" is a
+  "roster" (the start screen says "List"); "on the drawing" is "in the picture" where `draw` is not
+  kept (the spoken "drawn" of unset color lines), and so is T49's follow-up; "work out" is "figure
+  out" and T48's "work shifts" is "do shifts" (a sample's description says "work"); "or more" is "at
+  least" and T43's "the more" is "many ... than few" (the start screen says "more"); "political"
+  donations are "campaign" donations; T47's "without changing" is "stays as it is" (a text card says
+  "changing"); T48's "keep" and "looks" are "stay in" and "appears" (a sample's description); T45 A
+  "tracks" its street instead of keeping a list, and its ties "join" rather than "link" (an
+  analysis's description says "linked"), as do T37's; T37's "first look around" is "explore it for
+  a minute"; T39 B and the football prompts drop "American" and "sports" (the sample's card); T44
+  "has every name appear" instead of "put"; T50 names the file before calling it a project, so
+  "project lesmis-poster" is not the screen's phrase. Kept in every task: the colors each result is
+  graded by, and the samples' names as phrases (a prompt cannot ask for a sample without naming
+  it). Kept on purpose: `cluster` in T47 B and T48 B (as T46 B), `put` in T49 with `back`.
 
 - 2026-10-20 (pilots on build 7d87760756): the app now opens on a start page, so the facilitator's
   detours name its ways in ("Open a file", "Open network data", "New project", the Samples button

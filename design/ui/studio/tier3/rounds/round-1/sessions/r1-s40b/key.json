@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Edge color: Strong ties 51 of 254 edges",
+   "rows": [
+    {
+     "text": "Edge color: Strong ties",
+     "color": "#0077bb"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 77
+  },
+  "edges": {
+   "#a9a9a9": 203,
+   "#0077bb": 51
+  }
+ }
+}

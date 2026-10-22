@@ -70,6 +70,7 @@ import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PhotoDome } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
 import { Ray } from '@babylonjs/core';
@@ -2144,13 +2145,16 @@ export interface FindHitBase {
     };
     readonly match: {
         readonly path: Path;
-        readonly value: string | number | boolean;
+        readonly value: FindMatchValue;
     };
     readonly target: SelectionTarget;
 }
 
 // @public
 export type FindKind = "node" | "edge";
+
+// @public
+export type FindMatchValue = string | number | boolean;
 
 // @public
 export interface FindNamedRow {
@@ -2208,7 +2212,7 @@ export interface FindValueRow {
         kind: "text";
     }>;
     readonly target: SelectionTarget;
-    readonly value: string | number | boolean;
+    readonly value: FindMatchValue;
 }
 
 // @public
@@ -2885,7 +2889,7 @@ export class Graphty extends LitElement {
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
-    render(): unknown;
+    render(): Element;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
@@ -2967,6 +2971,7 @@ export class Graphty extends LitElement {
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
+    protected update(changedProperties: PropertyValues): void;
     updateEdges(updates: {
         id: string;
         [key: string]: unknown;
@@ -3272,6 +3277,14 @@ export type GraphtyErrorCode =
 * corrects the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A graphty project or document file (one `session.project.save` writes) was handed to a data
+* import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+* opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+* that opens it. Nothing in the session changed. The caller opens the file with
+* `session.project.open`, which reads data files too.
+*/
+| "E_PROJECT_FILE_AS_DATA"
 /**
 * An edge table declares no endpoint columns and contains none of the accepted pairs
 * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
@@ -3962,6 +3975,7 @@ export class LayoutManager implements Manager {
     get building(): boolean;
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
+    drawArrivedPaint: (() => void) | null;
     get edges(): Iterable<Edge>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
@@ -6449,6 +6463,7 @@ export class UpdateManager implements Manager {
     bindViewMasks(masks: ViewMasks | null): void;
     disableZoomToFit(): void;
     dispose(): void;
+    drawArrivedPaint(): void;
     enableZoomToFit(explicit?: boolean): void;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;

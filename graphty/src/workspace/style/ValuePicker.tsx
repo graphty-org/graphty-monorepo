@@ -88,6 +88,147 @@ interface Entry {
 }
 
 /**
+ * What picking a readable value binds: a data column, or a finished run's field.
+ * @param session - the element's session.
+ * @param target - nodes or edges.
+ * @param value - the readable value.
+ * @returns the choice, or undefined when it is neither.
+ */
+function choiceOf(
+    session: GraphSession,
+    target: Target,
+    value: ReturnType<GraphSession["data"]["readableValues"]>[number],
+): DataChoice | undefined {
+    if (value.from === "data") {
+        return { kind: "column", column: { kind: target, name: value.path.slice("data.".length) } };
+    }
+    const run = value.runId === undefined ? undefined : session.runs.get(value.runId);
+    if (run === undefined) {
+        return undefined;
+    }
+    return { kind: "result", runId: run.id, field: value.path.slice(session.results.path(run.id, "").length) };
+}
+
+/** The picker's rows, by where they go. */
+interface SortedRows {
+    readonly fits: QuickAction[];
+    readonly used: QuickAction[];
+    readonly elsewhere: QuickAction[];
+    readonly refused: QuickAction[];
+}
+
+/**
+ * Sorts the entries into In use, Used elsewhere, their own sections, and what the property cannot
+ * take (graphty-element's `styles.proposeEncoding`), each with the element's reason.
+ * @param session - the element's session.
+ * @param entries - the entries.
+ * @param channel - the property the pick goes on, if any.
+ * @returns the rows.
+ */
+function sortRows(session: GraphSession, entries: readonly Entry[], channel: Channel | undefined): SortedRows {
+    const sorted: SortedRows = { fits: [], used: [], elsewhere: [], refused: [] };
+    for (const entry of entries) {
+        const proposal = channel === undefined ? null : propose(session, entry.choice, channel);
+        const row = {
+            value: entry.key,
+            label: entry.name,
+            icon: entry.icon,
+            description: entry.fact,
+            keywords: [entry.technicalName],
+        };
+        if (proposal !== null && !proposal.ok) {
+            sorted.refused.push({
+                ...row,
+                section: "Does not fit",
+                description: refusalWords(proposal.refusal),
+                disabled: true,
+            });
+        } else if (entry.inUse) {
+            sorted.used.push({ ...row, section: "In use" });
+        } else if (entry.usedElsewhere) {
+            sorted.elsewhere.push({ ...row, section: "Used elsewhere" });
+        } else {
+            sorted.fits.push({ ...row, section: entry.section });
+        }
+    }
+    return sorted;
+}
+
+/**
+ * The one closing row the folded rows fold into; running it lists each with its reason.
+ * @param refused - the rows the property cannot take.
+ * @param unfolded - whether they are shown.
+ * @returns the row, or none when nothing is folded.
+ */
+function foldRows(refused: readonly QuickAction[], unfolded: boolean): QuickAction[] {
+    if (refused.length === 0) {
+        return [];
+    }
+    // Each folded row is an attribute the property cannot take, so they are counted as attributes.
+    const foldedCount = refused.length === 1 ? "1 attribute" : `${String(refused.length)} attributes`;
+    return [
+        {
+            value: FOLD,
+            // Under the "Does not fit" heading the count says the rest, and fits the
+            // 240 px list beside "Show why" (the property's name cut it short).
+            label: foldedCount,
+            // A list option cannot carry aria-expanded, so its name says whether the
+            // values it folds are shown, and while they are hidden, why they do not fit.
+            "aria-label": unfolded
+                ? `${foldedCount}, shown, Hide them`
+                : `${foldedCount}, hidden, ${foldWhy(refused)}, Show why`,
+            description: unfolded ? "Hide them" : "Show why",
+            section: "Does not fit",
+        },
+    ];
+}
+
+/**
+ * Several layers: the "Layer" choice, set off as the bulk field's source is, and named in words,
+ * never the marks.
+ * @param byLayer - the layers, if several.
+ * @returns the row, or none.
+ */
+function layerRows(byLayer: ValuePickerProps["byLayer"]): QuickAction[] {
+    if (byLayer === undefined) {
+        return [];
+    }
+    const layers = `${String(byLayer.count)} layers`;
+    const spoken = LAYER_SPOKEN.charAt(0).toUpperCase() + LAYER_SPOKEN.slice(1);
+    return [
+        {
+            value: LAYER,
+            label: LAYER_TOKEN,
+            "aria-label": `${spoken}, ${layers}`,
+            tone: "component" as const,
+            icon: <GLYPHS.layer size={14} aria-hidden />,
+            description: layers,
+            keywords: ["layer", "selected layers", "each layer"],
+            section: "Selected layers",
+        },
+    ];
+}
+
+/**
+ * Whether a row shows for a search: the folding row only while nothing is searched; the folded
+ * rows until opened, though a search finds them anyway, each with its reason.
+ * @param action - the row.
+ * @param query - the search.
+ * @param unfolded - whether the folded rows are shown.
+ * @returns whether it shows.
+ */
+function rowShows(action: QuickAction, query: string, unfolded: boolean): boolean {
+    const searching = query.trim() !== "";
+    if (action.value === FOLD) {
+        return !searching;
+    }
+    if (action.disabled === true && !searching && !unfolded) {
+        return false;
+    }
+    return [action.label, ...(action.keywords ?? [])].some((words) => matchesWordStart(words, query));
+}
+
+/**
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
  * columns, then each finished run's fields under the run's name, named as the rule editor names
  * them (`readableName`). The node id is left out: it drives no property. A data column that only
@@ -107,17 +248,7 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
         if (value.on !== target || value.from === "element" || value.end !== undefined) {
             continue;
         }
-        const run = value.runId === undefined ? undefined : session.runs.get(value.runId);
-        let choice: DataChoice | undefined;
-        if (value.from === "data") {
-            choice = { kind: "column", column: { kind: target, name: value.path.slice("data.".length) } };
-        } else if (run !== undefined) {
-            choice = {
-                kind: "result",
-                runId: run.id,
-                field: value.path.slice(session.results.path(run.id, "").length),
-            };
-        }
+        const choice = choiceOf(session, target, value);
         // A look lists each measure once: its rank and percentile only reorder it, which the Equal
         // counts scale already does, and a rank runs backwards on a ramp.
         if (choice === undefined || (!ranks && choice.kind === "result" && RANK_FIELDS.has(choice.field))) {
@@ -207,54 +338,8 @@ export function ValuePicker({
     }
 
     const entries = entriesOf(session, target, inUse, channel === undefined || TEXT_CHANNEL.test(channel));
-    const fits: QuickAction[] = [];
-    const used: QuickAction[] = [];
-    const elsewhere: QuickAction[] = [];
-    const refused: QuickAction[] = [];
-    for (const entry of entries) {
-        const proposal = channel === undefined ? null : propose(session, entry.choice, channel);
-        const row = {
-            value: entry.key,
-            label: entry.name,
-            icon: entry.icon,
-            description: entry.fact,
-            keywords: [entry.technicalName],
-        };
-        if (proposal !== null && !proposal.ok) {
-            refused.push({
-                ...row,
-                section: "Does not fit",
-                description: refusalWords(proposal.refusal),
-                disabled: true,
-            });
-        } else if (entry.inUse) {
-            used.push({ ...row, section: "In use" });
-        } else if (entry.usedElsewhere) {
-            elsewhere.push({ ...row, section: "Used elsewhere" });
-        } else {
-            fits.push({ ...row, section: entry.section });
-        }
-    }
-    // Each folded row is an attribute the property cannot take, so they are counted as attributes.
-    const foldedCount = refused.length === 1 ? "1 attribute" : `${String(refused.length)} attributes`;
-    const fold: QuickAction[] =
-        refused.length === 0 || channel === undefined
-            ? []
-            : [
-                  {
-                      value: FOLD,
-                      // Under the "Does not fit" heading the count says the rest, and fits the
-                      // 240 px list beside "Show why" (the property's name cut it short).
-                      label: foldedCount,
-                      // A list option cannot carry aria-expanded, so its name says whether the
-                      // values it folds are shown, and while they are hidden, why they do not fit.
-                      "aria-label": unfolded
-                          ? `${foldedCount}, shown, Hide them`
-                          : `${foldedCount}, hidden, ${foldWhy(refused)}, Show why`,
-                      description: unfolded ? "Hide them" : "Show why",
-                      section: "Does not fit",
-                  },
-              ];
+    const { fits, used, elsewhere, refused } = sortRows(session, entries, channel);
+    const fold = channel === undefined ? [] : foldRows(refused, unfolded);
 
     // The list opens on the value in force (the one this line reads, or its typed words), as a
     // select opens on its value.
@@ -263,7 +348,7 @@ export function ValuePicker({
     return (
         // Tab leaves the list: it closes, as a select's list does, and focus goes back to what
         // opened it rather than on into the panel behind it.
-        <div
+        <div // NOSONAR(S6848): catches Tab bubbling up from the list inside; the box is not drawn and takes no focus
             style={{ display: "contents" }}
             onKeyDown={(event) => {
                 if (event.key === "Tab" && onClose !== undefined) {
@@ -288,21 +373,7 @@ export function ValuePicker({
                 actions={prefixFirst(
                     [
                         ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
-                        ...(byLayer === undefined
-                            ? []
-                            : [
-                                  {
-                                      value: LAYER,
-                                      // Set off as the bulk field's source is, and named in words, never the marks.
-                                      label: LAYER_TOKEN,
-                                      "aria-label": `${LAYER_SPOKEN.charAt(0).toUpperCase()}${LAYER_SPOKEN.slice(1)}, ${String(byLayer.count)} layers`,
-                                      tone: "component" as const,
-                                      icon: <GLYPHS.layer size={14} aria-hidden />,
-                                      description: `${String(byLayer.count)} layers`,
-                                      keywords: ["layer", "selected layers", "each layer"],
-                                      section: "Selected layers",
-                                  },
-                              ]),
+                        ...layerRows(byLayer),
                         ...used,
                         ...elsewhere,
                         ...fits,
@@ -312,17 +383,7 @@ export function ValuePicker({
                     (action) => action.label,
                     query,
                 )}
-                filter={(action, query) => {
-                    const searching = query.trim() !== "";
-                    if (action.value === FOLD) {
-                        return !searching;
-                    }
-                    // Folded until opened; a search finds them anyway, each with its reason.
-                    if (action.disabled === true && !searching && !unfolded) {
-                        return false;
-                    }
-                    return [action.label, ...(action.keywords ?? [])].some((words) => matchesWordStart(words, query));
-                }}
+                filter={(action, search) => rowShows(action, search, unfolded)}
                 onRun={(key) => {
                     if (key === FIXED) {
                         onFixed?.();

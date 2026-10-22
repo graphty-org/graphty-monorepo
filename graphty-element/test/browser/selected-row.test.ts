@@ -177,8 +177,8 @@ describe("the Selected and Hovered rows", () => {
         assert.strictEqual(after.left + after.right, 0, "the new color repainted the halo already on screen");
         assert.lengthOf(drawnHalos(element), 1);
 
-        // The halo's off value: still selected, and no halo drawn.
-        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.haloColor": "none" } });
+        // The halo's off value, node.halo false: still selected, and no halo drawn.
+        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.halo": false } });
         await settle(element);
         assert.lengthOf(drawnHalos(element), 0, "a halo written off draws nothing");
 

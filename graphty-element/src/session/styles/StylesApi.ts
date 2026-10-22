@@ -213,6 +213,7 @@ import {
     type RowSpec,
     type RowTarget,
     type RowWrite,
+    type StartingRow,
     startingRowOf,
     startingRows,
 } from "./rows";
@@ -368,7 +369,8 @@ export interface StyleUpdateOptions extends RunOptions {
      * nothing until something is written again, as a starting row that writes nothing does. A
      * panel that removes properties one at a time sets it, so removing the last one does not
      * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing.
+     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
+     * added with no look yet) may be renamed or given another selector without it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -2855,9 +2857,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         if (at.above !== undefined) {
             require(at.above);
-            const parts = rowParts(current(), at.above);
+            const [last] = rowParts(current(), at.above).slice(-1);
 
-            return positionOf(parts[parts.length - 1].layer.id) + 1;
+            return positionOf(last.layer.id) + 1;
         }
 
         if (at.below !== undefined) {
@@ -3011,13 +3013,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw readerLocked(existing.layer, holder?.id ?? key);
         }
 
-        const merged: LayerSpec = { ...specOf(existing.layer), ...patch };
+        const before = specOf(existing.layer);
+        const merged: LayerSpec = { ...before, ...patch };
 
         if (isElementSource(sourceOf(merged))) {
             throw protectedLayer(existing.layer, "given an element source");
         }
 
-        const checked = check(merged, id, true, keepEmpty);
+        // A layer the stack already holds empty (a row added with no look yet) stays admissible
+        // until something writes to it: renaming it or changing what it matches is not emptying it.
+        const alreadyEmpty =
+            Object.keys(before.set ?? {}).length === 0 && Object.keys(before.encode ?? {}).length === 0;
+        const checked = check(merged, id, true, keepEmpty || alreadyEmpty);
 
         if (checked.layer === null) {
             throw refusedSpec(merged.name, checked.result);
@@ -3460,7 +3467,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const { target: _target, set: _set, encode: _encode, ...shared } = spec;
         const ids = kinds.map(() => id(spec.name));
         // The row is known by its node part's id, the last minted.
-        const row = spec.target === "both" ? ids[ids.length - 1] : undefined;
+        const row = spec.target === "both" ? ids.at(-1) : undefined;
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();
         const warnings: CodedFact<GraphtyWarningCode>[] = [];
@@ -3506,6 +3513,52 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         asked === true && dispatcher.services.config?.().runPlacement === "top" ? false : asked;
 
     /**
+     * The stack with an empty Everything row's parts given the base look.
+     * @param parts - The row's parts.
+     * @param stack - The stack.
+     * @param layers - Collects the layers rewritten.
+     * @returns The stack.
+     */
+    const fillBaseLook = (
+        parts: readonly CompiledLayer[],
+        stack: readonly CompiledLayer[],
+        layers: LayerId[],
+    ): readonly CompiledLayer[] => {
+        let next = stack;
+        for (const part of parts) {
+            ({ stack: next } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, next));
+            layers.push(part.layer.id);
+        }
+
+        return next;
+    };
+
+    /**
+     * Where a missing starting row goes, and the spec it is added with.
+     * @param stack - The stack it goes into.
+     * @param starting - The starting row.
+     * @param base - Whether `editableBase` is on, so Everything carries the base look.
+     * @returns The index to insert at and the row's spec.
+     */
+    const startingPlacement = (
+        stack: readonly CompiledLayer[],
+        starting: StartingRow,
+        base: boolean,
+    ): { index: number; spec: RowSpec } => {
+        const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
+        const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+        // Everything at the very bottom of the reader's rows; Selected just below Hovered.
+        const below = starting.pin === "bottom" ? firstOwn : hovered;
+        const index = below === -1 ? stack.length : below;
+        const spec =
+            base && starting.templateId === "graphty:starting-everything"
+                ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
+                : starting.spec;
+
+        return { index, spec };
+    };
+
+    /**
      * The plan that adds back whichever starting rows the stack lacks, each pinned where it
      * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
      * @returns The plan; the stack unchanged when every starting row is there.
@@ -3527,25 +3580,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // `editableBase` on never leaves the graph unpainted.
                 const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
                 if (base && starting.templateId === "graphty:starting-everything" && empty) {
-                    for (const part of parts) {
-                        ({ stack } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, stack));
-                        layers.push(part.layer.id);
-                    }
+                    stack = fillBaseLook(parts, stack, layers);
                     rows = reconcile(rows, stack);
                 }
 
                 continue;
             }
 
-            const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
-            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            // Everything at the very bottom of the reader's rows; Selected just below Hovered.
-            const below = starting.pin === "bottom" ? firstOwn : hovered;
-            const index = below === -1 ? stack.length : below;
-            const spec =
-                base && starting.templateId === "graphty:starting-everything"
-                    ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
-                    : starting.spec;
+            const { index, spec } = startingPlacement(stack, starting, base);
             const plan = planAddRow(spec, undefined, { stack, index });
             ({ stack } = plan);
             rows = reconcile(rows, stack);

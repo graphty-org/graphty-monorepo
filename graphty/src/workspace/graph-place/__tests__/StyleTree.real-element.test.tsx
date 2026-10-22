@@ -196,6 +196,21 @@ describe("the style tree on the real element", () => {
         });
     });
 
+    it("keeps focus on the row's lock when it is clicked, never on the page", async () => {
+        const { session, key } = await openTree();
+        const keyRow = await row("Key people");
+        await userEvent.click(keyRow);
+        await userEvent.hover(keyRow);
+        await userEvent.click(within(keyRow).getByRole("button", { name: "Lock Key people" }));
+        await waitFor(() => {
+            assert.isTrue(findTreeRow(session.styles.tree(), key)?.row.locked);
+        });
+
+        const lock = within(await row("Key people")).getByRole("button", { name: "Lock Key people" });
+        assert.notStrictEqual(document.activeElement, document.body, "focus never falls to the page");
+        assert.strictEqual(document.activeElement, lock, "the lock just clicked keeps focus");
+    });
+
     it("leaves the toggles out of Tab, and reaches Hide and Lock by row keys and the row menu", async () => {
         const { session, key } = await openTree();
         const keyRow = await row("Key people");

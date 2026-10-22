@@ -42,7 +42,7 @@ export function NoticeSlot({
         return null;
     }
     return (
-        <div
+        <div // NOSONAR(S6848): hover and focus only pause the notice's timer; the slot is not a control
             ref={slot}
             className="ws-notice-slot"
             onPointerEnter={() => {

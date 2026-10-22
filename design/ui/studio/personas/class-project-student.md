@@ -125,6 +125,3 @@ first-screen wording and on labels over findings on his vocabulary.
 5. Miriam Posner, "Build a simple network graph with Flourish" (course guide), https://miriamposner.com/classes/dh201w21/tutorials-guides/network-analysis/flourish-graph/ (read directly)
 6. KB National Library of the Netherlands lab, "Working with Gephi - Link analysis part 3", https://lab.kb.nl/about-us/blog/working-gephi-link-analysis-part-3 (read directly)
 7. "Getting started with Gephi", Gephi manual for beginners, https://jveerbeek.gitlab.io/gephi/docs/getting_started.html (search summary only)
-</content>
-
-</invoke>

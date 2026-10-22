@@ -98,157 +98,212 @@ export function ValueField({
     onChange,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
+    const props = { descriptor, label, value, shown, mixed, compact, swatches, extraChoices, onChange };
     if (kind === "color") {
-        const hex = hexOf(value) ?? undefined;
-        const inForce = hex ?? hexOf(shown);
-        return (
-            <CompactColorInput
-                variant={compact ? "chip" : "field"}
-                aria-label={label}
-                // A row's chip is named by the color it paints, in words, never "not set, #009E73";
-                // a field's box says the word beside its hex.
-                valueText={!mixed && inForce !== null ? colorName(inForce) : undefined}
-                width={compact ? undefined : "100%"}
-                color={mixed ? undefined : hex}
-                defaultColor={hexOf(shown) ?? "#999999"}
-                mixed={mixed}
-                showOpacity={false}
-                showReset={false}
-                swatches={swatches}
-                onChangeEnd={(next) => {
-                    if (next !== undefined) {
-                        onChange(next.toUpperCase());
-                    }
-                }}
-            />
-        );
+        return <ColorValueField {...props} />;
     }
     if (kind === "number") {
-        // An opacity reads and types as a percent, as the property row does.
-        const scale = isPercent(descriptor) ? 100 : 1;
-        const toShown = (n: unknown): number | undefined =>
-            typeof n === "number" ? Math.round(n * scale * 100) / 100 : undefined;
-        return (
-            <ComboInput
-                label={label}
-                width={compact ? 64 : "100%"}
-                numeric
-                variant="outlined"
-                options={[]}
-                value={mixed ? "" : (toShown(value) ?? toShown(shown) ?? "")}
-                placeholder={mixed ? "Mixed" : undefined}
-                suffix={scale === 100 ? "%" : undefined}
-                min={descriptor.min === undefined ? undefined : descriptor.min * scale}
-                max={descriptor.max === undefined ? undefined : descriptor.max * scale}
-                step={scale === 1 && descriptor.max !== undefined && descriptor.max <= 1 ? 0.1 : 1}
-                onChange={(next) => {
-                    if (typeof next === "number") {
-                        onChange(next / scale);
-                    }
-                }}
-            />
-        );
+        return <NumberValueField {...props} />;
     }
     if (kind === "choice") {
-        const boolean = descriptor.accepts === "boolean";
-        const text = (v: unknown): string | undefined =>
-            typeof v === "string" || typeof v === "boolean" ? String(v) : undefined;
-        const options = choiceOptions(descriptor);
-        // Nothing set here: the value shown is the one in force by default, and is read as that.
-        const inForce = options.find((option) => option.value === text(shown))?.label;
-        const unset = value === undefined && !mixed && inForce !== undefined;
-        const chosen = options.find((option) => option.value === text(value))?.label;
-        // The value is in the name whether set or not, as the field shows it: "Node shape,
-        // Cube"; an unset one is the default the field draws in italics: "Node shape, default
-        // Icosphere".
-        // The catalog's picture for each choice in the open list, and for the one drawn now.
-        const glyphs =
-            GLYPH_TABLES[descriptor.channel] === undefined
-                ? undefined
-                : Object.fromEntries([
-                      ...options.map((o) => [
-                          o.value,
-                          <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
-                      ]),
-                      ...extraChoices.map((o) => [
-                          o.value,
-                          o.picture === undefined ? null : (
-                              <img
-                                  src={o.picture}
-                                  alt=""
-                                  aria-hidden
-                                  width={14}
-                                  height={14}
-                                  style={{ borderRadius: 3 }}
-                              />
-                          ),
-                      ]),
-                  ]);
-        const pictured = glyphs === undefined || mixed ? undefined : (text(value) ?? text(shown));
-        let name = label;
-        if (mixed) {
-            name = `${label}, mixed`;
-        } else if (unset) {
-            name = `${label}, default ${inForce}`;
-        } else if (chosen !== undefined) {
-            name = `${label}, ${chosen}`;
-        }
-        return (
-            <PanelField
-                label={name}
-                kind="select"
-                width="fill"
-                data={[
-                    ...options.map((o) => ({ value: o.value, label: o.label })),
-                    ...extraChoices.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })),
-                ]}
-                // Unset, the field holds nothing and shows the default in force as its placeholder,
-                // so the open list checks no choice as if it were set.
-                value={mixed ? null : (text(value) ?? null)}
-                placeholder={unset ? inForce : undefined}
-                mixed={mixed}
-                optionGlyphs={glyphs}
-                glyph={
-                    pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />
-                }
-                onChange={(next) => {
-                    onChange(boolean ? next === "true" : String(next));
-                }}
-            />
-        );
+        return <ChoiceValueField {...props} />;
     }
     if (kind === "text") {
-        const words = typeof value === "string" ? value : "";
-        let placeholder = typeof shown === "string" ? shown : "";
-        if (mixed) {
-            placeholder = "Mixed";
-        }
-        return (
-            <TextInput
-                // Keyed by the value, so Undo or another edit shows the new words.
-                key={mixed ? "mixed-field" : words}
-                size="xs"
-                variant="outlined"
-                aria-label={label}
-                defaultValue={mixed ? "" : words}
-                placeholder={placeholder}
-                onBlur={(event) => {
-                    const next = event.currentTarget.value;
-                    if (next !== "" && next !== words) {
-                        onChange(next);
-                    }
-                }}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                    }
-                }}
-            />
-        );
+        return <TextValueField {...props} />;
     }
     return (
         <Text size="xs" c="dimmed" aria-label={`${label}: ${channelWord(descriptor.channel)} has no field`}>
             -
         </Text>
+    );
+}
+
+/** ValueField's props, with its defaults filled in. */
+type KindFieldProps = Readonly<ValueFieldProps & { mixed: boolean; compact: boolean }>;
+
+/**
+ * A color: a chit for a row of a list, else a field.
+ * @param props - ValueField's props
+ * @returns The field
+ */
+function ColorValueField(props: KindFieldProps): React.JSX.Element {
+    const { label, value, shown, mixed, compact, swatches, onChange } = props;
+    const hex = hexOf(value) ?? undefined;
+    const inForce = hex ?? hexOf(shown);
+    return (
+        <CompactColorInput
+            variant={compact ? "chip" : "field"}
+            aria-label={label}
+            // A row's chip is named by the color it paints, in words, never "not set, #009E73";
+            // a field's box says the word beside its hex.
+            valueText={!mixed && inForce !== null ? colorName(inForce) : undefined}
+            width={compact ? undefined : "100%"}
+            color={mixed ? undefined : hex}
+            defaultColor={hexOf(shown) ?? "#999999"}
+            mixed={mixed}
+            showOpacity={false}
+            showReset={false}
+            swatches={swatches}
+            onChangeEnd={(next) => {
+                if (next !== undefined) {
+                    onChange(next.toUpperCase());
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * A number; an opacity reads and types as a percent, as the property row does.
+ * @param props - ValueField's props
+ * @returns The field
+ */
+function NumberValueField(props: KindFieldProps): React.JSX.Element {
+    const { descriptor, label, value, shown, mixed, compact, onChange } = props;
+    const scale = isPercent(descriptor) ? 100 : 1;
+    const toShown = (n: unknown): number | undefined =>
+        typeof n === "number" ? Math.round(n * scale * 100) / 100 : undefined;
+    const { min, max } = descriptor;
+    return (
+        <ComboInput
+            label={label}
+            width={compact ? 64 : "100%"}
+            numeric
+            variant="outlined"
+            options={[]}
+            value={mixed ? "" : (toShown(value) ?? toShown(shown) ?? "")}
+            placeholder={mixed ? "Mixed" : undefined}
+            suffix={scale === 100 ? "%" : undefined}
+            min={min === undefined ? undefined : min * scale}
+            max={max === undefined ? undefined : max * scale}
+            step={scale === 1 && max !== undefined && max <= 1 ? 0.1 : 1}
+            onChange={(next) => {
+                if (typeof next === "number") {
+                    onChange(next / scale);
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * A value as a choice's id.
+ * @param v - the value.
+ * @returns its id, or undefined when it is no choice.
+ */
+function choiceText(v: unknown): string | undefined {
+    return typeof v === "string" || typeof v === "boolean" ? String(v) : undefined;
+}
+
+/**
+ * A choice's accessible name. The value is in the name whether set or not, as the field shows it:
+ * "Node shape, Cube"; an unset one is the default the field draws in italics: "Node shape, default
+ * Icosphere".
+ * @param label - the field's name.
+ * @param mixed - whether the things it stands for disagree.
+ * @param unsetDefault - the default in force, in words, when nothing is set here.
+ * @param chosen - the choice set here, in words.
+ * @returns the name.
+ */
+function choiceName(
+    label: string,
+    mixed: boolean,
+    unsetDefault: string | undefined,
+    chosen: string | undefined,
+): string {
+    if (mixed) {
+        return `${label}, mixed`;
+    }
+    if (unsetDefault !== undefined) {
+        return `${label}, default ${unsetDefault}`;
+    }
+    return chosen === undefined ? label : `${label}, ${chosen}`;
+}
+
+/**
+ * A choice, with the catalog's picture for each choice in the open list and for the one drawn now.
+ * @param props - ValueField's props
+ * @returns The field
+ */
+function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
+    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange } = props;
+    const boolean = descriptor.accepts === "boolean";
+    const options = choiceOptions(descriptor);
+    // Nothing set here: the value shown is the one in force by default, and is read as that.
+    const inForce = options.find((option) => option.value === choiceText(shown))?.label;
+    const unset = value === undefined && !mixed && inForce !== undefined;
+    const chosen = options.find((option) => option.value === choiceText(value))?.label;
+    const glyphs =
+        GLYPH_TABLES[descriptor.channel] === undefined
+            ? undefined
+            : Object.fromEntries([
+                  ...options.map((o) => [
+                      o.value,
+                      <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
+                  ]),
+                  ...extraChoices.map((o) => [
+                      o.value,
+                      o.picture === undefined ? null : (
+                          <img src={o.picture} alt="" aria-hidden width={14} height={14} style={{ borderRadius: 3 }} />
+                      ),
+                  ]),
+              ]);
+    const pictured = glyphs === undefined || mixed ? undefined : (choiceText(value) ?? choiceText(shown));
+    return (
+        <PanelField
+            label={choiceName(label, mixed, unset ? inForce : undefined, chosen)}
+            kind="select"
+            width="fill"
+            data={[
+                ...options.map((o) => ({ value: o.value, label: o.label })),
+                ...extraChoices.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })),
+            ]}
+            // Unset, the field holds nothing and shows the default in force as its placeholder,
+            // so the open list checks no choice as if it were set.
+            value={mixed ? null : (choiceText(value) ?? null)}
+            placeholder={unset ? inForce : undefined}
+            mixed={mixed}
+            optionGlyphs={glyphs}
+            glyph={pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />}
+            onChange={(next) => {
+                onChange(boolean ? next === "true" : String(next));
+            }}
+        />
+    );
+}
+
+/**
+ * Typed words, written on Enter or blur.
+ * @param props - ValueField's props
+ * @returns The field
+ */
+function TextValueField(props: KindFieldProps): React.JSX.Element {
+    const { label, value, shown, mixed, onChange } = props;
+    const words = typeof value === "string" ? value : "";
+    let placeholder = typeof shown === "string" ? shown : "";
+    if (mixed) {
+        placeholder = "Mixed";
+    }
+    return (
+        <TextInput
+            // Keyed by the value, so Undo or another edit shows the new words.
+            key={mixed ? "mixed-field" : words}
+            size="xs"
+            variant="outlined"
+            aria-label={label}
+            defaultValue={mixed ? "" : words}
+            placeholder={placeholder}
+            onBlur={(event) => {
+                const next = event.currentTarget.value;
+                if (next !== "" && next !== words) {
+                    onChange(next);
+                }
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                }
+            }}
+        />
     );
 }

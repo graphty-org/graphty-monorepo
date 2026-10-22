@@ -1,7 +1,5 @@
 # friends.csv open, ranked by PageRank, dots colored and sized by it (the routine every history shares)
---click No thanks
---click New from data...
---click choose a file...
+--click Open a file
 --upload friends.csv
 --click Load
 --key Shift+A

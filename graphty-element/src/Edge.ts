@@ -2081,11 +2081,18 @@ export class Edge {
         }
 
         this.readRoute(style);
-        // A straight line is one slot: hand back the rest of a run.
+        // A straight line is one slot: hand back the rest of a run, the band's as well as the line's
+        // (a selected edge's band followed the bends in a run of its own).
         while (!this.lineIsCurve && this.lineSlots.length > 1) {
             const slot = this.lineSlots.pop();
             if (slot !== undefined) {
                 batch.release(slot);
+            }
+        }
+        while (!this.lineIsCurve && this.haloSlots.length > 1) {
+            const slot = this.haloSlots.pop();
+            if (slot !== undefined) {
+                this.haloBatch?.release(slot);
             }
         }
 
@@ -2614,7 +2621,7 @@ export class Edge {
      * @param slots - The run's slots, grown or shrunk in place.
      * @param srcPoint - Where the curve starts.
      * @param dstPoint - Where it ends.
-     * @returns The curve's points, which the edge's effects are placed with too.
+     * @returns The curve's points, which the line's outline, gradient and effects are placed along too.
      */
     private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): number[] {
         const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
@@ -2845,26 +2852,7 @@ export class Edge {
         flat: readonly number[],
         fresh?: (slot: number) => void,
     ): void {
-        const segments = flat.length / 3 - 1;
-
-        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
-        // slot goes, which must not happen in the middle of re-sizing a run.
-        while (slots.length < segments) {
-            const slot = batch.acquire();
-            slots.push(slot);
-            fresh?.(slot);
-        }
-
-        while (slots.length > Math.max(1, segments)) {
-            const slot = slots.pop();
-
-            if (slot !== undefined) {
-                batch.release(slot);
-            }
-        }
-
-        // One write per piece, each with its neighbours, so the pieces meet at their corners.
-        batch.placeRun(slots, flat);
+        Edge.placeBand(batch, slots, flat, fresh);
     }
 
     /**
@@ -3030,11 +3018,23 @@ export class Edge {
      * @param batch - The band's batch.
      * @param slots - Its slots, changed in place.
      * @param flat - The line's points, flat x, y, z.
+     * @param fresh - Called with each slot the run takes, so a shader batch's slot gets its static
+     *     values and its speed; a plain batch needs nothing.
      */
-    private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
+    private static placeBand(
+        batch: EdgeLineBatch,
+        slots: number[],
+        flat: readonly number[],
+        fresh?: (slot: number) => void,
+    ): void {
         const segments = flat.length / 3 - 1;
+
+        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
+        // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
-            slots.push(batch.acquire());
+            const slot = batch.acquire();
+            slots.push(slot);
+            fresh?.(slot);
         }
 
         while (slots.length > Math.max(1, segments)) {

@@ -94,7 +94,9 @@ export const SortedByResult: Story = {
         await loadAndRun(canvasElement);
         await press(canvasElement, "button", /^PageRank/);
         const table = await dock(canvasElement);
-        await expect(await table.findByText("Sorted by PageRank, highest first", {}, storyWaitOptions(1000))).toBeVisible();
+        await expect(
+            await table.findByText("Sorted by PageRank, highest first", {}, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };
 
@@ -146,7 +148,9 @@ export const Columns: Story = {
         await press(canvasElement, "button", /^Columns:/);
         const table = await dock(canvasElement);
         await expect(table.getByRole("button", { name: /^Columns: (\d+) of \1$/ })).toBeVisible();
-        await expect(await body().findByRole("menuitemcheckbox", { name: "PageRank" }, storyWaitOptions(1000))).toBeVisible();
+        await expect(
+            await body().findByRole("menuitemcheckbox", { name: "PageRank" }, storyWaitOptions(1000)),
+        ).toBeVisible();
     },
 };
 

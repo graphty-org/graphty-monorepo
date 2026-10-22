@@ -52,6 +52,7 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    importCommand,
     importFact,
     type ImportSource,
     SOURCE_VALUE,
@@ -135,6 +136,9 @@ import type {
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
 
+/** A value a column holds that can be given a name (`data.label`) or counted. */
+type ColumnScalar = string | number | boolean;
+
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
     /** Dispatch `data.apply`. */
@@ -155,7 +159,7 @@ interface DataWrites {
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Dispatch `data.label`. */
-    label(path: Path, value: string | number | boolean, label: string | null): Promise<unknown>;
+    label(path: Path, value: ColumnScalar, label: string | null): Promise<unknown>;
     /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
     valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
@@ -702,19 +706,10 @@ export class SessionData implements SessionDataApi {
             return;
         }
 
-        const command = (resolved: ImportSource): DataImportCommand => ({
-            op: "data.import",
-            source: resolved,
-            mode: options.mode ?? "replace",
-            ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(options.existing === undefined ? {} : { existing: options.existing }),
-            ...(options.styles === undefined ? {} : { styles: options.styles }),
-            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
-        });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        const step = command(resolved instanceof Promise ? await resolved : resolved);
+        const step = importCommand(resolved instanceof Promise ? await resolved : resolved, options);
         // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
         // ponytail: only this door and the draft reset it; another replace route keeps the old one.
         const { knownFields } = this.readConfig();
@@ -1948,7 +1943,7 @@ export class SessionData implements SessionDataApi {
 
         const limit = resolveBinCount(options.bins);
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let present = 0;
         for (let index = 0; index < count; index++) {
             const value = valueAt(index);
@@ -1980,7 +1975,7 @@ export class SessionData implements SessionDataApi {
             (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
         const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let missing = 0;
         for (let index = 0; index < total; index++) {
             const value =

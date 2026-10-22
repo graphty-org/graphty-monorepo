@@ -16,39 +16,37 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-20, fifth review) The named build 3ef9e6c1ec predates the golden merge f9d8b44b9
-  (`git merge-base --is-ancestor` fails); HEAD 604e690a9 differs from it in 1472 app files, yet
-  the change log and decided.md say the build "includes golden". Refreeze or strike; every walk
-  on 3ef9 then stops counting (preflight 1).
-- (2026-10-20) Still unbuilt, owed since 10-19: gateCheck keys by `basename(dir)` (no half
-  folder, no three walks, no keyboardOnlyMode, no build equivalence, no bar 6 screen coverage);
-  bars.mjs has no spoken.json, no "Starts with" typing check, none of the five 10-18 screens;
-  wording.mjs's stem still joins only plurals, so tasks.md's "draw" keep reason is false.
-- (2026-10-20) The dry run on 3ef9 walked T37 A and B again (6 of 34 walks) while T43, T45 to
-  T51 (core T47, T48 included) got none. The "planned halves only" rule has no refusal.
-- (2026-10-20) answers.md names 3ef9 nowhere; its paths and reference values were read on
-  e3c5bca8e6 (86 app files differ from 3ef9). T50 B's summary-reading grade is still "left to
-  the Director".
-- (2026-10-20) One round only: with T42, T44 unjudged it cannot pass by bar 1, and T37 is never
-  scheduled, so no round can. Report per bar; drop T37 from the judged set.
-- (2026-10-20) Session-ready bar sends keyboard-only problems to backlog, but bar 7 gates on
-  Sam's 4 sessions (T39 A, T40 A, T47 B, T48 A): a keyboard block on those halves is a blocked
-  task. Backlog rows need a severity so a known severity 3 counts in bar 5.
-- (2026-10-20) "Any dark green", "any orange", "bright red" are judged by eye; B's Group 5 is
-  crimson BE0032 beside red. Score the asked color by a hue band set before the round.
-- (2026-10-19) T40 B: letters typed right after "Starts with" were discarded (decided.md now
-  says focus goes to the value box; the bar 6 check for it is still unbuilt).
-- (2026-10-17) Kept-on-purpose words silence wording.mjs forever (`ownKept`, `everywhere`). Keep
-  lines must be re-checked against each build's vocabulary.
+- (2026-10-21) Round 1 closed at its 1-round cap, bars unmet. 55 of 56 sessions succeeded,
+  median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
+  routes and problems, and must screen tasks for leading before spending sessions -- the answer
+  key names most problems the graders cite.
+- (2026-10-21) The round's only F came from the grading rule, not the reader: `colorWord` returns
+  a CSS keyword before hue, so FFD700 is "gold", not "yellow". Fix the rule (hue band set before
+  the round) and the shared table in compact-mantine, which also speaks those names aloud; never
+  add a per-task synonym.
+- (2026-10-21) Bar 5 fails only on two backlog severity 3 items (node Fill "+" one-node layer;
+  folder chain icon) that no or few sessions reached. A frozen rule counted them on 1 rating; ask
+  for a repro or a reach before a backlog row gates a round.
+- (2026-10-21) Best real findings, all severity 2: newcomers look for node color in the Graph
+  inspector first (9 sessions); a new style line starts at the current value so it looks broken;
+  layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
+  hints: a new line should start at a visibly different value.
+- (2026-10-21) Keyboard: F6 stop with no focus ring (WCAG 2.4.7) and "Samples" dropping focus are
+  defects, fix them; the 30-Tab walk is cost, one persona only.
+- (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
+  tell avoidance from comprehension is not measuring; demand a separating measure.
+- (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
+  zooms"; storage notice caused by the automation's quota. Every build defect needs a repro made
+  the way a person would make it before it is counted.
+- (2026-10-21) Rejected generality traps: a "cube" shape synonym, a "cluster" ranking tweak,
+  currency or task wording in the product. Task words are not product requirements.
+- (2026-10-20) Owed and still unverified: build-equivalence and half-folder gate checks,
+  bars.mjs spoken/typing checks, wording.mjs stem; score.mjs bar 4 start point is now owed too.
 - (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
-  "Mlle" (reported per half); bar 8 screens over budget reported as severity 2, not gated; T47's
-  "around" route is S and counts against the bulk bar; volunteers and sources share one shape.
-- (2026-10-12) One name per question, reuse first. No disabled vary buttons. A layer painting both
-  kinds is breaking: owner list.
+  "Mlle"; bar 8 screens over budget as severity 2; T47's "around" route counts against bulk.
 - Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
-  every "unprompted" count. A process rule without a refusing gate is a wish: check the refusal.
-- Standing: after a rule is adopted, read the next freeze entry, the gate code and the tool, not
-  the rule. Fifth review in a row where the owed list was carried, not done.
+  every "unprompted" count. A process rule without a refusing gate is a wish.
+- Standing: after a rule is adopted, read the gate code and the tool, not the rule.
 - Standing: fix by removing, not adding; one change per problem; words at rest never rise;
   rejected stays rejected without new evidence; never re-set a limit from data.
 
@@ -155,6 +153,11 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- (2026-10-21) Did not work: a single studio round with frozen grading rules. The cap ended the
+  tier with the bars failing on a grading-table artifact (gold vs yellow) and on backlog rows no
+  session reached; the round could not distinguish product failure from rule failure. Worked: two
+  independent skeptic checks, which caught the wheel artifact, the automation storage notice, and
+  task-wording-driven findings (cube, cluster) before they became product changes.
 - 2026-10-20 -- Fourth review's proposals: partly adopted in the text (gate by half, three
   walks, spoken.json, irregular forms, T50 "color them", T51 judged). Did not work: none of the
   tool parts was built (gateCheck, bars.mjs, wording.mjs unchanged), and the build was refrozen

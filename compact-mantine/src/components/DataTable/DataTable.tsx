@@ -156,6 +156,51 @@ function withTooltip(label: React.ReactNode, target: React.ReactElement): React.
 }
 
 /**
+ * The room a header keeps beside its text: the cell's padding, and its glyph, its sort caret and
+ * its menu caret.
+ * @param compact - Whether the table is drawn compact
+ * @param sortable - Whether the column sorts
+ * @param hasMenu - Whether the header has a menu
+ * @param hasIcon - Whether the header has a glyph
+ * @returns The padding in pixels
+ */
+function headerPadding(compact: boolean, sortable: boolean, hasMenu: boolean, hasIcon: boolean): number {
+    let pad = compact ? 8 : 32;
+    if (sortable) {
+        pad += 4 + PANEL_GRID.CHEVRON;
+    }
+    if (hasMenu) {
+        pad += 32 - (compact ? 4 : 16);
+    }
+    if (hasIcon) {
+        pad += 20;
+    }
+    return pad;
+}
+
+/**
+ * Whether a key opens a header's menu: Alt+ArrowDown, Shift+F10 or the context-menu key.
+ * @param event - The key press
+ * @returns Whether it opens the menu
+ */
+function opensHeaderMenu(event: React.KeyboardEvent): boolean {
+    return (
+        (event.altKey && event.key === "ArrowDown") ||
+        (event.shiftKey && event.key === "F10") ||
+        event.key === "ContextMenu"
+    );
+}
+
+/**
+ * Whether a node is present: neither undefined nor null.
+ * @param node - The node
+ * @returns Whether it is present
+ */
+function isPresent(node: React.ReactNode): boolean {
+    return node !== undefined && node !== null;
+}
+
+/**
  * A compact, virtualized data table.
  * @param props - Component props
  * @param ref - A handle for the few things a table can be asked to do from outside
@@ -619,6 +664,26 @@ function DataTableInner<TRow extends object>(
     };
 
     /**
+     * Answers Space and Enter on a data row: Space selects, Enter opens.
+     * @param event - The key press, Space or Enter
+     */
+    const answerSelectionKey = (event: React.KeyboardEvent): void => {
+        if (event.key === " ") {
+            applyGesture(position.row, { extend: event.shiftKey, toggle: !event.shiftKey }, event);
+            return;
+        }
+        // Enter opens what is selected: on a row that is part of a selection of several
+        // it keeps the selection (as a file list opens every selected file), and on any
+        // other row it selects that row alone first.
+        const focusedId = rowIds[position.row - offset];
+        const inSelection = focusedId !== undefined && selection.includes(focusedId) && selection.length > 1;
+        if (!inSelection) {
+            applyGesture(position.row, { extend: false, toggle: false }, event);
+        }
+        activateRow(position.row, event, { source: "keyboard" });
+    };
+
+    /**
      * Answers the keys the ARIA Authoring Practices give a grid.
      * @param event - The key press, from whichever cell holds focus
      */
@@ -631,13 +696,7 @@ function DataTableInner<TRow extends object>(
 
         // Alt+ArrowDown, Shift+F10 or the context-menu key opens a header's menu.
         const menuColumn = position.row === HEADER_ROW ? visibleColumns[position.column] : undefined;
-        if (
-            menuColumn !== undefined &&
-            columnById.get(menuColumn.id)?.menu !== undefined &&
-            ((event.altKey && event.key === "ArrowDown") ||
-                (event.shiftKey && event.key === "F10") ||
-                event.key === "ContextMenu")
-        ) {
+        if (menuColumn !== undefined && columnById.get(menuColumn.id)?.menu !== undefined && opensHeaderMenu(event)) {
             event.preventDefault();
             // Mantine's Menu closes on a keydown outside it, and this key is outside it: kept
             // from reaching the document, it opens the menu without closing it again.
@@ -659,21 +718,7 @@ function DataTableInner<TRow extends object>(
         // selection keys apply only once focus is in the data.
         if (position.row >= 0 && (event.key === " " || event.key === "Enter")) {
             event.preventDefault();
-
-            if (event.key === " ") {
-                applyGesture(position.row, { extend: event.shiftKey, toggle: !event.shiftKey }, event);
-            } else {
-                // Enter opens what is selected: on a row that is part of a selection of several
-                // it keeps the selection (as a file list opens every selected file), and on any
-                // other row it selects that row alone first.
-                const focusedId = rowIds[position.row - offset];
-                const inSelection = focusedId !== undefined && selection.includes(focusedId) && selection.length > 1;
-                if (!inSelection) {
-                    applyGesture(position.row, { extend: false, toggle: false }, event);
-                }
-                activateRow(position.row, event, { source: "keyboard" });
-            }
-
+            answerSelectionKey(event);
             return;
         }
 
@@ -756,11 +801,12 @@ function DataTableInner<TRow extends object>(
             } else if (index === 0) {
                 cellPad = 32;
             }
-            const headerPad =
-                (compact ? 8 : 32) +
-                (column.getCanSort() ? 4 + PANEL_GRID.CHEVRON : 0) +
-                (config.menu === undefined || config.menu === null ? 0 : 32 - (compact ? 4 : 16)) +
-                (config.icon === undefined || config.icon === null ? 0 : 20);
+            const headerPad = headerPadding(
+                compact,
+                column.getCanSort(),
+                isPresent(config.menu),
+                isPresent(config.icon),
+            );
             let widest = textWidth(config.header, fonts.header) + headerPad;
             for (const row of rows) {
                 widest = Math.max(
@@ -781,6 +827,186 @@ function DataTableInner<TRow extends object>(
      */
     const widthOf = (column: DataTableColumn<TRow> | undefined): number =>
         column?.width ?? fitted.get(column?.id ?? "") ?? PANEL_GRID.FIELD;
+
+    type HeaderColumn = Column<DataTableFeatures, TRow>;
+    type HeaderConfig = DataTableColumn<TRow> | undefined;
+
+    /**
+     * What a header shows: its glyph, its name, its sort caret and its place in a sort by several
+     * columns.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param sorted - How the column is sorted
+     * @returns The caption
+     */
+    const headerCaption = (
+        column: HeaderColumn,
+        config: HeaderConfig,
+        sorted: false | "asc" | "desc",
+    ): React.JSX.Element => {
+        const priority = sorted === false ? -1 : column.getSortIndex();
+        return (
+            <>
+                {config?.icon !== undefined && config.icon !== null && (
+                    <span className="cm-dt-header-icon" data-testid="data-table-header-icon" aria-hidden="true">
+                        {config.icon}
+                    </span>
+                )}
+                <Box
+                    component="span"
+                    data-testid="data-table-header-label"
+                    // The direction is worked out from
+                    // the text itself: a column named in
+                    // Arabic inside a table that runs
+                    // left to right reads correctly, and
+                    // so does the other way round.
+                    dir="auto"
+                    // A header with a tooltip of its own does not also show
+                    // its cut text in one.
+                    data-cut-tip={config?.headerTooltip === undefined ? (config?.header ?? column.id) : undefined}
+                    style={{
+                        flex: "0 1 auto",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {config?.header ?? column.id}
+                </Box>
+
+                {sorted !== false && (
+                    <span
+                        className="cm-sort-caret"
+                        data-testid="data-table-sort-glyph"
+                        data-direction={ariaSortOf(sorted)}
+                        aria-hidden="true"
+                    >
+                        <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
+                    </span>
+                )}
+
+                {sortingState.length > 1 && priority >= 0 && (
+                    // Where this column comes in a sort
+                    // by several columns, drawn for the
+                    // eye only: every column already
+                    // announces its own direction
+                    // through aria-sort.
+                    <Box
+                        component="span"
+                        data-testid="data-table-sort-priority"
+                        aria-hidden="true"
+                        className="cm-dt-sort-priority"
+                    >
+                        {numberFormatter.format(priority + 1)}
+                    </Box>
+                )}
+            </>
+        );
+    };
+
+    /**
+     * A sortable header's button, which holds the column's tab stop.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param index - The column's position
+     * @param rovingTabIndex - The tab index the grid's tab stop gives it
+     * @param hasMenu - Whether the header has a menu
+     * @param caption - What the header shows
+     * @returns The button
+     */
+    const sortButton = (
+        column: HeaderColumn,
+        config: HeaderConfig,
+        index: number,
+        rovingTabIndex: number,
+        hasMenu: boolean,
+        caption: React.ReactNode,
+    ): React.JSX.Element => {
+        const sorted = column.getIsSorted();
+        return (
+            <UnstyledButton
+                type="button"
+                data-testid="data-table-sort-button"
+                // The focused header says how it sorts, as
+                // aria-sort tells a reader moving through the
+                // header cells.
+                aria-label={
+                    sorted === false
+                        ? undefined
+                        : `${config?.header ?? column.id}, ${(labels.sortedBy ?? defaultLabels.sortedBy)(sorted === "desc")}`
+                }
+                data-grid-row={HEADER_ROW}
+                data-grid-column={index}
+                tabIndex={rovingTabIndex}
+                onClick={(event) => {
+                    setFocus({ row: HEADER_ROW, column: index });
+                    handleSort(column, event);
+                }}
+                onFocus={() => {
+                    setFocus((previous) =>
+                        samePosition(previous, { row: HEADER_ROW, column: index })
+                            ? previous
+                            : { row: HEADER_ROW, column: index },
+                    );
+                }}
+                className="cm-dt-sort"
+                data-align={config?.align === "end" ? "end" : undefined}
+                data-with-menu={hasMenu ? "" : undefined}
+            >
+                {caption}
+            </UnstyledButton>
+        );
+    };
+
+    /**
+     * A header's menu and the caret that opens it.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param index - The column's position
+     * @returns The menu
+     */
+    const headerMenu = (column: HeaderColumn, config: HeaderConfig, index: number): React.JSX.Element => (
+        <Menu
+            opened={menuFor === column.id}
+            onChange={(opened) => {
+                setMenuFor(opened ? column.id : null);
+                // Closed from inside the menu (an item, Escape):
+                // focus goes back to the header. Closed by a
+                // click elsewhere: focus stays where it went.
+                const active = document.activeElement;
+                if (
+                    !opened &&
+                    (active === null || active === document.body || active.closest('[role="menu"]') !== null)
+                ) {
+                    moveFocusTo({ row: HEADER_ROW, column: index });
+                }
+            }}
+            returnFocus={false}
+            position="bottom-end"
+        >
+            <Menu.Target>
+                {/* Named on hover, and drawn as "more", not as an
+                    arrow: beside a sorted column's arrow a second
+                    arrow read as a second sort. */}
+                <Tooltip label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.CONTROL_HEIGHT}
+                        // Out of the tab order: the grid has one tab
+                        // stop, and the header's keys open the menu.
+                        tabIndex={-1}
+                        aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}
+                        data-testid="data-table-header-menu"
+                        className="cm-dt-header-menu"
+                    >
+                        <UiGlyph name="more" />
+                    </ActionIcon>
+                </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
+        </Menu>
+    );
 
     // A value or header the column cuts shows whole in a tooltip while the pointer rests on it.
     const [cut, setCut] = useState<{ target: HTMLElement; text: string } | null>(null);
@@ -984,79 +1210,13 @@ function DataTableInner<TRow extends object>(
                                 const sortable = column.getCanSort();
                                 const sorted = column.getIsSorted();
                                 const isFocused = position.row === HEADER_ROW && position.column === index;
-                                const priority = sorted === false ? -1 : column.getSortIndex();
                                 // The tab stop sits on the sort button when
                                 // there is one, and on the header cell itself
                                 // when there is not.
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
-                                const hasMenu = config?.menu !== undefined && config.menu !== null;
-                                const caption = (
-                                    <>
-                                        {config?.icon !== undefined && config.icon !== null && (
-                                            <span
-                                                className="cm-dt-header-icon"
-                                                data-testid="data-table-header-icon"
-                                                aria-hidden="true"
-                                            >
-                                                {config.icon}
-                                            </span>
-                                        )}
-                                        <Box
-                                            component="span"
-                                            data-testid="data-table-header-label"
-                                            // The direction is worked out from
-                                            // the text itself: a column named in
-                                            // Arabic inside a table that runs
-                                            // left to right reads correctly, and
-                                            // so does the other way round.
-                                            dir="auto"
-                                            // A header with a tooltip of its own does not also show
-                                            // its cut text in one.
-                                            data-cut-tip={
-                                                config?.headerTooltip === undefined
-                                                    ? (config?.header ?? column.id)
-                                                    : undefined
-                                            }
-                                            style={{
-                                                flex: "0 1 auto",
-                                                minWidth: 0,
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
-                                            {config?.header ?? column.id}
-                                        </Box>
-
-                                        {sorted !== false && (
-                                            <span
-                                                className="cm-sort-caret"
-                                                data-testid="data-table-sort-glyph"
-                                                data-direction={ariaSortOf(sorted)}
-                                                aria-hidden="true"
-                                            >
-                                                <UiGlyph name="caretDown" size={PANEL_GRID.CHEVRON} />
-                                            </span>
-                                        )}
-
-                                        {sortingState.length > 1 && priority >= 0 && (
-                                            // Where this column comes in a sort
-                                            // by several columns, drawn for the
-                                            // eye only: every column already
-                                            // announces its own direction
-                                            // through aria-sort.
-                                            <Box
-                                                component="span"
-                                                data-testid="data-table-sort-priority"
-                                                aria-hidden="true"
-                                                className="cm-dt-sort-priority"
-                                            >
-                                                {numberFormatter.format(priority + 1)}
-                                            </Box>
-                                        )}
-                                    </>
-                                );
+                                const hasMenu = isPresent(config?.menu);
+                                const caption = headerCaption(column, config, sorted);
 
                                 const header = (
                                     <Table.Th
@@ -1065,9 +1225,15 @@ function DataTableInner<TRow extends object>(
                                         data-testid="data-table-header"
                                         aria-colindex={index + 1}
                                         aria-sort={sortable ? ariaSortOf(sorted) : undefined}
-                                        data-grid-row={sortable ? undefined : HEADER_ROW}
-                                        data-grid-column={sortable ? undefined : index}
-                                        tabIndex={sortable ? undefined : rovingTabIndex}
+                                        // A header that is not a button is a grid cell, and takes
+                                        // the tab stop itself.
+                                        {...(sortable
+                                            ? {}
+                                            : {
+                                                  "data-grid-row": HEADER_ROW,
+                                                  "data-grid-column": index,
+                                                  tabIndex: rovingTabIndex,
+                                              })}
                                         className="cm-dt-cell cm-dt-header"
                                         // A header that is not a button keeps room for the menu
                                         // caret itself; a sort button does it on the button.
@@ -1098,93 +1264,10 @@ function DataTableInner<TRow extends object>(
                                         {sortable
                                             ? withTooltip(
                                                   config?.headerTooltip,
-                                                  // A cell holding one control puts
-                                                  // the tab stop on the control, so a
-                                                  // screen reader says "button" and a
-                                                  // reader knows the header does
-                                                  // something.
-                                                  <UnstyledButton
-                                                      type="button"
-                                                      data-testid="data-table-sort-button"
-                                                      // The focused header says how it sorts, as
-                                                      // aria-sort tells a reader moving through the
-                                                      // header cells.
-                                                      aria-label={
-                                                          sorted === false
-                                                              ? undefined
-                                                              : `${config?.header ?? column.id}, ${(labels.sortedBy ?? defaultLabels.sortedBy)(sorted === "desc")}`
-                                                      }
-                                                      data-grid-row={HEADER_ROW}
-                                                      data-grid-column={index}
-                                                      tabIndex={rovingTabIndex}
-                                                      onClick={(event) => {
-                                                          setFocus({ row: HEADER_ROW, column: index });
-                                                          handleSort(column, event);
-                                                      }}
-                                                      onFocus={() => {
-                                                          setFocus((previous) =>
-                                                              samePosition(previous, { row: HEADER_ROW, column: index })
-                                                                  ? previous
-                                                                  : { row: HEADER_ROW, column: index },
-                                                          );
-                                                      }}
-                                                      className="cm-dt-sort"
-                                                      data-align={config?.align === "end" ? "end" : undefined}
-                                                      data-with-menu={hasMenu ? "" : undefined}
-                                                  >
-                                                      {caption}
-                                                  </UnstyledButton>,
+                                                  sortButton(column, config, index, rovingTabIndex, hasMenu, caption),
                                               )
                                             : caption}
-                                        {hasMenu && (
-                                            <Menu
-                                                opened={menuFor === column.id}
-                                                onChange={(opened) => {
-                                                    setMenuFor(opened ? column.id : null);
-                                                    // Closed from inside the menu (an item, Escape):
-                                                    // focus goes back to the header. Closed by a
-                                                    // click elsewhere: focus stays where it went.
-                                                    const active = document.activeElement;
-                                                    if (
-                                                        !opened &&
-                                                        (active === null ||
-                                                            active === document.body ||
-                                                            active.closest('[role="menu"]') !== null)
-                                                    ) {
-                                                        moveFocusTo({ row: HEADER_ROW, column: index });
-                                                    }
-                                                }}
-                                                returnFocus={false}
-                                                position="bottom-end"
-                                            >
-                                                <Menu.Target>
-                                                    {/* Named on hover, and drawn as "more", not as an
-                                                        arrow: beside a sorted column's arrow a second
-                                                        arrow read as a second sort. */}
-                                                    <Tooltip
-                                                        label={(labels.columnMenu ?? defaultLabels.columnMenu)(
-                                                            config?.header ?? column.id,
-                                                        )}
-                                                    >
-                                                        <ActionIcon
-                                                            variant="subtle"
-                                                            size={PANEL_GRID.CONTROL_HEIGHT}
-                                                            // Out of the tab order: the grid has one tab
-                                                            // stop, and the header's keys open the menu.
-                                                            tabIndex={-1}
-                                                            aria-label={(labels.columnMenu ?? defaultLabels.columnMenu)(
-                                                                config?.header ?? column.id,
-                                                            )}
-                                                            data-testid="data-table-header-menu"
-                                                            className="cm-dt-header-menu"
-                                                        >
-                                                            <UiGlyph name="more" />
-                                                        </ActionIcon>
-                                                    </Tooltip>
-                                                </Menu.Target>
-                                                <Menu.Dropdown>{config?.menu}</Menu.Dropdown>
-                                            </Menu>
-                                        )}
+                                        {hasMenu && headerMenu(column, config, index)}
                                     </Table.Th>
                                 );
 

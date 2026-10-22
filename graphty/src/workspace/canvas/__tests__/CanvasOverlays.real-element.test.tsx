@@ -129,7 +129,12 @@ describe("the canvas on the real element", () => {
         assert.equal(outcome.outcome, "suppressed");
         assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
 
-        await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
+        // The toast; the workspace's status line speaks the same words.
+        await screen.findByText(
+            "Hidden by your layer My gray",
+            { selector: ".cm-toast-message" },
+            { timeout: TIMEOUT_MS },
+        );
         assert.isNull(screen.queryByRole("group", { name: "Color: Louvain" }));
         await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
 

@@ -163,12 +163,19 @@ describe("a flat force layout", () => {
         async () => {
             const graph = await loadedGraph();
             const session = graph.getSession();
-            const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+            // An unknown option is reported as a `layout-warning` event, W_UNKNOWN_OPTION, not
+            // on the console (c00751a718).
+            const options: unknown[] = [];
+            graph.addListener("layout-warning", (event) => {
+                if (event.code === "W_UNKNOWN_OPTION") {
+                    options.push(...(event.params.options as unknown[]));
+                }
+            });
 
             await session.layout.set("force", { options: { dimensions: 2 } });
             await operationQueueOf(graph).waitForCompletion();
 
-            const about = warn.mock.calls.filter((call) => String(call[0]).includes('"dimensions"'));
+            const about = options.filter((name) => name === "dimensions");
             assert.strictEqual(about.length, 1);
         },
         TEST_TIMEOUT_MS,

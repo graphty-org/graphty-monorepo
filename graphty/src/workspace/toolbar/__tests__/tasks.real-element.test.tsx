@@ -206,7 +206,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.isNull(within(tree).queryByRole("treeitem", { name: /^Louvain, folder, / }));
             assert.lengthOf(session.runs.bindings(louvain), 0);
         });
-        await screen.findByText("Deleted Louvain. Its results are kept.");
+        // The toast; the workspace's status line speaks the same words.
+        await screen.findByText("Deleted Louvain. Its results are kept.", { selector: ".cm-toast-message" });
         const computedAt = session.runs.get(louvain)?.startedAt;
 
         await userEvent.click(analyzeTool());
@@ -317,6 +318,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             }
         });
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+        // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
+        // missing mode is the browser's answer, never "disabled".
+        const { reasons } = session.capabilities.xr;
+        assert.notEqual(reasons.vr, "disabled");
+        assert.notEqual(reasons.ar, "disabled");
 
         await userEvent.click(twoD);
         await waitFor(() => {

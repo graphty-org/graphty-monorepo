@@ -374,7 +374,7 @@ describe("vary by layer", () => {
         });
         // Undone, the write's receipt goes: its Undo would undo a step that is not its own.
         await waitFor(async () => {
-            assert.isNull(within(await line("node.color")).queryByRole("status"));
+            assert.isNull((await line("node.color")).querySelector("[data-receipt]"));
         });
     });
 
@@ -440,7 +440,7 @@ describe("vary by layer", () => {
         await clickRow("Many");
 
         const tab = await screen.findByTestId("style-tab");
-        // Size is set, so Shape is the one thing the "+" adds: it adds it at once.
+        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         await close(panel);
@@ -462,12 +462,12 @@ describe("vary by layer", () => {
         await clickRow("Story");
 
         const tab = await screen.findByTestId("style-tab");
-        // Size is set, so Shape is the one thing the "+" adds: it adds it at once.
+        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.
-        await userEvent.click(within(panel).getByLabelText("Layer Story Second shape"));
+        await userEvent.click(within(panel).getByLabelText(/^Layer Story Second shape, /));
         await userEvent.click(await screen.findByRole("option", { name: /cylinder/i }));
         assert.isTrue(panel.isConnected, "picking a row's value keeps the popover open");
         await userEvent.click(within(panel).getByRole("button", { name: "Layer Story Second actions" }));
@@ -500,13 +500,13 @@ describe("vary by layer", () => {
         "opens a clicked '+' menu on its first item, so Enter adds it (several layers: %s)",
         async (many) => {
             const session = await openSample();
+            // A color, not a size: Shape's "+" then has Shape and Size to offer, so it opens a menu.
             for (const name of ["Story One", "Story Two"]) {
                 await session.styles.add({
                     name,
                     target: "node",
                     selector: { match: "ids", nodes: ["0"] },
-                    // Neither Shape nor Size set, so the Shape "+" is a menu of both.
-                    set: { "node.opacity": 1 },
+                    set: { "node.color": "#E8590C" },
                 });
             }
             await session.styles.settled();
@@ -849,7 +849,9 @@ describe("several layers holding different values", () => {
         const second = session.styles.get(layers[1])?.name ?? "";
         await userEvent.click(within(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }));
         const picker = await screen.findByRole("dialog", { name: "Color" });
-        await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
+        // Tab out of the value box applies it and leaves the picker open (Enter would close it).
+        await userEvent.keyboard("{Control>}a{/Control}000000{Tab}");
+        assert.isTrue(picker.isConnected, "the picker is still open");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(picker.isConnected, "Escape closes the picker");
@@ -968,28 +970,29 @@ async function louvainSelected(): Promise<{ readonly session: GraphSession; read
 }
 
 describe("color sets from 2 to dozens", () => {
-    it("draws 2, 3 and then 4 hard stops in the strip for 2, 3, 6 and 40 colors; a ramp as a gradient", async () => {
+    it.each([
+        [2, 2],
+        [3, 3],
+        [6, 4],
+        [40, 4],
+    ] as const)("draws hard stops in the strip for %i colors: the first %i", async (n, stops) => {
         const session = await openSample();
-        for (const [n, stops] of [
-            [2, 2],
-            [3, 3],
-            [6, 4],
-            [40, 4],
-        ] as const) {
-            const colors = manyColors(n);
-            await eachOwn(session, `Set${String(n)}`, "node.color", colors);
-            await clickRow(`Set${String(n)}`);
-            const { strip } = atRest(await line("node.color"));
-            const drawn = stopsOf(strip);
-            assert.isTrue(drawn.hard, `${String(n)} colors: hard stops`);
-            assert.deepEqual(
-                drawn.colors,
-                colors.slice(0, stops).map(rgbOf),
-                `${String(n)} colors: the first in list order`,
-            );
-            assert.strictEqual(strip?.getBoundingClientRect().width, 24, "a 24 px strip");
-        }
+        const colors = manyColors(n);
+        await eachOwn(session, `Set${String(n)}`, "node.color", colors);
+        await clickRow(`Set${String(n)}`);
+        const { strip } = atRest(await line("node.color"));
+        const drawn = stopsOf(strip);
+        assert.isTrue(drawn.hard, `${String(n)} colors: hard stops`);
+        assert.deepEqual(
+            drawn.colors,
+            colors.slice(0, stops).map(rgbOf),
+            `${String(n)} colors: the first in list order`,
+        );
+        assert.strictEqual(strip?.getBoundingClientRect().width, 24, "a 24 px strip");
+    });
 
+    it("draws a ramp as a gradient", async () => {
+        const session = await openSample();
         // One layer bound to Degree: a smooth ramp, and its ends under it.
         await session.runs.start("degree");
         const ramp = await session.styles.add({
@@ -1021,24 +1024,24 @@ describe("color sets from 2 to dozens", () => {
         assert.lengthOf(bound.querySelectorAll("[data-varied-line] .ws-varied-ends span"), 2, "the ramp's two ends");
     });
 
-    it("draws every chit up to 6, else the first 5 and +N, never +1", async () => {
+    // 38, not 40: each layer paints two of the sample's 77 nodes, so a 39th would land on the
+    // first layer's nodes, painted over everywhere, and the line leaves such a layer out.
+    it.each([
+        [6, 6, null],
+        [7, 5, "+2"],
+        [38, 5, "+33"],
+    ] as const)("draws every chit up to 6, else the first 5 and +N, never +1: %i colors", async (n, chits, more) => {
         const session = await openSample();
-        for (const [n, chits, more] of [
-            [6, 6, null],
-            [7, 5, "+2"],
-            [40, 5, "+35"],
-        ] as const) {
-            await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
-            await clickRow(`Line${String(n)}`);
-            const row = await line("node.color");
-            const shown = atRest(row);
-            assert.lengthOf(shown.chits, chits, `${String(n)} colors`);
-            assert.strictEqual(shown.more, more, `${String(n)} colors`);
-            assert.notInclude(shown.words, "+1");
-            within(row).getByRole("button", {
-                name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
-            });
-        }
+        await eachOwn(session, `Line${String(n)}`, "node.color", manyColors(n));
+        await clickRow(`Line${String(n)}`);
+        const row = await line("node.color");
+        const shown = atRest(row);
+        assert.lengthOf(shown.chits, chits, `${String(n)} colors`);
+        assert.strictEqual(shown.more, more, `${String(n)} colors`);
+        assert.notInclude(shown.words, "+1");
+        within(row).getByRole("button", {
+            name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
+        });
     });
 
     it("extends the palette shown, not a ramp, when 35 numbered groups go past it", async () => {
@@ -1176,6 +1179,6 @@ describe("color sets from 2 to dozens", () => {
             assert.strictEqual(document.activeElement, again, "focus is back on the pill");
         });
         assert.deepEqual(written(session, layers, "node.color"), colors, "nothing written");
-        assert.isNull(within(row).queryByRole("status"), "no receipt");
+        assert.isNull(row.querySelector("[data-receipt]"), "no receipt");
     });
 });

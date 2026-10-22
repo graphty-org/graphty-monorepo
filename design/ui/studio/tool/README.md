@@ -1,8 +1,8 @@
 # Driving the real graphty app in a study
 
 `real.mjs` lets a study participant (or a pilot, or a grader) use the real graphty app one step at
-a time: it opens the app in a headless browser, does what each step says, waits for the drawing to
-settle, and saves a numbered screenshot of the whole 1440 x 900 window after every step. Each
+a time: it opens the app in a headless browser, does what each step says, waits for the page to
+take it and the drawing to settle, and saves a numbered screenshot of the whole 1440 x 900 window after every step. Each
 session is one live browser, so the graph stays exactly where the participant last saw it.
 
 The app under study is the production build in `graphty/dist` of this worktree, opened at `/?next`
@@ -17,8 +17,7 @@ variables unset. To study a build that others' rebuilds must not replace mid-ses
 ```bash
 T=design/ui/studio/tool
 node $T/real.mjs --start rounds/r1/p03-t2 empty                  # 01.png: the empty app, clean storage
-node $T/real.mjs --step  rounds/r1/p03-t2 --click "No thanks"    # 02.png
-node $T/real.mjs --step  rounds/r1/p03-t2 --click "Open project or file" --upload friends.csv
+node $T/real.mjs --step  rounds/r1/p03-t2 --click "Open a file" --upload friends.csv  # 02.png
 node $T/real.mjs --step  rounds/r1/p03-t2 --click-at 702,380     # point at the last screenshot
 node $T/real.mjs --end   rounds/r1/p03-t2                        # always end: it frees the browser
 ```
@@ -45,7 +44,8 @@ person watching would have read it.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
-  own log), `setup.log`, and `downloads/`. In `session.json`, `commit` is the served build's own commit (from its build stamp, the
+  own log), `setup.log`, `route.jsonl` (the steps taken, which `--replay` can run
+  again) and `downloads/`. In `session.json`, `commit` is the served build's own commit (from its build stamp, the
   `graphty-build` meta tag in `REAL_DIST`'s `index.html`, or else a frozen folder's name such as
   `tier2-r1d2-909b19b57`), `buildStamp` is that stamp, `toolCommit` is this checkout's HEAD (the
   tool that ran the session, not the build), and `uncommittedChanges` says whether this
@@ -73,6 +73,11 @@ person watching would have read it.
 ## Steps
 
 Several steps may follow one `--step`; they run in order, and one screenshot is saved at the end.
+A stretch you are sure of costs one command and one screenshot instead of one each:
+`--step $S --click "Open a file" --upload friends.csv --click Load`. The batch stops at its first
+miss or failed `--expect`, and says which steps did not run: the rest was meant for a screen that
+did not come. An `--expect` between steps is a guard: `--click Layer --expect "Which nodes" --click
+"Which nodes"`.
 
 | Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -90,7 +95,7 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 | `--drop <file>`                                                                     | Drags the file in from outside the window and drops it on the middle, through the browser itself, as a person would. Prints `the page took it`, or `the drop was not delivered` when nothing there takes a dropped file (a real browser would then open the file itself in place of the app).                                                                                                                                                                                                                                                                                                                                                                |
 | `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen. Also `role=<role>`, `role=<role>:<name>`, `selected=N` and `described=<text>` (the focused control's accessible description holds the text).                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen within 2 seconds. Also `role=<role>`, `role=<role>:<name>`, `selected=N` and `described=<text>` (the focused control's accessible description holds the text).                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 A file is a path, or a name from `files/`:
 
@@ -165,13 +170,15 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
   different kinds. In round 2 `weight#2` took the Data panel's row instead of the open list's
   option the participant meant, and threw away a half-made filter step.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
-- `a file chooser is open` when a click opened one.
+- `a file chooser is open` when a click opened one; `--upload <file>` answers it and `--key Escape` closes it with no file.
 - `a file was saved: florentine_current-view.png, 1806 x 1720 (path)` for every download.
 - `the save picker chose <name>` and `a project file was written: <name>, N bytes (path)` for a save.
 - `the drawing is still moving` when the layout had not settled 15 seconds after the step, or when
   three captures of the canvas half a second apart keep changing (a turning camera, a drifting layout).
   Only the drawing's own pixels count: whatever lies over the canvas (an open popover, its list, a
   notice) is left out of the comparison.
+- `stopped after "--click Layer": the rest of this step (--click --type) did not run` when a batch
+  met a miss or a failed check before its end.
 - Every script error, `console.error` and failed request since the last step. In the real app
   each is a defect worth a bug report. They make the command exit 1.
 
@@ -336,14 +343,23 @@ check that read nothing never reports "no leaks".
 node $T/real.mjs --gate <round folder>
 ```
 
-A round may not start until its folder holds, for the frozen build named on the first line of
-`../tier2/criteria.md`:
+A round may not start until its folder holds, for the frozen build named on the first line of its
+tier's `criteria.md`:
 
-- a pilot of every task half its `plan.md` runs: a session folder named for the half (`T20A`,
-  `T12RB`) anywhere under `<round folder>/pilot/`, with its screenshots and a `session.json` whose
-  build stamp is that build;
+- the walks of every task half its `plan.md` runs, each in a folder of its own under the half's:
+  `<round folder>/pilot/<half>/<walk>/` (`pilot/T40B/s3-pointer/`), with its screenshots and its
+  `session.json`. A half needs a success walk and a detours walk, and a keyboard walk when the plan
+  gives the half a keyboard-only session (a start with `--keys`). The walk's folder name says which
+  it is: one holding `keys` or `keyboard` is the keyboard walk, and counts only when its
+  `session.json` records `keyboardOnlyMode: true` (started `--keys`); one holding `detour` is the
+  detours walk; any other is the success walk. A walk counts when its commit is the frozen build or
+  holds the same app code (no difference in `graphty`, `graphty-element`, `compact-mantine` or
+  `pnpm-lock.yaml`, by `git diff`); a walk on other app code is named and does not count;
 - the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
---dist <frozen build>`, with every planted case caught (a failing bar does not stop the gate).
+--dist <frozen build>`, with every planted case caught and no `MISS` line (a failing bar does not
+  stop the gate). For tier 3 also the light run, `<round folder>/bars-light/`, each a `--tier 3`
+  run that reached every screen, focus action and typing check bar 6 lists (`BAR6` in
+  `measure.mjs`) and wrote a `spoken.json` that is not empty.
 
 It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
 evidence" section at the end of `plan.md` listing each file, and exits 0.
@@ -360,18 +376,56 @@ and stops the round on a failure, and runs the round's leak check before scoring
 
 ## Browsers
 
-At most four browsers run at once on this machine, across every study, tool and test run. A
-session takes one of the machine's four browser slots (`with-browser.sh`) when it starts and holds
-it until `--end`; a start waits, saying so, while all four are taken. The slots are the main
-checkout's `tmp/browser-slots/slot1` to `slot4`, the same ones `<main checkout>/tmp/with-browser.sh`
+A study browser draws on the GPU. Headless Chromium draws WebGL with SwiftShader, a software
+rasterizer, unless told otherwise: an idle graphty page then burned 550 to 690% CPU, four study
+browsers kept the machine's load above 47, and every step waited on the CPU. `real.mjs` launches its
+browsers with ANGLE on Vulkan (`--use-angle=vulkan --enable-features=Vulkan`) and the extracted
+`libEGL.so.1` in the main checkout's `tmp/egl/` (this machine has none of its own, and without it
+these flags hang the first page instead of failing; `REAL_EGL_DIR` names another copy). The same
+idle page then costs 27 to 51%. Every session checks the renderer the page draws with and records it
+in `session.json` (`renderer`); a software renderer fails the start loudly, with the reason on the
+command's own output, rather than running slowly. `REAL_GPU=0` runs SwiftShader on purpose, on a
+machine with no GPU.
+
+At most eight GPU browsers run at once for the studio, through one gate. A session takes one of the
+machine's browser slots (`with-browser.sh`) when it starts and holds it until `--end`; a start
+waits, saying so, while every slot is taken. The slots are the main checkout's
+`tmp/browser-slots/slot1` to `slot8`. Slots 1 to 4 are the same ones `<main checkout>/tmp/with-browser.sh`
 hands to the pre-push gate's browser test shards and to visual-preview captures, so a study round
-and the machine's test runs share one limit. `BROWSER_SLOTS` (1 to 4) uses fewer of the four;
-above 4 the gate refuses to run (exit 2). Every command that launches a browser for the studio
+and the machine's test runs share them; slots 5 and up are the studio's alone. A command that
+draws on the GPU (`real.mjs` sets `BROWSER_GPU=1` for its sessions) may take up to 8; any other
+command, drawn in software, up to 4. `BROWSER_SLOTS` (1 to 16) sets the cap; above 16 the gate
+refuses to run (exit 2). Eight GPU sessions with a graph open used 6.8 GB of memory in all (about
+850 MB each), 110% of one core idle and about 210% while all eight stepped at once, and 1.5 GB of
+the card's memory (2026-10-21). Every command that launches a browser for the studio
 (`real.mjs`, `bars.mjs`, a private walk) goes through `with-browser.sh`. `real.mjs --start` takes its own
 slot (it runs its session process through the gate), `--prove` runs the gate itself for each browser
-it starts, and `--step`, `--end` and `--brief` launch no browser, so all five are called directly;
+it starts, `--replay` and `--rewalk` start their sessions as `--start` does, and `--step`, `--end` and
+`--brief` launch no browser, so all of them are called directly;
 wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
-second.
+second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take a slot, and its tier
+1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
+`bars.mjs` command through without a slot (wrapped, it used to hold one idle slot for the whole run).
+
+Waiting starts are served first come, first served: each waiter takes a ticket in the pool's
+`queue/` folder, named by when it asked, and only the oldest live ticket may take the next free
+slot; a waiter that was killed leaves a ticket the next waiter removes. `node --test
+design/ui/studio/tool/with-browser.test.mjs` checks the order, the dead waiter and the `bars.mjs`
+pass-through with no browser. Commands that take the machine's slots without this script (the
+pre-push gate's browser shards) do not queue; they take a slot when they find one free.
+
+**Warm browsers.** A cold start launches a browser, opens the app on a clean profile and lets it
+settle: 7 to 11 seconds after its slot. So the tool keeps a few browsers warm: launched, the app
+open and settled on a clean profile, never touched. A `--start` of the same build, window size and
+color scheme (and the same `real.mjs`) takes one over and starts in about 2 seconds; `session.log`
+says `took over warm browser`. A start still waiting in the queue takes one the moment one is ready.
+Every `--start`, and every `--end` that names its build with `REAL_DIST`, tops the pool up to
+`REAL_WARM_POOL` (default 2; 0 turns the pool off, and then nothing takes a warm browser either).
+A warm browser takes its slot through the gate's try mode (`BROWSER_SLOT_TRY=1`): only a spare slot
+above 4, at once or not at all, and never while a start waits in the queue, so it never stands
+between a start or a test shard and a slot. One that waits `REAL_WARM_SECONDS` (default 600)
+unclaimed, or sees starts queue for a slot for 6 seconds, closes and frees its slot. Warm browsers
+wait in `/tmp/graphty-real-warm/`, with their log there.
 
 **A start that must not wait in the background.** A start that waits longer than the caller's
 shell call allows is moved to the background, and an agent whose turn then ends never comes back
@@ -403,6 +457,47 @@ instead of passing a check it never reached. A participant's session leaves it u
 part of what they did, and exits 0. A replayed participant route (`rewalk.sh` with a session
 folder) also leaves it unset, since the participant's own misses are replayed as they happened.
 
+## Replaying a route
+
+Every session saves its own route: `route.jsonl` in its folder, one line saying how it started
+(`empty` or the setup file's full path, `--keys`, `--sr`, the window and color scheme), then one
+line per `--step` with its actions and its check points: what the step printed, whether a name
+missed, and the controls and headings on the screen it ended on, by kind and name. A pilot, a detour
+walk, a keyboard walk or a re-walk is therefore already a script.
+
+```bash
+node $T/real.mjs --replay rounds/r1d1/pilot/T38A/success rounds/r1d2/pilot/T38A/success
+node $T/real.mjs --rewalk rounds/r1d1/pilot/T38A rounds/r1d2/pilot/T38A [--only success,detours]
+```
+
+`--replay <walk folder | route.jsonl> <new session folder>` starts the new session the way the
+route did, on whatever build `REAL_DIST` names now, and sends the route's steps one `--step` at a
+time, printing one line per step. A step diverges when a name it uses is missing, it printed
+anything else (a different node at a point, another tooltip, another focus line, a new script
+error), or the screen it ends on differs from the recorded one by more than a couple of controls
+(`REAL_REPLAY_TOLERANCE`, default 2 or 5% of the screen). Lines that differ from run to run on
+the same screen are not compared: a slow click that landed, a drawing still moving, a notice gone
+before the screenshot. At the first divergence it stops (exit 5), prints how the step differed, and
+leaves the session open on that screen: whoever replayed it looks at the screenshot and carries on
+by hand with `--step`, then `--end`, and the new folder's own `route.jsonl` becomes the route to
+replay next time. A route that matched to the end is ended (exit 0; `--keep` leaves it open to
+extend it); `--end-on-diverge` ends a diverged one too. `replay.json` in the new folder records how
+many steps matched and where it diverged. A route written by hand -- a first line such as
+`{"start": "empty", "keys": false}`, then one `{"steps": ["--click", "Load"]}` line per step --
+replays too, with only its names checked, since it records no screens.
+
+`--rewalk <old walks folder> <new walks folder>` replays every route it finds under the old folder
+(a task's pilot folder, or a pilot folder of tasks), `REAL_REWALK_PARALLEL` (default 4) at a time,
+each through the gate, into the same place under the new one. A walk that diverged is ended and its
+folder renamed `<walk>-diverged`, which leaves `<walk>` free for a walker to `--replay` again and
+carry on by hand from where the build went another way. `rewalk.json` in the new folder lists each
+walk's result; the command exits 0 when every route matched and 5 when any diverged. A route that
+matched shows what the earlier walk showed, so the earlier walk's report stands for it and nobody
+needs to look at it again; only the diverged ones need a walker.
+
+Participants' sessions are never replayed: a participant drives every step. Pilots, detours,
+keyboard walks and the re-walks after a fix replay.
+
 ## Checking the tool
 
 ```bash
@@ -422,7 +517,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees). It prints `ok` or `FAIL` per check and exits 1 on any failure.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 
@@ -432,28 +527,44 @@ Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears fi
 node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 ```
 
-For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]` measures only
-tier 3's screens, walked from an empty app by clicking as a first-time user would: the start
-screen, a sample opened, Everything's Node and Edge tabs, a new layer with its picker and the add
-menu, a text card, a layer with a condition at rest, a color added and undone, the text and line
-menus, the analysis list and a run's settings, a run's folder of groups on both tabs, two layers
-picked together, a file read before loading, a category, a yes/no, a number and a has-no-value
-card, and the size popover; at 1440 x 900 and 900 x 700. It checks bar 8 (axe, shared names, focus
-kept after each action), bar 9 (words at rest against the `tier3` counts in `bars-limits.json`,
-which `--record-limits` writes from the run) and bar 10, with the same planted cases, and writes
-`vocabulary.json`: every measured screen's words and control names, for the wording check.
+For tier 3, `bars.mjs <out dir> --tier 3 [--dist <build dir>] [--scheme dark|light]
+[--record-limits]` measures only tier 3's screens, walked from the empty start page by clicking as
+a first-time user would ("Open a file", Samples): every screen, focus action and typing check
+bar 6 of `../tier3/criteria.md` lists, at 1440 x 900 and 900 x 700: axe, shared names, focus and
+typing are read at both sizes (each result past the first size is keyed "<name> at 900x700"), and
+each of those four checks must catch its planted failure at both sizes, or its readings there are
+not trusted and the gate refuses the run. That list is `BAR6` in
+`measure.mjs`; whatever of it the walks did not reach is a `MISS` line ("not walked (bar 6 lists
+it)"), as is every step that missed or was refused. It checks bar 8 (axe, shared names, focus kept
+after each action, a value typed with no click written after adding a text card, choosing "Starts
+with", adding a Color line and a Shape line), bar 9 (words at rest against the `tier3` counts in
+`bars-limits.json`, which `--record-limits` writes from the run, keeping the lower count) and bar
+10, with the same planted cases, and writes `vocabulary.json` (every measured screen's words and
+control names) and `spoken.json` (what each screen says out loud: its controls' accessible names,
+what has focus, the live regions' text and the notices shown during the move), both for the
+wording check. `--only <walk>[,<walk>]` and `--size <WxH>` run part of it, for writing a walk.
 
 ```bash
 node design/ui/studio/tool/wording.mjs <tasks.md> <out dir>/vocabulary.json   # prompt words on screen
-node design/ui/studio/tool/wording.mjs --self-test                             # a planted echo is caught
-node design/ui/studio/tool/score.mjs <round folder> [--key-steps 6] [--task T39] # bars 1 to 4
+node design/ui/studio/tool/wording.mjs --self-test                             # each planted echo caught
+node design/ui/studio/tool/keydraw.mjs <round folder | session folder> ...     # key and drawing agree
+node design/ui/studio/tool/keydraw.mjs --self-test                             # planted disagreements
+node design/ui/studio/tool/score.mjs <round folder> [--task T39]                # bars 1 to 4 (bar 4 limit: 10)
 node design/ui/studio/tool/score.mjs --self-test                               # planted failures caught
 node --test design/ui/studio/tool/tier3.test.mjs                               # tier wiring, style dump
 ```
 
-`wording.mjs` lists every word a prompt shares with the screens, except common English words and
-the words `tasks.md` keeps on purpose ("Kept in every task", each task's "Kept on purpose"); exit 1
-on any. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
+`wording.mjs` lists every word a prompt shares with the screens or with `spoken.json` beside
+`vocabulary.json` (it fails without it), except common English words and the words `tasks.md` keeps
+on purpose ("Kept in every task", each task's "Kept on purpose"), and every phrase of two or more
+words (not only common ones) a prompt shares with one screen's words, one control's name or one
+spoken line, even when each word is kept; a phrase kept on purpose is listed in backticks like a
+word. A word's forms count as one: plurals, -ed, -ing and irregular forms (draw, drawn; keep,
+kept). Exit 1 on any. `keydraw.mjs` reads each session's `key.json` (written by `--end`: the key's
+sections, each row's chip color, and how many nodes and edges are drawn in each color) and
+`styles.json`, and reports a key row in a color nothing is drawn in, two rows of one section in one
+color, and a "N of M nodes" the layer of that name or the drawing does not bear out; it fails on a
+session with no `key.json` and on a run that read no key row. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
 `Grade:`, `False done:`, `Wrong turns:`, plus `Route:` on a T47 success and `Scripted exit: yes`
 on a scripted give-up) and `styles-steps.jsonl`, and writes `score.json`.
 

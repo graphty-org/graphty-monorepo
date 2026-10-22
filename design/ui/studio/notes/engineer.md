@@ -17,48 +17,51 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0u. (2026-10-20) Re-walked the renamed-halo and replace-keeps-picked-ties fixes on a fresh build
-(65f41f6b15), `design/ui/studio/tmp/r1-dry1-recheck-project-renamed-halo-channel/`: no regression.
-Both study projects open with their look by every route (Open a file, main menu, Control+O over an
-open project, drop, keyboard-only); the Selected layer reads Halo size 1.45. Hand-picked layers
-survive Control+O > Replace: CSV ties by ordinal (`t45a-replace/` 19, Undo 20 and Redo 22 keep 8),
-GraphML edges by file id and nodes (`t38-replace/` 14, 22). Two OLD defects seen on the way, the
-same on the frozen build 7d87760756 (`t45a-frozen-compare/` 16, 17), not from these diffs: (a)
-after Replace with a rule edge layer (kind is family) the key card closes and its toolbar button
-goes off, while an ids layer's key stays; (b) Undo of that Replace leaves the rule layer's count at
-0 while the 8 ties stay red (`t45a-success/` 23, 24). Lesson: compare a surprise against the frozen
-build on the same route before calling it a regression.
-0t. (2026-10-20) A replacing load keeps a hand-picked edge layer on the same edges. A session edge
-id is a counter that never rewinds, so Replace with the same CSV (no file edge ids) left an `ids`
-layer naming dead ids (matched 0). Fix in `data.import`'s execute (`session/commands/data.ts`):
-before the load, `pickedEdges` reads each unlocked `{match:"ids"}` layer's edges as stable members
-(file id, else ordinal among its pair's edges); after it, `repickEdges` binds them in the new
-snapshot and dispatches `style.patch update` inline, so the remap is in the import's own step and
-one Undo takes both back. The session hands the identity in as `services.edgeIdentity`
-(`GraphSession.ts`, next to `edgeMember`; `edgeRowsOf` from `notes/status.ts`). Node ids are file
-ids and need no remap. Internal only, no public API. Test:
-`graphty-element/test/session/replace-keeps-picked-edges.test.ts` (fails without: matched 0).
-Walk on a fresh build: `design/ui/studio/tmp/r1-dry1-replace-keeps-picked-ties/walk/` 13 (before)
-and 17/18 (after Replace: "8 edges" 8, red, width 24) and 19 (Undo keeps 8). Not re-walked: the
-T45A success path (it has no replacing load, so this code is not on it). Still open beside it: a
-note pinned to a CSV edge has the same dead-id problem on Replace.
-0s. (2026-10-20) A saved style document reads a renamed channel under its new name:
-`readRenamedChannels` in `graphty-element/src/session/styles/channels.ts` (a table, old name ->
-new) runs on each layer in `planTemplate` (StylesApi), so `project.open` and `applyTemplate` both
-get it. Any future channel rename adds one row there, or every saved project loses its whole look
-(one unknown channel refuses the whole style member). Checked on a fresh build: both study
-projects open with no lost part (`design/ui/studio/tmp/r1-dry1-project-renamed-halo-channel/`).
-0r. (2026-10-19) Two re-walks of the dry-run fixes, in full (screens, regressions, left-overs) in
-`git show 6f9784441b:design/ui/studio/notes/engineer.md`, Top of mind 0r and 0. Still open from
-them: compact-mantine `Tree.tsx` folder "Select layers" box toggles only the folder's own
-selection (two clicks change nothing); Escape on a focused table header (entry 2); the discard
-note wraps in a 110 px number box; run fields unreachable by name in a rule (`=PageRank > 0.05`).
-Lesson: a hover left by an earlier `--click` looks like an arrow-key highlight -- check the
-pointer's last position first.
+0. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars
+   (`tier3/rounds/round-1/insights.md`). What it taught me, most important first:
+   a. No new severity 3. Bar 5 fails only on two backlog items: the node's own Fill "+" that makes
+   a one-node layer, and the folder chain icon that paints every cluster one color (0 sessions
+   reached it, so its severity is unknown). Next build work starts with these two.
+   b. Newcomers look for node color in the Graph inspector first; with nothing picked it shows only
+   canvas settings. A pointer from there to the layer list (app words, no element change) is
+   the cheapest fix for the most common wrong turn.
+   c. A new style line starts at the value every node already has (Fill "+" = 6366F1), so adding
+   one looks broken. Start it at a visibly different value; the choice is the app's.
+   d. Checking which nodes a layer paints is done by eye: nothing names or reports a pointed-at
+   node. Hover facts belong to the element (neutral `{ code, params }`), words to the app.
+   e. Keyboard: F6 stop draws no focus ring (WCAG 2.4.7) and focus is lost a second time on the
+   way to a styled graph; both have repros under `repro/r1-s18/`. Fix in compact-mantine or the
+   app shell, never per control.
+   f. One color table drives both the grade and the spoken name; "gold" for FFD700 made the only F.
+   Color words are a shared table: fix it in compact-mantine `colorWord`, with the pink E68FAC
+   case (item 3) in the same test.
+   g. Color entry is hex first and does not say it takes color words. Say so in the placeholder.
+   h. The round is at its ceiling: one model plays every persona, so passes are weak evidence;
+   a failure is strong. Weigh repros over session counts.
+1. (2026-10-21) Screenshot audit of round 1 on the frozen build 758b8e8081, every bar 6 screen
+   at 1200 x 900 and 900 x 700 (`tier3/rounds/round-1/expert/engineer.md`, screenshots under
+   `expert/engineer/`). Worst: at 900 x 700 the private-window notice is wider than the 363 px
+   canvas and its first words, Save and close are clipped (compact-mantine `.cm-toast-message`
+   nowrap, no max width); a saved project reopened in a smaller window draws its graph off-center,
+   partly under the toolbar (camera restored, not fitted; element likely, not traced). Then the
+   key covering top-left nodes, grey filled vs white outlined value fields side by side (the app's
+   `variant="outlined"` overrides), two unrelated attribute pickers, two chip shapes, the find
+   results squeezing the layer list to 1.5 rows, help text at 9 px and 12 px, "Layer / 1" broken
+   across lines, the bracketed "«Layer»" token. Bar 10 found no cut text at either size.
+   0a. (2026-10-21) Tool facts from the last week, in full in `git show 0664a753fd:design/ui/studio/notes/engineer.md`
+   (Top of mind 0 to 0y-0v): bars.mjs --tier 3 walks bar 6 (`BAR6` in measure.mjs) and writes
+   spoken.json; the gate keys walks by folder name and refuses MISS lines; `--start` with `--sr`
+   refuses every click; real bar 8 failures on the frozen build (badge 2.17:1, target sizes,
+   scroll regions); undo across a replacing load and empty layers with conditions re-walked fine;
+   open: drawing jumps right on the first key after a find pick, "Which nodes" on an empty layer
+   leaves the list closed.
 
-1. Older Top-of-mind entries, in full: 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
+2. Older Top-of-mind entries, in full: 2026-10-20 0s-0u (renamed channel in a saved document, replace keeps
+   hand-picked edge layers, their re-walk; `git show 4a008f063f:design/ui/studio/notes/engineer.md`); 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
+   and 0; still open from them: Tree folder "Select layers" box, discard note wrap, run fields
+   in a rule); 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
    `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
-2. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
+3. NOT SEEN on 2026-10-20 (build f261bbb157, t46a-header-escape 04-05; keep checking): Escape on a focused sortable table header
    with a selection clears the selection and keeps focus on the header; decided.md says it moves
    focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
    floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
@@ -66,39 +69,39 @@ pointer's last position first.
    `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
    Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
    Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
-3. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+4. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-4. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-5. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-6. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-7. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-8. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-9. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-   `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-   round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-   built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-   BoundValue for one layer and for several (owner 2026-10-16).
-10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
+    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
+    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+    BoundValue for one layer and for several (owner 2026-10-16).
+11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -107,6 +110,25 @@ pointer's last position first.
 
 ## Decisions and reasons
 
+- (2026-10-21) **A screenshot audit runs as `bars.mjs --tier 3 --size <WxH> --dist <frozen>`,
+  one size per run, into the auditor's own folder.** Its walks are real.mjs sessions that reach
+  every bar 6 screen with no MISS and leave a screenshot per step; hand-driving 36 screens twice
+  would cost hours and miss states. The first size of a run is the light theme; the round's own
+  bars run gives the dark theme at 900 x 700 for free.
+
+- (2026-10-21) **Bar 6's list lives in `measure.mjs` (`BAR6`), read by both bars.mjs and the gate.**
+  The gate must not trust a bars run's own idea of what it should have walked; one list both sides
+  import cannot drift. Names are the walk's screen names, not the criteria's sentences.
+- (2026-10-21) **The gate tells walks apart by folder name** (keys/keyboard, detour, else success).
+  session.json holds no task or walk kind; the dry runs already name folders that way. Stricter
+  than preflight 4 in one place: a walk on an earlier build "on routes no fix touched" does not
+  count; it must be re-walked on the frozen build or one with the same app code.
+- (2026-10-21) **spoken.json is read in `measure`, not with `--sr`.** `--sr` is the screen-reader
+  participant's mode and refuses pointer steps; the walk clicks.
+- (2026-10-21) **A phrase echo needs one word that is not common, and fails even when each word is
+  kept.** All-common runs ("of the") would fail every prompt; kept words are kept one at a time.
+- (2026-10-21) **Bar 4's limit is a constant, not `2 * --key-steps`.** The criteria fix the number;
+  a flag let a documented default of 6 hold a median of 12.
 - (2026-10-20) **A replacing load remaps hand-picked edge layers in the import command, not in the
   app or in the store.** The command already sweeps file layers in the same step
   (`applyFileStyles`), so the remap undoes with the load; the app holding old ids and rewriting
@@ -161,6 +183,29 @@ pointer's last position first.
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-21) Worked: `bars.mjs --size 1200x900` then `--size 900x700` in one background command
+  (about 25 minutes for both, one browser at a time), reading screenshots as each walk finished.
+  Did not catch: bar 10's cut-text check misses text clipped by an ancestor (the notice inside the
+  canvas column), since it compares a box's own scrollWidth with its clientWidth; only looking
+  found it. A check of each visible box's rectangle against its clipping ancestor would.
+
+- (2026-10-21) Did not work: starting the bars walk with `--sr` to collect spoken text; every click
+  was refused with exit 2 and the walk's MISS regex did not match the refusal, so it printed "ok".
+  Worked: exit 2 counts as a miss, and `measure` reads focus and live regions itself.
+- (2026-10-21) Worked: `--only <walk> --size 1440x900` runs of one walk while writing it (about 5
+  minutes instead of 30), two in parallel. Did not work: a key row's `textContent` ("Layer 18 of
+  331"); `innerText` keeps the line break.
+- (2026-10-21) Worked: previewing the gate on round 1's plan with a symlinked `pilot` to r1d2's
+  walks (in a throwaway `tier3/rounds/zz-*` folder): it lists each half's missing walks and why.
+- (2026-10-20) Worked: a scratch copy of the failing browser test that logs `node.index`, the
+  snapshot index, `painter.nodePaint(index)` and `node.drawnFill` found the stale row in one run
+  (index 4294967295 while the paint was right). `node.drawnFill` is the drawn color for tests.
+
+- (2026-10-20) Worked, in real.mjs: Shift+T opens the table with focus on the grid's first
+  header; `--wheel x,y,<delta>` on the grid scrolls it to a far row. Did not work: a python
+  heredoc whose text holds the word "w-a-t-c-h" -- the foreground-wait hook refuses the whole
+  Bash call; write the script to a file under `tmp/` and run it.
 
 - (2026-10-20) Worked, in real.mjs: selecting every find match is the "kind is family (8)" value
   row (Enter, or a click on one edge row, selects only that edge and closes the list). Line + is

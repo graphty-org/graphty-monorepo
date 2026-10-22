@@ -728,99 +728,121 @@ function tokenize(where: Query): readonly Token[] {
             continue;
         }
 
-        const unsupported = UNSUPPORTED_BY_CHARACTER[character];
-        if (unsupported !== undefined) {
-            throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, {
-                construct: unsupported,
-            });
-        }
-
-        if (character === "|" && where.charAt(at + 1) !== "|") {
-            throw badSelector("pipe-not-supported", "A selector does not support pipe expressions", where, at, {
-                construct: "pipe expressions",
-            });
-        }
-
-        if (character === "&" && where.charAt(at + 1) !== "&") {
-            throw badSelector(
-                "expression-reference-not-supported",
-                "A selector does not support expression references",
-                where,
-                at,
-                {
-                    construct: "expression references",
-                },
-            );
-        }
-
-        const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
-        if (operator !== undefined) {
-            tokens.push({ kind: "operator", text: operator, at });
-            at += operator.length;
-            continue;
-        }
-
-        if (character === "`") {
-            const close = findClose(where, at, "`");
-            tokens.push({
-                kind: "literal",
-                text: "",
-                value: decodeJsonLiteral(where, at, where.slice(at + 1, close)),
-                at,
-            });
-            at = close + 1;
-            continue;
-        }
-
-        if (character === "'") {
-            const close = findClose(where, at, "'");
-            tokens.push({ kind: "literal", text: "", value: decodeRawString(where.slice(at + 1, close)), at });
-            at = close + 1;
-            continue;
-        }
-
-        if (character === '"') {
-            const close = findClose(where, at, '"');
-            tokens.push({ kind: "identifier", text: decodeQuotedName(where, at, where.slice(at, close + 1)), at });
-            at = close + 1;
-            continue;
-        }
-
-        if (startsIdentifier(character)) {
-            let end = at + 1;
-            while (end < where.length && continuesIdentifier(where.charAt(end))) {
-                end++;
-            }
-
-            tokens.push({ kind: "identifier", text: where.slice(at, end), at });
-            at = end;
-            continue;
-        }
-
-        if (/[0-9-]/.test(character)) {
-            throw badSelector(
-                "number-needs-backticks",
-                "A number in a selector goes between backticks, so write `5` rather than 5",
-                where,
-                at,
-                { character, ...suggestBackticks(where) },
-            );
-        }
-
-        throw badSelector(
-            "bad-character",
-            `${JSON.stringify(character)} is not something a selector can contain`,
-            where,
-            at,
-            {
-                character,
-            },
-        );
+        rejectUnsupported(where, at, character);
+        const lexed = lexToken(where, at, character) ?? rejectCharacter(where, at, character);
+        tokens.push(lexed.token);
+        at = lexed.next;
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });
 
     return tokens;
+}
+
+/**
+ * Throw for a character that starts a JMESPath construct outside the subset.
+ * @param where - The expression as it was typed.
+ * @param at - The character's offset.
+ * @param character - The character.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the construct is unsupported.
+ */
+function rejectUnsupported(where: Query, at: number, character: string): void {
+    const unsupported = UNSUPPORTED_BY_CHARACTER[character];
+    if (unsupported !== undefined) {
+        throw badSelector("unsupported-syntax", `A selector does not support ${unsupported}`, where, at, {
+            construct: unsupported,
+        });
+    }
+
+    if (character === "|" && where.charAt(at + 1) !== "|") {
+        throw badSelector("pipe-not-supported", "A selector does not support pipe expressions", where, at, {
+            construct: "pipe expressions",
+        });
+    }
+
+    if (character === "&" && where.charAt(at + 1) !== "&") {
+        throw badSelector(
+            "expression-reference-not-supported",
+            "A selector does not support expression references",
+            where,
+            at,
+            {
+                construct: "expression references",
+            },
+        );
+    }
+}
+
+/**
+ * Lex the token that starts at one offset.
+ * @param where - The expression as it was typed.
+ * @param at - The token's offset.
+ * @param character - The character at that offset.
+ * @returns The token and the offset after it, or undefined when nothing lexes there.
+ */
+function lexToken(where: Query, at: number, character: string): { token: Token; next: number } | undefined {
+    const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
+    if (operator !== undefined) {
+        return { token: { kind: "operator", text: operator, at }, next: at + operator.length };
+    }
+
+    if (character === "`") {
+        const close = findClose(where, at, "`");
+        const value = decodeJsonLiteral(where, at, where.slice(at + 1, close));
+        return { token: { kind: "literal", text: "", value, at }, next: close + 1 };
+    }
+
+    if (character === "'") {
+        const close = findClose(where, at, "'");
+        const value = decodeRawString(where.slice(at + 1, close));
+        return { token: { kind: "literal", text: "", value, at }, next: close + 1 };
+    }
+
+    if (character === '"') {
+        const close = findClose(where, at, '"');
+        const text = decodeQuotedName(where, at, where.slice(at, close + 1));
+        return { token: { kind: "identifier", text, at }, next: close + 1 };
+    }
+
+    if (startsIdentifier(character)) {
+        let end = at + 1;
+        while (end < where.length && continuesIdentifier(where.charAt(end))) {
+            end++;
+        }
+
+        return { token: { kind: "identifier", text: where.slice(at, end), at }, next: end };
+    }
+
+    return undefined;
+}
+
+/**
+ * Throw for a character that starts no token.
+ * @param where - The expression as it was typed.
+ * @param at - The character's offset.
+ * @param character - The character.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, always.
+ */
+function rejectCharacter(where: Query, at: number, character: string): never {
+    if (/[0-9-]/.test(character)) {
+        throw badSelector(
+            "number-needs-backticks",
+            "A number in a selector goes between backticks, so write `5` rather than 5",
+            where,
+            at,
+            { character, ...suggestBackticks(where) },
+        );
+    }
+
+    throw badSelector(
+        "bad-character",
+        `${JSON.stringify(character)} is not something a selector can contain`,
+        where,
+        at,
+        {
+            character,
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1248,10 +1270,21 @@ function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefi
             : undefined;
     }
 
+    return equalityRule(node.operator, path, value);
+}
+
+/**
+ * The rule leaf an equality comparison of a path with a literal reads as.
+ * @param operator - `==` or `!=`.
+ * @param path - The path compared.
+ * @param value - The literal's value.
+ * @returns The rule, or undefined when the literal has no exact rule form.
+ */
+function equalityRule(operator: "==" | "!=", path: Path, value: unknown): RuleTree | undefined {
     let leaf: RuleTree | undefined;
     if (value === null) {
         // `!= null` is the presence test; `== null` its opposite.
-        return node.operator === "!=" ? hasValue(path) : { kind: "not", of: hasValue(path) };
+        return operator === "!=" ? hasValue(path) : { kind: "not", of: hasValue(path) };
     } else if (typeof value === "number") {
         leaf = { kind: "range", attribute: path, min: value, max: value };
     } else if (typeof value === "boolean") {
@@ -1259,7 +1292,7 @@ function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefi
     }
 
     // ponytail: a string literal stays an expression: the text leaf folds spaces and accents.
-    return leaf === undefined || node.operator === "==" ? leaf : { kind: "not", of: leaf };
+    return leaf === undefined || operator === "==" ? leaf : { kind: "not", of: leaf };
 }
 
 /**
@@ -1304,7 +1337,10 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
     const isDot = (token: Token | undefined): boolean => token?.kind === "operator" && token.text === ".";
     let out = "";
     let copied = 0;
-    for (let at = 0; at < tokens.length; at++) {
+    let next = 0;
+    while (next < tokens.length) {
+        const at = next;
+        next = at + 1;
         if (tokens[at].kind !== "identifier" || isDot(tokens[at - 1])) {
             continue;
         }
@@ -1320,7 +1356,7 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
             out += where.slice(copied, tokens[at].at) + replacement;
             copied = tokenEnd(where, tokens[last].at);
         }
-        at = last;
+        next = last + 1;
     }
     return out + where.slice(copied);
 }

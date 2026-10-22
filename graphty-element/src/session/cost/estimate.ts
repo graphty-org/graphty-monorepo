@@ -915,7 +915,7 @@ function fromMeasurement(
  * @returns The estimate.
  */
 export function estimateCost(input: CostInput): CostEstimate {
-    const { descriptor, statistics, scope, calibration, measurements } = input;
+    const { descriptor, statistics, scope } = input;
     const chunked = input.chunked ?? false;
 
     if (descriptor === undefined) {
@@ -965,6 +965,49 @@ export function estimateCost(input: CostInput): CostEstimate {
         );
     }
 
+    return availableEstimate(input, descriptor, { nodes, edges, sizes, chunked });
+}
+
+/** The size of a run that can be estimated, and how it is described. */
+interface SizedRun {
+    /** Nodes in scope. */
+    readonly nodes: number;
+    /** Edges in scope. */
+    readonly edges: number;
+    /** The "n=... m=..." line that opens the basis. */
+    readonly sizes: string;
+    /** Whether the run yields to the render loop between chunks. */
+    readonly chunked: boolean;
+}
+
+/** The work a run would do, in the units its cost is modelled in. */
+interface RunWork {
+    /** The iteration bound the run would use. */
+    readonly iterations: number;
+    /** The sample size, when the run is sampled. */
+    readonly sample: number | undefined;
+    /** The share of the graph a sampled run would cover, or 1. */
+    readonly sampleFactor: number;
+    /** The plugin's own work units, when it declares them. */
+    readonly ownUnits: number | undefined;
+    /** Whether no iteration bound is declared and one is assumed. */
+    readonly iterationsAreGuessed: boolean;
+    /** The work units of this run. */
+    readonly units: number;
+    /** The work units of a run at a given size. */
+    readonly unitsOf: (nodes: number, edges: number, iterations: number) => number;
+}
+
+/**
+ * The work a run would do: its iteration bound, its sample and its work units.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @returns The run's work.
+ */
+function runWork(input: CostInput, descriptor: AlgorithmDescriptor, nodes: number, edges: number): RunWork {
+    const { costClass } = descriptor;
     const declared = declaredIterationBound(descriptor, input.params);
     const iterations = declared ?? ASSUMED_ITERATION_BOUND;
 
@@ -985,11 +1028,72 @@ export function estimateCost(input: CostInput): CostEstimate {
             ? (n: number, m: number): number => costUnits(n, m, optionValues)
             : (n: number, m: number, i: number): number => workUnits(costClass, n, m, i);
 
+    return { iterations, sample, sampleFactor, ownUnits, iterationsAreGuessed, units, unitsOf };
+}
+
+/**
+ * The basis line's notes for a run that can be estimated.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param run - The run's size.
+ * @param work - The run's work.
+ * @param provenance - Where the seconds came from.
+ * @returns The notes, in order.
+ */
+function basisNotes(
+    input: CostInput,
+    descriptor: AlgorithmDescriptor,
+    run: SizedRun,
+    work: RunWork,
+    provenance: string,
+): string[] {
+    const { iterations, sample } = work;
+    const derivation = input.derivationSeconds ?? 0;
+    const notes = [
+        run.sizes,
+        work.ownUnits === undefined
+            ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(descriptor.costClass, iterations))
+            : "the algorithm's own work units",
+    ];
+    if (sample !== undefined) {
+        notes.push(`sampled at ${group(sample)} of ${group(run.nodes)} nodes`);
+    }
+
+    if (input.scope?.exact === false) {
+        notes.push("sizes scaled from the whole graph rather than counted");
+    }
+
+    if (work.iterationsAreGuessed) {
+        notes.push(`no iteration bound is declared, so ${group(ASSUMED_ITERATION_BOUND)} is assumed`);
+    }
+
+    if (derivation > 0) {
+        notes.push(`plus about ${String(Math.round(derivation * 1000))} ms to derive the scope's subgraph`);
+    }
+
+    notes.push(provenance);
+    return notes;
+}
+
+/**
+ * The estimate of a run whose size is known and whose cost class can be bounded.
+ * @param input - The cost input.
+ * @param descriptor - The algorithm's descriptor.
+ * @param run - The run's size.
+ * @returns The estimate.
+ */
+function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, run: SizedRun): CostEstimate {
+    const { calibration, measurements, statistics } = input;
+    const { costClass } = descriptor;
+    const { nodes, edges, chunked } = run;
+    const work = runWork(input, descriptor, nodes, edges);
+    const { units, iterations, sampleFactor, ownUnits } = work;
+
     const measurement = measurements?.get(input.algorithm);
     const scaled =
         measurement === undefined
             ? undefined
-            : fromMeasurement(measurement, unitsOf, units, iterations, calibration?.machine);
+            : fromMeasurement(measurement, work.unitsOf, units, iterations, calibration?.machine);
 
     const modelled =
         scaled ??
@@ -1001,36 +1105,13 @@ export function estimateCost(input: CostInput): CostEstimate {
             ownUnits !== undefined,
             statistics,
         );
-    const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
+    const confidence =
+        work.iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const derivation = input.derivationSeconds ?? 0;
     const seconds =
         Number.isFinite(modelled.seconds) && modelled.seconds >= 0
             ? modelled.seconds + derivation
             : Number.POSITIVE_INFINITY;
-
-    const notes = [
-        sizes,
-        ownUnits === undefined
-            ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations))
-            : "the algorithm's own work units",
-    ];
-    if (sample !== undefined) {
-        notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
-    }
-
-    if (scope?.exact === false) {
-        notes.push("sizes scaled from the whole graph rather than counted");
-    }
-
-    if (iterationsAreGuessed) {
-        notes.push(`no iteration bound is declared, so ${group(ASSUMED_ITERATION_BOUND)} is assumed`);
-    }
-
-    if (derivation > 0) {
-        notes.push(`plus about ${String(Math.round(derivation * 1000))} ms to derive the scope's subgraph`);
-    }
-
-    notes.push(modelled.provenance);
 
     return Object.freeze({
         seconds,
@@ -1039,7 +1120,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         blocksFrame: !chunked && seconds > FRAME_BUDGET_SECONDS,
         cancellable: chunked,
         available: true,
-        basis: notes.join("; "),
+        basis: basisNotes(input, descriptor, run, work, modelled.provenance).join("; "),
     });
 }
 

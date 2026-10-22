@@ -270,7 +270,7 @@ function Handle({
     edges,
     step,
     edgeAt,
-}: HandleProps): React.JSX.Element {
+}: Readonly<HandleProps>): React.JSX.Element {
     const dragging = useRef(false);
     const bracket = shape === "bracketLow" || shape === "bracketHigh";
 
@@ -313,7 +313,7 @@ function Handle({
     };
 
     return (
-        <div
+        <div // NOSONAR(S6819): a custom two-handle range on a histogram axis, keyboard-steppable with full slider ARIA
             role="slider"
             tabIndex={0}
             className="cm-focus-outside"
@@ -474,7 +474,7 @@ export function RampEditor({
     noValue,
     onNoValueChange,
     labels: overrides,
-}: RampEditorProps): React.JSX.Element {
+}: Readonly<RampEditorProps>): React.JSX.Element {
     useCompactStyles();
     const labels = { ...DEFAULT_LABELS, ...overrides, handles: { ...DEFAULT_LABELS.handles, ...overrides?.handles } };
     const numbers = useNumberFormatter();
@@ -483,7 +483,7 @@ export function RampEditor({
     const trackRef = useRef<HTMLDivElement>(null);
     const edges = edgesOf(bins);
     const min = edges[0] ?? 0;
-    const max = edges[edges.length - 1] ?? 0;
+    const max = edges.at(-1) ?? 0;
     const [low, high] = domain;
 
     /**
@@ -502,8 +502,12 @@ export function RampEditor({
     };
 
     // The nearest value a handle may take beside another's, one step or one bin edge away.
-    const beside = (value: number, up: boolean): number =>
-        step === undefined ? stepFrom(edges, value, up) : snap(value + (up ? step : -step), step);
+    const beside = (value: number, up: boolean): number => {
+        if (step === undefined) {
+            return stepFrom(edges, value, up);
+        }
+        return snap(value + (up ? step : -step), step);
+    };
 
     const handle = (
         which: RampEditorHandle,

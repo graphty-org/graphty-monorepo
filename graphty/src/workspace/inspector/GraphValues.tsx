@@ -57,6 +57,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
             ? { min: low, median: histogram?.median, mean: statistics.meanDegree, max: high }
             : { min: histogram?.min, median: histogram?.median, max: histogram?.max };
     const name = { all: "Degree", in: "In-degree", out: "Out-degree" }[shown];
+    const last = histogram?.bins.at(-1);
     return (
         <ControlSection label="Degree" collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
             {directed && (
@@ -74,7 +75,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
                     }}
                 />
             )}
-            {histogram !== undefined && histogram.bins.length > 0 && (
+            {histogram !== undefined && last !== undefined && (
                 <HistogramRow
                     label={name}
                     bins={histogram.bins.map((bin) => ({
@@ -82,7 +83,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
                         count: bin.count,
                     }))}
                     minLabel={formatNumber(histogram.bins[0].from)}
-                    maxLabel={formatNumber(histogram.bins[histogram.bins.length - 1].to)}
+                    maxLabel={formatNumber(last.to)}
                 />
             )}
             <DistributionRows figures={figures} />

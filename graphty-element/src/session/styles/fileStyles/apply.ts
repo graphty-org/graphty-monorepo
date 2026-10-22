@@ -72,7 +72,13 @@ export interface FileStyleSource {
  * The data source that read a draft's held rows, by the rows: kept beside the import command
  * rather than in it, so the command stays plain data.
  */
-export const HELD_READERS = new WeakMap<object, Partial<FileStyleSource>>();
+export const HELD_READERS = new WeakMap<
+    object,
+    Partial<FileStyleSource> & {
+        /** The file's graph-level attributes, as the source read them. */
+        readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+    }
+>();
 
 /** What a load leaves for the step that applies its styles. */
 export interface ImportOutcome {

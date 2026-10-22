@@ -7,80 +7,41 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-10-16, bulk iteration 7 frozen) Frozen as `tier3-bulk7-457aa9f0f2`, served by servherd
-  design-studio-tier3 at https://dev.ato.ms:9373/?next. Bulk field whose layers differ now draws
-  BoundValue (SpreadValues deleted): strip in the pill, <<Layer>> in the component purple where the
-  source name goes, detail "N layers", the same line of chits under it as one layer bound to data.
-  Color sets: strip of up to 4 hard stops or a gradient for a ramp; line shows every chit up to 6,
-  else 5 and "+N" (never "+1"), gray Other last and uncounted; ramp ends under the strip; the count
-  is in the pill's spoken name. Words built: popover title "Color from each layer" (same property
-  word as "Color by Louvain"); Source line shows <<Layer>>; "N lumped into Other" (was "other" in
-  quotes); coverage caption "Covered by A, B, C and N more".
-
-- 2026-10-13 Tier 3 build paused for the owner's review after iteration 3 (`tier3/iterations/3/review.md`,
-  plan for iteration 4 there). Words decided, with reasons:
-    - Unsetting vs covering are two acts with two controls and two wordings. Unset: the minus on a
-      set field, tooltip names what comes back over this layer's own elements ("back to 1, the
-      default"); emptying + Enter does the same; Undo names the restored value. Cover: "Hide label
-      from Key people" in the Text/Effects "+" menu adds an ordinary entry set to nothing. Reason:
-      the owner asked how to stop a field overriding; "empty means not set here" alone does not
-      answer it, a named result does.
-    - No "split parent" word or layer kind. Louvain's groups are entries of an ordinary color
-      binding; "New layer for Group 3" makes an ordinary layer. Two row nouns only: layer, folder.
-      Reason: owner asked that layer kinds be reusable; one noun per concept.
-    - Figma's words where Figma has the concept: "Node settings"/"Edge settings" (as "Type
-      settings"), "Mixed" only for a multi-selection, "Varies" for a binding, "None" for nothing.
-      Kept graphty's own: the painted-over value (dimmed, tooltip names the layer above and count).
-    - A property's name is never cut; the vary picker gives each name its own line, groups headed by
-      the run row's name; edge ends worded "the source's Connections".
-- 2026-10-13 Watch at the owner's review and in the study: whether "Hide label from Key people" is
-  where a reader looks to cover something beneath (if not, the cover verb needs a better home, not
-  more words); whether a dimmed painted-over value reads as "not what is drawn" without its
-  tooltip; whether readers confuse the minus (unset) with Hide (cover); whether "Mixed" and
-  "Varies" stay distinct; the Clear tooltip's default value in the right unit (screen pixels vs
-  world). Credit by what the reader did, never by matching my words.
-- 2026-10-13 Open for the owner, not mine to change: element default label font "Verdana" with no
-  generic fallback (editors say Verdana, a serif draws); screen pixels as default label size.
-- 2026-10-12 Tier 3 (unified styles) answers to the owner's 12 questions: `tier3/decide/content.md`.
-  My positions (proposals, untested): one-value settings are always-shown empty rows with the
-  fallback as placeholder, "+" only for lists; type menus with glyph + noun, "+" tooltip names the
-  command; Nodes/Edges groups collapse with a "what it sets" summary (ControlSection already has
-  `summary`); hide a kind the rule can never match, show "Edges, 0" when it just matches none;
-  vary picker says "attribute" (glossary), never "field"; "label style" as the noun for named label
-  looks ("preset" is a rejected word); one rule editor shared with Filters and Find. Reason: "+"
-  must mean "another one", glossary terms only, words at rest must not rise.
-- 2026-10-12 Element gaps found for words: the selector subset refuses functions, so "name contains
-  Bob" is unwritable (`predicate.ts:400-437`) -> propose a `text` RuleTree leaf; no `canBind`
-  reason code for disabled vary rows; label look fields cannot bind (`E_BAD_LAYER`).
-- 2026-10-12 Term clash to settle before building: the mock calls a data column a "Value" and the
-  style settings "properties"; the glossary rejects "property"/"field" for attribute
-  (`glossary.md:107`). Settings need no noun on screen (Color, Size); the picker says attribute.
-- 2026-10-11 Round 4 decided (round-4/decisions.md): no word change on any screen bar 9 measures.
-  Words at rest do not rise; one change per problem; every fix in its owning package.
-- 2026-10-11 Bare "10" on bus stops: element stops suggesting a rule it then refuses
-  (`suggestBackticks` uses the selector's own test) and adds `FindResult.atLeast` for any number
-  inside a column's range. App shows it with the row it already draws: "minutes is 10 or more (N)".
-- 2026-10-11 The "or more" layer takes the typed-rule spelling via a new element export
-  `rulePath(path)`; the app's `columnText` copy is deleted. One rule, one spelling -- adopted.
-- 2026-10-11 Bar 9 (b) edge inspector 29 vs 27: my "Ran on 20 nodes" line and dropping ", full
-  graph" were NOT taken. Diff the word lists first; scope words stay even if the bar fails. Do not
-  propose words before the diff names the added ones.
-- 2026-10-11 Data table under a filter: "12 of 41 edges" in the top bar's words, "41 edges" when
-  equal. The "N of M <noun>" form holds; no notice line where a fix exists.
-- 2026-10-11 Held words: run row "out of date" for a filter change (wait for one announcer design),
-  second-path notice, "As the file says", "Attribute"/"Weight: none" at load, note subject, T23 "...".
-- 2026-10-11 Study words leak answers: briefings' file table now names file and kind only; the leak
-  check reads briefings. Persona habits (counting rows) are never credited as unprompted.
-- 2026-10-11 Watch in round 5: credit the "or more" row by whether "10" reaches the right stops
-  without a refusal, NOT by the word match (prompt and row both say "or more").
-- 2026-10-11 Watch in round 5: T17 table under a filter step; the "minutes >= `5`" layer name read
-  aloud; whether "No match" + example still appears for non-numbers.
-- 2026-10-11 Shift-click took T24 to 7 of 7: behavior beat every word change on that task.
-- 2026-10-10 Readers type the prompt's most prominent data word first; hints must be runnable.
-- 2026-10-10 Backticks stay until the element takes bare numbers (owner list); no app stripping.
-- 2026-10-10 A word proposal ships with its bars.mjs count before and after, per screen.
-- 2026-10-07 Element returns codes + params; the app reads no rule syntax and writes every word.
-- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated: fail strong, pass weak.
+- (2026-10-21) Tier 3 round 1 closed; studio stopped at the 1-round cap. 55 of 56 sessions
+  succeeded; signal is in cost and routes, not success. No new severity 3. Words were not the
+  bottleneck on any surviving insight -- behavior and defaults were.
+- (2026-10-21) Biggest word gap: with nothing picked, the Graph inspector's Style tab says nothing
+  about node color or size; 9 sessions looked there first and found the layer list only by matching
+  the count beside "Everything". Fix by pointing (a link row naming the layer list), not prose.
+- (2026-10-21) A new style line starting at the value already drawn (6366F1, Width 8 with no unit)
+  reads as "broken". That is a default problem first; my part is the unit on Width and naming
+  what the line overrides. Never fix a no-op with explanatory text.
+- (2026-10-21) Color names are words I own on the spoken path: compact-mantine colorWord checks CSS
+  keywords before hue ("gold" for FFD700, "red" for a salmon), and two group colors share one
+  spoken name in T46. Spoken names must name the hue family first; fix in compact-mantine.
+- (2026-10-21) The color box never says it takes a color word; readers who tried "orange" always
+  succeeded. A placeholder showing a word (not a sentence) is the cheapest aid. Untested.
+- (2026-10-21) Layer Values tab lists members by id (s05), not the node's label. Show the label
+  attribute the app already shows elsewhere; ids are for the table.
+- (2026-10-21) A find-box layer is named by its count ("4 nodes"); a layer name should say what was
+  picked (the value row's words), since the row "kind is company (6)" reads as a rule.
+- (2026-10-21) The <<Layer>> token: avoided by 6 sessions, misused by 0. Avoidance is not
+  understanding; next round needs a measure that separates them before I touch the word.
+- (2026-10-21) Opinion-only word complaints ("Style layers", "Folder", "Everything" as developer
+  words, no "Cube") were weakened to 0-1: no behavior cost. Do not rename on model opinion or a
+  task's wording (no "cube" synonym).
+- (2026-10-21) Grading leaks: the answer key describes most problems graders cite; the yellow/gold
+  F came from the rule's word table, not the reader. Read round-2 tasks and keys for leading words.
+- (2026-10-21) Two start-page controls named "Samples" doing one scroll: one name per control, and
+  focus must move with the scroll (a word fix alone would not help keyboard users).
+- (2026-10-13) Unset vs cover stay two acts with two wordings (minus = unset, "Hide label from X" =
+  cover). Two row nouns only: layer, folder. Figma words where Figma has the concept.
+- (2026-10-13) Open for the owner: element default label font "Verdana" with no generic fallback;
+  screen pixels as default label size.
+- (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
+  pass weak. Element returns codes + params; the app writes every word.
+- (2026-10-21) Summarized: the earlier Top of mind (2026-10-10 to 2026-10-16 bulk iterations and
+  round-4/5 watch items) is in git history of this file at 7e4ebbbe70.
 
 ## Priorities and values
 
@@ -238,6 +199,8 @@ I read this file at the start of every session and update it as I decide and lea
   no unmeasured word changes, fix in the owning package. Studio, reversible.
 
 ## Tried: worked / did not work
+
+- 2026-10-21 Tier 3 round 1 tried: none of my built words (BoundValue chits, "Color from each layer", <<Layer>>) produced a failure; the <<Layer>> token was routed around, not read. Did not work as measured: count-only layer names from the find box; hex-first color box with no word hint.
 
 - 2026-10-11 LEARNED (round 4 close): proposals that fix a mechanism in the element (a check that
   disagrees, a spelling) are adopted; proposals that pick words to meet a count are not until the

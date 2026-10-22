@@ -1,4 +1,4 @@
-The study runs on build 7d87760756 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-7d87760756
+The study runs on build 758b8e8081 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-758b8e8081
 
 Frozen on 2026-10-20 for the tier 3 rounds.
 
@@ -373,6 +373,83 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-21 (round 1 pilots on 758b8e8081; no session has run): `answers.md` matches the frozen
+  build 758b8e8081 as the pilots in `rounds/r1d2/pilot/` saw it (15 halves: T37 B, T38 B, T39 A,
+  T40 B, T41 A and B, T42 A, T43 A and B, T44 A and B, T45 A and B, T46 B, T49 A; the
+  `answers.md` change log lists what changed). No bar changed and no step count changed. `tasks.md`
+  is unchanged: no prompt was wrong. The walk agents could not write `report.md`; the session
+  folders and this log are the record.
+    - Fixed on this build: a layer made from a find-box selection takes condition edits before its
+      first look (T41 B's "Has no value" switch, a second card, Done keeps both); Undo after
+      Control+O > Replace with the same file redraws from the layers; the first find-box pick
+      after Replace draws its ring. **T44 B's grading-spoiling state is gone**, so its grading line
+      (grade from the last screenshot) is withdrawn and T44 B is graded from the tree as usual.
+    - **Grading risk, for preflight 4's triage:** with a find-box selection still held, the first
+      color or size on a layer moves the drawing about 135 to 155 px right and can leave painted
+      nodes off screen on the last screenshot (T38 B: 7 of 10 visible; T41 B: 3 of 4), so a
+      participant reading names or a count off the drawing can stop short. Graded as before: the
+      layer from `styles.json`, an answer only as it was on screen.
+    - Recorded for preflight 4's triage, not fixed here: a layer made from a `>` rule
+      (`hours > 20`) opens a card that shows raw rule text and takes no edit, only Remove (T42 A;
+      the `>=` form works); a "Rule: graphty.degree > 16" layer's card shows the internal field
+      path and its attribute list offers no Degree (T37 B); after an exported GraphML is opened
+      with Replace and undone once, the key drops the Louvain section while the groups stay
+      drawn (T46 B); Escape in a category card's value search closes the whole picker (T46 B);
+      Escape on a layer's Which nodes summary cleared a selection (T37 B); a just-added number
+      card shows a count of its own (T45 B); "Filter to..." leaves focus on the tree row on A too
+      (T42 A); a right-click on a find-box row does nothing (T38 B); the picker's hex box can leave
+      the caret after the value, "Remove node color" sends focus to Effects' "+", and the eye's
+      tooltip and name differ (T49 A); F6, Which nodes, the heading's focus ring and Enter on
+      Samples as before.
+
+- 2026-10-20 (round 1 build refrozen): the study build is 758b8e8081, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d2-758b8e8081`. It replaces
+  6de5f95d12, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12`.
+  `real.mjs --prove` passes on it once two of its checks were corrected (they failed on 6de5f95d12
+  too): selecting a node moves the camera, so the click-at check reads a node's point after the
+  selection, and a reopened tab's start page pictures, which graphty.app does not serve, are logged
+  without failing the step. No bar changed.
+
+- 2026-10-20 (round 1 pilots on 6de5f95d12; no session has run): `answers.md` matches the frozen
+  build 6de5f95d12 as the pilots in `rounds/r1d1/pilot/` saw it (21 of 30 halves; T38 A, T40 B,
+  T42 B, T46 B, T47 A, T48 B, T49 A and T51 not walked again; the `answers.md` change log lists
+  what changed). No bar changed and no step count changed. `tasks.md` is unchanged: no prompt was
+  wrong. Several walks' `report.md` was not rewritten for this build (the walk agents could not
+  write it); the session folders and this log are the record.
+    - **T50 is no longer blocked:** both project files, saved by an earlier build, open with their
+      look on every way in, and `changes.changed` stays empty on the reading routes.
+    - Fixed on this build: Control+O > Replace with the same file keeps hand-picked and rule
+      layers on the same nodes or edges; the table's Louvain column uses the key's group names.
+    - **Grading-spoiling, for preflight 4's triage:** on T44 B, a one-node label layer made from a
+      find-box selection, then Control+O > Replace with the same file, then two undos, leaves the
+      deleted layer's label drawn; labeling Everything afterwards draws only that name while
+      `styles.json` reports `node.label` on all 24, so a grader reading the tree would mark S.
+      `answers.md` grades that state from the last screenshot until the build is fixed.
+    - Recorded for preflight 4's triage, not fixed here (each with its walk folder in the pilot's
+      output): F6 still never reaches the top bar and stops on resize handles; a new layer's Which
+      nodes still only expands; the drawing still moves when a selection is held (selection
+      layers, a node's own Fill, a size bound on a selection) and the table still shrinks it;
+      Escape on a member opened from a layer's Values list closes the layer (`decided.md` says it
+      returns to the member's row; T50 keyboard); Escape in the picker's hex box and after removing
+      a just-added unset line says nothing on screen; Tab never leaves the color picker; Tab in a
+      typed attribute list takes nothing; Replace takes two pages and two clicks; an exported
+      GraphML opened with Replace adds "A group from the file" layers with internal names, a notice
+      that runs off the canvas, style fields offered as attributes and unmatched text ids; a layer
+      from `=degree > 16` is named "Rule: graphty.degree > 16"; on T41 B the "email: has a value"
+      card refuses "Has no value" and Done drops the edits silently; two "Degree" rows in the
+      analysis list after a run, and Tab with `deg` typed lands on a disabled "Update Degree layer";
+      Escape twice from the find box cleared a selection with a layer open (T43 A) and a second
+      Escape after the color picker cleared a node selection (T46 A); with the table open a find
+      pick does not scroll the table; a find-box node pick after Replace drew no selection ring;
+      the sample pictures are broken (graphty.app answers 404); the private-window notice shows on
+      every opening; no focus ring on the opened graph's heading; the karate club's three top
+      degree colors are nearly the same brown; a node is named by id in the inspector while its
+      label is shown (T39 B, T44 B).
+
+- 2026-10-20 (round 1 build refrozen): the study build is 6de5f95d12, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12`. It replaces
+  7d87760756, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-7d87760756`.
 
 - 2026-10-20 (round 1 pilots on 7d87760756; no session has run): `answers.md` and `tasks.md`'s
   facilitator detours now match the frozen build as the pilots in `rounds/r1/pilot/` saw it, every

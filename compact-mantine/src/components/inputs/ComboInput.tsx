@@ -6,7 +6,7 @@ import { PANEL_GRID } from "../../constants/panel";
 import { useLabels, useNumberParser } from "../../i18n";
 import type { ChangeHandler } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
-import { DiscardNote } from "./DiscardNote";
+import { discardNoteContainer } from "./discard-note-container";
 import { FieldCaret, ListboxCheck, overTriggerComboboxProps } from "./listbox";
 import { useNumberField } from "./useNumberField";
 import { useScrub } from "./useScrub";
@@ -83,6 +83,96 @@ export interface ComboInputProps {
     className?: string;
     /** Extra style on the field's outer element. */
     style?: React.CSSProperties;
+}
+
+/** The APG combobox attributes of a field's text box. */
+interface ComboboxAttributes {
+    role?: "combobox";
+    "aria-haspopup"?: "listbox";
+    "aria-expanded"?: boolean;
+    "aria-controls"?: string;
+    "aria-activedescendant"?: string;
+    "aria-autocomplete"?: "none";
+}
+
+/**
+ * What Escape says it kept: the value, or the placeholder in place of an empty one.
+ * @param currentText - the value as text
+ * @param placeholder - the placeholder, if any
+ * @param suffix - the unit drawn after the value, if any
+ * @returns the words
+ */
+function keptTextOf(currentText: string, placeholder: string | undefined, suffix: string | undefined): string {
+    return currentText === "" ? (placeholder ?? "") : currentText + (suffix ?? "");
+}
+
+/**
+ * The glyph slot in front of the value, which scrubs a numeric value when dragged.
+ * @param props - Component props
+ * @param props.glyph - the glyph
+ * @param props.scrub - the drag's pointer handlers, when the slot scrubs
+ * @returns the slot
+ */
+function ScrubSlot({
+    glyph,
+    scrub,
+}: Readonly<{ glyph: React.ReactNode; scrub: ReturnType<typeof useScrub> }>): React.JSX.Element {
+    return (
+        <span className="cm-scrub-slot" data-scrub={scrub ? "true" : undefined} {...scrub}>
+            {glyph}
+        </span>
+    );
+}
+
+/**
+ * The combobox attributes of a field that is not a spin button.
+ * @param spin - whether the field is a spin button, which has none
+ * @param hasList - whether the field has a list to pop up
+ * @param opened - whether the list is open
+ * @param listId - the list's id
+ * @param activeId - the id of the highlighted option
+ * @returns the attributes
+ */
+function comboboxAttributes(
+    spin: boolean,
+    hasList: boolean,
+    opened: boolean,
+    listId: string,
+    activeId: string | undefined,
+): ComboboxAttributes {
+    if (spin) {
+        return {};
+    }
+    return {
+        role: "combobox",
+        "aria-haspopup": hasList ? ("listbox" as const) : undefined,
+        "aria-expanded": opened,
+        "aria-controls": opened ? listId : undefined,
+        "aria-activedescendant": opened ? activeId : undefined,
+        "aria-autocomplete": "none" as const,
+    };
+}
+
+/**
+ * The width of a field's right section: its suffix and its chevron.
+ * @param hasList - whether the field has a chevron
+ * @param divided - whether a rule divides the chevron from the value
+ * @param suffix - the unit drawn after the value, if any
+ * @returns the width, or undefined when the section is empty
+ */
+function rightSectionWidthOf(
+    hasList: boolean,
+    divided: boolean,
+    suffix: string | undefined,
+): string | number | undefined {
+    let chevronWidth = 0;
+    if (hasList) {
+        chevronWidth = divided ? PANEL_GRID.GLYPH_SLOT + 1 : PANEL_GRID.GLYPH_SLOT;
+    }
+    if (suffix === undefined) {
+        return chevronWidth || undefined;
+    }
+    return `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`;
 }
 
 function isSeparator(item: ComboInputItem): item is ComboInputSeparator {
@@ -291,14 +381,9 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         },
     };
 
-    let chevronWidth = 0;
-    if (hasList) {
-        chevronWidth = divided ? PANEL_GRID.GLYPH_SLOT + 1 : PANEL_GRID.GLYPH_SLOT;
-    }
-    const rightSectionWidth =
-        suffix === undefined
-            ? chevronWidth || undefined
-            : `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`;
+    const rightSectionWidth = rightSectionWidthOf(hasList, divided, suffix);
+    const discardedText =
+        numeric && number.discarded ? labels.colorEditDiscarded(keptTextOf(currentText, placeholder, suffix)) : "";
     const rightSection = (
         <>
             {suffix !== undefined && <span className="cm-combo-suffix">{suffix}</span>}
@@ -338,16 +423,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                 <TextInput
                     ref={mergedRef}
                     {...(numeric ? numericProps : textProps)}
-                    {...(spin
-                        ? {}
-                        : {
-                              role: "combobox",
-                              "aria-haspopup": hasList ? ("listbox" as const) : undefined,
-                              "aria-expanded": combobox.dropdownOpened,
-                              "aria-controls": combobox.dropdownOpened ? listId : undefined,
-                              "aria-activedescendant": combobox.dropdownOpened ? activeId : undefined,
-                              "aria-autocomplete": "none" as const,
-                          })}
+                    {...comboboxAttributes(spin, hasList, combobox.dropdownOpened, listId, activeId)}
                     aria-label={label}
                     autoComplete="off"
                     placeholder={placeholder}
@@ -359,31 +435,12 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     className={className}
                     style={{ width, ...style }}
                     classNames={{ wrapper: ["cm-combo", divided ? "cm-combo-divided" : ""].filter(Boolean).join(" ") }}
-                    leftSection={
-                        glyph === undefined ? undefined : (
-                            <span className="cm-scrub-slot" data-scrub={scrub ? "true" : undefined} {...scrub}>
-                                {glyph}
-                            </span>
-                        )
-                    }
+                    leftSection={glyph === undefined ? undefined : <ScrubSlot glyph={glyph} scrub={scrub} />}
                     leftSectionPointerEvents={scrub ? "all" : "none"}
                     rightSection={hasList || suffix !== undefined ? rightSection : undefined}
                     rightSectionWidth={rightSectionWidth}
                     rightSectionPointerEvents="all"
-                    inputContainer={(input) => (
-                        <>
-                            {input}
-                            <DiscardNote
-                                text={
-                                    numeric && number.discarded
-                                        ? labels.colorEditDiscarded(
-                                              currentText === "" ? (placeholder ?? "") : currentText + (suffix ?? ""),
-                                          )
-                                        : ""
-                                }
-                            />
-                        </>
-                    )}
+                    inputContainer={discardNoteContainer(discardedText)}
                 />
             </Combobox.Target>
             <Combobox.Dropdown className="cm-menu-surface cm-menu cm-listbox">

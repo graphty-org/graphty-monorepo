@@ -23,7 +23,11 @@ interface DistributionFigures {
 export function DistributionRows({ figures }: Readonly<{ figures: DistributionFigures }>): React.JSX.Element {
     const { count, min, median, mean, max } = figures;
     return (
-        <div role="group" aria-label="Distribution" data-testid="values-spread">
+        <div // NOSONAR(S6819): a named group of rows, not a form; a fieldset would draw a border and legend box
+            role="group"
+            aria-label="Distribution"
+            data-testid="values-spread"
+        >
             {count !== undefined && <DataRow stat name="Has a value" value={formatNumber(count)} />}
             {min !== undefined && <DataRow stat name="Lowest" value={formatNumber(min)} />}
             {median !== undefined && <DataRow stat name="Median" value={formatNumber(median)} />}

@@ -712,12 +712,8 @@ export function ensureListboxKeyboard(): void {
             }
             globalThis.setTimeout(() => {
                 opening = null;
-                typeAhead(
-                    input,
-                    list,
-                    options,
-                    options.findIndex((option) => option === inForce(input, list)),
-                );
+                const current = inForce(input, list);
+                typeAhead(input, list, options, current === null ? -1 : options.indexOf(current));
             }, 0);
         };
         walkWhenDrawn(OPEN_FRAMES);

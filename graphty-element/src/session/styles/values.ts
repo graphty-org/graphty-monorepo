@@ -452,6 +452,47 @@ export interface GroupMatch {
 }
 
 /**
+ * Match old groups to new ones by shared members, largest overlap first, each side once.
+ * @param shared - For each old group, how many members it shares with each new group.
+ * @returns Each matched old group's new name.
+ */
+function matchByOverlap(shared: ReadonlyMap<string, ReadonlyMap<string, number>>): Map<string, string> {
+    const to = new Map<string, string>();
+    const pairs = [...shared].flatMap(([from, row]) => [...row].map(([into, count]) => ({ from, into, count })));
+    // Largest overlap first; ties by name so the match never depends on iteration order.
+    pairs.sort((a, b) => b.count - a.count || a.from.localeCompare(b.from) || a.into.localeCompare(b.into));
+    const taken = new Set<string>();
+    for (const { from, into } of pairs) {
+        if (!to.has(from) && !taken.has(into)) {
+            to.set(from, into);
+            taken.add(into);
+        }
+    }
+
+    return to;
+}
+
+/**
+ * Match old groups to the new groups of the same name.
+ * @param oldValues - The old groups, by name.
+ * @param values - The new groups, by name.
+ * @returns Each matched old group's new name (its own).
+ */
+function matchByName(
+    oldValues: ReadonlyMap<string, unknown>,
+    values: ReadonlyMap<string, unknown>,
+): Map<string, string> {
+    const to = new Map<string, string>();
+    for (const name of oldValues.keys()) {
+        if (values.has(name)) {
+            to.set(name, name);
+        }
+    }
+
+    return to;
+}
+
+/**
  * Match the groups elements fell in before a re-run to the groups they fall in after it.
  *
  * By overlap, each pair of an old and a new group is ranked by how many elements they share, and
@@ -489,26 +530,7 @@ export function matchGroups<Id>(
         }
     }
 
-    const to = new Map<string, string>();
-    if (byOverlap) {
-        const pairs = [...shared].flatMap(([from, row]) => [...row].map(([into, count]) => ({ from, into, count })));
-        // Largest overlap first; ties by name so the match never depends on iteration order.
-        pairs.sort((a, b) => b.count - a.count || a.from.localeCompare(b.from) || a.into.localeCompare(b.into));
-        const taken = new Set<string>();
-        for (const { from, into } of pairs) {
-            if (!to.has(from) && !taken.has(into)) {
-                to.set(from, into);
-                taken.add(into);
-            }
-        }
-    } else {
-        for (const name of oldValues.keys()) {
-            if (values.has(name)) {
-                to.set(name, name);
-            }
-        }
-    }
-
+    const to = byOverlap ? matchByOverlap(shared) : matchByName(oldValues, values);
     const matched = new Set(to.values());
 
     return {

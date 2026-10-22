@@ -9,7 +9,15 @@ import {
     ResetButton,
     SegmentedControl,
 } from "@graphty/compact-mantine";
-import type { DraftRow, DraftTable, LoadDraft, LoadReport, TableMapping } from "@graphty/graphty-element/session";
+import {
+    type DraftRow,
+    type DraftTable,
+    type GraphSession,
+    isGraphtyError,
+    type LoadDraft,
+    type LoadReport,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Alert,
@@ -144,6 +152,45 @@ export function DataPage(): React.JSX.Element {
 }
 
 /**
+ * What the graph holds before a replacing load: its size, its first source's name and the
+ * meaning of its loaded weight.
+ * @param session - the graph session.
+ * @param replacing - whether the load replaces the graph.
+ * @returns the graph before the load, or null when the load does not replace one.
+ */
+function graphBefore(
+    session: GraphSession | null,
+    replacing: boolean,
+): { nodes: number; edges: number; name: string; meaning: LoadedMeaning } | null {
+    if (session === null || !replacing) {
+        return null;
+    }
+    const { nodeCount, edgeCount } = session.data.statistics();
+    return {
+        nodes: nodeCount,
+        edges: edgeCount,
+        name: session.data.sources()[0]?.name ?? "The data",
+        meaning: session.data.loadedWeight()?.meaning ?? null,
+    };
+}
+
+/**
+ * The one file chosen or dropped on the page when the element says it is a saved project (or
+ * another graphty document), not data to load: it refuses to read it as data
+ * (`E_PROJECT_FILE_AS_DATA`), or its draft names what it is.
+ * @param page - the page's load draft.
+ * @returns the file, or undefined.
+ */
+function documentFileOf(page: LoadDraftState): File | undefined {
+    const isDocument =
+        page.draft?.graphtyDocument !== undefined ||
+        (isGraphtyError(page.readError) && page.readError.code === "E_PROJECT_FILE_AS_DATA");
+    return isDocument && page.source?.kind === "files" && page.source.files.length === 1
+        ? page.source.files[0]
+        : undefined;
+}
+
+/**
  * One visit of the Data page, on the request it opened with.
  * @param props - Component props
  * @param props.onRestart - Opens the page again on the request just made
@@ -174,18 +221,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     const replacing = request.intent === "replace";
     // What the graph held before a replacing load, for its before-and-after line and status line.
-    const [was] = useState(() => {
-        if (session === null || !replacing) {
-            return null;
-        }
-        const { nodeCount, edgeCount } = session.data.statistics();
-        return {
-            nodes: nodeCount,
-            edges: edgeCount,
-            name: session.data.sources()[0]?.name ?? "The data",
-            meaning: session.data.loadedWeight()?.meaning ?? null,
-        };
-    });
+    const [was] = useState(() => graphBefore(session, replacing));
     useCarriedMeaning(page, was?.meaning ?? null);
     // The graph an addition joins, so the summary gives it and the file each their own counts.
     const [joins] = useState(() => {
@@ -205,10 +241,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     // A saved project (or another graphty document) chosen or dropped here is no data to load:
     // the element says what it is, and it opens the way Open project or file... opens it.
-    const documentFile =
-        page.draft?.graphtyDocument !== undefined && page.source?.kind === "files" && page.source.files.length === 1
-            ? page.source.files[0]
-            : undefined;
+    const documentFile = documentFileOf(page);
     const openedDocument = useRef<File | null>(null);
     useEffect(() => {
         if (documentFile !== undefined && openedDocument.current !== documentFile) {

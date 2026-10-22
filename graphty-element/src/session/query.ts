@@ -585,9 +585,11 @@ function scopeOf(request: SearchRequest, kind: FindKind): ReadonlySet<NodeId | E
  */
 function rankOf(find: ParsedFind, column: IndexedColumn, entry: IndexedValue): number | null {
     const words = typeof entry.value === "boolean" ? find.booleanWords : undefined;
-    const where =
-        matchText(find.wanted, entry.norm) ??
-        (words === undefined ? null : matchText(find.wanted, entry.value ? words.true : words.false));
+    let where = matchText(find.wanted, entry.norm);
+    if (where === null && words !== undefined) {
+        where = matchText(find.wanted, entry.value ? words.true : words.false);
+    }
+
     if (where === null) {
         return null;
     }
@@ -842,8 +844,8 @@ function containsRows(
     }
 
     // Most elements first; between equals the node id last, so a column with a name is the one kept.
+    rows.sort((a, b) => b.count - a.count || Number(a.path === "id") - Number(b.path === "id"));
     return rows
-        .sort((a, b) => b.count - a.count || Number(a.path === "id") - Number(b.path === "id"))
         .filter((row) => firstOffer(offered, row.kind, row.members))
         .slice(0, VALUE_ROWS)
         .map(({ members: _members, ...row }) => row);

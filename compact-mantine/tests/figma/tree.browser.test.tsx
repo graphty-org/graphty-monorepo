@@ -286,7 +286,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         expectMeasured(part(row("hidden"), ".cm-tree-icon"), { color: "#0000004d" });
     });
 
-    it("toggles: 24px targets at x 188 and 208, hidden until hover, a toggle that is on stays", async () => {
+    it("toggles: 24px targets side by side at x 184 and 208, hidden until hover, a toggle that is on stays", async () => {
         const figLock = await figmaElement("ii/layer-row-hover", { index: 40 });
         const items: TreeNodeData[] = [
             {
@@ -309,12 +309,14 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const a = row("a");
         const lock = screen.getByRole("button", { name: "Lock" });
         const hide = screen.getByRole("button", { name: "Hide" });
-        expectMeasured(lock, { x: figLock.box[0] - 57, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
-        // Hidden until hover on a pointer that hovers. Once any test in the run has sent a touch,
-        // Chromium answers `(hover: none)` for the rest of it, and the toggles stay visible, as on
-        // a touch screen (vitest.config.ts, touchDrag).
-        const hovers = !matchMedia("(hover: none)").matches;
-        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: hovers ? "0" : "1" }, { origin: a });
+        // Figma overlaps the two targets on a 20 pitch (lock at 188); the row keeps each a whole
+        // 24 x 24 target (WCAG 2.5.8, 159bba0f53), so the lock sits 4px further left and the eye,
+        // still ending 8 from the edge, where Figma draws it.
+        expectMeasured(lock, { x: figLock.box[0] - 57 - 4, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
+        // Hidden until hover. The touch commands no longer switch on Chromium's touch emulation,
+        // which left `(hover: none)` matching for the rest of the run (vitest.config.ts, touchDrag).
+        expect(matchMedia("(hover: none)").matches).toBe(false);
+        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, width: 24, opacity: "0" }, { origin: a });
         await drive(a, "hover");
         await animationsSettled(a);
         expectMeasured(hide, { opacity: "1" });

@@ -39,7 +39,8 @@ describe("CompactColorInput accessible names", () => {
     it("keeps the hex and drops the opacity box when the field is too narrow for both", async () => {
         renderField(<CompactColorInput label="Fill" defaultColor="#3B82F6" width={80} />);
 
-        await expect.element(page.getByRole("textbox", { name: "Fill color", exact: true })).toBeVisible();
+        const hex = page.getByRole("textbox", { name: "Fill color, not set, drawn #3B82F6", exact: true });
+        await expect.element(hex).toBeVisible();
         await expect.element(page.getByRole("textbox", { name: "Fill opacity", exact: true })).not.toBeInTheDocument();
     });
 

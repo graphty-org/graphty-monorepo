@@ -11,8 +11,8 @@ import type { XRReferenceSpaceType } from "../xr/XRSessionManager";
  */
 export interface XRUIConfig {
     /**
-     * Draw the element's own VR / AR buttons on the canvas
-     * @default false
+     * Enable or disable the XR UI buttons
+     * @default true
      */
     enabled: boolean;
 
@@ -159,15 +159,14 @@ export interface XRConfig {
 /**
  * Default XR configuration
  *
- * XR is on: `session.capabilities.xr` says which modes can be entered and why not, and
- * `view.immersive` enters one. It costs nothing until a session is entered -- the browser is asked
- * once, after the first frame, and gets 1500 ms to answer. The canvas VR / AR buttons are opt-in
- * (`ui.enabled`), so an application draws its own controls from the capability.
+ * Note: XR is disabled by default to avoid issues with navigator.xr.isSessionSupported()
+ * hanging in headless browser environments (CI, tests). Users who want XR should
+ * explicitly enable it by setting xr.enabled: true in their configuration.
  */
 export const defaultXRConfig: XRConfig = {
-    enabled: true,
+    enabled: false,
     ui: {
-        enabled: false,
+        enabled: true,
         position: "bottom-right",
         unavailableMessageDuration: 5000,
         showAvailabilityWarning: false,

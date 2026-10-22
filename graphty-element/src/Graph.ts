@@ -1234,6 +1234,9 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        this.layoutManager.drawArrivedPaint = () => {
+            this.updateManager.drawArrivedPaint();
+        };
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -4097,20 +4100,33 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
-        const boundary = edgeId === undefined ? this.renderManager.pickBoundary(x, y) : null;
-        if (boundary !== null) {
-            this.clearSelectionOnPrimary(secondary);
-            this.session.boundaryClick(boundary);
-        } else if (edgeId !== undefined) {
-            if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-                const add = event.shiftKey === true;
-                this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+        if (edgeId === undefined) {
+            const boundary = this.renderManager.pickBoundary(x, y);
+            if (boundary === null) {
+                this.clickEmptyCanvas(x, y, secondary);
+            } else {
+                this.clearSelectionOnPrimary(secondary);
+                this.session.boundaryClick(boundary);
             }
-            this.session.elementClick({ edge: edgeId });
-        } else {
-            this.clearSelectionOnPrimary(secondary);
-            this.session.emptyClick({ x, y, secondary });
+            return;
         }
+
+        if (!(secondary && this.session.selection.edges.includes(edgeId))) {
+            const add = event.shiftKey === true;
+            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+        }
+        this.session.elementClick({ edge: edgeId });
+    }
+
+    /**
+     * A click on empty canvas: a primary click clears the selection; either reports the click.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param secondary - Whether it was the secondary button.
+     */
+    private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
+        this.clearSelectionOnPrimary(secondary);
+        this.session.emptyClick({ x, y, secondary });
     }
 
     /**
@@ -7461,9 +7477,10 @@ export class Graph implements GraphContext {
     // ===========================================
 
     /**
-     * Initialize XR (VR/AR): the session manager unless `xr.enabled` is false, and the canvas
-     * buttons when `xr.ui.enabled` is set. Nothing Babylon-side is allocated until a session is
-     * entered, and the browser is asked which modes it supports once, after the first frame.
+     * Initialize XR (VR/AR) when `xr.enabled` is set (it is off by default): the session manager,
+     * and the canvas buttons unless `xr.ui.enabled` is false. Nothing Babylon-side is allocated
+     * until a session is entered, and the browser is asked which modes it supports once, after the
+     * first frame.
      */
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
@@ -7484,21 +7501,24 @@ export class Graph implements GraphContext {
             this.drawXRButtons();
         });
         this.drawXRButtons();
-        this.scene.onAfterRenderObservable.addOnce(() => {
-            void this.xrAvailability.probe();
-        });
+        // Off, XR asks the browser nothing: both modes already read "disabled".
+        if (this.xrConfig().enabled) {
+            this.scene.onAfterRenderObservable.addOnce(() => {
+                void this.xrAvailability.probe();
+            });
+        }
     }
 
     /**
-     * Draw the canvas XR buttons (opt-in, `xr.ui.enabled`) from the current availability, once
+     * Draw the canvas XR buttons (`xr.ui.enabled`, with XR on) from the current availability, once
      * the browser has answered.
      */
     private drawXRButtons(): void {
         this.xrUIManager?.dispose();
         this.xrUIManager = null;
-        const { ui } = this.xrConfig();
+        const { enabled, ui } = this.xrConfig();
         const { reasons, vr, ar } = this.xrAvailability.capability;
-        if (!ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
+        if (!enabled || !ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
             return;
         }
 

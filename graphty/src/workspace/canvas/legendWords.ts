@@ -300,6 +300,19 @@ export function swatchText(block: LegendBlock, swatch: LegendSwatch, entry?: str
         const { min, max } = swatch.extent;
         return min === max ? legendNumber(min) : `${legendNumber(min)} - ${legendNumber(max)}`;
     }
+    return swatchValueText(block, swatch, entry);
+}
+
+/**
+ * The text of a legend row that has no name, group or range of its own: what it paints, its
+ * entry, or its value.
+ * @param block - the block the row belongs to.
+ * @param swatch - the row.
+ * @param entry - the entry of a fixed-value row (`KeyNames.entry`).
+ * @returns the text.
+ */
+function swatchValueText(block: LegendBlock, swatch: LegendSwatch, entry?: string): string {
+    const { value } = swatch;
     if (block.kind === "literal" && swatch.color === undefined) {
         // A fixed pattern or shape names what it paints ("Solid"): the title already names the row.
         const paint = paintWords(swatch, block.channel);
@@ -730,17 +743,39 @@ export function keyNames(session: GraphSession): KeyNames {
             // a layer painting what the reader points at (Selected, Hovered) is no cover.
             const shares = new Map<string, number>();
             for (const id of block.layers ?? [block.layerId]) {
-                for (const { layerId, count: n } of session.styles.counts(id).covers[block.channel]?.layers ?? []) {
-                    const above = session.styles.get(layerId);
-                    if (above !== undefined && above.selector.match !== "state") {
-                        // A run's layer goes by the run's name, as the Analyze list names it.
-                        const run = above.source.by === "run" ? session.runs.get(above.source.runId) : undefined;
-                        const name = run === undefined ? above.name : runName(session, run);
-                        shares.set(name, (shares.get(name) ?? 0) + n);
-                    }
-                }
+                addCovers(session, id, block.channel, shares);
             }
             return [...shares].map(([layer, n]) => ({ layer, count: n }));
         },
     };
+}
+
+/**
+ * Adds the copies of one layer that the layers above it cover on one channel to `shares`, by the
+ * covering layer's name.
+ * @param session - the graph session.
+ * @param id - the layer.
+ * @param channel - the channel the block paints.
+ * @param shares - the counts so far, by covering layer name.
+ */
+function addCovers(
+    session: GraphSession,
+    id: string,
+    channel: LegendBlock["channel"],
+    shares: Map<string, number>,
+): void {
+    // The blocks were read before this render: a layer removed since (a new project
+    // clears the stack) covers nothing, and the element refuses to count it.
+    if (session.styles.get(id) === undefined) {
+        return;
+    }
+    for (const { layerId, count: n } of session.styles.counts(id).covers[channel]?.layers ?? []) {
+        const above = session.styles.get(layerId);
+        if (above !== undefined && above.selector.match !== "state") {
+            // A run's layer goes by the run's name, as the Analyze list names it.
+            const run = above.source.by === "run" ? session.runs.get(above.source.runId) : undefined;
+            const name = run === undefined ? above.name : runName(session, run);
+            shares.set(name, (shares.get(name) ?? 0) + n);
+        }
+    }
 }

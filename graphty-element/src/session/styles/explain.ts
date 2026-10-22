@@ -280,7 +280,7 @@ export interface StyleCounts {
     readonly paintedBy: readonly LayerId[];
     /**
      * Per channel the layer writes, the layers the picture shows instead on its matched elements
-     * and on how many each: the {@link COVERS_LISTED} that cover most, then how many more layers
+     * and on how many each: the three that cover most, then how many more layers
      * cover it. A channel the layer wins everywhere has no entry. What answers "why don't I see my
      * look?" property by property.
      * @since 3.26.0
@@ -1016,6 +1016,18 @@ function countAdjustments(
     }
 }
 
+/** The tallies {@link countWins} adds one element's wins to. */
+interface WinTally {
+    /** The tally to add to. */
+    readonly painted: Partial<Record<Channel, number>>;
+    /** The tally of the other layers that won a channel it writes. */
+    readonly others: Map<LayerId, number>;
+    /** The tally of the covering layers per channel. */
+    readonly perChannel: Map<Channel, Map<LayerId, number>>;
+    /** Told each element's walk, to count what the layer wins that draws nothing. */
+    readonly undrawn: (found: ElementWins) => void;
+}
+
 /**
  * The shader drawn on an element, when it covers channels: the layer that won `<target>.shader`
  * and the channels its shader is drawn in place of.
@@ -1141,26 +1153,17 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
  * @param at - Where the element sits.
  * @param columns - What the session can read about elements of its kind.
  * @param layerId - The layer.
- * @param tallies - The counts to add to: what the layer paints, who covers it, per channel.
- * @param tallies.painted - The tally to add to.
- * @param tallies.others - The tally of the other layers that won a channel it writes.
- * @param tallies.perChannel - The tally of the covering layers per channel.
- * @param undrawn - Told each element's walk, to count what the layer wins that draws nothing.
+ * @param tally - The tallies to add to.
  */
 function countWins(
     stack: readonly StackEntry[],
     at: Located,
     columns: ElementColumns,
     layerId: LayerId,
-    tallies: {
-        readonly painted: Partial<Record<Channel, number>>;
-        readonly others: Map<LayerId, number>;
-        readonly perChannel: Map<Channel, Map<LayerId, number>>;
-    },
-    undrawn: (found: ElementWins) => void,
+    tally: WinTally,
 ): void {
     const found = walkWins(stack, at, columns, layerId);
-    const { painted, others, perChannel } = tallies;
+    const { painted, others, perChannel, undrawn } = tally;
     const covering = coveringShader(at.target, found.values, (channel) => found.winners.get(channel), ranksOf(stack));
     const cover = (channel: Channel, by: LayerId): void => {
         if (by !== layerId) {
@@ -1393,13 +1396,11 @@ export function styleCounts(
         countAdjustments(own, columns, index, adjusted);
 
         if (layer.enabled) {
-            countWins(
-                stack,
-                { target: layer.target, index },
-                columns,
-                layerId,
-                { painted, others, perChannel },
-                (found) => {
+            countWins(stack, { target: layer.target, index }, columns, layerId, {
+                painted,
+                others,
+                perChannel,
+                undrawn: (found) => {
                     for (const [channel, winner] of found.winners) {
                         if (winner === layerId) {
                             captions.add(channel, found.values);
@@ -1418,7 +1419,7 @@ export function styleCounts(
 
                     shaders.add(found);
                 },
-            );
+            });
         }
     }
 

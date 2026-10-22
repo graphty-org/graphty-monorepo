@@ -176,7 +176,8 @@ export interface BulkReceipt {
 function breakdownWords(name: string, { set, unset, values, locked }: Breakdown, spread: boolean): string {
     const plural = (n: number, noun: string): string => `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
     const verb = set.length === 1 ? "sets" : "set";
-    const setWords = `${plural(set.length, "layer")} ${verb} ${name.toLowerCase()}${values > 1 ? `, to ${plural(values, "value")}` : ""}`;
+    const toValues = values > 1 ? `, to ${plural(values, "value")}` : "";
+    const setWords = `${plural(set.length, "layer")} ${verb} ${name.toLowerCase()}${toValues}`;
     const words = [
         ...(spread ? [] : [setWords]),
         ...(unset.length === 0 ? [] : [`not set: ${namesWords(unset)}`]),
@@ -220,10 +221,12 @@ function Receipt({
         ...(receipt.locked === 0 ? [] : [`${String(receipt.locked)} locked skipped`]),
     ].join(", ");
     const everything = receipt.everything ?? [];
+    const coverVerb = everything.length === 1 ? "covers" : "cover";
+    const sideWord = ctx.side === "node" ? "node" : "edge";
     const covers =
         everything.length === 0
             ? null
-            : `${namesWords(everything)} ${everything.length === 1 ? "covers" : "cover"} every ${ctx.side === "node" ? "node" : "edge"}: setting ${name.toLowerCase()} there paints over all the others`;
+            : `${namesWords(everything)} ${coverVerb} every ${sideWord}: setting ${name.toLowerCase()} there paints over all the others`;
     // Each write's receipt is spoken once by the status line already on the page, its words only:
     // the receipt arrives with them, and its buttons are not part of the sentence.
     const spoken = covers === null ? `${name}: ${words}` : `${name}: ${words}. ${covers}`;
@@ -350,7 +353,7 @@ function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
     useLayoutEffect(() => {
         const node = box.current;
         return () => {
-            if (node === null || !node.contains(document.activeElement)) {
+            if (!node?.contains(document.activeElement)) {
                 return;
             }
             const section = node.closest<HTMLElement>("[data-section]")?.dataset.section;
@@ -450,31 +453,620 @@ interface FieldProps {
     readonly onCancel?: () => void;
 }
 
-/**
- * What a layer above covers of the row's value, on a shown row that sets it.
- * @param ctx - the row.
- * @param own - the row's own line, or undefined.
- * @param channel - the property.
- * @returns what covers it, or undefined.
- */
-function coveredOn(ctx: RowContext, own: Line | undefined, channel: Channel): PaintedOver | undefined {
-    return own?.layer.enabled === true ? ctx.paintedOver?.(channel) : undefined;
+/** The workspace store. */
+type Store = ReturnType<typeof useWorkspace>["store"];
+
+/** A write from a property row: a value, or a binding. */
+type FieldWrite = LiteralWrite | { binding: DataBinding };
+
+/** Several rows that do not all set a property alike. */
+type Partly = ReturnType<typeof partlySet>;
+
+/** Several layers each on its own plain value. */
+type Spread = readonly LayerValue[] | undefined;
+
+/** What a property row reads of its rows. */
+interface FieldLines {
+    /** The row's own line; a line on a locked layer (the element's own base layers) is not this row's. */
+    readonly own: Line | undefined;
+    /** Several rows that set it differently. */
+    readonly partly: Partly;
+    /** Several layers holding different plain values: each one's value, and a click edits them. */
+    readonly spread: Spread;
 }
 
 /**
- * Whether a field offers Vary: a property that takes a binding, on a line the row sets to a plain
- * value, or not set yet on several rows or just added with "+".
+ * What a property row reads of its rows.
+ * @param ctx - the row.
+ * @param channel - the property's channel.
+ * @param pending - whether it was just added with "+".
+ * @returns its own line, how many rows set it, and each layer's plain value.
+ */
+function fieldLines(ctx: RowContext, channel: Channel, pending: boolean): FieldLines {
+    const line = lineIn(ctx, channel);
+    const own = line !== undefined && !line.layer.locked ? line : undefined;
+    if (own !== undefined) {
+        return { own, partly: undefined, spread: undefined };
+    }
+    return { own, partly: partlySet(ctx, channel), spread: pending ? undefined : ctx.many?.plain?.(channel) };
+}
+
+/**
+ * Says a refused write.
+ * @param store - the workspace store.
+ * @param channel - the property's channel.
+ * @returns the handler.
+ */
+function failureOf(store: Store, channel: Channel): (error: unknown) => void {
+    return (error) => {
+        store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
+    };
+}
+
+/**
+ * A row's write. A change to one layer is said once it is written, with how many it reaches: "Node
+ * color now orange, on 77 nodes". Several layers: the receipt says it.
+ * @param ctx - the row.
+ * @param channel - the property's channel.
+ * @param store - the workspace store.
+ * @returns the write, with the words that say it.
+ */
+function fieldWrite(ctx: RowContext, channel: Channel, store: Store): (next: FieldWrite, words?: string) => void {
+    const fail = failureOf(store, channel);
+    return (next, words) => {
+        writeIn(ctx, channel, next)
+            .then((id) => {
+                if (words !== undefined && ctx.many === undefined) {
+                    store.set({ announcement: reachWords(ctx.session, id, channel, ctx.side, words) });
+                }
+            })
+            .catch(fail);
+    };
+}
+
+/**
+ * Writes from the binding popover of several layers: each change as it is made, merged into the
+ * first one's undo step; the last, when the popover closes, ends the step. Then focus goes to the
+ * receipt's first action, where the next step is: the field's own tooltip would cover the receipt.
+ * Closed by Escape, or with no receipt, to the field's pill that opened the popover, never to the
+ * page.
+ * @param session - the element's session.
+ * @param box - the row.
+ * @param fail - says a refused write.
+ * @param onLast - told when the last write is made.
+ * @returns the write, and the flag the popover's Escape sets.
+ */
+function useBulkWrites(
+    session: GraphSession,
+    box: React.RefObject<HTMLDivElement | null>,
+    fail: (error: unknown) => void,
+    onLast: () => void,
+): {
+    readonly escapedBulk: React.RefObject<boolean>;
+    readonly bulkWrite: (
+        run: (after: HistoryStepId | undefined) => Promise<unknown> | undefined,
+        last: boolean,
+    ) => void;
+} {
+    // Its writes, one at a time, as one undo step: each change shows on the drawing as it is made.
+    const bulkStep = useRef<HistoryStepId | undefined>(undefined);
+    // The several-layer popover was closed by Escape: focus goes back to the pill.
+    const escapedBulk = useRef(false);
+    const bulkChain = useRef<Promise<unknown>>(Promise.resolve());
+    const afterBulk = (done: Promise<unknown>): void => {
+        const toPill = escapedBulk.current;
+        escapedBulk.current = false;
+        done.then(() => {
+            requestAnimationFrame(() => {
+                const row = box.current;
+                const receipt = toPill ? null : row?.querySelector<HTMLElement>("[data-receipt] button");
+                (receipt ?? row?.querySelector<HTMLElement>(".ws-varied button"))?.focus();
+            });
+        }).catch(fail);
+    };
+    const bulkWrite = (
+        run: (after: HistoryStepId | undefined) => Promise<unknown> | undefined,
+        last: boolean,
+    ): void => {
+        const done = bulkChain.current.then(async () => {
+            const at = session.history.position;
+            await run(bulkStep.current);
+            if (bulkStep.current === undefined && session.history.position !== at) {
+                bulkStep.current = session.history.steps[session.history.position - 1]?.id;
+            }
+            if (last) {
+                bulkStep.current = undefined;
+            }
+        });
+        bulkChain.current = done.catch(fail);
+        if (last) {
+            onLast();
+            afterBulk(done);
+        }
+    };
+    return { escapedBulk, bulkWrite };
+}
+
+/** What removing a property from a row needs. */
+interface RemoveField {
+    readonly ctx: RowContext;
+    readonly channel: Channel;
+    readonly name: string;
+    readonly lines: FieldLines;
+    readonly box: React.RefObject<HTMLDivElement | null>;
+    readonly store: Store;
+    readonly onCancel: (() => void) | undefined;
+}
+
+/**
+ * Removes a property from a row, so the layers beneath show through.
+ * @param remove - what it needs.
+ */
+function removeField(remove: RemoveField): void {
+    const { ctx, channel, name, lines, box, store, onCancel } = remove;
+    const { session } = ctx;
+    const { own, partly } = lines;
+    const fail = failureOf(store, channel);
+    store.set({ announcement: `${name} removed` });
+    // Focus goes to the section's "+", never onto the line that slides up into this one's place.
+    if (box.current?.contains(document.activeElement) === true) {
+        focusSectionNext(box.current, channel);
+    }
+    // A property "+" added is no longer waiting, set or not.
+    onCancel?.();
+    if (ctx.many !== undefined && (own !== undefined || partly !== undefined)) {
+        ctx.many.clear(channel).catch(fail);
+        return;
+    }
+    // Added with "+" and set on no row yet: nothing to write.
+    if (own === undefined) {
+        return;
+    }
+    // One step, named so Undo reads "Undid removing node size from Key people".
+    session
+        .transaction(
+            `removing ${name.toLowerCase()} from ${layerWord(session, own.layer.id) ?? "the default"}`,
+            async (tx) => {
+                const layer = tx.styles.get(own.layer.id);
+                if (layer !== undefined) {
+                    await removeLine(tx, layer, channel);
+                }
+            },
+        )
+        .catch(fail);
+}
+
+/** What the keyboard's remove on a property row needs. */
+interface FieldKeys {
+    /** Whether the property can vary by a value, which "=" opens. */
+    readonly varies: boolean;
+    readonly descriptor: ChannelDescriptor;
+    /** Just added with "+", and set on no row yet. */
+    readonly unset: boolean;
+    readonly openVary: () => void;
+    readonly cancel: () => void;
+    readonly remove: () => void;
+}
+
+/**
+ * The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a closed
+ * select or a color chit. "=" opens the value picker; Escape before any value is picked takes back
+ * the line "+" added.
+ * @param event - the key.
+ * @param keys - what the keys do.
+ */
+function fieldKeyDown(event: React.KeyboardEvent<HTMLDivElement>, keys: FieldKeys): void {
+    const target = event.target as HTMLElement;
+    if (target.closest(".ws-field-control") === null) {
+        return;
+    }
+    const input = target instanceof HTMLInputElement ? target : undefined;
+    let act: (() => void) | undefined;
+    if (event.key === "=" && keys.varies && keys.descriptor.accepts !== "text" && input !== undefined) {
+        act = keys.openVary;
+    } else if (event.key === "Escape" && keys.unset && target.getAttribute("aria-expanded") !== "true") {
+        act = keys.cancel;
+    } else if (removesField(event.key, input, target)) {
+        act = keys.remove;
+    }
+    if (act !== undefined) {
+        event.preventDefault();
+        event.stopPropagation();
+        act();
+    }
+}
+
+/**
+ * Whether a key removes the property: Enter in an emptied typed field, or Delete / Backspace on a
+ * closed select or a color chit.
+ * @param key - the key.
+ * @param input - the focused input, if it is one.
+ * @param target - the focused element.
+ * @returns whether it removes.
+ */
+function removesField(key: string, input: HTMLInputElement | undefined, target: HTMLElement): boolean {
+    const typed = input !== undefined && !input.readOnly;
+    if (key === "Enter") {
+        return typed && input.value.trim() === "";
+    }
+    return (key === "Delete" || key === "Backspace") && !typed && target.getAttribute("aria-expanded") !== "true";
+}
+
+/** What a property row's value control needs. */
+interface FieldControlProps {
+    readonly ctx: RowContext;
+    readonly descriptor: ChannelDescriptor;
+    readonly name: string;
+    readonly lines: FieldLines;
+    readonly pending: boolean;
+    /** Every layer a write reaches, those holding no value among them. */
+    readonly reached: number;
+    readonly write: (next: FieldWrite, words?: string) => void;
+    readonly writeValue: (value: ChannelValue) => void;
+    /** Writes a picked choice: a shader that joins the list (Shape's sprites) is written as a shader. */
+    readonly pick: (value: ChannelValue) => void;
+    /** The shaders a list offers after its own choices, if any. */
+    readonly extraChoices: ExtraChoices;
+    readonly bind: (choice: DataChoice) => void;
+    readonly onLayers: () => void;
+}
+
+/** The shaders a list offers after its own choices. */
+type ExtraChoices = React.ComponentProps<typeof ValueField>["extraChoices"];
+
+/**
+ * A property row's value control: each layer's value, Mixed, the bound pill, or the field for the
+ * one value it sets.
+ * @param props - what it needs.
+ * @returns the control.
+ */
+function fieldControl(props: FieldControlProps): React.ReactNode {
+    const { ctx, descriptor, name, lines, pending, write, writeValue, pick, extraChoices, bind } = props;
+    const { own, partly, spread } = lines;
+    if (spread !== undefined) {
+        // Drawn as a field bound to data is, with Layer as its source.
+        return (
+            <BoundValue
+                ctx={ctx}
+                descriptor={descriptor}
+                source={{ kind: "layers", values: spread, count: props.reached, onOpen: props.onLayers }}
+            />
+        );
+    }
+    if (own === undefined) {
+        // Several rows that set it differently: Mixed, with no value borrowed from any of them,
+        // and a typed or picked value writes to them. Just added with "+": what the elements draw
+        // now, else the element's starting value, as a field not set yet, until a value is picked.
+        const fresh = pending && partly === undefined;
+        return (
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={undefined}
+                shown={
+                    fresh
+                        ? (ctx.beneath(descriptor.channel).value ?? startingValue(descriptor, ctx.session))
+                        : undefined
+                }
+                mixed={!fresh}
+                swatches={ctx.documentColors}
+                extraChoices={extraChoices}
+                onChange={pick}
+            />
+        );
+    }
+    if (own.binding !== undefined) {
+        return (
+            <BoundValue
+                ctx={ctx}
+                descriptor={descriptor}
+                source={{ kind: "data", layer: own.layer, binding: own.binding, write, bind }}
+            />
+        );
+    }
+    return (
+        <OneValue
+            ctx={ctx}
+            descriptor={descriptor}
+            name={name}
+            value={own.value}
+            combine={own.combine}
+            writeValue={writeValue}
+            pick={pick}
+            extraChoices={extraChoices}
+        />
+    );
+}
+
+/**
+ * The field for the one value a layer sets: a color, a list, a number or typed words.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.descriptor - the property
+ * @param props.name - the property's name
+ * @param props.value - the value it sets
+ * @param props.combine - how it meets the layers beneath, when not replacing them
+ * @param props.writeValue - writes a new value
+ * @param props.pick - writes a picked choice, a shader as a shader
+ * @param props.extraChoices - the shaders a list offers after its own choices
+ * @returns The field
+ */
+function OneValue({
+    ctx,
+    descriptor,
+    name,
+    value,
+    combine,
+    writeValue,
+    pick,
+    extraChoices,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    name: string;
+    value: Line["value"];
+    combine: Line["combine"];
+    writeValue: (value: ChannelValue) => void;
+    pick: (value: ChannelValue) => void;
+    extraChoices: ExtraChoices;
+}>): React.JSX.Element {
+    if (descriptor.accepts === "color") {
+        const hex = hexOf(value) ?? "#000000";
+        return (
+            <CompactColorInput
+                aria-label={name}
+                // The box is read with the color's word beside its hex: "Color, set, red".
+                valueText={colorName(hex)}
+                width="100%"
+                color={hex}
+                defaultColor={hex}
+                showOpacity={false}
+                showReset={false}
+                swatches={ctx.documentColors}
+                onChangeEnd={(next) => {
+                    if (next !== undefined && next.toUpperCase() !== hex) {
+                        writeValue(next.toUpperCase());
+                    }
+                }}
+            />
+        );
+    }
+    if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
+        return (
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={value}
+                shown={value}
+                extraChoices={extraChoices}
+                onChange={pick}
+            />
+        );
+    }
+    if (descriptor.accepts === "number") {
+        return (
+            <NumberValue descriptor={descriptor} name={name} value={value} combine={combine} writeValue={writeValue} />
+        );
+    }
+    return <TextValue name={name} value={value} writeValue={writeValue} />;
+}
+
+/**
+ * A number a layer sets; an opacity reads and types as a percent, as a color field's opacity does.
+ * @param props - Component props
+ * @param props.descriptor - the property
+ * @param props.name - the property's name
+ * @param props.value - the value it sets
+ * @param props.combine - how it meets the layers beneath, when not replacing them
+ * @param props.writeValue - writes a new value
+ * @returns The field
+ */
+function NumberValue({
+    descriptor,
+    name,
+    value,
+    combine,
+    writeValue,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    name: string;
+    value: unknown;
+    combine: Line["combine"];
+    writeValue: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const prefix = combine === undefined ? undefined : COMBINE_WORDS[combine].prefix;
+    const percent = isPercent(descriptor);
+    const scale = percent ? 100 : 1;
+    const { min, max } = descriptor;
+    return (
+        <ComboInput
+            label={name}
+            width="100%"
+            numeric
+            variant="outlined"
+            options={[]}
+            value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
+            suffix={percent ? "%" : undefined}
+            glyph={prefix === undefined ? undefined : <Text size="xs">{prefix}</Text>}
+            min={min === undefined ? undefined : min * scale}
+            max={max === undefined ? undefined : max * scale}
+            step={!percent && max !== undefined && max <= 1 ? 0.1 : 1}
+            onChange={(next) => {
+                if (typeof next === "number") {
+                    writeValue(next / scale);
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * Typed words a layer sets.
+ * @param props - Component props
+ * @param props.name - the property's name
+ * @param props.value - the value it sets
+ * @param props.writeValue - writes a new value
+ * @returns The field
+ */
+function TextValue({
+    name,
+    value,
+    writeValue,
+}: Readonly<{ name: string; value: unknown; writeValue: (value: ChannelValue) => void }>): React.JSX.Element {
+    const text = typeof value === "string" ? value : "";
+    return (
+        <TextInput
+            // Keyed by the value, so Undo, Redo or another edit shows the new text.
+            key={text}
+            size="xs"
+            variant="outlined"
+            aria-label={name}
+            defaultValue={text}
+            onBlur={(event) => {
+                const next = event.currentTarget.value;
+                if (next !== "" && next !== text) {
+                    writeValue(next);
+                }
+            }}
+            onKeyDown={(event) => {
+                // Enter commits and keeps focus in the field (drawn again with the new text,
+                // it takes focus back), never on the page.
+                const next = event.currentTarget.value;
+                if (event.key === "Enter" && next !== "" && next !== text) {
+                    writeValue(next);
+                }
+            }}
+        />
+    );
+}
+
+/** What a property row's vary column needs. */
+interface VarySlotProps {
+    readonly ctx: RowContext;
+    readonly descriptor: ChannelDescriptor;
+    readonly name: string;
+    readonly lines: FieldLines;
+    readonly varies: boolean;
+    readonly reached: number;
+    readonly store: Store;
+    readonly write: (next: FieldWrite, words?: string) => void;
+    readonly bind: (choice: DataChoice) => void;
+    readonly onLayers: () => void;
+    readonly open: boolean;
+    readonly onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * A property row's vary column: a bound field's Stop varying, the one value for several layers'
+ * own values, or the vary glyph.
+ * @param props - what it needs.
+ * @returns the column's contents.
+ */
+function varySlotOf(props: VarySlotProps): React.ReactNode {
+    const { ctx, descriptor, name, lines, store, write } = props;
+    const { own, spread } = lines;
+    const { channel } = descriptor;
+    if (own?.binding !== undefined) {
+        // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
+        // field). It is the one way back to a single value, so its words say what it does.
+        const one = descriptor.accepts === "color" ? "one color" : "one value";
+        const { binding } = own;
+        return (
+            <Tooltip label={`Stop varying by data: use ${one} for all`}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={`Stop varying ${name.toLowerCase()} by data`}
+                    onClick={() => {
+                        // A property set for a few groups goes back to the one value the rest have.
+                        const value = binding.otherwise ?? startingValue(descriptor, ctx.session, own.layer.selector);
+                        // Focus stays on the property: its field, now holding the one value.
+                        focusLineNext(channel, "fixed");
+                        store.set({
+                            announcement: `${name} no longer varies by data, now ${valueWords(descriptor, value)}`,
+                        });
+                        write({ value });
+                    }}
+                >
+                    <GLYPHS.unlink size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
+    }
+    if (spread !== undefined) {
+        // Several layers each on its own value: the same detach, giving them all the top one's.
+        const { value } = spread[0];
+        const words = valueWords(descriptor, value);
+        const reached = String(props.reached);
+        const oneName = `Give all ${reached} layers one ${name.toLowerCase()}`;
+        return (
+            <Tooltip label={`One value for all: use ${words} for all ${reached} layers`}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={oneName}
+                    onClick={() => {
+                        focusLineNext(channel);
+                        store.set({ announcement: `${name} is ${words} on every layer` });
+                        write({ value });
+                    }}
+                >
+                    <GLYPHS.unlink size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
+    }
+    if (!props.varies) {
+        return null;
+    }
+    return (
+        <VaryButton
+            ctx={ctx}
+            descriptor={descriptor}
+            onPick={props.bind}
+            onLayer={props.onLayers}
+            open={props.open}
+            onOpenChange={props.onOpenChange}
+        />
+    );
+}
+
+/**
+ * Whether a property can vary by a value from its row: one value set here, or several rows, or
+ * just added with "+".
  * @param ctx - the row.
  * @param descriptor - the property.
- * @param own - the row's own line, or undefined.
- * @param pending - just added with "+", waiting for a value.
- * @returns true when the field offers Vary.
+ * @param own - the row's own line.
+ * @param pending - whether it was just added with "+".
+ * @returns whether the vary glyph shows.
  */
-function canVary(ctx: RowContext, descriptor: ChannelDescriptor, own: Line | undefined, pending: boolean): boolean {
-    return (
-        takesBinding(descriptor) &&
-        ((own !== undefined && own.binding === undefined) || (own === undefined && (ctx.many !== undefined || pending)))
-    );
+function variesFrom(ctx: RowContext, descriptor: ChannelDescriptor, own: Line | undefined, pending: boolean): boolean {
+    if (!takesBinding(descriptor)) {
+        return false;
+    }
+    return own === undefined ? ctx.many !== undefined || pending : own.binding === undefined;
+}
+
+/**
+ * Who sets it, where not every row sets it alike; with each layer's value shown, only who does
+ * not.
+ * @param ctx - the row.
+ * @param channel - the property's channel.
+ * @param word - the property's name in the label column.
+ * @param lines - what the row reads.
+ * @param pending - whether it was just added with "+".
+ * @returns the words, or "".
+ */
+function fieldBreakdown(ctx: RowContext, channel: Channel, word: string, lines: FieldLines, pending: boolean): string {
+    const { many } = ctx;
+    const { own, partly, spread } = lines;
+    if (many?.breakdown === undefined || (pending && partly === undefined)) {
+        return "";
+    }
+    if (own !== undefined && many.count(channel) >= many.of) {
+        return "";
+    }
+    return breakdownWords(word, many.breakdown(channel), spread !== undefined);
 }
 
 /**
@@ -509,76 +1101,23 @@ export function Field({
     // Several layers: the value picked in Vary ("layer" for Layer), held in the binding popover
     // until it closes.
     const [pendingVary, setPendingVary] = useState<DataChoice | "layer" | null>(null);
-    // Its writes, one at a time, as one undo step: each change shows on the drawing as it is made.
-    const bulkStep = useRef<HistoryStepId | undefined>(undefined);
-    // The several-layer popover was closed by Escape: focus goes back to the pill (afterBulk).
-    const escapedBulk = useRef(false);
-    const bulkChain = useRef<Promise<unknown>>(Promise.resolve());
+    const fail = failureOf(store, channel);
+    const { escapedBulk, bulkWrite } = useBulkWrites(session, box, fail, () => {
+        setPendingVary(null);
+    });
     useFocusOnRemoval(box);
     useFocusKept(box);
-    const line = lineIn(ctx, channel);
-    // A line on a locked layer (the element's own base layers) is not this row's.
-    const own = line !== undefined && !line.layer.locked ? line : undefined;
-    const partly = own === undefined ? partlySet(ctx, channel) : undefined;
-    // Several layers holding different plain values: each one's value, and a click edits them.
-    const spread = own === undefined && !pending ? ctx.many?.plain?.(channel) : undefined;
+    const lines = fieldLines(ctx, channel, pending);
+    const { own, partly, spread } = lines;
     if (own === undefined && partly === undefined && !pending) {
         return null;
     }
     const name = fieldName(channel);
+    const label = word ?? channelWord(channel);
     const receipt = ctx.many?.receipt?.(channel);
     // A layer above covers this row's value on some of its elements (a shown row only).
-    const over = coveredOn(ctx, own, channel);
-    const fail = (error: unknown): void => {
-        store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
-    };
-    // A change to one layer is said once it is written, with how many it reaches: "Node color now
-    // orange, on 77 nodes". Several layers: the receipt says it.
-    const write = (next: LiteralWrite | { binding: DataBinding }, words?: string): void => {
-        writeIn(ctx, channel, next)
-            .then((id) => {
-                if (words !== undefined && ctx.many === undefined) {
-                    store.set({ announcement: reachWords(session, id, channel, ctx.side, words) });
-                }
-            })
-            .catch(fail);
-    };
-    // Several layers: focus goes to the receipt's first action, where the next step is: the
-    // field's own tooltip would cover the receipt. Closed by Escape, or with no receipt, to the
-    // field's pill that opened the popover, never to the page.
-    const afterBulk = (done: Promise<unknown> | undefined): void => {
-        const toPill = escapedBulk.current;
-        escapedBulk.current = false;
-        done?.then(() => {
-            requestAnimationFrame(() => {
-                const row = box.current;
-                const receipt = toPill ? null : row?.querySelector<HTMLElement>("[data-receipt] button");
-                (receipt ?? row?.querySelector<HTMLElement>(".ws-varied button"))?.focus();
-            });
-        }).catch(fail);
-    };
-    // A write from the binding popover of several layers: each change as it is made, merged into
-    // the first one's undo step; the last, when the popover closes, ends the step.
-    const bulkWrite = (
-        run: (after: HistoryStepId | undefined) => Promise<unknown> | undefined,
-        last: boolean,
-    ): void => {
-        const done = bulkChain.current.then(async () => {
-            const at = session.history.position;
-            await run(bulkStep.current);
-            if (bulkStep.current === undefined && session.history.position !== at) {
-                bulkStep.current = session.history.steps[session.history.position - 1]?.id;
-            }
-            if (last) {
-                bulkStep.current = undefined;
-            }
-        });
-        bulkChain.current = done.catch(fail);
-        if (last) {
-            setPendingVary(null);
-            afterBulk(done);
-        }
-    };
+    const over = own?.layer.enabled ? ctx.paintedOver?.(channel) : undefined;
+    const write = fieldWrite(ctx, channel, store);
     const writeValue = (value: ChannelValue): void => {
         // A list's new value is read by the list itself as it closes; a typed or picked value is not.
         const listed = descriptor.accepts === "enum" || descriptor.accepts === "boolean";
@@ -587,88 +1126,6 @@ export function Field({
             listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
         );
     };
-    const remove = (): void => {
-        store.set({ announcement: `${name} removed` });
-        // Focus goes to the section's "+", never onto the line that slides up into this one's place.
-        if (box.current?.contains(document.activeElement) === true) {
-            focusSectionNext(box.current, channel);
-        }
-        // A property "+" added is no longer waiting, set or not.
-        onCancel?.();
-        if (own === undefined && partly === undefined) {
-            // Added with "+" and set on no row yet: nothing to write.
-            return;
-        }
-        const { many } = ctx;
-        if (many !== undefined) {
-            many.clear(channel).catch(fail);
-            return;
-        }
-        if (own === undefined) {
-            return;
-        }
-        // One step, named so Undo reads "Undid removing node size from Key people".
-        session
-            .transaction(
-                `removing ${name.toLowerCase()} from ${layerWord(session, own.layer.id) ?? "the default"}`,
-                async (tx) => {
-                    const layer = tx.styles.get(own.layer.id);
-                    if (layer !== undefined) {
-                        await removeLine(tx, layer, channel);
-                    }
-                },
-            )
-            .catch(fail);
-    };
-    const bind = (choice: DataChoice): void => {
-        const proposal = propose(session, choice, channel);
-        if (!proposal.ok) {
-            return;
-        }
-        // Several layers: the binding popover holds it, and closing it copies it into each.
-        if (ctx.many === undefined) {
-            write(
-                { binding: proposal.binding },
-                `${name} varies by ${sourceName(session, proposal.binding) ?? proposal.binding.by}`,
-            );
-        } else {
-            setPendingVary(choice);
-        }
-    };
-    const varies = canVary(ctx, descriptor, own, pending);
-    // The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a
-    // closed select or a color chit.
-    const onKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-        const target = event.target as HTMLElement;
-        if (target.closest(".ws-field-control") === null) {
-            return;
-        }
-        if (event.key === "=" && varies && descriptor.accepts !== "text" && target instanceof HTMLInputElement) {
-            event.preventDefault();
-            event.stopPropagation();
-            setVaryOpen(true);
-            return;
-        }
-        const typed = target instanceof HTMLInputElement && !target.readOnly;
-        const closed = target.getAttribute("aria-expanded") !== "true";
-        // Escape before any value is picked takes back the line "+" added: nothing was written.
-        if (event.key === "Escape" && closed && pending && own === undefined && partly === undefined) {
-            event.preventDefault();
-            event.stopPropagation();
-            store.set({ announcement: `${name} not added` });
-            onCancel?.();
-            return;
-        }
-        if (
-            (event.key === "Enter" && typed && target.value.trim() === "") ||
-            ((event.key === "Delete" || event.key === "Backspace") && !typed && closed)
-        ) {
-            event.preventDefault();
-            event.stopPropagation();
-            remove();
-        }
-    };
-
     // Shape lists the sprites after its shapes, Pattern the edge surfaces after its patterns
     // (shader-styles design, 6.1): a pick writes the shader, as the gallery does, not the property.
     const picker = pickerSlot(channel);
@@ -683,208 +1140,75 @@ export function Field({
         }
         pickShader(ctx, picker, value.slice(SHADER_CHOICE.length)).catch(fail);
     };
-
-    let control: React.ReactNode;
+    const remove = (): void => {
+        removeField({ ctx, channel, name, lines, box, store, onCancel });
+    };
+    const onLayers = (): void => {
+        setPendingVary("layer");
+    };
+    const bind = (choice: DataChoice): void => {
+        const proposal = propose(session, choice, channel);
+        // Several layers: the binding popover holds it, and closing it copies it into each.
+        if (proposal.ok && ctx.many !== undefined) {
+            setPendingVary(choice);
+        } else if (proposal.ok) {
+            write(
+                { binding: proposal.binding },
+                `${name} varies by ${sourceName(session, proposal.binding) ?? proposal.binding.by}`,
+            );
+        }
+    };
+    const varies = variesFrom(ctx, descriptor, own, pending);
+    const keys: FieldKeys = {
+        varies,
+        descriptor,
+        unset: pending && own === undefined && partly === undefined,
+        openVary: () => {
+            setVaryOpen(true);
+        },
+        cancel: () => {
+            store.set({ announcement: `${name} not added` });
+            onCancel?.();
+        },
+        remove,
+    };
     // Every layer a write reaches, those holding no value among them.
     const reached = ctx.many?.inOrder?.(channel).length ?? 0;
-    if (spread !== undefined) {
-        // Drawn as a field bound to data is, with Layer as its source.
-        control = (
-            <BoundValue
-                ctx={ctx}
-                descriptor={descriptor}
-                source={{
-                    kind: "layers",
-                    values: spread,
-                    count: reached,
-                    onOpen: () => {
-                        setPendingVary("layer");
-                    },
-                }}
-            />
-        );
-    } else if (own === undefined) {
-        // Several rows that set it differently: Mixed, with no value borrowed from any of them,
-        // and a typed or picked value writes to them. Just added with "+": what the elements draw
-        // now, else the element's starting value, as a field not set yet, until a value is picked.
-        control = (
-            <ValueField
-                descriptor={descriptor}
-                label={name}
-                value={undefined}
-                shown={
-                    pending && partly === undefined
-                        ? (ctx.beneath(channel).value ?? startingValue(descriptor, session))
-                        : undefined
-                }
-                mixed={!pending || partly !== undefined}
-                swatches={ctx.documentColors}
-                extraChoices={extraChoices}
-                onChange={pick}
-            />
-        );
-    } else if (own.binding !== undefined) {
-        control = (
-            <BoundValue
-                ctx={ctx}
-                descriptor={descriptor}
-                source={{ kind: "data", layer: own.layer, binding: own.binding, write, bind }}
-            />
-        );
-    } else if (descriptor.accepts === "color") {
-        const hex = hexOf(own.value) ?? "#000000";
-        control = (
-            <CompactColorInput
-                aria-label={name}
-                // The box is read with the color's word beside its hex: "Color, set, red".
-                valueText={colorName(hex)}
-                width="100%"
-                color={hex}
-                defaultColor={hex}
-                showOpacity={false}
-                showReset={false}
-                swatches={ctx.documentColors}
-                onChangeEnd={(next) => {
-                    if (next !== undefined && next.toUpperCase() !== hex) {
-                        writeValue(next.toUpperCase());
-                    }
-                }}
-            />
-        );
-    } else if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
-        control = (
-            <ValueField
-                descriptor={descriptor}
-                label={name}
-                value={own.value}
-                shown={own.value}
-                extraChoices={extraChoices}
-                onChange={pick}
-            />
-        );
-    } else if (descriptor.accepts === "number") {
-        const prefix = own.combine === undefined ? undefined : COMBINE_WORDS[own.combine].prefix;
-        // An opacity reads and types as a percent, as a color field's opacity does.
-        const percent = isPercent(descriptor);
-        const scale = percent ? 100 : 1;
-        control = (
-            <ComboInput
-                label={name}
-                width="100%"
-                numeric
-                variant="outlined"
-                options={[]}
-                value={typeof own.value === "number" ? Math.round(own.value * scale * 100) / 100 : ""}
-                suffix={percent ? "%" : undefined}
-                glyph={prefix === undefined ? undefined : <Text size="xs">{prefix}</Text>}
-                min={descriptor.min === undefined ? undefined : descriptor.min * scale}
-                max={descriptor.max === undefined ? undefined : descriptor.max * scale}
-                step={!percent && descriptor.max !== undefined && descriptor.max <= 1 ? 0.1 : 1}
-                onChange={(next) => {
-                    if (typeof next === "number") {
-                        writeValue(next / scale);
-                    }
-                }}
-            />
-        );
-    } else {
-        const text = typeof own.value === "string" ? own.value : "";
-        control = (
-            <TextInput
-                // Keyed by the value, so Undo, Redo or another edit shows the new text.
-                key={text}
-                size="xs"
-                variant="outlined"
-                aria-label={name}
-                defaultValue={text}
-                onBlur={(event) => {
-                    const next = event.currentTarget.value;
-                    if (next !== "" && next !== text) {
-                        writeValue(next);
-                    }
-                }}
-                onKeyDown={(event) => {
-                    // Enter commits and keeps focus in the field (drawn again with the new text,
-                    // it takes focus back), never on the page.
-                    const next = event.currentTarget.value;
-                    if (event.key === "Enter" && next !== "" && next !== text) {
-                        writeValue(next);
-                    }
-                }}
-            />
-        );
-    }
-
-    let varySlot: React.ReactNode = null;
-    if (own?.binding !== undefined) {
-        // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
-        // field). It is the one way back to a single value, so its words say what it does.
-        const one = descriptor.accepts === "color" ? "one color" : "one value";
-        varySlot = (
-            <Tooltip label={`Stop varying by data: use ${one} for all`}>
-                <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={`Stop varying ${name.toLowerCase()} by data`}
-                    onClick={() => {
-                        // A property set for a few groups goes back to the one value the rest have.
-                        const value = own.binding?.otherwise ?? startingValue(descriptor, session, own.layer.selector);
-                        // Focus stays on the property: its field, now holding the one value.
-                        focusLineNext(channel, "fixed");
-                        store.set({
-                            announcement: `${name} no longer varies by data, now ${valueWords(descriptor, value)}`,
-                        });
-                        write({ value });
-                    }}
-                >
-                    <GLYPHS.unlink size={14} aria-hidden />
-                </ActionIcon>
-            </Tooltip>
-        );
-    } else if (spread !== undefined) {
-        // Several layers each on its own value: the same detach, giving them all the top one's.
-        const { value } = spread[0];
-        const words = valueWords(descriptor, value);
-        const oneName = `Give all ${String(reached)} layers one ${name.toLowerCase()}`;
-        varySlot = (
-            <Tooltip label={`One value for all: use ${words} for all ${String(reached)} layers`}>
-                <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={oneName}
-                    onClick={() => {
-                        focusLineNext(channel);
-                        store.set({ announcement: `${name} is ${words} on every layer` });
-                        write({ value });
-                    }}
-                >
-                    <GLYPHS.unlink size={14} aria-hidden />
-                </ActionIcon>
-            </Tooltip>
-        );
-    } else if (varies) {
-        varySlot = (
-            <VaryButton
-                ctx={ctx}
-                descriptor={descriptor}
-                onPick={bind}
-                onLayer={() => {
-                    setPendingVary("layer");
-                }}
-                open={varyOpen}
-                onOpenChange={setVaryOpen}
-            />
-        );
-    }
-    // Who sets it, where not every row sets it alike; with each layer's value shown, only who does not.
-    const breakdown =
-        ctx.many?.breakdown !== undefined &&
-        (own === undefined || ctx.many.count(channel) < ctx.many.of) &&
-        (!pending || partly !== undefined)
-            ? breakdownWords(word ?? channelWord(channel), ctx.many.breakdown(channel), spread !== undefined)
-            : "";
+    const control = fieldControl({
+        ctx,
+        descriptor,
+        name,
+        lines,
+        pending,
+        reached,
+        write,
+        writeValue,
+        pick,
+        extraChoices,
+        bind,
+        onLayers,
+    });
+    const varySlot = varySlotOf({
+        ctx,
+        descriptor,
+        name,
+        lines,
+        varies,
+        reached,
+        store,
+        write,
+        bind,
+        onLayers,
+        open: varyOpen,
+        onOpenChange: setVaryOpen,
+    });
+    const breakdown = fieldBreakdown(ctx, channel, label, lines, pending);
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
+    // Just added on a selection with no layer yet: the value drawn is not set, and the first one
+    // picked makes the layer.
+    const firstValue =
+        pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
     // A value the element draws nothing for here (a lift outside a flat layout in 3D).
     const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
@@ -896,14 +1220,16 @@ export function Field({
             data-accepts={descriptor.accepts}
             data-bound={own?.binding === undefined ? undefined : ""}
             data-covered={over === undefined ? undefined : ""}
-            onKeyDownCapture={onKeyDownCapture}
+            onKeyDownCapture={(event) => {
+                fieldKeyDown(event, keys);
+            }}
         >
             {/* One line: the name, the field, then two reserved 24 px columns, vary and minus,
                 so the field keeps its width (Figma's property row). */}
             <div className="ws-field ws-varies" data-named="">
                 <span className="ws-field-label">
-                    <span className="ws-field-name" title={word ?? channelWord(channel)} aria-hidden>
-                        {word ?? channelWord(channel)}
+                    <span className="ws-field-name" title={label} aria-hidden>
+                        {label}
                     </span>
                 </span>
                 <div className="ws-field-control">{control}</div>
@@ -922,15 +1248,9 @@ export function Field({
                     {UNDRAWN_WORDS[undrawn]}
                 </Text>
             )}
-            {/* Just added on a selection with no layer yet: the value drawn is not set, and the
-                first one picked makes the layer. */}
-            {pending &&
-            own === undefined &&
-            ctx.many === undefined &&
-            ctx.layers.length === 0 &&
-            ctx.fresh !== undefined ? (
+            {firstValue ? (
                 <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
-                    {firstValueWords(word ?? channelWord(channel))}
+                    {firstValueWords(label)}
                 </Text>
             ) : null}
             {breakdown === "" ? null : (
@@ -964,9 +1284,7 @@ export function Field({
                     }}
                 />
             )}
-            {receipt === undefined ? null : (
-                <Receipt ctx={ctx} channel={channel} name={word ?? channelWord(channel)} receipt={receipt} />
-            )}
+            {receipt === undefined ? null : <Receipt ctx={ctx} channel={channel} name={label} receipt={receipt} />}
         </div>
     );
 }
@@ -1186,6 +1504,7 @@ function BoundValue({
         source.kind === "layers" ? layersView(session, descriptor, source) : dataView(session, descriptor, source);
     const described = describedWords(view.list);
     const groups = groupWords(descriptor, view.list);
+    const groupsTail = groups === "" ? "" : `: ${groups}`;
     const drawn = (onClick: () => void): React.JSX.Element => (
         <>
             <VariablePill
@@ -1198,7 +1517,7 @@ function BoundValue({
                 swatch={isColor ? stripOf(view.list, view.fallback) : undefined}
                 swatchWidth={isColor ? SWATCH_STRIP : undefined}
                 width="100%"
-                aria-label={`${fieldName(channel)}: ${view.spoken}${groups === "" ? "" : `: ${groups}`}`}
+                aria-label={`${fieldName(channel)}: ${view.spoken}${groupsTail}`}
                 aria-describedby={described === "" ? undefined : describedId}
                 onClick={onClick}
             />
@@ -1583,15 +1902,22 @@ function describedWords(list: LineList | undefined): string {
     if (list === undefined) {
         return "";
     }
-    let entries = "";
+    return [endsWords(list), ...list.notes].filter((w) => w !== "").join(", ");
+}
+
+/**
+ * A ramp's or a number's ends, in words; a list of groups says its groups in the name instead.
+ * @param list - the line's list.
+ * @returns the words, or "".
+ */
+function endsWords(list: LineList): string {
     if (list.kind === "categorical") {
-        entries = ""; // its groups are said in the name
-    } else if (list.range !== undefined) {
-        entries = `From ${String(list.range[0])} to ${String(list.range[1])}`;
-    } else if (list.ends !== undefined) {
-        entries = `From ${list.ends[0]} to ${list.ends[1]}`;
+        return "";
     }
-    return [entries, ...list.notes].filter((w) => w !== "").join(", ");
+    if (list.range !== undefined) {
+        return `From ${String(list.range[0])} to ${String(list.range[1])}`;
+    }
+    return list.ends === undefined ? "" : `From ${list.ends[0]} to ${list.ends[1]}`;
 }
 
 /**
@@ -1608,43 +1934,7 @@ function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.J
     if (list === undefined) {
         return null;
     }
-    let summary: React.ReactNode = null;
-    const colored = list.entries.some((e) => e.color !== undefined);
-    if (list.kind === "categorical") {
-        const { shown, more } = shownOf(list);
-        const plus = more > 0 ? `+${String(more)}` : null;
-        summary = !colored ? (
-            `${shown.map((e) => e.words).join(", ")}${plus === null ? "" : ` ${plus}`}`
-        ) : (
-            <span className="ws-varied-chits">
-                {[...shown, ...(list.other === undefined ? [] : [list.other])].map((entry, at) => (
-                    // Two layers may share a name: the place in the list keeps each its own.
-                    <Tooltip key={`${String(at)}:${entry.name}`} label={entry.name}>
-                        <span
-                            className="ws-varied-chit"
-                            data-name={entry.name}
-                            data-other={entry === list.other ? "" : undefined}
-                            style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
-                        />
-                    </Tooltip>
-                ))}
-                {plus === null ? null : (
-                    <Text span size="xs" c="var(--cm-text-secondary)" data-more>
-                        {plus}
-                    </Text>
-                )}
-            </span>
-        );
-    } else if (list.range !== undefined) {
-        summary = `From ${String(list.range[0])} to ${String(list.range[1])}`;
-    } else if (list.ends !== undefined) {
-        summary = (
-            <span className="ws-varied-ends">
-                <span>{list.ends[0]}</span>
-                <span>{list.ends[1]}</span>
-            </span>
-        );
-    }
+    const summary = summaryOf(list);
     if (summary === null && list.notes.length === 0) {
         return null;
     }
@@ -1661,6 +1951,64 @@ function VariedLine({ list }: Readonly<{ list: LineList | undefined }>): React.J
                 </Text>
             ))}
         </div>
+    );
+}
+
+/**
+ * A varied field's summary: the groups as chits or words, a number's From / To, or a ramp's ends.
+ * @param list - what to draw.
+ * @returns the summary, or null when there is none.
+ */
+function summaryOf(list: LineList): React.ReactNode {
+    if (list.kind === "categorical") {
+        return groupSummary(list);
+    }
+    if (list.range !== undefined) {
+        return `From ${String(list.range[0])} to ${String(list.range[1])}`;
+    }
+    if (list.ends === undefined) {
+        return null;
+    }
+    return (
+        <span className="ws-varied-ends">
+            <span>{list.ends[0]}</span>
+            <span>{list.ends[1]}</span>
+        </span>
+    );
+}
+
+/**
+ * A list of groups as one row of chits -- all up to 6, else the first 5 and "+N", the lumped
+ * Other's gray chit last -- or, with no colors, the first values in words and "+N".
+ * @param list - the groups.
+ * @returns the summary.
+ */
+function groupSummary(list: LineList): React.ReactNode {
+    const { shown, more } = shownOf(list);
+    const plus = more > 0 ? `+${String(more)}` : null;
+    if (!list.entries.some((e) => e.color !== undefined)) {
+        const words = shown.map((e) => e.words).join(", ");
+        return plus === null ? words : `${words} ${plus}`;
+    }
+    return (
+        <span className="ws-varied-chits">
+            {[...shown, ...(list.other === undefined ? [] : [list.other])].map((entry, at) => (
+                // Two layers may share a name: the place in the list keeps each its own.
+                <Tooltip key={`${String(at)}:${entry.name}`} label={entry.name}>
+                    <span
+                        className="ws-varied-chit"
+                        data-name={entry.name}
+                        data-other={entry === list.other ? "" : undefined}
+                        style={{ background: entry.color ?? "var(--mantine-color-gray-5)" }}
+                    />
+                </Tooltip>
+            ))}
+            {plus === null ? null : (
+                <Text span size="xs" c="var(--cm-text-secondary)" data-more>
+                    {plus}
+                </Text>
+            )}
+        </span>
     );
 }
 

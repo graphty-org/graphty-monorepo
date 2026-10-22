@@ -120,6 +120,3 @@ patience.
 5. UNDP Jordan, "Kumu: A Powerful Tool for Mapping and Visualizing Complex Data", https://www.undp.org/jordan/blog/kumu-powerful-tool-mapping-and-visualizing-complex-data-0 (search summary only)
 6. The Bricks, "How to Make a Network Diagram in Excel", https://www.thebricks.com/resources/how-to-make-a-network-diagram-in-excel (search summary only)
 7. Flourish help center, "Network graph: an overview", https://helpcenter.flourish.studio/hc/en-us/articles/8761553784719-Network-graph-an-overview (search summary only: a "Links" sheet of two columns, an optional "Points" sheet; Excel or CSV upload)
-</content>
-
-</invoke>

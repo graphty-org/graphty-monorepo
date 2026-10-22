@@ -377,75 +377,146 @@ export async function writeLine(
         Object.entries(also ?? {}).filter(([c]) => own?.set?.[c as Channel] === undefined),
     );
     const set = literal === undefined && Object.keys(extra).length === 0 ? undefined : { ...extra, ...literal };
-    let encode: Partial<Record<Channel, Binding>> | undefined;
-    if ("binding" in write) {
-        encode = { [channel]: write.binding };
-    } else if ("template" in write) {
-        encode = { [channel]: { template: write.template } };
-    } else if (combined) {
-        encode = { [channel]: { value: write.value, combine: write.combine } };
-    }
+    const encode = encodeOf(write, channel, combined);
     // On the Everything row, the other layers that write this channel, so the new line is its only one.
-    const others = everything
-        ? layers.filter(
-              (layer) =>
-                  !layer.locked &&
-                  layer !== own &&
-                  (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
-          )
-        : [];
+    const others = everything ? othersWriting(layers, own, channel) : [];
     if (own === undefined && fresh === undefined) {
         throw new Error(`The row has no ${target} layer to write ${channel} to`);
     }
     // Where a new layer goes when it lands above a row: just above it, among that row's siblings.
     const place = own === undefined && fresh?.above !== undefined ? placeAbove(session, fresh.above) : undefined;
-    // Taken off after the write, so a layer added above one of them has it to stand on.
-    const strip = async (styles: GraphSession["styles"]): Promise<void> => {
-        for (const layer of others) {
-            const rest = { set: without(layer.set, channel), encode: without(layer.encode, channel) };
-            if (rest.set === undefined && rest.encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
-                await styles.remove(layer.id);
-            } else {
-                await styles.update(layer.id, rest);
-            }
-        }
-    };
-    const apply = async (styles: GraphSession["styles"]): Promise<LayerId> => {
-        if (own === undefined && fresh !== undefined) {
-            const base = layers.at(-1) ?? topmostRow(session);
-            const spec = {
-                name: fresh.name,
-                selector: home ?? fresh.selector,
-                ...(set === undefined ? {} : { set }),
-                ...(encode === undefined ? {} : { encode }),
-                ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
-            };
-            const at = base === undefined ? undefined : { above: base.id };
-            const added = fresh.both
-                ? await styles.addRow({ ...spec, target: "both" }, at)
-                : await styles.add({ ...spec, target }, at);
-            if (place !== undefined) {
-                await styles.moveRow("row" in added ? (added.row ?? added.id) : added.id, place);
-            }
-            await strip(styles);
-            return added.id;
-        }
-        if (own === undefined) {
-            throw new Error(`The row has no ${target} layer to write ${channel} to`);
-        }
-        await styles.update(own.id, {
-            set: set === undefined ? without(own.set, channel) : { ...without(own.set, channel), ...set },
-            encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
-        });
-        await strip(styles);
-        return own.id;
-    };
+    const plan: LinePlan = { session, layers, target, channel, fresh, home, own, set, encode, others, place };
     if (place !== undefined) {
-        return session.transaction(`adding ${fresh?.name ?? "a layer"}`, async (tx) => apply(tx.styles));
+        return session.transaction(`adding ${fresh?.name ?? "a layer"}`, async (tx) => applyLine(tx.styles, plan));
     }
     return others.length === 0
-        ? apply(session.styles)
-        : session.transaction(`changing ${channelPhrase(channel)}`, async (tx) => apply(tx.styles));
+        ? applyLine(session.styles, plan)
+        : session.transaction(`changing ${channelPhrase(channel)}`, async (tx) => applyLine(tx.styles, plan));
+}
+
+/**
+ * The binding a line writes: a data binding, a text template, or a literal that combines with what
+ * lies beneath.
+ * @param write - the line's write.
+ * @param channel - the channel.
+ * @param combined - whether the literal combines with what lies beneath.
+ * @returns the encode, or undefined for a plain literal.
+ */
+function encodeOf(
+    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
+    channel: Channel,
+    combined: boolean,
+): Partial<Record<Channel, Binding>> | undefined {
+    if ("binding" in write) {
+        return { [channel]: write.binding };
+    }
+    if ("template" in write) {
+        return { [channel]: { template: write.template } };
+    }
+    return combined ? { [channel]: { value: write.value, combine: write.combine } } : undefined;
+}
+
+/**
+ * The row's other layers the reader may edit that write a channel.
+ * @param layers - the row's layers.
+ * @param own - the layer written to.
+ * @param channel - the channel.
+ * @returns the layers.
+ */
+function othersWriting(layers: readonly Layer[], own: Layer | undefined, channel: Channel): Layer[] {
+    return layers.filter(
+        (layer) =>
+            !layer.locked &&
+            layer !== own &&
+            (layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined),
+    );
+}
+
+/** What writeLine writes, and where. */
+interface LinePlan {
+    readonly session: GraphSession;
+    readonly layers: readonly Layer[];
+    readonly target: Target;
+    readonly channel: Channel;
+    readonly fresh: NewLayer | undefined;
+    /** The selector a new line's layer takes on the Everything row. */
+    readonly home: Layer["selector"] | undefined;
+    /** The layer written to, when the row has one. */
+    readonly own: Layer | undefined;
+    readonly set: Partial<Record<Channel, ChannelValue>> | undefined;
+    readonly encode: Partial<Record<Channel, Binding>> | undefined;
+    /** The other layers the channel is taken off. */
+    readonly others: readonly Layer[];
+    /** Where a new layer goes when it lands above a row. */
+    readonly place: { parent: string | null; index: number } | undefined;
+}
+
+/**
+ * Takes the channel off the plan's other layers, after the write, so a layer added above one of
+ * them has it to stand on.
+ * @param styles - the styles to write through.
+ * @param plan - the write.
+ */
+async function stripOthers(styles: GraphSession["styles"], plan: LinePlan): Promise<void> {
+    const { others, channel } = plan;
+    for (const layer of others) {
+        const rest = { set: without(layer.set, channel), encode: without(layer.encode, channel) };
+        if (rest.set === undefined && rest.encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
+            await styles.remove(layer.id);
+        } else {
+            await styles.update(layer.id, rest);
+        }
+    }
+}
+
+/**
+ * Writes the plan: into the row's layer, or a new layer when it has none.
+ * @param styles - the styles to write through.
+ * @param plan - the write.
+ * @returns the id of the layer written to.
+ */
+async function applyLine(styles: GraphSession["styles"], plan: LinePlan): Promise<LayerId> {
+    const { own, fresh, set, encode, channel } = plan;
+    if (own === undefined && fresh !== undefined) {
+        return addLine(styles, plan, fresh);
+    }
+    if (own === undefined) {
+        throw new Error(`The row has no ${plan.target} layer to write ${channel} to`);
+    }
+    await styles.update(own.id, {
+        set: set === undefined ? without(own.set, channel) : { ...without(own.set, channel), ...set },
+        encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
+    });
+    await stripOthers(styles, plan);
+    return own.id;
+}
+
+/**
+ * Writes the plan on the new layer the row's first edit adds, just above the row's topmost.
+ * @param styles - the styles to write through.
+ * @param plan - the write.
+ * @param fresh - the new layer.
+ * @returns the new layer's id.
+ */
+async function addLine(styles: GraphSession["styles"], plan: LinePlan, fresh: NewLayer): Promise<LayerId> {
+    const { session, layers, home, set, encode, target, place } = plan;
+    const base = layers.at(-1) ?? topmostRow(session);
+    const spec = {
+        name: fresh.name,
+        selector: home ?? fresh.selector,
+        ...(set === undefined ? {} : { set }),
+        ...(encode === undefined ? {} : { encode }),
+        ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
+    };
+    const at = base === undefined ? undefined : { above: base.id };
+    const added = fresh.both
+        ? await styles.addRow({ ...spec, target: "both" }, at)
+        : await styles.add({ ...spec, target }, at);
+    if (place !== undefined) {
+        await styles.moveRow("row" in added ? (added.row ?? added.id) : added.id, place);
+    }
+    await stripOthers(styles, plan);
+    return added.id;
 }
 
 /**

@@ -181,17 +181,25 @@ describe("the Graph place on the real element", () => {
             "node.labelSize": 72,
         });
         await element.waitForStableFrame();
-        // A point on Officer's name: above the sphere's drawn disc, where the name sits, the
-        // first one that answers Officer. Off the disc, only the name can.
+        // A point on Officer's name: off the sphere's drawn disc -- above, beside or below it,
+        // wherever the name is placed -- the first one that answers Officer. Off the disc, only
+        // the name can.
         const nameAt = (): { x: number; y: number } | undefined => {
             const at = element.nodeScreenPosition(2);
             if (at?.visible !== true) {
                 return undefined;
             }
-            for (let up = Math.ceil(at.radius) + 2; up < at.radius + 120; up++) {
-                const point = { x: at.x, y: at.y - up };
-                if (element.elementAt(point)?.id === 2) {
-                    return point;
+            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off++) {
+                for (const [dx, dy] of [
+                    [0, -1],
+                    [1, 0],
+                    [0, 1],
+                    [-1, 0],
+                ]) {
+                    const point = { x: at.x + dx * off, y: at.y + dy * off };
+                    if (element.elementAt(point)?.id === 2) {
+                        return point;
+                    }
                 }
             }
             return undefined;

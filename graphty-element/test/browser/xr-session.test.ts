@@ -273,8 +273,24 @@ describe("VR with hand tracking on and emulated hands", () => {
  * @param created - an element already created and not yet attached, or none to create one
  * @returns the element's graph
  */
-async function mountDefaultGraph(created?: HTMLElementTagNameMap["graphty-element"]): Promise<Graph> {
+/** XR switched on, as a page that offers VR and AR from its own controls asks for it. */
+const XR_ON = { enabled: true, ui: { enabled: false } };
+
+/**
+ * Mount the element with the small graph, XR switched on unless the element was given an XR
+ * configuration of its own (or `xr` is null, which leaves the element's defaults).
+ * @param created - an element already made, to mount instead of a new one
+ * @param xr - the XR configuration to set, or null for none
+ * @returns the element's graph
+ */
+async function mountDefaultGraph(
+    created?: HTMLElementTagNameMap["graphty-element"],
+    xr: typeof XR_ON | null = XR_ON,
+): Promise<Graph> {
     element = created ?? document.createElement("graphty-element");
+    if (xr !== null && element.xr === undefined) {
+        element.xr = xr;
+    }
     element.style.width = "400px";
     element.style.height = "300px";
     element.style.display = "block";
@@ -317,6 +333,7 @@ describe("session.capabilities.xr", () => {
         };
 
         element = document.createElement("graphty-element");
+        element.xr = XR_ON;
         const seen: (typeof element.session.capabilities)[] = [];
         element.session.on("capabilities:changed", ({ capabilities }) => {
             seen.push(capabilities);
@@ -382,21 +399,29 @@ describe("session.capabilities.xr", () => {
         assert.deepEqual(element.session.capabilities.xr.reasons, { vr: "unsupported", ar: "unsupported" });
     });
 
+    test("is off unless the page turns it on: both modes read disabled and nothing is drawn", async () => {
+        const graph = await mountDefaultGraph(undefined, null);
+
+        assert.deepEqual(element.session.capabilities.xr.reasons, { vr: "disabled", ar: "disabled" });
+        assert.notExists(graph.getXRSessionManager(), "XR is off by default");
+        assert.isNull(xrControl("[data-xr-mode]"), "the canvas has an XR button with XR off");
+    });
+
     test("allocates nothing for XR and draws no buttons until a session is entered", async () => {
         const graph = await mountDefaultGraph();
         await vi.waitFor(() => {
             assert.isTrue(element.session.capabilities.xr.vr);
         }, WAIT);
 
-        assert.exists(graph.getXRSessionManager(), "XR is on by default");
+        assert.exists(graph.getXRSessionManager(), "XR was turned on");
         assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "a WebXR helper was built");
         assert.notExists(graph.scene.metadata?.xrHelper, "the scene holds a WebXR helper");
         assert.isFalse(
             graph.scene.cameras.some((camera) => camera.getClassName() === "WebXRCamera"),
             "the scene holds an XR camera",
         );
-        assert.isNull(xrControl("[data-xr-mode]"), "the canvas has an XR button by default");
-        assert.isNull(xrControl(".xr-button-overlay"), "the canvas has an XR overlay by default");
+        assert.isNull(xrControl("[data-xr-mode]"), "the canvas has an XR button with its buttons turned off");
+        assert.isNull(xrControl(".xr-button-overlay"), "the canvas has an XR overlay with its buttons turned off");
     });
 
     test("view.immersive from 2D switches to 3D in the same step, and one undo returns to 2D", async () => {

@@ -223,6 +223,21 @@ describe("Workspace autosave with the real graphty-element", () => {
     beforeEach(forgetAutosave);
     afterEach(forgetAutosave);
 
+    // First in the file: the element reports the at-risk fact once per page load.
+    it("says nothing about a private window when a fresh session opens the start screen and a sample", async () => {
+        const { store, view } = mountWorkspace();
+        const { element } = await openSample(FLORENTINE);
+        await waitFor(
+            () => {
+                assert.strictEqual(element.autosaver.status.state, "saved");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.notMatch(store.get().notice?.message ?? "", /private window|may clear/);
+        assert.notMatch(document.body.textContent, /private window|may clear/);
+        view.unmount();
+    });
+
     it("reopens this tab's work after a reload, at the place and layer the reader left", async () => {
         const first = mountWorkspace();
         const { element, session } = await openSample(LES_MIS);

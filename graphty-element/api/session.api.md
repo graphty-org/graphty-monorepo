@@ -1136,13 +1136,16 @@ export interface FindHitBase {
     };
     readonly match: {
         readonly path: Path;
-        readonly value: string | number | boolean;
+        readonly value: FindMatchValue;
     };
     readonly target: SelectionTarget;
 }
 
 // @public
 export type FindKind = "node" | "edge";
+
+// @public
+export type FindMatchValue = string | number | boolean;
 
 // @public
 export interface FindNamedRow {
@@ -1200,7 +1203,7 @@ export interface FindValueRow {
         kind: "text";
     }>;
     readonly target: SelectionTarget;
-    readonly value: string | number | boolean;
+    readonly value: FindMatchValue;
 }
 
 // @public
@@ -1543,6 +1546,14 @@ export type GraphtyErrorCode =
 * corrects the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A graphty project or document file (one `session.project.save` writes) was handed to a data
+* import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+* opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+* that opens it. Nothing in the session changed. The caller opens the file with
+* `session.project.open`, which reads data files too.
+*/
+| "E_PROJECT_FILE_AS_DATA"
 /**
 * An edge table declares no endpoint columns and contains none of the accepted pairs
 * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does

@@ -10,15 +10,16 @@
     },
     "tier3": {
         "about": "Bar 9 for tier 3: the app's words at rest on tier 3's screens, counted by bars.mjs --tier 3 --record-limits; a later build's count may not rise above these",
-        "build": "31e8c23878b6 graphty@0.8.68",
-        "measured": "2026-10-17",
+        "build": "758b8e8081dc graphty@0.8.91",
+        "measured": "2026-10-21",
         "words": {
             "a sample just opened": 50,
             "Everything, Node tab": 47,
             "a layer with a condition, at rest": 39,
-            "a folder of groups": 72,
-            "two layers picked together": 71,
-            "a layer with four conditions, at rest": 42
+            "a folder of groups": 56,
+            "two layers picked together": 69,
+            "a layer with four conditions, at rest": 42,
+            "a run's folder, its picker open, a card added to every layer": 99
         }
     }
 }

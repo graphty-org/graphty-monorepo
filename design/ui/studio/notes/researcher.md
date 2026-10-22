@@ -6,43 +6,42 @@ every insight and every fix. The job is to make sure a finding is about the desi
 of the study, the prototype or the task wording.
 
 Read "Top of mind" first at the start of every session. Update the dated sections as decisions are
-made and evidence comes in. Summarized 2026-10-17 (older entries folded; full text in git history).
+made and evidence comes in. Summarized 2026-10-21 (older entries folded; full text in git history).
 
 ## Top of mind
 
-- (2026-10-20) Round 1 is frozen on 7d87760756 (holds golden); the key now reads that build from
-  all 30 halves' pilot walks. T50 is BLOCKED there: both project files open without their style
-  part ("1 part did not come back"), a regression from e3c5bca8e6; T50 sessions are
-  build-decided until it is fixed (preflight 4 blocked task).
-- (2026-10-20) The start page's demo is the first graph the tool records: styles-start.json,
-  `changes` and the first `graph: true` steps line are the demo. Grade layers from styles.json
-  itself; T49's start is the first steps line after the sample opens. real.mjs also prints "the
-  app never drew its window" at every start -- a tool bug, owed before sessions.
-- (2026-10-20) The start page hands out answers: its demo is Les Miserables ("Valjean is the
-  biggest", six community colors with one red). T37 A and T46 A participants see it first.
-- (2026-10-20) T46/T47 "keeps its own color" echoes the token's spoken name "Each layer's own
-  value, N layers" (ValuePicker.tsx) and the folder's "Louvain: each layer's own value"
-  (WhichPicker.tsx). wording.mjs cannot see it: "own" and "each" are in COMMON. Primes question 3.
-- (2026-10-20) Tools behind the criteria lag: wording.mjs reads no spoken.json and joins no
-  irregular forms; WALKS3 lacks Memberships, a node's Style tab, the shape list, the key-on
-  sample and the Starts-with typing check; gateCheck still keys by walk folder name. Preflight 3's
-  self-tests pass without any of it.
-- (2026-10-20) One round only: bar 1's "cannot pass while a task is unjudged" (T37, T42, T44)
-  and the stall rule make "passed" and "stalled" unreachable; round 1 needs its own verdict.
-- (2026-10-18) No prompt echoes a fix's words ("Not set yet", "Undid ...", "the color before this
-  edit"); the at-rest walk does not see notices -- spoken.json now carries them.
-- (2026-10-17) Round 1 is 13 tasks: T37, T42, T44 out; core T39, T40, T47, T48. score.mjs: under
-  4 sessions a task does not hold bar 1; T47 holds only when half its successes carry `Route:`
-  folder/several; bar 4 stops at every node in ONE new color.
-- (2026-10-17) Tier 3 is FIRST USE + STYLING: 56 sessions, 9 first-time personas, every start
-  `empty` (Sam `empty --keys`).
-- (2026-10-17) Study data traps: football names have no spaces; Les Mis nodes have only id and
-  name; brief every planned row and read one briefing per persona before calling a first move
-  unprompted.
-- (2026-10-13) "Unset" vs "cover" is the core risk of the layer model: tasks need each in reader
-  words. Do not let a Figma-fluent persona stand in for the population.
-- Expert counts are not user evidence; severities are walkthrough judgments. Rerun on the frozen
-  build, not the dev server, before reporting "fixed".
+- (2026-10-21) Tier 3 closed after round 1 at the 1-round safety cap without meeting the bars.
+  Bar 5 fails only on the two backlog 3s (node Fill "+" one-node layer; folder chain icon, 0
+  sessions reached it); bar 1 fails only on T49 B's "gold" F. Neither is new evidence about the
+  reader: before another round, fix the measures, not the sessions.
+- (2026-10-21) A round at its ceiling (55 of 56 succeeded) cannot meet "no severity 3" bars on
+  backlog items it never reaches. Next tier: tasks that route through every open severity 3, or
+  bars that count only what the round can observe.
+- (2026-10-21) Top design insights, all severity 2: Graph inspector looked at first for node color
+  (9 sessions, 5 halves); new style lines start at the current value so adding one looks broken;
+  layer membership checked by eye; keyboard focus lost twice; one color table decides grades and
+  spoken names.
+- (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
+  2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
+- (2026-10-21) Asked-color rule: `colorWord` returns CSS keyword "gold" for FFD700 before the hue
+  band. Decide between tiers whether a keyword inside the asked hue's band passes; never regrade.
+- (2026-10-21) `score.mjs` bar 4 takes the start page's demo as the start (printed 3, true median
+  6). Start = first steps line after the graph opens. Owed to the tool.
+- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
+  by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
+- (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
+  turn: 11 of 56 starts VOID. Starts run before the participant's turn.
+- (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
+  Repro gesture defects with real-sized events before they count.
+- (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
+  it jargon. Question 3 needs a measure that separates the two.
+- (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
+  participant is one model. Read tasks and key for leading before spending sessions.
+- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only those criteria
+  preflight 4 names.
+- (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
+  the screen and names the contradiction; never rewrite the key toward decided.md.
+- Expert counts are not user evidence; an expert-only severity 3 needs a repro under `repro/`.
 - (tier 2 lessons) Step counts must match the key's counting; histories, setups, prompt words and
   the tool's own text all steer behavior -- grep all four before "unprompted".
 
@@ -80,181 +79,94 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
-- **2026-10-20 (pilots on 7d87760756 into the key):** Patched answers.md task by task from 30
-  pilot outputs (no report.md rewritten). File tasks lose a step ("Open a file" + Load replaces
-  "No thanks" + "Open project or file" + Load); sample tasks keep their counts (Samples + card).
-  Recounted every pilot's step claim myself: pilots counted the off-screen "No thanks" (T39 A, T40
-  A, T47 A, T49 A said one more) or miscounted (T38 B said 11 for a 12-item list). Where the
-  screen contradicts decided.md (F6, Which nodes, selection-held re-framing, Tab in a typed list,
-  silent Escapes), the key counts the screen and names the contradiction; the defects go to
-  preflight 4 triage, not into grades. T49's rule fixed to read the start after the sample opens,
-  because the rule as written grades every correct undo F against the demo. T37's demo reading
-  left ungraded (T37 not in round 1) rather than inventing a rule. Kept the e3c5bca8e6 T50 path
-  for the fixed build instead of deleting it. No prompt was wrong; tasks.md's facilitator detours
-  and two kept-word reasons now name this build's controls.
+- **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
+  one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
+  left the node's Style tab without a change, and r1-s35 rated the one-node layer 2, so only r1-s53
+  rated it 3 (skeptic 1 was right). Checked the wheel mechanism in `OrbitInputController` (one
+  event clamped to one notch, 0.75% per notch) before writing it: weakened, not dropped, since a
+  notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
+  bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
 
-- **2026-10-20 (fifth read of the criteria, build 3ef9e6c1ec named; HEAD holds golden):**
-  Proposed, not applied (the Director freezes): (1) refreeze on the golden build and re-walk
-  before anything else, because no walk exists on the named build and the named build lacks the
-  behaviors decided.md now binds; (2) a round 1 verdict, since one round cannot reach "passed" or
-  "stalled"; (3) T46/T47 reworded to "leave the colors of the other circles as they are" /
-  "without changing the color of any circle", and the wording check matches 2+-word phrases incl.
-  common words against spoken.json; (4) preflight 3 names the planted cases each self-test must
-  hold (irregular echo, spoken echo, phrase echo, half-keyed gate, missing walk, non-equivalent
-  build, the five screens, Starts-with typing); (5) T50 B settled as S with a `Read from:` line,
-  because both readings pick the same 6 on this file; (6) the expert walk and audit say which bar
-  each part feeds, the key-and-drawing check runs after sessions, and an expert's leading-word
-  finding marks its task primed (preflight 7); (7) a core half that holds only through Alex or
-  Maren does not hold, and bar 1 is also reported without Sam; (8) a design (not build) problem
-  is confirmed by two sessions on two different task halves, not two on one prompt. Did not
-  re-propose the schema twins.
+- **2026-10-21 (round 1 scoring):** Scored bars 1 to 4 by hand where `score.mjs` was wrong and
+  said so in `scores.md` rather than editing the tool or a grader's file mid-scoring: the tool and
+  the grades are other roles' files, and a silent fix would hide the defects from them. Kept T49
+  B's F under the frozen asked-color rule (criteria change only between rounds) and gave the count
+  without it beside. Counted bar 5 as failing on the two backlog items rated 3 before the round,
+  and listed ten new severity 3 candidates for the skeptics instead of counting them, because the
+  graders and the experts rated several of them differently (2 vs 3) and an expert-only finding
+  needs a repro. Confirmed design problems only on two task halves, per the criteria, so the T47
+  B-only key scroll stays "seen on one half". Ran the key-and-drawing check myself as a script
+  (0 disagreements) because no one had and it feeds bar 5. Kept score.json (the tool's record)
+  and explained its two wrong numbers in scores.md.
 
-- **2026-10-19 (pilots on e3c5bca8e6 into the key):** Patched answers.md bullet by bullet from 30
-  pilot outputs (most report.md files never written). Rewrote the shared "every path meets" block
-  where the build changed (Which nodes expand click, Enter focus, unset line, re-framing, find box,
-  Undo). Kept every target. Wrote T50 B's "hours 30 to 52 and trained", read from the card, as S
-  because it is the stored rule and 52 is the file's maximum; left the selection-summary reading
-  ("31 to 52") to the Director because it is not the layer's rule. Moved T48's filtered run and
-  T49's removed line to the settled rules already at the top of the key, instead of leaving stale
-  "for the Director" text. Did not count pilot step numbers that split "type, Enter" into two
-  (T42 B said 12; the key's counting gives 11).
+- **2026-10-21 (round 1 plan, recheck):** Kept the committed plan; re-checked the allocation and
+  T49's follow-up against tasks.md and roster.md after the prompts were reworded. Rewriting would
+  drop the gate evidence.
+- **2026-10-21 (round 1 plan):** Generated from roster.md's table with an asserting script (56
+  rows, halves equal names, no persona on both halves); core tasks first, A/B alternating; fixed
+  `real.mjs --brief`'s build regex rather than criteria's first line.
+- **2026-10-20 to 10-21 (pilots into the key, folded):** Kept every step count and bar where the
+  walked path matched; wrote older-build facts as "(on <build> ...)" instead of deleting; a grading
+  rule for a build defect leaves with the defect; the key counts the screen where decided.md
+  contradicts it; no prompt was wrong on any build.
+- **2026-10-17 to 10-20 (criteria reviews, folded):** Proposed, never applied (the Director
+  freezes): refreeze on golden, a round 1 verdict, phrase-level echo checks, named planted cases
+  per self-test, T50 B's summary reading as S with `Read from:`, a core half needs newcomers, a
+  design problem confirmed only across halves. Bar 4 judged on T39 only; T49 graded by the drawing.
+- **2026-10-10 to 10-11 (tier 2, folded):** Two skeptic drops = dropped, one = weakened unless
+  answered with evidence; disputed claims settled at their source; VOIDs re-run as `<id>b`; change
+  the prompt, not the key, when a prompt leads.
+- **2026-10-02 to 10-09 (tier 1, folded):** Real app only; criteria frozen before a round; every
+  task walked first; task words never echo the screen; personas validate, never generate features.
 
-- **2026-10-19 (fourth read of the criteria, build 1fa51e2b0b):** Proposed, not applied (the
-  Director freezes): (1) a method whose two frozen-build runs differ is graded against the
-  participant's own run (target count read from their `styles.json`), not a fixed number --
-  answers.md has Louvain values only; (2) bar 2's text carves out T49's tree-only difference, as
-  answers.md already does, so a grader reading the criteria alone cannot score a false done; (3)
-  bar 6's typing-lands check adds "after picking a match kind in a text card" (T40 B pass-5
-  evidence); (4) a docs-only commit does not refreeze: the first line names the app commit, and a
-  walk counts on any build whose graphty, graphty-element, compact-mantine and lockfile diff is
-  empty, recorded in the gate evidence; (5) the dry run walks round-1 halves only, core first;
-  (6) the walk records notices, live-region text and accessible names into a second vocabulary
-  that wording.mjs and the experts read -- closes the "at rest only" hole, and bar 5 lists it;
-  (7) "draw" in T43, T47, T50, T51 listed as kept with its reason, or T50 reworded ("made them
-  orange"), since the unset line's spoken name says "drawn"; (8) question 2 reports each card
-  type with its domain count, and a type seen on one domain only is labeled so (number on ties:
-  Les Mis only; category on ties: neighbors only). Did not re-propose the schema twins.
-
-- **2026-10-18 (third read of the criteria, build 52cb47a85a):** Proposed, not applied: the
-  criteria are frozen and the Director's. Chose to grade T49 by the drawing because the prompt's
-  goal is the drawing and the screen cannot show set vs unset; the tree difference stays a
-  recorded finding about the layer model, not a participant's error. Chose neighbors.csv's tie
-  kinds for T51 B because every other brought file with a category is a node table with the
-  volunteers/sources schema or has no ties; it also puts coloring by category on the Edge tab.
-  Chose Ruth for it (on neither T45 nor T51) and Grace to Ruth's T49 B (not on T49 A).
-- **2026-10-17 to 10-18 (pilots on ed4351b258, 5bd16cda6e, 6dd0b00bd7 into the key, folded):**
-  Rewrote or patched answers.md per frozen build from the pilot reports; kept every success target;
-  graded new routes by existing rules ("a route as short" is S; selection routes that end right are
-  SD; T49 graded by the drawing once settled); counted one click per step for key and participant;
-  judged T44 on the style tree; accepted T48's whole-file chip count; changed only tasks.md's
-  detour lines, never a prompt, when the key was wrong; left route-redefining cases (T46 other
-  methods, T48 B filtered run) to the Director until settled.
-- **2026-10-17 (second read of the tier 3 criteria):** Proposed, not applied, because the
-  criteria belong to the Director to freeze and other roles review in parallel. Chose Maren <-> Ruth
-  for the bar 4 swap because it keeps every persona's count and no persona on both halves (Ruth is
-  on neither T39 half; Maren on neither T43 half). Recommended cubes on both T47 halves over size:
-  shape is read exactly from `styles.json`, T43 already tests "bigger", and the starting size is
-  never on screen.
-- **2026-10-17 (review of the tier 3 materials):** Applied the Director's call where reviewers
-  differed: T37's slots to T48; T50 keeps its project file, question 5 reported per half. T51 took
-  T42's slots; T42 runs at 4 in round 2. T41 A says "finished the training" (the column is
-  `trained`); T48 says "the way they did", not "goes back". T48's counts are not in "Facts no
-  briefing may hold": a bare number matches unrelated persona text.
-- **2026-10-17 (first-use styling study):** Bar 4 judged on T39 only, in steps from 01.png (key 6,
-  limit 12). Tasks under 4 sessions reported, not judged. No setups: brought files by the
-  participant's own --upload; colleague projects are saved files made by a scripted walk. Sam kept
-  with a tool mode that refuses pointer steps.
-- **2026-10-14 (round 6 watch items):** does the layer icon say where a layer came from; does an
-  empty Layer 1 read as broken; are per-group settings found from the group list; is "+" > Analyze
-  found before the toolbar.
-- **2026-10-10 to 10-11 (tier 2, folded):** Verdict rule: two skeptic drops = dropped, one =
-  weakened unless answered with evidence; every disputed claim settled at its source (roster,
-  key's step line, grade file, screenshot, code at the build commit). Voided runs re-run as `<id>b`.
-  Change the prompt, not the key, when a prompt leads; remove a key route the app cannot finish.
-  Histories say what was done, never where (T17). Fixes one per problem in the owning package.
-- **2026-10-02 to 10-09 (tier 1, folded):** Real app only (owner 2026-10-03); criteria frozen
-  before a round; every task walked first; task words never echo the screen; keys get a build
-  section plus scoped edits per build; personas validate, never generate features.
+- (2026-10-21) Decision: stop tier 3 at round 1 rather than spend sessions on a ceiling. Reason:
+  the remaining bar failures come from the grading rule (gold) and from backlog items no task
+  reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
 
-- 2026-10-20 (7d87760756 pilots into the key) -- Worked: one python helper that asserts each old
-  string occurs once before replacing (caught a T40 success line shared with T47 and a misquoted
-  T48 line before anything was written); grepping the key for "No thanks", "Open project or
-  file", "jumps", "shrinks" and the old build id after the edits; previewing prettier and
-  reflowing lines that begin with ">", "7." or "15)" (prettier turned one into a blockquote in the
-  old change log). Did not work: copying the file into tmp/ to preview prettier (ignored path, no
-  output); trusting pilot step totals.
+- (2026-10-21) Worked: two independent skeptics per insight -- every single-half 3 came down to 2,
+  two build defects were restated or weakened to tool artifacts. Did not work: bars that require
+  "no open severity 3" while no task reaches the backlog 3s; a frozen color rule using CSS keywords.
 
-- 2026-10-20 (fifth read) -- Worked: `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec` to test
-  the change log's "the build now includes golden" (it does not); counting buildStamps per pilot
-  half (zero on the named build); reading wording.mjs's COMMON list, which showed why a phrase
-  echo ("its own") is invisible; grepping app strings for prompt phrases (`git grep` at the build
-  commit, quoted strings only); computing T50 B's two readings from the GraphML. Did not work:
-  grepping app source for prompt words without restricting to quoted strings (comments flood it).
+- 2026-10-21 (round 1 insights) -- Worked: grepping the three grades behind a disputed evidence
+  claim instead of picking a skeptic; grepping source for the mechanism a skeptic named; one
+  screenshot per owner insight, each viewed. Did not work: `scores.md` counting the same defect
+  in three lists (bar 5, build defects, design problems) -- count each once, at its highest list.
 
-- 2026-10-19 (e3c5bca8e6 pilots into the key) -- Worked: grepping the key for stale phrases
-  ("disabled Fill", "size and place", "Control+Y does", the old build id) after the edits, which
-  caught a missed T51 reference line. Did not work: trusting one pilot's keyboard claim when two
-  disagree (T45 B "one Enter opens the list" vs T40 A's two); the key now names whose walk.
+- 2026-10-21 (round 1 scoring) -- Worked: re-tallying every grade from plan.md plus each
+  grade.md's `^Grade:` line anywhere (caught r1-s06b, which `score.mjs` dropped); recomputing bar 4
+  from `styles-steps.jsonl` with the sample's own starting color as the baseline; a key-and-drawing
+  script over every last state (`keycheck.py`); naming palette colors with `colorWord` from
+  compact-mantine's dist after checking `color-utils.ts` is unchanged since the build; reading
+  styles.json selectors to report card types (`cards.py`); checking a "every B session typed a
+  word" claim against the transcripts before writing it (it was false: two typed hex). Did not
+  work: trusting `score.mjs`'s bar 4 median; grepping grades for measure lines (`First move`,
+  `Edges looked for`) -- graders rarely write them, so those measures come from problem lists or
+  transcripts; ugrep with long `{0,60}` ranges ("exceeds complexity limits").
 
-- 2026-10-19 (fourth read) -- Worked: `grep buildStamp` over every `session.json` per task half
-  to see which walks ran on the frozen build (folder names alone mix builds); `git log
-<old>..<new>` between frozen builds, which showed a refreeze with no app change; `grep -n` on
-  answers.md for each community method before trusting preflight 5. Did not work: assuming a
-  pilot that "began" finished -- the night's pass stopped mid-task with no report.
-
-- 2026-10-18 (third read) -- Worked: comparing the GraphML `<key>` lines of the brought files,
-  which showed the two "domains" share one schema; grepping the fix commits between the last two
-  builds for prompt phrases before calling a prompt clean of echoes; reading the dry-run
-  recurrence summary (tmp/tier3-dryrun-analysis) before judging the preflight's exit rule.
-- 2026-10-18 (6dd0b00bd7) -- Worked: a `bullet(section, label, new)` helper with an assert that
-  the label occurs once in that section; a non-ASCII assert on all three files. Did not work:
-  four keyboard pilots holding all four browser slots while a fifth pilot waited -- T46 A never
-  started and T37 A's keyboard start queued past its agent; launch keyboard walks staggered.
-- 2026-10-18 -- Worked: writing the new body to a named scratch subfolder and splicing it with
-  asserted line anchors (the old heading at its line, the log heading), then a non-ASCII count.
-  Did not work: pilots reporting from different folder layouts (`5bd16cda6e/` subfolder vs
-  `success/`, `detours-b/`); the key now points at both, and the gate may count only one (T44B
-  pilot's note).
-- 2026-10-17 (ed4351b258 pilots into the key) -- Worked: assembling the file from saved parts
-  (top, new body, old log) in my own scratch subfolder. Did not work: writing helper files at the
-  scratchpad's root -- other agents share it, and I overwrote two of their files (head.md,
-  log.md); always use a named subfolder.
-- 2026-10-17 (pilots into the key) -- Worked: reading styleContent in measure.mjs to confirm the
-  T49 hash claim (it strips id, row, counts, not revision); opening one pilot screenshot to read
-  T51 B's key colors (styles.json holds only the palette, not value-to-color). Did not work:
-  pilot agents writing report.md (the harness refuses report files from subagents; the caller
-  must save them).
-- 2026-10-17 (second read) -- Worked: running `wording.mjs` on the latest bars vocabulary and then
-  grepping the app's style source for each prompt's content words, which separates "no echo" from
-  "never walked". Worked: grepping score.mjs for ROUTE_TASKS to check a criteria claim ("T48's
-  equivalents") against what is scored -- it is T47 only.
-- 2026-10-17 (review applied) -- Worked: asserted (old, new) edit scripts per file, a roster
-  script asserting 56 and no persona on both halves, the wording check after every prompt edit,
-  a 4-step pilot to confirm a new field before scoring on it. Did not work: trusting the wording
-  tool's kept-line regex; a T47 fixture with 1 of 2 in a half.
-- 2026-10-17 -- Worked: writing the bars walk first and letting MISS lines name each wrong control
-  name; briefing all planned rows in a test. Did not work: chaining eval'd real.mjs steps in one
-  shell call; `--expect` on a placeholder.
-- 2026-10-11 (tier 2 rounds 4-5, folded) -- Worked: `git status`, `git log` and round listings
-  first after any stop; a short call dump of each flagged participant log to settle leak flags;
-  reading the workflow journal and the script the run executes rather than inferring from the
-  round folder; reading bars MISS lines; viewing every cited screenshot; a scratch copy of the
-  round folder to prove the gate. Did not work: trusting grade.md ease lines alone; candidate
-  insights written without grepping histories or the key's step counting; "Priming: none" lines
-  written from prompts alone.
-- 2026-10-07 to 10-10 (folded) -- Worked: asserted edit scripts matching the file's line breaks;
-  briefing every planned row in scratch before writing a plan; screenshot mtimes against
-  follow-ups; `session.json` build stamps before claiming a build was walked; a full pilot per
-  frozen build; long scripts in the background. Did not work: trusting preflight's "built";
-  reading prompt-made behavior as user need; a walk's FAIL taken as a defect without checking the
-  walk; committing while another agent was mid-merge (wait for MERGE_HEAD to clear).
-- 2026-09-28 to 10-07 (folded) -- Worked: one row per session with an assert; two skeptics reading
-  the tool's code; the 4-slot browser gate. Did not work: launching every agent at once; editing a
-  script while it runs; a harness that exits 0 printing nothing; mocks.
+- 2026-10-21 (round 1 plan) -- Worked: briefing all 56 rows and tallying each `^REAL_DIST=` line
+  (caught the wrong build); grepping briefings for the follow-up's words. Did not work: grepping
+  `--start` across briefings (README parts carry example lines).
+- 2026-10-17 to 10-21 (key edits, folded) -- Worked: one asserted edit script per pass with
+  `\s+`-joined old strings; prettier on the edited file (`--ignore-path /dev/null --check`);
+  checking a pilot's claim against session.log and one screenshot; grepping the key for stale
+  phrases and old build ids after edits; `git merge-base --is-ancestor` for change-log claims;
+  `grep buildStamp` over session.json per half. Did not work: trusting pilot step totals or "the
+  key already records" lines; copying files into tmp/ to preview prettier; `--no-ignore`.
+- 2026-09-28 to 10-11 (tiers 1 and 2, folded) -- Worked: `git status`, `git log` and round
+  listings after any stop; viewing every cited screenshot; one row per session with an assert; a
+  4-slot browser gate. Did not work: launching every agent at once; editing a script while it
+  runs; helper files at the scratchpad root; "Priming: none" lines written from prompts alone.
 
 ## Thinking
+
+- 2026-10-21 -- A tool that measures "change from the start" must know where the start is: the
+  start page's demo, the sample's defaults and the participant's first edit are three different
+  starts, and each tier-3 tool so far picked the wrong one once (T49's rule, then bar 4).
+- 2026-10-21 -- When every task passes, a bar that counts success says little; the bars that
+  still move are cost (steps over key), route share and confirmed problems. A design whose traps
+  never fire may be avoided rather than understood.
 
 - 2026-10-20 -- A word list cannot catch an echo made of common words: "keeps its own color"
   vs "each layer's own value" shares only stop-words. Echo checks need phrases, and the spoken

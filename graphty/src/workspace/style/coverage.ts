@@ -23,6 +23,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.shape": at("Nodes, Shape, Shape"),
     "node.opacity": at("Nodes, Visibility, Opacity"),
     "node.wireframe": at("Nodes, Rendering, Material (Wireframe)"),
+    "node.meshDetail": NOT_PLACED,
     "node.visible": at("Nodes, Visibility, Show"),
     "node.label": at("Nodes, Text, Label entry, source (a value, or Fixed text)"),
     "node.labelStyle": at("Nodes, Label entry look, position and Label settings"),

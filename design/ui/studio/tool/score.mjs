@@ -11,15 +11,15 @@
 //   bar 3: the median wrong turns of each task's valid sessions at most 2
 //   bar 4: time to the first styled graph on T39 (--task), whose sessions start with no graph open:
 //          the median steps from 01.png to the first screenshot where every node is drawn in one
-//          color that is not the start's (T39's success state), at most twice the answer key's steps
-//          (--key-steps, default 6); a session that never got there, or was not graded S or SD, counts
+//          color that is not the start's (T39's success state), at most BAR4_LIMIT (10, a fixed
+//          number in the criteria: twice the answer key's 5; only a criteria change moves it); a session that never got there, or was not graded S or SD, counts
 //          as never (Infinity). Keyboard-only sessions (start "empty --keys") count their steps in
 //          another unit, so they are left out and reported apart. Minutes between the two
 //          screenshots' own clocks are reported beside it, as a trend
 //          only: a simulated participant's thinking time is in them. The same median over every
 //          other task's empty-start sessions is reported, not judged
 //
-//   node score.mjs <round dir> [--key-steps N] [--task T39]   writes <round dir>/score.json
+//   node score.mjs <round dir> [--task T39]   writes <round dir>/score.json
 //   node score.mjs --self-test                     plants a failing and a passing round and checks both
 //
 // Reads <round dir>/plan.md (one row per session: | id | task | A or B: dataset | persona | `start` |),
@@ -103,7 +103,10 @@ export function firstStyled(dir, oneColor = false) {
     };
 }
 
-export function score(rd, keySteps = 6, firstTask = "T39") {
+// bar 4's limit, fixed by ../tier3/criteria.md; never derived from the answer key
+export const BAR4_LIMIT = 10;
+
+export function score(rd, firstTask = "T39") {
     const problems = [];
     const sessions = [];
     for (const row of planRows(rd)) {
@@ -192,9 +195,9 @@ export function score(rd, keySteps = 6, firstTask = "T39") {
     const f = firstStyledOf(own);
     bars.push({
         bar: 4,
-        what: `${firstTask}: steps to every node in one new color (${f.timed.length} of ${own.length} sessions got there; limit ${2 * keySteps})`,
+        what: `${firstTask}: steps to every node in one new color (${f.timed.length} of ${own.length} sessions got there; limit ${BAR4_LIMIT})`,
         value: `median ${f.steps}; minutes median ${f.minutes} (trend only)`,
-        holds: own.length > 0 && f.steps <= 2 * keySteps,
+        holds: own.length > 0 && f.steps <= BAR4_LIMIT,
     });
     // reported only: other tasks' first change of any look, over the sessions that made one
     const rest = firstStyledOf(
@@ -265,7 +268,7 @@ async function selfTest() {
         { id: "r1-s04", task: "T40", half: "B", grade: "S", turns: 3 },
         { id: "r1-s05", task: "T40", half: "B", grade: "S" },
     ];
-    const pass = score(await round("pass", good), 6, "T40");
+    const pass = score(await round("pass", good), "T40");
     assert.ok(pass.holds, `a passing round fails: ${JSON.stringify(pass, null, 1)}`);
     assert.equal(
         pass.bars.find((b) => b.bar === 4).value.startsWith("median 3"),
@@ -283,6 +286,11 @@ async function selfTest() {
         "a false done": [...good.slice(0, 4), { id: "r1-s05", task: "T40", half: "B", grade: "F", falseDone: true }],
         "wrong turns": good.map((s) => ({ ...s, turns: 4 })),
         "no session ever styled a graph": good.map((s) => ({ ...s, looks: [null, "a", "a"] })),
+        // 11 steps: over the fixed limit of 10, though under twice a key of 6
+        "eleven steps to the first styled graph": good.map((s) => ({
+            ...s,
+            looks: [null, ...Array(10).fill("a"), "b"],
+        })),
         "too many steps to the first styled graph": good.map((s) => ({
             ...s,
             looks: [null, ...Array(20).fill("a"), "b"],
@@ -358,7 +366,7 @@ async function selfTest() {
         ],
     };
     for (const [what, sessions] of Object.entries(planted)) {
-        const r = score(await round(what.replaceAll(" ", "-"), sessions), 6, "T40");
+        const r = score(await round(what.replaceAll(" ", "-"), sessions), "T40");
         assert.equal(r.holds, false, `planted "${what}" was not caught`);
         console.log(
             `caught: ${what} (${[...r.problems, ...r.bars.filter((b) => !b.holds).map((b) => b.what)].join("; ")})`,
@@ -371,7 +379,6 @@ async function selfTest() {
             { id: "r1-s05", task: "T40", half: "B", grade: "VOID" },
             { id: "r1-s05b", task: "T40", half: "B", grade: "S" },
         ]),
-        6,
         "T40",
     );
     assert.ok(rerun.holds && rerun.sessions.some((s) => s.id === "r1-s05b"), "a re-run does not replace its VOID");
@@ -389,7 +396,6 @@ async function selfTest() {
                 scripted: i === 5,
             })),
         ]),
-        6,
         "T40",
     );
     assert.ok(
@@ -411,9 +417,8 @@ const args = process.argv.slice(2);
 if (args[0] === "--self-test") await selfTest();
 else if (args[0]) {
     const rd = resolve(args[0]);
-    const ki = args.indexOf("--key-steps");
     const ti = args.indexOf("--task");
-    const r = score(rd, ki > 0 ? Number(args[ki + 1]) : 6, ti > 0 ? args[ti + 1] : "T39");
+    const r = score(rd, ti > 0 ? args[ti + 1] : "T39");
     await writeFile(join(rd, "score.json"), JSON.stringify(r, null, 1) + "\n");
     for (const p of r.problems) console.log(`PROBLEM: ${p}`);
     for (const b of r.bars) console.log(`${b.holds ? "holds" : "FAILS"}  bar ${b.bar}  ${b.what}: ${b.value}`);
@@ -433,6 +438,6 @@ else if (args[0]) {
     console.log(r.holds ? "every scripted bar holds" : "a scripted bar fails or was not measured");
     process.exitCode = r.holds ? 0 : 1;
 } else {
-    console.error("usage: score.mjs <round dir> [--key-steps N] | --self-test");
+    console.error("usage: score.mjs <round dir> [--task T39] | --self-test");
     process.exitCode = 2;
 }

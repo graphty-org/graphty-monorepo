@@ -636,17 +636,26 @@ export class UpdateManager implements Manager {
             }
         });
 
+        let changed = false;
         for (const edge of this.drawnSelectedEdges) {
-            if (!next.has(edge)) {
-                edge.setSelected(false);
+            if (!next.has(edge) && edge.setSelected(false)) {
+                changed = true;
             }
         }
 
         for (const edge of next) {
-            edge.setSelected(true);
+            if (edge.setSelected(true)) {
+                changed = true;
+            }
         }
 
         this.drawnSelectedEdges = next;
+
+        // Selecting redraws the edge marked, from a band batch of its own, and only the walk places
+        // that band: with nothing moving, the walk is skipped and the band was never drawn.
+        if (changed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**
@@ -1271,12 +1280,12 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
-     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     * Bring the meshes into line with the masks and the style paint that has arrived: what every
+     * frame does first, and what a layout that reads node sizes asks for before it reads them
+     * (`LayoutManager.drawArrivedPaint`), so it reads the sizes about to be drawn whether or not a
+     * frame has run since the paint arrived.
      */
-    private runUpdatePass(frameMs: number): void {
-        this.frameCount++;
-
+    drawArrivedPaint(): void {
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
         // filter has just hidden must not contribute to this frame's bounding box or be picked.
         this.syncViewMasks();
@@ -1288,6 +1297,16 @@ export class UpdateManager implements Manager {
         disposeLabelsTogether(() => {
             this.syncStyles();
         });
+    }
+
+    /**
+     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
+     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     */
+    private runUpdatePass(frameMs: number): void {
+        this.frameCount++;
+
+        this.drawArrivedPaint();
         // Nothing painted is left to apply: a frame drawn now shows every element's style.
         if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
             this.dataManager.notePaintDrawn();

@@ -17,7 +17,6 @@ import { page, userEvent } from "vitest/browser";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { INSPECTOR_TITLE_ID } from "../focus";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -141,7 +140,7 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         });
     });
 
-    it("Enter on a Why this look link puts focus on the inspector's title", async () => {
+    it("Enter on a Why this look link puts focus on the line it explains", async () => {
         const { session } = await openRings();
         const run = session.runs.start("louvain");
         await act(async () => {
@@ -157,8 +156,9 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         }
         link.focus();
         await userEvent.keyboard("{Enter}");
+        // The opened row's Style tab hands focus to the line of the property the link explained.
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
+            assert.isNotNull(document.activeElement?.closest("[data-line]") ?? null);
         });
     });
 
@@ -202,12 +202,13 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         assert.isAtMost(box?.right ?? Infinity, panel.right);
     });
 
-    it("Tab out of the Vary by list closes it and moves to the next control", async () => {
+    it("Tab out of the Vary by list closes it, hands focus back to its button, and the next Tab moves on", async () => {
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        await userEvent.click(await inspector().findByRole("button", { name: "Node size by attribute" }));
+        const vary = await inspector().findByRole("button", { name: "Node size by attribute" });
+        await userEvent.click(vary);
         const find = await screen.findByRole("combobox", { name: /^Find an? / });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, find);
@@ -216,6 +217,9 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: /^Find an? / }));
         });
+        // The list closes as a select's does, focus back on what opened it.
+        assert.strictEqual(document.activeElement, vary);
+        await userEvent.keyboard("{Tab}");
         assert.strictEqual(
             document.activeElement,
             inspector().getByRole("button", { name: "Remove node size" }),

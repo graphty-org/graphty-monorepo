@@ -56,7 +56,7 @@ import { connect } from "node:net";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AXE_TAGS, axeViolations, LAUNCH, serious, wordsOnScreen } from "./measure.mjs";
+import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, wordsOnScreen } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const self = fileURLToPath(import.meta.url);
@@ -356,8 +356,16 @@ function ask(dir, req) {
         c.write(JSON.stringify(req) + "\n");
     });
 }
-// the window sizes bar 10 counts at; bars 8 and 9 are measured at the first only
-const SIZES = TIER === "3" ? ["1440x900", "900x700"] : ["1440x900", "1280x800"];
+// the window sizes bar 10 counts at, and (tier 3) bar 6's axe, shared-name, focus and typing checks,
+// each proven at every size by its planted failure; bar 9's words are counted at the first only
+const SIZES = args.includes("--size")
+    ? [args[args.indexOf("--size") + 1]]
+    : TIER === "3"
+      ? ["1440x900", "900x700"]
+      : ["1440x900", "1280x800"];
+// --only <walk>[,<walk>] walks only those, --size <WxH> at one size only (a partial run, for writing
+// a walk: every screen it leaves out is a MISS line)
+const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1].split(",") : null;
 const real = (size, ...a) => {
     const r = spawnSync(process.execPath, [REAL, ...a], {
         encoding: "utf8",
@@ -370,9 +378,10 @@ const real = (size, ...a) => {
     });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
 };
-// a step that did not do what it says, or a screen that is not the one named
+// a step that did not do what it says, or a screen that is not the one named. "typed nothing" is
+// matched itself: a batch stops at a failed --type, so a check after it in the batch no longer runs
 const MISSED =
-    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not click|only \d+ controls|SETUP FAILED|no live session|the tool failed|expected on screen, not there|expected gone, still on screen/;
+    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not click|only \d+ controls|SETUP FAILED|no live session|the tool failed|expected on screen, not there|expected gone, still on screen|typed nothing, not "/;
 
 // Each walk: a setup and a list of moves. A move's steps, one "--step value" per string as in a
 // setup file, run as one real.mjs --step; an --expect in it confirms the screen arrived. Then the page
@@ -637,33 +646,49 @@ const WALKS = [
 ];
 
 // Tier 3: the Style panel from an empty app, every step a click or a key as a first-time user makes
+// it, on the start page the frozen build opens with ("Open a file", Samples); BAR6 in measure.mjs is
+// what the walks must cover, and every screen, focus action and typing check it lists that the walks
+// did not reach is a MISS line
 const NEW_LAYER = ["--click Add a layer or a folder", "--click role=menuitem:Layer", "--key Enter"];
+const SAMPLE = (name) => ["--click role=link:Samples", `--click Open the ${name} sample`];
+const OPEN_FILE = (file) => ["--click Open a file", `--upload ${file}`];
 const WALKS3 = [
     {
         name: "first-use",
         moves: [
             {
-                do: steps("--click No thanks", "--expect Les Miserables"),
+                // one Tab, so focus is on a control and the planted blur has somewhere to fall from
+                do: steps("--key Tab", "--expect Open a file"),
                 screen: "the start screen",
                 plant: true,
                 dataText: true,
             },
             {
-                do: steps("--click Les Miserables", "--expect Style layers"),
+                do: steps(...SAMPLE("Les Miserables"), "--expect Style layers"),
                 screen: "a sample just opened",
                 words: "a sample just opened",
             },
             {
-                do: steps("--click role=treeitem:Everything", "--click role=tab:Style", "--expect Which nodes"),
+                do: steps("--click role=button:Legend"),
+                screen: "a sample just opened, the key switched on",
+            },
+            { do: steps("--click role=button:Legend") },
+            {
+                do: steps("--click role=treeitem:Everything", "--click role=tab:Style", "--expect Style nodes"),
                 screen: "Everything, Node tab",
                 words: "Everything, Node tab",
             },
-            { do: steps("--click role=tab:Edge", "--expect Which edges"), screen: "Everything, Edge tab" },
+            {
+                do: steps("--click role=combobox:Shape", "--expect role=option:Box"),
+                screen: "the open shape list",
+            },
+            { do: steps("--key Escape", "--expect-not role=option:Box") },
+            { do: steps("--click role=tab:Edge", "--expect Style edges"), screen: "Everything, Edge tab" },
             { do: steps("--click Add to edge line"), screen: "the line menu" },
             { do: steps("--key Escape"), focus: "Escape from the line menu" },
+            { do: steps("--click role=tab:Node", ...NEW_LAYER), focus: "adding a layer" },
             {
-                do: steps("--click role=tab:Node", ...NEW_LAYER, "--expect Add a condition"),
-                focus: "adding a layer",
+                do: steps("--click Which nodes", "--expect Add a condition"),
                 screen: "a new layer, its picker open",
             },
             { do: steps("--click Add a condition", "--expect role=option:name"), screen: "the add-a-condition menu" },
@@ -675,13 +700,31 @@ const WALKS3 = [
                     as: "a new text card",
                     do: steps("--type Mme", "--expect 6 of 77"),
                     // no Escape first: it closes the picker and drops the unfinished card
-                    recover: steps(
-                        "--click Type the text to match",
-                        "--key Control+a",
-                        "--type Mme",
-                        "--expect 6 of 77",
-                    ),
+                    recover: steps("--click name: text to match", "--key Control+a", "--type Mme", "--expect 6 of 77"),
                 },
+            },
+            {
+                // on T40 B's success path, letters typed after choosing the match kind reopened the menu
+                do: steps("--click name: how to match", "--click role=option:Starts with"),
+                focus: "choosing a text card's match kind",
+                typed: {
+                    as: "a text card after Starts with",
+                    do: steps("--key Control+a", "--type Mlle", "--expect 3 of 77"),
+                    recover: steps("--key Escape", "--click name: text to match", "--key Control+a", "--type Mlle"),
+                },
+            },
+            {
+                // back to the card the at-rest word count was recorded on
+                do: steps(
+                    "--click name: how to match",
+                    "--click role=option:Contains",
+                    "--click name: text to match",
+                    "--key Control+a",
+                    "--type Mme",
+                    "--expect 6 of 77",
+                    // the names that hold the text open under the box and cover Done; Tab closes them
+                    "--key Tab",
+                ),
             },
             {
                 do: steps("--click Done", "--expect name contains Mme"),
@@ -690,7 +733,8 @@ const WALKS3 = [
                 words: "a layer with a condition, at rest",
             },
             {
-                do: steps("--click Add to node fill", "--click role=menuitem:Color"),
+                // Fill's "+" adds its one line, Color, with focus in its box
+                do: steps("--click Add to node fill", "--expect Color"),
                 focus: "adding a color",
                 screen: "a color just added",
                 typed: {
@@ -720,7 +764,8 @@ const WALKS3 = [
                 screen: "a groups analysis before it runs",
             },
             {
-                do: steps("--click Run", "--expect Group 1"),
+                // the run's groups land in a folder named for it, closed in the layer tree
+                do: steps("--click Run", "--expect role=treeitem:Louvain"),
                 focus: "running a groups analysis",
             },
             {
@@ -732,6 +777,23 @@ const WALKS3 = [
             {
                 do: steps(
                     "--click role=tab:Node",
+                    "--click Find nodes, edges, values",
+                    "--type Javert",
+                    "--expect Nodes 1",
+                ),
+                screen: "the find box, a name typed, its results",
+            },
+            {
+                do: steps("--key Enter", "--click role=tab:Values", "--expect Memberships"),
+                screen: "a node's inspector, its Memberships",
+            },
+            {
+                do: steps("--click role=tab:Style", "--expect Why this look"),
+                screen: "a node's own Style tab, its Fill + and Why this look",
+            },
+            {
+                do: steps(
+                    "--key Escape",
                     "--click role=treeitem:Everything",
                     "--ctrl-click role=treeitem:Layer 1",
                     "--expect 2 layers",
@@ -744,6 +806,7 @@ const WALKS3 = [
                     "--click role=treeitem:Everything",
                     ...NEW_LAYER,
                     "--click role=tab:Edge",
+                    "--click Which edges",
                     "--click Add a condition",
                     "--click role=option:shared_chapters",
                     "--expect Between",
@@ -761,12 +824,7 @@ const WALKS3 = [
         name: "colleague",
         moves: [
             {
-                do: steps(
-                    "--click No thanks",
-                    "--click Open project or file",
-                    "--upload lesmis-poster.graphty.json",
-                    "--expect Opened lesmis-poster",
-                ),
+                do: steps(...OPEN_FILE("lesmis-poster.graphty.json"), "--expect role=treeitem:Poster"),
                 screen: "a colleague's project just opened",
             },
             {
@@ -780,20 +838,23 @@ const WALKS3 = [
         name: "own-file",
         moves: [
             {
-                do: steps(
-                    "--click No thanks",
-                    "--click Open project or file",
-                    "--upload volunteers.graphml",
-                    "--expect Load",
-                ),
+                do: steps(...OPEN_FILE("volunteers.graphml"), "--expect Load"),
                 screen: "a file read, before loading",
                 dataText: true,
             },
             { do: steps("--click Load", "--expect Style layers"), focus: "Load" },
             {
-                do: steps(...NEW_LAYER, "--click Add a condition", "--click role=option:role", "--expect Is any of"),
+                do: steps(
+                    ...NEW_LAYER,
+                    "--click Which nodes",
+                    "--click Add a condition",
+                    "--click role=option:role",
+                    "--expect Is any of",
+                ),
                 screen: "a category card",
             },
+            // a value ticked, so the card is finished and Done keeps it as the first of four
+            { do: steps("--click role=checkbox:volunteer", "--expect-not Dropped the condition") },
             {
                 do: steps("--click Add a condition", "--click role=option:trained", "--expect Yes"),
                 focus: "adding a yes/no card",
@@ -807,13 +868,13 @@ const WALKS3 = [
                 do: steps(
                     "--click Add a condition",
                     "--click role=option:phone",
-                    "--click role=combobox:phone",
+                    "--click phone: how to match",
                     "--click role=option:Has no value",
                 ),
                 screen: "a has-no-value card",
             },
             {
-                do: steps("--click role=combobox:phone", "--key Escape", "--expect Done"),
+                do: steps("--click phone: how to match", "--key Escape", "--expect Done"),
                 focus: "Escape from a card's menu",
             },
             {
@@ -825,7 +886,6 @@ const WALKS3 = [
             {
                 do: steps(
                     "--click Add to node fill",
-                    "--click role=menuitem:Color",
                     "--click Node color by attribute",
                     "--click role=option:role",
                     "--expect-not role=option:role",
@@ -853,7 +913,8 @@ const WALKS3 = [
             { do: steps("--key Escape"), focus: "Escape from a bound size's popover" },
             {
                 // last in its walk: a failed check leaves the walk where the next move need not start
-                do: steps("--click Add to node shape", "--click role=menuitem:Shape"),
+                // with Size there, Shape's "+" adds its one line left, Shape
+                do: steps("--click Add to node shape", "--expect role=combobox:Node shape"),
                 focus: "adding a shape",
                 typed: {
                     as: "a new Shape line",
@@ -866,16 +927,16 @@ const WALKS3 = [
         // where bulk editing and picking by data meet: one card added to every layer of a run's folder
         name: "folder-picker",
         moves: [
+            { do: steps(...OPEN_FILE("volunteers.graphml"), "--click Load", "--expect Style layers") },
             {
                 do: steps(
-                    "--click No thanks",
-                    "--click Open project or file",
-                    "--upload volunteers.graphml",
-                    "--click Load",
-                    "--expect Style layers",
+                    "--click Analyze",
+                    "--type louvain",
+                    "--key Enter",
+                    "--click Run",
+                    "--expect role=treeitem:Louvain",
                 ),
             },
-            { do: steps("--click Analyze", "--type louvain", "--key Enter", "--click Run", "--expect Group 1") },
             {
                 do: steps(
                     "--click role=treeitem:Louvain",
@@ -911,10 +972,21 @@ async function walkTier2(base) {
     const caught = [];
     const vocab = {};
     const typed = {};
+    // what a screen says out loud: its controls' accessible names, and after each move what took
+    // focus, what live regions said and the notices shown (real.mjs --sr), by move
+    const spoken = {};
+    // what bar 6 measured, by size: a name is added only once its check ran at that size
+    const per = () => Object.fromEntries(SIZES.map((z) => [z, []]));
+    const seen = { screens: per(), focus: per(), typed: per(), planted: per() };
     for (const size of SIZES)
         for (const w of TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
+            // bar 6's readings at a later size are kept under "<name> at <size>", so a failure there
+            // fails the run beside the first size's (bar 8's word counts and the wording check's
+            // vocabulary stay at the first size, where their limits were recorded)
+            const at = (k) => (first ? k : `${k} at ${size}`);
             if (w.only && w.only !== size) continue;
+            if (ONLY && !ONLY.includes(w.name)) continue;
             const dir = join(base, `${w.name}-${size}`);
             await rm(dir, { recursive: true, force: true });
             let r = real(size, "--start", dir, w.setup ? `setup:${w.setup}` : "empty");
@@ -932,7 +1004,14 @@ async function walkTier2(base) {
                     }
                     r = real(size, "--step", dir, ...m.do);
                     const shot = r.out.split("\n").pop();
-                    if (MISSED.test(r.out)) {
+                    // a notice the app took down before the screenshot, which a person watching read
+                    const said = r.out
+                        .split("\n")
+                        .filter((l) => l.startsWith("a notice showed"))
+                        .map((l) => l.replace(/^a notice showed and went before this screenshot: /, "notice: "));
+                    if (TIER === "3" && first && said.length) spoken[label.replace(/ at \S+$/, "")] = { said };
+                    // exit 2: a step refused before anything ran (a pointer step in keyboard-only mode)
+                    if (r.code === 2 || MISSED.test(r.out)) {
                         lost = true;
                         log.push(`MISS ${label}: ${r.out.split("\n").filter((l) => MISSED.test(l))[0]} (${shot})`);
                         continue;
@@ -941,18 +1020,19 @@ async function walkTier2(base) {
                     // A miss is a bar 8 finding, not a lost walk: recover by clicking into the field
                     if (m.typed) {
                         const t = real(size, "--step", dir, ...m.typed.do);
-                        const ok = !MISSED.test(t.out);
-                        if (first) typed[m.typed.as] = ok;
+                        const ok = t.code !== 2 && !MISSED.test(t.out);
+                        typed[at(m.typed.as)] = ok;
+                        seen.typed[size].push(m.typed.as);
                         if (!ok && m.typed.recover) {
                             const rr = real(size, "--step", dir, ...m.typed.recover);
-                            if (MISSED.test(rr.out)) {
+                            if (rr.code === 2 || MISSED.test(rr.out)) {
                                 lost = true;
                                 log.push(`MISS ${label}: recovering after typing into ${m.typed.as} failed`);
                                 continue;
                             }
                         }
                     }
-                    if (!m.screen && !m.audit && !(first && (m.focus || m.words || m.scroll))) continue;
+                    if (!m.screen && !m.audit && !m.focus && !(first && (m.words || m.scroll))) continue;
                     const { data } = await ask(dir, { op: "measure" });
                     if (m.plant) {
                         // bar 10: a planted clipped name and a planted code, each found by screen and element
@@ -972,35 +1052,62 @@ async function walkTier2(base) {
                         cut[label] = data.cut; // every cut text, each with where it can be read whole
                         raw[label] = data.raw;
                     }
-                    if (!first) continue;
                     if (m.plant) {
-                        // each check must fail on its planted case before its readings are trusted
+                        // each check must fail on its planted case, at every size, before its readings
+                        // there are trusted
+                        const proved = (kind, ok, yes, no) => {
+                            if (ok) {
+                                caught.push(yes);
+                                seen.planted[size].push(kind);
+                            } else planted.push(no);
+                        };
                         const img = (await ask(dir, { op: "measure", plant: "img" })).data;
-                        if (!img.axe.some((v) => v.id === "image-alt" && serious(v)))
-                            planted.push("axe missed an image with no text alternative");
-                        else caught.push(`an image with no text alternative: caught by axe on "${label}"`);
+                        proved(
+                            "axe",
+                            img.axe.some((v) => v.id === "image-alt" && serious(v)),
+                            `an image with no text alternative: caught by axe on "${label}"`,
+                            `axe missed an image with no text alternative on "${label}"`,
+                        );
                         const twins = (await ask(dir, { op: "measure", plant: "twins" })).data;
-                        if (!twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))))
-                            planted.push("the shared-name check missed two buttons called Planted twin");
-                        else caught.push(`two buttons called Planted twin: caught on "${label}"`);
+                        proved(
+                            "shared names",
+                            twins.names.shared.some((g) => g.some((x) => x.includes("Planted twin"))),
+                            `two buttons called Planted twin: caught on "${label}"`,
+                            `the shared-name check missed two buttons called Planted twin on "${label}"`,
+                        );
                         const blur = (await ask(dir, { op: "measure", plant: "blur" })).data;
-                        if (!blur.focusOnPage) planted.push("the focus check missed focus dropped to the page");
-                        else caught.push(`focus dropped to the page: caught on "${label}"`);
                         if (data.focusOnPage)
-                            planted.push("the focus check reported the page before anything was planted");
+                            planted.push(`the focus check reported the page before anything was planted on "${label}"`);
+                        proved(
+                            "focus",
+                            blur.focusOnPage && !data.focusOnPage,
+                            `focus dropped to the page: caught on "${label}"`,
+                            `the focus check missed focus dropped to the page on "${label}"`,
+                        );
                         if (TIER === "3") {
                             // nothing on the start screen takes text, so typing must not write
                             const t = real(size, "--step", dir, "--type", "Plantedtext", "--expect", "Plantedtext");
-                            if (MISSED.test(t.out)) caught.push(`typing with focus in no field: caught on "${label}"`);
-                            else planted.push(`the typed check missed typing with focus in no field on "${label}"`);
+                            proved(
+                                "typing",
+                                MISSED.test(t.out),
+                                `typing with focus in no field: caught on "${label}"`,
+                                `the typed check missed typing with focus in no field on "${label}"`,
+                            );
                         }
                     }
                     if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
                     if (m.screen) {
-                        screens[m.screen] = data.axe;
-                        names[m.screen] = data.names.shared;
+                        screens[at(m.screen)] = data.axe;
+                        names[at(m.screen)] = data.names.shared;
+                        seen.screens[size].push(m.screen);
+                        const k = label.replace(/ at \S+$/, "");
+                        if (first)
+                            spoken[k] = { names: data.names.all, said: [...(spoken[k]?.said ?? []), ...data.spoken] };
                     }
-                    if (m.focus) focus[m.focus] = data.focusOnPage;
+                    if (m.focus) {
+                        focus[at(m.focus)] = data.focusOnPage;
+                        seen.focus[size].push(m.focus);
+                    }
                     if (m.proveFocus) {
                         const b = (await ask(dir, { op: "measure", plant: "blur" })).data;
                         if (b.focusOnPage) caught.push(`focus dropped to the page: caught after "${label}"`);
@@ -1016,6 +1123,10 @@ async function walkTier2(base) {
                                 `the scroll check missed the active option scrolled out of view on "${label}"`,
                             );
                     }
+                    if (!first) {
+                        log.push(`ok   ${label} (${shot})`);
+                        continue;
+                    }
                     if (m.words) words[m.words] = data.words;
                     // a screen whose text is mostly the data's (the samples' descriptions, a file's rows) gives
                     // the wording check its control names only
@@ -1028,7 +1139,11 @@ async function walkTier2(base) {
             }
         }
     if (TIER === "3" && !Object.keys(typed).length) planted.push("the typed check typed into no field");
-    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed };
+    // bar 6's list, measured at every size: a screen, focus action, typing check or planted failure
+    // the walks never reached
+    const walked = seen;
+    if (TIER === "3") log.push(...bar6Gaps(walked, SIZES));
+    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed, spoken, walked };
 }
 
 async function outer() {
@@ -1069,7 +1184,10 @@ async function outer() {
         await writeFile(join(here, "bars-limits.json"), JSON.stringify(allLimits, null, 4) + "\n");
     }
     const limits = TIER === "3" ? (allLimits.tier3 ?? {}) : allLimits;
-    if (TIER === "3") await writeFile(join(out, "vocabulary.json"), JSON.stringify(t2.vocab, null, 1) + "\n");
+    if (TIER === "3") {
+        await writeFile(join(out, "vocabulary.json"), JSON.stringify(t2.vocab, null, 1) + "\n");
+        await writeFile(join(out, "spoken.json"), JSON.stringify(t2.spoken, null, 1) + "\n");
+    }
 
     const weightProblems = TIER === "3" ? [] : judgeWeights(inn.weights);
     const weightPlantsMissed = TIER === "3" ? [] : plantedWeights();
@@ -1127,6 +1245,8 @@ async function outer() {
                     words: t2.words,
                 },
                 exceptions,
+                // what the walks reached, by bar 6's names: real.mjs --gate checks it against BAR6
+                walked: t2.walked,
                 bar10: { cut: t2.cut, raw: t2.raw },
                 planted: { caught: t2.caught, missed: untrusted },
                 weights: { problems: weightProblems, notFinished, runs: inn.weights },

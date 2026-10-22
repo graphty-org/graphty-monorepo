@@ -984,6 +984,26 @@ function resolveElementIds(target: ElementIdTarget, context: TargetContext): Tar
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The elements a style layer selects.
+ * @param layer - The layer.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when the session has no style stack.
+ */
+function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
+    if (context.layer === undefined) {
+        throw unsupported("a style layer", "a style stack");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const matched = context.layer(layer);
+    addIds(nodes, matched.nodes ?? []);
+    addIds(edges, matched.edges ?? []);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
  * The elements one target names.
  *
  * Synchronous, because every arm either reads a structure the session already holds or walks the
@@ -1009,16 +1029,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("layer" in target) {
-        if (context.layer === undefined) {
-            throw unsupported("a style layer", "a style stack");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const matched = context.layer(target.layer);
-        addIds(nodes, matched.nodes ?? []);
-        addIds(edges, matched.edges ?? []);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveLayer(target.layer, context);
     }
 
     if ("text" in target) {

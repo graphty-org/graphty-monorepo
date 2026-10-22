@@ -80,7 +80,7 @@ describe("the Style tab's words and arrangement", () => {
         assert.isFalse(at("edge.curvature"));
         assert.isFalse(at("node.labelStyle"));
         const color = channelsFor("node").find((c) => c.channel === "node.color");
-        assert.equal(color === undefined ? "" : bindLabel(color), "Color by attribute");
+        assert.equal(color === undefined ? "" : bindLabel(color), "Node color by attribute");
     });
 
     it("words a refusal from its code and params", () => {

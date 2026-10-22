@@ -96,7 +96,7 @@ function accumulate(accumulator: Accumulator, value: unknown, id?: string | numb
     }
 
     // Each distinct value is read as a color once, while the set still holds them all.
-    if (accumulator.colors && (accumulator.unique === null || !accumulator.unique.has(value))) {
+    if (accumulator.colors && !accumulator.unique?.has(value)) {
         accumulator.colors = typeof value === "string" && toColorValue(value) !== null;
     }
 

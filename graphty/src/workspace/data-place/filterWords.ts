@@ -21,16 +21,8 @@ export interface Namer {
  */
 export function ruleWords(rule: RuleTree, names: Namer): string {
     switch (rule.kind) {
-        case "range": {
-            const name = names.attribute(rule.attribute);
-            if (rule.min !== undefined && rule.max !== undefined) {
-                return `${name} is between ${String(rule.min)} and ${String(rule.max)}`;
-            }
-            if (rule.min !== undefined) {
-                return `${name} is at least ${String(rule.min)}`;
-            }
-            return rule.max === undefined ? `${name} has a value` : `${name} is at most ${String(rule.max)}`;
-        }
+        case "range":
+            return rangeWords(rule, names);
         case "categories":
             return `${names.attribute(rule.attribute)} is ${rule.values
                 .map((value) => names.value?.(rule.attribute, value) ?? value)
@@ -60,6 +52,23 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         default:
             return "a rule";
     }
+}
+
+/**
+ * A range leaf as a sentence: "weight is between 1 and 4", "weight is at least 4".
+ * @param rule - the leaf.
+ * @param names - reads attribute names.
+ * @returns the sentence.
+ */
+function rangeWords(rule: Extract<RuleTree, { kind: "range" }>, names: Namer): string {
+    const name = names.attribute(rule.attribute);
+    if (rule.min !== undefined && rule.max !== undefined) {
+        return `${name} is between ${String(rule.min)} and ${String(rule.max)}`;
+    }
+    if (rule.min !== undefined) {
+        return `${name} is at least ${String(rule.min)}`;
+    }
+    return rule.max === undefined ? `${name} has a value` : `${name} is at most ${String(rule.max)}`;
 }
 
 /** A text test in words, by its mode. */

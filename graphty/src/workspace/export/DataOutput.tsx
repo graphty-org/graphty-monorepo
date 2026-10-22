@@ -158,13 +158,16 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
         setBusy(true);
         try {
-            const losses = preview?.losses ?? (await element.exportGraph(choices.format, options)).losses.flatMap(lossFacts);
+            const losses =
+                preview?.losses ?? (await element.exportGraph(choices.format, options)).losses.flatMap(lossFacts);
             const refused = losses.filter((loss) => loss.code.startsWith("E_"));
             if (refused.length > 0) {
                 setStyleLosses(null);
                 setFailure({
                     title: "The file was not written",
-                    words: lossLines(refused, (column) => (session === null ? null : columnWords(session, column))).join(" "),
+                    words: lossLines(refused, (column) =>
+                        session === null ? null : columnWords(session, column),
+                    ).join(" "),
                 });
                 return;
             }

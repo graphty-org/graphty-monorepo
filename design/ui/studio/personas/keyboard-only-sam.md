@@ -126,6 +126,3 @@ vocabulary or his opinion of the drawing.
 4. MakeUseOf, "I barely touch my mouse while browsing anymore thanks to this free extension", https://www.makeuseof.com/use-vimium-browse-without-mouse/ (search summary only)
 5. Nguyen Huy Thanh, "Going Mouseless, Or Using The Computer Without a Physical Mouse", https://nguyenhuythanh.com/posts/going-mouseless/ (read directly)
 6. Storyware, "Managing a Repetitive Stress Injury (RSI) as a Web Developer", https://storyware.co/managing-a-repetitive-stress-injury-rsi-as-a-web-developer/ (read directly; a developer who "pretty much stopped using the keyboard and trackpad" on the laptop)
-</content>
-
-</invoke>

@@ -89,6 +89,7 @@ export type {
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
     FindNamedRow,
     FindOptions,
     FindResult,

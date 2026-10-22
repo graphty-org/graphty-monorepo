@@ -376,6 +376,14 @@ function commitText(next: string, value: unknown, onChange: (value: unknown) => 
     }
 }
 
+/** What every kind of field control takes. */
+interface FieldControlProps {
+    readonly value: unknown;
+    readonly fallback: unknown;
+    readonly suffix?: string;
+    readonly onChange: (value: unknown) => void;
+}
+
 /**
  * One field: written here, or showing what lies beneath.
  * @param props - Component props
@@ -392,149 +400,242 @@ function FieldControl({
     fallback,
     suffix,
     onChange,
-}: Readonly<{
-    field: Field;
-    value: unknown;
-    fallback: unknown;
-    suffix?: string;
-    onChange: (value: unknown) => void;
-}>): React.JSX.Element {
-    // A number field shows the value set here, else the value beneath, else nothing.
-    const numberBeneath = typeof fallback === "number" ? fallback : null;
-    const shownNumber = typeof value === "number" ? value : numberBeneath;
+}: Readonly<FieldControlProps & { field: Field }>): React.JSX.Element {
     switch (field.kind) {
         case "text":
-            return (
-                <TextInput
-                    // Keyed by the value, so Undo, Redo or another edit shows the new text.
-                    key={typeof value === "string" ? value : ""}
-                    size="xs"
-                    variant="outlined"
-                    label={field.word}
-                    placeholder={typeof fallback === "string" ? fallback : NONE}
-                    defaultValue={typeof value === "string" ? value : ""}
-                    // The not-set look every style field shares, while the box shows its placeholder.
-                    data-is-default={typeof value === "string" && value !== "" ? "false" : "true"}
-                    onBlur={(event) => {
-                        commitText(event.currentTarget.value, value, onChange);
-                    }}
-                    onKeyDown={(event) => {
-                        // Enter commits and keeps focus in the field (drawn again with the new
-                        // text, it takes focus back), never on the page.
-                        if (event.key === "Enter") {
-                            commitText(event.currentTarget.value, value, onChange);
-                        }
-                    }}
-                />
-            );
+            return <TextFieldControl word={field.word} value={value} fallback={fallback} onChange={onChange} />;
         case "colors":
             return <ColorsField word={field.word} value={value} look={fallback} onChange={onChange} />;
         case "color":
-            return (
-                <CompactColorInput
-                    label={field.word}
-                    width="100%"
-                    valueText={typeof value === "string" ? colorWord(value.slice(0, 7)) : undefined}
-                    color={typeof value === "string" ? value.slice(0, 7).toUpperCase() : undefined}
-                    defaultColor={typeof fallback === "string" ? fallback.slice(0, 7).toUpperCase() : "#FFFFFF"}
-                    emptyText={typeof fallback === "string" ? undefined : NONE}
-                    // Nothing beneath sets it, so no color is drawn: the swatch is empty, as its name says.
-                    emptySwatch={typeof fallback !== "string"}
-                    showOpacity={false}
-                    onChangeEnd={(next) => {
-                        onChange(next);
-                    }}
-                />
-            );
+            return <ColorFieldControl word={field.word} value={value} fallback={fallback} onChange={onChange} />;
         case "number":
             return (
-                <Captioned
+                <NumberFieldControl
                     word={field.word}
-                    onReset={
-                        typeof value === "number"
-                            ? () => {
-                                  onChange(undefined);
-                              }
-                            : undefined
-                    }
-                >
-                    <PanelField
-                        label={field.word}
-                        kind="number"
-                        width="fill"
-                        // Nothing set here: the value beneath shows in the field, or "None",
-                        // and the name reads it as the default it is: "Size, default 48".
-                        value={shownNumber}
-                        placeholder={shownNumber === null ? NONE : undefined}
-                        aria-label={
-                            typeof value !== "number" && numberBeneath !== null
-                                ? `${field.word}, default ${String(numberBeneath)}${suffix ?? ""}`
-                                : undefined
-                        }
-                        unit={suffix?.trim()}
-                        step={field.step}
-                        onChange={(next) => {
-                            onChange(Number(next));
-                        }}
-                    />
-                </Captioned>
+                    step={field.step}
+                    value={value}
+                    fallback={fallback}
+                    suffix={suffix}
+                    onChange={onChange}
+                />
             );
-        default: {
-            const options: readonly (readonly [string, string])[] =
-                field.kind === "switch"
-                    ? [
-                          ["true", "On"],
-                          ["false", "Off"],
-                      ]
-                    : field.options;
-            // A field nothing beneath sets reads "None": the label draws none of it.
-            const all = fallback === undefined ? [[DEFAULT, NONE] as const, ...options] : options;
-            // A value written some other way (a font family list, a weight of 600) is still shown.
-            const shown = [
-                ...new Set(
-                    [value, fallback].flatMap((v) =>
-                        typeof v === "string" || typeof v === "number" ? [String(v)] : [],
-                    ),
-                ),
-            ]
-                .filter((v) => !all.some(([o]) => o === v))
-                .map((v) => [v, v] as const);
-            const data = [...all, ...shown].map(([v, label]) => ({ value: v, label }));
-            const written = wordOf(value);
-            const beneathWord = data.find((option) => option.value === (wordOf(fallback) ?? DEFAULT))?.label ?? "";
-            return (
-                <Captioned
-                    word={field.word}
-                    onReset={
-                        written === undefined
-                            ? undefined
-                            : () => {
-                                  onChange(undefined);
-                              }
-                    }
-                >
-                    <PanelField
-                        label={field.word}
-                        kind="select"
-                        width="fill"
-                        data={data}
-                        value={written ?? null}
-                        // Unset, it reads the value beneath, as the number fields do.
-                        placeholder={written === undefined ? beneathWord : undefined}
-                        onChange={(next) => {
-                            if (next === DEFAULT) {
-                                onChange(undefined);
-                            } else if (field.kind === "switch") {
-                                onChange(next === "true");
-                            } else {
-                                onChange(String(next));
-                            }
-                        }}
-                    />
-                </Captioned>
-            );
-        }
+        default:
+            return <ChoiceFieldControl field={field} value={value} fallback={fallback} onChange={onChange} />;
     }
+}
+
+/**
+ * A text field.
+ * @param props - Component props
+ * @param props.word - the field's name
+ * @param props.value - what the layer writes, if anything
+ * @param props.fallback - what lies beneath, if anything draws it
+ * @param props.onChange - called with the new value, or undefined to clear it
+ * @returns The control
+ */
+function TextFieldControl({
+    word,
+    value,
+    fallback,
+    onChange,
+}: Readonly<FieldControlProps & { word: string }>): React.JSX.Element {
+    const text = typeof value === "string" ? value : "";
+    return (
+        <TextInput
+            // Keyed by the value, so Undo, Redo or another edit shows the new text.
+            key={text}
+            size="xs"
+            variant="outlined"
+            label={word}
+            placeholder={typeof fallback === "string" ? fallback : NONE}
+            defaultValue={text}
+            // The not-set look every style field shares, while the box shows its placeholder.
+            data-is-default={text === "" ? "true" : "false"}
+            onBlur={(event) => {
+                commitText(event.currentTarget.value, value, onChange);
+            }}
+            onKeyDown={(event) => {
+                // Enter commits and keeps focus in the field (drawn again with the new
+                // text, it takes focus back), never on the page.
+                if (event.key === "Enter") {
+                    commitText(event.currentTarget.value, value, onChange);
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * A color field.
+ * @param props - Component props
+ * @param props.word - the field's name
+ * @param props.value - what the layer writes, if anything
+ * @param props.fallback - what lies beneath, if anything draws it
+ * @param props.onChange - called with the new value
+ * @returns The control
+ */
+function ColorFieldControl({
+    word,
+    value,
+    fallback,
+    onChange,
+}: Readonly<FieldControlProps & { word: string }>): React.JSX.Element {
+    const written = typeof value === "string" ? value.slice(0, 7) : undefined;
+    const beneath = typeof fallback === "string" ? fallback : undefined;
+    return (
+        <CompactColorInput
+            label={word}
+            width="100%"
+            valueText={written === undefined ? undefined : colorWord(written)}
+            color={written?.toUpperCase()}
+            defaultColor={beneath === undefined ? "#FFFFFF" : beneath.slice(0, 7).toUpperCase()}
+            emptyText={beneath === undefined ? NONE : undefined}
+            // Nothing beneath sets it, so no color is drawn: the swatch is empty, as its name says.
+            emptySwatch={beneath === undefined}
+            showOpacity={false}
+            onChangeEnd={(next) => {
+                onChange(next);
+            }}
+        />
+    );
+}
+
+/**
+ * A number field: it shows the value set here, else the value beneath, else nothing.
+ * @param props - Component props
+ * @param props.word - the field's name
+ * @param props.step - the field's step
+ * @param props.value - what the layer writes, if anything
+ * @param props.fallback - what lies beneath, if anything draws it
+ * @param props.suffix - its unit, written after it
+ * @param props.onChange - called with the new value, or undefined to clear it
+ * @returns The control
+ */
+function NumberFieldControl({
+    word,
+    step,
+    value,
+    fallback,
+    suffix,
+    onChange,
+}: Readonly<FieldControlProps & { word: string; step: number | undefined }>): React.JSX.Element {
+    const numberBeneath = typeof fallback === "number" ? fallback : null;
+    const written = typeof value === "number";
+    const shownNumber = written ? value : numberBeneath;
+    return (
+        <Captioned
+            word={word}
+            onReset={
+                written
+                    ? () => {
+                          onChange(undefined);
+                      }
+                    : undefined
+            }
+        >
+            <PanelField
+                label={word}
+                kind="number"
+                width="fill"
+                // Nothing set here: the value beneath shows in the field, or "None",
+                // and the name reads it as the default it is: "Size, default 48".
+                value={shownNumber}
+                placeholder={shownNumber === null ? NONE : undefined}
+                aria-label={
+                    !written && numberBeneath !== null
+                        ? `${word}, default ${String(numberBeneath)}${suffix ?? ""}`
+                        : undefined
+                }
+                unit={suffix?.trim()}
+                step={step}
+                onChange={(next) => {
+                    onChange(Number(next));
+                }}
+            />
+        </Captioned>
+    );
+}
+
+/** On and Off, a switch's choices. */
+const SWITCH_OPTIONS: readonly (readonly [string, string])[] = [
+    ["true", "On"],
+    ["false", "Off"],
+];
+
+/**
+ * A choice's options: its own, "None" first where nothing beneath sets it (the label draws none of
+ * it), and a value written some other way (a font family list, a weight of 600) is still shown.
+ * @param options - the field's own options.
+ * @param value - what the layer writes, if anything.
+ * @param fallback - what lies beneath, if anything draws it.
+ * @returns the select's data.
+ */
+function choiceData(
+    options: readonly (readonly [string, string])[],
+    value: unknown,
+    fallback: unknown,
+): { value: string; label: string }[] {
+    const all = fallback === undefined ? [[DEFAULT, NONE] as const, ...options] : options;
+    const shown = [
+        ...new Set(
+            [value, fallback].flatMap((v) => (typeof v === "string" || typeof v === "number" ? [String(v)] : [])),
+        ),
+    ]
+        .filter((v) => !all.some(([o]) => o === v))
+        .map((v) => [v, v] as const);
+    return [...all, ...shown].map(([v, label]) => ({ value: v, label }));
+}
+
+/**
+ * A choice, or a switch read as On and Off.
+ * @param props - Component props
+ * @param props.field - the field
+ * @param props.value - what the layer writes, if anything
+ * @param props.fallback - what lies beneath, if anything draws it
+ * @param props.onChange - called with the new value, or undefined to clear it
+ * @returns The control
+ */
+function ChoiceFieldControl({
+    field,
+    value,
+    fallback,
+    onChange,
+}: Readonly<FieldControlProps & { field: Extract<Field, { kind: "select" | "switch" }> }>): React.JSX.Element {
+    const isSwitch = field.kind === "switch";
+    const data = choiceData(isSwitch ? SWITCH_OPTIONS : field.options, value, fallback);
+    const written = wordOf(value);
+    const beneathWord = data.find((option) => option.value === (wordOf(fallback) ?? DEFAULT))?.label ?? "";
+    return (
+        <Captioned
+            word={field.word}
+            onReset={
+                written === undefined
+                    ? undefined
+                    : () => {
+                          onChange(undefined);
+                      }
+            }
+        >
+            <PanelField
+                label={field.word}
+                kind="select"
+                width="fill"
+                data={data}
+                value={written ?? null}
+                // Unset, it reads the value beneath, as the number fields do.
+                placeholder={written === undefined ? beneathWord : undefined}
+                onChange={(next) => {
+                    if (next === DEFAULT) {
+                        onChange(undefined);
+                    } else if (isSwitch) {
+                        onChange(next === "true");
+                    } else {
+                        onChange(String(next));
+                    }
+                }}
+            />
+        </Captioned>
+    );
 }
 
 /**
@@ -594,7 +695,11 @@ function ColorsField({
         color,
     }));
     return (
-        <div role="group" aria-label={word} data-set={list(value) === undefined ? undefined : ""}>
+        <div // NOSONAR(S6819): an ARIA group naming the gradient's controls; a fieldset would draw its own border and padding
+            role="group"
+            aria-label={word}
+            data-set={list(value) === undefined ? undefined : ""}
+        >
             <Text size="xs" component="div" aria-hidden>
                 {word}
             </Text>

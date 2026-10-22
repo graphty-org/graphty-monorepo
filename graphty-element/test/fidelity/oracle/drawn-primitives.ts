@@ -162,6 +162,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     // a triangle with a bar behind it reads as the triangle
     "triangle-tee": "triangle",
     "triangle-cross": "triangle",
+    // a disc at the tip with a triangle behind it pointing at it, read as itself whichever way it points
+    "circle-triangle": "circle-triangle",
     // a picture standing on the line
     image: "image",
     // a delta with a bar across the line behind it, a gap between them; a hollow one's is its filled twin's

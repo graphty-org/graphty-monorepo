@@ -266,10 +266,37 @@ const DEFECTS = {
             e.stroke.width *= 3;
         }
     }),
+    // the edge from a node to one drawn after it over its whole box, which the program's drawing shows nothing of
+    // (pajek-1crn: 27 under 28): the comparison pairs it by the end the association names after graphty's node
+    "edge under the node it ends at recolored": (s) => {
+        const under = (n: PNode, m: PNode): boolean =>
+            s.nodes.indexOf(n) < s.nodes.indexOf(m) &&
+            Math.abs(n.cx - m.cx) + n.w / 2 <= m.w / 2 &&
+            Math.abs(n.cy - m.cy) + n.h / 2 <= m.h / 2;
+        const byId = new Map(s.nodes.map((n) => [n.id, n]));
+        for (const e of s.edges) {
+            const [a, b] = [byId.get(e.source), byId.get(e.target)];
+            if (e.stroke !== null && a !== undefined && b !== undefined && (under(a, b) || under(b, a))) {
+                e.stroke.color = invert(e.stroke.color);
+            }
+        }
+        return s;
+    },
     "edge color changed on one edge": (s) => {
         const e = firstEdge(s);
         if (e?.stroke) {
             e.stroke.color = invert(e.stroke.color);
+        }
+        return s;
+    },
+    // the edges at a node graphty draws no body for (a WikiPathways anchor, a node in the canvas's own color): the
+    // comparison pairs them by where graphty's lines end (cx2-wp1449-tlr, xgmml-wp4271-cy3-export)
+    "edges ending at an undrawn node recolored": (s) => {
+        const drawn = new Set([...s.nodes.map((n) => n.id), ...s.groups.map((g) => g.id)]);
+        for (const e of s.edges) {
+            if (e.stroke !== null && (!drawn.has(e.source) || !drawn.has(e.target))) {
+                e.stroke.color = invert(e.stroke.color);
+            }
         }
         return s;
     },
@@ -324,6 +351,15 @@ const DEFECTS = {
         e.arrows.forEach((a) => {
             if (a.shape === "vee" || a.shape === "triangle") {
                 a.shape = a.shape === "vee" ? "triangle" : "vee";
+            }
+        });
+    }),
+    // a compound arrowhead drawn as its triangle alone (Cytoscape.js's circle-triangle with its disc dropped), where the
+    // comparator once read the program's drawing in pieces as no shape: json-cyjs-synth-edges-saved catches it
+    "compound arrowhead's disc dropped (circle-triangle->triangle)": eachEdge((e) => {
+        e.arrows.forEach((a) => {
+            if (a.shape === "circle-triangle") {
+                a.shape = "triangle";
             }
         });
     }),
@@ -862,7 +898,9 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node outer ring removed": ["node.ring"],
     "edge width x1.4": ["edge.width"],
     "edge width x3": ["edge.width"],
+    "edge under the node it ends at recolored": ["edge.color", "edge.gradient", "edge.extra"],
     "edge color changed on one edge": ["edge.color", "edge.gradient", "edge.extra"],
+    "edges ending at an undrawn node recolored": ["edge.color", "edge.gradient", "edge.extra"],
     "edge dashed->solid": ["edge.dash"],
     "edge pattern (zigzag, sine wave, double, slashes, arrows) drawn solid": ["edge.dash"],
     "edge dotted->dashed": ["edge.dash"],
@@ -874,6 +912,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
     "arrowhead notch filled in (vee<->triangle)": ["edge.arrowShape"],
     "arrowheads on curved lines cut to one side (triangle->half)": ["edge.arrowShape"],
+    "compound arrowhead's disc dropped (circle-triangle->triangle)": ["edge.arrowShape"],
     "labels x1.5": ["label.size", "label.present", "edge.label", "group.label"],
     "labels bold (or bold->normal)": ["label.weight", "label.present", "edge.label", "group.label"],
     "label color changed": ["label.color", "label.present", "edge.label", "group.label"],

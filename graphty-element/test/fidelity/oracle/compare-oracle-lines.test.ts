@@ -1508,3 +1508,33 @@ describe("edges whose ends the two sides name differently", () => {
         assert.includeMembers(failing(o, g), ["edge.present", "edge.extra"]);
     });
 });
+
+describe("parallel edges found by geometry", () => {
+    // Two edges between one pair drawn over one another: only their looks tell which is which (cx2-signor-aml 26->27)
+    const solidBox = edge({ arrows: [arrow({ shape: "box" })] });
+    const dashed = edge({ stroke: stroke("#0000ff", 2, { dashClass: "dashed" }) });
+    const g = (e: PEdge, id: string): PEdge => ({ ...structuredClone(e), id });
+    const o = (e: PEdge, k: number): PEdge => ({ ...structuredClone(e), id: `a->b#g${String(k)}` });
+
+    it("pairs each with the edge drawn like it, its line and its arrowheads, whatever order graphty lists them in", () => {
+        const oracle = scene("oracle", [o(dashed, 0), o(solidBox, 1)]);
+        assert.deepEqual(failing(oracle, scene("graphty", [g(solidBox, "x"), g(dashed, "y")])), []);
+        assert.deepEqual(failing(oracle, scene("graphty", [g(dashed, "y"), g(solidBox, "x")])), []);
+    });
+
+    it("never gives an edge's exact twin to an edge it only half matches", () => {
+        // the oracle's first edge is solid with no arrowhead, which neither of graphty's is; its second is solid with a
+        // box: paired one at a time, the first took that twin (only its arrowhead differs) and left the second the
+        // dashed line
+        const plain = edge();
+        const report = compareOracle(
+            "t",
+            scene("oracle", [o(plain, 0), o(solidBox, 1)]),
+            scene("graphty", [g(solidBox, "x"), g(dashed, "y")]),
+        );
+        assert.deepEqual(
+            report.elements.filter((e) => e.id.startsWith("a->b#g1")),
+            [],
+        );
+    });
+});

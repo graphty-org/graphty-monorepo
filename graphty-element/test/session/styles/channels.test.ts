@@ -155,6 +155,14 @@ const DECLARED = [
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
     "node.shapePoints",
@@ -330,8 +338,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-seven node channels and one hundred and thirty-two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 147);
+    it("splits into one hundred and fifty-five node channels and one hundred and thirty-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 155);
         assert.strictEqual(channelsFor("edge").length, 132);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -543,6 +551,9 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        // Unset, a group reaches its largest member's radius past its members.
+        "node.groupPadding",
+        "node.groupPaddingRatio",
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",

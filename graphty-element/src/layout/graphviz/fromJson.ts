@@ -8,6 +8,7 @@
 
 import type { F32 } from "@graphty/graph-format";
 
+import type { GroupMargins } from "../groupMargins";
 import { POINTS_PER_UNIT } from "./toDot";
 
 /** The part of a `-Tjson` object or edge this reads. */
@@ -99,6 +100,85 @@ export function edgeBends(
         const bends = source && target ? bendsOf(source, target, pos) : null;
         if (bends !== null) {
             out.set(k, bends);
+        }
+    }
+
+    return out;
+}
+
+/** A box in Graphviz's points: low x, low y, high x, high y. */
+type Box = [x0: number, y0: number, x1: number, y1: number];
+
+/**
+ * A `bb` text as a box.
+ * @param bb - the text, "llx,lly,urx,ury"
+ * @returns the box, or null when it is not one
+ */
+function boxOf(bb: unknown): Box | null {
+    const parts = typeof bb === "string" ? bb.split(",").map(Number) : [];
+    return parts.length === 4 && parts.every(Number.isFinite) ? (parts as Box) : null;
+}
+
+/** The part of a `-Tjson` object a cluster's margins read. */
+interface JsonPart {
+    readonly name?: unknown;
+    readonly bb?: unknown;
+    readonly pos?: unknown;
+    readonly width?: unknown;
+    readonly height?: unknown;
+    readonly nodes?: unknown;
+    readonly subgraphs?: unknown;
+}
+
+/**
+ * A laid-out node's box, from its center and its width and height in inches.
+ * @param object - the node
+ * @returns the box, or null when it has no place
+ */
+function nodeBox(object: JsonPart | undefined): Box | null {
+    if (typeof object?.pos !== "string") {
+        return null;
+    }
+
+    const [x, y] = object.pos.split(",").map(Number);
+    const w = (Number(object.width) * POINTS_PER_UNIT) / 2;
+    const h = (Number(object.height) * POINTS_PER_UNIT) / 2;
+    return [x, y, w, h].every(Number.isFinite) ? [x - w, y - h, x + w, y + h] : null;
+}
+
+/**
+ * Read how far Graphviz drew each cluster past its members (its nodes and inner clusters) on each
+ * side, out of its json output: the room its margin, its label and the edges routed inside it take.
+ * @param json - the `-Tjson` text
+ * @returns each cluster's margins in points (not scene units), by the row of the group it stands for (`cluster_n<row>`)
+ */
+export function clusterMargins(json: string): Map<number, GroupMargins> {
+    const objects = (JSON.parse(json) as { objects?: readonly JsonPart[] }).objects ?? [];
+    const out = new Map<number, GroupMargins>();
+    for (const cluster of objects) {
+        const name = typeof cluster.name === "string" ? /^cluster_n(\d+)$/.exec(cluster.name) : null;
+        const bb = boxOf(cluster.bb);
+        if (name === null || bb === null) {
+            continue;
+        }
+
+        const members = [
+            ...(Array.isArray(cluster.nodes) ? cluster.nodes : []).map((i: number) => nodeBox(objects[i])),
+            ...(Array.isArray(cluster.subgraphs) ? cluster.subgraphs : []).map((i: number) => boxOf(objects[i]?.bb)),
+        ].filter((box) => box !== null);
+        if (members.length > 0) {
+            const inner = members.reduce((a, b) => [
+                Math.min(a[0], b[0]),
+                Math.min(a[1], b[1]),
+                Math.max(a[2], b[2]),
+                Math.max(a[3], b[3]),
+            ]);
+            out.set(Number(name[1]), {
+                left: inner[0] - bb[0],
+                bottom: inner[1] - bb[1],
+                right: bb[2] - inner[2],
+                top: bb[3] - inner[3],
+            });
         }
     }
 

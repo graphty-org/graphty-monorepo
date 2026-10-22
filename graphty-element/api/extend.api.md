@@ -1847,6 +1847,8 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
@@ -1890,6 +1892,8 @@ class Node_2 {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get wordedLabel(): RichTextLabel | null;
 }
 export { Node_2 as Node }
 

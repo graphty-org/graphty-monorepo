@@ -86,6 +86,9 @@ const DEFAULT_IDS = [
     // a specimen labeled as its caption (Graphviz's \N names the `default` node `default`, as its caption reads),
     // judged only where each side names its caption at its own place
     "dot-specimen-node-sizes-opacity-p2",
+    // edges ending at nodes graphty draws no body for (WikiPathways anchors, a node in the canvas's own color), which only
+    // where graphty's lines end at them pairs with the program's
+    "xgmml-wp4271-cy3-export",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");

@@ -109,6 +109,14 @@ const PAJEK_FIGURES: ReadonlyMap<string, readonly [number, number]> = new Map([
 ]);
 
 /**
+ * The factor Pajek draws a man or a woman at along an axis whose `x_fact` or `y_fact` the line leaves unset: 0.3, not
+ * the 1 of every other shape (`pajek-synth-vertices`: a man that sets neither, vertices 24, 48 and 81, is drawn 15.02
+ * across, 0.3 of the 50.05 of `x_fact 1`, and 30.55 tall from his feet to his head, 0.3 of `y_fact 1`'s 101.83; a woman
+ * that sets neither, vertices 9, 33 and 57, 16.30 across, 0.3 of `x_fact 1`'s 54.35).
+ */
+const PAJEK_FIGURE_UNSET_FACTOR = 0.3;
+
+/**
  * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to
  * [0,500]x[0,500]" (Pajek, "Pajek to EPS", http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm).
  */
@@ -471,7 +479,7 @@ function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): vo
  * that sets neither is left to the default beneath. The manual (p. 89) calls `s_size` "default size", but Pajek 6.02
  * draws a vertex the same size whatever its `s_size` (`pajek-specimen-node-sizes-opacity`: `s_size` 0.5, 2 and 3 all
  * drawn 36 across at `x_fact 1.8`), so it is not read. A man or a woman is the box of the figure Pajek draws for
- * that size (`PAJEK_FIGURES`), set or not.
+ * that size (`PAJEK_FIGURES`), set or not, at `PAJEK_FIGURE_UNSET_FACTOR` along an axis the line sets no factor for.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
@@ -486,7 +494,8 @@ function readSize(get: Param, put: Put, at: At, figure?: readonly [number, numbe
         if (f === null && figure === undefined) {
             continue;
         }
-        const factor = f === null ? 1 : canonNumber(f, at(property));
+        const unset = figure === undefined ? 1 : PAJEK_FIGURE_UNSET_FACTOR;
+        const factor = f === null ? unset : canonNumber(f, at(property));
         const over = figure?.[k] ?? 1;
         put(property, factor === null ? null : Number((PAJEK_VERTEX_SIZE * factor * over).toPrecision(15)));
     }

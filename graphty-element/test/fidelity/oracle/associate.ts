@@ -25,6 +25,7 @@ import {
     type PBox,
     type PEdge,
     type PGroup,
+    piecedArrowShapeOf,
     type PNode,
     type Prim,
     type PScene,
@@ -286,6 +287,30 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
     return fills.some((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
 }
 
+/** The node shapes whose outline is not their box's, nor an ellipse in it: a line ends on their slanted sides. */
+const SLANTED: ReadonlySet<PShape> = new Set(["triangle", "diamond", "hexagon", "octagon"]);
+
+/** The outline each node of a slanted shape was drawn with, where it was found by geometry (`nodeFrom`). */
+const slantedOutlines = new WeakMap<PNode, readonly Pt[]>();
+
+/**
+ * How far a point is from a closed outline's sides.
+ * @param p - the point
+ * @param outline - the outline's points, in order
+ * @returns the distance
+ */
+function toOutline(p: Pt, outline: readonly Pt[]): number {
+    let best = Infinity;
+    for (let i = 0; i < outline.length; i++) {
+        const [a, b] = [outline[i], outline[(i + 1) % outline.length]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+        best = Math.min(best, Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy));
+    }
+    return best;
+}
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
     const under = underlaysOf(drawn);
@@ -316,7 +341,8 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
     const pictures = shapes.filter((s) => s.kind === "image").map((s) => s.box);
-    return {
+    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
         cx: cx(box),
@@ -324,7 +350,7 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         w: bw(box),
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
-        shape: outline && area(outline.box) > 0 ? shapeOf(outline) : null,
+        shape,
         fill: filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
         ring:
@@ -341,6 +367,10 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         label: mergeTexts(texts),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
     };
+    if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
+        slantedOutlines.set(node, outline.points);
+    }
+    return node;
 }
 
 /**
@@ -419,13 +449,14 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
  * @param look.filled - whether it is filled
  * @param look.color - its color, or null
  * @param look.shape - its shape class, or undefined to read it off the outline
+ * @param look.pieces - its subpaths, when it is drawn as several (read together where the outline makes no shape)
  * @returns the arrow
  */
 export function measureArrow(
     outline: readonly Pt[],
     path: readonly Pt[],
     end: ArrowEnd,
-    look: { filled: boolean; color: string | null; shape?: ArrowShape },
+    look: { filled: boolean; color: string | null; shape?: ArrowShape; pieces?: readonly (readonly Pt[])[] },
 ): PArrow {
     const { filled, color } = look;
     // one part-way along is measured along the line's direction where it is, source to target
@@ -462,9 +493,24 @@ export function measureArrow(
         length: Math.max(...along) - Math.min(...along),
         width: Math.max(...across) - Math.min(...across),
         filled,
-        shape: look.shape ?? arrowShapeOf(outline, [dx, dy]),
+        shape: look.shape ?? shapeAlong(outline, look.pieces, [dx, dy]),
         color,
     };
+}
+
+/**
+ * An arrowhead's shape class along its axis: its outline's, or where that makes no shape and it is drawn in pieces
+ * (one path of several subpaths, whose outline runs from one piece to the next), its pieces' together.
+ * @param outline - the arrowhead's points
+ * @param pieces - its subpaths, when it has them
+ * @param dir - the axis, back to tip
+ * @returns the class
+ */
+function shapeAlong(outline: readonly Pt[], pieces: readonly (readonly Pt[])[] | undefined, dir: Pt): ArrowShape {
+    const whole = arrowShapeOf(outline, dir);
+    return whole === "other" && pieces !== undefined && pieces.length > 1
+        ? (piecedArrowShapeOf(pieces, dir) ?? whole)
+        : whole;
 }
 
 /** The least distance a line's end direction is read over: past a coordinate's rounding. */
@@ -669,6 +715,7 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
     return measureArrow(p.points, path, end, {
         filled,
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
+        ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
 }
 
@@ -1240,6 +1287,92 @@ export function arrowheadEdge(
 }
 
 /**
+ * graphty's drawing carried into the oracle's by the nodes both hold (their centers), or null where graphty laid the
+ * graph out itself, which relates no place to the oracle's.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes found so far, by id
+ * @param ownLayout - whether graphty laid the graph out itself
+ * @returns the frame, or null
+ */
+function guideFrame(guide: PScene, nodes: ReadonlyMap<string, PNode>, ownLayout: boolean): Similarity | null {
+    if (ownLayout) {
+        return null;
+    }
+    const both = guide.nodes.flatMap((n) => {
+        const o = nodes.get(n.id);
+        return o === undefined ? [] : [{ from: [n.cx, n.cy] as Pt, to: [o.cx, o.cy] as Pt }];
+    });
+    return fitSimilarity(
+        both.map((q) => q.from),
+        both.map((q) => q.to),
+    );
+}
+
+/** A box of graphty's drawing carried into the oracle's frame: the box of its four corners carried. */
+const carryBox = (fit: Similarity, b: PBox): PBox =>
+    boxOfPoints(
+        (
+            [
+                [b.x0, b.y0],
+                [b.x1, b.y0],
+                [b.x1, b.y1],
+                [b.x0, b.y1],
+            ] as Pt[]
+        ).map((q) => apply(fit, q)),
+    );
+
+/** How far from each of its two nodes a line under a third node may end and still be the edge between them. */
+const STUB_TOUCH = 3;
+
+/** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
+const UNDRAWN_END_REACH = 4;
+
+/**
+ * The edge ends at nodes graphty draws nothing for (WikiPathways' anchors: a 2 px node of no opacity, on another
+ * edge's line, that an edge ends at): each where graphty's lines end at it, carried into the oracle's frame by the
+ * nodes both drawings hold. Only lines' ends see them; they are no body of the drawing. None
+ * where graphty laid the graph out itself, which relates no place to the oracle's.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes found so far, by id
+ * @param fit - graphty's drawing carried into the oracle's (`guideFrame`)
+ * @returns the undrawn ends, as nodes
+ */
+function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): PNode[] {
+    if (fit === null) {
+        return [];
+    }
+    const drawn = new Set([...guide.nodes.map((n) => n.id), ...guide.groups.map((g) => g.id), ...nodes.keys()]);
+    const at = new Map<string, Pt[]>();
+    for (const e of guide.edges) {
+        const ends: [string, Pt | undefined][] = [
+            [e.source, e.points[0]],
+            [e.target, e.points.at(-1)],
+        ];
+        for (const [id, q] of ends) {
+            if (q !== undefined && !drawn.has(id)) {
+                at.set(id, [...(at.get(id) ?? []), apply(fit, q)]);
+            }
+        }
+    }
+    // the box of every line's end at it: a point for an anchor, its outline's reach for a node of some size drawn in
+    // the canvas's own color (xgmml-wp4271-cy3-export: a 90 x 25 white ellipse, its lines ending round it)
+    return [...at].map(([id, pts]) => {
+        const box = boxOfPoints(pts);
+        return {
+            id,
+            cx: cx(box),
+            cy: cy(box),
+            w: bw(box),
+            h: bh(box),
+            shape: null,
+            fill: null,
+            stroke: null,
+            label: null,
+        };
+    });
+}
+
+/**
  * How far from a line's end an arrowhead drawn with it may start: a half arrow's base corner, and a line drawn in pieces
  * stopping a piece short of its base (cys-syn-mappings 408->414: 6 px, 192->204: 3 px).
  */
@@ -1662,10 +1795,15 @@ export function associate(
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
+    const frame = guideFrame(guide, nodes, options.ownLayout === true);
+    const undrawn = undrawnEnds(guide, nodes, frame);
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
     // outline); a border of a pixel or so is inside the slack already.
     const endReach = (n: PNode): number => {
+        if (undrawn.includes(n)) {
+            return UNDRAWN_END_REACH;
+        }
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
     };
@@ -1687,7 +1825,11 @@ export function associate(
     // a line drawn in pieces is no arrowhead (cys-syn-mappings 420->426: an open half circle at its end, read through
     // its double line to the far node, was taken for the edge)
     const heads = free().filter(
-        (q) => q.kind === "shape" && !painted.has(q) && !nodeList.some((n) => inside([n.cx, n.cy], q.box)),
+        (q) =>
+            q.kind === "shape" &&
+            q.lettering !== true &&
+            !painted.has(q) &&
+            !nodeList.some((n) => inside([n.cx, n.cy], q.box)),
     );
     const gap = (a: PBox, b: PBox): number =>
         Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
@@ -1706,7 +1848,7 @@ export function associate(
     // outline, in its box's corner, beside another circle's box); and a program that runs its lines to the centers ends
     // them there
     const nodesOn = (p: Pt, slack = 0): { n: PNode; d: number }[] =>
-        nodeList
+        [...nodeList, ...undrawn, ...groupEnds.map((g) => g.node)]
             .map((n) => {
                 const b = nodeBox(n);
                 const [rx, ry] = [bw(b) / 2, bh(b) / 2];
@@ -1717,6 +1859,12 @@ export function associate(
                     // off it (a flat ellipse's semi-minor axis would put an end far off its long side within reach,
                     // xgmml-syn-mappings: 35 px off a 38 x 15 ellipse's end read as 19)
                     return { n, d: Math.min(center, Math.abs(k - 1) * (k > 1e-9 ? center / k : Math.min(rx, ry))) };
+                }
+                // a slanted side is the node's own, not its box's corner (xgmml-aracne-mycccnd1: an end on one triangle's
+                // side, beside another triangle's box, was the other's, and two edges to it left the first with none)
+                const slanted = slantedOutlines.get(n);
+                if (slanted !== undefined) {
+                    return { n, d: Math.min(center, toOutline(p, slanted)) };
                 }
                 const d = inside(p, b)
                     ? Math.min(center, p[0] - b.x0, b.x1 - p[0], p[1] - b.y0, b.y1 - p[1])
@@ -1755,8 +1903,20 @@ export function associate(
         if (held.length === 0 || nodes.has(g.id)) {
             return [];
         }
-        const box = union(held.map(boxOfNode));
-        const node: PNode = { ...held[0], id: g.id, cx: cx(box), cy: cy(box), w: bw(box), h: bh(box), label: null };
+        // the box graphty draws round them, carried into the oracle's frame: a line ends at the group's own outline,
+        // a padding out from its members (cx2-signor-aml: a compound node of one member, 52 -> 4)
+        const drawnBox = frame === null ? [] : [carryBox(frame, g.box)];
+        const box = union([...held.map(boxOfNode), ...drawnBox]);
+        const node: PNode = {
+            ...held[0],
+            id: g.id,
+            cx: cx(box),
+            cy: cy(box),
+            w: bw(box),
+            h: bh(box),
+            shape: "rect",
+            label: null,
+        };
         return [{ node, members: new Set(held) }];
     });
     const withGroups = (at: { n: PNode; d: number }[]): { n: PNode; d: number }[] => [
@@ -1817,15 +1977,27 @@ export function associate(
                 nearest = far === 0 ? [other, nearest[1]] : [nearest[0], other];
             }
         }
-        // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read
+        // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read -- unless
+        // both its ends touch the two nodes of an edge graphty draws there too, as a stub between two nodes drawn
+        // edge to edge does under a third (cx-radiation-bibliography 114 -> 100, under the diamond 21)
+        if (nearest[0] === nearest[1] && !guideLoops.has(nearest[0].id)) {
+            const stub = from
+                .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d, touch: Math.max(x.d, y.d) })))
+                .filter(
+                    (q) => q.a !== q.b && q.touch <= STUB_TOUCH && (guidePairs.get(pairOf(q.a.id, q.b.id)) ?? 0) > 0,
+                )
+                .sort((x, y) => x.d - y.d)[0];
+            return stub === undefined ? nearest : [stub.a, stub.b];
+        }
         if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
             return nearest;
         }
         // nearest first; among pairs as near as each other (two lines' stations drawn one over another), the one
-        // graphty draws in the path's color
+        // graphty draws in the path's color; a loop where graphty draws one, its end at a crowded spot as near another
+        // node (cx2-signor-aml: five loops on JAK2, their heads' tips on BRAF's outline too, read as edges to DOT1L)
         const pairs = from
             .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d })))
-            .filter(({ a, b }) => a !== b && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
+            .filter(({ a, b }) => (a !== b || guideLoops.has(a.id)) && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
             .sort((x, y) => x.d - y.d);
         const tied = pairs.filter((q) => q.d <= (pairs[0]?.d ?? 0) + 2);
         const known = tied.find((q) => guideColors.get(pairOf(q.a.id, q.b.id))?.has(color) === true) ?? pairs.at(0);
@@ -1888,7 +2060,7 @@ export function associate(
             ...p,
             kind: "path",
             closed: false,
-            points: band.ends,
+            points: band.route ?? band.ends,
             fill: null,
             stroke: {
                 color: p.fill.color,
@@ -2044,10 +2216,19 @@ export function associate(
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
+    // the annotations graphty draws, carried into the oracle's frame: a shape under one is that annotation, judged as
+    // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
+    const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
     const knockouts = new Map<string, { arrow: PArrow; box: PBox }>();
     for (const p of free()) {
         const picture = p.kind === "image";
-        if ((p.kind !== "shape" && !picture) || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
+        // words drawn as glyph outlines beside an end (a custom graphic's label) are no arrowhead
+        if (
+            (p.kind !== "shape" && !picture) ||
+            p.lettering === true ||
+            annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
+            wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
+        ) {
             continue;
         }
         const best = ownCaps.get(p) ?? arrowheadEdge(p, withPieces, nodeList, centerLines);

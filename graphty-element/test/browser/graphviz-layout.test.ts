@@ -193,6 +193,51 @@ describe("Graphviz layouts in the element", () => {
         );
     });
 
+    it("draws a DOT file's clusters as Graphviz draws them: its margin past the members, its label's room on top", async () => {
+        // Graphviz draws a cluster 8 points (1/9 of a one-inch node) past its members, and a labelled
+        // one taller by its label at the top; a group drawn round its members by itself reaches its
+        // largest member's radius (half a node) past them on every side. The label is set after the
+        // inner cluster opens, so Graphviz gives the inner cluster none.
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "dot",
+                config: {
+                    data: 'digraph { node [shape=box, width=1, height=0.5]; subgraph cluster_outer { a; subgraph cluster_inner { b; c } label="outer words" } a -> b; x -> a }',
+                },
+            },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const manager = graph.getLayoutManager();
+        const width = 2 * (graph.getNode("a")?.drawnHalfExtents.x ?? Number.NaN);
+        const margins = (group: string, members: string[]): { side: number; bottom: number; top: number } => {
+            const box = manager.groupBox(group);
+            assert.isDefined(box, group);
+            const ends = members.map((id) => {
+                const half = graph.getNode(id)?.drawnHalfExtents ?? { x: Number.NaN, y: Number.NaN };
+                return { x0: at(id).x - half.x, x1: at(id).x + half.x, y0: at(id).y - half.y, y1: at(id).y + half.y };
+            });
+            const { center, half } = box ?? { center: { x: 0, y: 0 }, half: { x: 0, y: 0 } };
+            return {
+                side: (Math.min(...ends.map((e) => e.x0)) - (center.x - half.x)) / width,
+                bottom: (Math.min(...ends.map((e) => e.y0)) - (center.y - half.y)) / width,
+                top: (center.y + half.y - Math.max(...ends.map((e) => e.y1))) / width,
+            };
+        };
+
+        const inner = margins("cluster_inner", ["b", "c"]);
+        assert.closeTo(inner.side, 8 / 72, 0.01, "the inner cluster's margin at its side");
+        assert.closeTo(inner.bottom, 8 / 72, 0.01, "and at its bottom");
+        assert.closeTo(inner.top, 8 / 72, 0.01, "a cluster opened before its parent's label has no label room");
+        const outer = margins("cluster_outer", ["a", "b", "c"]);
+        assert.closeTo(outer.bottom, 16 / 72, 0.01, "the outer cluster's margin past the inner one's");
+        assert.isAbove(outer.top - outer.bottom, 0.15, "and its label's room on top");
+    });
+
     it("lays a DOT file's rank subgraph and edge lengths out as Graphviz does", async () => {
         // Without the rank subgraph c is a rank below a; without minlen y is one rank below x, as z is.
         const session = graph.getSession();

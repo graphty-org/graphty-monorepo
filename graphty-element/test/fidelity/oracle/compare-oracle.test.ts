@@ -1253,6 +1253,50 @@ describe("oracle comparison", () => {
         assert.deepEqual(clipToNodes(inside, a, a), inside);
     });
 
+    it("judges a line that leaves under a pixel of itself outside its nodes as drawn, on both sides", () => {
+        // json-graphology-synth n0 -> n1: n1's center sits on n0's outline and n1 is painted over by another node, so
+        // the oracle draws no n1 and cuts the line at n0 alone; each side then leaves a sliver at n0's border, of 0
+        // and of 0.05 px, which are no routes a reader sees
+        const disc = (id: string, cx: number, cy: number, d = 40): PNode => ({
+            id,
+            cx,
+            cy,
+            w: d,
+            h: d,
+            shape: "ellipse",
+            fill: fill("#cccccc"),
+            stroke: null,
+            label: null,
+        });
+        const grid = [disc("a", 100, 100), disc("b", 500, 100), disc("c", 100, 700), disc("d", 500, 700)];
+        const line = {
+            id: "p->q",
+            source: "p",
+            target: "q",
+            points: [
+                [300, 400],
+                [393.5, 400],
+            ] as Pt[],
+            stroke: stroke("#0000ff", 2),
+            arrows: [],
+            label: null,
+        };
+        const scene = (side: PScene["side"], nodes: PNode[]): PScene => ({
+            side,
+            width: 600,
+            height: 800,
+            background: "#ffffff",
+            nodes: [...grid, ...nodes],
+            edges: [line],
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+        const o = scene("oracle", [disc("p", 300, 400, 187)]);
+        const g = scene("graphty", [disc("p", 300, 400, 186.9), disc("q", 393.5, 400, 46)]);
+        assert.strictEqual(compareOracle("t", o, g).properties["edge.route"].passRate, 1);
+    });
+
     it("pairs two parallel edges drawn over one another by their label words", () => {
         const g = graphtyScene();
         const labelled = { ...g.edges[0], id: "e3", arrows: [], label: text("L", 300, 100) };
@@ -1810,6 +1854,32 @@ describe("what the fit, the averages and the stray match must not hide", () => {
             ),
         );
         assert.deepEqual(failing(zoomed), ["frame.zoom"]);
+    });
+
+    it("counts the group boxes both sides draw as part of the drawing whose zoom it judges", () => {
+        // a cluster that keeps room above its members (for the edges routed inside it), on a canvas cut to the
+        // drawing; graphty frames the same drawing, cluster and all, on a wider canvas
+        const cluster = (map: (p: Pt) => Pt): PScene["groups"][number] => {
+            const [x0, y0] = map([60, -600]);
+            const [x1, y1] = map([540, 340]);
+            return {
+                id: "g",
+                box: { x0, y0, x1, y1 },
+                fill: null,
+                stroke: stroke("#000000"),
+                label: null,
+                members: [],
+            };
+        };
+        const shifted = (p: Pt): Pt => [p[0], p[1] + 620];
+        const framed = (p: Pt): Pt => [300 + 0.9 * p[0], 0.9 * (p[1] + 620)];
+        const o = { ...sceneOf("oracle", 600, 980, grid(shifted)), groups: [cluster(shifted)] };
+        const g = { ...sceneOf("graphty", 1200, 900, grid(framed, 36)), groups: [cluster(framed)] };
+
+        const r = compareOracle("t", o, g);
+
+        assert.notInclude(failing(r), "frame.zoom", JSON.stringify(r.transform?.fill));
+        assert.closeTo(r.transform?.fill.oracle ?? 0, 940 / 980, 1e-3, "the cluster sets the oracle's fill");
     });
 
     it("judges positions, label places and routes against their own element, however large the canvas", () => {

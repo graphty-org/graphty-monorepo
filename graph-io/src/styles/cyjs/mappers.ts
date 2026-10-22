@@ -465,6 +465,18 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["height", { property: "height", type: "nodeSize" }],
     // a node is drawn this much larger on every side (`nodeSizes`)
     ["padding", { property: "_padding", type: "text" }],
+    // how a compound parent is sized round its children (`groupBoxes`)
+    [
+        "padding-relative-to",
+        { property: "_paddingOf", type: "enum", enums: ["width", "height", "average", "min", "max"] },
+    ],
+    ["min-width", { property: "_minWidth", type: "text" }],
+    ["min-height", { property: "_minHeight", type: "text" }],
+    ["min-width-bias-left", { property: "_biasLeft", type: "text" }],
+    ["min-width-bias-right", { property: "_biasRight", type: "text" }],
+    ["min-height-bias-top", { property: "_biasTop", type: "text" }],
+    ["min-height-bias-bottom", { property: "_biasBottom", type: "text" }],
+    ["compound-sizing-wrt-labels", { property: "_compoundLabels", type: "enum", enums: ["include", "exclude"] }],
     [
         "text-valign",
         { property: "_valign", type: "enum", enums: ["top", "top-inside", "center", "bottom", "bottom-inside"] },

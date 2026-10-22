@@ -928,8 +928,9 @@ export class Node {
         const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
-        // corner is still inside it.
-        const round = this.shapeType === "ellipse";
+        // corner is still inside it -- unless the style sizes the group (a Cytoscape.js compound
+        // parent), whose shape is drawn in its box, as Cytoscape.js draws it.
+        const round = this.shapeType === "ellipse" && this.drawnStyle?.group === undefined;
         const grow = round ? far * Math.SQRT2 : far;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
         const stretch = this.mesh.scaling;
@@ -1767,6 +1768,40 @@ export class Node {
         const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
 
         return radius + this.borderReach;
+    }
+
+    /**
+     * The node's label, when it draws any words.
+     * @returns The label, or null for no label or an empty one.
+     * @internal
+     */
+    get wordedLabel(): RichTextLabel | null {
+        const words = this.drawnLabelText?.trim() ?? "";
+        return words === "" ? null : (this.label ?? null);
+    }
+
+    /**
+     * How the style sizes this node when it is drawn as a group following its members (`node.group*`),
+     * its lengths in the units positions are laid out in (a length of `shape.size` units is drawn
+     * {@link NodeMesh.extentPerSize} of them across, as the node's own size is).
+     * @returns The sizing, or undefined when the style sets none.
+     * @internal
+     */
+    get groupSizing(): NodeStyleConfig["group"] {
+        const group = this.drawnStyle?.group;
+        if (group === undefined) {
+            return undefined;
+        }
+
+        const per = NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        const scaled = (length: number | undefined): number | undefined =>
+            length === undefined ? undefined : length * per;
+        return {
+            ...group,
+            padding: scaled(group.padding),
+            minWidth: scaled(group.minWidth),
+            minHeight: scaled(group.minHeight),
+        };
     }
 
     /**

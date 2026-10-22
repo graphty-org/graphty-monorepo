@@ -11,7 +11,7 @@ import { assert, describe, it, vi } from "vitest";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
+import { clusterMargins, edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { toDot } from "../../src/layout/graphviz/toDot";
@@ -159,7 +159,8 @@ describe("the DOT the element hands Graphviz", () => {
             ],
         });
 
-        assert.include(dot, 'subgraph cluster_n3 {\ngraph [label="the group", fontsize="20"];\nn0;\nn1;\n}');
+        // after the members, so a cluster inside it does not take them as the attributes set round it
+        assert.include(dot, 'subgraph cluster_n3 {\nn0;\nn1;\ngraph [label="the group", fontsize="20"];\n}');
         assert.include(dot, "{ rank=same; n0; n2; }", "a group's row is no node to rank");
         assert.notInclude(dot, "bad rank");
         assert.include(dot, 'n1 -> n2 [minlen="2", weight="5", id="e0"];\nn0 -> n1 [id="e1"];', "in the order given");
@@ -241,6 +242,49 @@ describe("Graphviz's json read back", () => {
             assert.isTrue(a.every((v) => Number.isFinite(v)));
             assert.deepEqual(Array.from(a), Array.from(fromJson(second.json, snapshot.nodeCount)));
         }
+    });
+});
+
+describe("the room Graphviz gives each cluster read back", () => {
+    it("reads how far each cluster reaches past its members on each side: its margin, and its label's room on top", async () => {
+        // rows: a0 b1 c2 outer3 inner4; a box one inch by half an inch is 72 by 36 points
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["b", "c"],
+            ["outer", "inner"],
+        ]);
+        const groups = new Map([
+            [3, [0, 4]],
+            [4, [1, 2]],
+        ]);
+        const extents = Array.from({ length: 10 }, (_unused, i) => (i % 2 === 0 ? 1 : 0.5));
+        const dot = toDot(snapshot, {}, undefined, extents, groups, {
+            groupAttributes: new Map([[3, { label: "outer words" }]]),
+        });
+        const reply = await layout(dot, "dot");
+        assert.isTrue(reply.ok, JSON.stringify(reply));
+        const margins = reply.ok ? clusterMargins(reply.json) : new Map();
+
+        assert.deepEqual([...margins.keys()].sort(), [3, 4]);
+        // the inner cluster: Graphviz's 8-point margin on every side, no label
+        assert.deepEqual(margins.get(4), { left: 8, right: 8, bottom: 8, top: 8 });
+        // the outer one: 8 points past its members (the inner cluster's box among them), and its label above
+        const outer = margins.get(3);
+        assert.strictEqual(outer?.bottom, 8);
+        assert.strictEqual(outer?.left, 8);
+        assert.isAbove(outer?.top ?? 0, 8 + 14, "a 14-point label's room on top");
+    });
+
+    it("reads nothing for a cluster that is no group's, or a graph with none", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "cluster_other", bb: "0,0,10,10", nodes: [1] },
+                { name: "n0", pos: "5,5", width: "0.1", height: "0.1" },
+                { name: "cluster_n0", bb: "0,0,10,10", nodes: [] },
+            ],
+        });
+        assert.strictEqual(clusterMargins(json).size, 0);
+        assert.strictEqual(clusterMargins("{}").size, 0);
     });
 });
 

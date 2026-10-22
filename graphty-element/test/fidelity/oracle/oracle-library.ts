@@ -272,6 +272,20 @@ export async function compareWithOracle(
         throw new Error(`${id} has no oracle SVG`);
     }
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
+    // TEMP-DEBUG fix-assoc-real: dump the association's inputs
+    if ((import.meta.env.VITE_ORACLE_DUMP as string | undefined) === "1" && mutate === undefined) {
+        const { commands: c } = await import("vitest/browser");
+        await c.writeFile(
+            `tmp/oracle-dump/${id}${command.includes("moved") ? "@matched" : ""}.json`,
+            JSON.stringify({
+                prims,
+                width,
+                height,
+                guide: namedCaptions(graphty, numbers),
+                ownLayout: element.session.seededNodeCount === 0,
+            }),
+        );
+    }
     const associated = await associateOracle(
         id,
         meta,

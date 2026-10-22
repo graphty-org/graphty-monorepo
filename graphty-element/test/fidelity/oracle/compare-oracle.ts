@@ -654,6 +654,18 @@ const insideNode = (n: PNode, [x, y]: Pt): boolean => {
  * @returns the visible path
  */
 export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: PNode | undefined): Pt[] {
+    return shownPart(pts, start, end) ?? [...pts];
+}
+
+/**
+ * The part of a path between its nodes' outlines (`clipToNodes`), or null where none of it shows: it never leaves its
+ * nodes, or what is left lies wholly under them.
+ * @param pts - the path
+ * @param start - the node it starts in
+ * @param end - the node it ends in
+ * @returns the part, or null
+ */
+export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNode | undefined): Pt[] | null {
     const crossing = (a: Pt, b: Pt, n: PNode): Pt => {
         // a is inside, b outside: bisect for the border
         let lo = 0;
@@ -687,7 +699,14 @@ export function clipToNodes(pts: readonly Pt[], start: PNode | undefined, end: P
     // read from inside the node, wherever the program started stroking it (json-vis-synth 55 -> 55)
     const head = trimStart(start !== undefined && start === end ? fromInside(pts, start) : [...pts], start);
     const out = trimStart([...head].reverse(), end).reverse();
-    return out.length >= 2 ? out : [...pts];
+    // what is left wholly under its nodes (two nodes drawn over one another, the line between their centers) shows no
+    // part between them: a sliver cut from it would be judged as the route (pajek-synth-vertices 32->41)
+    const under = (a: Pt, b: Pt): boolean => {
+        const mid: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        return [start, end].some((n) => n !== undefined && insideNode(n, mid));
+    };
+    const hidden = out.slice(1).every((q, i) => under(out[i], q));
+    return out.length >= 2 && !hidden ? out : null;
 }
 
 /**
@@ -1347,6 +1366,28 @@ function extentOf(nodes: readonly PNode[], side: "oracle" | "graphty"): PBox {
     return box;
 }
 
+/**
+ * A box grown to hold the group boxes a side draws that the other side draws too (by id): a cluster drawn round
+ * its members, and the room it keeps for its label and the edges inside it, is part of the drawing either
+ * program frames.
+ * @param box - the box round the nodes
+ * @param groups - the side's groups
+ * @param ids - the ids of the other side's groups
+ * @returns the grown box
+ */
+function withGroups(box: PBox, groups: readonly PGroup[], ids: ReadonlySet<string>): PBox {
+    const out = { ...box };
+    for (const { id, box: g } of groups) {
+        if (ids.has(id)) {
+            out.x0 = Math.min(out.x0, g.x0);
+            out.y0 = Math.min(out.y0, g.y0);
+            out.x1 = Math.max(out.x1, g.x1);
+            out.y1 = Math.max(out.y1, g.y1);
+        }
+    }
+    return out;
+}
+
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
     Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
@@ -1410,9 +1451,10 @@ export function compareOracle(
         pairs.map(([, g]) => g),
         "graphty",
     );
+    const groupIds = (scene: PScene): Set<string> => new Set(scene.groups.map((g) => g.id));
     const filled = {
-        oracle: fillOf(extentO, oracle.width, oracle.height),
-        graphty: fillOf(extentG, graphty.width, graphty.height),
+        oracle: fillOf(withGroups(extentO, oracle.groups, groupIds(graphty)), oracle.width, oracle.height),
+        graphty: fillOf(withGroups(extentG, graphty.groups, groupIds(oracle)), graphty.width, graphty.height),
     };
     if (fit !== null) {
         const sse = pairs.reduce((sum, [o, g]) => {
@@ -1639,7 +1681,14 @@ export function compareOracle(
     const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
     // an end at no node of graphty's (a group's box) keeps its id, which the oracle's association takes from graphty
     const graphtyNodeIds = new Set(graphty.nodes.map((n) => n.id));
-    const oid = (id: string): string => idMap.get(id) ?? (graphtyNodeIds.has(id) ? `g:${id}` : id);
+    // so does a node of graphty's the oracle draws nothing for, whose lines' ends the association names after it
+    // (pajek-1crn 27, drawn wholly under 28)
+    const oracleNodeIds = new Set(oracle.nodes.map((n) => n.id));
+    const undrawnEnds = new Set(
+        oracle.edges.flatMap((e) => [e.source, e.target]).filter((id) => !oracleNodeIds.has(id)),
+    );
+    const oid = (id: string): string =>
+        idMap.get(id) ?? (graphtyNodeIds.has(id) && !undrawnEnds.has(id) ? `g:${id}` : id);
     // graphty's edges not yet paired, in its order
     const gRemaining = new Set(graphty.edges);
     // an edge's ends as each side names them: the nodes its file names, or the nodes a reader sees it end at (`ownEnds`)
@@ -1687,16 +1736,34 @@ export function compareOracle(
         const [cx, cy] = toOracle([n.cx, n.cy]);
         return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale };
     };
+    // a node with no body (graphty's faceless node, the oracle's node found only by its label or by its lines' ends)
+    // has no outline to cut a line at
+    const bodied = (n: PNode | undefined): n is PNode =>
+        n !== undefined &&
+        n.faceless === undefined &&
+        (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
+    /** An end's outline on each side, or none on either where one side draws none there. */
+    const cutAt = (on: PNode | undefined, at: PNode | undefined): [PNode | undefined, PNode | undefined] =>
+        bodied(on) && bodied(at) ? [on, at] : [undefined, undefined];
     /** Both routes between their own nodes, graphty's in the oracle's frame and direction. */
     const visible = (o: PEdge, g: PEdge): [Pt[], Pt[]] => {
+        const [vo, vg] = shownParts(o, g);
+        return [vo ?? [...o.points], vg ?? routeOf(o, g)];
+    };
+    /** Each route's part between its own nodes, or null where none of it shows (`shownPart`). */
+    const shownParts = (o: PEdge, g: PEdge): [Pt[] | null, Pt[] | null] => {
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        return [
-            clipToNodes(o.points, oOuter(oById.get(o.source)), oOuter(oById.get(o.target))),
-            clipToNodes(routeOf(o, g), gOuter(gs), gOuter(gt)),
-        ];
+        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs));
+        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt));
+        return [shownPart(o.points, os, ot), shownPart(routeOf(o, g), gsAt, gtAt)];
     };
     /** How far graphty's route's shape is from the oracle's (`routeShape`), and the least gap that fails. */
     const routeGap = (o: PEdge, g: PEdge): { gap: number; near: number } => {
+        // none, or under a pixel, left between the outlines on both sides is no route a reader sees on either, only two
+        // roundings of nodes that nearly touch: alike (json-graphology-synth n0 -> n1, n1's center on n0's outline)
+        if (shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel)) {
+            return { gap: 0, near: T.edgePathOfLength };
+        }
         const { gap, unit } = routeShape(...visible(o, g));
         return { gap, near: Math.max(T.edgePathOfLength, pixel / unit) };
     };
@@ -1739,6 +1806,37 @@ export function compareOracle(
         }
         return best?.g;
     };
+    /** The ends an edge draws an arrowhead at, named the oracle edge's way round. */
+    const arrowEnds = (e: PEdge, flipped: boolean): string => {
+        const turn = (end: string): string => {
+            if (!flipped || end === "middle") {
+                return end;
+            }
+            return end === "source" ? "target" : "source";
+        };
+        return [...new Set(e.arrows.map((x) => turn(x.end)))].sort().join(",");
+    };
+    /**
+     * How unlike an oracle edge found by its geometry a graphty edge between the same nodes is drawn, 0 for alike: in
+     * another color or with other words, then another line class, then its route failing, then curved otherwise, then
+     * arrowheads at other ends, then running the other way. Between two parallel or antiparallel edges only the look
+     * tells them apart: drawn over one another, or each program bowing them its own way (cx2-signor-aml 27->68, a blue
+     * dashed line bowed and a purple solid one, each paired with the other's look by its route).
+     */
+    const likeness = (o: PEdge, g: PEdge, routePasses: boolean): number => {
+        const dressed =
+            (o.stroke === null || g.stroke === null || deltaE(o.stroke.color, g.stroke.color) <= T.colorDeltaE) &&
+            norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
+        const lined = o.stroke === null || g.stroke === null || o.stroke.dashClass === g.stroke.dashClass;
+        return (
+            (dressed ? 0 : 32) +
+            (lined ? 0 : 16) +
+            (routePasses ? 0 : 8) +
+            (curved(routeOf(o, g)) === curved(o.points) ? 0 : 4) +
+            (arrowEnds(o, false) === arrowEnds(g, flips(o, g)) ? 0 : 2) +
+            (idMap.get(g.source) === o.source ? 0 : 1)
+        );
+    };
     const closest = (o: PEdge, list: PEdge[]): number => {
         if (list.length < 2) {
             return 0;
@@ -1749,24 +1847,10 @@ export function compareOracle(
         const gaps = routes.map((r) => r.gap / r.near);
         const passes = (k: number): boolean => gaps[k] <= 1;
         const best = gaps.indexOf(Math.min(...gaps));
-        // An edge found by its geometry alone (a `#g` id) has no id to keep: it is the edge drawn most like it -- its
-        // route passing, then in its color and with its label, then curved alike, then running the same way.
+        // An edge found by its geometry alone (a `#g` id) has no id to keep: it is the edge drawn most like it
+        // (`likeness`), the nearest of those
         if (o.id.includes("#g")) {
-            const rank = (k: number): number => {
-                const g = list[k];
-                const dressed =
-                    (o.stroke === null ||
-                        g.stroke === null ||
-                        deltaE(o.stroke.color, g.stroke.color) <= T.colorDeltaE) &&
-                    norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
-                return (
-                    (passes(k) ? 0 : 8) +
-                    (dressed ? 0 : 4) +
-                    (curved(routeOf(o, g)) === curved(o.points) ? 0 : 2) +
-                    (idMap.get(g.source) === o.source ? 0 : 1)
-                );
-            };
-            // the nearest of the edges drawn most like it
+            const rank = (k: number): number => likeness(o, list[k], passes(k));
             return gaps
                 .map((_, k) => k)
                 .reduce((x, y) => (rank(y) < rank(x) || (rank(y) === rank(x) && gaps[y] < gaps[x]) ? y : x));
@@ -1790,6 +1874,53 @@ export function compareOracle(
         );
         return headed.includes(worded) || headed.length === 0 ? worded : headed[0];
     };
+    /**
+     * Pairs the oracle edges found by geometry between one pair of nodes with graphty's between them all at once: the
+     * pairing that leaves the fewest unpaired, then draws the pairs most alike (`likeness`), then nearest. One at a
+     * time, the first edge took the one most like it, and the next was left the other's look (cx2-signor-aml: two
+     * edges between 26 and 27, each judged with the other's dash and arrowhead), or the first took graphty's only edge
+     * there whatever it looked like (cys-annotation-example: a black annotation arrow over the gray edge 169421 ->
+     * 169409 took it). Over six a side, one at a time.
+     * @param group - the oracle's edges
+     * @param list - graphty's, from which the paired are removed
+     * @returns each oracle edge with its pair, or undefined for none
+     */
+    const jointly = (group: readonly PEdge[], list: PEdge[]): [PEdge, PEdge | undefined][] => {
+        const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
+        const cost = group.map((o) =>
+            list.map((g) => {
+                const r = framed ? routeGap(o, g) : { gap: 0, near: 1 };
+                return 1000 * likeness(o, g, r.gap <= r.near) + Math.min(r.gap / r.near, 999);
+            }),
+        );
+        let best: { total: number; pick: number[] } = { total: Infinity, pick: [] };
+        const search = (i: number, pick: number[], total: number): void => {
+            if (total >= best.total) {
+                return;
+            }
+            if (i === group.length) {
+                best = { total, pick: [...pick] };
+                return;
+            }
+            for (let k = 0; k < list.length; k++) {
+                if (!pick.includes(k)) {
+                    search(i + 1, [...pick, k], total + cost[i][k]);
+                }
+            }
+            // left unpaired only when graphty has fewer
+            if (group.length - i > list.length - pick.filter((k) => k >= 0).length) {
+                search(i + 1, [...pick, -1], total + 1e9);
+            }
+        };
+        search(0, [], 0);
+        const chosen = best.pick.map((k) => (k < 0 ? undefined : list[k]));
+        for (const g of chosen) {
+            if (g !== undefined) {
+                list.splice(list.indexOf(g), 1);
+            }
+        }
+        return group.map((o, i) => [o, chosen[i]]);
+    };
     /** Pairs each oracle edge with a graphty edge between the same nodes, by `key`; returns the oracle's left over. */
     const pairBy = (os: readonly PEdge[], key: EndsKey): PEdge[] => {
         const byKey = new Map<string, PEdge[]>();
@@ -1797,17 +1928,39 @@ export function compareOracle(
             const k = key(g, "graphty");
             byKey.set(k, [...(byKey.get(k) ?? []), g]);
         }
-        const left: PEdge[] = [];
+        // the oracle's edges found by geometry, by the pair they run between
+        const found = new Map<string, PEdge[]>();
         for (const o of os) {
             const k = key(o, "oracle");
-            const list = k === "" ? undefined : byKey.get(k);
-            const g = list === undefined || list.length === 0 ? undefined : list.splice(closest(o, list), 1)[0];
+            if (k !== "" && o.id.includes("#g")) {
+                found.set(k, [...(found.get(k) ?? []), o]);
+            }
+        }
+        const left: PEdge[] = [];
+        const settle = (o: PEdge, g: PEdge | undefined): void => {
             if (g === undefined) {
                 left.push(o);
             } else {
                 gRemaining.delete(g);
                 edgePairs.push([o, g]);
             }
+        };
+        const done = new Set<PEdge>();
+        for (const o of os) {
+            if (done.has(o)) {
+                continue;
+            }
+            const k = key(o, "oracle");
+            const list = k === "" ? undefined : byKey.get(k);
+            const group = found.get(k) ?? [];
+            if (list !== undefined && list.length > 0 && group.length > 1 && group.length <= 6 && list.length <= 6) {
+                for (const [x, g] of jointly(group, list)) {
+                    done.add(x);
+                    settle(x, g);
+                }
+                continue;
+            }
+            settle(o, list === undefined || list.length === 0 ? undefined : list.splice(closest(o, list), 1)[0]);
         }
         return left;
     };

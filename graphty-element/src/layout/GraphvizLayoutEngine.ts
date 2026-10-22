@@ -14,10 +14,11 @@ import {
     type GraphvizEngine,
     graphvizLayoutId,
 } from "./graphviz/engines";
-import { edgeBends, fromJson } from "./graphviz/fromJson";
+import { clusterMargins, edgeBends, fromJson } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
-import { type DotStructure, toDot } from "./graphviz/toDot";
+import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
+import { type GroupMargins, laidGroupMargins } from "./groupMargins";
 import type { EdgePosition } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -186,8 +187,9 @@ export function graphvizAttributes(
  * @param groups - the groups the element draws round their members, each with its member rows:
  *     handed over as clusters, not as nodes
  * @param structure - the edges with their attributes, the clusters' attributes and the rank subgraphs
- * @returns the coordinates, two per row (NaN for a skipped row), and the bends of each edge Graphviz
- *     routed off the straight line, by its place in `structure.edges`
+ * @returns the coordinates, two per row (NaN for a skipped row), the bends of each edge Graphviz
+ *     routed off the straight line, by its place in `structure.edges`, and how far each group's
+ *     cluster reaches past its members on each side, by the group's row
  */
 async function computeWith(
     engine: GraphvizEngine,
@@ -195,10 +197,10 @@ async function computeWith(
     options: Readonly<Record<string, unknown>>,
     groups: ReadonlyMap<number, readonly number[]>,
     structure: DotStructure,
-): Promise<{ positions: F32; bends: ReadonlyMap<number, string> }> {
+): Promise<{ positions: F32; bends: ReadonlyMap<number, string>; margins: ReadonlyMap<number, GroupMargins> }> {
     const n = input.graph.nodeCount;
     if (n === 0) {
-        return { positions: new Float32Array(0), bends: new Map() };
+        return { positions: new Float32Array(0), bends: new Map(), margins: new Map() };
     }
 
     const limit = options.maxNodes as number;
@@ -239,6 +241,17 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        margins: new Map(
+            [...clusterMargins(reply.json)].map(([row, m]) => [
+                row,
+                {
+                    left: (m.left / POINTS_PER_UNIT) * scale,
+                    right: (m.right / POINTS_PER_UNIT) * scale,
+                    bottom: (m.bottom / POINTS_PER_UNIT) * scale,
+                    top: (m.top / POINTS_PER_UNIT) * scale,
+                },
+            ]),
+        ),
     };
 }
 
@@ -290,9 +303,18 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             // A group drawn round its members is placed by the element, not by Graphviz: it is
             // handed over as a cluster of its members, not as a node with room of its own.
             const structure = this.structure(input);
-            const { positions, bends } = await computeWith(engine, input, this.options, this.followerGroups, structure);
-            // an answer called off for a newer one leaves the newer one's routes
+            const { positions, bends, margins } = await computeWith(
+                engine,
+                input,
+                this.options,
+                this.followerGroups,
+                structure,
+            );
+            // an answer called off for a newer one leaves the newer one's routes and cluster boxes
             if (!input.signal.aborted) {
+                // each cluster is drawn as far past its members as Graphviz drew it: its margin, its
+                // label and the edges it routes inside it
+                laidGroupMargins.set(this, margins);
                 this.routes = new Map();
                 for (const [k, text] of bends) {
                     const pairs = parseBends(text);

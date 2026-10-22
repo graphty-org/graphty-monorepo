@@ -3918,6 +3918,8 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
@@ -3961,6 +3963,8 @@ class Node_2 {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get wordedLabel(): RichTextLabel | null;
 }
 export { Node_2 as Node }
 
@@ -4519,6 +4523,22 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         weight: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
+    group: z.ZodOptional<z.ZodObject<{
+        padding: z.ZodOptional<z.ZodNumber>;
+        paddingRatio: z.ZodOptional<z.ZodNumber>;
+        paddingOf: z.ZodOptional<z.ZodEnum<{
+            width: "width";
+            min: "min";
+            max: "max";
+            height: "height";
+            average: "average";
+        }>>;
+        minWidth: z.ZodOptional<z.ZodNumber>;
+        minHeight: z.ZodOptional<z.ZodNumber>;
+        minWidthBiasLeft: z.ZodOptional<z.ZodNumber>;
+        minHeightBiasTop: z.ZodOptional<z.ZodNumber>;
+        includeLabels: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

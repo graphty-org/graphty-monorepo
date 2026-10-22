@@ -518,6 +518,37 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /**
+     * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
+     * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.
+     */
+    readonly groupPadding: number;
+    /**
+     * That padding as a fraction of the members' box instead, measured as `groupPaddingOf` says (Cytoscape.js
+     * `padding: 20%`); it wins over `groupPadding`.
+     */
+    readonly groupPaddingRatio: number;
+    /**
+     * What `groupPaddingRatio` is a fraction of: the members' box's `width`, `height`, `average` of the two, `min` or
+     * `max` (Cytoscape.js `padding-relative-to`); unset, `width`.
+     */
+    readonly groupPaddingOf: string;
+    /** The narrowest the members' box is drawn, before the padding (a length; Cytoscape.js `min-width`). */
+    readonly groupMinWidth: number;
+    /** The shortest the members' box is drawn, before the padding (a length; Cytoscape.js `min-height`). */
+    readonly groupMinHeight: number;
+    /**
+     * The share, 0..1, of the width `groupMinWidth` adds that goes on the left (Cytoscape.js `min-width-bias-left`
+     * against `min-width-bias-right`); unset, half.
+     */
+    readonly groupMinWidthBiasLeft: number;
+    /**
+     * The share, 0..1, of the height `groupMinHeight` adds that goes on top, as the reader sees it (Cytoscape.js
+     * `min-height-bias-top` against `min-height-bias-bottom`); unset, half.
+     */
+    readonly groupMinHeightBiasTop: number;
+    /** Whether the members' labels count in the members' box (Cytoscape.js `compound-sizing-wrt-labels`). */
+    readonly groupIncludeLabels: boolean;
     /** Whether the node is drawn at all. */
     readonly visible: boolean;
 }

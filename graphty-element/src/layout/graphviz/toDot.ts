@@ -171,10 +171,6 @@ function writeClusters(
     const write = (group: number): void => {
         written.add(group);
         lines.push(`subgraph cluster_n${group} {`);
-        const clusterAttributes = attributeList(own?.get(group));
-        if (clusterAttributes !== "") {
-            lines.push(`graph${clusterAttributes};`);
-        }
         for (const member of groups.get(group) ?? []) {
             if (written.has(member)) {
                 continue;
@@ -185,6 +181,11 @@ function writeClusters(
             }
             written.add(member);
             lines.push(`n${member};`);
+        }
+        // after the inner clusters: a subgraph takes the graph attributes set around it before it opens
+        const clusterAttributes = attributeList(own?.get(group));
+        if (clusterAttributes !== "") {
+            lines.push(`graph${clusterAttributes};`);
         }
         lines.push("}");
     };

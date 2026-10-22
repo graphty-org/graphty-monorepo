@@ -274,3 +274,67 @@ describe("an arrowhead at the end of a curved line", () => {
         assert.strictEqual(measureArrow(head, line, "target", { filled: true, color: null }).shape, "triangle");
     });
 });
+
+describe("an arrowhead drawn as separate pieces in one path", () => {
+    // cytoscapejs-specimen-arrows-p2: Cytoscape.js draws its compound arrows as one filled path of two subpaths;
+    // these are its middle ones on edges running left to right, pointing back at their sources
+    const look = { filled: true, color: null };
+    const disc = (cx: number, cy: number, r: number): Pt[] =>
+        Array.from({ length: 33 }, (_, i): Pt => {
+            const t = (2 * Math.PI * i) / 32;
+            return [cx + r * Math.cos(t), cy + r * Math.sin(t)];
+        });
+
+    it("reads a triangle with a bar behind it as its triangle, pointing back (mid-source triangle-tee)", () => {
+        const path: Pt[] = [
+            [80.437, 139.229],
+            [145.201, 139.229],
+        ];
+        const triangle: Pt[] = [
+            [112.819, 139.229],
+            [121.229, 143.434],
+            [121.229, 135.024],
+            [112.819, 139.229],
+        ];
+        const bar: Pt[] = [
+            [124.032, 135.024],
+            [126.835, 135.024],
+            [126.835, 143.434],
+            [124.032, 143.434],
+            [124.032, 135.024],
+        ];
+        const outline = [...triangle, ...bar];
+        // read as one outline, the stretch from one piece to the next makes no shape
+        assert.strictEqual(measureArrow(outline, path, "middle", look).shape, "other");
+        assert.strictEqual(
+            measureArrow(outline, path, "middle", { ...look, pieces: [triangle, bar] }).shape,
+            "inverted",
+        );
+    });
+
+    it("reads a disc with a triangle behind it pointing at it as a circle-triangle", () => {
+        const path: Pt[] = [
+            [188.7, 139.229],
+            [253.464, 139.229],
+        ];
+        const circle = disc(221.082, 139.229, 4.205);
+        const triangle: Pt[] = [
+            [225.287, 139.229],
+            [233.696, 143.434],
+            [233.696, 135.024],
+            [225.287, 139.229],
+        ];
+        const pieces = [circle, triangle];
+        assert.strictEqual(measureArrow(pieces.flat(), path, "middle", { ...look, pieces }).shape, "circle-triangle");
+        assert.strictEqual(measureArrow(pieces.flat(), path, "target", { ...look, pieces }).shape, "circle-triangle");
+    });
+
+    it("leaves pieces that are none of these unread", () => {
+        const path: Pt[] = [
+            [0, 0],
+            [100, 0],
+        ];
+        const pieces = [disc(95, 0, 4), disc(85, 0, 4)];
+        assert.strictEqual(measureArrow(pieces.flat(), path, "target", { ...look, pieces }).shape, "other");
+    });
+});

@@ -226,6 +226,9 @@ function fromComponents(rgba: Rgba): ColorValue {
 // The enumerated values, read out of the element's own schemas
 // ---------------------------------------------------------------------------------------------
 
+/** What a group's `paddingRatio` is a fraction of. */
+export type GroupPaddingOfValue = NonNullable<NonNullable<NodeStyleConfig["group"]>["paddingOf"]>;
+
 /** A node shape the element can build a mesh for. */
 export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
@@ -460,6 +463,14 @@ export interface ChannelValues {
     "node.chartLineWidth": number;
     "node.chartBorderColor": ColorValue;
     "node.chartBorderWidth": number;
+    "node.groupPadding": number;
+    "node.groupPaddingRatio": number;
+    "node.groupPaddingOf": GroupPaddingOfValue;
+    "node.groupMinWidth": number;
+    "node.groupMinHeight": number;
+    "node.groupMinWidthBiasLeft": number;
+    "node.groupMinHeightBiasTop": number;
+    "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
@@ -820,6 +831,17 @@ const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down
 
 /** What a node's chart draws. */
 const NODE_CHART_KIND_VALUES: readonly NodeChartKindValue[] = ["bar", "stacked-bar", "line", "box", "cells"];
+
+const NODE_GROUP_CAVEAT =
+    "How a group drawn round its members (a node other nodes name as their parent, with no box of its own) is " +
+    "sized, as a Cytoscape.js compound parent is: its members' box, their labels counted with " +
+    "`node.groupIncludeLabels`, at least `node.groupMinWidth` by `node.groupMinHeight` (the growth split by " +
+    "`node.groupMinWidthBiasLeft` and `node.groupMinHeightBiasTop`), then `node.groupPadding` larger on every side, " +
+    "or `node.groupPaddingRatio` times its `node.groupPaddingOf` side. Lengths are in the units of `node.size`. " +
+    "Unset, a group reaches its largest member's radius past its members.";
+
+/** The sides a group's padding ratio can be measured against. */
+const GROUP_PADDING_OF_VALUES: readonly GroupPaddingOfValue[] = ["width", "height", "average", "min", "max"];
 
 const NODE_CHART_CAVEAT =
     "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
@@ -2800,6 +2822,109 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "chart.borderWidth",
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
+    },
+    "node.groupPadding": {
+        channel: "node.groupPadding",
+        target: "node",
+        plainName: "Node Group Padding",
+        shortName: "Group padding",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.padding",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingRatio": {
+        channel: "node.groupPaddingRatio",
+        target: "node",
+        plainName: "Node Group Padding Ratio",
+        shortName: "Group padding ratio",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.paddingRatio",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingOf": {
+        channel: "node.groupPaddingOf",
+        target: "node",
+        plainName: "Node Group Padding Of",
+        shortName: "Group padding of",
+        group: "shape",
+        default: "width",
+        accepts: "enum",
+        values: GROUP_PADDING_OF_VALUES,
+        stylePath: "group.paddingOf",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidth": {
+        channel: "node.groupMinWidth",
+        target: "node",
+        plainName: "Node Group Min Width",
+        shortName: "Group min width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minWidth",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeight": {
+        channel: "node.groupMinHeight",
+        target: "node",
+        plainName: "Node Group Min Height",
+        shortName: "Group min height",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minHeight",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidthBiasLeft": {
+        channel: "node.groupMinWidthBiasLeft",
+        target: "node",
+        plainName: "Node Group Min Width Bias Left",
+        shortName: "Group min width bias left",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minWidthBiasLeft",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeightBiasTop": {
+        channel: "node.groupMinHeightBiasTop",
+        target: "node",
+        plainName: "Node Group Min Height Bias Top",
+        shortName: "Group min height bias top",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minHeightBiasTop",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupIncludeLabels": {
+        channel: "node.groupIncludeLabels",
+        target: "node",
+        plainName: "Node Group Include Labels",
+        shortName: "Group include labels",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "group.includeLabels",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
     },
     "node.cornerRadius": {
         channel: "node.cornerRadius",

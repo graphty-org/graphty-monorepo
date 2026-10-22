@@ -165,6 +165,11 @@ export interface Prim {
      * edge, a dotted border) is read from. Absent for everything else.
      */
     subpaths?: Pt[][];
+    /**
+     * A closed path that is a row of letters drawn as outlines (`isLettering`): words, filled or stroked as a halo,
+     * that are no arrowhead, band or body. Absent for everything else.
+     */
+    lettering?: true;
     /** What the program's own markup says this belongs to, when it says. */
     hint: {
         role: "node" | "edge" | "group" | "graph";
@@ -249,6 +254,8 @@ export type ArrowShape =
     | "image"
     // a delta with a bar across the line behind it (Cytoscape's CROSS_DELTA, CROSS_OPEN_DELTA)
     | "cross-delta"
+    // a disc at the tip with a triangle behind it pointing at it (Cytoscape.js's circle-triangle)
+    | "circle-triangle"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -725,6 +732,41 @@ const patternResult = (dashClass: DashClass, width: number | null, box: PBox): P
 });
 
 /**
+ * Whether a path's subpaths are a row of letters drawn as outlines (Cytoscape desktop's FreeHEP export draws a
+ * custom graphic's text, stringApp's enhanced label, as glyph paths, its halo stroked and its letters filled): three
+ * pieces or more in a row at least half again as wide as it is tall, set close side by side (the median gap between
+ * one and the next under half the row's height), and unlike one another (their outlines' lengths vary by 0.15 of
+ * their mean or more). A line or a border drawn in pieces repeats one piece, spaced by a dash's gap.
+ * @param subpaths - the subpaths, sampled
+ * @returns whether they are lettering
+ */
+export function isLettering(subpaths: readonly (readonly Pt[])[]): boolean {
+    if (subpaths.length < 3 || subpaths.some((q) => q.length < 2)) {
+        return false;
+    }
+    const boxes = subpaths.map((q) => boxOfPoints(q));
+    const row = boxOfPoints(subpaths.flat());
+    const h = row.y1 - row.y0;
+    if (!(h > 0) || row.x1 - row.x0 < 1.5 * h) {
+        return false;
+    }
+    const lengths = subpaths.map((q) => lengthOf(q));
+    const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const spread = Math.sqrt(lengths.reduce((s, l) => s + (l - mean) ** 2, 0) / lengths.length);
+    if (spread < 0.15 * mean) {
+        return false;
+    }
+    const byX = [...boxes].sort((a, b) => a.x0 - b.x0);
+    let reach = byX[0].x1;
+    const gaps = byX.slice(1).map((b) => {
+        const gap = Math.max(0, b.x0 - reach);
+        reach = Math.max(reach, b.x1);
+        return gap;
+    });
+    return median(gaps) <= 0.5 * h;
+}
+
+/**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
  * stroke's own outline, filled: a ring of two subpaths, or many pieces round the node. Read as a fill, it is larger
@@ -795,6 +837,12 @@ export interface PaintedBand extends PaintedOutline {
     ends: [Pt, Pt];
     /** How far the band reaches across its axis: a wave's or a zigzag's swing, a double line's two rows. */
     across: number;
+    /**
+     * The line's route where the band is drawn in pieces (dots, dashes, slashes) and bends: through every piece's
+     * center in order along it, so a curved edge's pieces trace its curve rather than its chord. Absent, the band is
+     * straight and runs between its `ends`.
+     */
+    route?: Pt[];
 }
 
 /**
@@ -850,15 +898,32 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     if (subpaths.length < 3) {
         return null;
     }
+    const alongOf = ([x, y]: Pt): number => (x - mx) * u[0] + (y - my) * u[1];
     const { dashClass, width } = piecesPattern(subpaths, frame, {
         length: a1 - a0,
-        along: ([x, y]) => (x - mx) * u[0] + (y - my) * u[1],
+        along: alongOf,
         mirror: ([x, y]) => {
             const c = -(x - mx) * u[1] + (y - my) * u[0] - mid;
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    return { ...patternResult(dashClass, width, box), ends, across: spread };
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
+    // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
+    // the axis to the band's ends.
+    const acrossOf = ([x, y]: Pt): number => -(x - mx) * u[1] + (y - my) * u[0];
+    const pieceAcross = subpaths.map((q) => {
+        const c = q.map(acrossOf);
+        return Math.max(...c) - Math.min(...c);
+    });
+    if (spread <= 2 * median(pieceAcross)) {
+        return result;
+    }
+    const centers = subpaths
+        .map((q): Pt => [q.reduce((t, p) => t + p[0], 0) / q.length, q.reduce((t, p) => t + p[1], 0) / q.length])
+        .sort((p, q) => alongOf(p) - alongOf(q));
+    const out = (c: Pt, a: number): Pt => [c[0] + (a - alongOf(c)) * u[0], c[1] + (a - alongOf(c)) * u[1]];
+    return { ...result, route: [out(centers[0], a0), ...centers, out(centers[centers.length - 1], a1)] };
 }
 
 /** How many times as long as its base a filled triangle must be to be read as a line tapering to a point. */
@@ -985,6 +1050,28 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "half-circle";
     }
     return crossedDelta(outline, a, c, dir) ? "cross-delta" : "other";
+}
+
+/**
+ * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
+ * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
+ * reads as its triangle, pointing the way it points (a triangle-tee or triangle-cross part-way along a line, pointing
+ * back at its source, is inverted), as graphty's triangle-tee and triangle-cross caps read.
+ * @param pieces - the arrowhead's subpaths
+ * @param dir - the axis, back to tip
+ * @returns the class, or null when the pieces are none of these
+ */
+export function piecedArrowShapeOf(pieces: readonly (readonly Pt[])[], dir: Pt): ArrowShape | null {
+    const shapes = pieces.map((q) => arrowShapeOf(q, dir));
+    const triangles = shapes.filter((x) => x === "triangle" || x === "inverted");
+    const rest = shapes.filter((x) => x !== "triangle" && x !== "inverted");
+    if (triangles.length !== 1 || rest.length === 0) {
+        return null;
+    }
+    if (rest.length === 1 && rest[0] === "circle") {
+        return "circle-triangle";
+    }
+    return rest.every((x) => x === "tee" || x === "box") ? triangles[0] : null;
 }
 
 /**

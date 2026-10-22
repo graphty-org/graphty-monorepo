@@ -100,8 +100,8 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 14408 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 14408 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2420 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 3532 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
-| cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 12 | 6 | 96 | 10% | 10% | 0 | 3300 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3532 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
+| cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3300 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2989 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/STELZL.cys | ok | 1603 | 3308 | 3 | 5 | 249 | 100% | 93% | 0 | 26158 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -154,11 +154,11 @@ Tool values are elements drawn with the writing program's default.
 | dot/graphviz-gallery-neato-transparency.gv | ok | 6 | 6 | 5 | 1 | 10 | 100% | 0% | 0 | 90 | 0 | W_STYLE_ALPHA_DROPPED |
 | dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | 8 | 2 | 7 | 86% | 86% | 0 | 5530 | 0 | W_STYLE_HTML_LABEL |
 | dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 7 | 1691 | 23% | 23% | 0 | 15574 | 0 | W_STYLE_NOT_CARRIED |
-| dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | 6 | 2 | 721 | 100% | 0% | 0 | 16468 | 0 |  |
+| dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | 6 | 2 | 667 | 100% | 0% | 0 | 16468 | 0 |  |
 | dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 | W_STYLE_NOT_CARRIED |
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 5 | 134 | 5% | 0% | 0 | 1257 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 7235 | 0 |  |
-| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 913 | 56% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
+| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
 | gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 6 | 4 | 0 | - | - | 0 | 9229 | 0 |  |
 | gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 7 | 6 | 796 | 0% | 0% | 0 | 10342 | 0 |  |
 | gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 6 | 5 | 140 | 69% | 0% | 0 | 1256 | 0 | W_STYLE_UNKNOWN_VALUE |
@@ -290,7 +290,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 13 | 100% | 0% | 0 | 56 | 0 |  |
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 4 | 965 | 0% | 0% | 0 | 12789 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 15308 | 0 |  |
-| json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 2 | 5 | 0 | - | - | 0 | 1498 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 3 | 5 | 0 | - | - | 0 | 1498 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs-edge-arrows (data and stylesheet) | ok | 24 | 12 | 4 | 3 | 10 | 0% | 0% | 0 | 756 | 0 |  |
 | json/cyjs-edge-arrows-data.json | ok | 24 | 12 | 1 | 2 | 0 | - | - | 0 | 852 | 0 |  |
 | json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 3 | 0 | - | - | 0 | 109561 | 0 |  |
@@ -351,13 +351,13 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 14408 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 14408 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2420 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 3532 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
-| json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 12 | 6 | 96 | 10% | 10% | 0 | 3300 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3532 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
+| json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3300 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 6 | 115 | 0% | 0% | 0 | 9586 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 5 | 1959 | 0% | 0% | 0 | 33500 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 4 | 177 | 30% | 0% | 0 | 2079 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 63 | 11% | 2% | 0 | 3160 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 63 | 11% | 2% | 0 | 3160 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3160 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3160 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 227 | 11% | 8% | 0 | 1939 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 5 | 410 | 0% | 0% | 0 | 33231 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 7 | 5 | 2131 | 0% | 0% | 0 | 34862 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
@@ -389,26 +389,26 @@ Tool values are elements drawn with the writing program's default.
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 25020 | 0 |  |
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 61992 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 5 | 3 | 202 | 100% | 0% | 0 | 4674 | 0 |  |
-| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 100% | 45% | 0 | 76 | 0 |  |
+| pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 4 | 11 | 100% | 45% | 0 | 76 | 0 |  |
 | pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 1 | 363 | 0% | 0% | 0 | 6273 | 0 |  |
 | pajek/fidelity/c.net | ok | 65 | 125 | 3 | 3 | 2 | 100% | 0% | 0 | 1080 | 0 |  |
-| pajek/fidelity/football.net | ok | 35 | 118 | 2 | 4 | 138 | 50% | 50% | 0 | 1150 | 0 |  |
+| pajek/fidelity/football.net | ok | 35 | 118 | 2 | 4 | 207 | 33% | 33% | 0 | 1150 | 0 |  |
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 2030 | 0 |  |
-| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 2 | 300 | 0% | 0% | 0 | 6846 | 0 |  |
-| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 219 | 66% | 64% | 0 | 720 | 0 | W_STYLE_NOT_CARRIED |
+| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6846 | 0 |  |
+| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 263 | 63% | 54% | 0 | 720 | 0 |  |
 | pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 272 | 100% | 0% | 0 | 1326 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 3 | 29 | 55% | 14% | 0 | 250 | 0 |  |
-| pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
-| pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 8 | 289 | 82% | 26% | 0 | 1250 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 5 | 27 | 81% | 22% | 0 | 43 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 2 | 0 | - | - | 0 | 148 | 0 |  |
-| pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 4 | 4 | 100% | 25% | 0 | 50 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 4 | 29 | 55% | 14% | 0 | 250 | 0 |  |
+| pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 4 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
+| pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 8 | 292 | 82% | 25% | 0 | 1250 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 5 | 27 | 81% | 22% | 0 | 45 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 3 | 0 | - | - | 0 | 148 | 0 |  |
+| pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 5 | 4 | 100% | 25% | 0 | 50 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 5 | 21 | 100% | 29% | 0 | 73 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 4 | 20 | 100% | 30% | 0 | 74 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 81% | 22% | 0 | 43 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 81% | 22% | 0 | 45 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 4 | 20 | 100% | 30% | 0 | 83 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 4 | 151 | 0% | 0% | 0 | 1631 | 0 |  |
-| pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 2 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
+| pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 3 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-300 | ok | 300 | 600 | 3 | 3 | 1642 | 7% | 7% | 0 | 0 | 0 |  |

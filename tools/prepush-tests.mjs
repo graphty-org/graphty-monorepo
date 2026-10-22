@@ -51,6 +51,7 @@
  */
 
 import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
@@ -58,7 +59,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard } from "./shard-verdict.mjs";
-import { startAdvisory } from "./test-select.mjs";
+import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -184,7 +185,7 @@ export function startRule(shards) {
  * @param changed the changed paths
  * @returns a triggersOf function for gateShards
  */
-function childTriggers(shards, changed) {
+export function childTriggers(shards, changed) {
     // A package none of whose files changed needs no vitest to know its shards are not triggered.
     const asked = shards.filter(
         (s) => s.local === "when-paths-change" && changed.some((f) => f.startsWith(`${s.package}/`)),
@@ -209,6 +210,81 @@ function childTriggers(shards, changed) {
               );
     return (s) => ({ specs: new Set(found[s.shard]?.specs ?? []), config: found[s.shard]?.config ?? [] });
 }
+
+// PREPUSH_SELECT's default: "0" until mutation testing shows the selection is right (design/ci/minimal-tests.md, 6).
+const SELECT_DEFAULT = "0";
+
+/**
+ * Whether the gate runs only the selected tests: PREPUSH_SELECT=1 (default SELECT_DEFAULT), a base to
+ * measure the change from, and never under PREPUSH_ALL=1, which verification sets to run everything.
+ * @param env the environment
+ * @param base the gate's base, or undefined
+ * @returns boolean
+ */
+export function selectionOn(env, base) {
+    return Boolean(base) && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
+}
+
+/**
+ * The shards to run under selection (design/ci/minimal-tests.md, section 1.2): a shard the selector marks
+ * "none" is left out, "files" becomes a copy of the shard whose command runs only those files (`selected`
+ * lists them, `covers` the slices it stands for), "all" stays as it is.
+ * @param plan planRuns()
+ * @param log where the lines about left-out shards go
+ * @returns SHARDS-shaped entries
+ */
+export function selectedShards(plan, log = console.log) {
+    const out = [];
+    for (const p of plan) {
+        if (p.mode === "none") {
+            log(`  [NONE] ${p.covers.join(", ")}: ${p.reasons[0] ?? "no test reaches the change"}`);
+        } else if (p.mode === "files") {
+            const selected = p.files.map((f) => f.file).sort();
+            out.push({ ...p.shard, "test-command": p.command, selected, covers: p.covers });
+        } else {
+            out.push(p.shard);
+        }
+    }
+    return out;
+}
+
+/**
+ * The selector's answer for the gate's shards, asked of tools/test-select.mjs in a child process. Any
+ * doubt runs every shard whole: the checkout's run-tests.sh cannot run a command of its own (a branch from
+ * before --command), or the selector failed.
+ * @param gated the shards the gate would run
+ * @param base the gate's base
+ * @returns the shards to run
+ */
+function selectRuns(gated, base) {
+    if (!readFileSync(join(ROOT, "tools/run-tests.sh"), "utf8").includes("--command)")) {
+        console.log("Test selection: this checkout's tools/run-tests.sh has no --command, so every shard runs whole.");
+        return gated;
+    }
+    let selection;
+    try {
+        const select = join(dirname(fileURLToPath(import.meta.url)), "test-select.mjs");
+        const out = execFileSync(
+            process.execPath,
+            [select, "--root", ROOT, "--base", selectBaseOf(ROOT, base), "--json"],
+            {
+                cwd: ROOT,
+                encoding: "utf8",
+                maxBuffer: 1 << 28,
+                env: { ...process.env, GRAPHTY_TEST_SLOTS: "0" },
+                stdio: ["ignore", "pipe", "inherit"],
+            },
+        );
+        selection = JSON.parse(out.trim().split("\n").at(-1)).shards;
+    } catch (e) {
+        console.log(`Test selection: the selector failed (${e.message.split("\n")[0]}), so every shard runs whole.`);
+        return gated;
+    }
+    console.log("Test selection (PREPUSH_SELECT=1; PREPUSH_SELECT=0 runs every shard whole):");
+    return selectedShards(planRuns(ROOT, gated, selection));
+}
+
+const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 
 /**
  * Shards that already passed with byte-identical inputs (tools/prepush-inputs.mjs) are not run again;
@@ -237,9 +313,24 @@ function passed(shards, main) {
         return none;
     }
     const keyOf = keys();
-    const before = new Map(shards.map((s) => [s.shard, keyOf(s)]));
+    // A run of selected files is keyed by the whole shard's key and its file list, as a pass of its own kind,
+    // so it never stands in for the whole shard. A pass of the whole shard stands in for it, unless the shard
+    // is a --shard slice: the selection is taken before slicing, so a slice's pass does not cover it.
+    const orig = (s) => SHARDS.find((x) => x.shard === s.shard) ?? s;
+    const full = new Map(shards.map((s) => [s.shard, keyOf(orig(s))]));
+    const wholeCovers = (s) => !/--shard=/.test(orig(s)["test-command"]);
+    const keyFor = (s, fullKey) => (s.selected && fullKey ? sha256(`${fullKey}\0${s.selected.join("\n")}`) : fullKey);
+    const before = new Map(shards.map((s) => [s.shard, keyFor(s, full.get(s.shard))]));
+    const kindOf = (s) => (s.selected ? "shard-selected" : "shard");
     const store = passStore(main);
-    const { run, skipped } = partitionByPasses(shards, before, (key) => store.get("shard", key));
+    const byKey = new Map(shards.map((s) => [before.get(s.shard), s]));
+    const passOf = (key) => {
+        const s = byKey.get(key);
+        return (
+            store.get(kindOf(s), key) ?? (s.selected && wholeCovers(s) ? store.get("shard", full.get(s.shard)) : null)
+        );
+    };
+    const { run, skipped } = partitionByPasses(shards, before, passOf);
     for (const { shard, pass } of skipped) {
         const on = [pass.branch, pass.sha?.slice(0, 9)].filter(Boolean).join(" at ");
         console.log(
@@ -254,10 +345,18 @@ function passed(shards, main) {
             if (testsPassed(log) === 0) {
                 return "; not recorded: its log shows no test that passed";
             }
-            if (!key || keys()(shard) !== key) {
+            const now = keys()(orig(shard));
+            if (!key || keyFor(shard, now) !== key) {
                 return "; not recorded: its inputs changed while it ran";
             }
-            store.record("shard", key, { shard: shard.shard, branch, sha, at: new Date().toISOString() });
+            const files = shard.selected ? { files: shard.selected } : {};
+            store.record(kindOf(shard), key, {
+                shard: shard.shard,
+                ...files,
+                branch,
+                sha,
+                at: new Date().toISOString(),
+            });
             return "";
         } catch (e) {
             return `; not recorded: ${e.message.split("\n")[0]}`;
@@ -302,7 +401,8 @@ async function main() {
     const main = dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim(),
     );
-    const passes = passed(gated, main);
+    const planned = selectionOn(process.env, base) ? selectRuns(gated, base) : gated;
+    const passes = passed(planned, main);
     const shards = passes.run;
     if (shards.length === 0) {
         console.log(
@@ -335,7 +435,8 @@ async function main() {
         // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside `timeout` so the wait
         // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
         // a browser slot, so the two cannot wait on each other.
-        const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", shard.shard];
+        const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
+        const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", ...what];
         cmd.unshift(process.execPath, "tools/test-slots.mjs");
         if (shard["needs-browser"] && existsSync(gate)) {
             cmd.unshift(gate);
@@ -372,7 +473,10 @@ async function main() {
                 results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 if (verdict.pass) {
                     warmed.add(family(shard));
-                    console.log(`  [PASS] ${shard.shard} (${secs}s)${passes.record(shard, text)}`);
+                    const sel = shard.selected
+                        ? ` [selected: ${shard.selected.length} test file(s)${shard.covers.length > 1 ? `, for ${shard.covers.join(", ")}` : ""}]`
+                        : "";
+                    console.log(`  [PASS] ${shard.shard}${sel} (${secs}s)${passes.record(shard, text)}`);
                     next();
                     return;
                 }

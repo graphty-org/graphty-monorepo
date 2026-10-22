@@ -18,17 +18,22 @@ import {
     globToRe,
     loadRules,
     measuredOf,
+    planRuns,
     projectSelected,
     reportAdvisory,
     selectInGraph,
     selectPackages,
     selectShards,
+    selectedCommand,
     shardRuns,
     startAdvisory,
     testRefs,
     wholePackageRule,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
+import { selectedShards, selectionOn } from "./prepush-tests.mjs";
+import { changedSince, describePlan } from "./test-changed.mjs";
+import { judge, mutant, seededPick } from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -305,6 +310,13 @@ describe("file-level selection, allowed and measured", () => {
         assert.match(browser.reasons[0], /browser/u);
     });
 
+    it("selects a browser shard file by file only where fileLevelBrowser allows it", () => {
+        const [held] = selectShards([shard], pkgs, graphs, new Set(["pa"]), new Set());
+        assert.equal(held.mode, "all");
+        const [allowed] = selectShards([shard], pkgs, graphs, new Set(["pa"]), new Set(["pa"]));
+        assert.equal(allowed.mode, "files");
+    });
+
     it("runs a changed package whole when no test reaches the change, but leaves an untouched one at none", () => {
         const pcShard = { ...shard, shard: "pc-unit", package: "pc" };
         const [changed] = selectShards([pcShard], select(["pc/notes.md"]).packages, g, new Set());
@@ -486,5 +498,168 @@ describe("the CI collector", () => {
             [{ package: "graph-io", shard: "graph-io", file: "test/a.test.ts", what: "boom" }],
         );
         assert.deepEqual(ciFailures(check("Lint", []), shards, dirs), []);
+    });
+});
+
+describe("running a selection", () => {
+    const byName = (name) => SHARDS.find((s) => s.shard === name);
+    const files = (...f) => f.map((file) => ({ file, why: "imports it" }));
+
+    it("runs a plain vitest shard's files with its config and projects, no coverage, no slice", () => {
+        assert.equal(
+            selectedCommand(ROOT, byName("graphty-1"), ["graphty/src/a.test.tsx", "graphty/src/it's.test.ts"]),
+            "cd graphty && pnpm exec vitest run --project='!storybook' 'src/a.test.tsx' 'src/it'\\''s.test.ts'",
+        );
+        assert.equal(
+            selectedCommand(ROOT, byName("graph-io-browser"), ["graph-io/test/x.test.ts"]),
+            "cd graph-io && pnpm exec vitest run --config=vitest.browser.config.ts 'test/x.test.ts'",
+        );
+        const element = selectedCommand(ROOT, byName("graphty-element-browser-2"), ["graphty-element/test/a.test.ts"]);
+        assert.equal(
+            element,
+            "cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr 'test/a.test.ts'",
+        );
+    });
+
+    it("runs an nx coverage shard as a vitest run of its package when its script is plain", () => {
+        assert.equal(
+            selectedCommand(ROOT, byName("graph-format"), ["graph-format/test/a.test.ts"]),
+            "cd graph-format && pnpm exec vitest run 'test/a.test.ts'",
+        );
+    });
+
+    it("refuses wrappers, scripts, lane variables, positional filters and files of another package", () => {
+        for (const name of [
+            "webgpu-graph-algorithms-node",
+            "webgpu-graph-algorithms-browser",
+            "cytoscape-extensions-cytoscape-versions",
+        ]) {
+            assert.equal(selectedCommand(ROOT, byName(name), [`${byName(name).package}/test/a.test.ts`]), null, name);
+        }
+        const lane = {
+            shard: "x",
+            package: "p",
+            "test-command": "cd p && GRAPHTY_GPU_REQUIRE=any pnpm exec vitest run",
+        };
+        assert.equal(selectedCommand(ROOT, lane, ["p/a.test.ts"]), null);
+        const filtered = { shard: "x", package: "p", "test-command": "cd p && pnpm exec vitest run test/layouts" };
+        assert.equal(selectedCommand(ROOT, filtered, ["p/a.test.ts"]), null);
+        assert.equal(selectedCommand(ROOT, byName("graph-format"), ["layout/test/a.test.ts"]), null);
+        assert.equal(selectedCommand(ROOT, byName("graph-format"), []), null);
+    });
+
+    it("plans none, files and all, folds the slices of one family into one run, and runs an unreadable one whole", () => {
+        const shards = ["graphty-1", "graphty-2", "graphty-3", "layout", "githerd", "webgpu-graph-algorithms-node"].map(
+            byName,
+        );
+        const app = files("graphty/src/a.test.tsx");
+        const selection = [
+            { shard: "graphty-1", mode: "files", files: app, reasons: [] },
+            { shard: "graphty-2", mode: "files", files: app, reasons: [] },
+            { shard: "graphty-3", mode: "files", files: app, reasons: [] },
+            { shard: "layout", mode: "none", files: [], reasons: [] },
+            {
+                shard: "webgpu-graph-algorithms-node",
+                mode: "files",
+                files: files("webgpu-graph-algorithms/test/a.test.ts"),
+                reasons: [],
+            },
+        ];
+        const plan = planRuns(ROOT, shards, selection);
+        assert.deepEqual(
+            plan.map((p) => [p.covers.join("+"), p.mode]),
+            [
+                ["graphty-1+graphty-2+graphty-3", "files"],
+                ["layout", "none"],
+                ["githerd", "all"],
+                ["webgpu-graph-algorithms-node", "all"],
+            ],
+        );
+        assert.match(plan[2].reasons[0], /no answer/u);
+        assert.match(plan[3].reasons[0], /not a plain vitest run/u);
+        const text = describePlan(plan).join("\n");
+        assert.match(text, /graphty-1, graphty-2, graphty-3: 1 test file/u);
+        assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
+        assert.match(text, /githerd: WHOLE SHARD/u);
+        assert.match(text, /nothing to run: layout/u);
+
+        const notes = [];
+        const run = selectedShards(plan, (l) => notes.push(l));
+        assert.deepEqual(
+            run.map((s) => s.shard),
+            ["graphty-1", "githerd", "webgpu-graph-algorithms-node"],
+        );
+        assert.deepEqual(run[0].selected, ["graphty/src/a.test.tsx"]);
+        assert.deepEqual(run[0].covers, ["graphty-1", "graphty-2", "graphty-3"]);
+        assert.equal(run[1], byName("githerd"), "a whole shard keeps its own entry and command");
+        assert.match(notes.join("\n"), /\[NONE\] layout/u);
+    });
+
+    it("selects only with PREPUSH_SELECT=1 and a base, and never under PREPUSH_ALL=1", () => {
+        assert.equal(selectionOn({}, "origin/golden"), false, "off by default");
+        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/golden"), true);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
+        assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/golden"), false);
+    });
+
+    it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {
+        const dir = mkdtempSync(join(ROOT, "tmp", "test-changed-"));
+        try {
+            const git = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" });
+            git("init", "-q", "-b", "main");
+            git("config", "user.email", "t@example.com");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            writeFileSync(join(dir, ".gitignore"), "ignored.txt\n");
+            writeFileSync(join(dir, "base.txt"), "0");
+            writeFileSync(join(dir, "unstaged.txt"), "0");
+            git("add", ".");
+            git("commit", "-q", "--no-verify", "-m", "base");
+            git("branch", "base");
+            writeFileSync(join(dir, "committed.txt"), "1");
+            git("add", "committed.txt");
+            git("commit", "-q", "--no-verify", "-m", "work");
+            writeFileSync(join(dir, "staged.txt"), "1");
+            git("add", "staged.txt");
+            writeFileSync(join(dir, "unstaged.txt"), "1");
+            writeFileSync(join(dir, "untracked.txt"), "1");
+            writeFileSync(join(dir, "ignored.txt"), "1");
+            assert.deepEqual(changedSince(dir, "base"), [
+                "committed.txt",
+                "staged.txt",
+                "unstaged.txt",
+                "untracked.txt",
+            ]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("mutation testing of the selection", () => {
+    it("picks the same files for the same seed", () => {
+        const items = Array.from({ length: 50 }, (_, i) => `f${i}`);
+        assert.deepEqual(seededPick(items, 5, 7), seededPick(items, 5, 7));
+        assert.notDeepEqual(seededPick(items, 5, 7), seededPick(items, 5, 8));
+        assert.equal(new Set(seededPick(items, 50, 3)).size, 50);
+    });
+
+    it("breaks code with a top-level throw and empties data", () => {
+        assert.match(
+            mutant("p/src/a.ts", "export const a = 1;"),
+            /^export const a = 1;\nthrow new Error\("select-mutant"\);/u,
+        );
+        assert.equal(mutant("p/data/x.json", '{"a":1}'), "{}\n");
+        assert.equal(mutant("p/data/x.csv", "a,b"), "");
+    });
+
+    it("calls a failure outside the selection a miss unless it fails on the unbroken tree too", () => {
+        const v = judge(["t/a", "t/b"], ["t/a", "t/c", "t/d"], (f) => f === "t/d");
+        assert.deepEqual(v, { misses: ["t/c"], flaky: ["t/d"], over: 1 });
+        assert.deepEqual(
+            judge(null, ["t/x"], () => false),
+            { misses: [], flaky: [], over: 0 },
+        );
     });
 });

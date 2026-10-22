@@ -156,13 +156,14 @@ export const GATE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /**
  * The environment that chooses what the gate runs: GRAPHTY_* and VK_* (lanes, GPU and browser
- * choices) and PREPUSH_ALL, without the test-slot bookkeeping.
+ * choices), PREPUSH_ALL and PREPUSH_SELECT (a gate that ran only selected tests is not a gate that ran
+ * every shard), without the test-slot bookkeeping.
  * @param env the environment
  * @returns sorted `[name, value]` pairs
  */
 export function laneEnv(env = process.env) {
     return Object.keys(env)
-        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || k === "PREPUSH_ALL")
+        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || k === "PREPUSH_ALL" || k === "PREPUSH_SELECT")
         .filter((k) => !k.startsWith("GRAPHTY_TEST_SLOT"))
         .sort()
         .map((k) => [k, env[k]]);
@@ -366,7 +367,8 @@ export function inputKey(shard, files, roots, include, outputs, env = process.en
         JSON.stringify({
             shard,
             node: process.version,
-            env: laneEnv(env).filter(([k]) => k !== "PREPUSH_ALL"),
+            // a whole shard runs the same whichever way the gate chose it; a selected run has its own key
+            env: laneEnv(env).filter(([k]) => k !== "PREPUSH_ALL" && k !== "PREPUSH_SELECT"),
             files: sortedEntries(counted),
             outputs: sortedEntries(outputs),
             ...context,
@@ -469,7 +471,7 @@ const KEEP_DAYS = 14;
 export function passStore(main) {
     const dir = (kind) => join(main, "tmp/prepush-passes", kind);
     const file = (kind, key) => {
-        if (!/^[a-z]+$/.test(kind) || !/^[0-9a-f]{64}$/.test(key)) {
+        if (!/^[a-z]+(-[a-z]+)*$/.test(kind) || !/^[0-9a-f]{64}$/.test(key)) {
             throw new Error(`not a pass kind and key: ${kind} ${key}`);
         }
         return join(dir(kind), `${key}.json`);

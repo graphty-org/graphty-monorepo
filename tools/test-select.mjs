@@ -51,7 +51,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel }`
+ * @returns `{ everything, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser }`
  */
 export function loadRules(root) {
     const raw = JSON.parse(readFileSync(RULES, "utf8"));
@@ -71,6 +71,7 @@ export function loadRules(root) {
         opaque: toRe(raw.opaqueTest.pattern),
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
         fileLevel: new Set(raw.fileLevel.packages),
+        fileLevelBrowser: new Set(raw.fileLevelBrowser?.packages ?? []),
     };
 }
 
@@ -489,10 +490,11 @@ export function wholePackageRule(rel, rules) {
  * @param packages selectPackages(...).packages
  * @param graphs Map(dir -> [graph...])
  * @param allowed Set of package directories where file-level selection is allowed; omitted, every one is
+ * @param browserAllowed Set of package directories whose browser projects may be selected file by file too
  * @returns `[{ shard, package, mode, files, total, reasons, measured? }]`; total is the shard's test file
  *   count when known; measured `{ mode, files }` is the file-level answer where it was not allowed
  */
-export function selectShards(shards, packages, graphs, allowed) {
+export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set()) {
     return shards.map((shard) => {
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
@@ -503,7 +505,7 @@ export function selectShards(shards, packages, graphs, allowed) {
         if (!p.fileLevel || sel.mode === "all") {
             return { ...base, ...sel };
         }
-        const why = notAllowed(shard.package, own, allowed);
+        const why = notAllowed(shard.package, own, allowed, browserAllowed);
         if (!why) {
             return { ...base, ...sel };
         }
@@ -533,13 +535,14 @@ function measuredShard(p, own) {
  * @param pkg the shard's package directory
  * @param own shardSpecs() or null
  * @param allowed Set of package directories, or undefined for all
+ * @param browserAllowed Set of package directories whose browser projects are allowed too
  * @returns a reason or null
  */
-function notAllowed(pkg, own, allowed) {
+function notAllowed(pkg, own, allowed, browserAllowed) {
     if (allowed && !allowed.has(pkg)) {
         return "file-level selection is not yet allowed for this package (measured only)";
     }
-    if (allowed && own?.browser !== false) {
+    if (allowed && own?.browser !== false && !browserAllowed.has(pkg)) {
         return "it runs a browser project, which runs whole (measured only)";
     }
     return null;
@@ -599,6 +602,113 @@ export function estimate(selection, seconds) {
  * @returns the same shape
  */
 export const measuredOf = (selection) => selection.map((s) => (s.measured ? { ...s, ...s.measured } : s));
+
+// --- running a selection ---------------------------------------------------------------------------------
+
+const NX_COVERAGE = /^pnpm exec nx run ([^:\s]+):coverage --exclude-task-dependencies$/u;
+const PLAIN_VITEST = /^cd (\S+) && ((?:[A-Z_]+=\S+ )*)pnpm exec vitest run((?: \S+)*)$/u;
+// Arguments of a shard's vitest run that only shape its output, its coverage or its slice.
+const DROPPED = /^(--coverage|--shard=\S+|--reporter=\S+|\$\{[A-Z_]+:\+--reporter=[^}]+\})$/u;
+const quote = (s) => `'${s.replaceAll("'", String.raw`'\''`)}'`;
+
+/**
+ * A shard's command as one plain `vitest run` without coverage or slice: its package and the arguments
+ * that choose its config and projects. null when the command is not a plain `vitest run` or an nx
+ * `coverage` target whose script is `vitest run --coverage`: wrappers, scripts, positional filters and
+ * lane variables can only run as they are.
+ * @param root the checkout (to read a package's coverage script)
+ * @param shard a SHARDS entry
+ * @returns `{ dir, args }` or null
+ */
+function plainRun(root, shard) {
+    const cmd = shard["test-command"];
+    const dir = shard.package;
+    const nx = NX_COVERAGE.exec(cmd);
+    if (nx) {
+        const script = JSON.parse(safeRead(join(root, dir, "package.json")) || "{}").scripts?.coverage;
+        // an nx target of its own in project.json must only run that script
+        const target = JSON.parse(safeRead(join(root, dir, "project.json")) || "{}").targets?.coverage;
+        const viaScript = !target || target.options?.command === "npm run coverage";
+        return nx[1] === dir && viaScript && script === "vitest run --coverage" ? { dir, args: [] } : null;
+    }
+    const m = PLAIN_VITEST.exec(cmd);
+    // COVERAGE_DIR only moves a coverage report this run does not write; any other variable picks a lane
+    const env = m?.[2].trim().split(/\s+/u).filter(Boolean) ?? [];
+    if (!m || m[1] !== dir || env.some((e) => !e.startsWith("COVERAGE_DIR="))) {
+        return null;
+    }
+    const args = m[3]
+        .replace(/--config (\S+)/u, "--config=$1")
+        .trim()
+        .split(/\s+/u)
+        .filter((a) => a && !DROPPED.test(a));
+    return args.every((a) => /^--project=\S+$|^--config=\S+$/u.test(a)) ? { dir, args } : null;
+}
+
+/**
+ * The command that runs only some test files of a shard: one `vitest run` in the shard's package with
+ * its config and --project filters and the files, without --coverage (a subset cannot meet a package's
+ * thresholds) and without --shard (a selection is not sliced).
+ * @param root the checkout
+ * @param shard a SHARDS entry
+ * @param files repo-relative test files, all inside the shard's package; null runs every file of the shard
+ * @returns a shell command, or null when the shard's command is not plain (plainRun) or a file is elsewhere
+ */
+export function selectedCommand(root, shard, files) {
+    const run = plainRun(root, shard);
+    if (!run || files?.length === 0 || files?.some((f) => !f.startsWith(`${run.dir}/`))) {
+        return null;
+    }
+    const rel = (files ?? []).map((f) => quote(f.slice(run.dir.length + 1)));
+    return `cd ${run.dir} && pnpm exec vitest run ${[...run.args, ...rel].join(" ")}`.trimEnd();
+}
+
+/**
+ * What to run for a selection: per shard "none" (skipped), "all" (its own command, through
+ * tools/run-tests.sh) or "files" (selectedCommand). Slices of one family that select the same files
+ * (graphty-1 to graphty-3) become one run, reported under the first; `covers` names them all.
+ * @param root the checkout
+ * @param shards the SHARDS entries to plan
+ * @param selection selectShards() for them (a shard missing from it runs whole)
+ * @returns `[{ shard, mode, files, reasons, command?, covers }]`, in the order of `shards`
+ */
+export function planRuns(root, shards, selection) {
+    const plan = [];
+    for (const shard of shards) {
+        const s = selection.find((x) => x.shard === shard.shard);
+        if (!s) {
+            plan.push({
+                shard,
+                mode: "all",
+                files: [],
+                reasons: ["the selector gave no answer for it"],
+                covers: [shard.shard],
+            });
+            continue;
+        }
+        const files = (s.files ?? []).map((f) => f.file).sort();
+        const command = s.mode === "files" ? selectedCommand(root, shard, files) : null;
+        if (s.mode === "files" && !command) {
+            const why = "its command is not a plain vitest run, so it runs whole";
+            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard] });
+            continue;
+        }
+        const same = command && plan.find((p) => p.command === command);
+        if (same) {
+            same.covers.push(shard.shard);
+            continue;
+        }
+        plan.push({
+            shard,
+            mode: s.mode,
+            files: s.files ?? [],
+            reasons: s.reasons ?? [],
+            command,
+            covers: [shard.shard],
+        });
+    }
+    return plan;
+}
 
 // --- building the import graph of one package, in a child process ------------------------------------
 
@@ -766,8 +876,7 @@ function opaqueSpecs(root, pkg, projects, imports) {
  *   ran; closed settles when the selector has exited
  */
 export function startAdvisory(root, base, main) {
-    const asked = process.env.PREPUSH_SELECT_BASE;
-    const selectBase = asked && isCommit(root, asked) ? asked : base;
+    const selectBase = selectBaseOf(root, base);
     if (!selectBase || process.env.PREPUSH_SELECT_ADVISORY === "0") {
         return { report: () => {}, closed: Promise.resolve() };
     }
@@ -801,6 +910,18 @@ export function startAdvisory(root, base, main) {
             }
         },
     };
+}
+
+/**
+ * The commit the selector measures a push's change from: PREPUSH_SELECT_BASE when it names a commit (a
+ * landing's own branch base, since golden's push is measured from master), else the gate's base.
+ * @param root the checkout under test
+ * @param base the gate's base, or null
+ * @returns a ref or null
+ */
+export function selectBaseOf(root, base) {
+    const asked = process.env.PREPUSH_SELECT_BASE;
+    return asked && isCommit(root, asked) ? asked : base;
 }
 
 const isCommit = (root, ref) => {
@@ -1122,7 +1243,7 @@ export async function selectChange(root, changed, shards, graphs) {
         graphs: all,
         rules,
     });
-    return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel) };
+    return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser) };
 }
 
 /**

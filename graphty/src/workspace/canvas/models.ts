@@ -6,8 +6,7 @@
  */
 
 import { detectModelFormat } from "@graphty/graphty-element/catalog";
-import type { AssetRecord, AssetSource, GraphSession, ModelChange } from "@graphty/graphty-element/session";
-import { useEffect, useState } from "react";
+import type { AssetRecord, AssetSource, GraphSession } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { modelWords } from "../style/words";
@@ -85,7 +84,7 @@ export async function holdsModel(files: readonly File[]): Promise<boolean> {
  * @param ref - what a layer names: an asset id.
  * @returns the name.
  */
-export function modelName(session: GraphSession, ref: string): string {
+function modelName(session: GraphSession, ref: string): string {
     const sample = session.catalog.models().find((m) => m.id === ref);
     if (sample !== undefined) {
         return sample.plainName;
@@ -133,24 +132,4 @@ export async function putModelOnNodes(
         },
     });
     return record;
-}
-
-/**
- * Where every model a layer names stands, from graphty-element, read again whenever a model moves on.
- * @param session - the element's session, or null.
- * @returns the latest change of each model.
- */
-export function useModelStates(session: GraphSession | null): readonly ModelChange[] {
-    const [states, setStates] = useState<readonly ModelChange[]>(() => session?.assets.states() ?? []);
-    useEffect(() => {
-        if (session === null) {
-            setStates([]);
-            return undefined;
-        }
-        setStates(session.assets.states());
-        return session.on("model:changed", () => {
-            setStates(session.assets.states());
-        });
-    }, [session]);
-    return states;
 }

@@ -13,6 +13,7 @@ export default {
         "StylesApi.highlight",
         "StylesApi.mark",
         "UpdateManager.bindViewMasks",
+        "UpdateManager.drawArrivedPaint",
         "UpdateManager.forceEdgeWalk",
         "UpdateManager.invalidateViewMasks",
         "UpdateManager.meshesAdded",

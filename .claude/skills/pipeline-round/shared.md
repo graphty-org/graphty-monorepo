@@ -23,6 +23,10 @@ of every round. Design: "Keeping work moving without a router" in `design/ci/gol
 - **Verify, never trust.** A subagent's summary, an exit status read through a pipe, or a run conclusion after re-runs
   is a claim. What counts: the commit exists, `git merge-base --is-ancestor <sha> origin/golden` (landed) or
   `origin/master` (shipped), the issue's state, what npm lists.
+- **Never copy, always merge**: never cherry-pick or rebase (the hooks refuse both). A fix the cut needs starts from
+  `origin/golden-cut` and goes in with `node tools/land.mjs cut-fix <branch>`, which lands it on golden too.
+- **Every branch belongs to an issue and is on GitHub.** `./tools/worktree-new.sh` requires the issue and pushes the
+  branch; every commit pushes it again. Open work is the table `node tools/land.mjs status` prints.
 - **Never** stash, `checkout` files, `reset`, `restore` or `clean`; never `--no-verify`; never
   `git worktree remove --force` or `git branch -D`; never dispatch `release.yml`; never approve screenshots, call the
   review page's API or touch `visual-baselines/`; never land a breaking (`!`) commit without the owner's go; never
@@ -109,7 +113,7 @@ stranded branch for pipeline-round.
 Every subagent prompt either skill writes ends with this paragraph, verbatim:
 
 > Rules: commit and stop -- never push, never land, never open a pull request; never git stash, reset, restore, clean
-> or check out files; never wait, sleep or poll inside a turn; at most a few gh calls, never one per pull request in a
+> or check out files; never cherry-pick or rebase (merge instead); never wait, sleep or poll inside a turn; at most a few gh calls, never one per pull request in a
 > loop, and on a 403 rate limit stop and say so; commits are signed and conventional with no attribution trailers;
 > never touch visual-baselines/, and never change parameters.chromatic, visual-review/trusted/,
 > visual-review/passkeys.json or the gate step and visual job in ci.yml to make a check pass; a breaking change or a
@@ -117,6 +121,8 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > Before your final tests: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
 --frozen-lockfile`, resolve any conflict keeping both intents, then run the affected tests on the merged code and
 > commit. Start each long run once and end your turn; do not re-check it again and again.
+> When you stop, done or not, write where the work stands on the branch's issue:
+> `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
 > Scratch files go in tmp/<name>/. Report the branch and head sha.
 
 ## Escalation

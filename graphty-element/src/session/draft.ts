@@ -18,7 +18,7 @@ import { GraphtyError } from "../errors";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
-import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
+import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
@@ -551,17 +551,7 @@ export class Draft implements LoadDraft {
     async loadVia(send: ReturnType<DraftHost["importer"]>, choices: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         const plan = this.plan(read, choices);
-        const command: DataImportCommand = {
-            op: "data.import",
-            source: read.source,
-            mode: choices.mode ?? "replace",
-            ...(choices.layout === undefined ? {} : { layout: choices.layout }),
-            ...(choices.styles === undefined ? {} : { styles: choices.styles }),
-            ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
-            held: plan.held,
-            ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
-            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
-        };
+        const command = importCommand(read.source, choices, plan.held);
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
             ...(Object.keys(plan.knownFields).length === 0 ? {} : { knownFields: plan.knownFields }),

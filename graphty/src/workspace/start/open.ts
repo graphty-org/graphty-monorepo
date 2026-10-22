@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
+import { fileNameWithoutExtension, openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -110,31 +111,15 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
- * Opens a file: from the start screen as a new project named after the file; inside a project it
- * is added to that project (tier1-design.md section 2.1, the File list's intake).
+ * Opens a file through graphty-element's `project.open`, which decides what it is: a project file
+ * opens as the project (in place of the open one, asking first over unsaved changes); a data file
+ * opens from the start screen as a new project named after the file, and inside a project is
+ * added to it (tier1-design.md section 2.1, the File list's intake).
  * @param ctx - the command context.
- * @param ctx.workspace - the workspace store.
- * @param ctx.session - the open project's session, or null.
  * @param file - the file.
  */
-export function openFile({ workspace, session }: CommandContext, file: File): void {
-    const source = { config: { file }, name: file.name };
-    if (workspace.get().project !== null && session !== null) {
-        session.data.import(source, { mode: "merge", styles: fileStylesChoice() }).then(
-            () => {
-                noticeFileStyles(workspace, session);
-            },
-            (error: unknown) => {
-                const reason = error instanceof Error ? error.message : String(error);
-                workspace.set({ notice: { message: `${file.name} could not be added. ${reason}` } });
-            },
-        );
-        return;
-    }
-    openProject(workspace, file.name.replace(/\.[^.]*$/, "") || file.name, async (next) => {
-        await next.data.import(source, { styles: fileStylesChoice() });
-        noticeFileStyles(workspace, next);
-    });
+export function openFile(ctx: CommandContext, file: File): void {
+    void openProjectFile(ctx, file, { name: fileNameWithoutExtension(file.name), intake: true });
 }
 
 /**

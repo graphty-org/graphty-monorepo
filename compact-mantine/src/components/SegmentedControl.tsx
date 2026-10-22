@@ -17,7 +17,8 @@ import React from "react";
  * wrapper with only a description or an error leaves `aria-labelledby`
  * pointing at no element. Browsers skip a missing id and fall back to any
  * `aria-label`, so give the control one in that case.
- * @param props - Mantine's SegmentedControl props
+ * @param props - Mantine's SegmentedControl props, and its name
+ * @param props.label - The control's name, for a `FieldRow` caption and its accessible name
  * @returns The segmented control
  * @example
  * ```tsx
@@ -26,13 +27,23 @@ import React from "react";
  * </Input.Wrapper>
  * ```
  */
-export function SegmentedControl(props: React.ComponentProps<typeof MantineSegmentedControl>): React.JSX.Element {
+export function SegmentedControl({
+    label,
+    ...props
+}: React.ComponentProps<typeof MantineSegmentedControl> & {
+    /**
+     * The control's name: its accessible name outside an `Input.Wrapper`, and the caption a
+     * `FieldRow` draws for it while labels are shown, as it does for a `PanelField`.
+     */
+    label?: string;
+}): React.JSX.Element {
     const wrapper = useInputWrapperContext();
 
     return (
         <MantineSegmentedControl
             aria-labelledby={wrapper?.labelId}
             aria-describedby={wrapper?.describedBy}
+            {...(label === undefined || wrapper?.labelId !== undefined ? {} : { "aria-label": label })}
             {...props}
         />
     );

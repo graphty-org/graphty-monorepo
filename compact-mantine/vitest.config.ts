@@ -154,18 +154,25 @@ const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
         tree.childFrames?.forEach(walk);
     };
     walk(frameTree as Tree);
-    const found: { role: string; name: string; value: string | undefined }[] = [];
+    const found: { role: string; name: string; value: string | undefined; valueText: string | undefined }[] = [];
     for (const frameId of ids) {
         const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as {
-            nodes: { role?: { value?: string }; name?: { value?: string }; value?: { value?: unknown } }[];
+            nodes: {
+                role?: { value?: string };
+                name?: { value?: string };
+                value?: { value?: unknown };
+                properties?: { name: string; value?: { value?: unknown } }[];
+            }[];
         };
         for (const node of nodes) {
             if (node.name?.value === name) {
                 const value = node.value?.value;
+                const text = node.properties?.find((property) => property.name === "valuetext")?.value?.value;
                 found.push({
                     role: String(node.role?.value),
                     name,
                     value: value === undefined ? undefined : String(value),
+                    valueText: text === undefined ? undefined : String(text),
                 });
             }
         }

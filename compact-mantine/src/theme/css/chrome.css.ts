@@ -177,6 +177,19 @@ const css = `
 [data-mantine-color-scheme="dark"] .cm-histogram-bar[data-painted] {
     box-shadow: inset 0 0 0 1px var(--cm-icon-secondary);
 }
+/* A histogram with a range: the bars inside it in a darker brand step than the plain accent, and
+   the bars outside it in a pale gray, so the two differ by lightness at 3:1 or more in both schemes. */
+:root {
+    --cm-histogram-in: light-dark(var(--cm-bg-brand-pressed), var(--cm-text-brand));
+    --cm-histogram-dim: var(--cm-bg-tertiary);
+}
+.cm-histogram-ghost {
+    background: var(--cm-bg-secondary);
+    box-shadow: inset 0 0 0 1px var(--cm-border);
+}
+.cm-histogram-brush-body { cursor: grab; border-radius: 2px; outline: 1px solid transparent; }
+.cm-histogram-brush-body:active { cursor: grabbing; }
+.cm-histogram-brush-body:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .cm-chart-text {
     ${cmFont("body")}
     color: var(--cm-text-secondary);

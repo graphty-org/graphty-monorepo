@@ -723,6 +723,15 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "TimeApi.setSettings",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: size / 2, step: 10 });
+            return () => session.time.setSettings({ step: 5 });
+        },
+    },
+    {
         method: "ScopeApi.save",
         growth: "linear",
         prepare: (session, size) => Promise.resolve(() => session.scope.save("Half", { nodes: ids(size / 2) })),

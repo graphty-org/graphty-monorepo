@@ -47,6 +47,7 @@ export default {
         "StylesApi.update",
         "TimeApi.seek",
         "TimeApi.setField",
+        "TimeApi.setSettings",
         "TimeApi.stepBy",
         "TimeApi.window",
         "VisibilityApi.set",

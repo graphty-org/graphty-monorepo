@@ -427,6 +427,17 @@ interface FieldIndex {
     readonly unit: TimeUnit;
     readonly node: KindIndex | null;
     readonly edge: KindIndex | null;
+    /** Whether every instant is a whole number, so an ordinal bin is never narrower than one. */
+    readonly whole: boolean;
+}
+
+/**
+ * Whether every finite instant of a kind is a whole number.
+ * @param kind - The kind's index, or null.
+ * @returns True when it holds none that is not.
+ */
+function wholeInstants(kind: KindIndex | null): boolean {
+    return kind === null || kind.sorted.every((value) => !Number.isFinite(value) || Number.isInteger(value));
 }
 
 const NO_COUNTS: TimeCounts = Object.freeze({ timed: 0, untimed: 0, unparsed: 0 });
@@ -774,13 +785,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return index;
         }
 
-        index = {
-            key,
-            path,
-            unit,
-            node: field.nodes === undefined ? null : indexKind("node", path, field.nodes.unit ?? "ms"),
-            edge: field.edges === undefined ? null : indexKind("edge", path, field.edges.unit ?? "ms"),
-        };
+        const node = field.nodes === undefined ? null : indexKind("node", path, field.nodes.unit ?? "ms");
+        const edge = field.edges === undefined ? null : indexKind("edge", path, field.edges.unit ?? "ms");
+        index = { key, path, unit, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
         sources.emit("time:ready", { field });
 
         return index;
@@ -1296,7 +1303,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         const span = Math.max(to - from, 1);
         if (ordinal()) {
+            // Whole numbers (years, ranks) never split one value across bins.
             let step = niceAtLeast(span / maxCount);
+            if (index?.whole === true) {
+                step = Math.max(step, 1);
+            }
             while (Math.floor((to - 1) / step) - Math.floor(from / step) + 1 > maxCount) {
                 step = niceAtLeast(step * 1.5);
             }

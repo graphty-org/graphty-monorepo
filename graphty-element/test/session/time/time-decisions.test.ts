@@ -332,6 +332,15 @@ describe("the window, its step and playback", () => {
         session.dispose();
     });
 
+    it("never cuts whole-number time into bins narrower than one", async () => {
+        const { session } = await open(false, "source,target,year\nA,B,1995\nB,C,2010\nC,D,2024\n");
+        await session.time.setField({ edges: { start: "year", unit: "ordinal" } });
+        const bins = session.time.bins({ maxCount: 200 }) ?? [];
+        assert.strictEqual(bins[0].step, 1);
+        assert.strictEqual(bins.length, 30);
+        session.dispose();
+    });
+
     it("measures the visible graph when asked", async () => {
         const { session } = await open();
         await session.time.window({ from: T0, to: T0 + DAY, step: "day" });

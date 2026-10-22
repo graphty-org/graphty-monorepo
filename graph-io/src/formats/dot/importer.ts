@@ -803,9 +803,9 @@ class DotParser {
 
     private targetPortHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
-    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
 
-    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
 
     /** The rank subgraph each node was put in first, by node index. */
     private readonly rankSetOf = new Map<number, string>();

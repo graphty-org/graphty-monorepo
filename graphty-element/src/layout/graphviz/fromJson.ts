@@ -167,12 +167,10 @@ export function clusterMargins(json: string): Map<number, GroupMargins> {
             ...(Array.isArray(cluster.subgraphs) ? cluster.subgraphs : []).map((i: number) => boxOf(objects[i]?.bb)),
         ].filter((box) => box !== null);
         if (members.length > 0) {
-            const inner = members.reduce((a, b) => [
-                Math.min(a[0], b[0]),
-                Math.min(a[1], b[1]),
-                Math.max(a[2], b[2]),
-                Math.max(a[3], b[3]),
-            ]);
+            const inner = members.reduce(
+                (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])],
+                members[0],
+            );
             out.set(Number(name[1]), {
                 left: inner[0] - bb[0],
                 bottom: inner[1] - bb[1],

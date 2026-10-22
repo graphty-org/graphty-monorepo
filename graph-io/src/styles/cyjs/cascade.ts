@@ -2914,7 +2914,9 @@ function groupBoxes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (S
     ];
     const n = read.order.length;
     const put = (p: string, k: number, v: StyleValue): void => {
-        (values[p] ??= new Array<StyleValue | null>(n).fill(null))[k] = v;
+        const column = values[p] ?? new Array<StyleValue | null>(n).fill(null);
+        values[p] = column;
+        column[k] = v;
     };
     for (let k = 0; k < n; k++) {
         const core = read.order[k];

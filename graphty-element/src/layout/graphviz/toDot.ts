@@ -145,14 +145,16 @@ export function toDot(
     for (const { rank, rows } of structure.ranks ?? []) {
         const members = rows.filter((row) => !skip(row) && row < stored.nodeCount);
         if (members.length > 0 && isPlainName(rank)) {
-            lines.push(`{ rank=${rank}; ${members.map((row) => `n${row};`).join(" ")} }`);
+            const names = members.map((row) => `n${row};`).join(" ");
+            lines.push(`{ rank=${rank}; ${names} }`);
         }
     }
 
     // each edge is named by its place in the list, so the route Graphviz lays it maps back to it
     for (const [k, { src, dst, attributes: own }] of (structure.edges ?? edgesOf(stored)).entries()) {
         if (!skip(src) && !skip(dst)) {
-            lines.push(`n${src} ${arrow} n${dst}${attributeList({ ...own, id: `e${k}` })};`);
+            const id = `e${k}`;
+            lines.push(`n${src} ${arrow} n${dst}${attributeList({ ...own, id })};`);
         }
     }
 

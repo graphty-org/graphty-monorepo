@@ -1722,6 +1722,52 @@ describe("review page: a pull request", () => {
     });
 });
 
+describe("review page: baseline changes earlier signatures approve", () => {
+    // The pull request's branch changes two baselines and approves one of them in a statement (no
+    // passkey is registered, so unsigned), as an earlier Finish on another branch would have.
+    const withSignedBaseline = (r) => {
+        const put = (path, text) => {
+            mkdirSync(join(r.repo, path, ".."), { recursive: true });
+            writeFileSync(join(r.repo, path), text);
+        };
+        git(r.repo, "checkout", "-q", "feature");
+        put("visual-baselines/compact-mantine/zz-signed.png", "an image the owner approved");
+        git(r.repo, "add", "-A");
+        git(r.repo, "commit", "-q", "-m", "signed baseline");
+        const commit = git(r.repo, "rev-parse", "HEAD");
+        const tree = git(r.repo, "rev-parse", "HEAD:visual-baselines");
+        const statement = {
+            version: 1,
+            commit,
+            tree,
+            baselines: "visual-baselines",
+            pr: 99,
+            approvedAt: "2026-10-21T00:00:00.000Z",
+        };
+        put(`visual-review-approvals/${tree}.json`, JSON.stringify(statement));
+        put("visual-baselines/compact-mantine/zz-unsigned.png", "an image nobody approved");
+        git(r.repo, "add", "-A");
+        git(r.repo, "commit", "-q", "-m", "approval, and another baseline");
+        git(r.repo, "push", "-q", "origin", "feature");
+        git(r.repo, "checkout", "-q", "master");
+        r.head = git(r.repo, "rev-parse", "feature");
+        return { gh: onePr()(r) };
+    };
+
+    it("says in Finish's sheet how many of the branch's baseline changes need no new signature", async () => {
+        await open(withSignedBaseline);
+        await page.locator(".component").first().waitFor();
+        await page.keyboard.press("Shift+A");
+        await expect.poll(progress).toBe("4 of 6 decided");
+        await page.getByRole("button", { name: /^Finish/ }).click();
+        await expect.poll(() => dialogs.length).toBe(3);
+        expect(dialogs[2].split("\n")).toContain(
+            "Already approved by your earlier signatures: 1 of 2 baseline files this branch changes from master. " +
+                "The gate accepts those as they are, without a new signature.",
+        );
+    });
+});
+
 describe("review page: the decision bar", () => {
     // Every decision-bar button's box, and the panes' top edge.
     const boxes = () =>

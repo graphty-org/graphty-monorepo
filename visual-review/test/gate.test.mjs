@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
     approvalKeys,
+    baselineCoverage,
     baselinesChangedBetween,
     contentHash,
     gateProblems,
@@ -33,6 +34,7 @@ const HASH = "a".repeat(64);
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 // card--legacy.png as makeRepo's master holds it.
 const LEGACY = sha256(readFileSync(join(FIXTURE, "compact-mantine/baselines/card--legacy.png")));
+const UNAPPROVED = "no signature of the owner approves this content";
 
 // A valid results.json whose items have these statuses.
 const results = (statuses, extra = {}) => ({
@@ -271,7 +273,7 @@ describe("gate command", () => {
         const out = run(r.repo, artifacts({ "visual-compact-mantine-1": results(["changed"]) }));
         expect(out.stdout).toMatch(/::error::visual changes not accepted -- compact-mantine: 1 changed/);
         expect(out.stdout).toMatch(
-            /::error::baselines not approved -- visual-baselines\/ differs from the base \(tree [0-9a-f]{40}\), and no visual-review-approvals\/[0-9a-f]{40}\.json approves it/,
+            /::error::baselines not approved -- visual-baselines\/compact-mantine\/card--legacy\.png: no signature of the owner approves this content/,
         );
         expect(out.status).toBe(1);
     });
@@ -496,6 +498,20 @@ describe("signed tree approvals", () => {
         return file;
     }
 
+    /**
+     * A review record as Finish writes it, unsigned.
+     * @param {{ items?: object[], rejects?: object[], reviewedAt?: string }} o its decisions and time
+     * @returns {object} the record
+     */
+    const recordOf = ({ items = [], rejects = [], reviewedAt = "2026-10-19T13:00:00.000Z" } = {}) => ({
+        version: 2,
+        pr: 7,
+        subject: { builtMerge: "1".repeat(40), head: "2".repeat(40), runId: 9, runAttempt: 1, scale: 2 },
+        items,
+        rejects,
+        reviewedAt,
+    });
+
     const check = (r, { head = "pr", keys = [KEY.entry] } = {}) =>
         treeApprovalProblems({ base: "master", head, cwd: r.repo, baselines: BASELINES, approvals: APPROVALS, keys });
 
@@ -515,17 +531,16 @@ describe("signed tree approvals", () => {
         commit(r, { [PATH]: "new image" });
         approveTree(r);
         commit(r, { [PATH]: "another image" });
-        const tree = treeAt("pr", BASELINES, r.repo);
         expect(check(r)).toEqual([
-            `${BASELINES}/ differs from the base (tree ${tree}), and no ${APPROVALS}/${tree}.json approves it: review the changes with \`visual-review serve\` and Finish, which signs the tree`,
+            `${PATH}: no signature of the owner approves this content; review the changes with \`visual-review serve\` and Finish, which signs them`,
         ]);
-        // A statement filed under the head's tree that signs another one.
+        // A statement filed under the head's tree that signs a tree its commit does not hold.
         const other = repoWith(passkeysJson(KEY));
         commit(other, { [PATH]: "new image" });
         const statement = { ...statementOf(other, "HEAD"), tree: "f".repeat(40) };
         approveTree(other, { statement });
-        expect(check(other)[0]).toMatch(
-            /it signs visual-baselines\/ at tree f{40}, not visual-baselines\/ at [0-9a-f]{40}/,
+        expect(check(other)[1]).toMatch(
+            /: not counted, visual-baselines\/ at its commit [0-9a-f]{40} is not the tree it signs/,
         );
     });
 
@@ -539,7 +554,7 @@ describe("signed tree approvals", () => {
         commit(r, { [PATH]: "new image", "src.txt": "the pull request's own code" });
         expect(treeAt("pr", BASELINES, r.repo)).toBe(signed.tree);
         approveTree(r, { statement: signed });
-        expect(check(r)[0]).toContain(`its commit ${signed.commit} is not an ancestor of pr`);
+        expect(check(r)[1]).toContain(`its commit ${signed.commit} is not an ancestor of pr`);
     });
 
     it("fails a statement whose commit does not hold the tree it signs", () => {
@@ -547,14 +562,15 @@ describe("signed tree approvals", () => {
         commit(r, { [PATH]: "new image" });
         const statement = { ...statementOf(r, "HEAD"), commit: git(r.repo, "rev-parse", "master") };
         approveTree(r, { statement });
-        expect(check(r)[0]).toContain(`${BASELINES}/ at its commit ${statement.commit} is not the tree it signs`);
+        expect(check(r)[1]).toContain(`${BASELINES}/ at its commit ${statement.commit} is not the tree it signs`);
     });
 
     it("fails a bad signature: another key, a statement changed after signing, none at all", () => {
         const r = repoWith(passkeysJson(KEY));
         commit(r, { [PATH]: "new image" });
         approveTree(r, { key: makeKey() });
-        expect(check(r)[0]).toContain("approval is from a key not in passkeys.json on the base branch");
+        expect(check(r)[0]).toContain(UNAPPROVED);
+        expect(check(r)[1]).toContain("not counted, approval is from a key not in passkeys.json on the base branch");
 
         const changed = repoWith(passkeysJson(KEY));
         commit(changed, { [PATH]: "new image" });
@@ -563,12 +579,12 @@ describe("signed tree approvals", () => {
         commit(changed, {
             [`${APPROVALS}/${statement.tree}.json`]: { ...statement, pr: 8, approval },
         });
-        expect(check(changed)[0]).toContain("the challenge does not match");
+        expect(check(changed)[1]).toContain("the challenge does not match");
 
         const unsigned = repoWith(passkeysJson(KEY));
         commit(unsigned, { [PATH]: "new image" });
         approveTree(unsigned, { key: null });
-        expect(check(unsigned)[0]).toContain("the record has no passkey approval");
+        expect(check(unsigned)[1]).toContain("the record has no passkey approval");
         // Before the base holds a key, an unsigned statement is enough.
         expect(check(unsigned, { keys: null })).toEqual([]);
     });
@@ -584,29 +600,24 @@ describe("signed tree approvals", () => {
         expect(check(r)).toEqual([]);
     });
 
-    it("gives the per-pull-request review records no meaning of their own", () => {
-        // A record a pull request's earlier Finish signed, naming the change exactly: not enough.
+    it("approves the content a signed review record accepts, and the record's own file", () => {
         const r = repoWith(passkeysJson(KEY));
-        const record = {
-            version: 2,
-            pr: 7,
-            subject: { builtMerge: "1".repeat(40), head: "2".repeat(40), runId: 9, runAttempt: 1, scale: 2 },
-            items: [{ path: PATH, from: LEGACY, to: sha256("new image"), reason: null }],
-            rejects: [],
-            reviewedAt: "2026-09-28T12:00:00.000Z",
-        };
+        const record = recordOf({ items: [{ path: PATH, from: LEGACY, to: sha256("new image"), reason: null }] });
         commit(r, {
             [PATH]: "new image",
             [`${BASELINES}/reviews/r.json`]: { ...record, approval: approve(record, KEY) },
         });
-        expect(check(r)[0]).toMatch(/and no visual-review-approvals\/[0-9a-f]{40}\.json approves it/);
-        // A signed tree passes, whatever the records in it say, an unreadable one included; and
-        // deleting a record is a change of the tree like any other.
+        expect(check(r)).toEqual([]);
+        // An unreadable file among the records is approved by nothing but a signed tree.
         commit(r, { [`${BASELINES}/reviews/junk.json`]: "{" });
+        expect(check(r)[0]).toMatch(/^visual-baselines\/reviews\/junk\.json: no signature/);
         approveTree(r);
         expect(check(r)).toEqual([]);
         commit(r, { [`${BASELINES}/reviews/junk.json`]: null });
-        expect(check(r)[0]).toMatch(/approves it/);
+        expect(check(r)).toEqual([]);
+        // A signature in the branch's history counts after its file is gone: the owner made it.
+        commit(r, { [`${BASELINES}/reviews/r.json`]: null });
+        expect(check(r)).toEqual([]);
     });
 
     it("covers every pixel: a baseline is a Git LFS pointer naming its image's SHA-256, so another image is another tree", () => {
@@ -620,7 +631,7 @@ describe("signed tree approvals", () => {
         expect(contentHash(execFileSync("git", ["cat-file", "blob", `pr:${PATH}`], { cwd: r.repo }))).toBe(
             sha256("new imagf"),
         );
-        expect(check(r)[0]).toMatch(/and no visual-review-approvals\/[0-9a-f]{40}\.json approves it/);
+        expect(check(r)[0]).toContain(UNAPPROVED);
     });
 
     it("fails a change to passkeys.json once the base holds a key, and not before", () => {
@@ -673,6 +684,223 @@ describe("signed tree approvals", () => {
         ]);
     });
 
+    describe("composed approvals: each file approved by some signature of the owner", () => {
+        const OTHER = `${BASELINES}/compact-mantine/tooltip--hover.png`;
+        const NEW_STORY = `${BASELINES}/compact-mantine/new--story.png`;
+
+        /**
+         * A branch from master holding `files`, its tree signed, merged into the current branch.
+         * @param {object} r the repository
+         * @param {string} name the branch
+         * @param {Record<string, string | object | null>} files as in commit
+         * @param {{ approvedAt?: string, key?: object }} [o] when the owner signed, and with which key
+         */
+        function signedBranch(r, name, files, { approvedAt = "2026-10-19T12:00:00.000Z", key = KEY } = {}) {
+            const back = git(r.repo, "rev-parse", "--abbrev-ref", "HEAD");
+            git(r.repo, "checkout", "-q", "-b", name, "master");
+            commit(r, files);
+            approveTree(r, { key, statement: { ...statementOf(r, "HEAD"), approvedAt } });
+            git(r.repo, "checkout", "-q", back);
+            git(r.repo, "merge", "-q", "--no-ff", "-m", `merge ${name}`, name);
+        }
+
+        // A signed record committed on the current branch.
+        const signRecord = (r, name, record, key = KEY) =>
+            commit(r, { [`${BASELINES}/reviews/${name}.json`]: { ...record, approval: approve(record, key) } });
+
+        it("passes two branches' signed images merged into a tree nobody signed, with no new signature", () => {
+            const r = repoWith(passkeysJson(KEY));
+            signedBranch(r, "a", { [PATH]: "image a" });
+            signedBranch(r, "b", { [OTHER]: "image b" });
+            const tree = treeAt("pr", BASELINES, r.repo);
+            expect(tree).not.toBe(treeAt("a", BASELINES, r.repo));
+            expect(tree).not.toBe(treeAt("b", BASELINES, r.repo));
+            expect(check(r)).toEqual([]);
+            const { files } = baselineCoverage({
+                base: "master",
+                head: "pr",
+                cwd: r.repo,
+                baselines: BASELINES,
+                approvals: APPROVALS,
+                keys: [KEY.entry],
+            });
+            expect(files.map((f) => [f.path, f.covered])).toEqual([
+                [PATH, true],
+                [OTHER, true],
+            ]);
+            expect(files[0].by).toMatch(new RegExp(`^${APPROVALS}/[0-9a-f]{40}\\.json$`));
+        });
+
+        it("fails an agent's commit that swaps an approved image for another", () => {
+            const r = repoWith(passkeysJson(KEY));
+            signedBranch(r, "a", { [PATH]: "image a" });
+            commit(r, { [PATH]: "image the owner never saw" });
+            expect(check(r)).toEqual([
+                `${PATH}: ${UNAPPROVED}; review the changes with \`visual-review serve\` and Finish, which signs them`,
+            ]);
+        });
+
+        it("fails an image the owner approved for another path", () => {
+            const r = repoWith(passkeysJson(KEY));
+            signedBranch(r, "a", { [OTHER]: "image a" });
+            // The same bytes at a path no signature names: approved there, not here.
+            commit(r, { [PATH]: "image a" });
+            expect(check(r)).toEqual([expect.stringContaining(`${PATH}: ${UNAPPROVED}`)]);
+            // A record's item for another path approves nothing here either.
+            const s = repoWith(passkeysJson(KEY));
+            signRecord(s, "r", recordOf({ items: [{ path: OTHER, from: null, to: sha256("image a"), reason: null }] }));
+            commit(s, { [PATH]: "image a" });
+            expect(check(s)).toEqual([expect.stringContaining(`${PATH}: ${UNAPPROVED}`)]);
+        });
+
+        it("counts nothing signed by a key the base does not hold, nor an unsigned or altered record", () => {
+            const r = repoWith(passkeysJson(KEY));
+            const stranger = makeKey();
+            signedBranch(r, "a", { [PATH]: "image a" }, { key: stranger });
+            const lines = check(r);
+            expect(lines[0]).toContain(`${PATH}: ${UNAPPROVED}`);
+            expect(lines[1]).toMatch(/: not counted, approval is from a key not in passkeys\.json on the base branch$/);
+
+            const s = repoWith(passkeysJson(KEY));
+            const record = recordOf({ items: [{ path: PATH, from: LEGACY, to: sha256("image a"), reason: null }] });
+            signRecord(s, "stranger", record, stranger);
+            commit(s, { [PATH]: "image a" });
+            expect(check(s)[0]).toContain(`${PATH}: ${UNAPPROVED}`);
+            // The owner's signature over one image, its item changed to another afterwards.
+            const t = repoWith(passkeysJson(KEY));
+            const altered = {
+                ...record,
+                items: [{ ...record.items[0], to: sha256("image b") }],
+                approval: approve(record, KEY),
+            };
+            commit(t, { [`${BASELINES}/reviews/r.json`]: altered, [PATH]: "image b" });
+            expect(check(t)[0]).toContain(`${PATH}: ${UNAPPROVED}`);
+            expect(check(t).join("\n")).toContain("the challenge does not match");
+            // Unsigned counts only before the base holds a key.
+            const u = repoWith(passkeysJson(KEY));
+            commit(u, { [`${BASELINES}/reviews/r.json`]: record, [PATH]: "image a" });
+            expect(check(u)[0]).toContain(`${PATH}: ${UNAPPROVED}`);
+            expect(check(u, { keys: null })).toEqual([]);
+        });
+
+        it("revokes an approval with a newer signed reject of the same image, and a newer approval restores it", () => {
+            const r = repoWith(passkeysJson(KEY));
+            signedBranch(r, "a", { [PATH]: "image a" }, { approvedAt: "2026-10-19T12:00:00.000Z" });
+            // On another branch, later, the owner rejected the same image for the same story.
+            git(r.repo, "checkout", "-q", "-b", "b", "master");
+            const rejects = [{ path: PATH, capture: sha256("image a"), reason: "the label is cut off" }];
+            signRecord(r, "reject", recordOf({ rejects, reviewedAt: "2026-10-19T14:00:00.000Z" }));
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-ff", "-m", "merge b", "b");
+            expect(check(r)).toEqual([
+                `${PATH}: approved, then rejected by the newer ${BASELINES}/reviews/reject.json; review the changes with \`visual-review serve\` and Finish, which signs them`,
+            ]);
+            // A reject older than the approval revokes nothing.
+            const older = repoWith(passkeysJson(KEY));
+            signRecord(older, "reject", recordOf({ rejects, reviewedAt: "2026-10-19T10:00:00.000Z" }));
+            signedBranch(older, "a", { [PATH]: "image a" }, { approvedAt: "2026-10-19T12:00:00.000Z" });
+            expect(check(older)).toEqual([]);
+            // The owner approves the image again, after the reject.
+            approveTree(r, { statement: { ...statementOf(r, "HEAD"), approvedAt: "2026-10-19T16:00:00.000Z" } });
+            expect(check(r)).toEqual([]);
+        });
+
+        it("revokes with a newer reject the base's records hold", () => {
+            const r = repoWith(passkeysJson(KEY));
+            signedBranch(r, "a", { [PATH]: "image a" }, { approvedAt: "2026-10-19T12:00:00.000Z" });
+            expect(check(r)).toEqual([]);
+            git(r.repo, "checkout", "-q", "master");
+            const rejects = [{ path: PATH, capture: sha256("image a"), reason: "wrong color" }];
+            signRecord(r, "20261019T140000Z-pr8", recordOf({ rejects, reviewedAt: "2026-10-19T14:00:00.000Z" }));
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-ff", "-m", "merge master", "master");
+            expect(check(r)[0]).toBe(
+                `${PATH}: approved, then rejected by the newer ${BASELINES}/reviews/20261019T140000Z-pr8.json; review the changes with \`visual-review serve\` and Finish, which signs them`,
+            );
+        });
+
+        it("needs an approval of each removal: a signed record's removal of exactly the base's image, or a tree signed after the base held it", () => {
+            // An agent deletes a baseline: nothing approves that.
+            const r = repoWith(passkeysJson(KEY));
+            commit(r, { [PATH]: null });
+            expect(check(r)).toEqual([
+                expect.stringContaining(`${PATH}: no signature of the owner approves removing it`),
+            ]);
+            // A signed record that removes exactly master's image.
+            const record = recordOf({ items: [{ path: PATH, from: LEGACY, to: null, reason: "story deleted" }] });
+            signRecord(r, "remove", record);
+            expect(check(r)).toEqual([]);
+            // A removal of another image than master's approves nothing.
+            const other = repoWith(passkeysJson(KEY));
+            signRecord(other, "remove", recordOf({ items: [{ path: PATH, from: HASH, to: null, reason: null }] }));
+            commit(other, { [PATH]: null });
+            expect(check(other)[0]).toContain("approves removing it");
+            // A tree signed on the branch after it left master, without the file.
+            const t = repoWith(passkeysJson(KEY));
+            signedBranch(t, "a", { [PATH]: null });
+            expect(check(t)).toEqual([]);
+        });
+
+        it("never approves removing a file with a tree signed before the base added it", () => {
+            const r = repoWith(passkeysJson(KEY));
+            // A tree signed on the branch before master added a story.
+            commit(r, { [PATH]: "image a" });
+            approveTree(r);
+            git(r.repo, "checkout", "-q", "master");
+            commit(r, { [NEW_STORY]: "master's new story" });
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-ff", "-m", "merge master", "master");
+            expect(check(r)).toEqual([]);
+            // The agent deletes master's new story: the older signed tree lacks it, and must not count.
+            commit(r, { [NEW_STORY]: null });
+            expect(check(r)).toEqual([
+                expect.stringContaining(`${NEW_STORY}: no signature of the owner approves removing it`),
+            ]);
+        });
+
+        it("needs both halves of a rename approved", () => {
+            const r = repoWith(passkeysJson(KEY));
+            const renamed = `${BASELINES}/compact-mantine/card--renamed.png`;
+            const legacy = readFileSync(join(FIXTURE, "compact-mantine/baselines/card--legacy.png"));
+            commit(r, { [PATH]: null, [renamed]: legacy });
+            const added = recordOf({ items: [{ path: renamed, from: null, to: LEGACY, reason: null }] });
+            signRecord(r, "add", added);
+            expect(check(r)).toEqual([
+                expect.stringContaining(`${PATH}: no signature of the owner approves removing it`),
+            ]);
+            signRecord(r, "remove", recordOf({ items: [{ path: PATH, from: LEGACY, to: null, reason: null }] }));
+            expect(check(r)).toEqual([]);
+        });
+
+        it("approves a story settings file only with the exact bytes the owner signed", () => {
+            const r = repoWith(passkeysJson(KEY));
+            const settings = `${BASELINES}/compact-mantine/card--legacy.json`;
+            const bytes = `${JSON.stringify({ disableSnapshot: true, reason: "races" }, null, 2)}\n`;
+            signRecord(
+                r,
+                "exclude",
+                recordOf({ items: [{ path: settings, from: null, to: sha256(bytes), reason: "exclude: races" }] }),
+            );
+            commit(r, { [settings]: bytes });
+            expect(check(r)).toEqual([]);
+            commit(r, { [settings]: `${JSON.stringify({ diffThreshold: 1 }, null, 2)}\n` });
+            expect(check(r)[0]).toContain(`${settings}: ${UNAPPROVED}`);
+        });
+
+        it("names at most ten unapproved files and counts the rest", () => {
+            const r = repoWith(passkeysJson(KEY));
+            commit(
+                r,
+                Object.fromEntries(
+                    Array.from({ length: 12 }, (_, i) => [`${BASELINES}/compact-mantine/s${i}.png`, `image ${i}`]),
+                ),
+            );
+            const lines = check(r);
+            expect(lines).toHaveLength(11);
+            expect(lines[10]).toBe(`and 2 more files of ${BASELINES}/ no signature of the owner approves`);
+        });
+    });
+
     describe("the gate command", () => {
         const GATE = fileURLToPath(new URL("../trusted/gate.mjs", import.meta.url));
         const captures = (statuses = ["unchanged"]) =>
@@ -689,9 +917,7 @@ describe("signed tree approvals", () => {
             const r = repoWith(passkeysJson(KEY));
             commit(r, { [PATH]: "new image" });
             const unsigned = run(r, ["--pr", "7"]);
-            expect(unsigned.stdout).toContain(
-                "::error::baselines not approved -- visual-baselines/ differs from the base",
-            );
+            expect(unsigned.stdout).toContain(`::error::baselines not approved -- ${PATH}: ${UNAPPROVED}`);
             expect(unsigned.status).toBe(1);
             approveTree(r);
             const out = run(r, ["--pr", "7"]);

@@ -4861,6 +4861,9 @@ function sheet(t, f, prepared, notice) {
             `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval, and your passkey signs them with the rest.`,
         );
     }
+    if (f.coveredBefore?.covered > 0) {
+        lines.push(coveredLine(f.coveredBefore));
+    }
     if (f.undecided.length > 0) {
         lines.push(
             `Still undecided, and blocking the merge: ${f.undecided.map((p) => `${p.project} ${p.undecided}`).join(", ")}.`,
@@ -4900,6 +4903,15 @@ function sheet(t, f, prepared, notice) {
             : null,
         passkeySentence(f, prepared),
     ].filter(Boolean);
+}
+
+// How many of the branch's baseline changes earlier signatures already approve, as the gate counts.
+function coveredLine({ covered, changed, branch }) {
+    const all = covered === changed;
+    return (
+        `Already approved by your earlier signatures: ${all ? "all" : `${covered} of`} ${plural(changed, "baseline file")} ` +
+        `this branch changes from ${branch}. The gate accepts ${all ? "them" : "those"} as they are, without a new signature.`
+    );
 }
 
 // The accepts approved before, each a link that cancels the sheet and opens that item.

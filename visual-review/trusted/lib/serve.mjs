@@ -91,7 +91,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { contentHash } from "../gate.mjs";
+import { baselineCoverage, contentHash } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -2031,6 +2031,36 @@ export function createApp({
     };
     const CHANGED_SINCE = "Decisions changed since this sheet opened: check the summary again.";
 
+    /**
+     * How many of the files a pull request's head changes in the baselines directory, compared with
+     * the default branch, the owner's earlier signatures already approve, counted as the gate counts
+     * them (gate.mjs baselineCoverage): those need no new signature. Null for a seed, a head not
+     * fetched, unreadable keys, or a git failure.
+     * @param {object} t the target
+     * @returns {Promise<{ covered: number, changed: number, branch: string } | null>} the counts
+     */
+    const coveredBefore = async (t) => {
+        const base = tips.get(defaultBranch);
+        if (t.pr === null || !base || !t.head || passkeyState.problem !== null || !(await haveCommit(t.head))) {
+            return null;
+        }
+        try {
+            // ponytail: synchronous git (the gate's own code) holds the server for the few git
+            // processes it runs; make it async if a sheet ever opens slowly.
+            const { files } = baselineCoverage({
+                base,
+                head: t.head,
+                cwd: repo,
+                baselines: config.baselines,
+                approvals: config.approvals,
+                keys: passkeyState.main.length > 0 ? passkeyState.main : null,
+            });
+            return { covered: files.filter((f) => f.covered).length, changed: files.length, branch: defaultBranch };
+        } catch {
+            return null;
+        }
+    };
+
     // What Finish's sheet states before it runs: what it commits and posts, and the status it sets.
     // The passkey's challenge comes from POST /api/finish-prepare.
     const finishPreview = (t) => {
@@ -2485,7 +2515,7 @@ export function createApp({
                 return gone(id);
             }
             if (query?.get("finish") === "1") {
-                return [200, { ...summary(t), finish: finishPreview(t) }];
+                return [200, { ...summary(t), finish: { ...finishPreview(t), coveredBefore: await coveredBefore(t) } }];
             }
             return [200, summary(t)];
         },

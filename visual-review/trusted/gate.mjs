@@ -28,19 +28,20 @@
  * branch, and never for a project whose baselines the pull request changes. Anywhere else a marker
  * is a missing capture.
  *
- * It also fails when the baselines directory's git tree differs from the base's without the owner's
- * signed approval of exactly that tree: a file `<approvals>/<tree>.json` (the config's
- * `approvals`, outside the baselines directory, so adding it leaves the tree it signs alone) whose
- * statement names a commit X that is an ancestor of the head, the tree of the baselines directory at
- * X, and that tree equal to the head's (treeApprovalProblems). Baseline PNGs are Git LFS pointers,
- * which name each image's SHA-256, so the tree hash covers every pixel. Once
- * visual-review/passkeys.json on the base branch holds a key, the statement must carry a passkey
- * approval by one of the base branch's keys over exactly that statement (approval.mjs). Keys are
- * never read from the pull request, a pull request that would leave no key fails, and a change to
- * passkeys.json itself is merged by an administrator. The per-pull-request review records under
- * <baselines>/reviews/ are part of the tree like any file, and the gate gives them no other meaning.
- * Without that approval, committing the captured PNGs straight into the baselines directory would
- * turn the capture check green with no review at all.
+ * It also fails when a file of the baselines directory differs from the base's without the owner's
+ * signed approval of exactly that file (composed approvals, baselineCoverage): a tree statement
+ * `<approvals>/<tree>.json` (the config's `approvals`, outside the baselines directory, so adding it
+ * leaves the tree it signs alone) naming a commit X that is an ancestor of the head and the tree of
+ * the baselines directory at X, whose tree holds exactly that file at that path; or a review record
+ * whose item takes that path to exactly that content; with no newer signed reject of that path and
+ * content. So images two branches each had signed are approved where both are merged, without
+ * another signature. Baseline PNGs are Git LFS pointers, which name each image's SHA-256, so the
+ * approval covers every pixel. Once visual-review/passkeys.json on the base branch holds a key, every
+ * statement and record must carry a passkey approval by one of the base branch's keys over exactly
+ * its contents (approval.mjs). Keys are never read from the pull request, a pull request that would
+ * leave no key fails, and a change to passkeys.json itself is merged by an administrator. Without
+ * those approvals, committing the captured PNGs straight into the baselines directory would turn the
+ * capture check green with no review at all.
  *
  * CI runs this file as the base branch has it, never the pull request's copy, so a pull request
  * cannot loosen the gate that judges it.
@@ -422,11 +423,14 @@ export function treeAt(ref, dir, cwd) {
 }
 
 /**
- * Why a signed tree approval does not approve the baselines at `head`, or null when it does.
+ * Why a signed tree approval does not hold, or null when it does: a version 1 statement about the
+ * baselines directory whose commit is an ancestor of `head` and holds the tree it signs, signed by
+ * one of the base branch's keys. With `tree`, it must sign exactly that tree.
  * @param {any} statement the parsed approval file (untrusted)
- * @param {{ head: string, tree: string, baselines: string, keys: object[] | null, cwd: string }} at
- *     the head, its baselines tree, the baselines directory, the base branch's keys (null: approvals
- *     are not enforced, so the signature is not checked) and the repository
+ * @param {{ head: string, tree?: string, baselines: string, keys: object[] | null, cwd: string }} at
+ *     the head, the tree it must sign (any when left out), the baselines directory, the base
+ *     branch's keys (null: approvals are not enforced, so the signature is not checked) and the
+ *     repository
  * @returns {string | null} why not, or null
  */
 export function treeApprovalProblem(statement, { head, tree, baselines, keys, cwd }) {
@@ -434,8 +438,8 @@ export function treeApprovalProblem(statement, { head, tree, baselines, keys, cw
         return "not a version 1 tree approval";
     }
     const { commit } = statement;
-    if (statement.baselines !== baselines || statement.tree !== tree) {
-        return `it signs ${statement.baselines}/ at tree ${statement.tree}, not ${baselines}/ at ${tree}`;
+    if (statement.baselines !== baselines || (tree !== undefined && statement.tree !== tree)) {
+        return `it signs ${statement.baselines}/ at tree ${statement.tree}, not ${baselines}/ at ${tree ?? "any tree"}`;
     }
     if (typeof commit !== "string" || !TREE.test(commit) || !haveCommit(commit, cwd)) {
         return `its commit ${commit} is not in this repository`;
@@ -445,17 +449,208 @@ export function treeApprovalProblem(statement, { head, tree, baselines, keys, cw
     } catch {
         return `its commit ${commit} is not an ancestor of ${head}`;
     }
-    if (treeAt(commit, baselines, cwd) !== tree) {
+    if (treeAt(commit, baselines, cwd) !== statement.tree) {
         return `${baselines}/ at its commit ${commit} is not the tree it signs`;
     }
     return keys ? verifyApproval(statement, keys) : null;
 }
 
 /**
- * What blocks the baselines at `head`: nothing when the baselines directory's tree is the base's;
- * otherwise the owner's approval of exactly the head's tree must be at the head
- * (`<approvals>/<tree>.json`, treeApprovalProblem). Once approvals are enforced, a change to
- * passkeys.json fails too: an administrator merges it.
+ * Why a review record does not count as the owner's decisions, or null when it does: once
+ * approvals are enforced, a version 2 record carrying a valid passkey approval by one of the base
+ * branch's keys; before that, any record.
+ * @param {any} record the parsed record (untrusted)
+ * @param {object[] | null} keys the base branch's keys, null while approvals are not enforced
+ * @returns {string | null} why not, or null
+ */
+export function recordProblem(record, keys) {
+    if (
+        typeof record !== "object" ||
+        record === null ||
+        !Array.isArray(record.items) ||
+        !Array.isArray(record.rejects)
+    ) {
+        return "not a review record";
+    }
+    return keys ? verifyRecord(record, keys, { pr: record.pr ?? null }) : null;
+}
+
+/**
+ * The entries of `git diff --raw -z` or `git log --raw -z`: each file's path and its blob before
+ * and after (null where there is none).
+ * @param {Buffer} out git's output
+ * @returns {{ path: string, oldBlob: string | null, blob: string | null }[]} the entries
+ */
+function rawEntries(out) {
+    const parts = out.toString("utf8").split("\0");
+    const blob = (s) => (/^0+$/.test(s) ? null : s);
+    const entries = [];
+    for (let i = 0; i < parts.length - 1; i++) {
+        const meta = /:\d+ \d+ ([0-9a-f]+) ([0-9a-f]+) [A-Z]\d*$/.exec(parts[i]);
+        if (meta) {
+            i++;
+            entries.push({ path: parts[i], oldBlob: blob(meta[1]), blob: blob(meta[2]) });
+        }
+    }
+    return entries;
+}
+
+/**
+ * Several blobs read with one git process.
+ * @param {string} cwd the repository
+ * @param {Iterable<string>} oids the blobs
+ * @returns {Map<string, Buffer>} the bytes by blob; a missing one is left out
+ */
+function readBlobs(cwd, oids) {
+    const unique = [...new Set(oids)];
+    const out = new Map();
+    if (unique.length === 0) {
+        return out;
+    }
+    const buf = execFileSync("git", ["cat-file", "--batch"], {
+        cwd,
+        input: `${unique.join("\n")}\n`,
+        maxBuffer: 1 << 28,
+    });
+    let at = 0;
+    for (const oid of unique) {
+        const nl = buf.indexOf(10, at);
+        const [, type, size] = buf.subarray(at, nl).toString("utf8").split(" ");
+        if (type === "missing") {
+            at = nl + 1;
+            continue;
+        }
+        out.set(oid, buf.subarray(nl + 1, nl + 1 + Number(size)));
+        at = nl + 2 + Number(size);
+    }
+    return out;
+}
+
+const timeOf = (s) => {
+    const t = Date.parse(String(s));
+    return Number.isNaN(t) ? null : t;
+};
+
+/**
+ * The owner's signed decisions that can approve the baselines at `head`: the tree statements and
+ * review records added or changed by the commits from `base` to `head` that verify, and the
+ * rejects of those records and of the base's records made since the oldest of them.
+ * @param {object} input as in baselineCoverage
+ * @returns {{ statements: object[], records: object[], rejected: Map<string, { time: number, where: string }>,
+ *     refused: { where: string, why: string }[] }} the valid statements and records, each with its
+ *     `where` and `time`, the newest reject of each `<path> <hash>`, and the files read that do not
+ *     verify, with why
+ */
+function signedDecisions(input) {
+    const { base, head, cwd, baselines, approvals, keys } = input;
+    const reviews = `${baselines}/reviews/`;
+    const logged = rawEntries(
+        gitOut(cwd, [
+            "log",
+            "--raw",
+            "-z",
+            "--no-renames",
+            "--no-abbrev",
+            "--format=",
+            `${base}..${head}`,
+            "--",
+            `${approvals}/`,
+            reviews,
+        ]),
+    ).filter((e) => e.blob && e.path.endsWith(".json"));
+    const blobs = readBlobs(
+        cwd,
+        logged.map((e) => e.blob),
+    );
+    const parsed = [...new Map(logged.map((e) => [e.blob, e])).values()].map((e) => ({
+        where: e.path,
+        doc: parseOr(blobs.get(e.blob) ?? Buffer.alloc(0)),
+    }));
+    const refused = [];
+    const valid = (x, why) => {
+        if (why !== null) {
+            refused.push({ where: x.where, why });
+        }
+        return why === null;
+    };
+    const statements = parsed
+        .filter((s) => s.where.startsWith(`${approvals}/`))
+        .filter((s) => valid(s, treeApprovalProblem(s.doc, { head, baselines, keys, cwd })))
+        .map((s) => ({ ...s, time: timeOf(s.doc.approvedAt) }))
+        .filter((s) => valid(s, s.time === null ? "its approvedAt is not a time" : null));
+    const records = parsed
+        .filter((r) => r.where.startsWith(reviews) && valid(r, recordProblem(r.doc, keys)))
+        .map((r) => ({ ...r, time: timeOf(r.doc.reviewedAt) }));
+    const approvalTimes = [...statements, ...records].map((x) => x.time).filter((t) => t !== null);
+    const since = approvalTimes.length > 0 ? Math.min(...approvalTimes) : null;
+    const rejected = new Map();
+    for (const r of [...records, ...baseRecordsSince(base, cwd, reviews, keys, since)]) {
+        for (const x of r.doc.rejects) {
+            // A reject whose time cannot be read is newer than any approval: it fails closed.
+            const time = r.time ?? Infinity;
+            const key = `${x?.path} ${x?.capture}`;
+            if (!rejected.has(key) || rejected.get(key).time < time) {
+                rejected.set(key, { time, where: r.where });
+            }
+        }
+    }
+    return { statements, records: records.filter((r) => r.time !== null), rejected, refused };
+}
+
+/**
+ * The base's valid review records named at or after a time: records are named by their UTC time
+ * (`20261020T045718Z-pr3234.json`), and any other name is read too.
+ * @param {string} base the base
+ * @param {string} cwd the repository
+ * @param {string} reviews the records directory, with its slash
+ * @param {object[] | null} keys as in recordProblem
+ * @param {number | null} since the oldest approval; null reads none
+ * @returns {{ where: string, doc: object, time: number | null }[]} the records
+ */
+function baseRecordsSince(base, cwd, reviews, keys, since) {
+    if (since === null) {
+        return [];
+    }
+    const stamp = `${new Date(since).toISOString().replaceAll(/[-:]/g, "").slice(0, 15)}Z`;
+    const listed = gitOut(cwd, ["ls-tree", "-z", base, "--", reviews])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean)
+        .map((line) => {
+            const [meta, path] = line.split("\t");
+            return { blob: meta.split(" ")[2], path };
+        })
+        .filter(({ path }) => {
+            const name = path.slice(reviews.length);
+            return !/^\d{8}T\d{6}Z/.test(name) || name >= stamp;
+        });
+    const blobs = readBlobs(
+        cwd,
+        listed.map((e) => e.blob),
+    );
+    return listed
+        .map((e) => ({ where: e.path, doc: parseOr(blobs.get(e.blob) ?? Buffer.alloc(0)) }))
+        .filter((r) => recordProblem(r.doc, keys) === null)
+        .map((r) => ({ ...r, time: timeOf(r.doc.reviewedAt) }));
+}
+
+/**
+ * Composed approvals: whether the owner's signatures approve each baselines file that differs
+ * between `base` and `head` (a baseline image, a story settings file, a review record, or its
+ * removal).
+ *
+ * A file is approved by a signed tree statement (treeApprovalProblem, any tree, made at an ancestor
+ * of the head) whose tree holds exactly that file at that path, or that leaves it out where the
+ * statement's fork point from the base held exactly the base's file (so a tree signed before the
+ * base added a file never approves deleting it); or by an item of a signed review record that takes
+ * that path to exactly that content (`to`, the image's SHA-256), or for a removal from exactly the
+ * base's content (`from`) to nothing. A signed review record also approves its own file. An
+ * approval counts only when no signed reject of the same path and content is newer: the newest
+ * approval must be later than the newest reject.
+ *
+ * The statements and records read are those the commits from `base` to `head` add or change; the
+ * rejects, those of the same records and of the base's records made since the oldest of them.
+ * Every signature verifies as one statement does, by a key of the base branch.
  * @param {object} input the work
  * @param {string} input.base the base branch tip, or a merge-queue batch's base
  * @param {string} input.head the commit being merged
@@ -463,9 +658,134 @@ export function treeApprovalProblem(statement, { head, tree, baselines, keys, cw
  * @param {string} input.baselines the baselines directory
  * @param {string} input.approvals the approvals directory
  * @param {object[] | null} input.keys the base branch's keys, null while approvals are not enforced
+ * @returns {{ files: { path: string, removed: boolean, covered: boolean, by?: string, revokedBy?: string }[],
+ *     refused: { where: string, why: string }[] }} one entry per differing file, `by` the signed file
+ *     that approves it, `revokedBy` the record whose newer reject undoes the newest approval; and the
+ *     statements and records read that do not verify, with why
+ */
+export function baselineCoverage(input) {
+    const { base, head, cwd, baselines } = input;
+    const changed = rawEntries(
+        gitOut(cwd, ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", base, head, "--", `${baselines}/`]),
+    );
+    if (changed.length === 0) {
+        return { files: [], refused: [] };
+    }
+    const { statements, records, rejected, refused } = signedDecisions(input);
+    const trees = new Map();
+    const filesOf = (s) => {
+        if (!trees.has(s)) {
+            const listing = gitOut(cwd, ["ls-tree", "-r", "-z", s.doc.tree]).toString("utf8").split("\0");
+            trees.set(
+                s,
+                new Map(
+                    listing.filter(Boolean).map((line) => {
+                        const [meta, path] = line.split("\t");
+                        return [`${baselines}/${path}`, meta.split(" ")[2]];
+                    }),
+                ),
+            );
+        }
+        return trees.get(s);
+    };
+    const forks = new Map();
+    const forkBlob = (s, path) => {
+        if (!forks.has(s)) {
+            forks.set(s, gitOut(cwd, ["merge-base", s.doc.commit, base]).toString("utf8").trim());
+        }
+        return blobAt(forks.get(s), path, cwd);
+    };
+    const covers = (s, c) =>
+        c.blob ? filesOf(s).get(c.path) === c.blob : !filesOf(s).has(c.path) && forkBlob(s, c.path) === c.oldBlob;
+    // The newest statement whose tree approves the file.
+    const firstPass = changed.map((c) => ({
+        c,
+        tree: statements.filter((s) => covers(s, c)).sort((a, b) => b.time - a.time)[0] ?? null,
+    }));
+    const rejectedPaths = new Set([...rejected.keys()].map((k) => k.slice(0, k.lastIndexOf(" "))));
+    // Content hashes only where a record or a reject could decide: no blob is read for a file a
+    // tree approves and nothing rejects.
+    const needed = firstPass.filter(({ c, tree }) => tree === null || rejectedPaths.has(c.path));
+    const bytes = readBlobs(
+        cwd,
+        needed.map(({ c }) => c.blob ?? c.oldBlob),
+    );
+    const hashOf = (blob) => (bytes.has(blob) ? contentHash(bytes.get(blob)) : null);
+    const files = firstPass.map(({ c, tree }) =>
+        decide(c, { tree, records, rejected, hashOf, bytes, baselines, keys: input.keys }),
+    );
+    return { files, refused };
+}
+
+/**
+ * One file's verdict in baselineCoverage.
+ * @param {{ path: string, blob: string | null, oldBlob: string | null }} c the file
+ * @param {object} ctx the newest statement that approves it (or null), the records and rejects,
+ *     the content hash of a read blob, the read blobs, the baselines directory and the keys
+ * @returns {{ path: string, removed: boolean, covered: boolean, by?: string, revokedBy?: string }} the verdict
+ */
+function decide(c, ctx) {
+    const { tree, records, rejected, hashOf, bytes, baselines, keys } = ctx;
+    const removed = c.blob === null;
+    const hash = hashOf(c.blob ?? c.oldBlob);
+    const takes = (i) =>
+        i?.path === c.path && (removed ? i.to === null && i.from === hash : typeof i.to === "string" && i.to === hash);
+    const approvals = [
+        ...(tree ? [{ time: tree.time, where: tree.where }] : []),
+        ...records
+            .filter((r) => hash !== null && r.doc.items.some(takes))
+            .map((r) => ({ time: r.time, where: r.where })),
+    ];
+    const own =
+        !removed &&
+        c.path.startsWith(`${baselines}/reviews/`) &&
+        bytes.has(c.blob) &&
+        recordProblem(parseOr(bytes.get(c.blob)), keys) === null;
+    if (own) {
+        return { path: c.path, removed, covered: true, by: c.path };
+    }
+    const newest = approvals.sort((a, b) => b.time - a.time)[0];
+    if (!newest) {
+        return { path: c.path, removed, covered: false };
+    }
+    const reject = rejected.get(`${c.path} ${hash}`);
+    if (reject && reject.time >= newest.time) {
+        return { path: c.path, removed, covered: false, revokedBy: reject.where };
+    }
+    return { path: c.path, removed, covered: true, by: newest.where };
+}
+
+/**
+ * The blob at a path of a commit, or null.
+ * @param {string} ref the commit
+ * @param {string} path the path
+ * @param {string} cwd the repository
+ * @returns {string | null} the blob
+ */
+function blobAt(ref, path, cwd) {
+    try {
+        return (
+            gitOut(cwd, ["rev-parse", "--verify", "--quiet", `${ref}:${path}`])
+                .toString("utf8")
+                .trim() || null
+        );
+    } catch {
+        return null;
+    }
+}
+
+/** How many unapproved files the gate names; the rest are counted. */
+const LISTED = 10;
+
+/**
+ * What blocks the baselines at `head`: nothing when the baselines directory's tree is the base's;
+ * otherwise every file that differs must be approved by the owner's signatures (baselineCoverage).
+ * Once approvals are enforced, a change to passkeys.json fails too: an administrator merges it.
+ * @param {object} input the work, as in baselineCoverage
  * @returns {string[]} one line per problem; empty when the baselines are approved
  */
-export function treeApprovalProblems({ base, head, cwd, baselines, approvals, keys }) {
+export function treeApprovalProblems(input) {
+    const { base, head, cwd, baselines, keys } = input;
     const problems = [];
     if (keys && gitOut(cwd, ["diff", "--name-only", base, head, "--", PASSKEYS_FILE]).toString("utf8").trim()) {
         problems.push(
@@ -479,14 +799,21 @@ export function treeApprovalProblems({ base, head, cwd, baselines, approvals, ke
     if (tree === null) {
         return [...problems, `${baselines}/ is gone at ${head}, and no approval can sign that`];
     }
-    const file = `${approvals}/${tree}.json`;
-    const text = fileAt(head, file, cwd);
-    const how = "review the changes with `visual-review serve` and Finish, which signs the tree";
-    if (text === null) {
-        return [...problems, `${baselines}/ differs from the base (tree ${tree}), and no ${file} approves it: ${how}`];
+    const { files, refused } = baselineCoverage(input);
+    const open = files.filter((c) => !c.covered);
+    const how = "review the changes with `visual-review serve` and Finish, which signs them";
+    const lines = open.slice(0, LISTED).map((c) => {
+        if (c.revokedBy) {
+            return `${c.path}: approved, then rejected by the newer ${c.revokedBy}; ${how}`;
+        }
+        return `${c.path}: no signature of the owner approves ${c.removed ? "removing it" : "this content"}; ${how}`;
+    });
+    if (open.length > LISTED) {
+        lines.push(`and ${open.length - LISTED} more files of ${baselines}/ no signature of the owner approves`);
     }
-    const why = treeApprovalProblem(parseOr(Buffer.from(text)), { head, tree, baselines, keys, cwd });
-    return why ? [...problems, `${file}: ${why}; ${how}`] : problems;
+    // Why a signed file that looks like an approval counts for nothing, once something is unapproved.
+    const notCounted = open.length > 0 ? refused.map((x) => `${x.where}: not counted, ${x.why}`) : [];
+    return [...problems, ...lines, ...notCounted];
 }
 
 /**
@@ -592,7 +919,7 @@ function queueBaseOf(file) {
 
 /**
  * Prints and returns what fails the gate about the owner's approval: the keys (approvalKeys), the
- * approvals directory, and the approval of the head's baselines tree (treeApprovalProblems).
+ * approvals directory, and the approval of each changed baselines file (treeApprovalProblems).
  * @param {object} at what to check
  * @param {string} at.base the base branch tip, where keys and config are read
  * @param {string} at.diffBase what baseline changes are measured from
@@ -622,11 +949,11 @@ function approvalLines({ base, diffBase, head, root, config, headConfig }) {
 
 export const GATE_USAGE = `usage: visual-review gate --captures <dir> --base <ref> [--head <ref>] [--pr <number> | --queue-event <file>]
 
-Fails (exit 1) while a pull request holds visual changes nobody accepted, or baselines whose
-tree the owner has not approved: when the baselines directory differs from the base, the head
-must hold the owner's approval of exactly its tree, made at an ancestor of the head. Once
-${PASSKEYS_FILE} on the base branch holds a key, that approval must carry the owner's passkey
-signature. Run it in CI after the capture jobs, on the pull request's merge commit.
+Fails (exit 1) while a pull request holds visual changes nobody accepted, or baselines the owner
+has not approved: every file of the baselines directory that differs from the base must be, in a
+statement or review record its commits add, exactly the file (or removal) the owner approved, with
+no newer reject of it. Once ${PASSKEYS_FILE} on the base branch holds a key, those approvals must
+carry the owner's passkey signature. Run it in CI after the capture jobs, on the pull request's merge commit.
 
   --captures <dir>  the downloaded visual-<project>-<attempt> artifacts of this run
   --base <ref>      the base branch tip (HEAD^1 on a pull request's merge commit)

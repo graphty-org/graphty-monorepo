@@ -1008,16 +1008,17 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` or
   `visual-review-approvals/` on the owner's behalf.
-- The owner's approval is of a tree, not of a pull request: Finish commits a statement naming its
+- The owner's approval is of images, not of a pull request: Finish commits a statement naming its
   accept commit and the git tree of `visual-baselines/` there, signed with the owner's passkey
-  (Face ID), as `visual-review-approvals/<tree>.json`. Once `visual-review/passkeys.json` on master
-  holds a key, the gate passes a pull request whose `visual-baselines/` tree differs from master's
-  only with such a signed statement of exactly that tree, made at a commit in its history, and
-  captures that match those baselines. The per-pull-request records under
-  `visual-baselines/reviews/` are part of the tree and mean nothing else to the gate. So an
-  approval made on golden holds on a cut of it, and anything that changes the baselines tree
-  afterwards (a merge of master's newer baselines, one changed byte) needs the owner again. A
-  Finish that rejects anything or leaves anything undecided signs nothing. Agents never
+  (Face ID), as `visual-review-approvals/<tree>.json`, and the review record it commits under
+  `visual-baselines/reviews/` is signed too. Once `visual-review/passkeys.json` on master holds a
+  key, the gate passes a pull request only when every file of `visual-baselines/` that differs
+  from master is, in a signed statement's tree (made at a commit in its history) or a signed
+  record's accepted item that its own commits add, exactly that file, with no newer signed reject
+  of that path and image (composed approvals, `baselineCoverage` in `visual-review/trusted/gate.mjs`),
+  and its captures match those baselines. So branches approved separately stay approved when golden
+  merges them, with no new Face ID, and anything else that changes a baseline needs the owner again. A
+  Finish that rejects anything or leaves anything undecided signs no tree. Agents never
   edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
   `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
   register a passkey; never merge a pull request past a failing gate; and never call the page's

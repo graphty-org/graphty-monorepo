@@ -827,8 +827,8 @@ message:
 A passkey (Face ID or Touch ID, kept in iCloud Keychain or another passkey manager) proves that
 an approval came from your own device, for exactly the baselines Finish leaves on the branch.
 Once your passkey is in `visual-review/passkeys.json` on the default branch, the gate refuses
-baselines that differ from the base branch's unless such an approval of exactly their tree is in
-the pull request. Until then the gate checks that an approval names the tree, but not who made
+any baseline file that differs from the base branch's unless one of your signed approvals covers
+exactly that file. Until then the gate checks that an approval names the file, but not who made
 it.
 
 ### Registering the passkey
@@ -886,22 +886,37 @@ With `node:crypto` and git alone:
 
 - When the pull request's baselines directory has the same git tree as the base branch's, there
   is nothing to approve.
-- Otherwise the pull request must hold `<approvals>/<tree>.json`, `<tree>` being its baselines
-  directory's tree, whose statement names that tree and the baselines directory, and a commit
-  that is an ancestor of the pull request's merge commit and holds that tree.
-- Once the base branch's `visual-review/passkeys.json` holds a key, the statement carries an
-  approval by one of those keys over the SHA-256 of exactly that statement, made on an HTTPS page
-  whose host is exactly the key's host, with user verification (Face ID, Touch ID or the device's
-  passcode).
+- Otherwise every file of the baselines directory that differs from the base branch's (an image,
+  a settings file, a review record, or a file's removal) must be approved by something you signed
+  that the pull request's own commits add:
+    - a tree statement `<approvals>/<tree>.json`, naming a commit that is an ancestor of the pull
+      request's merge commit and holds that tree, whose tree has exactly that file at that path. A
+      removal counts only when the tree leaves the file out and the point where the statement's
+      branch left the base branch had exactly the base branch's file, so a tree signed before the
+      base branch added a story never approves deleting it;
+    - or a review record whose item takes that path to exactly that content (the image's SHA-256),
+      or, for a removal, from exactly the base branch's content to nothing. A signed record also
+      approves its own file under `<baselines>/reviews/`.
+- An approval counts only while no reject you signed of the same path and the same image is
+  newer. The rejects read are those of the records the pull request adds and of the base branch's
+  records made since the oldest approval.
+- Once the base branch's `visual-review/passkeys.json` holds a key, every statement and record
+  carries an approval by one of those keys over the SHA-256 of exactly its contents, made on an
+  HTTPS page whose host is exactly the key's host, with user verification (Face ID, Touch ID or
+  the device's passcode). One that does not verify approves nothing, and the gate names it.
 - The pull request's captures match its baselines, as always.
 
-Baseline PNGs are Git LFS pointer files whose text names each image's SHA-256, so the tree hash
-covers every pixel of every baseline, and every settings file and review record beside them. The
-pull request number is in the statement for the record only: an approval is for a tree, not for a
-pull request, so a branch that carries several changes is approved once, and an approval made
-on a branch still holds after that branch is merged into another one, as long as the tree is the
-same. The review records under `<baselines>/reviews/` are part of the tree like any file; the gate
-gives them no meaning of its own.
+Baseline PNGs are Git LFS pointer files whose text names each image's SHA-256, so an approval
+covers every pixel of the image it names. The pull request number is in the statement for the
+record only: an approval is of images, not of a pull request. So when two branches you approved
+separately are merged into one, their images stay approved in the merged tree, which nobody
+signed as a whole, and no new Face ID is needed; anything else that differs needs your review.
+
+When images are already approved this way, Finish's sheet says how many: "Already approved by
+your earlier signatures: 2 of 3 baseline files this branch changes from master."
+
+The gate is run as the base branch has it, so a change to these rules takes effect on the pull
+request after the one that brings it.
 
 ### Replacing the passkey
 
@@ -1129,10 +1144,11 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   whether the pull request changed it, measured against the default branch's newest complete
   capture, which may be a few merges older than the pull request's base.
 - When the pull request's baselines directory differs from the base branch's in any way (a PNG,
-  a settings file, `renames.json`, a review record), the pull request must hold your approval of
-  exactly its git tree, made at a commit in its own history. A baseline PNG is a Git LFS pointer
-  in git, naming the image's SHA-256, so the tree covers every pixel and the gate never downloads
-  an image. This stops the shortcut of copying captured PNGs, or a settings file that excludes a
+  a settings file, `renames.json`, a review record), each differing file must be approved by your
+  signature over exactly that file: a signed tree holding it, made at a commit in the pull
+  request's own history, or a signed review record that accepts exactly its content, with no newer
+  signed reject of it. A baseline PNG is a Git LFS pointer in git, naming the image's SHA-256, so
+  an approval covers every pixel and the gate never downloads an image. This stops the shortcut of copying captured PNGs, or a settings file that excludes a
   story or loosens its comparison, straight into the baselines directory.
 - A story compared at a `diffThreshold` above 0.8 fails the gate (at 1 nothing ever reads as
   changed), and so does a pull request that moves the baselines or the approvals directory in its
@@ -1146,12 +1162,12 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   read only from the base branch, never from the pull request, a pull request that would leave no
   key fails, and a pull request that changes `visual-review/passkeys.json` fails (see "Replacing
   the passkey").
-- **An approval is of a tree, not of a pull request.** An approval made on one branch holds on any
-  branch that has its commit in its history and the same baselines tree, such as a branch that
-  merged it in. After the default branch's newer baselines are merged into an approved pull
-  request, the tree differs and the gate needs a new approval; the new capture must still equal
-  the approved baselines either way.
-- **It does not prove you looked at every image.** It proves your device approved the tree, and
+- **An approval is of images, not of a pull request or a whole tree.** An image you approved on
+  one branch stays approved on any branch whose commits bring that approval, such as one that
+  merged several approved branches. An image you approved once at a path stays approved there
+  until you reject it, even after the default branch moved on to another image; the capture must
+  still equal the baselines, so the code has to draw it.
+- **It does not prove you looked at every image.** It proves your device approved the images, and
   Finish signs only when every image that differs from the default branch has your decision. A
   page altered on your machine could ask you to approve something other than what it shows; read
   the counts in Finish's question.

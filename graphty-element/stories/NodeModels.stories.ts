@@ -25,18 +25,25 @@ const DAMAGED_GLB = new URL(damagedGlbPath, document.baseURI).href;
 /** Every model event each story element has fired, from its creation. */
 const changes = new WeakMap<Element, ModelChange[]>();
 
+// Heard in the capture phase, which passes the document whether or not the event bubbles, so an
+// element's first event is kept even though the story builds the element with `renderFn` alone.
+document.addEventListener(
+    "graphty-model-change",
+    (event) => {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+        const seen = changes.get(event.target) ?? [];
+        changes.set(event.target, seen);
+        seen.push(event.detail);
+    },
+    true,
+);
+
 const meta: Meta = {
     title: "Styles/Node Models",
     component: "graphty-element",
-    render: (args, context) => {
-        const element = renderFn(args, context);
-        const seen: ModelChange[] = [];
-        changes.set(element, seen);
-        element.addEventListener("graphty-model-change", (event) => {
-            seen.push((event as CustomEvent<ModelChange>).detail);
-        });
-        return element;
-    },
+    render: renderFn,
     decorators: [eventWaitingDecorator],
     parameters: {
         chromatic: {

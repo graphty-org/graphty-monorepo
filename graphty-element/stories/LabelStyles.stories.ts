@@ -5,6 +5,7 @@ import "../src/graphty-element";
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import { ON_TOP_RENDERING_GROUP } from "../src/meshes/RichTextLabel";
 import {
     assertDistinctPicture,
     assertGraphLoaded,
@@ -1703,13 +1704,23 @@ export const OnTop: Story = {
         const scene = await loaded(canvasElement, "OnTop", { nodes: BEHIND_SPHERES.length, edges: 0 });
         const groupOf = (id: string): number | undefined => scene.graph.getNode(id)?.label?.labelMesh?.renderingGroupId;
 
+        // A label is drawn in its own group after the graph's (so no glow covers its words), and only
+        // an onTop label's group clears the depth the graph left: the default one still sorts by depth.
+        const clearsDepth = (id: string): boolean | undefined => {
+            const group = groupOf(id);
+            if (group === undefined) {
+                return undefined;
+            }
+            const setup = scene.graph.scene.getAutoClearDepthStencilSetup(group);
+            return setup.autoClear && setup.depth;
+        };
         await holds(
-            groupOf("behind left") === 0,
-            `Styles/Label OnTop: the default label should sort by depth (group 0), got ${String(groupOf("behind left"))}`,
+            groupOf("behind left") !== ON_TOP_RENDERING_GROUP && clearsDepth("behind left") === false,
+            `Styles/Label OnTop: the default label should sort by depth (a group that keeps the depth), got group ${String(groupOf("behind left"))}, clears depth ${String(clearsDepth("behind left"))}`,
         );
         await holds(
-            groupOf("behind right") === 1,
-            `Styles/Label OnTop: the onTop label should draw over the graph (group 1), got ${String(groupOf("behind right"))}`,
+            groupOf("behind right") === ON_TOP_RENDERING_GROUP,
+            `Styles/Label OnTop: the onTop label should draw over the graph (group ${String(ON_TOP_RENDERING_GROUP)}), got ${String(groupOf("behind right"))}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));

@@ -390,7 +390,7 @@ machine with no GPU.
 At most eight GPU browsers run at once for the studio, through one gate. A session takes one of the
 machine's browser slots (`with-browser.sh`) when it starts and holds it until `--end`; a start
 waits, saying so, while every slot is taken. The slots are the main checkout's
-`tmp/browser-slots/slot1` to `slot8`. Slots 1 to 4 are the same ones `<main checkout>/tmp/with-browser.sh`
+`tmp/browser-slots/slot1` to `slot8`. Slots 1 to 4 are the same ones `tools/with-browser.sh`
 hands to the pre-push gate's browser test shards and to visual-preview captures, so a study round
 and the machine's test runs share them; slots 5 and up are the studio's alone. A command that
 draws on the GPU (`real.mjs` sets `BROWSER_GPU=1` for its sessions) may take up to 8; any other

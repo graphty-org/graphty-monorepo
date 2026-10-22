@@ -18,7 +18,8 @@
 # Usage:
 #   ./tools/worktree-new.sh <branch> [base] [name] [--issue N | --new-issue "<title>"] [--owner O]
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
-#     [base]    the start point of a new branch (default origin/master, fetched first)
+#     [base]    the start point of a new branch (default origin/golden-verified, the newest golden commit
+#               verification passed, else origin/master; fetched first)
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #     the issue, one of: a number of three or more digits in <branch> (fix/1234-scroll), --issue N, or
 #               --new-issue "<title>", which opens one labelled with a type (from the branch's prefix:
@@ -51,7 +52,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 BRANCH="${POS[0]:-}"
-BASE="${POS[1]:-origin/master}"
+BASE="${POS[1]:-}"
 NAME="${POS[2]:-${BRANCH//\//-}}"
 [ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name] [--issue N | --new-issue \"<title>\"] [--owner O]"
 
@@ -74,6 +75,10 @@ if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
 fi
 
 retry git -C "$MAIN" fetch --quiet origin
+if [ -z "$BASE" ]; then
+    BASE=origin/master
+    git -C "$MAIN" rev-parse -q --verify origin/golden-verified >/dev/null && BASE=origin/golden-verified
+fi
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
     || git -C "$MAIN" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
     # an origin-only branch gets a local tracking branch of the same name
@@ -83,7 +88,12 @@ else
     git -C "$MAIN" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
     # A branch started from another branch is stacked on it: record that, so the pre-push gate
     # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
-    case "$BASE" in origin/master) ;; origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;; esac
+    # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
+    case "$BASE" in
+        origin/master) ;;
+        origin/golden-verified) git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
+        origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
+    esac
 fi
 
 if [ -f "$MAIN/.env" ]; then

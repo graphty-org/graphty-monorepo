@@ -309,10 +309,18 @@ describe("the pre-push gate matches CI", () => {
         try {
             mkdirSync(join(dir, "tools"));
             copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
-            // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
+            // The runner wraps every shard in the machine-wide test slot (it imports the wait log beside it).
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
+            copyFileSync(new URL("./wait-log.mjs", import.meta.url), join(dir, "tools/wait-log.mjs"));
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
+            copyFileSync(new URL("./push-base.mjs", import.meta.url), join(dir, "tools/push-base.mjs"));
             copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
+            // and the advisory test selector it starts beside the shards
+            copyFileSync(new URL("./test-select.mjs", import.meta.url), join(dir, "tools/test-select.mjs"));
+            copyFileSync(
+                new URL("./test-select-rules.json", import.meta.url),
+                join(dir, "tools/test-select-rules.json"),
+            );
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -348,7 +356,16 @@ describe("the pre-push gate matches CI", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
@@ -603,11 +620,17 @@ exec ${realGit} "$@"
             sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
                 mkdirSync(join(main, "tmp"), { recursive: true });
-                writeFileSync(join(main, "tmp/with-browser.sh"), '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
+                const wrapper = join(main, "tmp/with-browser.sh");
+                writeFileSync(wrapper, '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
                     mode: 0o755,
                 });
                 const waited = run(
-                    { STUB_STATUS: "changed", VISUAL_PREVIEW_TIMEOUT: "10s", STUB_SLOT_WAIT: "11" },
+                    {
+                        STUB_STATUS: "changed",
+                        VISUAL_PREVIEW_TIMEOUT: "10s",
+                        STUB_SLOT_WAIT: "11",
+                        WITH_BROWSER: wrapper,
+                    },
                     "--head",
                     head,
                 );
@@ -617,7 +640,7 @@ exec ${realGit} "$@"
 
                 // A capture that holds its slot and never finishes still fails, once its limit is spent.
                 const stuck = run(
-                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0" },
+                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
                     "--head",
                     head,
                 );
@@ -3533,7 +3556,16 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -3598,9 +3630,7 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
                 ["a", "k"],
                 ["b", null],
             ]),
-            {
-                b: { key: null, sha: "s", at: "t" },
-            },
+            (key) => (key === null ? { key: null, sha: "s", at: "t" } : null),
         );
         assert.deepEqual(run, shards);
         assert.deepEqual(skipped, []);
@@ -3608,14 +3638,14 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
 
     it("skips only a shard whose recorded pass has exactly this key", () => {
         const shards = [shard("same"), shard("changed")];
-        const passes = { same: { key: "k1", sha: "s", at: "t" }, changed: { key: "old", sha: "s", at: "t" } };
+        const passes = { k1: { key: "k1", sha: "s", at: "t" }, old: { key: "old", sha: "s", at: "t" } };
         const { run, skipped } = partitionByPasses(
             shards,
             new Map([
                 ["same", "k1"],
                 ["changed", "new"],
             ]),
-            passes,
+            (key) => passes[key] ?? null,
         );
         assert.deepEqual(
             run.map((s) => s.shard),
@@ -3710,15 +3740,19 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
     });
 
-    it("records passes per branch and reads them back", () => {
+    it("records passes by kind and key, for every branch, and reads them back", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
         try {
-            const store = passStore(dir, "tools/x");
-            assert.deepEqual(store.read(), {});
-            store.record("a", { key: "k", sha: "s", at: "t" });
-            store.record("b", { key: "k2", sha: "s", at: "t" });
-            assert.deepEqual(Object.keys(passStore(dir, "tools/x").read()).sort(), ["a", "b"]);
-            assert.deepEqual(passStore(dir, "other").read(), {});
+            const k1 = "1".repeat(64);
+            const k2 = "2".repeat(64);
+            const store = passStore(dir);
+            assert.equal(store.get("shard", k1), null);
+            store.record("shard", k1, { shard: "a", branch: "tools/x", sha: "s", at: "t" });
+            store.record("shard", k2, { shard: "b", branch: "other", sha: "s", at: "t" });
+            assert.equal(passStore(dir).get("shard", k1).shard, "a");
+            assert.equal(passStore(dir).get("shard", k2).key, k2);
+            assert.equal(passStore(dir).get("gate", k1), null, "another kind");
+            assert.throws(() => store.record("shard", "../x", {}), /not a pass kind and key/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3740,7 +3774,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -3754,7 +3788,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
-            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
+            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\ntmp/\n");
             writeFileSync(join(dir, "a.ts"), "a\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
             git("init", "-q");
@@ -3784,10 +3818,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(run().calls, /run format:check/, "an edit runs them again");
             writeFileSync(join(dir, "new.ts"), "n\n");
             assert.match(run().calls, /run format:check/, "a new file runs them again");
+            assert.equal(run().calls, "");
             git("add", ".");
             git("commit", "-q", "-m", "b");
-            assert.match(run().calls, /run format:check/, "a commit runs them again");
-            assert.equal(run().calls, "");
+            assert.equal(run().calls, "", "a commit of the files they passed on does not run them again");
+            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n# reinstalled\n");
+            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n# reinstalled\n");
+            assert.match(run().calls, /run format:check/, "a new lockfile runs them again");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3812,7 +3849,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
@@ -3826,7 +3863,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(root, "package.json"), JSON.stringify({ scripts }));
             writeFileSync(join(root, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(root, "node_modules/.pnpm/lock.yaml"), "lock\n");
-            writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+            writeFileSync(join(root, ".gitignore"), "node_modules/\ntmp/\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: root }).status, 0, args.join(" "));
             git("init", "-q");
             git("add", ".");
@@ -3844,7 +3881,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
-            assert.ok(existsSync(join(root, ".git/prepush-source-checks")), "the pass is recorded in the checkout");
+            assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

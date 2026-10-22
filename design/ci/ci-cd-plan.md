@@ -1,5 +1,7 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its pull request, merge queue, landing and deploy parts are replaced; sections 7, 9, 10, 11, 12 and 13 (the GPU, macOS and Windows lanes, flaky tests, the release train and ad hoc release, keeping master green, runner capacity and API budget) remain in force.
+
 > PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
 
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the

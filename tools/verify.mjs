@@ -177,7 +177,8 @@ export function start(ctx) {
 function startLocked(ctx, s) {
     const pid = ctx.spawnRun(ctx);
     s.run = { pid, pidStart: procStart(pid), commit: null, step: "starting", startedAt: now() };
-    return `verification of ${ctx.branch} started (pid ${pid}; node tools/verify.mjs status${ctx.branch === GOLDEN ? "" : ` --branch ${ctx.branch}`})`;
+    const flag = ctx.branch === GOLDEN ? "" : " --branch " + ctx.branch;
+    return `verification of ${ctx.branch} started (pid ${pid}; node tools/verify.mjs status${flag})`;
 }
 
 function defaultSpawnRun(ctx) {

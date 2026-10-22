@@ -26,6 +26,7 @@ export {
     runPass,
     runPassInSlices,
     type TimeInstants,
+    type TimePlayback,
     type TimeResultsPolicy,
     type TimeStep,
     type TimeWindow,

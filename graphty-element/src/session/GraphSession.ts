@@ -168,6 +168,7 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import { numericBound } from "./time/parse";
 import { createTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import type {
     AccelerationControllerLike,
@@ -201,7 +202,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
-import type { FilterRunResult } from "./visibility/filter";
+import type { FilterRunResult, TimeWindow } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -2275,6 +2276,19 @@ export function createElementSession(
  * @param internals - The history clock and queue, when a test replaces them.
  * @returns The session.
  */
+/**
+ * A time window's attribute and numeric bounds, for comparing two windows.
+ * @param window - The window, or null.
+ * @returns The bounds, or null for no window.
+ */
+function windowBoundsOf(
+    window: TimeWindow | null,
+): { readonly attribute: string; readonly from: number; readonly to: number } | null {
+    return window === null
+        ? null
+        : { attribute: window.attribute, from: numericBound(window.from), to: numericBound(window.to) };
+}
+
 function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
@@ -2415,6 +2429,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 values ??= valueSourceOf(records, snapshot, fieldKinds, () => elements);
                 return kind === "node" ? values.nodeValue(index, path) : values.edgeValue(index, path);
             },
+            // Read through calls: the timeline and the visibility are built below.
+            timeParsed: (kind, column) => timeline?.parsedCount(kind, column),
+            visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
     let values: FilterValueSource | undefined;
@@ -2705,13 +2722,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
 
             const data = dataNow();
+            // A run over the visible graph records the time window it was computed in.
+            const bounds = spec === "visible" ? windowBoundsOf(visibility.window) : undefined;
+            const summary = bounds === undefined || bounds === null ? null : visibility.summary;
+            const window =
+                bounds === undefined
+                    ? {}
+                    : {
+                          window:
+                              bounds === null || summary === null
+                                  ? null
+                                  : { ...bounds, nodes: summary.visibleNodes, edges: summary.visibleEdges },
+                      };
 
             return kept === undefined
-                ? { reading, dataDigest: data }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data };
+                ? { reading, dataDigest: data, ...window }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
         },
         dataDigest: () => dataNow(),
         acceptedDigest: (id: RunId, ranOn: string) => timeline?.acceptedDigest(id, ranOn),
+        windowNow: () => windowBoundsOf(visibility.window),
+        acceptedWindow: (id: RunId) => timeline?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
@@ -2852,8 +2883,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             };
         },
         declarations: () => dispatcher.state.attributes,
-        setKnownFields: (fields) =>
-            dispatcher.dispatch({ op: "config.set", values: { data: { knownFields: fields } } }),
+        columns: () =>
+            data
+                .attributes()
+                .filter((each) => each.origin !== "result")
+                .map((each) => ({ kind: each.kind, name: each.name })),
         dispatcher,
         visibility,
         runs: () => runs.list(),

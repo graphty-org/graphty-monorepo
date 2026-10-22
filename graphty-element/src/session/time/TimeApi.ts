@@ -16,9 +16,10 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { Dispatcher } from "../project/Dispatcher";
 import type { Run } from "../runs";
+import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
 import type { HistoryStepId, SessionEventMap } from "../types";
@@ -30,8 +31,22 @@ import type {
     TimeWindow,
     VisibilityChange,
 } from "../visibility";
-import type { TimeInstants, TimeResultsPolicy } from "../visibility/filter";
-import { addSteps, alignTo, isCalendarStep, readInstant, TIME_UNITS, type TimeUnit } from "./parse";
+import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
+import {
+    addSteps,
+    alignTo,
+    calendarStepAtLeast,
+    calendarStepNear,
+    isCalendarStep,
+    isNumericText,
+    niceAtLeast,
+    niceNear,
+    numericBound,
+    readInstant,
+    stepLength,
+    TIME_UNITS,
+    type TimeUnit,
+} from "./parse";
 
 export type { TimeUnit } from "./parse";
 
@@ -75,9 +90,11 @@ export interface TimeFieldResult {
     readonly nodes?: TimeCounts;
     readonly edges?: TimeCounts;
     /**
-     * `time.unparsed` (`{ path, count, examples }`), `time.parsed-loosely` (`{ path, count }`:
-     * values only `Date.parse` understood), `time.unit-suspect` (`{ path, suggested: "s" }`: every
-     * number reads as 1973 to 2286 in seconds but 1970 in milliseconds). Suggested, never applied.
+     * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
+     * counts here), `time.parsed-loosely` (`{ path, count }`: values only `Date.parse` understood),
+     * `time.unit-suspect` (`{ path, suggested }`: `"s"` when every number reads as 1973 to 2286 in
+     * seconds but 1970 in milliseconds, `"ordinal"` when every number is a whole number from -5000
+     * to 3000, such as a year). Suggested, never applied.
      */
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
@@ -96,6 +113,8 @@ export interface TimeBin {
     readonly end: number;
     readonly nodes: number;
     readonly edges: number;
+    /** The bins' width, when they were made by a step or a `maxCount` budget. */
+    readonly step?: TimeStep;
 }
 
 /** What {@link TimeApi.bins} counts. */
@@ -104,6 +123,12 @@ export interface TimeBinsOptions {
     readonly count?: number;
     /** A bin width: milliseconds (or ordinal units), or a calendar step aligned in UTC. */
     readonly step?: TimeStep;
+    /**
+     * At most this many bins: the shortest calendar step (a 1-2-5 number for ordinal time) that
+     * covers the range in no more, aligned to its boundaries, so the bins span exactly whole steps
+     * from the first instant's step to the last one's. Ignored when `step` is given.
+     */
+    readonly maxCount?: number;
     /** Where the bins start; default the extent's start. */
     readonly from?: number;
     /** Where the bins end; default the extent's end. */
@@ -148,6 +173,12 @@ export interface TimeStepEvent {
     readonly visible: TimeCountPair;
     readonly entered: TimeCountPair;
     readonly left: TimeCountPair;
+    /** Elements of a timed kind with no usable time: kept in every window unless `missing` is `"outside"`. */
+    readonly untimed: TimeCountPair;
+    /** Whether this is the first window. */
+    readonly atStart: boolean;
+    /** Whether this window reaches the end of the data. */
+    readonly atEnd: boolean;
     /** What moved it. */
     readonly cause: "play" | "step" | "seek" | "window";
 }
@@ -178,25 +209,71 @@ export interface TimePlayOptions {
     readonly loop?: boolean;
 }
 
+/** How `session.time` moves windows: {@link TimePlayback} with every default filled in. */
+export interface TimeSettings {
+    /** What a window move does to finished runs over the visible graph. */
+    readonly results: TimeResultsPolicy;
+    /** Sliding (both ends move) or cumulative (from the start of the data). */
+    readonly mode: TimePlayMode;
+    /** How far a step moves; `"auto"` picks one from the data's span. */
+    readonly step: TimeStep | "auto";
+    /** Whether an element with no usable time is kept in every window. */
+    readonly missing: "inside" | "outside";
+}
+
+/** A column that reads as time, from {@link TimeApi.candidates}. */
+export interface TimeCandidate {
+    /** Nodes or edges. */
+    readonly kind: "node" | "edge";
+    /** The column. */
+    readonly column: string;
+    /** How many of its values read as time. */
+    readonly parsed: number;
+    /** How many elements hold a value. */
+    readonly total: number;
+    /** How its numbers would be read, for a number column; absent for text. */
+    readonly unit?: TimeUnit;
+}
+
 /** The timeline: designate a time field, read its distribution, and move a window along it. */
 export interface TimeApi {
     /** The designated field, or null when none is. */
     readonly field: TimeField | null;
     /**
      * Designate the time field, or clear it with null: one undoable step, saved in the project.
-     * The column's measurement becomes `"time"`. The numbers it reports come from the index.
+     * The column's measurement becomes `"time"`. Clearing or changing the field, or its unit,
+     * clears the window. A column designated again without a unit takes the unit it had before.
      * @param field - Nodes, edges or both; both must name the same column.
      * @returns What the values held.
-     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"`, `"unit"`).
+     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"`, `"unit"`,
+     *     `"no-times"` for a column whose values hold no time at all).
      */
     setField(field: TimeField | null): Promise<TimeFieldResult>;
+    /**
+     * The columns whose values read as time, most read first.
+     * @returns The candidates; a column none of whose values reads as time is left out.
+     */
+    candidates(): readonly TimeCandidate[];
+    /**
+     * What the designated field's values held: the same notices `setField` returns, also for a
+     * field designated by an import or an element attribute.
+     * @returns The notices; empty with no field.
+     */
+    notices(): readonly CodedFact<TimeNoticeCode>[];
+    /**
+     * Read text as an instant the way the designated field reads its values (a date with no
+     * offset is UTC; ordinal time reads numbers).
+     * @param text - Such as `"2025-03-09"`, `"Mar 9, 2025"` or `"1998"`.
+     * @returns Epoch milliseconds (or the ordinal value), or null when the text names no instant.
+     */
+    parse(text: string): number | null;
     /** Resolves once the designated field is indexed, so the facts below answer synchronously. */
     readonly ready: Promise<void>;
     /** The span of the data's time, or null when nothing is designated or nothing has a time. */
     extent(): TimeExtent | null;
     /**
      * The histogram of the designated field.
-     * @param options - Count or step, range, and which elements to count.
+     * @param options - Count, step or a most-bins budget, range, and which elements to count.
      * @returns The bins, or null when there is no extent.
      * @throws `E_OPTION_RANGE` for a bad count or more than 10,000 bins; `E_BAD_COMMAND` with
      *     `reason: "calendar-step-on-ordinal"` for a calendar step on ordinal time.
@@ -207,11 +284,26 @@ export interface TimeApi {
      * @returns The ids; empty before the first move.
      */
     changes(): TimeChanges;
-    /** The window in force (`visibility.window`). */
+    /** The window in force (`visibility.window`). Its `step` is the step in use, also under `"auto"`. */
     readonly current: TimeWindow | null;
+    /** Whether the window is the first one: a step back would leave the data. False with no window. */
+    readonly atStart: boolean;
+    /** Whether the window reaches the end of the data. False with no window. */
+    readonly atEnd: boolean;
+    /** How windows move: results, mode, step and missing, with every default filled in. */
+    readonly settings: TimeSettings;
+    /**
+     * Change how windows move, one undoable step saved in the project (`visibility.playback`).
+     * A sliding window snaps to a new step; switching to cumulative grows the window from the start
+     * of the data, and back to sliding keeps one step ending where it ended. With no window only the
+     * setting is stored. `results: "rerun"` re-runs the runs a window move left out of date.
+     * @param settings - The settings that change.
+     */
+    setSettings(settings: Partial<TimeSettings>): Promise<void>;
     /**
      * Set or clear the window: `visibility.setWindow` with the attribute filled in from the
-     * designated field, and `nodes: "ends"` when only edges carry time (nodes follow their edges).
+     * designated field, `nodes: "ends"` when only edges carry time (nodes follow their edges), and
+     * the step, mode and missing rule from {@link TimeApi.settings} unless the window gives its own.
      * Bounds given as text are read as the field reads text.
      * @param window - The window, or null.
      * @returns The run of the `visibility.window` command.
@@ -219,8 +311,8 @@ export interface TimeApi {
      */
     window(window: TimeWindowInput | null): Run<FilterResult>;
     /**
-     * Start advancing the window by its step every `interval` milliseconds, until the end of the
-     * data (`time:end`, then paused). With no window, one step wide at the start of the data is
+     * Start advancing the window by its step every `interval` milliseconds, until the window
+     * reaches the end of the data (`time:end`, then paused). With no window, the first one is
      * opened. Every step of one play is ONE undoable step: undo returns to the window before it.
      * @param options - Step, mode, interval and loop.
      * @throws `E_NO_TIME_FIELD` when nothing is designated and the window names no attribute.
@@ -229,20 +321,23 @@ export interface TimeApi {
     /** Stop advancing. */
     pause(): void;
     /**
-     * Move the window by whole steps (negative goes back). One undoable step.
+     * Move the window by whole steps (negative goes back), stopping at the first and the last
+     * window. With no window, a step forward opens the first window and a step back the last.
+     * One undoable step.
      * @param count - How many steps.
      * @returns What the move did.
      */
     stepBy(count: number): Promise<TimeStepEvent>;
     /**
-     * Move the window to start at an instant (sliding) or end there (cumulative). One undoable step.
-     * @param instant - Epoch milliseconds, or an ordinal value.
+     * Move the window to start at an instant (sliding) or end there (cumulative), or to the first
+     * or the last window. One undoable step.
+     * @param instant - Epoch milliseconds or an ordinal value, `"start"` or `"end"`.
      * @returns What the move did.
      */
-    seek(instant: number): Promise<TimeStepEvent>;
+    seek(instant: number | "start" | "end"): Promise<TimeStepEvent>;
     /** Whether playback is running. */
     readonly playing: boolean;
-    /** The window's mode. */
+    /** The mode windows move in. */
     readonly mode: TimePlayMode;
     /** Milliseconds between playback steps. */
     readonly interval: number;
@@ -257,7 +352,8 @@ export interface TimeSources {
     /** The designation, as `data.knownFields` holds it. */
     readonly knownFields: () => KnownTimeFields;
     readonly declarations: () => ReadonlyMap<string, MeasurementDeclaration>;
-    readonly setKnownFields: (fields: KnownTimeFields) => Promise<unknown>;
+    /** The data columns, for {@link TimeApi.candidates}. */
+    readonly columns: () => readonly { readonly kind: "node" | "edge"; readonly name: string }[];
     readonly dispatcher: Dispatcher;
     readonly visibility: SessionVisibilityApi;
     readonly runs: () => readonly Run[];
@@ -279,10 +375,34 @@ export interface TimeInternals {
     instants(path: Path): { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
     /** A run's scope digest that a `results: "keep"` window move accepted as current. */
     acceptedDigest(id: RunId, ranOn: string): string | undefined;
-    /** Apply the window's `results` policy after a visibility change. */
+    /** The window a `results: "keep"` move accepted a run in, as a window key. */
+    acceptedWindow(id: RunId): string | undefined;
+    /** How many of a designated column's values parsed, for its completeness; undefined otherwise. */
+    parsedCount(kind: "node" | "edge", column: string): number | undefined;
+    /** Whether playback is running, so autosave can wait for a pause. */
+    readonly playing: boolean;
+    /** Apply the `results` setting after a visibility change. */
     visibilityChanged(change: VisibilityChange): void;
     /** Stop playback for good. */
     dispose(): void;
+}
+
+/** Every timeline setting at its default. */
+export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
+    results: "stale",
+    mode: "sliding",
+    step: "auto",
+    missing: "inside",
+});
+
+/**
+ * Whether two settings say the same.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when every member matches.
+ */
+export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
+    return a.results === b.results && a.mode === b.mode && a.step === b.step && a.missing === b.missing;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -296,7 +416,8 @@ interface KindIndex extends TimeInstants {
     readonly counts: TimeCounts;
     readonly loose: number;
     readonly examples: readonly string[];
-    readonly suspect: boolean;
+    /** What every number in the column looks like, when the unit reads them as milliseconds. */
+    readonly suspect: "s" | "ordinal" | null;
 }
 
 /** The index of the designated field over one snapshot. */
@@ -314,6 +435,12 @@ const NO_CHANGES: TimeChanges = Object.freeze({ entered: NO_IDS, left: NO_IDS })
 const MAX_BINS = 10_000;
 const DEFAULT_INTERVAL = 1000;
 const ATTRIBUTE_PREFIX = "data.";
+/** How many windows an automatic step aims to cut the data's span into. */
+const AUTO_STEPS = 20;
+/** The range a whole number reads as a year in, for the `"ordinal"` suggestion. */
+const YEAR_LIKE = { min: -5000, max: 3000 } as const;
+/** A loose reading counts toward a candidate only with a four-digit year in it. */
+const HAS_YEAR = /\d{4}/;
 
 /**
  * A column name without the `data.` prefix a path carries.
@@ -346,6 +473,37 @@ function lowerBound(sorted: ArrayLike<number>, at: number): number {
 }
 
 /**
+ * Whether a value is a number, or text that is only a number.
+ * @param value - The value.
+ * @returns True for a bare number.
+ */
+function isBareNumber(value: unknown): boolean {
+    return (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && isNumericText(value));
+}
+
+/**
+ * Whether a column holds mostly date text, so a bare number in it is a stray value rather than an
+ * epoch: more of its values are text that is not a number than are numbers.
+ * @param count - How many rows.
+ * @param read - Reads one row's value.
+ * @returns True for a date-text column.
+ */
+function mostlyText(count: number, read: (row: number) => unknown): boolean {
+    let text = 0;
+    let numbers = 0;
+    for (let row = 0; row < count; row++) {
+        const value = read(row);
+        if (isBareNumber(value)) {
+            numbers++;
+        } else if (typeof value === "string" && value.trim() !== "") {
+            text++;
+        }
+    }
+
+    return text > numbers;
+}
+
+/**
  * Parse one kind's column once and sort it.
  * @param count - How many rows.
  * @param read - Reads one row's value.
@@ -359,27 +517,30 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
     let loose = 0;
     let numbers = 0;
     let secondsLike = 0;
+    let yearLike = 0;
     const examples: string[] = [];
+    // In a column of date text, a stray number (a "1.10") is not an epoch in 1970.
+    const datesOnly = unit === "ms" && mostlyText(count, read);
     for (let row = 0; row < count; row++) {
         const value = read(row);
-        const { at, how } = readInstant(value, unit);
-        rows[row] = at;
-        if (how === "missing") {
+        const reading =
+            datesOnly && isBareNumber(value) ? { at: Number.NaN, how: "unparsed" as const } : readInstant(value, unit);
+        rows[row] = reading.at;
+        if (reading.how === "missing") {
             untimed++;
-        } else if (how === "unparsed") {
+        } else if (reading.how === "unparsed") {
             unparsed++;
             if (examples.length < 3) {
                 examples.push(String(value));
             }
-        } else if (how === "loose") {
+        } else if (reading.how === "loose") {
             loose++;
         }
 
         if (typeof value === "number" && Number.isFinite(value)) {
             numbers++;
-            if (value >= 1e8 && value < 1e10) {
-                secondsLike++;
-            }
+            secondsLike += value >= 1e8 && value < 1e10 ? 1 : 0;
+            yearLike += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
         }
     }
 
@@ -396,6 +557,12 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
     // switch when a 1M-element build matters.
     perm.sort((a, b) => rows[a] - rows[b]);
     const sorted = Float64Array.from(perm, (row) => rows[row]);
+    let suspect: KindIndex["suspect"] = null;
+    if (unit === "ms" && numbers > 0 && secondsLike === numbers) {
+        suspect = "s";
+    } else if (unit === "ms" && numbers > 0 && yearLike === numbers) {
+        suspect = "ordinal";
+    }
 
     return {
         rows,
@@ -405,8 +572,39 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
         counts: Object.freeze({ timed, untimed, unparsed }),
         loose,
         examples: Object.freeze(examples),
-        suspect: unit === "ms" && numbers > 0 && secondsLike === numbers,
+        suspect,
     };
+}
+
+/**
+ * The notices one designated field's values call for.
+ * @param built - The index.
+ * @returns The notices.
+ */
+function noticesOf(built: FieldIndex | null): readonly CodedFact<TimeNoticeCode>[] {
+    const notices: CodedFact<TimeNoticeCode>[] = [];
+    for (const kind of [built?.node, built?.edge]) {
+        if (kind === null || kind === undefined || built === null) {
+            continue;
+        }
+
+        if (kind.counts.unparsed > 0) {
+            notices.push({
+                code: "time.unparsed",
+                params: { path: built.path, count: kind.counts.unparsed, examples: kind.examples },
+            });
+        }
+
+        if (kind.loose > 0) {
+            notices.push({ code: "time.parsed-loosely", params: { path: built.path, count: kind.loose } });
+        }
+
+        if (kind.suspect !== null) {
+            notices.push({ code: "time.unit-suspect", params: { path: built.path, suggested: kind.suspect } });
+        }
+    }
+
+    return Object.freeze(notices);
 }
 
 /**
@@ -417,15 +615,6 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
  */
 function badCommand(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "data", details });
-}
-
-/**
- * A window bound as a number: text is read as the field reads text.
- * @param bound - The bound.
- * @returns The number.
- */
-function boundOf(bound: number | string): number {
-    return typeof bound === "number" ? bound : readInstant(bound, "ms").at;
 }
 
 /**
@@ -450,46 +639,62 @@ function upperBound(sorted: ArrayLike<number>, at: number): number {
 }
 
 /**
+ * The refusal for a bad bin count or step.
+ * @param options - What was asked.
+ * @param value - The offending value.
+ * @returns The error.
+ */
+function tooManyBins(options: TimeBinsOptions, value: unknown): GraphtyError {
+    return new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message: `A histogram has 1 to ${MAX_BINS} bins, and a step is a positive number or a calendar step.`,
+        source: "data",
+        details: { option: options.step === undefined ? "count" : "step", value, min: 1, max: MAX_BINS },
+    });
+}
+
+/**
  * The edges of a histogram's bins, first start to last end.
- * @param from - Where the bins start (a calendar step aligns it down).
+ * @param from - Where the bins start (a step aligns it down).
  * @param to - Where they end.
  * @param options - The count or the step.
+ * @param ordinal - Whether a numeric step aligns to its multiples (ordinal time).
  * @returns The edges, one more than the bins.
  */
-function binBounds(from: number, to: number, options: TimeBinsOptions): number[] {
-    const tooMany = (value: unknown): GraphtyError =>
-        new GraphtyError({
-            code: "E_OPTION_RANGE",
-            message: `A histogram has 1 to ${MAX_BINS} bins, and a step is a positive number or a calendar step.`,
-            source: "data",
-            details: { option: options.step === undefined ? "count" : "step", value, min: 1, max: MAX_BINS },
-        });
+function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: boolean): number[] {
     const bounds: number[] = [];
     const { step } = options;
     if (step === undefined) {
         const count = options.count ?? 100;
         if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
-            throw tooMany(count);
+            throw tooManyBins(options, count);
         }
 
         for (let bin = 0; bin < count; bin++) {
             bounds.push(from + ((to - from) * bin) / count);
         }
-    } else {
-        if (!isCalendarStep(step) && !(step > 0)) {
-            throw tooMany(step);
-        }
 
-        for (let at = alignTo(from, step); at < to; at = addSteps(at, step, 1)) {
-            if (bounds.length === MAX_BINS) {
-                throw tooMany(step);
-            }
+        bounds.push(to);
 
-            bounds.push(at);
-        }
+        return bounds;
     }
 
-    bounds.push(to);
+    if (!isCalendarStep(step) && !(step > 0)) {
+        throw tooManyBins(options, step);
+    }
+
+    const first = ordinal && !isCalendarStep(step) ? Math.floor(from / step) * step : alignTo(from, step);
+    let at = first;
+    for (let bins = 0; at < to; bins++) {
+        if (bins === MAX_BINS) {
+            throw tooManyBins(options, step);
+        }
+
+        bounds.push(at);
+        at = ordinal && !isCalendarStep(step) ? first + (bins + 1) * step : addSteps(at, step, 1);
+    }
+
+    bounds.push(options.maxCount === undefined ? to : at);
 
     return bounds;
 }
@@ -512,8 +717,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let disposed = false;
     /** Runs that were out of date at the last visibility change, so "keep" never revives one. */
     let staleBefore = new Set<RunId>();
-    const accepted = new Map<RunId, { readonly from: string; readonly to: string }>();
+    const accepted = new Map<RunId, { readonly from: string; readonly to: string; readonly window: string }>();
     let reruns: Promise<unknown> = Promise.resolve();
+    /** The unit the reader last gave each column, so designating it again keeps it. */
+    const units = new Map<string, TimeUnit>();
 
     /**
      * The designation, from `data.knownFields`.
@@ -529,6 +736,22 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         return nodes === undefined && edges === undefined
             ? null
             : Object.freeze({ ...(nodes === undefined ? {} : { nodes }), ...(edges === undefined ? {} : { edges }) });
+    };
+
+    /**
+     * Index one kind of a column.
+     * @param kind - Nodes or edges.
+     * @param column - The column.
+     * @param unit - How numbers are read.
+     * @returns The kind's index.
+     */
+    const indexKind = (kind: "node" | "edge", column: string, unit: TimeUnit): KindIndex => {
+        const graph = sources.snapshot();
+        const attribute = `${ATTRIBUTE_PREFIX}${column}`;
+
+        return kind === "node"
+            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit)
+            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit);
     };
 
     /**
@@ -551,27 +774,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return index;
         }
 
-        const attribute = `${ATTRIBUTE_PREFIX}${path}`;
         index = {
             key,
             path,
             unit,
-            node:
-                field.nodes === undefined
-                    ? null
-                    : buildKind(
-                          graph.nodeCount,
-                          (row) => sources.values.nodeValue(row, attribute),
-                          field.nodes.unit ?? "ms",
-                      ),
-            edge:
-                field.edges === undefined
-                    ? null
-                    : buildKind(
-                          graph.edgeCount,
-                          (row) => sources.values.edgeValue(row, attribute),
-                          field.edges.unit ?? "ms",
-                      ),
+            node: field.nodes === undefined ? null : indexKind("node", path, field.nodes.unit ?? "ms"),
+            edge: field.edges === undefined ? null : indexKind("edge", path, field.edges.unit ?? "ms"),
         };
         sources.emit("time:ready", { field });
 
@@ -608,11 +816,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * Whether the designated field reads plain numbers.
+     * @returns True for ordinal time.
+     */
+    const ordinal = (): boolean => indexNow()?.unit === "ordinal";
+
+    /**
      * Refuse a calendar step on ordinal time.
      * @param step - The step.
      */
     const checkStep = (step: TimeStep): void => {
-        if (isCalendarStep(step) && indexNow()?.unit === "ordinal") {
+        if (isCalendarStep(step) && ordinal()) {
             throw badCommand("A calendar step needs dates; ordinal time takes a number of units.", {
                 field: "step",
                 reason: "calendar-step-on-ordinal",
@@ -622,7 +836,72 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * The window as the designated field completes it.
+     * The settings in force, with the defaults filled in.
+     * @returns The settings.
+     */
+    const settingsNow = (): TimeSettings => {
+        const saved: TimePlayback | null | undefined = dispatcher.state.visibility.playback;
+
+        return saved === null || saved === undefined
+            ? DEFAULT_TIME_SETTINGS
+            : Object.freeze({ ...DEFAULT_TIME_SETTINGS, ...saved });
+    };
+
+    /**
+     * The step `"auto"` stands for: the calendar step closest to a twentieth of the data's span,
+     * or the closest 1-2-5 number for ordinal time.
+     * @returns The step.
+     */
+    const autoStep = (): TimeStep => {
+        const extent = extentNow();
+        const span = extent === null ? 0 : extent.to - extent.from;
+        if (ordinal()) {
+            return span > 0 ? niceNear(span / AUTO_STEPS) : 1;
+        }
+
+        return span > 0 ? calendarStepNear(span / AUTO_STEPS) : "day";
+    };
+
+    /**
+     * The step a new window takes: the setting, or the automatic one.
+     * @param given - A step a call passed, which wins.
+     * @returns The step.
+     */
+    const stepFor = (given?: TimeStep | "auto"): TimeStep => {
+        const step = given ?? settingsNow().step;
+        if (step === "auto" || (isCalendarStep(step) && ordinal())) {
+            return autoStep();
+        }
+
+        return step;
+    };
+
+    /**
+     * How far one step moves a window.
+     * @param window - The window.
+     * @returns The step.
+     */
+    const stepOf = (window: TimeWindow): TimeStep => window.step ?? stepFor();
+
+    /**
+     * An instant moved down to the start of its step: a calendar boundary, a multiple of an ordinal
+     * step, or whole steps from the start of the data for a step in milliseconds.
+     * @param at - The instant.
+     * @param step - The step.
+     * @returns The aligned instant.
+     */
+    const alignAt = (at: number, step: TimeStep): number => {
+        if (isCalendarStep(step)) {
+            return alignTo(at, step);
+        }
+
+        const origin = ordinal() ? 0 : (extentNow()?.from ?? 0);
+
+        return origin + Math.floor((at - origin) / step) * step;
+    };
+
+    /**
+     * The window as the designated field and the settings complete it.
      * @param input - The window as given.
      * @returns The window.
      */
@@ -645,39 +924,111 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             checkStep(input.step);
         }
 
+        const settings = settingsNow();
         const followsEdges =
             field?.edges !== undefined &&
             field.nodes === undefined &&
             columnOf(attribute) === columnOf(field.edges.start);
         const nodes = input.nodes ?? (followsEdges ? "ends" : undefined);
+        const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
+        const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
 
         return Object.freeze({
             ...input,
             attribute,
-            from: boundOf(input.from),
-            to: boundOf(input.to),
+            from: numericBound(input.from),
+            to: numericBound(input.to),
+            step: input.step ?? stepFor(),
             ...(nodes === undefined ? {} : { nodes }),
+            ...(missing === undefined ? {} : { missing }),
+            ...(mode === undefined ? {} : { mode }),
         });
     };
 
     /**
-     * How far one step moves a window.
-     * @param window - The window.
-     * @returns The step.
+     * The first window: one step at the start of the data (cumulative: the data's start to the
+     * end of the first step).
+     * @param options - A step or mode a call asked for.
+     * @returns The window.
      */
-    const stepOf = (window: TimeWindow): TimeStep => {
-        if (window.step !== undefined) {
-            return window.step;
+    const firstWindow = (options: TimePlayOptions = {}): TimeWindow => {
+        const extent = extentNow();
+        const step = stepFor(options.step);
+        const first = extent?.from ?? 0;
+        const start = alignAt(first, step);
+        const mode = options.mode ?? settingsNow().mode;
+
+        return complete({
+            from: mode === "cumulative" ? first : start,
+            to: addSteps(start, step, 1),
+            step,
+            ...(mode === "cumulative" ? { mode } : {}),
+        });
+    };
+
+    /**
+     * The last window: the step holding the last instant (cumulative: all of the data).
+     * @param options - A step or mode a call asked for.
+     * @returns The window.
+     */
+    const lastWindow = (options: TimePlayOptions = {}): TimeWindow => {
+        const extent = extentNow();
+        const step = stepFor(options.step);
+        const start = alignAt((extent?.to ?? 1) - 1, step);
+        const mode = options.mode ?? settingsNow().mode;
+
+        return complete({
+            from: mode === "cumulative" ? (extent?.from ?? start) : start,
+            to: addSteps(start, step, 1),
+            step,
+            ...(mode === "cumulative" ? { mode } : {}),
+        });
+    };
+
+    /**
+     * Whether a window is the first one.
+     * @param window - The window.
+     * @returns True when a step back would leave the data.
+     */
+    const isFirst = (window: TimeWindow): boolean => {
+        const extent = extentNow();
+        if (extent === null) {
+            return true;
         }
 
-        const width = boundOf(window.to) - boundOf(window.from);
-        if (Number.isFinite(width) && width > 0) {
-            return width;
-        }
+        return window.mode === "cumulative"
+            ? addSteps(numericBound(window.to), stepOf(window), -1) <= extent.from
+            : numericBound(window.from) <= extent.from;
+    };
 
+    /**
+     * Whether a window reaches the end of the data.
+     * @param window - The window.
+     * @returns True at the end.
+     */
+    const isLast = (window: TimeWindow): boolean => {
         const extent = extentNow();
 
-        return extent === null ? 1 : Math.max(1, (extent.to - extent.from) / 20);
+        return extent === null || numericBound(window.to) >= extent.to;
+    };
+
+    /**
+     * A window moved by one step, forward or back. A cumulative window keeps the data's start.
+     * @param window - The window.
+     * @param direction - 1 or -1.
+     * @returns The moved window.
+     */
+    const advanced = (window: TimeWindow, direction: 1 | -1): TimeWindow => {
+        const step = stepOf(window);
+        const from = numericBound(window.from);
+        const to = numericBound(window.to);
+        if (window.mode === "cumulative") {
+            const start = extentNow()?.from ?? from;
+            const end = addSteps(to, step, direction);
+            return Object.freeze({ ...window, from: start, to: end > start ? end : to });
+        }
+
+        return Object.freeze({ ...window, from: addSteps(from, step, direction), to: addSteps(to, step, direction) });
     };
 
     /**
@@ -692,14 +1043,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const step = stepOf(window);
-        const anchor = window.mode === "cumulative" ? boundOf(window.to) : boundOf(window.from);
+        const anchor =
+            window.mode === "cumulative" ? addSteps(numericBound(window.to), step, -1) : numericBound(window.from);
+        const first = alignAt(extent.from, step);
         if (!isCalendarStep(step)) {
-            return Math.round((anchor - extent.from) / step);
+            return Math.round((anchor - first) / step);
         }
 
         let count = 0;
         // ponytail: walks calendar steps one at a time; fine to tens of thousands of steps.
-        while (count < 1_000_000 && addSteps(extent.from, step, count + 1) <= anchor) {
+        while (count < 1_000_000 && addSteps(first, step, count + 1) <= anchor) {
             count++;
         }
 
@@ -707,46 +1060,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * A window moved by whole steps.
-     * @param window - The window.
-     * @param count - How many steps.
-     * @returns The moved window.
-     */
-    const advanced = (window: TimeWindow, count: number): TimeWindow => {
-        const step = stepOf(window);
-        const from = boundOf(window.from);
-        const to = boundOf(window.to);
-        if (window.mode === "cumulative") {
-            const end = addSteps(to, step, count);
-            return Object.freeze({ ...window, from, to: end > from ? end : addSteps(from, step, 1) });
-        }
-
-        return Object.freeze({ ...window, from: addSteps(from, step, count), to: addSteps(to, step, count) });
-    };
-
-    /**
-     * A first window: one step wide at the start of the data.
-     * @param options - What play or a step asked for.
-     * @returns The window.
-     */
-    const opening = (options: TimePlayOptions = {}): TimeWindow => {
-        const extent = extentNow();
-        const step = options.step ?? (extent === null ? 1 : Math.max(1, (extent.to - extent.from) / 20));
-        // A calendar step starts on its boundary (midnight, the first of the month), in UTC.
-        const first = extent?.from ?? 0;
-        const start = isCalendarStep(step) ? alignTo(first, step) : first;
-
-        return complete({
-            from: start,
-            to: addSteps(start, step, 1),
-            step,
-            ...(options.mode === undefined ? {} : { mode: options.mode }),
-        });
-    };
-
-    /**
-     * A window input with its bounds filled: from the current window, else a first window one step
-     * wide at the start of the data.
+     * A window input with its bounds filled: from the current window, else the first window.
      * @param input - The window as given.
      * @returns The input with both bounds.
      */
@@ -758,7 +1072,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const defined = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
         const base =
             visibility.window ??
-            opening({
+            firstWindow({
                 ...(input.step === undefined ? {} : { step: input.step }),
                 ...(input.mode === undefined ? {} : { mode: input.mode }),
             });
@@ -829,13 +1143,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             return cached;
         };
+        const extent = extentNow();
+        const untimedOf = (counts: TimeCounts | undefined): number =>
+            counts === undefined ? 0 : counts.untimed + counts.unparsed;
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
-            from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window.from),
-            to: window === null ? Number.POSITIVE_INFINITY : boundOf(window.to),
+            from: window === null ? Number.NEGATIVE_INFINITY : numericBound(window.from),
+            to: window === null ? Number.POSITIVE_INFINITY : numericBound(window.to),
             visible: Object.freeze({ nodes: n.visible, edges: e.visible }),
             entered: Object.freeze({ nodes: n.entered, edges: e.entered }),
             left: Object.freeze({ nodes: n.left, edges: e.left }),
+            untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
+            atStart: window !== null && isFirst(window),
+            atEnd: window !== null && isLast(window),
             cause,
         });
         if (window !== null) {
@@ -849,7 +1169,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * Move the window: as its own step, or merged into this play's step.
      * @param next - The window.
      * @param cause - What moved it.
-     * @returns The event, once the masks and any re-runs the window's policy started have settled.
+     * @returns The event, once the masks and any re-runs the results setting started have settled.
      */
     const move = async (next: TimeWindow, cause: TimeStepEvent["cause"]): Promise<TimeStepEvent> => {
         const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
@@ -870,12 +1190,6 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         return event;
     };
 
-    /**
-     * The window to move from, opening one when there is none.
-     * @returns The window.
-     */
-    const windowNow = (): TimeWindow => visibility.window ?? opening();
-
     /** Stop the timer. */
     const stopTimer = (): void => {
         if (timer !== null) {
@@ -891,28 +1205,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return;
         }
 
-        const extent = extentNow();
         const current = visibility.window;
-        if (extent === null || current === null) {
+        if (extentNow() === null || current === null) {
             api.pause();
             return;
         }
 
-        let next = advanced(current, 1);
-        const ended =
-            current.mode === "cumulative" ? boundOf(current.to) >= extent.to : boundOf(next.from) >= extent.to;
-        if (ended) {
+        let next: TimeWindow;
+        if (isLast(current)) {
             if (!loop) {
                 sources.emit("time:end", { window: current });
                 api.pause();
                 return;
             }
 
-            const width = boundOf(current.to) - boundOf(current.from);
-            next =
-                current.mode === "cumulative"
-                    ? Object.freeze({ ...current, to: addSteps(boundOf(current.from), stepOf(current), 1) })
-                    : Object.freeze({ ...current, from: extent.from, to: extent.from + width });
+            next = firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" });
+        } else {
+            next = advanced(current, 1);
         }
 
         try {
@@ -972,6 +1281,80 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         return (row) => rows.has(row) && (mask === null || mask[row] === 1);
     };
 
+    /**
+     * The step a most-bins budget asks for: the shortest calendar step (or 1-2-5 number) that
+     * covers a range in no more bins.
+     * @param from - The range's start.
+     * @param to - Its end.
+     * @param maxCount - The budget.
+     * @returns The step.
+     */
+    const budgetStep = (from: number, to: number, maxCount: number): TimeStep => {
+        if (!Number.isInteger(maxCount) || maxCount < 1 || maxCount > MAX_BINS) {
+            throw tooManyBins({ count: maxCount }, maxCount);
+        }
+
+        const span = Math.max(to - from, 1);
+        if (ordinal()) {
+            let step = niceAtLeast(span / maxCount);
+            while (Math.floor((to - 1) / step) - Math.floor(from / step) + 1 > maxCount) {
+                step = niceAtLeast(step * 1.5);
+            }
+
+            return step;
+        }
+
+        let step: TimeStep = calendarStepAtLeast(span / maxCount) ?? niceAtLeast(span / maxCount);
+        // Aligned bins can need one more than the span alone: widen until they fit.
+        for (let guard = 0; guard < 12; guard++) {
+            let count = 0;
+            for (let at = alignTo(from, step); at < to && count <= maxCount; at = addSteps(at, step, 1)) {
+                count++;
+            }
+
+            if (count <= maxCount) {
+                break;
+            }
+
+            step = isCalendarStep(step)
+                ? (calendarStepAtLeast(stepLength(step) * 1.01) ?? niceAtLeast(stepLength(step) * 1.5))
+                : niceAtLeast(step * 1.5);
+        }
+
+        return step;
+    };
+
+    /**
+     * Re-run the runs a window move left out of date, and say which could not.
+     * @param runs - The runs.
+     */
+    const rerunAll = (runs: readonly Run[]): void => {
+        // Started after the pass that announced the move, not inside it.
+        reruns = Promise.resolve().then(async () =>
+            Promise.all(
+                runs.map(async (run) => {
+                    try {
+                        await run.rerun();
+                    } catch (error) {
+                        sources.emit("time:rerun-failed", {
+                            run: run.id,
+                            error: isGraphtyError(error)
+                                ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
+                                : { code: "E_INTERNAL", params: {} },
+                        });
+                    }
+                }),
+            ),
+        );
+    };
+
+    /**
+     * The runs over the visible graph that a filter or window move left out of date.
+     * @returns The runs.
+     */
+    const movedRuns = (): readonly Run[] =>
+        sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
+
     const api: TimeApi = {
         get field() {
             return fieldNow();
@@ -999,7 +1382,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 }
             }
 
-            const { nodes, edges } = field ?? {};
+            // A column designated again without a unit takes the one the reader gave it before.
+            const withUnit = (source: TimeSource | undefined): TimeSource | undefined => {
+                if (source === undefined) {
+                    return undefined;
+                }
+
+                const unit = source.unit ?? units.get(columnOf(source.start));
+                return unit === undefined ? source : { ...source, unit };
+            };
+            const nodes = withUnit(field?.nodes);
+            const edges = withUnit(field?.edges);
             if (nodes !== undefined && edges !== undefined && columnOf(nodes.start) !== columnOf(edges.start)) {
                 // ponytail: one path for both kinds, because a window reads one attribute; two
                 // paths need a window per kind.
@@ -1027,45 +1420,156 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                         measurement: declared.measurement,
                     });
                 }
+
+                // A column with values none of which reads as time is no timeline.
+                const tried =
+                    source === undefined ? null : indexKind(kind, columnOf(source.start), source.unit ?? "ms");
+                if (tried !== null && tried.counts.timed === 0 && tried.counts.unparsed > 0) {
+                    throw badCommand("None of the column's values reads as a time.", {
+                        field: "start",
+                        reason: "no-times",
+                        kind,
+                        column: source?.start ?? null,
+                        examples: tried.examples,
+                    });
+                }
             }
 
-            await sources.setKnownFields({
-                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                nodeTimeUnit: nodes?.unit ?? null,
-                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                edgeTimeUnit: edges?.unit ?? null,
-            });
+            for (const source of [nodes, edges]) {
+                if (source?.unit !== undefined) {
+                    units.set(columnOf(source.start), source.unit);
+                }
+            }
+
+            const before = fieldNow();
+            const column = (edges ?? nodes)?.start;
+            const changed =
+                before?.nodes?.start !== nodes?.start ||
+                before?.edges?.start !== edges?.start ||
+                (before?.nodes?.unit ?? "ms") !== (nodes?.unit ?? "ms") ||
+                (before?.edges?.unit ?? "ms") !== (edges?.unit ?? "ms");
+            api.pause();
+            await dispatcher.transaction(
+                "time.field",
+                async (tx) => {
+                    await tx.dispatch({
+                        op: "config.set",
+                        values: {
+                            data: {
+                                knownFields: {
+                                    nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+                                    nodeTimeUnit: nodes?.unit ?? null,
+                                    edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+                                    edgeTimeUnit: edges?.unit ?? null,
+                                },
+                            },
+                        },
+                    });
+                    // Another field, or another reading of it, is another timeline: the window goes.
+                    if (changed && visibility.window !== null) {
+                        await tx.dispatch({ op: "visibility.window", window: null });
+                    }
+                },
+                {
+                    fact:
+                        column === undefined
+                            ? { code: "time.clear-field", params: {} }
+                            : { code: "time.field", params: { column: columnOf(column) } },
+                },
+            );
             const designated = fieldNow();
             sources.emit("time:field", { field: designated });
             const built = indexNow();
-            const notices: CodedFact<TimeNoticeCode>[] = [];
-            for (const kind of [built?.node, built?.edge]) {
-                if (kind === null || kind === undefined || built === null) {
-                    continue;
-                }
-
-                if (kind.counts.unparsed > 0) {
-                    notices.push({
-                        code: "time.unparsed",
-                        params: { path: built.path, count: kind.counts.unparsed, examples: kind.examples },
-                    });
-                }
-
-                if (kind.loose > 0) {
-                    notices.push({ code: "time.parsed-loosely", params: { path: built.path, count: kind.loose } });
-                }
-
-                if (kind.suspect) {
-                    notices.push({ code: "time.unit-suspect", params: { path: built.path, suggested: "s" } });
-                }
-            }
 
             return Object.freeze({
                 field: designated,
                 ...(built?.node ? { nodes: built.node.counts } : {}),
                 ...(built?.edge ? { edges: built.edge.counts } : {}),
-                notices: Object.freeze(notices),
+                notices: noticesOf(built),
             });
+        },
+
+        candidates(): readonly TimeCandidate[] {
+            const graph = sources.snapshot();
+            const found: TimeCandidate[] = [];
+            for (const { kind, name } of sources.columns()) {
+                const attribute = `${ATTRIBUTE_PREFIX}${name}`;
+                const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
+                let total = 0;
+                let parsed = 0;
+                let numbers = 0;
+                let epochMs = 0;
+                let epochS = 0;
+                let years = 0;
+                for (let row = 0; row < count; row++) {
+                    const value =
+                        kind === "node"
+                            ? sources.values.nodeValue(row, attribute)
+                            : sources.values.edgeValue(row, attribute);
+                    if (value === undefined || value === null || value === "") {
+                        continue;
+                    }
+
+                    total++;
+                    if (typeof value === "number") {
+                        numbers++;
+                        epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
+                        epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
+                        years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+                    } else if (typeof value === "string" && !isNumericText(value)) {
+                        const reading = readInstant(value, "ms");
+                        parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
+                    }
+                }
+
+                // Numbers read as time only when every one of them looks like an epoch or a year
+                // and the column is named for time: a weight of 1 to 10 is no timeline.
+                let unit: TimeUnit | undefined;
+                if (numbers > 0 && numbers === total) {
+                    if (epochMs === numbers) {
+                        unit = "ms";
+                    } else if (epochS === numbers) {
+                        unit = "s";
+                    } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
+                        unit = "ordinal";
+                    }
+
+                    parsed = unit === undefined ? 0 : numbers;
+                }
+
+                if (parsed > 0) {
+                    found.push(
+                        Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }),
+                    );
+                }
+            }
+
+            return Object.freeze(found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed));
+        },
+
+        notices(): readonly CodedFact<TimeNoticeCode>[] {
+            return noticesOf(indexNow());
+        },
+
+        parse(text: string): number | null {
+            const trimmed = text.trim();
+            if (trimmed === "") {
+                return null;
+            }
+
+            const unit = indexNow()?.unit ?? "ms";
+            const reading = readInstant(trimmed, unit);
+            if (reading.how === "strict") {
+                return reading.at;
+            }
+
+            // Typed dates with no zone are read in UTC, as the field reads date-times.
+            const utc = Date.parse(`${trimmed} UTC`);
+            if (!Number.isNaN(utc)) {
+                return utc;
+            }
+
+            return reading.how === "loose" ? reading.at : null;
         },
 
         get ready() {
@@ -1089,7 +1593,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 checkStep(options.step);
             }
 
-            const bounds = binBounds(options.from ?? extent.from, options.to ?? extent.to, options);
+            const from = options.from ?? extent.from;
+            const to = options.to ?? extent.to;
+            const step =
+                options.step ?? (options.maxCount === undefined ? undefined : budgetStep(from, to, options.maxCount));
+            const asked = step === undefined ? options : { ...options, step };
+            const bounds = binBounds(from, to, asked, built.unit === "ordinal");
             const countOf = (kind: "node" | "edge"): number[] => {
                 const parsed = built[kind];
                 const into = new Array<number>(bounds.length - 1).fill(0);
@@ -1124,7 +1633,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             return Object.freeze(
                 nodes.map((count, bin) =>
-                    Object.freeze({ start: bounds[bin], end: bounds[bin + 1], nodes: count, edges: edges[bin] }),
+                    Object.freeze({
+                        start: bounds[bin],
+                        end: bounds[bin + 1],
+                        nodes: count,
+                        edges: edges[bin],
+                        ...(step === undefined ? {} : { step }),
+                    }),
                 ),
             );
         },
@@ -1135,6 +1650,90 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         get current() {
             return visibility.window;
+        },
+
+        get atStart() {
+            const current = visibility.window;
+            return current !== null && isFirst(current);
+        },
+
+        get atEnd() {
+            const current = visibility.window;
+            return current !== null && isLast(current);
+        },
+
+        get settings() {
+            return settingsNow();
+        },
+
+        async setSettings(patch: Partial<TimeSettings>): Promise<void> {
+            const was = settingsNow();
+            const next: TimeSettings = Object.freeze({ ...was, ...patch });
+            if (patch.step !== undefined && patch.step !== "auto") {
+                checkStep(patch.step);
+            }
+
+            const current = visibility.window;
+            let moved: TimeWindow | null = null;
+            if (current !== null && extentNow() !== null) {
+                const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
+                const extent = extentNow() as TimeExtent;
+                const from = numericBound(current.from);
+                const to = numericBound(current.to);
+                let window: TimeWindow = Object.freeze({ ...current, step });
+                if (next.mode !== (current.mode ?? "sliding") && next.mode === "cumulative") {
+                    // Cumulative grows from the start of the data to where the window ends.
+                    window = Object.freeze({ ...window, mode: "cumulative", from: extent.from });
+                } else if (next.mode !== (current.mode ?? "sliding")) {
+                    // Back to sliding: one step ending where the cumulative window ended.
+                    const { mode: _mode, ...rest } = window;
+                    window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1)) });
+                } else if (step !== current.step && next.mode === "sliding") {
+                    // A new step snaps a sliding window to one step on its boundary.
+                    const start = alignAt(from, step);
+                    window = Object.freeze({ ...window, from: start, to: addSteps(start, step, 1) });
+                } else if (step !== current.step) {
+                    window = Object.freeze({ ...window, to: addSteps(alignAt(to - 1, step), step, 1) });
+                }
+
+                if (next.missing !== (current.missing ?? "inside")) {
+                    const { missing: _missing, ...rest } = window;
+                    window = Object.freeze(next.missing === "outside" ? { ...rest, missing: "outside" } : rest);
+                }
+
+                moved = window;
+            }
+
+            const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
+            const playback: TimePlayback = Object.freeze(
+                Object.fromEntries(
+                    Object.entries(next).filter(
+                        ([key, value]) => DEFAULT_TIME_SETTINGS[key as keyof TimeSettings] !== value,
+                    ),
+                ),
+            );
+            await dispatcher.transaction(
+                "time.settings",
+                async (tx) => {
+                    await tx.dispatch({
+                        op: "visibility.playback",
+                        playback: Object.keys(playback).length === 0 ? null : playback,
+                    });
+                    if (moved !== null) {
+                        await tx.dispatch({ op: "visibility.window", window: moved });
+                    }
+                },
+                { fact: { code: "visibility.playback", params: {} } },
+            );
+            if (moved !== null) {
+                afterMove(before, moved, "window");
+            }
+
+            // "Re-run" catches up every run a window move already left out of date.
+            if (next.results === "rerun" && was.results !== "rerun") {
+                rerunAll(movedRuns());
+                await reruns;
+            }
         },
 
         window(input: TimeWindowInput | null): Run<FilterResult> {
@@ -1164,8 +1763,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             playing = true;
             playStep = null;
             sources.emit("time:play", { window: current });
-            if (current === null) {
-                void move(opening(options), "play")
+            const begin = (window: TimeWindow): void => {
+                void move(window, "play")
                     .then(() => {
                         if (playing) {
                             timer = setTimeout(() => void tick(), interval);
@@ -1174,24 +1773,26 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     .catch(() => {
                         api.pause();
                     });
+            };
+            if (current === null) {
+                begin(firstWindow(options));
                 return;
             }
 
             if (options.step !== undefined || options.mode !== undefined) {
-                const retuned = Object.freeze({
-                    ...current,
-                    ...(options.step === undefined ? {} : { step: options.step }),
-                    ...(options.mode === undefined ? {} : { mode: options.mode }),
-                });
-                void move(retuned, "play")
-                    .then(() => {
-                        if (playing) {
-                            timer = setTimeout(() => void tick(), interval);
-                        }
-                    })
-                    .catch(() => {
-                        api.pause();
-                    });
+                begin(
+                    Object.freeze({
+                        ...current,
+                        ...(options.step === undefined ? {} : { step: options.step }),
+                        ...(options.mode === undefined ? {} : { mode: options.mode }),
+                    }),
+                );
+                return;
+            }
+
+            // Pressing play at the end starts again from the first window.
+            if (isLast(current)) {
+                begin(firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" }));
                 return;
             }
 
@@ -1210,13 +1811,55 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         async stepBy(count: number): Promise<TimeStepEvent> {
-            return move(advanced(windowNow(), count), "step");
+            let { window } = visibility;
+            let left = count;
+            if (window === null) {
+                // No window yet: forward opens the first one, back the last.
+                window = count >= 0 ? firstWindow() : lastWindow();
+                left = count > 0 ? count - 1 : Math.min(0, count + 1);
+            }
+
+            const direction: 1 | -1 = left < 0 ? -1 : 1;
+            for (let moved = 0; moved < Math.abs(left); moved++) {
+                if (direction === 1 ? isLast(window) : isFirst(window)) {
+                    break;
+                }
+
+                window = advanced(window, direction);
+            }
+
+            const event = await move(window, "step");
+            if (count > 0 && event.atEnd) {
+                sources.emit("time:end", { window });
+            }
+
+            return event;
         },
 
-        async seek(instant: number): Promise<TimeStepEvent> {
-            const current = windowNow();
-            const from = boundOf(current.from);
-            const to = boundOf(current.to);
+        async seek(instant: number | "start" | "end"): Promise<TimeStepEvent> {
+            if (instant === "start") {
+                return move(
+                    firstWindow({
+                        mode: settingsNow().mode,
+                        ...(visibility.window?.step === undefined ? {} : { step: visibility.window.step }),
+                    }),
+                    "seek",
+                );
+            }
+
+            if (instant === "end") {
+                return move(
+                    lastWindow({
+                        mode: settingsNow().mode,
+                        ...(visibility.window?.step === undefined ? {} : { step: visibility.window.step }),
+                    }),
+                    "seek",
+                );
+            }
+
+            const current = visibility.window ?? firstWindow();
+            const from = numericBound(current.from);
+            const to = numericBound(current.to);
             const next =
                 current.mode === "cumulative"
                     ? Object.freeze({ ...current, from, to: Math.max(instant, from) })
@@ -1230,7 +1873,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         get mode(): TimePlayMode {
-            return visibility.window?.mode ?? "sliding";
+            return visibility.window?.mode ?? settingsNow().mode;
         },
 
         get interval() {
@@ -1253,20 +1896,48 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return entry?.from === ranOn ? entry.to : undefined;
         },
 
+        acceptedWindow(id: RunId): string | undefined {
+            return accepted.get(id)?.window;
+        },
+
+        parsedCount(kind: "node" | "edge", column: string): number | undefined {
+            const field = fieldNow();
+            const source = kind === "node" ? field?.nodes : field?.edges;
+            if (source === undefined || columnOf(source.start) !== column) {
+                return undefined;
+            }
+
+            return indexNow()?.[kind]?.counts.timed;
+        },
+
+        get playing() {
+            return playing;
+        },
+
         visibilityChanged(change: VisibilityChange): void {
-            const policy: TimeResultsPolicy = visibility.window?.results ?? "stale";
+            const policy: TimeResultsPolicy = settingsNow().results;
             const runs = sources.runs();
-            if (change.filterKind === "window" && policy !== "stale") {
-                const moved = runs.filter((run) => run.stale?.reason === "scope-changed" && !staleBefore.has(run.id));
+            if (change.filterKind === "window" || change.filterKind === "none") {
                 if (policy === "keep") {
-                    for (const run of moved) {
-                        accepted.set(run.id, { from: run.scope.digest, to: sources.digestOf(run.scope.spec) });
+                    const { window } = visibility;
+                    const key =
+                        window === null
+                            ? ""
+                            : windowKey({
+                                  attribute: window.attribute,
+                                  from: numericBound(window.from),
+                                  to: numericBound(window.to),
+                              });
+                    for (const run of movedRuns().filter((each) => !staleBefore.has(each.id))) {
+                        accepted.set(run.id, {
+                            from: run.scope.digest,
+                            to: sources.digestOf(run.scope.spec),
+                            window: key,
+                        });
                     }
-                } else {
-                    // Started after the pass that announced the move, not inside it.
-                    reruns = Promise.resolve().then(async () =>
-                        Promise.allSettled(moved.map(async (run) => run.rerun())),
-                    );
+                } else if (policy === "rerun") {
+                    // Every run the window left out of date, also those that were before.
+                    rerunAll(movedRuns());
                 }
             }
 

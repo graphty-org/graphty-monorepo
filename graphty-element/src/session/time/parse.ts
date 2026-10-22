@@ -169,6 +169,97 @@ export function readInstant(value: unknown, unit: TimeUnit): { readonly at: numb
 }
 
 /**
+ * A window bound as a number: text is read as a date-time is read in a time column.
+ * @param bound - The bound.
+ * @returns The number, NaN when the text names no instant.
+ */
+export function numericBound(bound: number | string): number {
+    return typeof bound === "number" ? bound : readInstant(bound, "ms").at;
+}
+
+/**
+ * Whether text is a plain decimal number, such as a CSV cell holding an epoch.
+ * @param text - The text.
+ * @returns True for a number written as text.
+ */
+export function isNumericText(text: string): boolean {
+    return NUMERIC.test(text.trim());
+}
+
+/** The calendar steps, shortest first, with their length (a month and longer, on average). */
+const CALENDAR_LENGTHS: readonly (readonly [Exclude<TimeStep, number>, number])[] = [
+    ["hour", MS_PER_HOUR],
+    ["day", MS_PER_DAY],
+    ["week", 7 * MS_PER_DAY],
+    ["month", 30.436875 * MS_PER_DAY],
+    ["quarter", 91.310625 * MS_PER_DAY],
+    ["year", 365.2425 * MS_PER_DAY],
+];
+
+/**
+ * About how long a step is, in milliseconds (or ordinal units): a month and longer on average.
+ * @param step - The step.
+ * @returns Its length.
+ */
+export function stepLength(step: TimeStep): number {
+    return isCalendarStep(step) ? (CALENDAR_LENGTHS.find(([name]) => name === step)?.[1] ?? MS_PER_DAY) : step;
+}
+
+/**
+ * The calendar step whose length is closest to a span, by ratio.
+ * @param ms - The span.
+ * @returns The step.
+ */
+export function calendarStepNear(ms: number): Exclude<TimeStep, number> {
+    let best = CALENDAR_LENGTHS[0];
+    for (const entry of CALENDAR_LENGTHS) {
+        if (Math.abs(Math.log(entry[1] / ms)) < Math.abs(Math.log(best[1] / ms))) {
+            best = entry;
+        }
+    }
+
+    return best[0];
+}
+
+/**
+ * The shortest calendar step at least as long as a span, or null when even a year is shorter.
+ * @param ms - The span.
+ * @returns The step, or null.
+ */
+export function calendarStepAtLeast(ms: number): Exclude<TimeStep, number> | null {
+    return CALENDAR_LENGTHS.find(([, length]) => length >= ms)?.[0] ?? null;
+}
+
+/**
+ * The 1-2-5 number (1, 2, 5, 10, 20, ...) closest to a value by ratio.
+ * @param value - A positive value.
+ * @returns The number.
+ */
+export function niceNear(value: number): number {
+    const decade = 10 ** Math.floor(Math.log10(value));
+    let best = decade;
+    for (const factor of [1, 2, 5, 10]) {
+        if (Math.abs(Math.log((factor * decade) / value)) < Math.abs(Math.log(best / value))) {
+            best = factor * decade;
+        }
+    }
+
+    return best;
+}
+
+/**
+ * The smallest 1-2-5 number at least a value.
+ * @param value - A positive value.
+ * @returns The number.
+ */
+export function niceAtLeast(value: number): number {
+    const decade = 10 ** Math.floor(Math.log10(value));
+    const factor = [1, 2, 5, 10].find((each) => each * decade >= value) ?? 10;
+
+    return factor * decade;
+}
+
+/**
  * Whether a step is a calendar step (a month is not a fixed number of milliseconds).
  * @param step - The step.
  * @returns True for a named step.

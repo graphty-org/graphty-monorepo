@@ -673,7 +673,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
 
 /**
  * A door on `session.time` that moves the window: a field on `t` is designated first (not
- * spied), so with no window it opens one at 0, one unit wide, and moves from there.
+ * spied), so with no window it opens the first one at 0, a day wide, and moves from there.
  * @param args - The arguments.
  * @param window - The window the move must dispatch.
  * @returns The door.
@@ -691,7 +691,7 @@ function timeMove(args: readonly unknown[], window: Readonly<Record<string, unkn
                 return async () => time.setField(null);
             },
         },
-        expect: [{ op: "visibility.window", window: { attribute: "data.t", nodes: "ends", step: 1, ...window } }],
+        expect: [{ op: "visibility.window", window: { attribute: "data.t", nodes: "ends", ...window } }],
     };
 }
 
@@ -716,16 +716,25 @@ const TIME_API: Readonly<Record<string, Door>> = {
     bins: READ,
     changes: READ,
     current: READ,
+    // The window takes the step in use: with no data, the automatic step is a day.
     window: calls(
         [{ attribute: "data.t", from: 0, to: 1 }],
-        [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
+        [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1, step: "day" } }],
     ),
     play: exempt(
         "Starts a timer, which is not project state; each step it then takes is a visibility.window command, and one play records one step.",
     ),
     pause: exempt("Stops the timer; the steps already taken are recorded."),
-    stepBy: timeMove([1], { from: 1, to: 2 }),
-    seek: timeMove([5], { from: 5, to: 6 }),
+    // With no data the automatic step is a day; a first step forward opens the first window.
+    stepBy: timeMove([1], { from: 0, to: 86_400_000, step: "day" }),
+    seek: timeMove([5], { from: 5, to: 86_400_005, step: "day" }),
+    candidates: READ,
+    notices: READ,
+    parse: READ,
+    atStart: READ,
+    atEnd: READ,
+    settings: READ,
+    setSettings: calls([{ mode: "cumulative" }], [{ op: "visibility.playback", playback: { mode: "cumulative" } }]),
     playing: READ,
     mode: READ,
     interval: READ,

@@ -345,6 +345,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
 
@@ -491,6 +492,7 @@ export interface CommandOutcomeMap {
     "view.remove": Promise<void>;
     "view.save": Promise<void>;
     "visibility.context": Promise<void>;
+    "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
     "visibility.steps": Promise<void>;
     "visibility.window": Promise<void>;
@@ -2009,7 +2011,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3801,6 +3803,7 @@ export interface RunScopeRecord {
         readonly revision: string;
     };
     readonly spec: Scope;
+    readonly window?: RunWindow | null;
 }
 
 // @public
@@ -3824,6 +3827,17 @@ export type RunStyle = boolean | {
     readonly groupName?: (group: RunGroup) => string;
     readonly groupPalettes?: readonly PaletteId[];
 };
+
+// @public
+export interface RunWindow {
+    readonly attribute: string;
+    readonly edges: number;
+    // (undocumented)
+    readonly from: number;
+    readonly nodes: number;
+    // (undocumented)
+    readonly to: number;
+}
 
 // @public
 export interface SavedProject {
@@ -4217,7 +4231,9 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
-    statistics(): GraphStatistics;
+    statistics(options?: {
+        readonly scope?: "all" | "visible";
+    }): GraphStatistics;
     readonly store: SessionGraphStore;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
@@ -4290,6 +4306,10 @@ export interface SessionEventMap {
     };
     "time:ready": {
         readonly field: TimeField | null;
+    };
+    "time:rerun-failed": {
+        readonly run: RunId;
+        readonly error: CodedFact;
     };
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
@@ -4744,10 +4764,11 @@ export interface StaleNote {
     readonly ranOn: number;
     readonly reason: StaleReason;
     readonly scopeSpec: Scope;
+    readonly window?: CodedFact<"window-moved">;
 }
 
 // @public
-export type StaleReason = "data-changed" | "scope-changed";
+export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 
 // @public
 export interface StartOptions extends RunOptions {
@@ -5022,6 +5043,7 @@ export interface TableMapping {
     readonly source?: string | Endpoint;
     readonly target?: string | Endpoint;
     readonly time?: string | null;
+    readonly timeUnit?: TimeUnit | null;
     readonly weight?: string | null;
     readonly weightMeaning?: WeightMeaning["meaning"] | null;
 }
@@ -5061,19 +5083,26 @@ export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" 
 
 // @public
 export interface TimeApi {
+    readonly atEnd: boolean;
+    readonly atStart: boolean;
     bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
+    candidates(): readonly TimeCandidate[];
     changes(): TimeChanges;
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
     readonly interval: number;
     readonly mode: TimePlayMode;
+    notices(): readonly CodedFact<TimeNoticeCode>[];
+    parse(text: string): number | null;
     pause(): void;
     play(options?: TimePlayOptions): void;
     readonly playing: boolean;
     readonly ready: Promise<void>;
-    seek(instant: number): Promise<TimeStepEvent>;
+    seek(instant: number | "start" | "end"): Promise<TimeStepEvent>;
     setField(field: TimeField | null): Promise<TimeFieldResult>;
+    setSettings(settings: Partial<TimeSettings>): Promise<void>;
+    readonly settings: TimeSettings;
     stepBy(count: number): Promise<TimeStepEvent>;
     window(window: TimeWindowInput | null): Run<FilterResult>;
 }
@@ -5088,12 +5117,14 @@ export interface TimeBin {
     readonly nodes: number;
     // (undocumented)
     readonly start: number;
+    readonly step?: TimeStep;
 }
 
 // @public
 export interface TimeBinsOptions {
     readonly count?: number;
     readonly from?: number;
+    readonly maxCount?: number;
     readonly of?: {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
@@ -5102,6 +5133,15 @@ export interface TimeBinsOptions {
     readonly scope?: "all" | "visible";
     readonly step?: TimeStep;
     readonly to?: number;
+}
+
+// @public
+export interface TimeCandidate {
+    readonly column: string;
+    readonly kind: "node" | "edge";
+    readonly parsed: number;
+    readonly total: number;
+    readonly unit?: TimeUnit;
 }
 
 // @public
@@ -5170,6 +5210,14 @@ export interface TimeIds {
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
 
 // @public
+export interface TimePlayback {
+    readonly missing?: "inside" | "outside";
+    readonly mode?: "sliding" | "cumulative";
+    readonly results?: TimeResultsPolicy;
+    readonly step?: TimeStep | "auto";
+}
+
+// @public
 export type TimePlayMode = "sliding" | "cumulative";
 
 // @public
@@ -5184,6 +5232,14 @@ export interface TimePlayOptions {
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
 // @public
+export interface TimeSettings {
+    readonly missing: "inside" | "outside";
+    readonly mode: TimePlayMode;
+    readonly results: TimeResultsPolicy;
+    readonly step: TimeStep | "auto";
+}
+
+// @public
 export interface TimeSource {
     readonly start: Path;
     readonly unit?: TimeUnit;
@@ -5194,6 +5250,8 @@ export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | 
 
 // @public
 export interface TimeStepEvent {
+    readonly atEnd: boolean;
+    readonly atStart: boolean;
     readonly cause: "play" | "step" | "seek" | "window";
     // (undocumented)
     readonly entered: TimeCountPair;
@@ -5204,6 +5262,7 @@ export interface TimeStepEvent {
     readonly left: TimeCountPair;
     // (undocumented)
     readonly to: number;
+    readonly untimed: TimeCountPair;
     // (undocumented)
     readonly visible: TimeCountPair;
 }
@@ -5218,7 +5277,6 @@ export interface TimeWindow {
     readonly missing?: "inside" | "outside";
     readonly mode?: "sliding" | "cumulative";
     readonly nodes?: "all" | "ends";
-    readonly results?: TimeResultsPolicy;
     readonly step?: TimeStep;
     readonly to: number | string;
 }

@@ -37,6 +37,7 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
+import { DEFAULT_TIME_SETTINGS, sameSettings } from "./time/TimeApi";
 import type {
     DataSourceInput,
     GraphSession,
@@ -571,6 +572,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before.
             ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+            // Written only when set, so a project without a timeline saves as before.
+            ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
+                ? {}
+                : { playback: dispatcher.state.visibility.playback }),
         },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
@@ -1120,6 +1125,10 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setSteps([]);
     }
 
+    if (!sameSettings(tx.time.settings, DEFAULT_TIME_SETTINGS)) {
+        await tx.execute({ op: "visibility.playback", playback: null });
+    }
+
     await tx.data.clear();
 }
 
@@ -1450,6 +1459,10 @@ async function readProject(
                         typeof step === "object" && step !== null ? { ...step, rule: remap(step.rule) } : step,
                     ) as never,
                 );
+            }
+
+            if (typeof visibility.playback === "object" && visibility.playback !== null) {
+                await tx.execute({ op: "visibility.playback", playback: visibility.playback as never });
             }
 
             tx.visibility.showContext = visibility.showContext === true;

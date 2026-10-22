@@ -122,6 +122,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "visibility.context": "filter",
     "visibility.set": "filter",
     "visibility.steps": "filter",
+    "visibility.playback": "window",
     "visibility.window": "window",
 };
 

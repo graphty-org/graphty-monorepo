@@ -109,16 +109,33 @@ export interface TimeWindow {
     readonly missing?: "inside" | "outside";
     /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
     readonly mode?: "sliding" | "cumulative";
-    /**
-     * What happens to finished runs over the visible graph when the window moves: `"stale"` (the
-     * default) marks them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs
-     * them again over the new window.
-     */
-    readonly results?: TimeResultsPolicy;
 }
 
-/** What a window move does to finished runs over the visible graph; see {@link TimeWindow.results}. */
+/**
+ * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
+ * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
+ * new window. See {@link TimePlayback.results}.
+ */
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+/**
+ * How `session.time` moves windows, held with the designated field rather than on one window, so
+ * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
+ * optional; one left out reads its default.
+ */
+export interface TimePlayback {
+    /** What a window move does to finished runs over the visible graph; default `"stale"`. */
+    readonly results?: TimeResultsPolicy;
+    /** Sliding (both ends move) or cumulative (from the start of the data); default `"sliding"`. */
+    readonly mode?: "sliding" | "cumulative";
+    /**
+     * How far a step moves, and how wide a sliding window is. `"auto"` (the default) picks the
+     * calendar step closest to a twentieth of the data's span (a 1-2-5 number for ordinal time).
+     */
+    readonly step?: TimeStep | "auto";
+    /** Whether an element with no usable time is kept in every window; default `"inside"`. */
+    readonly missing?: "inside" | "outside";
+}
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
 export interface TimeInstants {
@@ -668,7 +685,6 @@ const WINDOW_OPTIONS = {
     nodes: ["all", "ends"],
     missing: ["inside", "outside"],
     mode: ["sliding", "cumulative"],
-    results: ["keep", "stale", "rerun"],
 } as const;
 
 /**

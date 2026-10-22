@@ -20,7 +20,7 @@ function emails(): Harness {
             { src: "a", dst: "b", sent: "2026-01-01" },
             { src: "b", dst: "c", sent: "2026-01-02T00:00:00" },
             { src: "c", dst: "d", sent: "2026-01-03T00:00:00Z" },
-            { src: "d", dst: "e", sent: T0 + 3 * DAY },
+            { src: "d", dst: "e", sent: "2026-01-04T00:00:00Z" },
             { src: "e", dst: "f" },
         ],
     );
@@ -198,8 +198,8 @@ describe("session.time: bins", () => {
         await time.setField({ edges: { start: "sent" } });
         await time.window({ step: "day" });
         assert.deepInclude(time.current, { from: T0, to: T0 + DAY, step: "day" });
-        await time.window({ mode: "cumulative", results: "keep" });
-        assert.deepInclude(time.current, { from: T0, to: T0 + DAY, step: "day", mode: "cumulative", results: "keep" });
+        await time.window({ mode: "cumulative" });
+        assert.deepInclude(time.current, { from: T0, to: T0 + DAY, step: "day", mode: "cumulative" });
         harness.session.dispose();
     });
 
@@ -432,12 +432,11 @@ describe("session.time: what a window move does to finished runs", () => {
         });
         await session.data.import({ type: "csv", config: { data: CSV } });
         await session.time.setField({ edges: { start: "sent" } });
-        await session.time.window({
-            from: T0,
-            to: T0 + DAY,
-            step: "day",
-            ...(results === undefined ? {} : { results }),
-        });
+        if (results !== undefined) {
+            await session.time.setSettings({ results });
+        }
+
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
         const run = session.runs.start("degree", undefined, { style: false });
         await run;
 
@@ -447,7 +446,14 @@ describe("session.time: what a window move does to finished runs", () => {
     it("marks them out of date by default, as a window set by hand does", async () => {
         const { session, id } = await withRun();
         await session.time.stepBy(1);
-        assert.strictEqual(session.runs.get(id)?.stale?.reason, "scope-changed");
+        const stale = session.runs.get(id)?.stale;
+        assert.strictEqual(stale?.reason, "window-moved");
+        // The note names the window the run was computed in and what it left visible then.
+        assert.deepStrictEqual(stale?.window, {
+            code: "window-moved",
+            params: { from: T0, to: T0 + DAY, nodes: 2, edges: 1 },
+        });
+        assert.deepInclude(session.runs.get(id)?.caveats.window, { from: T0, to: T0 + DAY, nodes: 2, edges: 1 });
         session.dispose();
     });
 
@@ -475,7 +481,7 @@ describe("session.time: what a window move does to finished runs", () => {
         const reopened = createGraphSession({ runs: { execute } });
         await reopened.project.open(text);
         assert.deepStrictEqual(reopened.time.field, { edges: { start: "sent" } });
-        assert.strictEqual(reopened.visibility.window?.results, "keep");
+        assert.strictEqual(reopened.time.settings.results, "keep");
         assert.strictEqual(reopened.visibility.window?.nodes, "ends");
         session.dispose();
         reopened.dispose();

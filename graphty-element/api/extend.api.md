@@ -501,6 +501,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
 

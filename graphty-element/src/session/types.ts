@@ -90,6 +90,7 @@ import type {
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
+import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
 import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -1179,9 +1180,12 @@ export interface SessionDataApi {
     valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
      * The graph's shape. Walked once per snapshot and cached.
+     * @param options - What to measure.
+     * @param options.scope - `"visible"` measures only what the filters and the time window leave
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
      * @returns the statistics
      */
-    statistics(): GraphStatistics;
+    statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
     /**
      * A stable identity for the graph's topology: equal fingerprints mean the same node ids in
      * the same order with the same arcs between them. Attributes and coordinates are not in it.
@@ -1566,6 +1570,12 @@ export interface TableMapping {
     readonly weightMeaning?: WeightMeaning["meaning"] | null;
     /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
     readonly time?: string | null;
+    /**
+     * How the time column's numbers are read: epoch milliseconds (`"ms"`, the default), epoch
+     * seconds (`"s"`) or plain ordered numbers (`"ordinal"`, such as years). Written to
+     * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
+     */
+    readonly timeUnit?: TimeUnit | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
     readonly edgeId?: string | null;
 }
@@ -2003,6 +2013,11 @@ export interface SessionEventMap {
     /** The designated time field was indexed, so `time.extent()` and `time.bins()` answer. */
     "time:ready": { readonly field: TimeField | null };
     /**
+     * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
+     * error's code and details.
+     */
+    "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
+    /**
      * A layer was added, changed, removed or moved, and how much of the picture it repainted.
      *
      * Published for every verb that changes the stack, including the ones that write several
@@ -2157,6 +2172,9 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.show-context`, `visibility.hide-context` | none |
  * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
  * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.playback` | none: how `session.time` moves windows changed |
+ * | `time.field` | `column`: the column designated as the time field |
+ * | `time.clear-field` | none |
  * | `set.create` | `name`: the set's name, or null |
  * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
  * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
@@ -2233,6 +2251,9 @@ export type HistoryCode =
     | "visibility.step-off"
     | "visibility.step-remove"
     | "visibility.steps"
+    | "visibility.playback"
+    | "time.field"
+    | "time.clear-field"
     | "set.create"
     | "set.rename"
     | "set.redefine"
@@ -2431,6 +2452,8 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /** Settles once the playback settings are recorded. */
+    "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */

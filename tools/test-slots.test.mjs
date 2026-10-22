@@ -77,6 +77,31 @@ describe("test-slots", () => {
         assert.equal(await settled(second), true);
     });
 
+    it("puts a low-priority run (GRAPHTY_SLOT_PRIORITY=low) behind later ordinary runs; a low run holding a slot keeps it", async () => {
+        const dir = fresh();
+        const [h, l1, w, l2, w2] = [sleeper(), sleeper(), sleeper(), sleeper(), sleeper()];
+        const low = { ...quiet, env: { GRAPHTY_SLOT_PRIORITY: "low" } };
+        const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
+        await tick();
+        const sync = acquire({ ...low, dir, slots: 1, pid: l1.pid, label: "sync" });
+        await tick();
+        const later = acquire({ ...quiet, dir, slots: 1, pid: w.pid, label: "later" });
+        releaseH();
+        assert.equal(await settled(later), true, "the later ordinary run goes first");
+        assert.equal(await settled(sync), false, "the low run still waits");
+        (await later)();
+        assert.equal(await settled(sync), true);
+        // Holding a slot, the low run counts against the limit: an ordinary run now waits for it.
+        const next = acquire({ ...quiet, dir, slots: 1, pid: w2.pid, label: "next" });
+        assert.equal(await settled(next), false, "a granted low run is not overtaken");
+        const lowAgain = acquire({ ...low, dir, slots: 1, pid: l2.pid, label: "sync 2" });
+        (await sync)();
+        assert.equal(await settled(next), true);
+        assert.equal(await settled(lowAgain), false);
+        (await next)();
+        assert.equal(await settled(lowAgain), true);
+    });
+
     it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {
         const dir = fresh();
         const full = (code) => Object.assign(new Error(code), { code });

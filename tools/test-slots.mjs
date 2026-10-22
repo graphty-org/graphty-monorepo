@@ -41,7 +41,7 @@
  *  - A run inside a run that holds a slot (a test that runs vitest, a shard's second vitest
  *    command) does not take another: it finds GRAPHTY_TEST_SLOT_HELD in its environment, or, on
  *    Linux, an ancestor process holding a ticket. Only a holder ever waits on nothing else.
- *  - A gate shard that needs a browser takes the browser slot (tmp/with-browser.sh) BEFORE this
+ *  - A gate shard that needs a browser takes the browser slot (tools/with-browser.sh) BEFORE this
  *    one, and nothing holding a test slot ever waits for a browser slot, so the two never wait on
  *    each other. The push queue is outside both.
  *  - The GPU slot holder takes no test slot (HELD), and nothing holding a test slot waits for the
@@ -59,6 +59,8 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync
 import { availableParallelism, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { logWait } from "./wait-log.mjs";
 
 /** Set in the environment of everything a slot holder runs, so a nested run takes no second slot. */
 export const HELD = "GRAPHTY_TEST_SLOT_HELD";
@@ -218,6 +220,8 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.poll milliseconds between looks
  * @param options.log where the one waiting line goes
  * @param options.list reads the live tickets (a test replaces it)
+ * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
+ * @param options.waitLog records a wait that happened (a test replaces it)
  * @returns a function that gives the slot back (a no-op when none was taken)
  */
 export async function acquire({
@@ -229,6 +233,8 @@ export async function acquire({
     poll = 2000,
     log = (line) => process.stderr.write(`${line}\n`),
     list = liveTickets,
+    kind = "test",
+    waitLog = logWait,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -263,26 +269,24 @@ export async function acquire({
     writeFileSync(tmp, JSON.stringify({ pid, start: startOf(pid), label, since: Date.now() }));
     renameSync(tmp, join(dir, name)); // whole or not at all, for readers
     const release = () => rmSync(join(dir, name), { force: true });
-    let told = false;
+    const start = Date.now();
+    let holders = null;
     for (;;) {
         const live = await look();
         const at = live.findIndex((t) => t.name === name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
         }
         if (at < slots) {
+            if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
             return release;
         }
-        if (!told) {
-            told = true;
-            const holders = live
-                .slice(0, slots)
-                .map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`)
-                .join("; ");
+        if (!holders) {
+            holders = live.slice(0, slots).map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`);
             log(
                 `test-slots: waiting for one of ${slots} machine-wide test slots, ${at - slots} run(s) ahead; ` +
-                    `held by: ${holders}. GRAPHTY_TEST_SLOTS sets the count.`,
+                    `held by: ${holders.join("; ")}. GRAPHTY_TEST_SLOTS sets the count.`,
             );
         }
         await new Promise((r) => setTimeout(r, poll));
@@ -333,7 +337,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
     // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
     const take = gpu
-        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {} })
+        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {}, kind: "gpu" })
         : () => acquire({ label });
     const release = off() ? () => {} : await take();
     process.on("exit", release);

@@ -66,6 +66,18 @@ fi
 # tools/prepush-source-checks.sh says why they come first and when they are skipped.
 PREPUSH_ROOT="$ROOT_DIR" source "$SCRIPT_DIR/prepush-source-checks.sh"
 
+# The whole gate already passed on exactly these inputs (GATE_KEY, from the source-only checks: every
+# file git does not ignore, the installed lockfile, the gate's scripts, the Node version and the lane
+# environment; tools/prepush-inputs.mjs), on any branch: nothing below can come out differently, so it
+# does not run again. This is what lets golden's land commit of a branch that merged golden first push
+# in seconds. PREPUSH_RERUN_ALL=1 runs it all.
+if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
+    GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)"; then
+    echo -e "${GREEN}[SKIP] The whole gate: it already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$GATE_PASS" 2>/dev/null); key ${GATE_KEY:0:12}; PREPUSH_RERUN_ALL=1 runs it)${NC}"
+    echo -e "${GREEN}All pre-push checks passed!${NC}"
+    exit 0
+fi
+
 # Track failures.
 #
 # FAILED is the overall verdict and decides the exit code, so every background step ORs into it
@@ -193,6 +205,7 @@ run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 if [ -z "$PROJECT_LIST" ]; then
     run_step "Published dependencies" "pnpm run check:published-deps"
     sonar_reminder
+    [ "$FAILED" = 0 ] && [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
     exit "$FAILED"
 fi
 
@@ -319,6 +332,8 @@ echo "========================================"
 sonar_reminder
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
+    # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
+    [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
     PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0

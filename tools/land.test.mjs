@@ -26,6 +26,8 @@ import {
 } from "./land.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "land-"));
+// The lock's waits go to a log of this test's own, never the machine's (tools/wait-log.mjs).
+process.env.PIPELINE_WAIT_LOG = join(dir, "waits.jsonl");
 const repo = join(dir, "main");
 const other = join(dir, "other");
 const env = isolatedGitEnv();

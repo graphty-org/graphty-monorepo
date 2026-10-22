@@ -175,11 +175,24 @@ logged() {
 # gate skips them later when the checkout has not changed since they passed. A checkout without the
 # script (a branch from before it existed) goes straight to the queue. Their output goes to the gate
 # log too, so a failure here is logged like a gate failure, and the push itself never runs.
+#
+# Before them: a checkout whose whole gate already passed on exactly these inputs -- the same files, the
+# same installed lockfile, the same gate scripts and lanes (tools/prepush-inputs.mjs, the gate key), on
+# any branch -- needs neither these checks nor a gate slot. The landing push of a branch that merged
+# golden first is such a push: its land commit has the tree the branch's own push tested. The hook still
+# runs and finds the same pass, so it ends in seconds. PREPUSH_RERUN_ALL=1 runs everything anyway.
 rc=0
+passed_gate=0
+if [ "${1:-}" = git ] && [ -n "$sha" ] && [ -f "$inputs" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
+    gate_key=$(cd "$top" && node "$inputs" key 2>/dev/null) && [ -n "$gate_key" ] &&
+    gate_pass=$(cd "$top" && node "$inputs" passed gate "$gate_key" 2>/dev/null); then
+    passed_gate=1
+    echo "push-queue: every check of the gate already passed on these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$gate_pass" 2>/dev/null)); no gate slot needed"
+fi
 early="$top/tools/prepush-source-checks.sh"
 use_gate_root=
 [ "$use_gate" = 1 ] && early="$gate_dir/tools/prepush-source-checks.sh" && use_gate_root=1
-if [ "${1:-}" = git ] && [ -f "$early" ]; then
+if [ "${1:-}" = git ] && [ -f "$early" ] && [ "$passed_gate" = 0 ]; then
     logged env ${use_gate_root:+PREPUSH_ROOT="$top"} bash "$early"
     rc=$?
 fi
@@ -189,12 +202,16 @@ fi
 # 2026-10-10: docs-only pushes sat 1-2 hours behind three 45-minute gates.
 # Only an nx workspace has packages to ask about: elsewhere (a test's throwaway repository) pnpm and
 # nx would only fail, after seconds of startup and a listing of every directory above the checkout.
-fast=0
-if [ "$rc" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" HEAD 2>/dev/null); then
+fast=$passed_gate
+if [ "$rc" = 0 ] && [ "$fast" = 0 ] && [ "${1:-}" = git ] && [ -f "$top/nx.json" ] && base=$(git merge-base "${PUSH_BASE_REF:-origin/master}" HEAD 2>/dev/null); then
     affected_json=$(NX_DAEMON=false pnpm exec nx show projects --affected --base="$base" --head=HEAD --json 2>/dev/null)
     [ "$affected_json" = "[]" ] && fast=1 && echo "push-queue: no package affected; skipping the queue"
 fi
 
+# A wait for a slot goes into the wait log (tools/wait-log.mjs, <main checkout>/tmp/waits.jsonl) once it
+# ends, with the pushes that held the slots when it began.
+wait_start=$(date +%s%3N)
+held_by=()
 while [ "$rc" = 0 ] && [ "$fast" = 0 ]; do
     live=()
     # Order by rank (0 critical, 1 normal; a ticket from before ranks existed counts as 1), then by
@@ -206,8 +223,19 @@ while [ "$rc" = 0 ] && [ "$fast" = 0 ]; do
     for ((i = 0; i < ${#live[@]} && i < SLOTS; i++)); do
         [ "${live[$i]}" = "$(basename "$ticket")" ] && break 2
     done
+    if [ ${#held_by[@]} = 0 ]; then
+        for ((i = 0; i < ${#live[@]} && i < SLOTS; i++)); do
+            held_by+=("pid ${live[$i]##*-}: $(head -c 300 "$dir/${live[$i]}" 2>/dev/null)")
+        done
+        echo "push-queue: waiting for one of $SLOTS gate slots, held by: $(printf '%s; ' "${held_by[@]}")" >&2
+    fi
     sleep "${PUSH_QUEUE_POLL:-10}"
 done
+wait_log="$top/tools/wait-log.mjs"
+[ "$use_gate" = 1 ] && wait_log="$gate_dir/tools/wait-log.mjs"
+if [ ${#held_by[@]} -gt 0 ] && [ -f "$wait_log" ]; then
+    node "$wait_log" gate-slot "$wait_start" "$PWD :: $*" "${held_by[@]}" 2>/dev/null
+fi
 # A running push's ticket becomes critical as of its start, so nothing that arrives later -- a
 # critical push included -- sorts ahead of it and takes a slot it still holds.
 if [ "$rc" = 0 ] && [ "$fast" = 0 ]; then

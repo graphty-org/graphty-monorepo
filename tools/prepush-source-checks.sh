@@ -5,10 +5,13 @@
 #  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
 #  - tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
 #    instead of after the queue.
-# A pass records the checkout's fingerprint (HEAD and the content of every file git does not ignore,
-# tools/prepush-inputs.mjs) in this worktree's git directory. When the checkout still has that
-# fingerprint, the checks are skipped: they already passed on exactly these files. Any edit, new file
-# or commit since then runs them again.
+# A pass is recorded under the checkout's gate key (tools/prepush-inputs.mjs: the content of every
+# file git does not ignore, the installed lockfile, the gate's own scripts, the Node version and the
+# lane environment -- not the branch, not HEAD) in <main checkout>/tmp/prepush-passes/source/. When a
+# pass is recorded under the key the checkout has now, on any branch, the checks are skipped: they
+# already passed on exactly these inputs. So a commit that changes no file (a merge that brings
+# nothing new, golden's land commit of a branch that merged golden first) does not run them again;
+# any edit, new file, lockfile install or gate change does. GATE_KEY is left set for tools/prepush.sh.
 #
 # Run by hand: ./tools/prepush-source-checks.sh
 
@@ -68,11 +71,17 @@ run_step() {
 SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SONAR_LOG")"
 
-SOURCE_CHECKS_RECORD="$(git rev-parse --path-format=absolute --git-dir)/prepush-source-checks"
-SOURCE_FINGERPRINT="$(node "$GATE_TOOLS/prepush-inputs.mjs" fingerprint 2>/dev/null)"
-if [ -n "$SOURCE_FINGERPRINT" ] && [ "$(cat "$SOURCE_CHECKS_RECORD" 2>/dev/null)" = "$SOURCE_FINGERPRINT" ]; then
-    echo -e "${GREEN}[SKIP] Source-only checks: they already passed on exactly these files (fingerprint ${SOURCE_FINGERPRINT:0:12})${NC}"
+GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
+if [ -n "$GATE_KEY" ] && SOURCE_PASS="$(node "$GATE_TOOLS/prepush-inputs.mjs" passed source "$GATE_KEY" 2>/dev/null)"; then
+    echo -e "${GREEN}[SKIP] Source-only checks: they already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$SOURCE_PASS" 2>/dev/null); key ${GATE_KEY:0:12})${NC}"
     echo ""
+    # The SonarQube reminder under tools/prepush.sh's summary reads this log: carry over whether the
+    # pass this reuses was checked by SonarQube.
+    if [ "$(jq -r '.note // ""' <<<"$SOURCE_PASS" 2>/dev/null)" = sonar-unchecked ]; then
+        echo "SonarQube did NOT check this push (the source-only checks reused a pass that SonarQube did not check)" >"$SONAR_LOG"
+    else
+        : >"$SONAR_LOG"
+    fi
 else
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
     # touches. The [s] and [-] keep the patterns from matching this line itself.
@@ -140,8 +149,10 @@ else
     # design/sonarqube/design.md.
     run_step "SonarQube (changed lines)" "(set -o pipefail; node \"$GATE_TOOLS/sonar-gate.mjs\" 2>&1 | tee \"\$SONAR_LOG\")"
 
-    # Recorded only when nothing changed while the checks ran.
-    if [ -n "$SOURCE_FINGERPRINT" ] && [ "$(node "$GATE_TOOLS/prepush-inputs.mjs" fingerprint 2>/dev/null)" = "$SOURCE_FINGERPRINT" ]; then
-        echo "$SOURCE_FINGERPRINT" >"$SOURCE_CHECKS_RECORD"
+    # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares).
+    if [ -n "$GATE_KEY" ]; then
+        SONAR_NOTE=""
+        grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null && SONAR_NOTE=sonar-unchecked
+        node "$GATE_TOOLS/prepush-inputs.mjs" record source "$GATE_KEY" "$SONAR_NOTE" || GATE_KEY=""
     fi
 fi

@@ -1,0 +1,369 @@
+// Tests of the gate's input keys and the wait log (design/ci/fast-pipeline.md, build order step 1):
+//  - a pass is keyed by what the gate reads -- the files, the installed lockfile, the gate's own scripts,
+//    the lane environment -- never by the branch or the commit, so it is reused for an identical tree
+//    (another worktree, a commit that changes no file, golden's land commit) and never when any of those
+//    inputs changes;
+//  - a push whose whole gate already passed skips the source-only checks and the wait for a gate slot;
+//  - every wait for a slot or a lock is logged with who held it.
+// Each test works in throwaway git repositories.
+//
+//   node tools/gate-inputs.test.mjs   (part of pnpm run test:ci-workflows)
+import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { after, describe, it } from "node:test";
+
+import { isolateGit } from "./isolated-git-env.mjs";
+import { acquireLock } from "./land.mjs";
+import { gateKey, inputKey } from "./prepush-inputs.mjs";
+import { acquire } from "./test-slots.mjs";
+import { logWait } from "./wait-log.mjs";
+
+const TMP = mkdtempSync(join(tmpdir(), "gate-inputs-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
+isolateGit();
+
+const TOOLS = fileURLToPath(new URL(".", import.meta.url));
+const QUEUE = join(TOOLS, "push-queue.sh");
+let made = 0;
+
+// A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
+function repo() {
+    const dir = join(TMP, `repo-${++made}`);
+    mkdirSync(join(dir, "tools"), { recursive: true });
+    mkdirSync(join(dir, ".husky"));
+    mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
+    for (const f of ["prepush-inputs.mjs", "wait-log.mjs"]) copyFileSync(join(TOOLS, f), join(dir, "tools", f));
+    writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
+    writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
+    writeFileSync(join(dir, "a.ts"), "a\n");
+    writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
+    writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
+    const git = (...args) => {
+        const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+        assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
+    };
+    git("init", "-q", "-b", "main");
+    git("add", ".");
+    git("commit", "-q", "-m", "a");
+    const inputs = (...args) =>
+        spawnSync(process.execPath, [join(dir, "tools/prepush-inputs.mjs"), ...args], { cwd: dir, encoding: "utf8" });
+    return { dir, git, inputs, key: (env = {}) => gateKey(dir, dir, env) };
+}
+
+describe("the gate key", () => {
+    it("is the same for an identical tree: another commit, another branch, another worktree", () => {
+        const r = repo();
+        const before = r.key();
+        r.git("commit", "-q", "--allow-empty", "-m", "nothing changes");
+        assert.equal(r.key(), before, "a commit that changes no file");
+        r.git("checkout", "-q", "-b", "feat/x");
+        assert.equal(r.key(), before, "another branch");
+        writeFileSync(join(r.dir, "b.ts"), "b\n");
+        const edited = r.key();
+        r.git("add", "b.ts");
+        assert.equal(r.key(), edited, "the same file staged");
+        r.git("commit", "-q", "-m", "b");
+        assert.equal(r.key(), edited, "the same file committed");
+        r.git("rm", "-q", "b.ts");
+        r.git("commit", "-q", "-m", "back");
+        assert.equal(r.key(), before, "back to the same files");
+        // A second worktree at a merge commit with the same tree, as golden's land commit of a branch
+        // that merged golden first, with its own install of the same lockfile.
+        const merge = r.git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-p", "main", "-m", "land: feat/x");
+        const other = join(TMP, `worktree-${made}`);
+        r.git("worktree", "add", "-q", "--detach", other, merge);
+        mkdirSync(join(other, "node_modules/.pnpm"), { recursive: true });
+        writeFileSync(join(other, "node_modules/.pnpm/lock.yaml"), "lock\n");
+        assert.equal(gateKey(other, r.dir, {}), before, "the land commit in another worktree");
+        mkdirSync(join(r.dir, "dist"));
+        writeFileSync(join(r.dir, "dist/out.js"), "x\n");
+        assert.equal(r.key(), before, "an ignored build output");
+        assert.equal(r.key({ GRAPHTY_TEST_SLOTS: "8", PUSH_BASE_REF: "origin/golden" }), before, "slots and base");
+    });
+
+    it("changes with any file, the installed lockfile, the gate's scripts or the lanes", () => {
+        const r = repo();
+        const base = r.key();
+        const changed = (why, edit, undo) => {
+            edit();
+            assert.notEqual(r.key(), base, why);
+            undo();
+            assert.equal(r.key(), base, `${why}, undone`);
+        };
+        const file = (path, text) => {
+            const old = existsSync(join(r.dir, path)) ? readFileSync(join(r.dir, path), "utf8") : null;
+            return [
+                () => writeFileSync(join(r.dir, path), text),
+                () => (old === null ? rmSync(join(r.dir, path)) : writeFileSync(join(r.dir, path), old)),
+            ];
+        };
+        changed("an edit", ...file("a.ts", "b\n"));
+        changed("an untracked file", ...file("new.ts", "n\n"));
+        changed("the installed lockfile", ...file("node_modules/.pnpm/lock.yaml", "lock 2\n"));
+        changed("the gate's tools", ...file("tools/x.sh", "x\n"));
+        changed("the gate's hook", ...file(".husky/pre-push", "hook 2\n"));
+        assert.notEqual(r.key({ GRAPHTY_GPU_REQUIRE: "nvidia" }), base, "a GRAPHTY_ lane");
+        assert.notEqual(r.key({ PREPUSH_ALL: "1" }), base, "PREPUSH_ALL");
+    });
+
+    it("counts the gate's version when the gate is another checkout than the one it checks", () => {
+        const checked = repo();
+        const gate = repo();
+        const before = gateKey(checked.dir, gate.dir, {});
+        writeFileSync(join(gate.dir, "tools/prepush.sh"), "a newer gate\n");
+        assert.notEqual(gateKey(checked.dir, gate.dir, {}), before, "an uncommitted gate change");
+        gate.git("add", ".");
+        gate.git("commit", "-q", "-m", "gate");
+        assert.notEqual(gateKey(checked.dir, gate.dir, {}), before, "a committed gate change");
+        writeFileSync(join(gate.dir, "a.ts"), "not a gate file\n");
+        const again = gateKey(checked.dir, gate.dir, {});
+        writeFileSync(join(gate.dir, "a.ts"), "still not\n");
+        assert.equal(gateKey(checked.dir, gate.dir, {}), again, "a file outside the gate's tools/ and .husky/");
+    });
+
+    it("puts the installed lockfile and the gate's version in every test shard's key", () => {
+        const shard = { shard: "s", package: "p", "test-command": "true", "needs-browser": false };
+        const files = new Map([["p/a.ts", "1"]]);
+        const roots = new Map([["p", "p"]]);
+        const key = (context) => inputKey(shard, files, roots, new Set(["p"]), new Map(), {}, context);
+        const base = key({ lock: "l", gate: "g" });
+        assert.equal(key({ lock: "l", gate: "g" }), base);
+        assert.notEqual(key({ lock: "l2", gate: "g" }), base, "the installed lockfile");
+        assert.notEqual(key({ lock: "l", gate: "g2" }), base, "the gate's version");
+    });
+});
+
+describe("pass records (prepush-inputs.mjs passed / record)", () => {
+    it("are found from any worktree with the same inputs, and never after a change", () => {
+        const r = repo();
+        const key = r.inputs("key").stdout.trim();
+        assert.match(key, /^[0-9a-f]{64}$/);
+        assert.equal(r.inputs("passed", "gate", key).status, 1, "nothing passed yet");
+        assert.equal(r.inputs("record", "gate", key).status, 0);
+        const pass = JSON.parse(r.inputs("passed", "gate", key).stdout);
+        assert.equal(pass.branch, "main");
+        assert.equal(pass.sha, r.git("rev-parse", "HEAD"));
+        assert.equal(r.inputs("passed", "source", key).status, 1, "a pass of one kind is not another's");
+
+        // Another worktree of the same repository on another branch, same files: the same pass.
+        const other = join(TMP, `worktree-${made}`);
+        r.git("worktree", "add", "-q", "-b", "golden", other);
+        mkdirSync(join(other, "node_modules/.pnpm"), { recursive: true });
+        writeFileSync(join(other, "node_modules/.pnpm/lock.yaml"), "lock\n");
+        const there = (...args) =>
+            spawnSync(process.execPath, [join(other, "tools/prepush-inputs.mjs"), ...args], {
+                cwd: other,
+                encoding: "utf8",
+            });
+        assert.equal(there("passed", "gate").status, 0, "reused on golden's identical tree");
+        writeFileSync(join(other, "a.ts"), "changed\n");
+        assert.equal(there("passed", "gate").status, 1, "not after an edit");
+    });
+
+    it("are refused when the checkout changed while the checks ran", () => {
+        const r = repo();
+        const key = r.inputs("key").stdout.trim();
+        writeFileSync(join(r.dir, "a.ts"), "edited during the run\n");
+        const refused = r.inputs("record", "gate", key);
+        assert.equal(refused.status, 1);
+        assert.match(refused.stderr, /changed while the gate checks ran/);
+        assert.equal(r.inputs("passed", "gate", key).status, 1);
+    });
+});
+
+describe("push-queue with a gate that already passed", () => {
+    // A checkout with stand-in source checks that log their run, and an origin to push to.
+    function pushRepo() {
+        const r = repo();
+        writeFileSync(join(r.dir, "tools/prepush-source-checks.sh"), `echo ran >> "${r.dir}/../source-ran-${made}"\n`);
+        r.git("add", ".");
+        r.git("commit", "-q", "-m", "checks");
+        const origin = join(TMP, `origin-${made}.git`);
+        spawnSync("git", ["init", "-q", "--bare", origin]);
+        r.git("remote", "add", "origin", origin);
+        const q = join(TMP, `queue-${made}`);
+        const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
+        Object.assign(env, {
+            PUSH_QUEUE_DIR: join(q, "tickets"),
+            PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),
+            PUSH_QUEUE_GATE: join(q, "no-gate-live"),
+            PUSH_QUEUE_POLL: "0.1",
+            PUSH_QUEUE_SLOTS: "1",
+            PUSH_BASE_REF: "HEAD",
+        });
+        delete env.PREPUSH_RERUN_ALL;
+        const ran = join(TMP, `source-ran-${made}`);
+        return { ...r, env, ran, tickets: env.PUSH_QUEUE_DIR };
+    }
+    // A live process holding the only gate slot for as long as the test needs it.
+    function holdSlot(tickets) {
+        mkdirSync(tickets, { recursive: true });
+        const holder = spawn("sleep", ["600"], { stdio: "ignore" });
+        writeFileSync(join(tickets, `0-1-${holder.pid}`), "another push\n");
+        return holder;
+    }
+
+    it("pushes at once, with no source checks and no gate slot, when the whole gate passed on these inputs", () => {
+        const r = pushRepo();
+        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
+        const holder = holdSlot(r.tickets);
+        try {
+            const p = spawnSync("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
+                cwd: r.dir,
+                encoding: "utf8",
+                env: r.env,
+            });
+            assert.equal(p.status, 0, p.stdout + p.stderr);
+            assert.match(p.stdout, /every check of the gate already passed on these inputs \(main at [0-9a-f]{12}/);
+            assert.equal(existsSync(r.ran), false, "the source-only checks did not run");
+        } finally {
+            holder.kill();
+        }
+    });
+
+    it("runs the source checks and waits for a slot, logging the wait, when anything differs", () => {
+        const r = pushRepo();
+        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
+        writeFileSync(join(r.dir, "a.ts"), "a change since the pass\n");
+        const holder = holdSlot(r.tickets);
+        const log = join(TMP, `waits-${made}.jsonl`);
+        // The push runs its source checks, then waits behind the holder; once it says so, the holder ends.
+        const push = spawn("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
+            cwd: r.dir,
+            env: { ...r.env, PIPELINE_WAIT_LOG: log },
+            stdio: ["ignore", "ignore", "pipe"],
+        });
+        let err = "";
+        const done = new Promise((resolve) => push.on("exit", resolve));
+        const waiting = new Promise((resolve) =>
+            push.stderr.on("data", (d) => {
+                err += d;
+                if (err.includes("push-queue: waiting for one of 1 gate slots")) resolve();
+            }),
+        );
+        return (async () => {
+            await waiting;
+            holder.kill();
+            assert.equal(await done, 0, err);
+            assert.equal(readFileSync(r.ran, "utf8"), "ran\n", "the source-only checks ran");
+            const [line] = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
+            assert.equal(line.kind, "gate-slot");
+            assert.match(line.heldBy[0], new RegExp(`^pid ${holder.pid}: another push`));
+            assert.match(line.waiter, /git push -q origin HEAD:feat\/x/);
+        })();
+    });
+});
+
+describe("the wait log", () => {
+    const read = (file) => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
+
+    it("writes one JSON line per wait, and nothing when it is off", () => {
+        const file = join(TMP, "waits-direct.jsonl");
+        logWait({ kind: "gate-slot", start: 1000, end: 4000, waiter: "w", heldBy: ["h"] }, file);
+        assert.deepEqual(read(file), [
+            {
+                kind: "gate-slot",
+                start: new Date(1000).toISOString(),
+                end: new Date(4000).toISOString(),
+                ms: 3000,
+                waiter: "w",
+                pid: process.pid,
+                heldBy: ["h"],
+            },
+        ]);
+        logWait({ kind: "x", start: 0 }, null);
+        assert.equal(read(file).length, 1);
+    });
+
+    it("records a test slot's wait with the run that held it, and no line for a run that did not wait", async () => {
+        const dir = join(TMP, "test-slots");
+        const lines = [];
+        const quiet = { env: {}, poll: 5, log: () => {}, dir, slots: 1, waitLog: (l) => lines.push(l) };
+        const holder = spawn("sleep", ["600"], { stdio: "ignore" });
+        const waiter = spawn("sleep", ["600"], { stdio: "ignore" });
+        try {
+            const release = await acquire({ ...quiet, pid: holder.pid, label: "the holder" });
+            assert.equal(lines.length, 0, "a slot taken at once is no wait");
+            let told;
+            const waiting = new Promise((resolve) => (told = resolve));
+            const taking = acquire({ ...quiet, pid: waiter.pid, label: "the waiter", log: told });
+            await waiting;
+            release();
+            (await taking)();
+            assert.equal(lines.length, 1);
+            assert.equal(lines[0].kind, "test-slot");
+            assert.equal(lines[0].waiter, "the waiter");
+            assert.match(lines[0].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
+        } finally {
+            holder.kill();
+            waiter.kill();
+        }
+    });
+
+    it("records every taking of the landing lock, its holder while waiting, and how long it was held", async () => {
+        const lock = join(TMP, "golden/lock");
+        const lines = [];
+        const opts = { pollMs: 5, waitLog: (l) => lines.push(l), onQueue: () => {} };
+        const first = await acquireLock(lock, { command: "land", branch: "a" }, { ...opts, onWait: () => {} });
+        let told;
+        const waiting = new Promise((resolve) => (told = resolve));
+        const second = acquireLock(lock, { command: "land", branch: "b" }, { ...opts, onWait: told });
+        await waiting;
+        first();
+        (await second)();
+        assert.deepEqual(
+            lines.map((l) => [l.kind, l.waiter]),
+            [
+                ["land-lock", "land a"],
+                ["land-lock-held", "land a"],
+                ["land-lock", "land b"],
+                ["land-lock-held", "land b"],
+            ],
+        );
+        assert.deepEqual(lines[0].heldBy, []);
+        assert.match(lines[2].heldBy[0], new RegExp(`^pid ${process.pid} \\(land a, since `));
+    });
+
+    it("records a wait for a browser slot with the commands that held the slots", () => {
+        const slots = join(TMP, "browser-slots");
+        const log = join(TMP, "waits-browser.jsonl");
+        const gate = join(TOOLS, "with-browser.sh");
+        // Four holders fill the slots; the fifth command waits, says so, and runs once they end.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+for i in 1 2 3 4; do "$GATE" sh -c "touch held.$i; while [ ! -e go ]; do sleep 0.05; done" & done
+until [ -e held.1 ] && [ -e held.2 ] && [ -e held.3 ] && [ -e held.4 ]; do sleep 0.05; done
+"$GATE" sh -c "echo fifth > fifth" 2> fifth.err &
+until grep -q "waiting for one of 4 browser slots" fifth.err 2>/dev/null; do sleep 0.05; done
+touch go
+wait`,
+            ],
+            {
+                cwd: TMP,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: gate,
+                    BROWSER_SLOT_DIR: slots,
+                    BROWSER_SLOT_POLL: "0.1",
+                    PIPELINE_WAIT_LOG: log,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(readFileSync(join(TMP, "fifth"), "utf8"), "fifth\n");
+        const lines = read(log);
+        const fifth = lines.find((l) => l.waiter.includes("echo fifth"));
+        assert.equal(fifth?.kind, "browser-slot", JSON.stringify(lines));
+        assert.equal(fifth.heldBy.length, 4);
+        for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
+    });
+});

@@ -358,7 +358,7 @@ describe("the graph's shader settings", () => {
         const row = await screen.findByTestId("held-shaders");
         await userEvent.click(within(row).getByRole("button", { name: "Held shaders, 1" }));
         const list = await screen.findByRole("list", { name: "Held shaders" });
-        assert.include(list.textContent ?? "", "Node sprite, Used by 1");
+        assert.include(list.textContent ?? "", "Instead of the node, Used by 1");
         await userEvent.click(within(list).getByRole("button", { name: "Run Plate" }));
         await waitFor(
             () => {

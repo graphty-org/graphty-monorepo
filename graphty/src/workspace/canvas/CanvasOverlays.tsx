@@ -1,6 +1,6 @@
 import "./canvas.css";
 
-import type { LayoutWarningEvent } from "@graphty/graphty-element";
+import type { BasemapStatusEvent, LayoutWarningEvent } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -133,25 +133,74 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     return reading;
 }
 
+/** The words a change of the map under a map layout is announced with, by its state. */
+const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+    ready: "Map shown",
+    fallback: "Map unavailable, showing Natural Earth",
+};
+
 /**
- * Posts a notice for a layout's warning the app has words for (the location map's unplaced
- * nodes), read from the element's `layout-warning` event.
+ * Posts the location map's notice ("6 of 14 nodes unplaced", with Select), read from the
+ * element's `layout-warning` event, and announces the map's state as it changes, read from its
+ * `basemap-status` event. A warning from a layout that is no longer the active one is ignored, and
+ * the same count for the same layout and options is posted once: a 2D/3D switch runs the layout
+ * again and would otherwise post it again. A new project brings a new element and starts afresh.
  */
 function useLayoutWarningNotice(): void {
     const { element, store } = useWorkspace();
     useEffect(() => {
-        if (element === null) {
+        const session = element?.session;
+        if (element === null || session === undefined) {
             return undefined;
         }
+        let posted: string | null = null;
+        let message: string | null = null;
         const onWarning = (event: CustomEvent<LayoutWarningEvent>): void => {
-            const message = layoutWarningWords(event.detail.code, event.detail.params);
-            if (message !== null) {
-                store.set({ notice: { message } });
+            const { layoutType, code, params } = event.detail;
+            const words = layoutWarningWords(code, params);
+            if (words === null || layoutType !== session.layout.id) {
+                return;
+            }
+            const key = JSON.stringify([layoutType, session.layout.options, words]);
+            if (key === posted) {
+                return;
+            }
+            posted = key;
+            message = words;
+            const ids = Array.isArray(params.ids) ? (params.ids as (string | number)[]) : [];
+            store.set({
+                notice: {
+                    message: words,
+                    ...(ids.length === 0
+                        ? {}
+                        : {
+                              action: {
+                                  label: "Select",
+                                  run: () => {
+                                      void session.selection.apply({ nodes: ids });
+                                  },
+                              },
+                          }),
+                },
+            });
+        };
+        let announced: string | null = null;
+        const onBasemap = (event: CustomEvent<BasemapStatusEvent>): void => {
+            const words = BASEMAP_STATE_WORDS[event.detail.state];
+            if (words !== undefined && words !== announced) {
+                announced = words;
+                store.set({ announcement: words });
             }
         };
         element.addEventListener("layout-warning", onWarning);
+        element.addEventListener("basemap-status", onBasemap);
         return () => {
             element.removeEventListener("layout-warning", onWarning);
+            element.removeEventListener("basemap-status", onBasemap);
+            // The notice was about this project's graph: it does not carry into the next.
+            if (message !== null && store.get().notice?.message === message) {
+                store.set({ notice: null });
+            }
         };
     }, [element, store]);
 }

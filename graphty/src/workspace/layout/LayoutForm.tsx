@@ -1,12 +1,73 @@
-import { FieldRow, PanelField, PanelLabelsProvider, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
-import type { LayoutDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    DataRow,
+    FieldRow,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
+    SegmentedControl,
+} from "@graphty/compact-mantine";
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
+import { MAP_SOURCE_FIELD_ID, mapSourceName } from "../inspector/mapSource";
 import { OptionsForm } from "../options/OptionsForm";
+import type { WorkspaceStore } from "../state/store";
+import { useWorkspace } from "../state/WorkspaceContext";
 import { LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords } from "./refusalWords";
+
+/** The location map's id, whose form names the columns it read and the map it draws on. */
+const MAP_LAYOUT = "location-map";
+
+/** The map's Latitude and Longitude share one row, as X and Y do; Location stands apart. */
+const MAP_ROWS = [["latitude", "longitude"]] as const;
+
+/** The map's options that name a column, each with the role the element's frame names it by. */
+const LOCATION_OPTIONS: ReadonlySet<string> = new Set(["location", "latitude", "longitude"]);
+
+/**
+ * The column the map read for a location option it was left to find itself, from the element's
+ * frame of the map it drew, or undefined when it has not drawn one.
+ * @param element - the element.
+ * @param option - the option.
+ * @returns the column's name, or undefined.
+ */
+function columnUsed(element: GraphtyElement | null, option: string): string | undefined {
+    const location = element?.mapFrame?.location;
+    if (location === undefined) {
+        return undefined;
+    }
+    if (location.kind === "location") {
+        return option === "location" ? location.column : undefined;
+    }
+    if (option === "latitude") {
+        return location.latitude;
+    }
+    return option === "longitude" ? location.longitude : undefined;
+}
+
+/**
+ * Opens Graph settings on its Style tab and moves focus to the Map section's Source select, once
+ * it is drawn.
+ * @param store - the chrome store.
+ */
+function openMapSource(store: WorkspaceStore): void {
+    store.set({ inspected: { kind: "graph", tab: "style" } });
+    let frames = 0;
+    const focus = (): void => {
+        const field = document.getElementById(MAP_SOURCE_FIELD_ID);
+        if (field !== null) {
+            field.focus();
+        } else if (frames++ < 30) {
+            requestAnimationFrame(focus);
+        }
+    };
+    requestAnimationFrame(focus);
+}
 
 /** Props for LayoutForm. */
 interface LayoutFormProps {
@@ -77,6 +138,7 @@ export function LayoutForm({
     onKeyDown,
     shapeChoice = true,
 }: Readonly<LayoutFormProps>): React.JSX.Element {
+    const { element, store } = useWorkspace();
     const current = session.layout;
     const isCurrent = descriptor.id === current.id;
     const [start] = useState(() => ({
@@ -116,8 +178,11 @@ export function LayoutForm({
         setError(null);
         session.layout
             .set(descriptor.id, engine === undefined ? { options } : { engine, options })
-            .then(onApplied, () => {
-                setError(`${layoutName(descriptor)} could not lay out this graph, so the drawing is unchanged`);
+            .then(onApplied, (failure: unknown) => {
+                setError(
+                    layoutErrorWords(failure) ??
+                        `${layoutName(descriptor)} could not lay out this graph, so the drawing is unchanged`,
+                );
             });
     };
     const pickShape = (picked: "2d" | "3d"): void => {
@@ -134,6 +199,28 @@ export function LayoutForm({
             setEngine(undefined);
         }
     };
+
+    // The map's form: which columns "Automatic" used, the warnings about what they held, Surface
+    // off in 2D, and a row naming the map it draws on.
+    const isMap = descriptor.id === MAP_LAYOUT;
+    const mapDrawn = isMap && isCurrent ? element : null;
+    const warnings = mapDrawn?.mapFrame?.warnings ?? [];
+    const fieldNote = (option: OptionDescriptor): string | null => {
+        if (!LOCATION_OPTIONS.has(option.name) || option.name === "location") {
+            return null;
+        }
+        const lines = warnings.flatMap((w) => locationFieldWords(w.code, w.params) ?? []);
+        return lines.length === 0 ? null : lines.join("; ");
+    };
+    const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => {
+        const base = optionWords(descriptor.id, option);
+        const used = isMap ? columnUsed(mapDrawn, option.name) : undefined;
+        return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
+    };
+    // The view the layout would be drawn in: the 2D view draws every layout flat.
+    const drawnIn = current.dimension === "2d" ? "2d" : shape;
+    const disabledReason = (option: OptionDescriptor): string | null =>
+        optionEffectWords(session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code);
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const seed = takesSeed ? (
@@ -227,13 +314,28 @@ export function LayoutForm({
                     // Shape is the dim control; Seed is drawn with Reshuffle below.
                     options={descriptor.options.filter((o) => o.name !== "dim" && o.name !== "seed")}
                     values={values}
-                    words={(option) => optionWords(descriptor.id, option)}
+                    words={words}
                     canUseSelectedNode
                     onChange={(name, value) => {
                         edit({ ...values, [name]: value });
                     }}
                     advanced={seed}
+                    note={fieldNote}
+                    disabledReason={disabledReason}
+                    choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
+                    rows={isMap ? MAP_ROWS : undefined}
                 />
+                {isMap && session.config.inEffect("basemap").inEffect ? (
+                    // The map is a graph setting, chosen in Graph settings: this row names it and goes there.
+                    <DataRow
+                        stat
+                        name="Map"
+                        value={mapSourceName(session.config.basemap)}
+                        onClick={() => {
+                            openMapSource(store);
+                        }}
+                    />
+                ) : null}
                 {error === null ? null : (
                     <Text size="xs" c="red" role="alert">
                         {error}

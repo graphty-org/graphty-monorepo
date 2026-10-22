@@ -11,7 +11,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
@@ -32,7 +32,20 @@ type Element = HTMLElementTagNameMap["graphty-element"];
  * @param inspectGraph - open the right panel on Graph settings.
  * @returns the element.
  */
-async function openAirports(inspectGraph = false): Promise<Element> {
+async function openAirports(inspectGraph = false, nodes: readonly Record<string, unknown>[] = NODES): Promise<Element> {
+    return (await openWorkspace(inspectGraph, nodes)).element;
+}
+
+/**
+ * The workspace on some nodes, its element up and the Layout tool enabled.
+ * @param inspectGraph - open the right panel on Graph settings.
+ * @param nodes - the node records.
+ * @returns the element and the chrome store.
+ */
+async function openWorkspace(
+    inspectGraph: boolean,
+    nodes: readonly Record<string, unknown>[],
+): Promise<{ element: Element; store: WorkspaceStore }> {
     const store = createWorkspaceStore({
         project: { name: "Airports", id: 1 },
         ...(inspectGraph ? { inspected: { kind: "graph" } } : {}),
@@ -50,17 +63,26 @@ async function openAirports(inspectGraph = false): Promise<Element> {
         throw new Error("the element never came up");
     }
     const element: Element = found;
-    await element.session.data.addNodes(NODES);
-    await element.session.data.addEdges([
-        { source: "SFO", target: "JFK" },
-        { source: "JFK", target: "LHR" },
-    ]);
+    await element.session.data.addNodes([...nodes]);
+    if (nodes === NODES) {
+        await element.session.data.addEdges([
+            { source: "SFO", target: "JFK" },
+            { source: "JFK", target: "LHR" },
+        ]);
+    }
     const tool = screen.getByRole("button", { name: "Layout" });
     await waitFor(() => {
         assert.isFalse(tool.hasAttribute("aria-disabled"));
     });
-    return element;
+    return { element, store };
 }
+
+/** Three cities with separate latitude and longitude columns, under short names, and a code. */
+const CITIES = [
+    { id: "SEA", code: "west", lat: 47.61, lng: -122.33 },
+    { id: "CHI", code: "middle", lat: 41.88, lng: -87.63 },
+    { id: "NYC", code: "east", lat: 40.71, lng: -74.01 },
+];
 
 /**
  * Opens the Layout popover on the Map form.
@@ -156,21 +178,21 @@ describe("the location map", () => {
         const element = await openAirports(true);
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
         await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "no map under a force layout");
+        assert.isNull(screen.queryByRole("combobox", { name: "Source" }), "no map under a force layout");
 
         await layOutOnMap(element);
-        const map = await screen.findByRole<HTMLInputElement>("combobox", { name: "Map" });
+        const map = await screen.findByRole<HTMLInputElement>("combobox", { name: "Source" });
         assert.strictEqual(map.value, "Natural Earth", "the bundled world map until one is chosen");
         const panel = map.closest("section") ?? document.body;
 
-        await pick(panel, "Map", "None");
+        await pick(panel, "Source", "None");
         await waitFor(() => {
             assert.deepStrictEqual(element.session.config.basemap, { source: "none" });
         });
 
         // A map of the reader's own: tiles from an address, with the credit it requires, which
         // the element draws on the canvas.
-        await pick(panel, "Map", "Tiles");
+        await pick(panel, "Source", "Tiles");
         await userEvent.fill(within(panel).getByRole("textbox", { name: "Credit" }), "Test tiles");
         await userEvent.fill(
             within(panel).getByRole("textbox", { name: "Address" }),
@@ -183,16 +205,149 @@ describe("the location map", () => {
                 attribution: "Test tiles",
             });
         });
-        await waitFor(
-            () => {
-                assert.include(element.basemapStatus.attribution, "Test tiles");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        // Nothing answers at that address: the field says so, and the canvas credits only what drew.
+        await within(panel).findByText("Not reachable", undefined, { timeout: TIMEOUT_MS });
+        assert.notInclude(element.basemapStatus.attribution, "Test tiles");
 
-        await pick(panel, "Map", "Natural Earth");
+        await pick(panel, "Source", "Natural Earth");
         await waitFor(() => {
             assert.deepStrictEqual(element.session.config.basemap, { source: "natural-earth" });
         });
+    });
+
+    it("greys Map out with its reason on a graph with no location, and the element refuses it", async () => {
+        const element = await openAirports(false, [
+            { id: "a", label: "A" },
+            { id: "b", label: "B" },
+        ]);
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        const map = within(popover).getByRole("option", { name: /^Map/ });
+        await waitFor(() => {
+            assert.strictEqual(map.getAttribute("aria-disabled"), "true");
+            assert.strictEqual(map.getAttribute("aria-description"), "No location columns");
+        });
+        let refused = false;
+        await element.session.layout.set("location-map").catch(() => {
+            refused = true;
+        });
+        assert.isTrue(refused);
+        assert.strictEqual(element.session.layout.id, "force", "the layout it had stays");
+    });
+
+    it("tags Map Recommended for nodes with locations", async () => {
+        await openAirports();
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await waitFor(() => {
+            const map = within(popover).getByRole("option", { name: /^Map/ });
+            assert.include(map.textContent, "Recommended");
+        });
+    });
+
+    it("applies Map with only Latitude set, and names the columns Automatic used", async () => {
+        const element = await openAirports(false, CITIES);
+        let popover = await openMapForm();
+        // The columns that read as latitudes are listed first; the rest are disabled with why.
+        await userEvent.click(within(popover).getByRole("combobox", { name: "Latitude" }));
+        const options = await within(popover).findAllByRole("option");
+        const names = options.map((o) => o.textContent);
+        // The column named for the role comes first after Automatic; a column of words is refused.
+        assert.isTrue(names[1].startsWith("lat"), names.join(", "));
+        const code = options.find((o) => o.textContent.startsWith("code"));
+        assert.isDefined(code);
+        assert.isTrue(code?.hasAttribute("data-combobox-disabled"));
+        assert.include(code?.textContent, "Not a location");
+        await userEvent.click(options.find((o) => o.textContent.startsWith("lat")) ?? options[0]);
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(element.session.layout.id, "location-map");
+                assert.isNotNull(element.mapFrame);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        popover = await openMapForm();
+        const longitude = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Longitude" });
+        assert.strictEqual(longitude.value, "Automatic (lng)", "the half it found itself is named");
+        // Latitude and Longitude share one row.
+        const latitude = within(popover).getByRole("combobox", { name: "Latitude" });
+        assert.closeTo(latitude.getBoundingClientRect().top, longitude.getBoundingClientRect().top, 2);
+    });
+
+    it("puts Select on the unplaced notice, and posts it once across a 2D/3D switch", async () => {
+        const { element, store } = await openWorkspace(false, NODES);
+        let posted = 0;
+        store.subscribe(() => {
+            const message = store.get().notice?.message;
+            if (message === "1 of 4 nodes unplaced") {
+                posted++;
+            }
+        });
+        await layOutOnMap(element);
+        const select = await screen.findByRole("button", { name: "Select" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(select);
+        await waitFor(() => {
+            assert.deepStrictEqual(element.session.selection.nodes.map(String), ["nowhere"]);
+        });
+        const shown = posted;
+
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        await userEvent.click(within(toolbar).getByRole("button", { name: "View, 3D" }));
+        const menu = await screen.findByRole("menu", { name: /^View/ });
+        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
+        await waitFor(
+            () => {
+                assert.strictEqual(element.session.layout.dimension, "2d");
+                assert.strictEqual(element.mapFrame?.dimensions, 2);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(posted, shown, "the switch posted no second notice");
+    });
+
+    it("disables Surface in 2D with its reason", async () => {
+        const element = await openAirports();
+        await element.session.layout.setDimension("2d");
+        const popover = await openMapForm();
+        const surface = within(popover).getByRole("combobox", { name: "Surface" });
+        assert.isTrue(surface.hasAttribute("disabled"));
+        const holder = surface.closest("[aria-description]");
+        assert.strictEqual(holder?.getAttribute("aria-description"), "Not in 2D");
+        await userEvent.hover(holder ?? surface);
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        assert.strictEqual(tip.textContent, "Not in 2D");
+    });
+
+    it("closes only the Advanced pop-out on Escape, and names its button", async () => {
+        await openAirports();
+        const popover = await openMapForm();
+        const advanced = within(popover).getByRole("button", { name: "Advanced" });
+        await userEvent.hover(advanced);
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        assert.strictEqual(tip.textContent, "Advanced");
+        await userEvent.click(advanced);
+        await within(popover).findByRole("combobox", { name: "Format" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(within(popover).queryByRole("combobox", { name: "Format" }), "the pop-out closed");
+        });
+        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Surface" }), "still in the Map form");
+    });
+
+    it("names the map on the Map form, and its row moves focus to Graph settings' Source", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element);
+        const popover = await openMapForm();
+        const row = within(popover).getByRole("button", { name: /^Map/ });
+        assert.include(row.textContent, "Natural Earth");
+        await userEvent.click(row);
+        await waitFor(
+            () => {
+                const focused = document.activeElement;
+                assert.strictEqual(focused?.getAttribute("id"), "graph-settings-map-source");
+            },
+            { timeout: TIMEOUT_MS },
+        );
     });
 });

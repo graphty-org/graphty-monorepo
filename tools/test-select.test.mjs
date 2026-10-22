@@ -31,6 +31,7 @@ import {
     wholePackageRule,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
+import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { changedSince, describePlan } from "./test-changed.mjs";
 import { judge, mutant, seededPick } from "./test-select-mutate.mjs";
@@ -601,6 +602,20 @@ describe("running a selection", () => {
         assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
         assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
         assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/golden"), false);
+    });
+
+    it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {
+        const main = mkdtempSync(join(ROOT, "tmp", "passes-"));
+        try {
+            const store = passStore(main);
+            const key = "a".repeat(64);
+            store.record("shard-selected", key, { shard: "graph-format", files: ["graph-format/test/a.test.ts"] });
+            assert.equal(store.get("shard", key), null);
+            assert.equal(store.get("shard-selected", key).shard, "graph-format");
+        } finally {
+            rmSync(main, { recursive: true, force: true });
+        }
+        assert.deepEqual(laneEnv({ PREPUSH_SELECT: "1", PATH: "/bin" }), [["PREPUSH_SELECT", "1"]]);
     });
 
     it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {

@@ -110,8 +110,15 @@ export interface TimeBinsOptions {
     readonly to?: number;
     /** `"visible"` counts only elements visible now (every filter and the window). Default `"all"`. */
     readonly scope?: "all" | "visible";
-    /** Count only these elements: the selection's activity over the histogram. */
-    readonly of?: { readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] };
+    /**
+     * Count only these elements: the selection's activity over the histogram. With `incident`, the
+     * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
+     */
+    readonly of?: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
+    };
 }
 
 /** Node and edge ids. */
@@ -145,8 +152,16 @@ export interface TimeStepEvent {
     readonly cause: "play" | "step" | "seek" | "window";
 }
 
-/** A window as `time.window` takes it: the attribute defaults to the designated field. */
-export type TimeWindowInput = Omit<TimeWindow, "attribute"> & { readonly attribute?: Path };
+/**
+ * A window as `time.window` takes it: the attribute defaults to the designated field, and a bound
+ * left out keeps the current window's. With no window yet, `from` defaults to the start of the
+ * data and `to` to one step after `from`, so `time.window({ step: "week" })` opens the first week.
+ */
+export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    readonly attribute?: Path;
+    readonly from?: number | string;
+    readonly to?: number | string;
+};
 
 /** How playback moves the window: both ends (`sliding`), or only the end (`cumulative`). */
 export type TimePlayMode = "sliding" | "cumulative";
@@ -611,7 +626,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param input - The window as given.
      * @returns The window.
      */
-    const complete = (input: TimeWindowInput): TimeWindow => {
+    const complete = (input: TimeWindowInput & Pick<TimeWindow, "from" | "to">): TimeWindow => {
         const field = fieldNow();
         const designated = field?.edges ?? field?.nodes;
         const attribute =
@@ -716,8 +731,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const opening = (options: TimePlayOptions = {}): TimeWindow => {
         const extent = extentNow();
-        const start = extent?.from ?? 0;
         const step = options.step ?? (extent === null ? 1 : Math.max(1, (extent.to - extent.from) / 20));
+        // A calendar step starts on its boundary (midnight, the first of the month), in UTC.
+        const first = extent?.from ?? 0;
+        const start = isCalendarStep(step) ? alignTo(first, step) : first;
 
         return complete({
             from: start,
@@ -725,6 +742,28 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             step,
             ...(options.mode === undefined ? {} : { mode: options.mode }),
         });
+    };
+
+    /**
+     * A window input with its bounds filled: from the current window, else a first window one step
+     * wide at the start of the data.
+     * @param input - The window as given.
+     * @returns The input with both bounds.
+     */
+    const filled = (input: TimeWindowInput): TimeWindowInput & Pick<TimeWindow, "from" | "to"> => {
+        if (input.from !== undefined && input.to !== undefined) {
+            return { ...input, from: input.from, to: input.to };
+        }
+
+        const defined = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+        const base =
+            visibility.window ??
+            opening({
+                ...(input.step === undefined ? {} : { step: input.step }),
+                ...(input.mode === undefined ? {} : { mode: input.mode }),
+            });
+
+        return { ...base, ...defined };
     };
 
     /**
@@ -912,6 +951,24 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        if (kind === "edge" && options.of.incident === true) {
+            const ends = new Set<number>();
+            for (const id of options.of.nodes ?? []) {
+                const row = graph.ids.indexOf(id);
+                if (row !== INVALID_INDEX) {
+                    ends.add(row);
+                }
+            }
+
+            if (ends.size > 0) {
+                for (let edge = 0; edge < graph.edgeCount; edge++) {
+                    if (ends.has(graph.edgeSource(edge)) || ends.has(graph.edgeTarget(edge))) {
+                        rows.add(edge);
+                    }
+                }
+            }
+        }
+
         return (row) => rows.has(row) && (mask === null || mask[row] === 1);
     };
 
@@ -1081,7 +1138,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         window(input: TimeWindowInput | null): Run<FilterResult> {
-            const next = input === null ? null : complete(input);
+            const next = input === null ? null : complete(filled(input));
             const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
             const run = visibility.setWindow(next);
             run.then(

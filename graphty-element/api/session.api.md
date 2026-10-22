@@ -5097,6 +5097,7 @@ export interface TimeBinsOptions {
     readonly of?: {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
     };
     readonly scope?: "all" | "visible";
     readonly step?: TimeStep;
@@ -5223,8 +5224,10 @@ export interface TimeWindow {
 }
 
 // @public
-export type TimeWindowInput = Omit<TimeWindow, "attribute"> & {
+export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
     readonly attribute?: Path;
+    readonly from?: number | string;
+    readonly to?: number | string;
 };
 
 // @public

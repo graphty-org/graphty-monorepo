@@ -171,6 +171,17 @@ describe("session.time: bins", () => {
             ofTwo.map((bin) => bin.edges),
             [1, 1, 0, 0],
         );
+        // Node c's edges are b-c (day 2) and c-d (day 3); incident counts them for a node selection.
+        const ofC = time.bins({ step: "day", of: { nodes: ["c"], incident: true } }) ?? [];
+        assert.deepStrictEqual(
+            ofC.map((bin) => bin.edges),
+            [0, 1, 1, 0],
+        );
+        const withoutIncident = time.bins({ step: "day", of: { nodes: ["c"] } }) ?? [];
+        assert.strictEqual(
+            withoutIncident.reduce((sum, bin) => sum + bin.edges, 0),
+            0,
+        );
 
         await time.window({ from: T0, to: T0 + 2 * DAY });
         const visible = time.bins({ step: "day", scope: "visible" }) ?? [];
@@ -178,6 +189,27 @@ describe("session.time: bins", () => {
             visible.map((bin) => bin.edges),
             [1, 1, 0, 0],
         );
+        harness.session.dispose();
+    });
+
+    it("fill bounds left out: from the window, else one step at the start of the data", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ step: "day" });
+        assert.deepInclude(time.current, { from: T0, to: T0 + DAY, step: "day" });
+        await time.window({ mode: "cumulative", results: "keep" });
+        assert.deepInclude(time.current, { from: T0, to: T0 + DAY, step: "day", mode: "cumulative", results: "keep" });
+        harness.session.dispose();
+    });
+
+    it("start a first calendar window on the step's boundary", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b", sent: "2026-01-01T08:05:00Z" }]);
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ step: "day" });
+        assert.deepInclude(time.current, { from: T0, to: T0 + DAY });
         harness.session.dispose();
     });
 

@@ -28,6 +28,7 @@ import {
     repoPath,
     selectChange,
     selectedCommand,
+    strip,
 } from "./test-select.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -122,6 +123,47 @@ function runShard(wt, shard, command) {
     return `${r.stdout}\n${r.stderr}`;
 }
 
+/**
+ * Breaks one file, runs the shards and reports what the selection missed.
+ * @param m what to mutate
+ * @param m.wt the scratch worktree
+ * @param m.pkg the package directory
+ * @param m.file the repo-relative file to break
+ * @param m.shards the package's plain shards
+ * @param m.graphs buildGraphs() of the unbroken package
+ * @returns the number of misses
+ */
+async function mutateOne({ wt, pkg, file, shards, graphs }) {
+    const sel = measuredOf((await selectChange(wt, [file], shards, graphs)).shards);
+    const original = readFileSync(join(wt, file), "utf8");
+    writeFileSync(join(wt, file), mutant(file, original));
+    const runs = [];
+    try {
+        for (const shard of shards) {
+            runs.push({ shard, log: runShard(wt, shard, selectedCommand(wt, shard, null)) });
+        }
+    } finally {
+        writeFileSync(join(wt, file), original);
+    }
+    let misses = 0;
+    for (const { shard, log } of runs) {
+        const s = sel.find((x) => x.shard === shard.shard);
+        const selected = s.mode === "all" ? null : s.files.map((f) => f.file);
+        const failing = failingFiles(log).files.map((f) => repoPath(pkg, f));
+        const stillFails = (f) =>
+            /Test Files\s.*\bfailed\b/u.test(strip(runShard(wt, shard, selectedCommand(wt, shard, [f]))));
+        const v = judge(selected, failing, stillFails);
+        misses += v.misses.length;
+        const what = selected === null ? "whole shard" : `${selected.length} selected`;
+        const flaky = v.flaky.length > 0 ? `, flaky: ${v.flaky.join(" ")}` : "";
+        const missed = v.misses.length > 0 ? `, MISSED: ${v.misses.join(" ")}` : "";
+        console.log(
+            `${file} -> ${shard.shard}: ${what}, ${failing.length} failed, ${v.over} selected without failing${flaky}${missed}`,
+        );
+    }
+    return misses;
+}
+
 async function main(argv) {
     const pkg = argv[0];
     const opt = (name, dflt) => {
@@ -152,33 +194,7 @@ async function main(argv) {
     const graphs = buildGraphs(wt, [pkg], shards);
     let misses = 0;
     for (const file of picked) {
-        const sel = measuredOf((await selectChange(wt, [file], shards, graphs)).shards);
-        const original = readFileSync(join(wt, file), "utf8");
-        writeFileSync(join(wt, file), mutant(file, original));
-        const runs = [];
-        try {
-            for (const shard of shards) {
-                const log = runShard(wt, shard, selectedCommand(wt, shard, null));
-                runs.push({ shard, log });
-            }
-        } finally {
-            writeFileSync(join(wt, file), original);
-        }
-        for (const { shard, log } of runs) {
-            const s = sel.find((x) => x.shard === shard.shard);
-            const selected = s.mode === "all" ? null : s.files.map((f) => f.file);
-            const failing = failingFiles(log).files.map((f) => repoPath(pkg, f));
-            const stillFails = (f) =>
-                !/Test Files\s.*\bpassed\b/u.test(runShard(wt, shard, selectedCommand(wt, shard, [f])));
-            const v = judge(selected, failing, stillFails);
-            misses += v.misses.length;
-            const what = selected === null ? "whole shard" : `${selected.length} selected`;
-            console.log(
-                `${file} -> ${shard.shard}: ${what}, ${failing.length} failed, ${v.over} selected without failing` +
-                    (v.flaky.length ? `, flaky: ${v.flaky.join(" ")}` : "") +
-                    (v.misses.length ? `, MISSED: ${v.misses.join(" ")}` : ""),
-            );
-        }
+        misses += await mutateOne({ wt, pkg, file, shards, graphs });
     }
     console.log(misses === 0 ? `No misses in ${picked.length} mutant(s).` : `${misses} miss(es).`);
     return misses === 0 ? 0 : 1;

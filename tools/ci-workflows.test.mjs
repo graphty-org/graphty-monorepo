@@ -189,7 +189,8 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
         assert.match(
             code(tool("prepush-tests.mjs")),
-            /const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", shard.shard\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
+            // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n\s+const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", \.\.\.what\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -283,7 +284,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
         // The runner's fonts, which visual-fonts/ is a snapshot of: this machine has no emoji font.
         assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
-        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
+        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", \.\.\.what/);
         for (const s of SHARDS) {
             // A shard that names its own COVERAGE_DIR (webgpu-graph-algorithms' device-error pass) writes
             // where no other shard does.

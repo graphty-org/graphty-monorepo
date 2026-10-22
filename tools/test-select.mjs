@@ -609,7 +609,8 @@ const NX_COVERAGE = /^pnpm exec nx run ([^:\s]+):coverage --exclude-task-depende
 const PLAIN_VITEST = /^cd (\S+) && ((?:[A-Z_]+=\S+ )*)pnpm exec vitest run((?: \S+)*)$/u;
 // Arguments of a shard's vitest run that only shape its output, its coverage or its slice.
 const DROPPED = /^(--coverage|--shard=\S+|--reporter=\S+|\$\{[A-Z_]+:\+--reporter=[^}]+\})$/u;
-const quote = (s) => `'${s.replaceAll("'", String.raw`'\''`)}'`;
+const ESCAPED_QUOTE = String.raw`'\''`;
+const quote = (s) => `'${s.replaceAll("'", ESCAPED_QUOTE)}'`;
 
 /**
  * A shard's command as one plain `vitest run` without coverage or slice: its package and the arguments

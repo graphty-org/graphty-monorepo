@@ -287,6 +287,19 @@ function selectRuns(gated, base) {
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 
 /**
+ * The note on a selected run's PASS line.
+ * @param shard a shard entry, selected or not
+ * @returns text, empty for a whole shard
+ */
+function selectedNote(shard) {
+    if (!shard.selected) {
+        return "";
+    }
+    const slices = shard.covers.length > 1 ? ", for " + shard.covers.join(", ") : "";
+    return ` [selected: ${shard.selected.length} test file(s)${slices}]`;
+}
+
+/**
  * Shards that already passed with byte-identical inputs (tools/prepush-inputs.mjs) are not run again;
  * every other shard runs, and a pass is recorded when the shard's inputs are the same after it as
  * before it. PREPUSH_RERUN_ALL=1 or an unreadable package graph skips nothing.
@@ -473,10 +486,9 @@ async function main() {
                 results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 if (verdict.pass) {
                     warmed.add(family(shard));
-                    const sel = shard.selected
-                        ? ` [selected: ${shard.selected.length} test file(s)${shard.covers.length > 1 ? `, for ${shard.covers.join(", ")}` : ""}]`
-                        : "";
-                    console.log(`  [PASS] ${shard.shard}${sel} (${secs}s)${passes.record(shard, text)}`);
+                    console.log(
+                        `  [PASS] ${shard.shard}${selectedNote(shard)} (${secs}s)${passes.record(shard, text)}`,
+                    );
                     next();
                     return;
                 }

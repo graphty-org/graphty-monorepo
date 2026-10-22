@@ -32,7 +32,6 @@ import {
     type Target,
     writeIn,
 } from "./row";
-import { pickerChoices, pickerSlot, pickShader, SHADER_CHOICE } from "./shaderSlots";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
@@ -47,6 +46,7 @@ import {
     fieldName,
     firstValueWords,
     hexOf,
+    hiddenByWords,
     isPercent,
     LAYER_TOKEN,
     listWords,
@@ -321,6 +321,21 @@ const COVERED_NAMES = 3;
  * @returns The line; the count is drawn on one line ("on 24 of 24", never "on 2" above "4 of 24")
  */
 function CoveredLine({ session, over }: Readonly<{ session: GraphSession; over: PaintedOver }>): React.JSX.Element {
+    if (over.hiddenBy !== undefined) {
+        // The row's own shader draws instead of the node: the value is kept, and comes back when
+        // the shader moves to another place.
+        return (
+            <Text
+                size="xs"
+                c="var(--cm-text-secondary)"
+                className="ws-field-covered"
+                data-covered-caption
+                data-hidden-by
+            >
+                {hiddenByWords(over.hiddenBy)}
+            </Text>
+        );
+    }
     const rest = over.by.length - COVERED_NAMES;
     const shown = rest > 1 ? COVERED_NAMES : over.by.length;
     const between = (at: number): string => {
@@ -1126,20 +1141,9 @@ export function Field({
             listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
         );
     };
-    // Shape lists the sprites after its shapes, Pattern the edge surfaces after its patterns
-    // (shader-styles design, 6.1): a pick writes the shader, as the gallery does, not the property.
-    const picker = pickerSlot(channel);
-    const extraChoices = picker === undefined ? undefined : pickerChoices(ctx, picker);
-    const pick = (value: ChannelValue): void => {
-        if (picker === undefined || typeof value !== "string" || !value.startsWith(SHADER_CHOICE)) {
-            writeValue(value);
-            return;
-        }
-        if (own === undefined && partly === undefined) {
-            onCancel?.();
-        }
-        pickShader(ctx, picker, value.slice(SHADER_CHOICE.length)).catch(fail);
-    };
+    // A property's own list offers only its own choices: shaders are added in the Shaders section.
+    const extraChoices: ExtraChoices = undefined;
+    const pick = writeValue;
     const remove = (): void => {
         removeField({ ctx, channel, name, lines, box, store, onCancel });
     };

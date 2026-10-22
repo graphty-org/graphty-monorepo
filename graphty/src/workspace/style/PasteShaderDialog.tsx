@@ -1,41 +1,45 @@
-import { ModalFooter } from "@graphty/compact-mantine";
-import { parseShaderText, type ShaderParams } from "@graphty/graphty-element/catalog";
+import { ModalFooter, PanelField } from "@graphty/compact-mantine";
+import { type ShaderParams, type ShaderPlace, shaderTemplate } from "@graphty/graphty-element/catalog";
 import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/session";
-import { Button, Modal, NativeSelect, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import { Button, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
+import { PlaceDiagram } from "./ShaderGallery";
 import {
+    DIALOG_PLACES,
+    dialogPlaceWords,
     failureWords,
+    FIRST_PLACE,
+    GALLERY_WORDS,
     PASTE_WAIT_WORDS,
     pasteProblemsWord,
     pasteProblemWords,
-    SHADER_HOME_WORDS,
-    SHADER_KIND_WORDS,
-    shaderPlaceOf,
     shaderPlaceWords,
-    type ShaderSlotKind,
-    shaderSlotKindOf,
+    type ShaderTab,
+    targetOfPlace,
 } from "./words";
 
 /** How long typing pauses before the text is checked. */
 const CHECK_PAUSE_MS = 300;
 
-/** Every kind of shader, in the Kind select's order, as the panel's sections hold them. */
-const KINDS: readonly ShaderSlotKind[] = [
-    "node-surface",
-    "node-sprite",
-    "node-effect",
-    "edge-surface",
-    "edge-effect",
-    "boundary",
-    "background",
-];
+/**
+ * The working template for a place on a tab, from the element.
+ * @param tab - the tab.
+ * @param place - the place, none for the background.
+ * @returns the template's text.
+ */
+function templateOf(tab: ShaderTab, place: ShaderPlace | undefined): string {
+    const target = targetOfPlace(tab, place);
+    return shaderTemplate(target === "background" ? { target } : { target, place });
+}
 
-/** What the dialog opens with: text to start from, and the shader it duplicates. */
+/** What the dialog opens with: text to start from, the place, and the shader it duplicates. */
 export interface PasteInit {
-    /** The text in the code box; absent: the session's unsent draft. */
+    /** The text in the code box; absent: the session's unsent draft, else the place's template. */
     readonly text?: string;
+    /** The place it starts at (the gallery's filter); absent: the tab's first place. */
+    readonly place?: ShaderPlace;
     /** The shader this text is a copy of (Duplicate and edit): a pick equal to it still adds a copy. */
     readonly duplicateOf?: string;
 }
@@ -65,11 +69,11 @@ function offsetOf(text: string, line: number, column: number): number {
 /** Props for PasteShaderDialog. */
 interface PasteShaderDialogProps {
     readonly session: GraphSession;
-    /** The kinds the opening section takes; the first is the Kind select's start. */
-    readonly kinds: readonly ShaderSlotKind[];
+    /** The list it opens for: a tab's Shaders, or the Background. */
+    readonly tab: ShaderTab;
     /**
-     * Writes a shader where the opening section draws it (a layer's row, the background), through
-     * the scope given, so the add and the write are one undo step.
+     * Writes a shader where the opening list draws it (a layer's row at the shader's own place,
+     * the background), through the scope given, so the add and the write are one undo step.
      */
     readonly put: (scope: GraphSession, id: string, params: ShaderParams) => Promise<void>;
     readonly init: PasteInit;
@@ -77,43 +81,48 @@ interface PasteShaderDialogProps {
 }
 
 /**
- * Paste shader (shader-styles design, section 6.4), titled Edit shader for Duplicate and edit: the
- * code box, a Kind select that starts at the kind the text's header names, else the one the opening
- * section takes, the problems the element finds as rows that put the cursor on their line (a
- * problem with no line is plain text), and Add. While typing pauses the text gets every check Add
- * makes, compiling included; the problems are announced and mark the code box invalid. Add adds it
- * to the project and puts it where the section draws it, as one undo step; a kind the section does
- * not take keeps the dialog open and names the section that does. Text whose body equals a known
- * shader's applies that one with the parameter values it differs by. A failed paste changes
- * nothing. Escape closes the dialog from any control in it and keeps the text as an unsent draft.
+ * The code dialog (decisions-v2, section 2.2), New shader, or Edit shader for Duplicate and edit:
+ * its first field is the place, with the same words and diagrams as the gallery's filter, preset
+ * from the filter (the tab's first place under All), and the code box starts with that place's
+ * template, which follows the field until the reader types or pastes over it. Under it the
+ * problems the element finds, as rows that put the cursor on their line (a problem with no line is
+ * plain text), and Add. While typing pauses the text gets every check Add makes, compiling
+ * included; the problems are announced and mark the code box invalid. Add adds it to the project
+ * and puts it where the list draws it, as one undo step. Text whose body equals a known shader's
+ * applies that one with the parameter values it differs by. A failed paste changes nothing.
+ * Escape closes the dialog from any control in it and keeps the text as an unsent draft.
  * @param props - Component props
  * @param props.session - the element's session
- * @param props.kinds - the kinds the opening section takes
- * @param props.put - writes a shader where the section draws it
- * @param props.init - the text to start from
+ * @param props.tab - the list it opens for
+ * @param props.put - writes a shader where the list draws it
+ * @param props.init - the text and place to start from
  * @param props.onClose - closes the dialog
  * @returns The dialog
  */
 export function PasteShaderDialog({
     session,
-    kinds,
+    tab,
     put,
     init,
     onClose,
 }: Readonly<PasteShaderDialogProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const problemsId = useId();
-    const [text, setText] = useState(() => init.text ?? drafts.get(session) ?? "");
-    // The kind the reader picked, else the one the text's header names, else the section's.
-    const [picked, setPicked] = useState<ShaderSlotKind | null>(null);
-    const [headerKind, setHeaderKind] = useState<ShaderSlotKind | undefined>(undefined);
-    const kind = picked ?? headerKind ?? kinds[0] ?? "node-effect";
+    const places = DIALOG_PLACES[tab];
+    const [place, setPlace] = useState<ShaderPlace | undefined>(() => init.place ?? FIRST_PLACE[tab]);
+    const [text, setText] = useState(() => init.text ?? drafts.get(session) ?? templateOf(tab, place));
+    const target = targetOfPlace(tab, place);
     // The check of the text as it is now; null while it is pending.
     const [result, setResult] = useState<ShaderAddResult | null>(null);
     const [adding, setAdding] = useState(false);
     const box = useRef<HTMLTextAreaElement>(null);
     const textNow = useRef(text);
     textNow.current = text;
+    const options = {
+        target,
+        ...(place === undefined || place === "group" ? {} : { place }),
+        onTaken: "rename",
+    } as const;
 
     useEffect(() => {
         setResult(null);
@@ -121,11 +130,7 @@ export function PasteShaderDialog({
             return undefined;
         }
         const timer = setTimeout(() => {
-            // Text with no place of its own takes the section's; text that names another place keeps it.
-            const here = parseShaderText(text, shaderPlaceOf(kinds[0] ?? "node-effect"));
-            const read = here.ok ? here : parseShaderText(text);
-            setHeaderKind(read.ok ? shaderSlotKindOf(read.registration.descriptor) : undefined);
-            void session.shaders.check(text, { ...shaderPlaceOf(kind), onTaken: "rename" }).then((checked) => {
+            void session.shaders.check(text, options).then((checked) => {
                 if (textNow.current === text) {
                     setResult(checked);
                 }
@@ -134,7 +139,17 @@ export function PasteShaderDialog({
         return () => {
             clearTimeout(timer);
         };
-    }, [session, text, kind, kinds]);
+        // The options are the target and place, which the dependencies name.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session, text, target, place]);
+
+    const pickPlace = (next: ShaderPlace): void => {
+        // The template follows the field until the reader writes over it.
+        if (text.trim() === "" || text === templateOf(tab, place)) {
+            setText(templateOf(tab, next));
+        }
+        setPlace(next);
+    };
 
     const close = (added: boolean): void => {
         if (added) {
@@ -145,11 +160,6 @@ export function PasteShaderDialog({
         onClose();
     };
 
-    // A shader of a kind the section does not take: the section that does.
-    const home =
-        result?.ok === true && !kinds.includes(shaderSlotKindOf(result.descriptor))
-            ? SHADER_HOME_WORDS[shaderSlotKindOf(result.descriptor)]
-            : undefined;
     let waitWord: string | undefined;
     if (text.trim() === "") {
         waitWord = PASTE_WAIT_WORDS.empty;
@@ -157,11 +167,9 @@ export function PasteShaderDialog({
         waitWord = PASTE_WAIT_WORDS.checking;
     } else if (!result.ok) {
         waitWord = pasteProblemsWord(result.problems.length);
-    } else {
-        waitWord = home;
     }
     // What the checks found is said once it is found, as the rows show it.
-    const found = result !== null && !result.ok ? pasteProblemsWord(result.problems.length) : home;
+    const found = result !== null && !result.ok ? pasteProblemsWord(result.problems.length) : undefined;
     useEffect(() => {
         if (found !== undefined) {
             store.set({ announcement: found });
@@ -171,24 +179,20 @@ export function PasteShaderDialog({
     const add = async (): Promise<void> => {
         setAdding(true);
         try {
-            const checked = await session.shaders.check(text, { ...shaderPlaceOf(kind), onTaken: "rename" });
+            const checked = await session.shaders.check(text, options);
             if (!checked.ok) {
-                setResult(checked);
-                return;
-            }
-            // A kind the section does not take stays here, its home named; nothing is added.
-            if (!kinds.includes(shaderSlotKindOf(checked.descriptor))) {
                 setResult(checked);
                 return;
             }
             const same = checked.sameAs;
             if (same !== undefined && same.id !== init.duplicateOf) {
+                // At its own place: the text's header names it, or the field gave it to text that names none.
                 await put(session, same.id, same.params);
                 store.set({ announcement: `${checked.descriptor.plainName} added` });
                 close(true);
                 return;
             }
-            const added = await session.shaders.add(text, { ...shaderPlaceOf(kind), onTaken: "rename" });
+            const added = await session.shaders.add(text, options);
             if (!added.ok) {
                 setResult(added);
                 return;
@@ -223,7 +227,7 @@ export function PasteShaderDialog({
     };
 
     const problems = result !== null && !result.ok ? result.problems : [];
-    const invalid = problems.length > 0 || home !== undefined;
+    const invalid = problems.length > 0;
     // After every render, as the box is drawn: Mantine writes the attribute itself when it renders.
     useLayoutEffect(() => {
         if (invalid) {
@@ -238,23 +242,34 @@ export function PasteShaderDialog({
             onClose={() => {
                 close(false);
             }}
-            title={init.duplicateOf === undefined ? "Paste shader" : "Edit shader"}
+            title={init.duplicateOf === undefined ? "New shader" : "Edit shader"}
             size="lg"
         >
             <Stack gap="xs">
-                <NativeSelect
-                    size="xs"
-                    label="Kind"
-                    value={kind}
-                    data={KINDS.map((each) => ({ value: each, label: SHADER_KIND_WORDS[each] }))}
-                    onChange={(event) => {
-                        setPicked(KINDS.find((each) => each === event.currentTarget.value) ?? null);
-                    }}
-                />
+                {places.length > 0 && (
+                    <PanelField
+                        label={GALLERY_WORDS.place}
+                        kind="select"
+                        width="fill"
+                        data-autofocus
+                        value={place ?? null}
+                        data={places.map((each) => ({ value: each, label: dialogPlaceWords(each, tab) }))}
+                        glyph={<PlaceDiagram place={place} tab={tab} />}
+                        optionGlyphs={Object.fromEntries(
+                            places.map((each) => [each, <PlaceDiagram key={each} place={each} tab={tab} />]),
+                        )}
+                        onChange={(picked) => {
+                            const next = places.find((each) => each === picked);
+                            if (next !== undefined) {
+                                pickPlace(next);
+                            }
+                        }}
+                    />
+                )}
                 <Textarea
                     ref={box}
                     aria-label="Shader code"
-                    data-autofocus
+                    data-autofocus={places.length === 0 ? true : undefined}
                     autosize
                     minRows={12}
                     maxRows={24}
@@ -304,11 +319,6 @@ export function PasteShaderDialog({
                             );
                         })}
                     </div>
-                )}
-                {home !== undefined && (
-                    <Text className="ws-paste-problem" id={problemsId} data-home>
-                        {home}
-                    </Text>
                 )}
             </Stack>
             <ModalFooter>

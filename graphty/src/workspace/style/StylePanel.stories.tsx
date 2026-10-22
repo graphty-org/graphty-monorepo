@@ -368,7 +368,7 @@ export const NewLayer: Story = sceneStory(async () => {
     await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
 });
 
-// Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, effects.
+// Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, shaders.
 
 /** Key people's Size by a value: the value picker open from the vary glyph. */
 export const VaryBy: Story = sceneStory(async () => {
@@ -490,11 +490,18 @@ export const LabelSettings: Story = sceneStory(async () => {
     await page().findByRole("dialog", { name: "Label settings" }, storyWaitOptions(1000));
 });
 
-/** Key people's Effects "+": the effects the layer does not draw yet. */
-export const EffectsMenu: Story = sceneStory(async () => {
+/** Key people's Shape "+": the options the layer does not set yet, Wireframe, Outline, Glow and Halo among them. */
+export const ShapeMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node effects" }));
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
     await page().findAllByRole("menuitem", {}, storyWaitOptions(1000));
+});
+
+/** Key people's Shaders "+": the one gallery, its search, the place and origin filters and the tiles. */
+export const ShadersGallery: Story = sceneStory(async () => {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shaders" }));
+    await page().findByTestId("shader-gallery", {}, storyWaitOptions(1000));
 });
 
 // Checkpoint 3: the Values tab and Graph settings.

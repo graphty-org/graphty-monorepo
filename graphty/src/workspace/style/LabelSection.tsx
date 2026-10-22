@@ -86,7 +86,7 @@ const LOCATIONS = [
  */
 function styleOf(line: Line | undefined): LabelStyle {
     const value = line?.value;
-    return typeof value === "object" && !("r" in value) ? value : {};
+    return typeof value === "object" && !Array.isArray(value) && !("r" in value) ? (value as LabelStyle) : {};
 }
 
 /**

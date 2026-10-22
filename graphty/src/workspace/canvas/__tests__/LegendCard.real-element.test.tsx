@@ -504,28 +504,28 @@ describe("the canvas key on the real element", () => {
             name: "Glowing",
             target: "node",
             selector: { match: "ids", nodes: ids.slice(0, 5) },
-            set: { "node.effects": { "uncertainty-aura": true } },
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }] },
         });
         await session.styles.settled();
         await element?.waitForStableFrame();
-        // A style write of an effect is no reason for the key to come up.
+        // A style write of a shader is no reason for the key to come up.
         assert.isNull(screen.queryByRole("region", { name: "Legend" }));
         assert.isFalse(store.get().keyHasEntries);
 
-        // Asked for, the key names the effect, as the catalog does.
+        // Asked for, the key names the shader, as the catalog does.
         store.set({ legendShown: true, legendAsked: true });
         const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const section = await within(legend).findByRole("group", { name: "Effects: Glowing" });
+        const section = await within(legend).findByRole("group", { name: "Shaders: Glowing" });
         assert.deepEqual(
             [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
             ["Aura"],
         );
 
-        // An effect hidden by its eye draws nothing, so its block goes: no empty "Effects" block.
-        await session.styles.update(layer.id, { set: { "node.effects": { "uncertainty-aura": { visible: false } } } });
+        // A shader the layer turns off draws nothing, so its block goes: no empty "Shaders" block.
+        await session.styles.update(layer.id, { set: { "node.shaders": [{ shader: "uncertainty-aura", off: true }] } });
         await session.styles.settled();
         await waitFor(() => {
-            assert.isNull(within(legend).queryByRole("group", { name: /^Effects/ }));
+            assert.isNull(within(legend).queryByRole("group", { name: /^Shaders/ }));
         });
     });
 });

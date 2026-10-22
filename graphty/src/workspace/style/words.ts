@@ -15,8 +15,8 @@ import {
     NODE_SHAPE_DESCRIPTORS,
     type ShaderDescriptor,
     type ShaderInput,
+    type ShaderPlace,
     type ShaderProblem,
-    type ShaderTextOptions,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
@@ -50,11 +50,8 @@ export interface SectionSpec {
     readonly title: string;
     /** Its properties, in menu order. */
     readonly channels: readonly Channel[];
-    /**
-     * The kinds of shader the section's shader channel takes here: a sprite in Shape, a surface in
-     * Rendering (its Material row), an edge surface in Line, effects in Effects.
-     */
-    readonly shaderKinds?: readonly ShaderSlotKind[];
+    /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
+    readonly shaders?: boolean;
 }
 
 /**
@@ -123,33 +120,23 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "shape",
             title: "Shape",
-            // Its sprite row writes node.shader, whose home is Rendering's list; the slot draws it here.
-            channels: ["node.shape", "node.size"],
-            shaderKinds: ["node-sprite"],
-        },
-        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
-        { id: "text", title: "Text", channels: textChannels("node") },
-        { id: "fill", title: "Fill", channels: ["node.color"] },
-        {
-            id: "effects",
-            title: "Effects",
+            // Wireframe, Outline, Glow and Halo are style options of the shape, never shaders.
             channels: [
+                "node.shape",
+                "node.size",
+                "node.wireframe",
                 "node.outline",
                 "node.glow",
                 "node.glowStrength",
                 "node.haloColor",
                 "node.haloScale",
                 "node.haloOpacity",
-                "node.effects",
             ],
-            shaderKinds: ["node-effect"],
         },
-        {
-            id: "rendering",
-            title: "Rendering",
-            channels: ["node.wireframe", "node.shader", "node.shaderParams"],
-            shaderKinds: ["node-surface"],
-        },
+        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
+        { id: "text", title: "Text", channels: textChannels("node") },
+        { id: "fill", title: "Fill", channels: ["node.color"] },
+        { id: "shaders", title: "Shaders", channels: ["node.shaders"], shaders: true },
     ],
     edge: [
         { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
@@ -157,18 +144,20 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "line",
             title: "Line",
+            // Band is a line option, a flat stripe under the line, never a shader.
             channels: [
                 "edge.color",
                 "edge.width",
                 "edge.style",
                 "edge.patternCount",
+                "edge.animationSpeed",
                 "edge.curvature",
                 "edge.taper",
                 "edge.lift",
-                "edge.shader",
-                "edge.shaderParams",
+                "edge.bandColor",
+                "edge.bandWidth",
+                "edge.bandOpacity",
             ],
-            shaderKinds: ["edge-surface"],
         },
         {
             id: "ends",
@@ -184,12 +173,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "edge.arrowTailOpacity",
             ],
         },
-        {
-            id: "effects",
-            title: "Effects",
-            channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity", "edge.effects"],
-            shaderKinds: ["edge-effect"],
-        },
+        { id: "shaders", title: "Shaders", channels: ["edge.shaders"], shaders: true },
     ],
 };
 
@@ -199,8 +183,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
  */
 export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boolean, string])[]>>> = {
     "node.wireframe": [
-        [false, "Solid"],
-        [true, "Wireframe"],
+        [true, "On"],
+        [false, "Off"],
     ],
     "node.visible": [
         [true, "Shown"],
@@ -379,12 +363,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelFont": "Label font",
     "edge.labelWeight": "Label weight",
     "edge.labelItalic": "Label italic",
-    "node.shader": "Shader",
-    "node.shaderParams": "Shader parameters",
-    "node.effects": "Effects",
-    "edge.shader": "Shader",
-    "edge.shaderParams": "Shader parameters",
-    "edge.effects": "Effects",
+    "node.shaders": "Shaders",
+    "edge.shaders": "Shaders",
     "edge.taper": "Taper",
     "edge.lift": "Lift",
     "edge.labelWrapWidth": "Label wrap width",
@@ -1125,93 +1105,155 @@ export function firstStyleWords(nodes: number, edges: number): string {
     return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
 
-/**
- * The panel's own names for the places a shader goes, by the element's target and place: the keys
- * of the word tables below.
- */
-export type ShaderSlotKind =
-    "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+/** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
+export type ShaderTab = "node" | "edge" | "background";
 
 /**
- * The panel's name for where a shader goes.
- * @param descriptor - the shader's target and place.
- * @returns the slot kind.
+ * The words the panel shows for a place, by the tab: `paint` and `over` are both "On the node",
+ * since no shader chooses between them (decisions-v2, section 1); an edge's `paint` is "On the line".
+ * @param place - the element's place.
+ * @param tab - the tab the use is on.
+ * @returns the words.
  */
-export function shaderSlotKindOf(descriptor: Pick<ShaderDescriptor, "target" | "place">): ShaderSlotKind {
-    switch (descriptor.target) {
+export function placeWords(place: ShaderPlace | undefined, tab: ShaderTab = "node"): string {
+    switch (place) {
+        case "replace":
+            return "Instead of the node";
+        case "around":
+            return "Around";
+        case "behind":
+            return "Behind";
+        case "along":
+            return "Along the line";
         case "group":
-            return "boundary";
-        case "background":
-            return "background";
-        case "edge":
-            return descriptor.place === "along" ? "edge-effect" : "edge-surface";
+            return "Around the group";
+        case "paint":
+        case "over":
+        case undefined:
+            return tab === "edge" ? "On the line" : "On the node";
         default:
-            if (descriptor.place === "replace") {
-                return "node-sprite";
-            }
-            return descriptor.place === "paint" || descriptor.place === undefined ? "node-surface" : "node-effect";
+            // OPEN UNION: a place a newer element adds is shown by its own name.
+            return String(place);
     }
 }
 
-/**
- * The element's place for one of the panel's slot kinds.
- * @param kind - the slot kind.
- * @returns its target and place, as the element's shader text options take them.
- */
-export function shaderPlaceOf(kind: ShaderSlotKind): ShaderTextOptions {
-    switch (kind) {
-        case "boundary":
-            return { target: "group", place: "group" };
-        case "background":
-            return { target: "background" };
-        case "edge-surface":
-            return { target: "edge", place: "paint" };
-        case "edge-effect":
-            return { target: "edge", place: "along" };
-        case "node-effect":
-            return { target: "node", place: "around" };
-        case "node-sprite":
-            return { target: "node", place: "replace" };
-        default:
-            return { target: "node", place: "paint" };
-    }
+/** One chip of a gallery's place filter: its words, and the places it shows. */
+export interface PlaceFilter {
+    readonly key: string;
+    readonly label: string;
+    /** The places it shows; empty for All. */
+    readonly places: readonly ShaderPlace[];
 }
 
-/**
- * The slot kinds a channel's shader slot takes: a node look is a material or a sprite.
- * @param slot - the channel's slot, if it names shaders.
- * @returns the slot kinds.
- */
-export function slotKindsOf(slot: ChannelDescriptor["shaderSlot"]): readonly ShaderSlotKind[] | undefined {
-    if (slot === undefined) {
-        return undefined;
-    }
-    const effect = slot.role === "effect";
-    switch (slot.target) {
-        case "group":
-            return ["boundary"];
-        case "background":
-            return ["background"];
-        case "edge":
-            return [effect ? "edge-effect" : "edge-surface"];
-        default:
-            return effect ? ["node-effect"] : ["node-surface", "node-sprite"];
-    }
-}
-
-/** What a shader row is called in its label column and its "+" item, by the kind it holds. */
-export const SHADER_ROW_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
-    "node-surface": "Material",
-    "node-sprite": "Sprite",
-    "node-effect": "Effect",
-    "edge-surface": "Surface",
-    "edge-effect": "Effect",
-    background: "Background",
-    boundary: "Outline",
+/** Each tab's place filter, phrased as what the reader wants (decisions-v2, section 2.2). */
+export const PLACE_FILTERS: Readonly<Record<ShaderTab, readonly PlaceFilter[]>> = {
+    node: [
+        { key: "all", label: "All", places: [] },
+        { key: "on", label: "On the node", places: ["paint", "over"] },
+        { key: "replace", label: "Instead of the node", places: ["replace"] },
+        { key: "around", label: "Around", places: ["around"] },
+        { key: "behind", label: "Behind", places: ["behind"] },
+        { key: "group", label: "Around the group", places: ["group"] },
+    ],
+    edge: [
+        { key: "all", label: "All", places: [] },
+        { key: "on", label: "On the line", places: ["paint"] },
+        { key: "along", label: "Along the line", places: ["along"] },
+    ],
+    background: [],
 };
 
-/** The Material row's two choices that are not shaders, before the surfaces. */
-export const MATERIAL_WORDS = { plain: "Plain", wireframe: "Wireframe" } as const;
+/** The gallery's origin filter: every shader, the element's own, or those added to this project. */
+export const ORIGIN_FILTERS = [
+    { key: "all", label: "All" },
+    { key: "builtIn", label: "Built in" },
+    { key: "project", label: "This project" },
+] as const;
+
+/** The place a tab's "New shader..." starts at under All: the tab's first place. */
+export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> = {
+    node: "paint",
+    edge: "paint",
+    background: undefined,
+};
+
+/** The places the code dialog's Place field lists on a tab, in its order. */
+export const DIALOG_PLACES: Readonly<Record<ShaderTab, readonly ShaderPlace[]>> = {
+    node: ["paint", "over", "replace", "around", "behind", "group"],
+    edge: ["paint", "along"],
+    background: [],
+};
+
+/**
+ * The dialog's words for a place: "On the node" twice would be two choices with one name, so the
+ * dialog, where an author writes code for one drawing, names `over` by what it adds.
+ * @param place - the place.
+ * @param tab - the tab.
+ * @returns the words.
+ */
+export function dialogPlaceWords(place: ShaderPlace, tab: ShaderTab): string {
+    return place === "over" ? "On the node, over its paint" : placeWords(place, tab);
+}
+
+/**
+ * The target a tab's shaders draw on: a group outline's on the Node tab is the group.
+ * @param tab - the tab.
+ * @param place - the place.
+ * @returns the target.
+ */
+export function targetOfPlace(
+    tab: ShaderTab,
+    place: ShaderPlace | undefined,
+): "node" | "edge" | "group" | "background" {
+    if (tab === "background") {
+        return "background";
+    }
+    return place === "group" ? "group" : tab;
+}
+
+/**
+ * The caption of a shape row a shader hides: "Hidden: Sticker draws instead of the node".
+ * @param shader - the shader's name.
+ * @returns the words.
+ */
+export function hiddenByWords(shader: string): string {
+    return `Hidden: ${shader} draws instead of the node`;
+}
+
+/** The three neutral facts a gallery tile and a settings pop-out show, as their words. */
+export const SHADER_FACT_WORDS = {
+    animates: "Animates",
+    light: "Reacts to light",
+    cost: (cost: string): string => {
+        switch (cost) {
+            case "light":
+                return "Light to draw";
+            case "medium":
+                return "Medium cost to draw";
+            case "heavy":
+                return "Heavy: costly on a slow device";
+            default:
+                return `Cost: ${cost}`;
+        }
+    },
+} as const;
+
+/** What a tile from the tab's own style options says it is: "Shape option", "Line option". */
+export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
+    node: "Shape option",
+    edge: "Line option",
+};
+
+/** The gallery's words: its search box, the last tile, and an empty result. */
+export const GALLERY_WORDS = {
+    search: (tab: ShaderTab): string => (tab === "background" ? "Find background shader" : `Find ${tab} shader`),
+    tiles: "Shaders",
+    newShader: "New shader...",
+    none: "No match",
+    place: "Place",
+    origin: "Origin",
+    project: "This project",
+} as const;
 
 /**
  * What Undo and Redo call a shader write, by the shader's name and the parameter's: "changing
@@ -1224,6 +1266,9 @@ export const SHADER_STEP_WORDS = {
     swap: (from: string, to: string): string => `changing ${from} to ${to}`,
     remove: (shader: string): string => `removing ${shader}`,
     shown: (shader: string, shown: boolean): string => `${shown ? "showing" : "hiding"} ${shader}`,
+    move: (shader: string): string => `moving ${shader}`,
+    place: (shader: string, place: string): string => `putting ${shader} ${place.toLowerCase()}`,
+    wireframe: (on: boolean): string => (on ? "turning wireframe on" : "turning wireframe off"),
     /** A shader the catalog no longer holds (a pasted one, deleted). */
     unknown: "a shader",
 } as const;
@@ -1233,8 +1278,8 @@ export const SHADER_STEP_WORDS = {
  * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
  */
 const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
+    glass: ["bubble", "3D"],
     "glass-marble": ["glass", "3D", "shiny"],
-    "clear-glass": ["glass", "3D"],
     "frosted-glass": ["glass", "3D"],
     pearl: ["shiny", "3D"],
     gemstone: ["shiny", "3D", "glass"],
@@ -1242,19 +1287,13 @@ const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
     "liquid-metal": ["metal", "shiny", "3D"],
     "anodized-steel": ["metal", "shiny", "3D"],
     "matcap-ink": ["3D"],
-    "toon-outline": ["3D"],
+    "cel-shade": ["3D"],
     halftone: ["3D"],
-    "lantern-glow": ["glow", "3D"],
-    "dew-drop": ["bubble", "glass", "3D"],
+    lantern: ["3D"],
     "foil-shimmer": ["shiny"],
-    hologram: ["shiny", "glow"],
+    hologram: ["shiny"],
     frost: ["glass"],
     "soap-bubble": ["bubble"],
-    "uncertainty-aura": ["glow"],
-    "edge-glow": ["glow"],
-    "fiber-optic": ["glow"],
-    "fiber-packets": ["glow"],
-    "comet-tracers": ["glow"],
 };
 
 /**
@@ -1297,20 +1336,6 @@ export function usesWords(reads: readonly ShaderInput[]): string {
 }
 
 /**
- * The Motion row of a shader whose speed is no parameter (a speed parameter is the row's field):
- * "Moves" or "Still".
- * @param descriptor - the catalog's entry.
- * @returns the words.
- */
-export function motionWords(descriptor: Pick<ShaderDescriptor, "motion">): string {
-    return descriptor.motion.loop === undefined ? "Still" : "Moves";
-}
-
-/** The second line of a heavy tile, and its tooltip. */
-export const HEAVY_WORD = "Heavy";
-export const HEAVY_TIP = "Costly to draw on a slow device";
-
-/**
  * Why a gallery tile cannot be picked here, from the element's coded answer.
  * @param problem - the element's problem.
  * @returns a short reason.
@@ -1343,16 +1368,33 @@ export function effectOffWords(name: string): string {
     return `${name} off`;
 }
 
-/** The paste dialog's Kind select: each kind of shader a style layer draws, by name. */
-export const SHADER_KIND_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
-    "node-surface": "Node material",
-    "node-sprite": "Node sprite",
-    "node-effect": "Node effect",
-    "edge-surface": "Edge surface",
-    "edge-effect": "Edge effect",
-    background: "Background",
-    boundary: "Group outline",
+/** The moments a clock counts from, as a bound parameter's value shows them. */
+const CLOCK_WORDS: Readonly<Record<string, string>> = {
+    "since.matched": "When this layer starts applying",
+    "since.unmatched": "When this layer stops applying",
+    "since.selected": "When selected",
+    "since.deselected": "When deselected",
+    "since.hovered": "When hovered",
+    "since.unhovered": "When no longer hovered",
+    "since.pinned": "When pinned",
+    "since.unpinned": "When unpinned",
+    "since.added": "When added",
+    "since.changed": "When its data changes",
 };
+
+/**
+ * A parameter bound to a clock, as its value reads: "Starts: When this layer starts applying, over
+ * 0.3 s".
+ * @param binding - the binding.
+ * @param binding.by - the clock.
+ * @param binding.domain - the seconds it maps.
+ * @returns the words.
+ */
+export function clockWords(binding: { readonly by: string; readonly domain: readonly [number, number] }): string {
+    const span = binding.domain[1] - binding.domain[0];
+    const moment = CLOCK_WORDS[binding.by] ?? binding.by;
+    return `Starts: ${moment}, over ${String(Math.round(span * 100) / 100)} s`;
+}
 
 /**
  * Where a problem in pasted shader text is: "Line 12:8", or undefined when it has no place.
@@ -1384,9 +1426,11 @@ export function pasteProblemWords(problem: ShaderProblem): string {
         case "shader.header-key":
             return `Header key "${String(p.key)}"`;
         case "shader.target-mismatch":
-            return ["look", "effect"].includes(String(p.found))
-                ? `Written as ${String(p.found) === "look" ? "a look" : "an effect"}`
-                : `Written for ${String(p.found)}s`;
+            return `Written for ${String(p.found)}s`;
+        case "shader.place-unsupported":
+            return `Cannot draw ${placeWords(p.place as ShaderPlace).toLowerCase()}`;
+        case "shader.min-size-place":
+            return "Minimum size needs a place outside the node";
         case "shader.id-invalid":
             return `Bad id "${String(p.id)}"`;
         case "shader.id-taken":
@@ -1441,26 +1485,6 @@ export function pasteProblemWords(problem: ShaderProblem): string {
 export function copyNameWords(name: string): string {
     return `${name} copy`;
 }
-
-/**
- * Why a Material row cannot be added: the layer draws a sprite, the one shader a node has.
- * @param sprite - the sprite's name.
- * @returns the words.
- */
-export function materialBlockedWords(sprite: string): string {
-    return `${sprite} is set in Shape`;
-}
-
-/** Where each kind of shader is set, which the paste dialog names for a kind its section does not take. */
-export const SHADER_HOME_WORDS: Readonly<Record<ShaderSlotKind, string>> = {
-    "node-surface": "Goes in Node > Rendering",
-    "node-sprite": "Goes in Node > Shape",
-    "node-effect": "Goes in Node > Effects",
-    "edge-surface": "Goes in Edge > Line",
-    "edge-effect": "Goes in Edge > Effects",
-    background: "Goes in Graph settings > Background",
-    boundary: "Goes in Node > Group outline",
-};
 
 /** Why the paste dialog's Add cannot be pressed yet. */
 export const PASTE_WAIT_WORDS = { empty: "Nothing to add", checking: "Checking" } as const;
@@ -1552,29 +1576,14 @@ export function usedByWords(count: number): string {
     return `Used by ${String(count)}`;
 }
 
-/** The Node tab's Group outline section: its title, rows, pop-outs and what its writes are called. */
-export const GROUP_OUTLINE_WORDS = {
-    title: "Group outline",
-    outline: "Outline",
-    groupBy: "Group by",
+/** A group outline's Group by line: "Group by Louvain", or "Group by None" for one outline around all. */
+export const GROUP_BY_WORDS = {
+    title: "Group by",
     /**
-     * The Group by line under the outline: "Group by Louvain", or "Group by..." while none is picked.
-     * @param value - what it groups by, or undefined while none is picked.
+     * The line under the outline.
+     * @param value - what it groups by.
      * @returns the words.
      */
-    line: (value?: string): string => (value === undefined ? "Group by..." : `Group by ${value}`),
+    line: (value: string): string => `Group by ${value}`,
     none: "None",
-    mixed: "Mixed",
-    find: "Find outline",
-    copy: "Copy shader",
-    remove: "Remove group outline",
-    /**
-     * The history's name for a write: "changing the group outline on 3 layers".
-     * @param layers - how many layers it writes.
-     * @returns the words.
-     */
-    step: (layers: number): string =>
-        layers === 1 ? "changing the group outline" : `changing the group outline on ${String(layers)} layers`,
-    added: (name: string): string => `${name} added`,
-    removed: (name: string): string => `${name} removed`,
 } as const;

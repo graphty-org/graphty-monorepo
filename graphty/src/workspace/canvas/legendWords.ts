@@ -11,7 +11,7 @@
  */
 
 import type { ScreenshotLegendSection } from "@graphty/graphty-element";
-import type { Channel } from "@graphty/graphty-element/catalog";
+import type { Channel, ShaderUse } from "@graphty/graphty-element/catalog";
 import {
     type GraphSession,
     type LegendBlock,
@@ -110,8 +110,8 @@ export function dataBlocks(session: GraphSession): LegendBlock[] {
         .flatMap((block) => (isEffectBlock(block) ? effectRows(session, block) : [heldRows(session, block)]));
 }
 
-/** The channels whose value is a map of effects, each drawn by a shader the catalog names. */
-const EFFECT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.effects", "edge.effects"]);
+/** The channels whose value is a list of shader uses, each drawn by a shader the catalog names. */
+const EFFECT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.shaders", "edge.shaders"]);
 
 /**
  * Whether a block keys effects: it is listed while the key shows, and never opens the key itself.
@@ -123,8 +123,8 @@ export function isEffectBlock(block: LegendBlock): boolean {
 }
 
 /**
- * An effects block's rows, each named by the effects it draws ("Aura, Reticle"), as the catalog
- * names them; an effect switched off or hidden is not drawn and not named. A row that draws no
+ * A shaders block's rows, each named by the shaders it draws ("Aura, Reticle"), as the catalog
+ * names them; a shader a layer turns off is not drawn and not named. A row that draws no
  * effect is no row, and a block left with none is no block.
  * @param session - the session, for the catalog.
  * @param block - the block.
@@ -132,14 +132,11 @@ export function isEffectBlock(block: LegendBlock): boolean {
  */
 function effectRows(session: GraphSession, block: LegendBlock): LegendBlock[] {
     const shaders = session.catalog.shaders();
-    const named = (map: unknown): string[] =>
-        typeof map === "object" && map !== null
-            ? Object.entries(map).flatMap(([id, value]) => {
-                  const off =
-                      value === false ||
-                      (typeof value === "object" && value !== null && "visible" in value && value.visible === false);
-                  const name = shaders.find((shader) => shader.id === id)?.plainName;
-                  return off || name === undefined ? [] : [name];
+    const named = (list: unknown): string[] =>
+        Array.isArray(list)
+            ? (list as readonly ShaderUse[]).flatMap((use) => {
+                  const name = shaders.find((shader) => shader.id === use.shader)?.plainName;
+                  return use.off === true || name === undefined ? [] : [name];
               })
             : [];
     const swatches = block.swatches.flatMap((swatch) => {

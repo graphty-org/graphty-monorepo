@@ -6,15 +6,18 @@ import {
     bindLabel,
     cellOfLocation,
     channelWord,
+    clockWords,
     colorName,
     enumWords,
     failureWords,
+    hiddenByWords,
     labelStatement,
     locationOfCell,
     madeWords,
     matchesWordStart,
-    motionWords,
     paletteWord,
+    PLACE_FILTERS,
+    placeWords,
     positionWord,
     refusalWords,
     SECTIONS,
@@ -27,11 +30,11 @@ describe("the Style tab's words and arrangement", () => {
     it("draws Nodes and Edges in their fixed sections", () => {
         assert.deepEqual(
             SECTIONS.node.map((section) => section.title),
-            ["Shape", "Visibility", "Text", "Fill", "Effects", "Rendering"],
+            ["Shape", "Visibility", "Text", "Fill", "Shaders"],
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),
-            ["Visibility", "Text", "Line", "Arrowheads", "Effects"],
+            ["Visibility", "Text", "Line", "Arrowheads", "Shaders"],
         );
     });
 
@@ -171,11 +174,31 @@ describe("shader words", () => {
         assert.isFalse(shaderMatches({ id: "pearl", plainName: "Pearl" }, "metal"));
     });
 
-    it("says what a shader uses and how it moves, as values", () => {
+    it("says what a shader uses, as values", () => {
         assert.equal(usesWords(["color", "size"]), "Color, size");
         assert.equal(usesWords([]), "Nothing");
-        // A speed parameter is the Motion row's field; the words never name a parameter.
-        assert.equal(motionWords({ motion: { loop: { speedParam: "spin" } } }), "Moves");
-        assert.equal(motionWords({ motion: {} }), "Still");
+    });
+
+    it("shows paint and over both as On the node, and an edge's paint as On the line", () => {
+        assert.equal(placeWords("paint"), "On the node");
+        assert.equal(placeWords("over"), "On the node");
+        assert.equal(placeWords("paint", "edge"), "On the line");
+        assert.equal(placeWords("replace"), "Instead of the node");
+        assert.deepEqual(
+            PLACE_FILTERS.node.map((chip) => chip.label),
+            ["All", "On the node", "Instead of the node", "Around", "Behind", "Around the group"],
+        );
+        assert.deepEqual(
+            PLACE_FILTERS.edge.map((chip) => chip.label),
+            ["All", "On the line", "Along the line"],
+        );
+    });
+
+    it("writes a clock binding and the hidden caption as words", () => {
+        assert.equal(
+            clockWords({ by: "since.matched", domain: [0, 0.3] }),
+            "Starts: When this layer starts applying, over 0.3 s",
+        );
+        assert.equal(hiddenByWords("Sticker"), "Hidden: Sticker draws instead of the node");
     });
 });

@@ -312,7 +312,8 @@ export function typeOf(
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
-    if (readable === "text" && measurement !== undefined) {
+    // A designated time field holds text dates, and reads as time.
+    if (readable === "text" && measurement !== undefined && measurement !== "time") {
         return { glyph: "text", typeWord: TEXT_WORD };
     }
     switch (measurement) {

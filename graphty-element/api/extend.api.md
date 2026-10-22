@@ -460,6 +460,11 @@ export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;
     readonly current: CameraState;
+    readonly facing?: {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    };
     readonly fov?: number;
     readonly insets?: Required<ViewInsets>;
     // (undocumented)

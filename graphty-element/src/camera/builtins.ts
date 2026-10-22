@@ -83,14 +83,36 @@ const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
  * @returns The state, or undefined when the current state has no direction to keep.
  */
 function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | undefined {
-    const { current, bounds, aspect } = input;
+    const { current } = input;
     if (current.position === undefined || current.target === undefined) {
         return undefined;
     }
 
-    const dx = current.position.x - current.target.x;
-    const dy = current.position.y - current.target.y;
-    const dz = current.position.z - current.target.z;
+    return fromDirection(input, fov, {
+        x: current.position.x - current.target.x,
+        y: current.position.y - current.target.y,
+        z: current.position.z - current.target.z,
+    });
+}
+
+/**
+ * Frame everything from one direction: every corner of the box, padded 10 percent off the view
+ * axis, inside the narrower of the two fields of view. The current pivot rotation is carried over.
+ * @param input - The box to frame and where the camera is now.
+ * @param fov - The vertical field of view in radians.
+ * @param direction - From the box's center toward the viewer; any length but zero.
+ * @param direction.x - Its x.
+ * @param direction.y - Its y.
+ * @param direction.z - Its z.
+ * @returns The state, or undefined when the direction has no length.
+ */
+function fromDirection(
+    input: CameraViewInput,
+    fov: number,
+    direction: { readonly x: number; readonly y: number; readonly z: number },
+): CameraState | undefined {
+    const { current, bounds, aspect } = input;
+    const { x: dx, y: dy, z: dz } = direction;
     const length = Math.hypot(dx, dy, dz);
     if (length === 0 || !Number.isFinite(length)) {
         return undefined;
@@ -168,6 +190,15 @@ function fitToGraph(input: CameraViewInput): CameraState {
     const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
     if (keptAngle !== undefined) {
         return farther(keptAngle, room);
+    }
+
+    // A drawing meant to be seen from one side (a map, a globe) is framed from that side: from the
+    // diagonal it would be seen from behind, or from inside the globe.
+    // Like the diagonal, it drops any turn the reader gave the drawing.
+    const faced = input.facing === undefined ? undefined : fromDirection(input, fov, input.facing);
+    if (faced !== undefined) {
+        const { pivotRotation: _turn, ...straight } = faced;
+        return farther(straight, room);
     }
 
     const straightOn = (bounds.maxDimension / Math.tan(fov / 2)) * PERSPECTIVE_PADDING;
@@ -259,10 +290,12 @@ function sideView(input: CameraViewInput): CameraState {
 function frontView(input: CameraViewInput): CameraState {
     const { center } = input.bounds;
     const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;
+    // A drawing meant to be seen from one side (a map, a globe) has its face on that side.
+    const { x, y, z } = input.facing ?? { x: 0, y: 0, z: 1 };
 
     return {
         type: "arcRotate",
-        position: { x: center.x, y: center.y, z: center.z + distance },
+        position: { x: center.x + x * distance, y: center.y + y * distance, z: center.z + z * distance },
         target: center,
     };
 }

@@ -6728,8 +6728,20 @@ export class Graph implements GraphContext {
             insets: { top: top * ratio, right: right * ratio, bottom: bottom * ratio, left: left * ratio },
             ...(fov === undefined ? {} : { fov }),
             current: this.getCameraState(),
+            ...(this.#facing() === undefined ? {} : { facing: this.#facing() }),
             ...(options === undefined ? {} : { options }),
         };
+    }
+
+    /**
+     * The side the active layout's drawing is meant to be seen from: -z while a map layout draws a
+     * flat map or a globe in 3D, the side the map is laid out to face.
+     * @returns The unit direction toward the viewer, or undefined when every side will do.
+     */
+    #facing(): CameraViewContext["facing"] {
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame;
+        return frame?.dimensions === 3 ? { x: 0, y: 0, z: -1 } : undefined;
     }
 
     /**

@@ -12,7 +12,8 @@
  * - The gate key of a checkout: the content of every file git does not ignore (not HEAD), the
  *   installed lockfile (node_modules/.pnpm/lock.yaml), the gate's own version (the content of the
  *   gate's tools/ and .husky/, which is .worktrees/gate-live for a push through the queue), the Node
- *   version and the environment that chooses lanes (GRAPHTY_*, VK_*, PREPUSH_ALL).
+ *   version, the environment that chooses lanes (GRAPHTY_*, VK_*, PREPUSH_ALL) and the branch the push
+ *   is measured from when that is not master or golden (a stacked branch's parent).
  *   tools/prepush-source-checks.sh records a pass of the source-only checks under it, and
  *   tools/prepush.sh a pass of the whole gate; tools/push-queue.sh lets a push whose whole gate already
  *   passed skip the source-only checks and the wait for a gate slot.
@@ -32,8 +33,10 @@
  *   node tools/prepush-inputs.mjs fingerprint            prints the checkout's fingerprint
  *   node tools/prepush-inputs.mjs key                    prints the checkout's gate key
  *   node tools/prepush-inputs.mjs passed <kind> [key]    prints the pass recorded under the key, or exits 1
- *   node tools/prepush-inputs.mjs record <kind> <key> [note]
- *       records a pass when the checkout's gate key is still <key>, else says so and exits 1
+ *   node tools/prepush-inputs.mjs record <kind> <key>
+ *       records a pass when the checkout's gate key is still <key>, else says so and exits 1. Only the
+ *       gate's scripts record, at the end of a run that passed; never record a pass by hand: every
+ *       push of those files, golden's included, would then skip the checks it names.
  */
 
 import { execFileSync } from "node:child_process";
@@ -52,6 +55,8 @@ import {
 } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { pushBaseRef } from "./push-base.mjs";
 
 const git = (root, args, input) =>
     execFileSync("git", args, {
@@ -181,8 +186,37 @@ export function gateContext(root, gateRoot = GATE_ROOT) {
 }
 
 /**
+ * The branches every push into them has already passed the gate against: a pass measured from one of
+ * them covers everything the push changes since that branch, and what the branch holds was gated when
+ * it got there.
+ */
+const CHECKED_BASES = new Set(["origin/master", "origin/golden", "origin/golden-cut"]);
+
+/**
+ * What a gate run measures "this push's changes" from (the affected packages, SonarQube's changed
+ * lines): "checked" for a base the gate has already checked (CHECKED_BASES), else the base ref and its
+ * merge base with HEAD. A branch stacked on an unlanded branch tests only its own commits, so its pass
+ * must not cover a push measured from master or golden, which also holds the parent's commits.
+ * @param root the checkout
+ * @param env the environment (PUSH_BASE_REF, which the push queue and the gate export once asked)
+ * @returns "checked", or "<ref>@<merge base>"
+ */
+export function keyBase(root, env = process.env) {
+    const ref = env.PUSH_BASE_REF || pushBaseRef({ cwd: root, env, log: () => {} });
+    if (CHECKED_BASES.has(ref)) return "checked";
+    let mb = "?";
+    try {
+        mb = git(root, ["merge-base", ref, "HEAD"]).trim();
+    } catch {
+        // a base this checkout does not have: its name alone, never equal to a checked base
+    }
+    return `${ref}@${mb}`;
+}
+
+/**
  * The gate key of a checkout: the content of every file git does not ignore (not HEAD, not the branch),
- * the installed lockfile, the gate's version, the Node version and the lane environment.
+ * the installed lockfile, the gate's version, the Node version, the lane environment and the push base
+ * (keyBase).
  * @param root the checkout
  * @param gateRoot the checkout whose tools/ and .husky/ run the gate
  * @param env the environment
@@ -195,6 +229,7 @@ export function gateKey(root, gateRoot = GATE_ROOT, env = process.env) {
             ...gateContext(root, gateRoot),
             node: process.version,
             env: laneEnv(env),
+            base: keyBase(root, env),
         }),
     );
 }
@@ -491,7 +526,7 @@ function where(root) {
  * @returns the exit code
  */
 export function cli(argv, root = process.cwd()) {
-    const [command, kind, given, note] = argv;
+    const [command, kind, given] = argv;
     if (command === "fingerprint") {
         console.log(fingerprint(root));
         return 0;
@@ -501,7 +536,7 @@ export function cli(argv, root = process.cwd()) {
         return 0;
     }
     if (!["passed", "record"].includes(command) || !kind) {
-        console.error("usage: prepush-inputs.mjs fingerprint | key | passed <kind> [key] | record <kind> <key> [note]");
+        console.error("usage: prepush-inputs.mjs fingerprint | key | passed <kind> [key] | record <kind> <key>");
         return 2;
     }
     const { main, branch, sha } = where(root);
@@ -515,7 +550,7 @@ export function cli(argv, root = process.cwd()) {
         console.error(`prepush-inputs: not recorded: the checkout changed while the ${kind} checks ran`);
         return 1;
     }
-    store.record(kind, given, { branch, sha, cwd: root, at: new Date().toISOString(), note: note || undefined });
+    store.record(kind, given, { branch, sha, cwd: root, base: keyBase(root), at: new Date().toISOString() });
     return 0;
 }
 

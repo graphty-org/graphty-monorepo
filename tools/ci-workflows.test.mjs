@@ -313,6 +313,7 @@ describe("the pre-push gate matches CI", () => {
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             copyFileSync(new URL("./wait-log.mjs", import.meta.url), join(dir, "tools/wait-log.mjs"));
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
+            copyFileSync(new URL("./push-base.mjs", import.meta.url), join(dir, "tools/push-base.mjs"));
             copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
@@ -354,6 +355,7 @@ describe("the pre-push gate matches CI", () => {
                 "test-slots.mjs",
                 "wait-log.mjs",
                 "prepush-inputs.mjs",
+                "push-base.mjs",
                 "shard-verdict.mjs",
             ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
@@ -3551,6 +3553,7 @@ describe("a failed pre-push test shard (#1562)", () => {
                 "test-slots.mjs",
                 "wait-log.mjs",
                 "prepush-inputs.mjs",
+                "push-base.mjs",
                 "shard-verdict.mjs",
             ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
@@ -3761,7 +3764,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -3836,7 +3839,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });

@@ -187,6 +187,9 @@ if [ "${1:-}" = git ] && [ -n "$sha" ] && [ -f "$inputs" ] && [ "${PREPUSH_RERUN
     gate_key=$(cd "$top" && node "$inputs" key 2>/dev/null) && [ -n "$gate_key" ] &&
     gate_pass=$(cd "$top" && node "$inputs" passed gate "$gate_key" 2>/dev/null); then
     passed_gate=1
+    # The hook checks that its key is still this one, and stops rather than run the whole gate without
+    # a slot (tools/prepush-source-checks.sh).
+    export PREPUSH_EXPECTED_KEY="$gate_key"
     echo "push-queue: every check of the gate already passed on these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$gate_pass" 2>/dev/null)); no gate slot needed"
 fi
 early="$top/tools/prepush-source-checks.sh"

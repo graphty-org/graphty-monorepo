@@ -976,6 +976,7 @@ describe("the live copy", () => {
         mkdirSync(join(copy, "tools"), { recursive: true });
         writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
         writeFileSync(join(copy, "tools/branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
+        writeFileSync(join(copy, "tools/wait-log.mjs"), readFileSync(new URL("./wait-log.mjs", import.meta.url)));
         // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
         const r = cli(copy, "nonsense");
         assert.equal(r.status, 1, r.stderr);

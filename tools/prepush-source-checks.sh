@@ -7,11 +7,12 @@
 #    instead of after the queue.
 # A pass is recorded under the checkout's gate key (tools/prepush-inputs.mjs: the content of every
 # file git does not ignore, the installed lockfile, the gate's own scripts, the Node version and the
-# lane environment -- not the branch, not HEAD) in <main checkout>/tmp/prepush-passes/source/. When a
+# lane environment, and the parent branch when this one is stacked on an unlanded branch -- not the
+# branch's own name, not HEAD) in <main checkout>/tmp/prepush-passes/source/. When a
 # pass is recorded under the key the checkout has now, on any branch, the checks are skipped: they
 # already passed on exactly these inputs. So a commit that changes no file (a merge that brings
 # nothing new, golden's land commit of a branch that merged golden first) does not run them again;
-# any edit, new file, lockfile install or gate change does. GATE_KEY is left set for tools/prepush.sh.
+# any edit, new file, lockfile install or gate change does, and so does PREPUSH_RERUN_ALL=1. GATE_KEY is left set for tools/prepush.sh.
 #
 # Run by hand: ./tools/prepush-source-checks.sh
 
@@ -71,17 +72,24 @@ run_step() {
 SONAR_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/sonar/prepush-$(basename "$ROOT_DIR").log"
 mkdir -p "$(dirname "$SONAR_LOG")"
 
+# The branch this push is measured from (tools/push-base.mjs), asked once: the SonarQube step, the gate
+# key and tools/prepush.sh's affected packages all use it.
+PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_TOOLS/push-base.mjs")} && export PUSH_BASE_REF
+
 GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
-if [ -n "$GATE_KEY" ] && SOURCE_PASS="$(node "$GATE_TOOLS/prepush-inputs.mjs" passed source "$GATE_KEY" 2>/dev/null)"; then
+# The push queue let this push skip the wait for a gate slot because the whole gate had passed under the
+# key it computed. If the inputs changed since (an edit, or the gate's live copy moved forward), the gate
+# would run in full without a slot, so stop instead.
+if [ -n "${PREPUSH_EXPECTED_KEY:-}" ] && [ "$PREPUSH_EXPECTED_KEY" != "$GATE_KEY" ]; then
+    echo -e "${RED}The gate's inputs changed after the push queue found a pass for them (the checkout, the installed lockfile or the gate's own scripts), so this push would run the whole gate without a gate slot. Push again through tools/push-queue.sh.${NC}" >&2
+    exit 1
+fi
+unset PREPUSH_EXPECTED_KEY
+if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] && SOURCE_PASS="$(node "$GATE_TOOLS/prepush-inputs.mjs" passed source "$GATE_KEY" 2>/dev/null)"; then
     echo -e "${GREEN}[SKIP] Source-only checks: they already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$SOURCE_PASS" 2>/dev/null); key ${GATE_KEY:0:12})${NC}"
     echo ""
-    # The SonarQube reminder under tools/prepush.sh's summary reads this log: carry over whether the
-    # pass this reuses was checked by SonarQube.
-    if [ "$(jq -r '.note // ""' <<<"$SOURCE_PASS" 2>/dev/null)" = sonar-unchecked ]; then
-        echo "SonarQube did NOT check this push (the source-only checks reused a pass that SonarQube did not check)" >"$SONAR_LOG"
-    else
-        : >"$SONAR_LOG"
-    fi
+    # Only a pass SonarQube checked is recorded, so there is no warning to repeat under the summary.
+    : >"$SONAR_LOG"
 else
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
     # touches. The [s] and [-] keep the patterns from matching this line itself.
@@ -149,10 +157,13 @@ else
     # design/sonarqube/design.md.
     run_step "SonarQube (changed lines)" "(set -o pipefail; node \"$GATE_TOOLS/sonar-gate.mjs\" 2>&1 | tee \"\$SONAR_LOG\")"
 
-    # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares).
-    if [ -n "$GATE_KEY" ]; then
-        SONAR_NOTE=""
-        grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null && SONAR_NOTE=sonar-unchecked
-        node "$GATE_TOOLS/prepush-inputs.mjs" record source "$GATE_KEY" "$SONAR_NOTE" || GATE_KEY=""
+    # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares), and
+    # only when SonarQube checked the push: a pass it did not check would let the next push of these
+    # files, golden's landing push included, skip the scan. An empty GATE_KEY also keeps tools/prepush.sh
+    # from recording or reusing a whole-gate pass.
+    if grep -q "SonarQube did NOT check this push" "$SONAR_LOG" 2>/dev/null; then
+        GATE_KEY=""
+    elif [ -n "$GATE_KEY" ]; then
+        node "$GATE_TOOLS/prepush-inputs.mjs" record source "$GATE_KEY" || GATE_KEY=""
     fi
 fi

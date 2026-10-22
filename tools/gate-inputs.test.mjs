@@ -29,6 +29,8 @@ isolateGit();
 const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
+// The environment without the base the gate running these tests may have exported.
+const OUR_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF"));
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
@@ -36,7 +38,8 @@ function repo() {
     mkdirSync(join(dir, "tools"), { recursive: true });
     mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "wait-log.mjs"]) copyFileSync(join(TOOLS, f), join(dir, "tools", f));
+    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs"])
+        copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
     writeFileSync(join(dir, "a.ts"), "a\n");
@@ -51,7 +54,11 @@ function repo() {
     git("add", ".");
     git("commit", "-q", "-m", "a");
     const inputs = (...args) =>
-        spawnSync(process.execPath, [join(dir, "tools/prepush-inputs.mjs"), ...args], { cwd: dir, encoding: "utf8" });
+        spawnSync(process.execPath, [join(dir, "tools/prepush-inputs.mjs"), ...args], {
+            cwd: dir,
+            encoding: "utf8",
+            env: OUR_ENV,
+        });
     return { dir, git, inputs, key: (env = {}) => gateKey(dir, dir, env) };
 }
 
@@ -84,6 +91,22 @@ describe("the gate key", () => {
         writeFileSync(join(r.dir, "dist/out.js"), "x\n");
         assert.equal(r.key(), before, "an ignored build output");
         assert.equal(r.key({ GRAPHTY_TEST_SLOTS: "8", PUSH_BASE_REF: "origin/golden" }), before, "slots and base");
+    });
+
+    it("never lets a branch stacked on an unlanded branch stand for a push measured from master or golden", () => {
+        const r = repo();
+        const checked = r.key({ PUSH_BASE_REF: "origin/master" });
+        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden" }), checked, "golden, like master, was gated");
+        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden-cut" }), checked);
+        // The stacked branch S tests only its commits since its parent F; golden's land commit of S,
+        // with the same files, must still run the gate over F's commits.
+        r.git("update-ref", "refs/remotes/origin/fix/parent", "HEAD");
+        const stacked = r.key({ PUSH_BASE_REF: "origin/fix/parent" });
+        assert.notEqual(stacked, checked);
+        assert.equal(r.key({ PUSH_BASE_REF: "origin/fix/parent" }), stacked, "the same stacked base again");
+        r.git("commit", "-q", "--allow-empty", "-m", "the parent moves");
+        r.git("update-ref", "refs/remotes/origin/fix/parent", "HEAD");
+        assert.notEqual(r.key({ PUSH_BASE_REF: "origin/fix/parent" }), stacked, "a parent at another commit");
     });
 
     it("changes with any file, the installed lockfile, the gate's scripts or the lanes", () => {
@@ -194,7 +217,7 @@ describe("push-queue with a gate that already passed", () => {
             PUSH_QUEUE_GATE: join(q, "no-gate-live"),
             PUSH_QUEUE_POLL: "0.1",
             PUSH_QUEUE_SLOTS: "1",
-            PUSH_BASE_REF: "HEAD",
+            PUSH_BASE_REF: "origin/master",
         });
         delete env.PREPUSH_RERUN_ALL;
         const ran = join(TMP, `source-ran-${made}`);
@@ -256,6 +279,80 @@ describe("push-queue with a gate that already passed", () => {
             assert.match(line.heldBy[0], new RegExp(`^pid ${holder.pid}: another push`));
             assert.match(line.waiter, /git push -q origin HEAD:feat\/x/);
         })();
+    });
+});
+
+describe("prepush.sh with a gate that already passed", () => {
+    // A checkout whose gate is the real prepush.sh and source checks, with every outside step stubbed:
+    // pnpm answers "no package affected", and the offline link check and the SonarQube step write a
+    // line to a log each time they run (the SonarQube one prints SONAR_OUT).
+    function gateRepo() {
+        const r = repo();
+        for (const f of ["prepush.sh", "prepush-source-checks.sh"])
+            copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
+        const ran = join(TMP, `steps-${made}.log`);
+        writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
+        writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
+        writeFileSync(
+            join(r.dir, "tools/sonar-gate.mjs"),
+            `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "sonar\\n");\nconsole.log(process.env.SONAR_OUT ?? "");\n`,
+        );
+        writeFileSync(join(r.dir, "package.json"), '{ "scripts": {} }\n');
+        r.git("add", ".");
+        r.git("commit", "-q", "-m", "gate");
+        const bin = join(TMP, `bin-${made}`);
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "pnpm"),
+            '#!/bin/sh\ncase "$*" in --version) echo 10.30.0;; *"show projects"*) echo "[]";; esac\n',
+            { mode: 0o755 },
+        );
+        const env = { ...OUR_ENV, PATH: `${bin}:${process.env.PATH}`, PUSH_BASE_REF: "origin/master" };
+        delete env.PREPUSH_RERUN_ALL;
+        delete env.PREPUSH_EXPECTED_KEY;
+        const gate = (extra = {}) =>
+            spawnSync("bash", [join(r.dir, "tools/prepush.sh")], {
+                cwd: r.dir,
+                encoding: "utf8",
+                env: { ...env, ...extra },
+            });
+        const steps = () => (existsSync(ran) ? readFileSync(ran, "utf8").trim().split("\n") : []);
+        return { ...r, gate, steps };
+    }
+
+    it("records a pass, then skips the whole gate on the same tree, and PREPUSH_RERUN_ALL=1 runs it all", () => {
+        const r = gateRepo();
+        const first = r.gate();
+        assert.equal(first.status, 0, first.stdout + first.stderr);
+        assert.deepEqual(r.steps(), ["links", "sonar"]);
+        assert.equal(r.inputs("passed", "gate").status, 0, "a whole-gate pass is recorded");
+
+        const second = r.gate();
+        assert.equal(second.status, 0, second.stdout + second.stderr);
+        assert.match(second.stdout, /\[SKIP\] The whole gate: it already passed on exactly these inputs/);
+        assert.deepEqual(r.steps(), ["links", "sonar"], "no step ran again");
+
+        const again = r.gate({ PREPUSH_RERUN_ALL: "1" });
+        assert.equal(again.status, 0, again.stdout + again.stderr);
+        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+    });
+
+    it("records no pass that SonarQube did not check, so the next push of the same files is scanned", () => {
+        const r = gateRepo();
+        const unchecked = r.gate({ SONAR_OUT: "SonarQube did NOT check this push (server unreachable)" });
+        assert.equal(unchecked.status, 0, unchecked.stdout + unchecked.stderr);
+        assert.equal(r.inputs("passed", "source").status, 1);
+        assert.equal(r.inputs("passed", "gate").status, 1);
+        assert.equal(r.gate().status, 0);
+        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+    });
+
+    it("stops, running nothing, when its inputs are not the ones the push queue found a pass for", () => {
+        const r = gateRepo();
+        const p = r.gate({ PREPUSH_EXPECTED_KEY: "0".repeat(64) });
+        assert.equal(p.status, 1);
+        assert.match(p.stderr, /inputs changed after the push queue found a pass/);
+        assert.deepEqual(r.steps(), []);
     });
 });
 

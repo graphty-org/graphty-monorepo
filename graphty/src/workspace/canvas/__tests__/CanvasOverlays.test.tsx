@@ -77,6 +77,7 @@ function standIn(facts: StandInFacts = {}): {
                           distinguishedBy: null,
                           siblingsDifferBy: null,
                           scope: { spec: "visible" },
+                          caveats: {},
                       },
             painting: () => facts.painting,
         },
@@ -227,6 +228,8 @@ describe("the canvas's state cards", () => {
                 "Zachary's karate club34 members",
                 "College football115 teams",
                 "Florentine families15 families",
+                "Office email48 nodes, 2,102 edges",
+                "Paper citations159 nodes, 453 edges",
             ],
         );
         await userEvent.click(rows[1]);

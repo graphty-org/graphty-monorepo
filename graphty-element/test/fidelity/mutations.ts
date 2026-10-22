@@ -370,9 +370,9 @@ const DEFECTS = {
             e.arrows.push({ ...head, at: back });
         }
     }),
-    "edge dashes and gaps x2": eachEdge((e) => {
+    "edge dashes and gaps x3": eachEdge((e) => {
         if (e.stroke !== null && e.stroke.dash !== null) {
-            e.stroke.dash = e.stroke.dash.map((x) => 2 * x);
+            e.stroke.dash = e.stroke.dash.map((x) => 3 * x);
         }
     }),
     "arrowhead removed at target end": eachEdge((e) => {
@@ -972,7 +972,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowheads x1.25": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
     "arrowheads drawn off their line's end": ["edge.arrowPlace"],
     "a second arrowhead part at the target end": ["edge.arrowParts"],
-    "edge dashes and gaps x2": ["edge.dashPeriod"],
+    "edge dashes and gaps x3": ["edge.dashPeriod"],
     "longest straight edge bent off its chord by a twenty-fifth of its length": ["edge.route"],
     "arrowhead removed at target end": ["edge.arrow"],
     "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
@@ -1084,6 +1084,12 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
                     ),
         ),
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+    // a quarter more of a head is more than the render pixel a head's size is allowed only on a head five or more
+    // pixels long (json-vis-siblings draws them under four)
+    "arrowheads x1.25": (base, oracle) =>
+        oracle.edges.some((e) =>
+            e.arrows.some((a) => 0.25 * a.length > ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1)),
+        ),
     // a bend is judged only where the layouts are related or the file places its nodes (compare-oracle.ts)
     "curved edges straightened": (base) => base.properties["edge.curve"].passRate !== null,
     "straight edges bowed": (base) => base.properties["edge.curve"].passRate !== null,

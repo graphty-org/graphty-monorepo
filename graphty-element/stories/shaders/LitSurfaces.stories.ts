@@ -1,6 +1,6 @@
 /**
- * The lit-surface presets (design/rendering/shader-styles.md section 7.1): Ink, Clear glass,
- * Pearl, Toon outline, Halftone, Frosted glass, Liquid metal and Anodized steel.
+ * The lit-surface presets (design/rendering/shader-styles.md section 7.1): Ink, Pearl, Cel shade,
+ * Halftone, Frosted glass, Liquid metal and Anodized steel.
  *
  * Each story sets its surface the way a consumer does, with one style layer naming the preset,
  * over a palette layer that colors the nodes by group: every surface reads the color beneath it,
@@ -192,14 +192,11 @@ function surfaceStory(id: string): Story {
 /** Flat tones, a crisp highlight and a dark ink rim. */
 export const MatcapInk = surfaceStory("matcap-ink");
 
-/** A clear ball: the room bent through it, its reflection at the rim, a bright rim. */
-export const ClearGlass = surfaceStory("clear-glass");
-
 /** Iridescent nacre with a satin highlight. */
 export const Pearl = surfaceStory("pearl");
 
 /** Hard light bands and a still ink outline, on the spheres and along the box's edges. */
-export const ToonOutline = surfaceStory("toon-outline");
+export const CelShade = surfaceStory("cel-shade");
 
 /** The node printed on paper with a rotated dot screen. */
 export const Halftone = surfaceStory("halftone");

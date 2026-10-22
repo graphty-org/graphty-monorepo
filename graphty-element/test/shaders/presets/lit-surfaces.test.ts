@@ -24,20 +24,14 @@ const TABLE: Readonly<Record<string, { name: string; reads: string[]; speed?: st
             cost: "light",
             params: [["tint", "number", 0.8, 0, 1, true]],
         },
-        "clear-glass": {
-            name: "Clear glass",
-            reads: ["color", "light"],
-            cost: "light",
-            params: [["tint", "number", 0.8, 0, 1, true]],
-        },
         pearl: {
             name: "Pearl",
             reads: ["color", "light"],
             cost: "light",
             params: [["tint", "number", 0.8, 0, 1, true]],
         },
-        "toon-outline": {
-            name: "Toon outline",
+        "cel-shade": {
+            name: "Cel shade",
             reads: ["color", "shape"],
             cost: "medium",
             params: [

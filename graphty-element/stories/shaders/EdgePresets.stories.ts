@@ -1,6 +1,6 @@
 /**
  * The edge presets (design/rendering/shader-styles.md section 7.4): Fiber, Light packets, Comets,
- * Edge glow and Edge change.
+ * Neon line and Edge change.
  *
  * Each story sets its look the way a consumer does, with one style layer naming the preset in
  * a use on `edge.shaders` (at `paint` or `along`), over a palette layer that colors the
@@ -10,7 +10,7 @@
  * - **Fiber**: the fiber surface alone: dark glass rods with a bright rim in each edge's color.
  * - **Light packets**: the fiber surface with the packets effect over it, as the lab paired them.
  * - **Comets**: comets on every edge, their speed bound per edge to the edge's `weight`.
- * - **Edge glow**: a core, a halo and a glint toward the target on every edge.
+ * - **Neon line**: a core, a halo and a glint toward the target on every edge.
  * - **Edge change**: the play function adds an edge, changes another's data and removes a third;
  *   the added and changed edges light up from their source, the removed one shrinks out.
  *
@@ -277,23 +277,23 @@ export const Comets: Story = {
 };
 
 /** A core, a neon halo and a glint toward the target, on straight, curved and bent edges. */
-export const EdgeGlow: Story = {
-    name: "Edge glow",
-    ...controlsOf(["edge-glow"]),
+export const NeonLine: Story = {
+    name: "Neon line",
+    ...controlsOf(["neon-line"]),
     render: (storyArgs) => {
-        const shader = presetId("edge-glow");
+        const shader = presetId("neon-line");
         return render(
             {
                 name: "Glow",
                 target: "edge",
                 selector: { match: "everything" },
-                set: { "edge.shaders": [{ shader: shader, params: paramsOf("edge-glow", storyArgs) }] },
+                set: { "edge.shaders": [{ shader: shader, params: paramsOf("neon-line", storyArgs) }] },
             },
             4,
         );
     },
     play: async ({ canvasElement }) => {
-        await drawnWithShaders(canvasElement, "Edge glow", 1);
+        await drawnWithShaders(canvasElement, "Neon line", 1);
     },
 };
 

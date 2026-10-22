@@ -1,5 +1,5 @@
 /**
- * @file The GLSL bodies of the `lantern-glow` preset (design/rendering/shader-styles.md section
+ * @file The GLSL bodies of the `lantern` preset (design/rendering/shader-styles.md section
  * 7.1), ported from the shader lab's lantern glow.
  *
  * Each node is a paper lantern lit from inside in its own color: the light is strongest where the
@@ -30,7 +30,7 @@ vec3 lanternColor(NodeInput n, float lum) {
 `;
 
 /** The body: `shade` and its helpers. */
-export const BODY = `// Lantern glow: a paper lantern lit from inside, ribs, caps and paper grain.
+export const BODY = `// Lantern: a paper lantern lit from inside, ribs, caps and paper grain.
 ${LIGHT}
 vec4 shade(NodeInput n) {
     vec3 nv = n.normal;
@@ -56,7 +56,7 @@ vec4 shade(NodeInput n) {
 `;
 
 /** The small-size program: the light and the caps, no ribs or grain. */
-export const LOW_DETAIL = `// Lantern glow, small: the light and the caps.
+export const LOW_DETAIL = `// Lantern, small: the light and the caps.
 ${LIGHT}
 vec4 shade(NodeInput n) {
     vec3 nv = n.normal;

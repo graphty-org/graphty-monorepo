@@ -356,7 +356,7 @@ describe("the edge presets on a graph", () => {
         ] satisfies LayerSpec[],
     };
 
-    it.each(["fiber-packets", "comet-tracers", "edge-glow"])(
+    it.each(["fiber-packets", "comet-tracers", "neon-line"])(
         "%s is placed on the line's own route and lights it, straight, curved and bent",
         async (id) => {
             const shader = presetId(id);
@@ -439,7 +439,7 @@ describe("motion", () => {
     it.each([
         ["fiber-packets", "speed"],
         ["comet-tracers", "speed"],
-        ["edge-glow", "glintSpeed"],
+        ["neon-line", "glintSpeed"],
     ])("%s claims frames while %s is not 0 and rests at 0", async (id, speed) => {
         const shader = presetId(id);
         const element = await mounted(TWO_NODES, [{ source: "a", target: "b" }], [LINE]);
@@ -459,7 +459,7 @@ describe("motion", () => {
 });
 
 describe("the shared bloom", () => {
-    it.each(["fiber-packets", "comet-tracers", "edge-glow"])("%s allocates the bloom pass", async (id) => {
+    it.each(["fiber-packets", "comet-tracers", "neon-line"])("%s allocates the bloom pass", async (id) => {
         const element = await mounted(
             TWO_NODES,
             [{ source: "a", target: "b" }],

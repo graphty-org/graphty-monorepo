@@ -14,12 +14,12 @@ import { BODY as COMET_TRACERS_BODY } from "../../src/shaders/presets/comet-trac
 import { COMET_TRACERS } from "../../src/shaders/presets/comet-tracers/descriptor";
 import { BODY as EDGE_CHANGE_BODY } from "../../src/shaders/presets/edge-change/body";
 import { EDGE_CHANGE } from "../../src/shaders/presets/edge-change/descriptor";
-import { BODY as EDGE_GLOW_BODY } from "../../src/shaders/presets/edge-glow/body";
-import { EDGE_GLOW } from "../../src/shaders/presets/edge-glow/descriptor";
 import { BODY as FIBER_OPTIC_BODY } from "../../src/shaders/presets/fiber-optic/body";
 import { FIBER_OPTIC } from "../../src/shaders/presets/fiber-optic/descriptor";
 import { BODY as FIBER_PACKETS_BODY } from "../../src/shaders/presets/fiber-packets/body";
 import { FIBER_PACKETS } from "../../src/shaders/presets/fiber-packets/descriptor";
+import { BODY as NEON_LINE_BODY } from "../../src/shaders/presets/neon-line/body";
+import { NEON_LINE } from "../../src/shaders/presets/neon-line/descriptor";
 
 /** A preset: its catalog entry and its body. */
 export interface EdgePreset {
@@ -32,7 +32,7 @@ export const EDGE_PRESETS: readonly EdgePreset[] = [
     { descriptor: FIBER_OPTIC, body: FIBER_OPTIC_BODY },
     { descriptor: FIBER_PACKETS, body: FIBER_PACKETS_BODY },
     { descriptor: COMET_TRACERS, body: COMET_TRACERS_BODY },
-    { descriptor: EDGE_GLOW, body: EDGE_GLOW_BODY },
+    { descriptor: NEON_LINE, body: NEON_LINE_BODY },
     { descriptor: EDGE_CHANGE, body: EDGE_CHANGE_BODY },
 ];
 

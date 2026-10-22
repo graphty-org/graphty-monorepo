@@ -1,5 +1,5 @@
 /**
- * @file The catalog entry of the `toon-outline` preset, Toon outline (design/rendering/shader-styles.md
+ * @file The catalog entry of the `cel-shade` preset, Cel shade (design/rendering/shader-styles.md
  * section 7.1): bands and a still ink outline. Catalog data only; the GLSL is in `./body.ts`.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -9,8 +9,8 @@ import type { ShaderDescriptor, ShaderInput } from "../../../catalog/shaders";
 
 /** The catalog entry. */
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
-    id: "toon-outline",
-    plainName: "Toon outline",
+    id: "cel-shade",
+    plainName: "Cel shade",
     target: "node",
     place: "paint",
     categories: Object.freeze(["Drawn"]),

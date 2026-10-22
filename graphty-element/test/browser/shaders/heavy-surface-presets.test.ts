@@ -1,11 +1,11 @@
 /**
  * @file The heavy and glowing surface presets drawn by the element (design/rendering/shader-styles.md
- * sections 5, 7.1 and 8, package P2): glass marble, gemstone, disco ball, lantern glow and dew drop.
+ * sections 5, 7.1 and 8, package P2): glass marble, gemstone, disco ball, lantern glow and glass.
  *
  * Each parameter at each end of its range draws without a NaN, in the full program and in the
  * small-size program; each preset draws on a real graph in place of the plain look; a still
  * preset and a loop at speed 0 claim no frame while a loop at speed does; the lanterns and the
- * dew drops allocate the shared bloom; and a heavy preset draws its small-size program for the
+ * glass allocate the shared bloom; and a heavy preset draws its small-size program for the
  * whole batch while the median node on screen is under 12 px, and its full program when the nodes
  * are large.
  */
@@ -23,22 +23,19 @@ import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
 import { BLOOM_LAYER } from "../../../src/meshes/BloomPass";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
-import { BODY as DEW_DROP_BODY } from "../../../src/shaders/presets/dew-drop/body";
-import { DEW_DROP } from "../../../src/shaders/presets/dew-drop/descriptor";
 import { BODY as DISCO_BALL_BODY, LOW_DETAIL as DISCO_BALL_LOW } from "../../../src/shaders/presets/disco-ball/body";
 import { DISCO_BALL } from "../../../src/shaders/presets/disco-ball/descriptor";
 import { BODY as GEMSTONE_BODY, LOW_DETAIL as GEMSTONE_LOW } from "../../../src/shaders/presets/gemstone/body";
 import { GEMSTONE } from "../../../src/shaders/presets/gemstone/descriptor";
+import { BODY as GLASS_BODY } from "../../../src/shaders/presets/glass/body";
+import { GLASS } from "../../../src/shaders/presets/glass/descriptor";
 import {
     BODY as GLASS_MARBLE_BODY,
     LOW_DETAIL as GLASS_MARBLE_LOW,
 } from "../../../src/shaders/presets/glass-marble/body";
 import { GLASS_MARBLE } from "../../../src/shaders/presets/glass-marble/descriptor";
-import {
-    BODY as LANTERN_GLOW_BODY,
-    LOW_DETAIL as LANTERN_GLOW_LOW,
-} from "../../../src/shaders/presets/lantern-glow/body";
-import { LANTERN_GLOW } from "../../../src/shaders/presets/lantern-glow/descriptor";
+import { BODY as LANTERN_BODY, LOW_DETAIL as LANTERN_LOW } from "../../../src/shaders/presets/lantern/body";
+import { LANTERN } from "../../../src/shaders/presets/lantern/descriptor";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import type { Point } from "../../helpers/real-input";
 
@@ -50,8 +47,8 @@ const PRESETS: readonly { descriptor: ShaderDescriptor; body: string; low?: stri
     { descriptor: GLASS_MARBLE, body: GLASS_MARBLE_BODY, low: GLASS_MARBLE_LOW },
     { descriptor: GEMSTONE, body: GEMSTONE_BODY, low: GEMSTONE_LOW },
     { descriptor: DISCO_BALL, body: DISCO_BALL_BODY, low: DISCO_BALL_LOW },
-    { descriptor: LANTERN_GLOW, body: LANTERN_GLOW_BODY, low: LANTERN_GLOW_LOW },
-    { descriptor: DEW_DROP, body: DEW_DROP_BODY },
+    { descriptor: LANTERN, body: LANTERN_BODY, low: LANTERN_LOW },
+    { descriptor: GLASS, body: GLASS_BODY },
 ];
 
 const HEAVY = PRESETS.filter((preset) => preset.low !== undefined).map((preset) => preset.descriptor.id);
@@ -320,11 +317,11 @@ describe("motion", () => {
                     name: "Dew",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.shaders": [{ shader: "dew-drop" }] },
+                    set: { "node.shaders": [{ shader: "glass" }] },
                 },
             ],
         );
-        await until(element, "the dew drop draws", () => drawsReady(element, 1));
+        await until(element, "the glass draws", () => drawsReady(element, 1));
         await drawnFrames(element.graph.getScene(), 3);
         assert.strictEqual(everyFrameAnimationsOn(element.graph.getScene()), 0);
     });
@@ -333,7 +330,7 @@ describe("motion", () => {
         ["glass-marble", "spin"],
         ["gemstone", "turn"],
         ["disco-ball", "turn"],
-        ["lantern-glow", "flicker"],
+        ["lantern", "flicker"],
     ])("%s claims frames while %s is above 0 and rests at 0", async (id, speed) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
@@ -360,7 +357,7 @@ describe("motion", () => {
 });
 
 describe("the shared bloom", () => {
-    it.each([["lantern-glow"], ["dew-drop"]])("%s allocates the bloom pass", async (id) => {
+    it.each([["lantern"], ["glass"]])("%s allocates the bloom pass", async (id) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],
             [

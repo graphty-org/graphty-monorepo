@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegistry";
-import type { ShaderProblem } from "../../src/catalog/shaders";
+import { shaderAnimates, type ShaderProblem } from "../../src/catalog/shaders";
 import type { LayerSpec, StyleDocument } from "../../src/catalog/types";
 import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
@@ -488,6 +488,26 @@ describe("session.shaders", () => {
             code: "shader.still",
             params: { reason: "setting" },
         });
+    });
+
+    it("holds a shader still under reduced motion when its body reads a clock field directly", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+        const flash = `/* graphty-shader 1
+{ "id": "user/flash", "name": "Flash", "place": "around" }
+*/
+vec4 shade(NodeInput n) {
+    float fade = 1.0 - clamp(n.sinceMatched / 0.5, 0.0, 1.0);
+    return vec4(vec3(1.0), fade);
+}
+`;
+        await s.shaders.add(flash);
+        const descriptor = s.catalog.shaders().find((each) => each.id === "user/flash");
+        assert.isDefined(descriptor);
+        assert.isTrue(shaderAnimates(descriptor), "a body that reads a clock animates while it draws");
+        host.guard.setSystemStill(true);
+        assert.strictEqual(s.shaders.status("user/flash").state, "still");
     });
 
     it("turns heavy shaders off when the guard does, presets as pasted ones, publishes it, and back on", async () => {

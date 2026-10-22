@@ -1,5 +1,5 @@
 /**
- * @file The GLSL body of the `edge-glow` preset (design/rendering/shader-styles.md section 7.4),
+ * @file The GLSL body of the `neon-line` preset (design/rendering/shader-styles.md section 7.4),
  * ported from the shader lab's bezier glow and generalized to any route.
  *
  * The lab bent each edge into a Bezier itself. Here the element owns the route (straight, curved,
@@ -10,7 +10,7 @@
  * burn brighter; `bloom` adds the hot glint the shared bloom pass spreads.
  */
 
-export const BODY = `// Edge glow: a core, a neon halo and a glint toward the target.
+export const BODY = `// Neon line: a core, a neon halo and a glint toward the target.
 vec4 shade(EdgeInput e) {
     float px = abs(e.side) * e.widthPx * 0.5;
     float core = max(e.widthPx * 0.35, 0.5);

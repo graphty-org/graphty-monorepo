@@ -168,6 +168,11 @@ long-form entries, each with a `name`.
 `@graphty/graphty-element/extend`, which is free of the renderer and runs in Node.
 `parseShaderText`, `formatShaderText` and `shaderTemplate` are in `@graphty/graphty-element/catalog`.
 
+Shader text is also how a shader goes into the graphty app. In a layer's Style tab, the Shaders
+section's **+** opens the gallery, and its last tile, **New shader...**, opens a code box: paste the
+text there and press Add. A `place` in the header is where the shader draws, and the dialog's Place
+field follows it; text with no `place` draws at the place the field shows.
+
 ### The name and the id
 
 - `name` is what pickers show. It is optional and defaults to the id's last segment in sentence

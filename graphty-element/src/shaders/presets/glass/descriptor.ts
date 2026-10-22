@@ -1,16 +1,17 @@
 /**
- * @file The catalog entry of the `dew-drop` preset (design/rendering/shader-styles.md section
- * 7.1): a node surface of see-through water with a caustic crescent and a glint.
+ * @file The catalog entry of the `glass` preset (design/rendering/shader-styles.md section
+ * 7.1, design/rendering/shader-studio/decisions.md 5.2): clear, see-through glass with a caustic
+ * crescent, a bright rim, a sharp highlight and a glint.
  *
  * Catalog data only, no GLSL; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../../../catalog/shaders";
 
-/** The dew drop. */
-export const DEW_DROP: ShaderDescriptor = Object.freeze({
-    id: "dew-drop",
-    plainName: "Dew drop",
+/** The glass. */
+export const GLASS: ShaderDescriptor = Object.freeze({
+    id: "glass",
+    plainName: "Glass",
     target: "node",
     place: "paint",
     categories: Object.freeze(["Glass"]),

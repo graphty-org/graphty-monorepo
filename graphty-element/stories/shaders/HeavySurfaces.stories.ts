@@ -1,6 +1,6 @@
 /**
  * The heavy and glowing node surface presets (design/rendering/shader-styles.md section 7.1):
- * glass marble, gemstone, disco ball, lantern glow and dew drop, each set the way a consumer sets
+ * glass marble, gemstone, disco ball, lantern glow and glass, each set the way a consumer sets
  * any look -- a style layer naming the preset by id -- over a palette layer that colors the nodes
  * by group. Every surface reads the color beneath, so each node keeps its group's color.
  *
@@ -139,22 +139,22 @@ export const DiscoBall: Story = {
  * Paper lanterns lit from inside on a night canvas; the shared bloom spreads their light. Each
  * lantern's brightness is bound to its node's value, so the hue stays its group's.
  */
-export const LanternGlow: Story = {
-    name: "Lantern glow",
+export const Lantern: Story = {
+    name: "Lantern",
     render: () =>
-        surfaceScene("lantern-glow", {
+        surfaceScene("lantern", {
             params: { flicker: 0 },
-            encode: { "node.shaders.lantern-glow.intensity": { by: "data.value", range: [0.15, 1.6] } },
+            encode: { "node.shaders.lantern.intensity": { by: "data.value", range: [0.15, 1.6] } },
             background: "#04050a",
         }),
-    play: played("LanternGlow"),
+    play: played("Lantern"),
 };
 
-/** Dew drops: see-through water with a caustic crescent and a glint. */
-export const DewDrop: Story = {
-    name: "Dew drop",
-    render: () => surfaceScene("dew-drop", { background: "#0b1410" }),
-    play: played("DewDrop"),
+/** Glasss: see-through water with a caustic crescent and a glint. */
+export const Glass: Story = {
+    name: "Glass",
+    render: () => surfaceScene("glass", { background: "#0b1410" }),
+    play: played("Glass"),
 };
 
 /** 400 nodes in a 20 x 20 grid, colored by group, each under 12 px across in radius. */

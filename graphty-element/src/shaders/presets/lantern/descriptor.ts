@@ -1,5 +1,5 @@
 /**
- * @file The catalog entry of the `lantern-glow` preset (design/rendering/shader-styles.md section
+ * @file The catalog entry of the `lantern` preset (design/rendering/shader-styles.md section
  * 7.1): a node surface of paper lit from inside in the node's color, spread by the shared bloom.
  *
  * Catalog data only, no GLSL; nothing here reaches Babylon.js, Lit or the DOM.
@@ -8,9 +8,9 @@
 import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../../../catalog/shaders";
 
 /** The lantern. */
-export const LANTERN_GLOW: ShaderDescriptor = Object.freeze({
-    id: "lantern-glow",
-    plainName: "Lantern glow",
+export const LANTERN: ShaderDescriptor = Object.freeze({
+    id: "lantern",
+    plainName: "Lantern",
     target: "node",
     place: "paint",
     categories: Object.freeze(["Light"]),

@@ -89,10 +89,10 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 /**
  * The live slots of the node shader batches whose name starts with a role.
  * @param element - The element.
- * @param role - `impostor` or `sprite`.
+ * @param role - `impostor` or `replace`.
  * @returns How many nodes those batches draw.
  */
-function nodeSlots(element: Graphty, role: "impostor" | "sprite"): number {
+function nodeSlots(element: Graphty, role: "impostor" | "replace"): number {
     const slots = NodeShaderDrawing.peek(element.graph.getScene())?.stats().slots ?? new Map<string, number>();
     return [...slots].filter(([key]) => key.startsWith(`${role}|`)).reduce((sum, [, count]) => sum + count, 0);
 }
@@ -172,13 +172,13 @@ describe("a card and a shape on two layers", () => {
         const shapeOnTop = await mounted();
         await shapeOnTop.session.styles.add(card);
         await operationQueueOf(shapeOnTop.graph).waitForCompletion();
-        await until(shapeOnTop, "the card alone is drawn", () => nodeSlots(shapeOnTop, "sprite") === 1);
+        await until(shapeOnTop, "the card alone is drawn", () => nodeSlots(shapeOnTop, "replace") === 1);
         await shapeOnTop.session.styles.add(box);
         await operationQueueOf(shapeOnTop.graph).waitForCompletion();
         await until(
             shapeOnTop,
             "the box on the higher layer is drawn, not the card",
-            () => nodeSlots(shapeOnTop, "sprite") === 0,
+            () => nodeSlots(shapeOnTop, "replace") === 0,
         );
         const shape = shapeOnTop.session.styles.explain({ node: "a" }).channels.find((c) => c.channel === "node.shape");
         assert.isUndefined(shape?.coveredBy, "a shape above the card is not covered");
@@ -187,7 +187,7 @@ describe("a card and a shape on two layers", () => {
         const lower = await cardOnTop.session.styles.add(box);
         const higher = await cardOnTop.session.styles.add(card);
         await operationQueueOf(cardOnTop.graph).waitForCompletion();
-        await until(cardOnTop, "the card on the higher layer is drawn", () => nodeSlots(cardOnTop, "sprite") === 1);
+        await until(cardOnTop, "the card on the higher layer is drawn", () => nodeSlots(cardOnTop, "replace") === 1);
         const covered = cardOnTop.session.styles
             .explain({ node: "a" })
             .channels.find((c) => c.channel === "node.shape");

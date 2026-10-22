@@ -274,6 +274,19 @@ vec4 graphty_decoration(float d) {
 `;
 
 /**
+ * A card's normal (the square drawn in place of the node): facing the camera, but tilted by the
+ * node's offset from the view center, by a small tilt of its own from its seed, and domed slightly
+ * across it (design/rendering/shader-studio/decisions.md 5.1). So `dot(n.normal, lightDir)` and the
+ * reflected view direction change from card to card and across each card, as the camera or the
+ * layout moves, with no time involved.
+ */
+const CARD_TILT = `
+    vec2 graphty_off = (vViewPos.xy - vUV * vRadius) / max(abs(vViewPos.z), 1e-3);
+    vec2 graphty_own = vec2(fract(graphty_in.seed * 12.9898), fract(graphty_in.seed * 78.233)) - 0.5;
+    graphty_in.normal = normalize(vec3(graphty_off * 0.6 + graphty_own * 0.35 + vUV * 0.25, -1.0));
+    graphty_in.local = transpose(mat3(view)) * graphty_in.normal;`;
+
+/**
  * The fragment statements that fill the input's `uv` and `normal` for a role, and leave
  * `graphty_deco` (the billboard's halo, ring and glow) and, for the impostor, `graphty_z`.
  * @param role - The batch.
@@ -309,7 +322,8 @@ function surfaceInput(role: BatchRole): string {
 
     if (role === "replace") {
         // The square in place of the node: the look out to its reach, over the halo, ring and
-        // glow drawn from the node's own outline. The normal faces the camera.
+        // glow drawn from the node's own outline. The normal faces the camera here and is tilted
+        // once the seed is known (cardTilt).
         return `
     float graphty_d = length(vUV);
     vec4 graphty_deco = graphty_decoration(graphty_d / vInner);
@@ -408,6 +422,7 @@ ${surfaceInput(role)}
     graphty_in.size = vRadius;
     graphty_in.pixelSize = vPixelSize;
 ${stateInput("vMeta", square ? "vDeco0.xy" : null, "graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x")}
+${role === "replace" ? CARD_TILT : ""}
     vec4 graphty_out = graphty_u_shade(graphty_in);
 ${surfaceFinish(role)}
 }

@@ -1,5 +1,5 @@
 /**
- * @file The catalog entry of the `edge-glow` preset (design/rendering/shader-styles.md section
+ * @file The catalog entry of the `neon-line` preset (design/rendering/shader-styles.md section
  * 7.4): an edge effect of a bright core and a neon halo around the line, with a glint that rides
  * toward the target so direction reads without arrowheads. From the lab's bezier glow, generalized
  * to any route: straight, curved, bent or lifted.
@@ -10,9 +10,9 @@
 import type { ShaderDescriptor, ShaderInput, ShaderParamDescriptor } from "../../../catalog/shaders";
 
 /** The glow. */
-export const EDGE_GLOW: ShaderDescriptor = Object.freeze({
-    id: "edge-glow",
-    plainName: "Edge glow",
+export const NEON_LINE: ShaderDescriptor = Object.freeze({
+    id: "neon-line",
+    plainName: "Neon line",
     target: "edge",
     place: "along",
     categories: Object.freeze(["Light"]),

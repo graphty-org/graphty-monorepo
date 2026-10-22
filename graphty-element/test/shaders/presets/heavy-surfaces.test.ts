@@ -11,11 +11,11 @@ import { checkShaderBody } from "../../../src/catalog/shaderGlsl";
 import { drawingOf, type ShaderDescriptor } from "../../../src/catalog/shaders";
 import { SHADER_PRESETS } from "../../../src/shaders/presets";
 import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../../src/shaders/presets/bodies";
-import { DEW_DROP } from "../../../src/shaders/presets/dew-drop/descriptor";
 import { DISCO_BALL } from "../../../src/shaders/presets/disco-ball/descriptor";
 import { GEMSTONE } from "../../../src/shaders/presets/gemstone/descriptor";
+import { GLASS } from "../../../src/shaders/presets/glass/descriptor";
 import { GLASS_MARBLE } from "../../../src/shaders/presets/glass-marble/descriptor";
-import { LANTERN_GLOW } from "../../../src/shaders/presets/lantern-glow/descriptor";
+import { LANTERN } from "../../../src/shaders/presets/lantern/descriptor";
 
 /** One row of the design's parameter table: name, type, default, min, max, primary, varies. */
 type Row = readonly [string, string, number | string, number?, number?, boolean?, boolean?];
@@ -73,8 +73,8 @@ const TABLE: readonly {
         ],
     },
     {
-        descriptor: LANTERN_GLOW,
-        name: "Lantern glow",
+        descriptor: LANTERN,
+        name: "Lantern",
         speed: "flicker",
         cost: "heavy",
         bloom: true,
@@ -87,8 +87,8 @@ const TABLE: readonly {
         ],
     },
     {
-        descriptor: DEW_DROP,
-        name: "Dew drop",
+        descriptor: GLASS,
+        name: "Glass",
         cost: "medium",
         bloom: true,
         params: [

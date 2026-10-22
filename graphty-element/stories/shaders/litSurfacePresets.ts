@@ -12,8 +12,8 @@ import { shaderDescriptor } from "../../src/catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import { BODY as ANODIZED_STEEL } from "../../src/shaders/presets/anodized-steel/body";
 import { DESCRIPTOR as ANODIZED_STEEL_D } from "../../src/shaders/presets/anodized-steel/descriptor";
-import { BODY as CLEAR_GLASS } from "../../src/shaders/presets/clear-glass/body";
-import { DESCRIPTOR as CLEAR_GLASS_D } from "../../src/shaders/presets/clear-glass/descriptor";
+import { BODY as CEL_SHADE } from "../../src/shaders/presets/cel-shade/body";
+import { DESCRIPTOR as CEL_SHADE_D } from "../../src/shaders/presets/cel-shade/descriptor";
 import { BODY as FROSTED_GLASS } from "../../src/shaders/presets/frosted-glass/body";
 import { DESCRIPTOR as FROSTED_GLASS_D } from "../../src/shaders/presets/frosted-glass/descriptor";
 import { BODY as HALFTONE } from "../../src/shaders/presets/halftone/body";
@@ -24,8 +24,6 @@ import { BODY as MATCAP_INK } from "../../src/shaders/presets/matcap-ink/body";
 import { DESCRIPTOR as MATCAP_INK_D } from "../../src/shaders/presets/matcap-ink/descriptor";
 import { BODY as PEARL } from "../../src/shaders/presets/pearl/body";
 import { DESCRIPTOR as PEARL_D } from "../../src/shaders/presets/pearl/descriptor";
-import { BODY as TOON_OUTLINE } from "../../src/shaders/presets/toon-outline/body";
-import { DESCRIPTOR as TOON_OUTLINE_D } from "../../src/shaders/presets/toon-outline/descriptor";
 
 /** A preset: its catalog entry and its body. */
 export interface LitSurfacePreset {
@@ -36,9 +34,8 @@ export interface LitSurfacePreset {
 /** The eight, in the design's order. */
 export const LIT_SURFACE_PRESETS: readonly LitSurfacePreset[] = [
     { descriptor: MATCAP_INK_D, body: MATCAP_INK },
-    { descriptor: CLEAR_GLASS_D, body: CLEAR_GLASS },
     { descriptor: PEARL_D, body: PEARL },
-    { descriptor: TOON_OUTLINE_D, body: TOON_OUTLINE },
+    { descriptor: CEL_SHADE_D, body: CEL_SHADE },
     { descriptor: HALFTONE_D, body: HALFTONE },
     { descriptor: FROSTED_GLASS_D, body: FROSTED_GLASS },
     { descriptor: LIQUID_METAL_D, body: LIQUID_METAL },

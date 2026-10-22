@@ -109,7 +109,7 @@ export type {
     ShaderUse,
     ShaderWebGpu,
 } from "./src/catalog/shaders";
-export { shaderCovers } from "./src/catalog/shaders";
+export { shaderAnimates, shaderCovers } from "./src/catalog/shaders";
 export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
 export { formatShaderText, parseShaderText, type ShaderTextOptions } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";

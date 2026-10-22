@@ -36,9 +36,8 @@ const ORANGE = [0xe6, 0x9f, 0x00] as const;
  */
 const SURFACES = [
     "matcap-ink",
-    "clear-glass",
     "pearl",
-    "toon-outline",
+    "cel-shade",
     "halftone",
     "frosted-glass",
     "liquid-metal",
@@ -46,7 +45,7 @@ const SURFACES = [
     "colorblind-patterns",
     "glass-marble",
     "disco-ball",
-    "dew-drop",
+    "glass",
 ] as const;
 const OWN_COLORS = new Set<string>(["anodized-steel"]);
 

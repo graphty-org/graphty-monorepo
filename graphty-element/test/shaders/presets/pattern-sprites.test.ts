@@ -22,7 +22,7 @@ afterAll(clearRegisteredShadersForTesting);
 type Row = readonly [
     name: string,
     type: string,
-    def: number | string,
+    def: number | string | boolean,
     min?: number,
     max?: number,
     varies?: boolean,
@@ -91,13 +91,13 @@ const TABLE: Readonly<
     "icon-sticker": {
         name: "Sticker",
         kind: "node-replace",
-        reads: ["color"],
-        motion: { loop: { speedParam: "finishSpeed" } },
+        reads: ["color", "light"],
+        motion: {},
         cost: "light",
         params: [
-            ["icon", "integer", 0, 0, 11, true],
+            ["icon", "integer", 0, 0, 5, true],
+            ["outline", "boolean", false],
             ["finish", "enum", "none", undefined, undefined, undefined, true],
-            ["finishSpeed", "number", 0.5, 0, 2],
             ["foil", "number", 0.85, 0, 1],
             ["borderColor", "color", "#fbfaf6"],
         ],
@@ -167,9 +167,17 @@ describe("the pattern, state and sprite presets", () => {
         },
     );
 
+    it("draws the sticker's finish from the light, with no time and no sparkles", () => {
+        const body = PATTERN_SPRITE_PRESETS.find((preset) => preset.descriptor.id === "icon-sticker")?.body ?? "";
+        assert.include(body, "lightDir", "the finish follows the scene's light");
+        assert.notMatch(body, /\bn\.time\b/, "nothing in the sticker moves with time");
+        assert.notInclude(body, "hash12", "no sparkle cells");
+    });
+
     it("offers the sticker's three finishes", () => {
-        const finish = PATTERN_SPRITE_PRESETS.find((preset) => preset.descriptor.id === "icon-sticker")?.descriptor
-            .params[1];
+        const finish = PATTERN_SPRITE_PRESETS.find(
+            (preset) => preset.descriptor.id === "icon-sticker",
+        )?.descriptor.params.find((param) => param.name === "finish");
         assert.deepEqual(
             finish?.values?.map((choice) => choice.value),
             ["none", "shiny", "holographic"],

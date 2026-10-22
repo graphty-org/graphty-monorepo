@@ -25,19 +25,18 @@ import { SHADER_PRESET_BODIES, SHADER_PRESET_LOW_DETAIL } from "../../src/shader
 import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 import { transitionDescriptors } from "../../src/transitions/registry";
 
-/** The 32 shader presets of design section 7, by id. */
+/** The 31 shader presets of design section 7, by id. */
 const PLANNED_SHADERS = [
     // 7.1 node surfaces
     "matcap-ink",
-    "clear-glass",
     "pearl",
-    "toon-outline",
+    "cel-shade",
     "halftone",
     "glass-marble",
     "gemstone",
     "disco-ball",
-    "lantern-glow",
-    "dew-drop",
+    "lantern",
+    "glass",
     "colorblind-patterns",
     "foil-shimmer",
     "hologram",
@@ -58,7 +57,7 @@ const PLANNED_SHADERS = [
     "fiber-optic",
     "fiber-packets",
     "comet-tracers",
-    "edge-glow",
+    "neon-line",
     "edge-change",
     // 7.5 scene
     "nebula",
@@ -172,7 +171,7 @@ describe("the shader presets", () => {
         );
     });
 
-    it("lists all 32 presets, the same list the catalog shows", () => {
+    it("lists all 31 presets, the same list the catalog shows", () => {
         assert.sameMembers(ids, PLANNED_SHADERS);
         assert.deepEqual(
             createGraphSession()

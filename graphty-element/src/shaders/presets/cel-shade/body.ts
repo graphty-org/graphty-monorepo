@@ -1,5 +1,5 @@
 /**
- * @file The GLSL body of the `toon-outline` preset (design/rendering/shader-styles.md section 7.1),
+ * @file The GLSL body of the `cel-shade` preset (design/rendering/shader-styles.md section 7.1),
  * ported from the shader lab's toon ink, without the boil (the owner's change: a still line) and
  * without the halftone, which is its own preset.
  *
@@ -10,7 +10,7 @@
  */
 
 /** The body: `shade` and its helpers. */
-export const BODY = `// Toon outline: hard light bands, a crisp highlight and a still ink line.
+export const BODY = `// Cel shade: hard light bands, a crisp highlight and a still ink line.
 vec4 shade(NodeInput n) {
     float a = lightAngle * 6.28318;
     vec3 l = normalize(vec3(cos(a) * 0.75, 0.65, sin(a) * 0.75 - 0.5));

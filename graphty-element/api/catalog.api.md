@@ -2091,6 +2091,9 @@ export type SetOperand = Scope | {
 };
 
 // @public
+export function shaderAnimates(descriptor: Pick<ShaderDescriptor, "motion" | "reads" | "params">): boolean;
+
+// @public
 export type ShaderClock = "since.selected" | "since.deselected" | "since.hovered" | "since.unhovered" | "since.pinned" | "since.unpinned" | "since.added" | "since.changed" | "since.matched" | "since.unmatched";
 
 // @public

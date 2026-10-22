@@ -222,6 +222,24 @@ export function timingOf(descriptor: Pick<ShaderDescriptor, "params"> | undefine
     };
 }
 
+/**
+ * Whether a shader animates while it draws: it loops (it reads its input's `time` field, or
+ * declares a loop), it reads a clock field straight in its body (`n.sinceMatched`, which the
+ * element cannot know the end of), or a parameter's default is bound to a clock. The same fact
+ * decides whether reduced motion holds it still, so a gallery that shows "animates" and the
+ * element agree.
+ * @param descriptor - The shader's catalog facts.
+ * @returns True when it animates.
+ * @since 3.36.0
+ */
+export function shaderAnimates(descriptor: Pick<ShaderDescriptor, "motion" | "reads" | "params">): boolean {
+    return (
+        descriptor.motion.loop !== undefined ||
+        descriptor.reads.includes("times") ||
+        descriptor.params.some((param) => isClockBinding(param.default))
+    );
+}
+
 /** A {@link ShaderMotion}, or its shorthand: `"still"` is `{}`, `"loop"` is `{ loop: {} }`. @since 3.36.0 */
 export type ShaderMotionInput = ShaderMotion | "still" | "loop";
 

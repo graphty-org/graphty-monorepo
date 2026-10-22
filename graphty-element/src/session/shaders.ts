@@ -26,6 +26,7 @@ import {
     shaderSourceNow,
 } from "../catalog/shaderRegistry";
 import {
+    shaderAnimates,
     type ShaderDescriptor,
     type ShaderParams,
     type ShaderPlace,
@@ -34,7 +35,6 @@ import {
     type ShaderTarget,
     type ShaderText,
     type ShaderUse,
-    timingOf,
 } from "../catalog/shaders";
 import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC, type ShaderTextOptions } from "../catalog/shaderText";
 import type { LayerId, LayerSpec } from "../catalog/types";
@@ -916,10 +916,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "still", problem: { code: "shader.flashing", params: { id: descriptor.id } } };
         }
 
-        const { loop } = descriptor.motion;
-        const { enter, exit, change } = timingOf(descriptor);
-        const moves = loop !== undefined || (enter ?? 0) > 0 || (exit ?? 0) > 0 || (change ?? 0) > 0;
-        if (moves && (quality.motion === "paused" || quality.motion === "still")) {
+        if (shaderAnimates(descriptor) && (quality.motion === "paused" || quality.motion === "still")) {
             let reason = settings.motion === "off" ? "setting" : "system";
             if (quality.motion === "paused") {
                 reason = "guard";

@@ -15,12 +15,12 @@ import { BODY as COMET_TRACERS_BODY } from "../../../src/shaders/presets/comet-t
 import { COMET_TRACERS } from "../../../src/shaders/presets/comet-tracers/descriptor";
 import { BODY as EDGE_CHANGE_BODY } from "../../../src/shaders/presets/edge-change/body";
 import { EDGE_CHANGE } from "../../../src/shaders/presets/edge-change/descriptor";
-import { BODY as EDGE_GLOW_BODY } from "../../../src/shaders/presets/edge-glow/body";
-import { EDGE_GLOW } from "../../../src/shaders/presets/edge-glow/descriptor";
 import { BODY as FIBER_OPTIC_BODY } from "../../../src/shaders/presets/fiber-optic/body";
 import { FIBER_OPTIC } from "../../../src/shaders/presets/fiber-optic/descriptor";
 import { BODY as FIBER_PACKETS_BODY } from "../../../src/shaders/presets/fiber-packets/body";
 import { FIBER_PACKETS } from "../../../src/shaders/presets/fiber-packets/descriptor";
+import { BODY as NEON_LINE_BODY } from "../../../src/shaders/presets/neon-line/body";
+import { NEON_LINE } from "../../../src/shaders/presets/neon-line/descriptor";
 
 /** One row of the design's parameter table: name, type, default, min, max, primary, varies. */
 type Row = readonly [string, string, number | string | boolean, number?, number?, boolean?, boolean?];
@@ -89,9 +89,9 @@ const TABLE: readonly {
         ],
     },
     {
-        descriptor: EDGE_GLOW,
-        body: EDGE_GLOW_BODY,
-        name: "Edge glow",
+        descriptor: NEON_LINE,
+        body: NEON_LINE_BODY,
+        name: "Neon line",
         kind: "edge-along",
         reads: ["color", "width"],
         motion: { loop: { speedParam: "glintSpeed" } },

@@ -1,15 +1,16 @@
 /**
  * @file The GLSL body of the `icon-sticker` preset (design/rendering/shader-styles.md section
- * 7.2), ported from the shader lab's icon sticker.
+ * 7.2, design/rendering/shader-studio/decisions.md 5.1), ported from the shader lab's icon sticker.
  *
  * A round die-cut sticker: a white vinyl border, a body in the node's color with a soft top light,
- * one of the twelve `iconSdf` icons in cream, and a soft drop shadow so it sits on the canvas. The
- * owner's changes from the lab: no peel and no corner flip, and the static gloss line across the
- * body is replaced by `finish` -- none, shiny (a soft glare and a gloss highlight sliding across)
- * or holographic (rainbow foil that shifts with the angle and time, with sparkles). `foil` is the
- * finish's strength.
+ * one of six `iconSdf` icons in cream (filled, or as an outline), and a soft drop shadow so it sits
+ * on the canvas. `finish` is none, shiny (a soft glare and a gloss line where the card catches the
+ * light) or holographic (a diffraction grating: the hue comes from the reflected view direction
+ * against the light, along a grating direction set by the seed, with a broad sheen where the
+ * reflection meets the light). `foil` is the finish's strength.
  *
- * Sparkles change at most 3 times a second, so the preset never flashes faster than that.
+ * Nothing reads the time: every card's normal is tilted by its place in the view and its own seed,
+ * so the finish differs from card to card and changes only as the camera or the layout moves.
  */
 
 /** The body: `shade` and its helpers. */
@@ -27,26 +28,28 @@ vec4 shade(NodeInput n) {
 
     float body = fillAA(d + 0.13);
     vec3 c = mix(borderColor, n.color.rgb * (0.85 + 0.2 * p.y), body);
-    float mark = fillAA(iconSdf(icon, p * 1.1));
+    float mark = fillAA(iconSdf(icon + (outline ? 6 : 0), p * 1.1));
     c = mix(c, vec3(1.0, 0.99, 0.96), mark);
 
+    // The view reflected off the tilted card, and how squarely it meets the light.
+    vec3 rv = reflect(n.viewDir, n.normal);
+    float meet = max(dot(rv, lightDir), 0.0);
     if (finish == 1) {
-        // Shiny: a soft glare at the top left and a gloss highlight sliding across.
+        // Shiny: a soft glare at the top left and a gloss line where the card catches the light.
         vec2 g = p - vec2(-0.38, 0.42);
-        float glare = exp(-dot(g, g) * 7.0) * 0.3;
-        float along = p.x * 0.6 + p.y;
-        float at = fract(n.time * finishSpeed * 0.5 + n.seed) * 3.6 - 1.8;
-        float s = (along - at) * 7.0;
+        float glare = exp(-dot(g, g) * 7.0) * (0.15 + 0.3 * meet);
+        float s = (p.x * 0.6 + p.y - (rv.x * 0.6 + rv.y) * 2.4) * 7.0;
         float gloss = exp(-s * s) * 0.5;
         c += vec3(1.0) * (glare + gloss) * foil;
     } else if (finish == 2) {
-        // Holographic: rainbow foil over the body that shifts with the angle and time.
-        float t = dot(p, vec2(0.7, 0.7)) * 1.6 + n.time * finishSpeed * 0.5 + n.seed;
+        // Holographic: a grating whose hue follows the reflection against the light, and a sheen.
+        float ga = n.seed * 6.2831853;
+        vec2 grating = vec2(cos(ga), sin(ga));
+        float t = dot(rv.xy - lightDir.xy, grating) * 2.2 + dot(p, grating) * 0.6;
         vec3 holo = palette(t, vec3(0.6), vec3(0.4), vec3(1.0), vec3(0.0, 0.33, 0.67));
         float onFoil = foil * 0.6 * (1.0 - 0.5 * mark);
         c = mix(c, c * 0.55 + holo * 0.55, onFoil);
-        float sparkle = step(0.985, hash12(floor(p * 40.0) + floor(n.time * 3.0) + n.seed * 61.0));
-        c += vec3(sparkle * foil);
+        c += vec3(1.0) * pow(meet, 6.0) * 0.35 * foil;
     }
 
     // Outside the die cut only the shadow is drawn.

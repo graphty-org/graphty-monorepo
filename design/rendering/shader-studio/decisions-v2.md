@@ -421,7 +421,7 @@ They replace `node.shader`, `node.shaderParams`, `node.effects`, `edge.shader`,
 A list rather than a record keyed by id, so the same shader can be used twice with different
 settings (two rings) and the order is explicit.
 
-### 6.3 The canonical example (15 lines)
+### 6.3 The canonical example (16 lines)
 
 ```ts
 import { defineShader } from "@graphty/graphty-element/extend";
@@ -441,13 +441,16 @@ defineShader({
 });
 
 await element.session.styles.add({
+    name: "Ring on hover",
     target: "node",
     selector: { match: "state", state: "hovered" },
     set: { "node.shaders": [{ shader: "acme/ring", params: { color: "#00ff88" } }] },
 });
 ```
 
-It names no kind, role, card or trigger. The ring fades in over 0.3 s whenever a node is hovered,
+A layer needs a `name` (it is what a layer list shows and what its id is built from); `LayerSpec`
+requires it, so leaving it out fails to compile as well as to run. It names no kind, role, card or
+trigger. The ring fades in over 0.3 s whenever a node is hovered,
 because the layer's condition is "hovered" and `fade` is bound to the layer's own clock; after
 0.3 s the element stops drawing frames for it. The one spelling for adding a layer everywhere in
 docs and examples is `element.session.styles.add`, and `defineShader` is always imported from

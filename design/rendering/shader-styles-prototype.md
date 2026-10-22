@@ -205,9 +205,11 @@ additions.
   while parameter bindings use the new spellings (`since.matched`, `since.unmatched`). The rename
   and the new fields (`sinceAdded`, `sinceDeselected`, `sinceUnhovered`, `sinceUnpinned`) are
   still to do, and must happen before release (it is part of decision 1).
-- **The compile check for the guide's example.** An author who sees only the guide should write
-  the example and an edge shader, and a test should compile the guide's example against the
-  published types; that review has not been run.
+- **The review by an author who sees only the guide.** The guide's examples are compiled against
+  the published types, and a test holds the page to them, but no author working from the page
+  alone has yet written the ring example and an edge shader. The guide's opening example also
+  imports `defineShader` from the root entry, which loads the renderer, where the design says
+  `/extend`.
 - **On a node that is not round**, "the node's outline" is its bounding circle.
 - **Sticker's gallery picture** still shows the old look.
 - **Pie and donut nodes and gradient edges** wait on the style-specimens work landing.

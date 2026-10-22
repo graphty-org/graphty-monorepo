@@ -3196,6 +3196,14 @@ export type GraphtyErrorCode =
 */
 | "E_PARSE_FAILED"
 /**
+* A graphty project or document file (one `session.project.save` writes) was handed to a data
+* import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+* opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+* that opens it. Nothing in the session changed. The caller opens the file with
+* `session.project.open`, which reads data files too.
+*/
+| "E_PROJECT_FILE_AS_DATA"
+/**
 * An edge table declares no endpoint columns and contains none of the accepted pairs
 * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
 * contain. The caller re-imports with an `ImportPlan` naming the endpoint columns. The
@@ -3885,6 +3893,7 @@ export class LayoutManager implements Manager {
     get building(): boolean;
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
+    drawArrivedPaint: (() => void) | null;
     get edges(): Iterable<Edge>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
@@ -6323,6 +6332,7 @@ export class UpdateManager implements Manager {
     bindViewMasks(masks: ViewMasks | null): void;
     disableZoomToFit(): void;
     dispose(): void;
+    drawArrivedPaint(): void;
     enableZoomToFit(explicit?: boolean): void;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;

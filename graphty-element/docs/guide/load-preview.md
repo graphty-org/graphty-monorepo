@@ -98,6 +98,12 @@ tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` f
 column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
 `data.knownFields.nodeLabelPath` names another column already.
 
+For a graph file, `draft.load()` loads what `session.data.import` of the same source loads -- the
+same nodes, edges, columns and graph values -- except that the draft also sets
+`data.knownFields.nodeLabelPath` to the file's `label` field, as above, where `import` leaves it
+unset. A CSV table is read from its cells as written, so the reader can map them, and its ids
+keep the type the cells hold, where `import` reads them as text.
+
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
 `sampleValues`. A column the element gives a role by itself carries it in `suggested`: `"key"`
@@ -303,6 +309,7 @@ try {
 | `E_BAD_COMMAND`               | A role the table's rows cannot have, an unknown table, a `fixed` table      |
 | `E_EDGE_ENDPOINTS_UNRESOLVED` | `report` or `load` finds no endpoint columns; name `source` and `target`    |
 | `E_PARSE_FAILED`              | The file cannot be read as its format; `details.format`, `details.line`     |
+| `E_PROJECT_FILE_AS_DATA`      | The file is a graphty project or document; open it with `project.open`      |
 | `E_EMPTY_LOAD`                | The file was read and holds nothing to load (empty, or a header only)       |
 | `E_TOO_LARGE`                 | `load` passes the element's limit; `report` puts it in `tooLarge`           |
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |

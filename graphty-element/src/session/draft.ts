@@ -19,7 +19,7 @@ import { GraphtyError } from "../errors";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
-import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
+import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
@@ -600,18 +600,10 @@ export class Draft implements LoadDraft {
             }
         }
         const command: DataImportCommand = {
-            op: "data.import",
-            source: read.source,
+            ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
-            mode: choices.mode ?? "replace",
-            ...(choices.layout === undefined ? {} : { layout: choices.layout }),
-            ...(choices.styles === undefined ? {} : { styles: choices.styles }),
-            ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
-            held: plan.held,
-            ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
-            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),

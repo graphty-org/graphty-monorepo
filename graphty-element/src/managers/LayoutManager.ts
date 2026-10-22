@@ -694,6 +694,16 @@ export class LayoutManager implements Manager {
      */
     graphWritesWaiting: () => boolean = () => false;
 
+    /**
+     * Draw the style paint that has arrived but that no frame has drawn yet, now. A layout that
+     * spaces nodes by their drawn size calls it before reading the sizes: a node's mesh takes its
+     * painted size only when the paint is drawn, so a layout started between a load's style pass
+     * and the next frame read every node at the unstyled default size, and whether a frame fell
+     * in between decided the drawing (a Graphviz twopi file drew its unconnected node on one side
+     * or the other from load to load).
+     */
+    drawArrivedPaint: (() => void) | null = null;
+
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
@@ -1408,6 +1418,9 @@ export class LayoutManager implements Manager {
                 this.reportLayoutFailure(type, error, "stepped");
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            drawPaint: () => {
+                this.drawArrivedPaint?.();
+            },
             arrived: () => {
                 // The answer is published by the next frame's step, which runs only while the
                 // layout does.

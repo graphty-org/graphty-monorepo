@@ -1865,6 +1865,9 @@ function refuseEmptyOrPartial(
 function heldReader(held: HeldRows): ChunkReader {
     return {
         declaredDirection: held.declaredDirection,
+        // What the file said about the whole graph, from the source that read the rows, so a
+        // draft's load keeps it as `data.import` of the same file does.
+        declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {

@@ -418,6 +418,25 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
+        const prepush = code(tool("prepush.sh"));
+        const start = prepush.indexOf("for DOCS_PACKAGE in");
+        assert.ok(start > prepush.indexOf('run_step "Build"'), "after the build");
+        const loop = prepush.slice(start, prepush.indexOf("\ndone\n", start) + 6);
+        const run = (list) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$2"; }\n${loop}`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            ).stdout;
+        assert.equal(run("graph-io,graph-format,layout"), "pnpm run docs:api:layout\npnpm run docs:api:graph-io\n");
+        assert.equal(run("graph-format"), "");
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
@@ -460,11 +479,20 @@ describe("the pre-push gate matches CI", () => {
 
     describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
         const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
-        // Stubs for everything outside git: gh finds no pull request; pnpm installs nothing and says
-        // project p is affected; node's capture writes a results.json with the story status asked for;
+        // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
+        // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
+        // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
         // git passes through, except `lfs` and a forced merge-tree exit code.
         const STUBS = {
-            gh: "#!/bin/sh\nexit 0\n",
+            gh: `#!/bin/bash
+[ -n "$STUB_GH_DIR" ] || exit 0
+n=$(( $(cat "$STUB_GH_DIR/calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_GH_DIR/calls"
+head="$STUB_NEW_HEAD"
+case "$*" in
+    *@tsv*) [ "$n" -le "$STUB_OLD_TIMES" ] && head="$STUB_OLD_HEAD"; printf 'open\to/r\to/r\t%s\n' "$head" ;;
+    *) echo "$head" ;;
+esac
+`,
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
@@ -598,6 +626,37 @@ exec ${realGit} "$@"
                 assert.match(stuck.stderr, /capture failed: p/);
                 const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
                 assert.equal(status.state, "failed");
+            });
+        });
+
+        it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
+            sandbox(({ run, head, origin, main, local }) => {
+                const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
+                // GitHub's merge ref of the new head, as it builds it once it has seen the push.
+                const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
+                git("push", "-q", origin, `${merge}:refs/pull/7/merge`);
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const old = git("rev-parse", "master");
+                const r = run(
+                    {
+                        STUB_STATUS: "changed",
+                        STUB_GH_DIR: gh,
+                        STUB_OLD_HEAD: old,
+                        STUB_NEW_HEAD: head,
+                        STUB_OLD_TIMES: "2",
+                        VISUAL_PREVIEW_POLL: "0",
+                    },
+                    "7",
+                    "--expect",
+                    head,
+                );
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                assert.match(r.stdout, new RegExp(`waiting for GitHub to list ${head.slice(0, 10)} as the head of #7`));
+                // Two answers with the old head, one with the new, and the check that it did not move.
+                assert.equal(readFileSync(join(gh, "calls"), "utf8").trim(), "4");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual([status.state, status.head], ["done", head]);
             });
         });
 

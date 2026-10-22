@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -601,5 +601,65 @@ describe("focus after Save", () => {
             { timeout: TIMEOUT_MS },
         );
         await showsMarkOnNextKey();
+    });
+});
+
+describe("a saved sample opened again with Open a file, on the real element", () => {
+    it("brings back every node and edge of Books about US politics", async () => {
+        vi.stubGlobal("showSaveFilePicker", undefined);
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        const downloads: Blob[] = [];
+        const blobs = new Map<string, Blob>();
+        const create = URL.createObjectURL.bind(URL);
+        vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
+            const url = create(object);
+            if (object instanceof Blob) {
+                blobs.set(url, object);
+            }
+            return url;
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            const blob = blobs.get(this.href);
+            if (this.download !== "" && blob !== undefined) {
+                downloads.push(blob);
+            }
+        });
+        try {
+            const store = createWorkspaceStore();
+            render(<Workspace store={store} />);
+            await userEvent.click(screen.getByRole("button", { name: "Open the Books about US politics sample" }));
+            const session = await elementSession();
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 105);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            const counts = { nodes: session.data.nodes().length, edges: session.data.edges().length };
+            assert.deepEqual(counts, { nodes: 105, edges: 441 });
+
+            // Save local copy... downloads the project file (Save keeps it in this browser).
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            await waitFor(() => {
+                assert.lengthOf(downloads, 1);
+            });
+            const text = await downloads[0].text();
+
+            // Back to the start screen, then Open a file with the saved project.
+            await closeFromMenu();
+            await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
+            await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", /^Opened /);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual({ nodes: reopened.data.nodes().length, edges: reopened.data.edges().length }, counts);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });

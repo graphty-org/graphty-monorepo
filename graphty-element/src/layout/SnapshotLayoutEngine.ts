@@ -138,6 +138,8 @@ interface SnapshotLayoutHost {
      * @returns the values, or null when nothing carries the path
      */
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
+    drawPaint(): void;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -399,9 +401,15 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 });
                 return out;
             },
-            nodeSizes: () =>
-                Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius)),
+            // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
+            // ponytail: a style pass still running is not waited for; its sizes are read as drawn
+            // now. Wait for it here if a layout is ever seen starting mid-pass.
+            nodeSizes: () => {
+                this.#host?.drawPaint();
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+            },
             nodeExtents: () => {
+                this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
                 nodes.forEach((node, row) => {
                     if (node !== undefined) {

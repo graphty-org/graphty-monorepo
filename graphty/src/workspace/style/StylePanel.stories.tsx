@@ -233,13 +233,11 @@ export const HoveredAtRest: Story = sceneStory(async () => {
     await openStyle("Hovered");
 });
 
-/**
- * Key people's Shape "+": Size is set, so Shape is the one property left, and "+" adds its line
- * at once (a menu of one item is one more click for nothing), waiting for a value.
- */
+/** Key people's Shape "+", then Shape: its line is added, waiting for a value. */
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
     await waitFor(() => {
         expect(tab.querySelector('[data-section="node-shape"] .ws-row[data-line="node.shape"]')).not.toBeNull();
     }, storyWaitOptions(1000));

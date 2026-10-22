@@ -2143,9 +2143,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const argv = process.argv.slice(2);
     // Not a top-level await: land.mjs must finish loading before main runs, or the dynamic import of
     // verify.mjs (which imports land.mjs) waits on it forever and node exits with nothing done.
-    handOff(argv)
-        .then((code) => code ?? main(argv))
-        .then((code) => {
-            process.exitCode = code;
-        });
+    const run = async () => {
+        process.exitCode = (await handOff(argv)) ?? (await main(argv));
+    };
+    run(); // NOSONAR(S7785): a top-level await here deadlocks the import of verify.mjs
 }

@@ -9,8 +9,9 @@ name: Deploy to beta.graphty.app
 # and the new datasets (design/ci/fast-pipeline.md, section 4.6). To redeploy, re-run this workflow's run for
 # that commit.
 #
-# Writing to graphty-beta takes the secret GRAPHTY_BETA_TOKEN: a fine-grained token for that repository
-# alone with "Contents: read and write".
+# Writing to graphty-beta and reading the repository variable PROMOTED_BUILD (the promoted build, which the
+# cleanup keeps) takes the GitHub App whose id and private key are the secrets GRAPHTY_PAGES_APP_ID and
+# GRAPHTY_PAGES_APP_KEY (see graphty-beta's README, "Setup"). An app's tokens do not expire.
 on:
     workflow_run:
         workflows: ["CI"]
@@ -229,14 +230,28 @@ jobs:
                   echo "Site structure:"
                   find ./public -maxdepth 3 -name "index.html" | sort
 
-            - name: Publish the beta build
+            - name: Check the app secrets
               env:
-                  GH_TOKEN: ${{ secrets.GRAPHTY_BETA_TOKEN }}
+                  APP_ID: ${{ secrets.GRAPHTY_PAGES_APP_ID }}
+                  APP_KEY: ${{ secrets.GRAPHTY_PAGES_APP_KEY }}
               run: |
-                  if [ -z "$GH_TOKEN" ]; then
-                      echo "::error::the secret GRAPHTY_BETA_TOKEN is not set, so nothing can be written to graphty-org/graphty-beta (see the top of deploy-pages.yml)"
+                  if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+                      echo "::error::the secrets GRAPHTY_PAGES_APP_ID and GRAPHTY_PAGES_APP_KEY are not both set, so nothing can be written to graphty-org/graphty-beta (see the top of deploy-pages.yml)"
                       exit 1
                   fi
+
+            - id: app-token
+              uses: actions/create-github-app-token@v2
+              with:
+                  app-id: ${{ secrets.GRAPHTY_PAGES_APP_ID }}
+                  private-key: ${{ secrets.GRAPHTY_PAGES_APP_KEY }}
+                  owner: graphty-org
+                  repositories: graphty-beta,graphty-monorepo
+
+            - name: Publish the beta build
+              env:
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+              run: |
                   tools/pages-builds.sh pack ./public "$RUNNER_TEMP/build"
                   {
                       echo "graphty-monorepo commit ${SHA} (https://github.com/${GITHUB_REPOSITORY}/commit/${SHA}), built by https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}."
@@ -249,10 +264,18 @@ jobs:
 
             # The datasets graph-samples and cytoscape-extensions download live on graphty.app, and a new npm
             # release may name one this build added: compare this build's index with the one graphty.app serves.
+            # A promotion that has not started yet brings them anyway (it lays the newest build's datasets
+            # over its own), and a refresh queued behind it would replace it, so then there is no refresh.
             - name: Did the hosted datasets change
               id: data
+              env:
+                  GH_TOKEN: ${{ github.token }}
               run: |
-                  if curl -fsSL --max-time 60 https://graphty.app/data/graph-samples/v1/index.json | cmp -s - public/data/graph-samples/v1/index.json; then
+                  waiting=$(gh run list -R "$GITHUB_REPOSITORY" --workflow promote-pages.yml -L 20 --json status \
+                      --jq '[.[] | select(.status == "queued" or .status == "pending" or .status == "waiting" or .status == "requested")] | length' || echo 0)
+                  if [ "$waiting" != 0 ]; then
+                      echo "::notice::a promotion is waiting to run and brings these datasets to graphty.app"; echo "changed=false" >> "$GITHUB_OUTPUT"
+                  elif curl -fsSL --max-time 60 https://graphty.app/data/graph-samples/v1/index.json | cmp -s - public/data/graph-samples/v1/index.json; then
                       echo "graphty.app serves these datasets already"; echo "changed=false" >> "$GITHUB_OUTPUT"
                   else
                       echo "::notice::the hosted datasets changed; graphty.app gets them with the build it serves"; echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -266,3 +289,6 @@ jobs:
         uses: ./.github/workflows/promote-pages.yml
         with:
             build: live
+        secrets:
+            GRAPHTY_PAGES_APP_ID: ${{ secrets.GRAPHTY_PAGES_APP_ID }}
+            GRAPHTY_PAGES_APP_KEY: ${{ secrets.GRAPHTY_PAGES_APP_KEY }}

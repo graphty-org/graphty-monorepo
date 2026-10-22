@@ -3275,7 +3275,7 @@ describe("release.yml", () => {
         });
     });
 
-    it("deploys graphty.app from every green CI run of a push to master", () => {
+    it("publishes a beta build to beta.graphty.app from every green CI run of a push to master", () => {
         const deploy = workflow("deploy-pages.yml");
         assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
         assert.match(

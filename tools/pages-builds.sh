@@ -9,22 +9,26 @@
 #       /data/) and <out-dir>/data.tar.gz (/data/, the append-only hosted datasets).
 #   tools/pages-builds.sh publish <commit> <out-dir> <notes-file>
 #       Makes (or refreshes) the release build-<commit> with the two assets, deletes all but the newest
-#       30 builds and the one graphty.app serves, and asks graphty-beta to deploy the new build.
-#       GH_TOKEN must be able to write graphty-beta's contents.
+#       30 builds and the promoted one, and asks graphty-beta to deploy the new build. When the promoted
+#       build cannot be read, nothing is deleted.
 #   tools/pages-builds.sh live
-#       Prints the commit graphty.app serves, from its build stamp.
+#       Prints the commit of the promoted build, the one graphty.app serves: the repository variable
+#       PROMOTED_BUILD of graphty-monorepo, which only promotion writes. Prints nothing when it is unset.
+#   tools/pages-builds.sh promoted <tag>
+#       Records <tag> as the promoted build in PROMOTED_BUILD. promote-pages.yml runs it after a deploy.
 #   tools/pages-builds.sh resolve <build>
 #       Prints the release tag of <build>: "newest", "live", a commit (7 or more hex digits) or a tag.
 #   tools/pages-builds.sh compose <build> <out-dir>
 #       Unpacks <build>'s site into <out-dir> with the union of its datasets and the newest build's:
 #       what graphty.app serves after promoting <build>.
 #
-# BETA_REPO (default graphty-org/graphty-beta), LIVE_URL (default https://graphty.app/) and KEEP
-# (default 30) can be set; the tests set them.
+# GH_TOKEN must be able to write graphty-beta's contents and graphty-monorepo's Actions variables.
+# BETA_REPO (default graphty-org/graphty-beta), PAGES_REPO (default graphty-org/graphty-monorepo) and
+# KEEP (default 30) can be set; the tests set them.
 set -euo pipefail
 
 BETA_REPO="${BETA_REPO:-graphty-org/graphty-beta}"
-LIVE_URL="${LIVE_URL:-https://graphty.app/}"
+PAGES_REPO="${PAGES_REPO:-graphty-org/graphty-monorepo}"
 KEEP="${KEEP:-30}"
 
 die() {
@@ -38,8 +42,12 @@ tags() {
         --jq 'sort_by(.createdAt) | reverse | .[].tagName | select(startswith("build-"))'
 }
 
+# Not the build stamp graphty.app shows: its CDN caches the page for 10 minutes, so a refresh just
+# after a promotion would read the build before it and put that back.
 live() {
-    curl -fsSL --max-time 30 "$LIVE_URL" | sed -n 's/.*name="graphty-build" content="commit=\([0-9a-f]*\) .*/\1/p' | head -1
+    local sha
+    sha=$(gh api "repos/$PAGES_REPO/actions/variables/PROMOTED_BUILD" --jq .value 2> /dev/null || true)
+    if [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then echo "$sha"; fi
 }
 
 resolve() {
@@ -48,10 +56,10 @@ resolve() {
         newest) found=$(tags | head -1) ;;
         live)
             local sha
-            sha=$(live || true)
-            [ -n "$sha" ] || die "$LIVE_URL has no build stamp"
+            sha=$(live)
+            [ -n "$sha" ] || die "no promoted build: PROMOTED_BUILD of $PAGES_REPO is unset or unreadable; promote a beta build first"
             found=$(tags | grep -x "build-$sha" || true)
-            [ -n "$found" ] || die "$LIVE_URL serves $sha, which is not a beta build; promote a beta build first"
+            [ -n "$found" ] || die "the promoted build, $sha, is not a beta build in $BETA_REPO; promote a beta build first"
             ;;
         build-*) found=$(tags | grep -x "$build" || true) ;;
         *)
@@ -77,11 +85,16 @@ pack() {
 }
 
 prune() {
-    local keep_live
-    keep_live="build-$(live || true)"
+    local sha keep_live
+    sha=$(live)
+    if [ -z "$sha" ]; then
+        echo "::warning::no builds deleted: the promoted build (PROMOTED_BUILD of $PAGES_REPO) is unset or unreadable"
+        return 0
+    fi
+    keep_live="build-$sha"
     tags | tail -n +$((KEEP + 1)) | while read -r tag; do
         if [ "$tag" = "$keep_live" ]; then
-            echo "Keeping $tag: graphty.app serves it"
+            echo "Keeping $tag: it is the promoted build"
         else
             gh release delete "$tag" -R "$BETA_REPO" --cleanup-tag --yes
             echo "Deleted $tag"
@@ -122,12 +135,19 @@ compose() {
     echo "$tag"
 }
 
+promoted() {
+    [[ "$1" =~ ^build-[0-9a-f]{40}$ ]] || die "not a build tag: '$1'"
+    gh variable set PROMOTED_BUILD -R "$PAGES_REPO" --body "${1#build-}"
+    echo "PROMOTED_BUILD is ${1#build-}"
+}
+
 cmd="${1:-}"
 shift || true
 case "$cmd" in
     pack) pack "${1:?site dir}" "${2:?out dir}" ;;
     publish) publish "${1:?commit}" "${2:?out dir}" "${3:?notes file}" ;;
     live) live ;;
+    promoted) promoted "${1:?tag}" ;;
     resolve) resolve "${1:?build}" ;;
     compose) compose "${1:?build}" "${2:?out dir}" ;;
     *) sed -n '2,/^set /p' "$0" | sed '$d' >&2; exit 2 ;;

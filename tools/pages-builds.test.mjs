@@ -15,18 +15,36 @@ const SCRIPT = fileURLToPath(new URL("./pages-builds.sh", import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), "pages-builds-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
 
-// The fake gh: a release is a directory under releases/, numbered in the order it was made, so the
-// listing is newest first like the real one; every dispatch is appended to dispatches.
+// The fake gh: a release is a directory under releases/, numbered in the order it was made. The listing
+// is in tag order, not creation order, and its --jq runs through jq, so the script's own sorting and
+// filtering is what makes it newest first. The repository variable PROMOTED_BUILD is the file
+// variables/PROMOTED_BUILD (missing: the API answers 404); every dispatch is appended to dispatches.
 const FAKE_GH = `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const root = process.env.FAKE_GH_ROOT;
 const rels = path.join(root, "releases");
+const vars = path.join(root, "variables");
 fs.mkdirSync(rels, { recursive: true });
+fs.mkdirSync(vars, { recursive: true });
 const args = process.argv.slice(2);
 const dirOf = (tag) => fs.readdirSync(rels).find((d) => d.replace(/^\\d+-/, "") === tag);
+if (args[0] === "api" && args[1].endsWith("/actions/variables/PROMOTED_BUILD")) {
+    const file = path.join(vars, "PROMOTED_BUILD");
+    if (!fs.existsSync(file)) {
+        console.log('{"message":"Not Found","status":"404"}');
+        process.exit(1);
+    }
+    console.log(fs.readFileSync(file, "utf8"));
+    process.exit(0);
+}
 if (args[0] === "api") {
     fs.appendFileSync(path.join(root, "dispatches"), args.slice(1).join(" ") + "\\n");
+    process.exit(0);
+}
+if (args[0] === "variable" && args[1] === "set") {
+    fs.writeFileSync(path.join(vars, args[2]), args[args.indexOf("--body") + 1]);
     process.exit(0);
 }
 const [, verb, tag] = args;
@@ -41,9 +59,17 @@ const positional = () => {
     return out;
 };
 switch (verb) {
-    case "list":
-        for (const d of fs.readdirSync(rels).sort().reverse()) console.log(d.replace(/^\\d+-/, ""));
+    case "list": {
+        const releases = fs
+            .readdirSync(rels)
+            .map((d) => ({
+                tagName: d.replace(/^\\d+-/, ""),
+                createdAt: new Date(Date.UTC(2026, 0, 1) + Number(d.split("-")[0]) * 60000).toISOString(),
+            }))
+            .sort((a, b) => a.tagName.localeCompare(b.tagName));
+        process.stdout.write(execFileSync("jq", ["-r", opt("--jq")], { input: JSON.stringify(releases) }));
         break;
+    }
     case "view":
         process.exit(dirOf(tag) ? 0 : 1);
     case "create": {
@@ -80,17 +106,21 @@ switch (verb) {
 const A = "a".repeat(40);
 const B = "b".repeat(40);
 const C = "c".repeat(40);
+const builds = (w) =>
+    readdirSync(join(w.root, "releases"))
+        .map((d) => d.replace(/^\d+-/, ""))
+        .filter((t) => t.startsWith("build-"))
+        .sort();
 
 const world = (keep = 1) => {
     const root = mkdtempSync(join(TMP, "world-"));
     mkdirSync(join(root, "bin"));
     writeFileSync(join(root, "bin/gh"), FAKE_GH, { mode: 0o755 });
-    const live = join(root, "live.html");
-    const setLive = (sha) =>
-        writeFileSync(
-            live,
-            `<head>\n    <meta name="graphty-build" content="commit=${sha} release=graphty@1.0.0" />\n</head>`,
-        );
+    mkdirSync(join(root, "variables"));
+    const setLive = (sha) => writeFileSync(join(root, "variables/PROMOTED_BUILD"), sha);
+    // A release that is not a build, made after every build, so it would be "newest" if the script did
+    // not filter it out.
+    mkdirSync(join(root, "releases/099999-graph-samples-data-v1"), { recursive: true });
     const run = (...args) =>
         spawnSync("bash", [SCRIPT, ...args], {
             cwd: root,
@@ -99,7 +129,6 @@ const world = (keep = 1) => {
                 ...process.env,
                 PATH: `${join(root, "bin")}:${process.env.PATH}`,
                 FAKE_GH_ROOT: root,
-                LIVE_URL: `file://${live}`,
                 KEEP: String(keep),
             },
         });
@@ -120,15 +149,15 @@ const world = (keep = 1) => {
 };
 
 describe("tools/pages-builds.sh", () => {
-    it("keeps the newest builds and the one graphty.app serves, and deploys each new one to beta", () => {
+    it("keeps the newest builds and the promoted one, and deploys each new one to beta", () => {
         const w = world();
         w.setLive(A);
         for (const sha of [A, B, C]) assert.equal(w.build(sha).status, 0);
-        const left = readdirSync(join(w.root, "releases")).map((d) => d.replace(/^\d+-/, ""));
+        const left = builds(w);
         assert.deepEqual(
             left.sort(),
             [`build-${A}`, `build-${C}`],
-            "B is pruned; A stays because graphty.app serves it",
+            "B is pruned; A stays because it is the promoted build",
         );
         const dispatches = readFileSync(join(w.root, "dispatches"), "utf8").trim().split("\n");
         assert.deepEqual(
@@ -159,7 +188,31 @@ describe("tools/pages-builds.sh", () => {
         assert.match(missing.stderr, /no beta build '1234567'/);
         assert.match(w.run("resolve", "main").stderr, /not a build: 'main'/);
         w.setLive("d".repeat(40));
-        assert.match(w.run("resolve", "live").stderr, /which is not a beta build; promote a beta build first/);
+        assert.match(w.run("resolve", "live").stderr, /is not a beta build in graphty-org\/graphty-beta/);
+        rmSync(join(w.root, "variables/PROMOTED_BUILD"));
+        assert.match(w.run("resolve", "live").stderr, /no promoted build: PROMOTED_BUILD/);
+    });
+
+    it("deletes nothing when the promoted build cannot be read", () => {
+        const w = world();
+        for (const sha of [A, B, C]) {
+            const published = w.build(sha);
+            assert.equal(published.status, 0, published.stderr);
+        }
+        assert.deepEqual(builds(w), [`build-${A}`, `build-${B}`, `build-${C}`]);
+        assert.match(w.build(C).stdout, /no builds deleted: the promoted build/);
+    });
+
+    it("records a promoted build, which later cleanups keep", () => {
+        const w = world();
+        assert.equal(w.build(A).status, 0);
+        const promoted = w.run("promoted", `build-${A}`);
+        assert.equal(promoted.status, 0, promoted.stderr);
+        assert.equal(readFileSync(join(w.root, "variables/PROMOTED_BUILD"), "utf8"), A);
+        assert.equal(w.run("resolve", "live").stdout.trim(), `build-${A}`);
+        for (const sha of [B, C]) assert.equal(w.build(sha).status, 0);
+        assert.deepEqual(builds(w), [`build-${A}`, `build-${C}`]);
+        assert.equal(w.run("promoted", "aaaaaaa").status, 1, "only a full build tag is recorded");
     });
 
     it("composes a promoted build with the datasets of every newer build", () => {
@@ -188,7 +241,8 @@ describe("the workflows call it", () => {
             deploy,
             /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
         );
-        assert.match(deploy, /GH_TOKEN: \$\{\{ secrets.GRAPHTY_BETA_TOKEN \}\}/);
+        assert.match(deploy, /GH_TOKEN: \$\{\{ steps.app-token.outputs.token \}\}/);
+        assert.match(deploy, /--workflow promote-pages.yml/, "no refresh behind a waiting promotion");
         assert.match(deploy, /tools\/pages-builds.sh publish "\$SHA"/);
         assert.match(deploy, /uses: \.\/\.github\/workflows\/promote-pages.yml\n\s+with:\n\s+build: live/);
         assert.doesNotMatch(deploy, /actions\/deploy-pages/, "graphty.app is deployed only through promote-pages.yml");
@@ -200,5 +254,10 @@ describe("the workflows call it", () => {
         assert.match(promote, /workflow_call:/);
         assert.match(promote, /tools\/pages-builds.sh compose "\$BUILD" \.\/public/);
         assert.match(promote, /if: \$\{\{ !inputs.dry_run \}\}/);
+        assert.match(promote, /tools\/pages-builds.sh promoted "\$TAG"/);
+        // Composing (which reads PROMOTED_BUILD for "live") and deploying share one job in one
+        // concurrency group, so a refresh never reads the build before a promotion that ran first.
+        assert.equal(promote.match(/^ {4}[a-z-]+:\n/gm).length, 1, "one job");
+        assert.match(promote, /concurrency:\n\s+group: graphty-app/);
     });
 });

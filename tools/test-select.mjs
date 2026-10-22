@@ -706,6 +706,7 @@ export function planRuns(root, shards, selection) {
             reasons: s.reasons ?? [],
             command,
             covers: [shard.shard],
+            measured: s.measured,
         });
     }
     return plan;

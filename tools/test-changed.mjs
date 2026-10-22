@@ -44,6 +44,8 @@ export function changedSince(root, base) {
     return [...new Set(files.filter(Boolean))].sort();
 }
 
+const measuredText = (m) => (m.mode === "files" ? `${m.files.length} file(s)` : m.mode);
+
 /**
  * The plan as text: per run, what it runs and why.
  * @param plan planRuns()
@@ -54,7 +56,8 @@ export function describePlan(plan) {
     for (const p of plan.filter((x) => x.mode !== "none")) {
         const name = p.covers.join(", ");
         if (p.mode === "all") {
-            lines.push(`  ${name}: WHOLE SHARD (${p.reasons[0] ?? "the selector chose all"})`);
+            const would = p.measured ? "; file level would run " + measuredText(p.measured) : "";
+            lines.push(`  ${name}: WHOLE SHARD (${p.reasons[0] ?? "the selector chose all"}${would})`);
             continue;
         }
         lines.push(`  ${name}: ${p.files.length} test file(s)`);

@@ -217,6 +217,14 @@ export interface RunsApiOptions {
      */
     readonly dataDigest?: () => string;
     /**
+     * A scope digest a run counts as current besides the one it ran on: what a time window move
+     * under `results: "keep"` accepted. Absent, only the digest it ran on is current.
+     * @param id - The run.
+     * @param ranOn - The digest it ran on.
+     * @returns The accepted digest, or undefined.
+     */
+    readonly acceptedDigest?: (id: RunId, ranOn: string) => string | undefined;
+    /**
      * The name of a kept set, for a run label.
      * @param id - The set.
      * @returns The name, or undefined when no set has the id.
@@ -1456,9 +1464,13 @@ class Runs implements SessionRunsApi {
             return { cancel: () => undefined };
         }
 
+        // A re-run keeps its id: a command that names none would derive one from the scope as it
+        // is now, which after a filter or a window move names another run, and this one would wait
+        // in the queue for ever.
+        const recorded = this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm };
         const launch = this.launches.get(run.id) ?? {
             via: this.dispatch,
-            command: this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm },
+            command: this.pinnedTo(run.id, recorded),
             beside: false,
         };
         this.launches.delete(run.id);
@@ -1478,6 +1490,23 @@ class Runs implements SessionRunsApi {
                 controller.abort();
             },
         };
+    }
+
+    /**
+     * A recorded command that still names its run: one that names no id derives it from the scope
+     * as it is now, and is given the run's id when that derives another.
+     * @param id - The run's id.
+     * @param command - The command it was recorded with.
+     * @returns The command to dispatch.
+     */
+    private pinnedTo(id: RunId, command: AlgorithmRunCommand): AlgorithmRunCommand {
+        if (command.as !== undefined) {
+            return command;
+        }
+
+        const { algorithm, params, ...options } = command;
+
+        return this.resolve(algorithm, params, options).id === id ? command : { ...command, as: id };
     }
 
     /**
@@ -2257,7 +2286,11 @@ class Runs implements SessionRunsApi {
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (!dataChanged && current.digest === run.scope.digest) {
+            if (
+                !dataChanged &&
+                (current.digest === run.scope.digest ||
+                    current.digest === this.options.acceptedDigest?.(id, run.scope.digest))
+            ) {
                 return null;
             }
 

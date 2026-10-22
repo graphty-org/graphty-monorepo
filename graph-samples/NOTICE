@@ -100,6 +100,14 @@ Cite:     OpenFlights.org, Airport, airline and route databases (routes as of Ju
 License:  Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.
 
 ----------------------------------------------------------------------------------------------------
+Venice public transport (datasets/venice-transit)
+
+Source:   https://zenodo.org/records/1186215
+Also:     https://zenodo.org/api/records/1186215/files/venice.zip/content (venice/network_nodes.csv, venice/network_combined.csv)
+Cite:     R. Kujala, C. Weckstrom, R. K. Darst, M. N. Mladenovic and J. Saramaki, A collection of public transport network data sets for 25 cities, Scientific Data 5, 180089 (2018). doi:10.1038/sdata.2018.89; data set v1.2, doi:10.5281/zenodo.1186215
+License:  Creative Commons Attribution 3.0 Italy (CC BY 3.0 IT): timetable data by ACTV SpA, adapted by R. Kujala, C. Weckstrom and R. Darst. This converted network is a changed version and is available under the same license.
+
+----------------------------------------------------------------------------------------------------
 Yeast galactose perturbation network (galFiltered) (datasets/yeast-perturbation)
 
 Source:   https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/galFiltered.cys

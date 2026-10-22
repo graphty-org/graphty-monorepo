@@ -70,8 +70,12 @@ async function startPage(): Promise<{
 }
 
 /**
- * A point on a node that the element says is that node: its center, or a point nearby when
- * another node is drawn in front of the center.
+ * A whole CSS pixel on a node that the element says is that node, with every pixel within two of
+ * it on the node too: the one nearest its center.
+ *
+ * A pointer lands on whole pixels, and a node can be drawn mostly behind a neighbor. Napoleon sits
+ * almost exactly behind Count, and a point chosen by fractions of a pixel on the sliver of
+ * Napoleon left showing was often a pixel from Count's edge, so the real pointer landed on Count.
  * @param element - the hero's element.
  * @param node - the node.
  * @returns the point, in CSS pixels from the element's corner.
@@ -79,25 +83,32 @@ async function startPage(): Promise<{
 function pointOn(element: Element, node: string): { x: number; y: number } {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const r = (at?.radius ?? 0) * 0.6;
-    for (const [dx, dy] of [
-        [0, 0],
-        [r, 0],
-        [-r, 0],
-        [0, r],
-        [0, -r],
-        [r, r],
-        [-r, r],
-        [r, -r],
-        [-r, -r],
-    ]) {
-        const point = { x: (at?.x ?? 0) + dx, y: (at?.y ?? 0) + dy };
-        const hit = element.elementAt(point);
-        if (hit?.kind === "node" && hit.id === node) {
-            return point;
+    const cx = Math.round(at?.x ?? 0);
+    const cy = Math.round(at?.y ?? 0);
+    const reach = Math.ceil(at?.radius ?? 0);
+    const on = (x: number, y: number): boolean => element.elementAt({ x, y })?.id === node;
+    const clear = (x: number, y: number): boolean => {
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                if (!on(x + dx, y + dy)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    const points: { x: number; y: number }[] = [];
+    for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+            points.push({ x: cx + dx, y: cy + dy });
         }
     }
-    throw new Error(`no part of ${node} is in front of the other nodes`);
+    points.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+    const point = points.find((p) => on(p.x, p.y) && clear(p.x, p.y));
+    if (point === undefined) {
+        throw new Error(`no part of ${node} is clear of the other nodes`);
+    }
+    return point;
 }
 
 /**
@@ -420,6 +431,8 @@ describe("the start page's ways in", () => {
             JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
         );
         await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
+        // A data file opens on the Data page as a new graph; Load reads it.
+        await userEvent.click(await screen.findByRole("button", { name: "Load" }, { timeout: TIMEOUT_MS }));
 
         await waitFor(
             () => {

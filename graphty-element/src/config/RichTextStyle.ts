@@ -2,6 +2,15 @@ import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle, TextLocation } from "./common";
 
+/**
+ * The colors a label's background gradient runs through when it is switched on and names none.
+ * @internal
+ */
+export const DEFAULT_LABEL_GRADIENT_COLORS: readonly string[] = Object.freeze([
+    "rgba(0, 0, 0, 0.8)",
+    "rgba(50, 50, 50, 0.8)",
+]);
+
 // Position types
 const Position3D = z.strictObject({
     x: z.number(),
@@ -96,8 +105,6 @@ export const RichTextStyle = z.strictObject({
     declutter: z.enum(["degree", "size"]).optional(),
     // Below how many screen pixels across its node is drawn this node label is hidden; unset, never.
     minNodeScreenSize: z.number().min(0).optional(),
-    // Whether the label is drawn over the whole graph instead of sorting by depth with it.
-    onTop: z.boolean().optional(),
 
     // Colors
     textColor: ColorStyle.default("#000000").optional(),
@@ -149,6 +156,22 @@ export const RichTextStyle = z.strictObject({
     depthFadeEnabled: z.boolean().default(false).optional(),
     depthFadeNear: z.number().default(10).optional(),
     depthFadeFar: z.number().default(50).optional(),
+
+    /**
+     * Draw the text over the whole graph instead of sorting it by depth with the nodes and
+     * edges. Off (unset) by default: a node or an edge nearer the camera passes in front of the
+     * label. On, the label is never covered, so a name behind a sphere or under a selected
+     * edge's band stays whole.
+     */
+    onTop: z.boolean().optional(),
+    /**
+     * Let a click on a node's label count as a click on that node. Off (unset) by default: the
+     * label plane takes the pick and answers no node, so a click on a name selects nothing and a
+     * label drawn over its sphere hides that part of it from the pointer. On, every pointer
+     * handler and `elementAt` resolve the label to the node it labels. No effect on an edge's
+     * label.
+     */
+    pickable: z.boolean().optional(),
 
     // Text effects
     textOutline: z.boolean().default(false).optional(),
@@ -213,3 +236,23 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
  * Parsed from the Zod schema to ensure defaults stay in sync.
  */
 export const defaultRichTextLabelStyle: RichTextStyleType = RichTextStyle.parse({});
+
+/**
+ * The smallest font size that draws any text. A size under it (0, or a negative number, which
+ * the schema accepts) draws no text at all, and a layer that writes one is told so with
+ * `W_TEXT_TOO_SMALL`.
+ */
+export const MIN_DRAWN_FONT_SIZE = 1;
+
+/**
+ * Whether a resolved text block draws: switched on, and at a size that draws text.
+ * @param block - The resolved label, tooltip or caption block.
+ * @returns The block when it draws, else undefined.
+ */
+export function drawnText<T extends Pick<RichTextStyleType, "enabled" | "fontSize">>(
+    block: T | undefined,
+): T | undefined {
+    return block?.enabled === true && (block.fontSize === undefined || block.fontSize >= MIN_DRAWN_FONT_SIZE)
+        ? block
+        : undefined;
+}

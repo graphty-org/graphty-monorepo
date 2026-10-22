@@ -365,6 +365,24 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
+     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
+     * `edge.band*` channels write it.
+     */
+    band: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            scale: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
+     * graph, counted, selectable and measured. The `edge.visible` channel writes it.
+     * @since 3.26.0
+     */
+    visible: z.boolean().optional(),
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
 });
 
@@ -376,10 +394,8 @@ export const defaultEdgeStyle: EdgeStyleConfig = {
         width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
         color: "darkgrey",
     },
-    // NO COLOUR HERE EITHER. This object is parsed once into the base every painted edge is
-    // filled out from, so a colour named here reaches every edge in the graph and no layer
-    // beneath the arrow channels can be seen past it. Unset, a cap follows the line it caps.
-    arrowHead: ArrowStyle.parse({
-        type: "normal",
-    }),
+    // NO ARROWHEAD HERE. Whether an edge has a direction is a fact about the graph, not a
+    // default look: the painter adds a `normal` head only when the graph is directed and no layer
+    // set the head's type (`StylePainter` `EDGE_BASE_DIRECTED`). Named here, the element's own
+    // base layer would write it to every edge and an undirected graph would draw arrows.
 };

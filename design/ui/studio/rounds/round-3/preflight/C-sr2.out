@@ -1,0 +1,48 @@
+focus: nothing (the page itself)
+commit f108a235091e81cd23687ecc4c0b2370490a6498, build b7590f8de22b graphty@0.8.53
+focus: button "Main menu"
+focus: button "Local only"
+focus: button "Open project or file... Ctrl+O"
+focus: button "New from data..."
+focus: button "Open the Les Miserables sample"
+focus: button "Open the Zachary's karate club sample"
+focus: button "Open the College football sample"
+focus: button "Open the Florentine families sample"
+focus: DisclosureTriangle "What is collected"
+focus: button "Share usage data"
+focus: button "No thanks"
+focus: nothing (the page itself)
+live: status (polite): "Usage data stays off. Change this in Settings > Privacy" -- unconfirmed: the region arrived with this text already in it, which many screen readers do not read
+focus: button "Change this in Settings > Privacy"
+focus: nothing (the page itself)
+focus: button "Main menu"
+focus: button "Local only"
+focus: button "Open project or file... Ctrl+O"
+focus: button "New from data..."
+focus: button "Open the Les Miserables sample"
+focus: nothing (the page itself)
+live: status (polite): "Les Miserables: 77 nodes, 254 edges"
+focus: nothing (the page itself)
+focus: button "Main menu"
+focus: button "Project: Les Miserables"
+focus: button "Undo"
+focus: button "Redo" disabled
+focus: button "Local only"
+focus: button "Graph"
+focus: combobox "Find"
+focus: treeitem "Selection"
+focus: separator "Resize left panel" value "240"
+focus: Canvas "Graph drawing"
+focus: button "Analyze"
+focus: button "From Les Miserables"
+focus: button "Graph actions"
+focus: tab "Values" selected
+focus: combobox "Filter analyses" expanded
+focus: combobox "Filter analyses" value "Page" expanded; highlighted: option "PageRank Start here Which nodes are connected to other well-connected nodes." selected
+focus: combobox "Filter analyses" value "Page" expanded; highlighted: option "PageRank Start here Which nodes are connected to other well-connected nodes." selected
+focus: button "Run"
+focus: button "Analyze"
+live: status (polite): "PageRank added, running"
+live: status (polite): "PageRank finished"
+focus: button "Analyze"
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-3/preflight/C-sr2

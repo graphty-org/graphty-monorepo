@@ -24,7 +24,8 @@ export interface InlineRenameProps {
  * name while it is renamed (design/figma-spec.md 10.3).
  *
  * It opens focused with the whole name selected. Enter commits and Escape cancels, and both
- * hand focus back to whatever held it before the field opened -- the row it came from. Leaving
+ * hand focus back to the row the field sits in (the nearest focusable element around it), or,
+ * outside one, to whatever held it before the field opened. Leaving
  * the field any other way (a click elsewhere, Tab) commits and lets focus go where it was sent.
  * @param props - Component props
  * @param props.value - The current name
@@ -47,7 +48,10 @@ export function InlineRename({
     const done = useRef(false);
 
     useEffect(() => {
-        returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        // Back to the row the field sits in (a tree row, a page): the row it names, whatever
+        // opened the field -- an add button, a menu that is gone. Else what held focus before.
+        const row = inputRef.current?.parentElement?.closest<HTMLElement>("[tabindex]") ?? null;
+        returnTo.current = row ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
         inputRef.current?.focus();
         inputRef.current?.select();
     }, []);

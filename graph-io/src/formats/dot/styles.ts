@@ -1492,14 +1492,18 @@ function glyphOf(
         const v = get(property);
         return typeof v === "string" ? v.trim() : null;
     };
+    const outline = text("shapePoints");
+    if (outline === null) {
+        return undefined;
+    }
+    // a glyph with another number of corners cannot match: skip writing its texts, which is most of the work
+    const corners = outline === "" ? 0 : outline.split(/\s+/).length;
     for (const name of GRAPHVIZ_GLYPH_SHAPES) {
+        if (graphvizGlyph(name, width, height)?.outline.length !== corners) {
+            continue;
+        }
         const g = glyphTexts(name, width, height);
-        if (
-            g !== null &&
-            g.outline === text("shapePoints") &&
-            g.parts === text("shapeParts") &&
-            g.lines === text("shapeLines")
-        ) {
+        if (g !== null && g.outline === outline && g.parts === text("shapeParts") && g.lines === text("shapeLines")) {
             return { name, unstroked: g.unstroked };
         }
     }

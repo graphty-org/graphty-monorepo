@@ -16,6 +16,8 @@ import {
     type ChannelValues,
     COLOR_CHANNELS,
     type ColorChannel,
+    DEFAULT_GLOW_COLOR,
+    DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
     type NodeShapeValue,
@@ -184,6 +186,9 @@ const DECLARED = [
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.bandColor",
+    "edge.bandWidth",
+    "edge.bandOpacity",
     "edge.outlineColor",
     "edge.outlineWidth",
     "edge.outlineOpacity",
@@ -281,8 +286,16 @@ const DECLARED = [
     "edge.labelStyle",
     "edge.labelTextAlign",
     "edge.labelLocation",
-    "edge.labelColor",
+    "node.visible",
+    "node.tooltipSize",
+    "node.tooltipColor",
+    "node.tooltipBackground",
+    "edge.visible",
     "edge.labelSize",
+    "edge.labelColor",
+    "edge.labelBackground",
+    "edge.arrowHeadTextBackground",
+    "edge.arrowTailTextBackground",
     "edge.labelLetterSize",
     "edge.labelFont",
     "edge.labelWeight",
@@ -296,7 +309,6 @@ const DECLARED = [
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
     "edge.labelRotation",
-    "edge.labelBackground",
     "edge.labelOutline",
     "edge.labelOutlineWidth",
     "edge.labelBorder",
@@ -338,9 +350,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-five node channels and one hundred and thirty-two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 155);
-        assert.strictEqual(channelsFor("edge").length, 132);
+    it("splits into one hundred and fifty-nine node channels and one hundred and thirty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 159);
+        assert.strictEqual(channelsFor("edge").length, 138);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -543,6 +555,16 @@ describe("what the element can really draw", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].min, 0);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.size"].max);
     });
+
+    it("draws a glow with no strength at 1, and offers 0, which draws no glow", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].default, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0);
+    });
+
+    it("states the colour a switched-on outline or glow is drawn in when none is named", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glow"].default, DEFAULT_GLOW_COLOR);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].default, DEFAULT_OUTLINE_COLOR);
+    });
 });
 
 describe("what a style editor needs to draw a row", () => {
@@ -564,9 +586,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelStyle",
         "node.tooltip",
         "node.tooltipStyle",
-        "node.outline",
-        "node.glow",
-        "node.glowStrength",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",
         "node.marker",
@@ -652,10 +671,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.gradientStops",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
-        "edge.arrowHeadTextSize",
         "edge.arrowHeadTextLetterSize",
         "edge.arrowHeadTextFont",
-        "edge.arrowHeadTextColor",
         "edge.arrowHeadTextWeight",
         "edge.arrowHeadTextOpacity",
         "edge.arrowHeadTextDistance",
@@ -664,10 +681,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextOffsetY",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
-        "edge.arrowTailTextSize",
         "edge.arrowTailTextLetterSize",
         "edge.arrowTailTextFont",
-        "edge.arrowTailTextColor",
         "edge.arrowTailTextWeight",
         "edge.arrowTailTextOpacity",
         "edge.arrowTailTextDistance",
@@ -676,12 +691,21 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextOffsetY",
         "edge.label",
         "edge.labelStyle",
-        "node.labelColor",
-        "node.labelSize",
-        "node.labelLetterSize",
+        // A label, a caption or an edge label is drawn with no panel behind it until a style
+        // asks for one; a node tooltip has a white panel by default.
+        "node.labelBackground",
+        "edge.labelBackground",
+        "edge.arrowHeadTextBackground",
+        "edge.arrowTailTextBackground",
+        // A label's size and color state what an unset label is drawn with (48 per world unit,
+        // black), so a style editor's line starts there; font, weight and italic do not.
         "node.labelFont",
         "node.labelWeight",
         "node.labelItalic",
+        "edge.labelFont",
+        "edge.labelWeight",
+        "edge.labelItalic",
+        "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
         "node.labelWrapEllipsis",
@@ -694,7 +718,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelTextAlign",
         "node.labelLocation",
         "node.labelRotation",
-        "node.labelBackground",
         "node.labelOutline",
         "node.labelOutlineWidth",
         "node.labelBorder",
@@ -710,23 +733,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
-        "node.labelOpacity",
-        "node.labelBackgroundOpacity",
-        "node.labelOutlineOpacity",
-        "node.labelBorderOpacity",
-        "node.labelPadding",
-        "node.labelCornerRadius",
-        "node.labelLineHeight",
-        "node.labelOffsetX",
-        "node.labelOffsetY",
-        "node.labelShiftX",
-        "node.labelShiftY",
-        "edge.labelColor",
-        "edge.labelSize",
         "edge.labelLetterSize",
-        "edge.labelFont",
-        "edge.labelWeight",
-        "edge.labelItalic",
         "edge.labelTextAlign",
         "edge.labelLocation",
         "edge.labelWrapWidth",
@@ -738,22 +745,10 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
         "edge.labelRotation",
-        "edge.labelBackground",
         "edge.labelOutline",
         "edge.labelOutlineWidth",
         "edge.labelBorder",
         "edge.labelBorderWidth",
-        "edge.labelOpacity",
-        "edge.labelBackgroundOpacity",
-        "edge.labelOutlineOpacity",
-        "edge.labelBorderOpacity",
-        "edge.labelPadding",
-        "edge.labelCornerRadius",
-        "edge.labelLineHeight",
-        "edge.labelOffsetX",
-        "edge.labelOffsetY",
-        "edge.labelShiftX",
-        "edge.labelShiftY",
         "edge.labelOpacity",
         "edge.labelBackgroundOpacity",
         "edge.labelOutlineOpacity",
@@ -819,7 +814,10 @@ describe("what a style editor needs to draw a row", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.shape"].default, defaultNodeStyle.shape?.type);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].default, defaultEdgeStyle.line?.width);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.style"].default, defaultEdgeStyle.line?.type);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, defaultEdgeStyle.arrowHead?.type);
+        // The one exception: a head is drawn only on a directed graph, so the default style
+        // carries none and the descriptor names the head a directed graph draws.
+        assert.isUndefined(defaultEdgeStyle.arrowHead);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, "normal");
         // "darkgrey", written as the hex a swatch can open on.
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.color"].default, "#A9A9A9");
     });
@@ -847,7 +845,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the twenty-nine that carry a colour, and the type says the same twenty-nine", () => {
+    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -865,6 +863,7 @@ describe("colour channels", () => {
             "node.chartBorderColor",
             "node.gradientColor",
             "edge.color",
+            "edge.bandColor",
             "edge.outlineColor",
             "edge.underlayColor",
             "edge.overlayColor",
@@ -874,8 +873,12 @@ describe("colour channels", () => {
             "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
             "edge.arrowMiddleTailColor",
+            "node.tooltipColor",
+            "node.tooltipBackground",
             "edge.labelColor",
             "edge.labelBackground",
+            "edge.arrowHeadTextBackground",
+            "edge.arrowTailTextBackground",
             "edge.labelOutline",
             "edge.labelBorder",
         ];
@@ -1016,5 +1019,44 @@ describe("the arrow-end channels", () => {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
         }
+    });
+});
+
+describe("how far one step moves a number channel", () => {
+    it("is given on every number channel and on no other", () => {
+        for (const channel of CHANNELS) {
+            const descriptor = CHANNEL_DESCRIPTORS[channel];
+            assert.strictEqual(descriptor.step !== undefined, descriptor.accepts === "number", channel);
+        }
+    });
+
+    it("moves an opacity by a hundredth, a count and a label size by one, a length by a tenth", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.opacity"].step, 0.01);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.patternCount"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].step, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].step, 0.1);
+    });
+});
+
+describe("which drawn part a channel adjusts", () => {
+    it("names a part that is itself a channel with no part above it", () => {
+        for (const channel of CHANNELS) {
+            const { modifies } = CHANNEL_DESCRIPTORS[channel];
+            if (modifies !== undefined) {
+                assert.isTrue(isChannel(modifies), `${channel} modifies a channel`);
+                assert.isUndefined(CHANNEL_DESCRIPTORS[modifies].modifies, `${modifies} is a part of its own`);
+                assert.strictEqual(CHANNEL_DESCRIPTORS[modifies].target, CHANNEL_DESCRIPTORS[channel].target);
+            }
+        }
+    });
+
+    it("folds a band, a halo, an arrowhead and a label's look into their parts", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.bandWidth"].modifies, "edge.bandColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.haloOpacity"].modifies, "node.haloColor");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailSize"].modifies, "edge.arrowTail");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextColor"].modifies, "edge.arrowHeadText");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
     });
 });

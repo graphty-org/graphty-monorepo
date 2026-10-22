@@ -54,10 +54,8 @@ export type NodeId = string | number;
 export type EdgeId = string;
 
 /**
- * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
- *
- * Only nodes are found today. The edge case is declared so code that switches on `kind` already
- * handles it, and edges can be returned later without a breaking change.
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id. A node wins
+ * over an edge drawn beneath it; an edge is found within a few pixels of its line.
  */
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
@@ -192,11 +190,24 @@ export const KNOWN_LAYOUT_IDS = [
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
 /**
+ * The built-in layout names kept only as aliases, and removed at the next major release.
+ *
+ * `force-2d` is the `force` layout drawn by its two-dimensional `arf` engine: asking for it sets
+ * layout `force` with engine `arf`, which is what `session.layout` then reports. It is no longer
+ * in `catalog.layouts()`. The name stays in {@link KNOWN_LAYOUT_IDS}, so no plugin can claim it and
+ * no code that names it stops compiling.
+ */
+export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (typeof KNOWN_LAYOUT_IDS)[number][];
+
+/**
  * The built-in file formats.
  *
  * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
+ *
+ * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
+ * `session.project.open`, never by `session.data.import`.
  */
 export const KNOWN_FORMAT_IDS = [
     "json",
@@ -212,7 +223,26 @@ export const KNOWN_FORMAT_IDS = [
     "cx",
     "cys",
     "obo",
+    "graphty",
 ] as const;
+
+/**
+ * How a project file is named and typed: what `element.downloadProject()` gives the file, and
+ * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
+ * @example
+ * ```typescript
+ * const handle = await showSaveFilePicker({
+ *     suggestedName: projectFileName(session.project.name),
+ *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+ * });
+ * ```
+ */
+export const PROJECT_FILE = Object.freeze({
+    /** The file name's ending, with its leading dot. */
+    extension: ".graphty.json",
+    /** The file's media type. */
+    mediaType: "application/vnd.graphty+json",
+} as const);
 
 /**
  * A format id: a built-in name, or a plugin's.
@@ -223,10 +253,10 @@ export const KNOWN_FORMAT_IDS = [
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 /**
- * The built-in palettes: seven sequential ramps, five categorical sets, three diverging ramps and
+ * The built-in palettes: seven sequential ramps, six categorical sets, three diverging ramps and
  * three highlight pairs, in the order `PALETTE_DESCRIPTORS` lists them.
  *
- * All eighteen are here because this list is what autocomplete offers. Four of them used to be,
+ * All nineteen are here because this list is what autocomplete offers. Four of them used to be,
  * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
  * to read the catalogue table to find the rest.
  */
@@ -243,6 +273,7 @@ export const KNOWN_PALETTE_IDS = [
     "tol-muted",
     "pastel",
     "carbon",
+    "kelly",
     "purple-green",
     "blue-orange",
     "red-blue",
@@ -396,6 +427,13 @@ export interface FieldDescriptor {
      * categorical and numbers as quantitative.
      */
     measurement?: Measurement;
+    /**
+     * Published only for a directed graph: on an undirected one the field repeats another
+     * (incoming and outgoing connections are both the total), so `session.data.readableValues()`
+     * leaves it out there.
+     * @since 3.26.0
+     */
+    directedOnly?: boolean;
     path: Path;
 }
 
@@ -663,6 +701,9 @@ export type Channel =
     | "edge.width"
     | "edge.minScreenWidth"
     | "edge.opacity"
+    | "edge.bandColor"
+    | "edge.bandWidth"
+    | "edge.bandOpacity"
     | "edge.outlineColor"
     | "edge.outlineWidth"
     | "edge.outlineOpacity"
@@ -764,6 +805,13 @@ export type Channel =
     | "edge.labelFont"
     | "edge.labelWeight"
     | "edge.labelItalic"
+    | "node.visible"
+    | "node.tooltipSize"
+    | "node.tooltipColor"
+    | "node.tooltipBackground"
+    | "edge.visible"
+    | "edge.arrowHeadTextBackground"
+    | "edge.arrowTailTextBackground"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapEllipsis"
@@ -846,7 +894,12 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
- *   edge encoding it is refused, because an edge has no shape to cycle.
+ *   edge encoding it is refused, because an edge has no shape to cycle. A layer that varies only
+ *   the colour this way is drawn in the shapes too, whether or not it stores the shape half.
+ * - `"pattern"`: edge encodings only, the edge counterpart of `"shape"`. Group i is painted
+ *   colour i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
+ *   dash-dot, wave, diamonds), so two groups that share a colour never share a pattern. On a node
+ *   encoding it is refused, because a node has no line. @since 3.27.0
  * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
  *   categorical palette that fits, else the sequential default sampled once per group; with a
  *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
@@ -854,7 +907,32 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  *
  * Ignored by a scale that reads numbers, which has no groups to overflow.
  */
-export type BindingOverflow = "other" | "shape" | "extend";
+export type BindingOverflow = "other" | "shape" | "pattern" | "extend";
+
+/**
+ * How a binding writes a number as text: a label, a tooltip or a caption bound to a number value.
+ * Each field is the `Intl.NumberFormat` option of the same name; `locale` is its locale, the
+ * runtime's own when absent. Without a format a number is written in full, as `String` writes it.
+ * @since 3.26.0
+ */
+export interface BindingNumberFormat {
+    /** The most digits after the decimal point, 0 to 100: `2` writes 129.64334 as 129.64. */
+    maximumFractionDigits?: number;
+    /** The most significant digits, 1 to 21: `3` writes 129.64334 as 130 and 0.0123456 as 0.0123. */
+    maximumSignificantDigits?: number;
+    /** A BCP 47 locale such as `"en-US"`, which chooses the decimal and grouping marks. */
+    locale?: string;
+}
+
+/**
+ * How a number a layer writes meets the number the layers beneath it painted. `"replace"` (the
+ * default) writes over it; `"multiply"` and `"add"` scale or offset it, so a layer that asks for
+ * twice the width doubles whatever width each element already had. Where nothing beneath painted
+ * the channel, its default is what is scaled; the result is clamped to what the channel draws.
+ * Only number channels take a mode other than `"replace"`.
+ * @since 3.26.0
+ */
+export type CombineMode = "replace" | "multiply" | "add";
 
 /**
  * One point of a `stops` binding: what a number exactly at `at` paints, and what the stretches on
@@ -892,10 +970,16 @@ export interface BindingStop {
  * label markup. The consumer writes every word: the element adds none.
  */
 export type Binding =
-    | { value: ChannelValue }
+    | {
+          value: ChannelValue;
+          /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
+          combine?: CombineMode;
+      }
     | { template: readonly string[] }
     | {
           by: Path;
+          /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
+          combine?: CombineMode;
           scale?:
               | "linear"
               | "log"
@@ -908,10 +992,26 @@ export type Binding =
               | "passthrough"
               | (string & {});
           palette?: PaletteId;
+          /**
+           * The binding's own palette: two or more colours, lowest first, saved with the layer.
+           * Given, `palette` is not: a binding names a catalogue palette or carries its colors. A
+           * scale that names groups reads them as a categorical palette (one colour per group, so
+           * as many colors as groups), a binding with a `midpoint` as a diverging one, and anything
+           * else as a sequential ramp. The legend names it `custom`.
+           * @since 3.26.0
+           */
+          colors?: string[];
           domain?: [number, number] | "auto";
           clamp?: [number, number];
           range?: [number, number];
           map?: Record<string, string | number>;
+          /**
+           * What a value with no `map` entry paints, in place of the scale: a layer that varies a
+           * property for a few groups keeps one value for every other group. An element with no
+           * value at all is still `missing`'s, and a group folded into `other` keeps that.
+           * @since 3.26.0
+           */
+          otherwise?: string | number;
           other?: { threshold: number; value: string | number };
           /**
            * What a categorical colour binding does with more groups than its palette can keep
@@ -920,6 +1020,12 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * How a number is written on a channel that carries text (a label, a tooltip, a
+           * caption). See {@link BindingNumberFormat}. Ignored on every other channel.
+           * @since 3.26.0
+           */
+          format?: BindingNumberFormat;
           /**
            * What a value `map` has no entry for paints. Absent, it goes on through the scale as
            * before, so with `scale: "passthrough"` an unmapped "green" is painted green. `"skip"`
@@ -947,10 +1053,28 @@ export type Binding =
           midpoint?: number;
           bins?: number;
           exponent?: number;
+          /**
+           * The values a scale's groups paint, lowest group first, on a channel that carries one
+           * of a fixed list (a line pattern, a node shape, an arrow): group 0 paints the first,
+           * group 1 the second. Each must be one the channel takes. Absent, the groups walk the
+           * channel's own list in catalogue order. `styles.proposeEncoding` writes an ordered set
+           * here when it steps a number onto such a channel.
+           * @since 3.26.0
+           */
+          choices?: string[];
       };
 
 /** Declarative attribute-to-channel bindings. */
 export type Encoding = Partial<Record<Channel, Binding>>;
+
+/**
+ * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
+ * whole group out, so the top holds at most `n` and can hold none when every element ties;
+ * `"all"` takes the whole group, so the top holds every element tied at the cut and can hold more
+ * than `n`.
+ * @since 3.26.0
+ */
+export type TopTies = "fewer" | "all";
 
 /**
  * What a layer matches. Spelled out rather than implied, so it is greppable and lintable.
@@ -964,9 +1088,10 @@ export type Selector =
     /**
      * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-     * See `TopRanking` for the policy.
+     * See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
+     * instead, so the top can hold more than `n` (see {@link TopTies}).
      */
-    | { match: "top"; path: Path; n: number }
+    | { match: "top"; path: Path; n: number; ties?: TopTies }
     | { match: "everything" }
     /**
      * The members of a scope, usually a kept set: `{ match: "member", of: { set: id } }`. The
@@ -975,6 +1100,20 @@ export type Selector =
      * cannot be evaluated paints nothing and never throws.
      */
     | { match: "member"; of: Scope }
+    /**
+     * The elements a rule tree holds, re-evaluated as the data changes: what a rule set holds,
+     * without keeping a set. `edges` is how the edges are read beside a rule about nodes (default
+     * `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
+     * number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
+     */
+    | { match: "rule"; where: RuleTree; edges?: EdgeReading }
+    /**
+     * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
+     * edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
+     * each change with no step.
+     * @since 3.26.0
+     */
+    | { match: "state"; state: "selected" | "hovered" }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -1021,6 +1160,45 @@ export interface LayerSpec {
      * Absent on every other layer. An update that does not name it keeps it.
      */
     fileStyle?: FileStyleOrigin;
+    /**
+     * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
+     * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and
+     * remove and move act on both. Minted by the element; `add` and `update` refuse it.
+     */
+    row?: LayerId;
+    /**
+     * What the last re-run of a run this layer reads could not match to its groups, as codes:
+     * see {@link LayerUnmatchedGroup}. Written by the element; absent when everything matched.
+     */
+    unmatched?: readonly LayerUnmatchedGroup[];
+}
+
+/**
+ * A group a re-run could not match. `group.new`: a group the re-run made that matches no group
+ * before it. `group.gone`: a group before it that matches none after it.
+ */
+export type GroupMatchCode = "group.new" | "group.gone";
+
+/**
+ * One group a run's re-run could not match, reported on each layer that reads the run's value.
+ *
+ * When a run that publishes a partition (a community run) re-runs, its groups are renumbered, and
+ * each old group is matched to the new group sharing the most members; a value that names
+ * something (a data-like label) is matched by name. A layer's value-table entries, hidden values
+ * and rule conditions naming a matched group move with it. What matched nothing is reported here.
+ */
+export interface LayerUnmatchedGroup {
+    /** Whether the group is new after the re-run or gone from it. */
+    readonly code: GroupMatchCode;
+    /** Which group, of which value. */
+    readonly params: {
+        /** The value path the group is a value of, such as `results.louvain.group`. */
+        readonly path: Path;
+        /** The group, as the data spells it. */
+        readonly value: string | number | boolean;
+        /** True when the layer named the group (an entry, a hidden value, a rule) and lost it. */
+        readonly dropped?: boolean;
+    };
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */
@@ -1028,7 +1206,29 @@ export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
+    /**
+     * The style tree: folders, pins, the reader's locks and hidden rows, bottom first. A layer row
+     * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
+     */
+    tree?: readonly StyleDocumentRow[];
 }
+
+/** One row of a saved style tree: a layer, by its place in the document, or a folder. */
+export type StyleDocumentRow = (
+    | { layer: number }
+    | {
+          folder: string;
+          /** The folder's rows, bottom first. */
+          children: readonly StyleDocumentRow[];
+      }
+) & {
+    /** Where the row is pinned among its siblings; absent means not pinned. */
+    pin?: "top" | "bottom" | "none";
+    /** The reader's lock. */
+    locked?: boolean;
+    /** Whether the row is hidden. */
+    hidden?: boolean;
+};
 
 // ---------------------------------------------------------------------------------------------
 // The catalogue descriptors
@@ -1081,6 +1281,17 @@ export interface AlgorithmDescriptor {
      * unknown value as `"none"`.
      */
     scopeInput?: "none" | "subgraph";
+    /**
+     * The meaning of edge weight a run of this algorithm reads: `"strength"` (larger is closer),
+     * `"distance"` (larger is farther) or `"capacity"` (larger carries more), or null when it has
+     * no weighted form. An algorithm that reads one takes the `weight` option: absent, the weight
+     * the graph was loaded with; null, none; a column's name, or `{ attribute, meaning }`, that
+     * column. A weight of another meaning is left unread and the run counts edges, saying so in
+     * `caveats.weightSkipped`; a strength reader also reads a weight whose meaning nobody stated.
+     *
+     * OPEN UNION: meanings may be added in a minor release. Absent on a plugin's descriptor.
+     */
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 /** One layout the element can place a graph with. */
@@ -1172,6 +1383,15 @@ export interface FormatDescriptor {
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
      */
     styles?: FormatStyles;
+    /**
+     * The distinct file types the writer produces, when it produces more than one: JSON's seven
+     * graph shapes, CSV's plain, Gephi and Neo4j tables. A picker can offer one entry per variant
+     * and call `exportGraph(format.id, { ...variant.preset, ...values })`. Absent when the format
+     * writes one kind of file.
+     */
+    exportVariants?: readonly FormatExportVariant[];
+    /** What the format is for, when its name does not say, such as which call reads it. */
+    description?: string;
 }
 
 /** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
@@ -1180,6 +1400,22 @@ export interface FormatStyles {
     readonly read: boolean;
     /** What the writer keeps: the rules, only the values, or nothing. Open union. */
     readonly write: "rules" | "values" | "none";
+}
+
+/** One kind of file a format's writer produces: a format id plus the writer options that fix it. */
+export interface FormatExportVariant {
+    /** Unique within its format. */
+    id: string;
+    plainName: string;
+    extensions: readonly string[];
+    mimeTypes: readonly string[];
+    /** The writer options this variant fixes, passed to `exportGraph` unchanged. */
+    preset: Readonly<Record<string, unknown>>;
+    /**
+     * The writer options that apply to this variant: the format's `writerOptions` without the
+     * preset's keys and without anything that applies only to another variant.
+     */
+    options: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */
@@ -1318,6 +1554,19 @@ export interface AttributeDescriptor {
     min?: number;
     max?: number;
     sampleValues: readonly unknown[];
+    /**
+     * Present (true) when every value is text the element reads as a color (`#rgb`, `#rrggbb`,
+     * `rgb(...)`, a CSS color name), so a channel can paint it as it is through the `passthrough`
+     * scale. Absent otherwise.
+     * @since 3.26.0
+     */
+    valuesAreColors?: true;
+    /**
+     * Present (true) on a node column whose value on every node spells that node's own id (a CSV's
+     * `id` column kept as data), so a picker can list the node id once. Absent otherwise.
+     * @since 3.27.0
+     */
+    holdsNodeIds?: true;
     /** Set when the attribute came from a run. */
     runId?: RunId;
     /**
@@ -1341,6 +1590,133 @@ export interface AttributeDescriptor {
      */
     usedBy?: readonly AttributeUse[];
 }
+
+/**
+ * What kind of value a {@link ReadableValue} holds: amounts, named groups, free text, or yes and no.
+ * @since 3.26.0
+ */
+export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+/**
+ * The kinds of channel value a {@link ReadableValue} can drive, as a style channel's `accepts`
+ * names them.
+ * @since 3.26.0
+ */
+export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
+
+/**
+ * One value a rule or a binding can read: the element's own node id, a data column, or a field a
+ * finished run published per element. `session.data.readableValues()` lists them all.
+ *
+ * ```ts
+ * for (const value of session.data.readableValues()) {
+ *     console.log(value.path, value.plainName, value.kind, value.range ?? value.valueCount);
+ * }
+ * // "data.age" "age" "number" { min: 18, max: 64 }
+ * // "results.louvain.group" "Community" "category" 6
+ * ```
+ * @since 3.26.0
+ */
+export interface ReadableValue {
+    /**
+     * What a rule or a binding reads: `"id"` for the node id (a rule's text leaf reads it),
+     * `data.<name>` for a data column, `results.<run>.<field>` for a run's field. Distinct for every
+     * entry, so the node id and a data column named `id` are two entries.
+     */
+    readonly path: Path;
+    /** The catalog name: the column's own name, the field's plain name, or "Node id". */
+    readonly plainName: string;
+    /** The name a technical reader knows it by. */
+    readonly technicalName: string;
+    /** Whether nodes or edges carry it. */
+    readonly on: "node" | "edge";
+    /** Where it comes from. */
+    readonly from: "element" | "data" | "run";
+    /** The run that published it, when `from` is `"run"`. */
+    readonly runId?: RunId;
+    /** What kind of value it is. A partition's group is a category however its ids are spelled. */
+    readonly kind: ReadableValueKind;
+    /** The lowest and highest value, for a number. */
+    readonly range?: { readonly min: number; readonly max: number };
+    /**
+     * How many distinct values, for a category or a yes-or-no, and for a number when the column
+     * holds few enough distinct values to count (256 or fewer): College football's conference
+     * column of the codes 0 to 11 has 12, so "one color per value" through the `ordinal` scale
+     * can be offered for it.
+     */
+    readonly valueCount?: number;
+    /**
+     * Present (true) when every value is text the element reads as a color, so the `passthrough`
+     * scale paints it as it is. See {@link AttributeDescriptor.valuesAreColors}.
+     * @since 3.26.0
+     */
+    readonly valuesAreColors?: true;
+    /**
+     * Present (true) on a node data column whose value on every node spells that node's own id, so
+     * a picker that lists the node id (`path` `"id"`) can leave this column out, or the other way
+     * round. See {@link AttributeDescriptor.holdsNodeIds}.
+     * @since 3.27.0
+     */
+    readonly holdsNodeIds?: true;
+    /**
+     * Present on an edge entry that reads a value of the node at one end of each edge: `path` is
+     * `graphty.source.<node path>` or `graphty.target.<node path>`, and `plainName`,
+     * `technicalName`, `kind`, `range` and `valueCount` are the node value's (read over the nodes).
+     * A rule such as "edges whose source is Valjean" reads
+     * `{ kind: "text", reads: "graphty.source.data.name", mode: "exact", text: "Valjean" }`, and a
+     * binding such as "width by the source's Connections" reads `graphty.source.results.<run>.value`.
+     * @since 3.26.0
+     */
+    readonly end?: "source" | "target";
+    /** The fraction of the nodes (or edges) that carry a value, from 0 to 1. */
+    readonly completeness: number;
+    /**
+     * The kinds of channel on its half it can drive with no scale named: exactly the channels
+     * `styles.proposeEncoding({ column })` proposes a binding for. Empty for the node id, which
+     * only a rule reads.
+     */
+    readonly fits: readonly ReadableChannelKind[];
+    /**
+     * What reads it now: each style layer that selects or paints by it, in stack order, then (for
+     * a data column) each run that weighed its edges by it. Absent when nothing does, so a picker
+     * can list the values already in use first.
+     * @since 3.26.0
+     */
+    readonly usedBy?: readonly AttributeUse[];
+    /**
+     * The rule leaves that can test it, so a condition editor offers the tests the value supports
+     * after the reader picks it: see {@link RuleTestKind}. A number with few enough distinct values
+     * to count is offered both number and category tests.
+     * @since 3.26.0
+     */
+    readonly tests: readonly RuleTestKind[];
+}
+
+/**
+ * A value every node carries from the graph's structure, which a rule reads with no run and no
+ * column: `graphty.degree`, and on a directed graph `graphty.inDegree` and `graphty.outDegree`.
+ * See `SessionDataApi.structureValues`.
+ * @since 3.35.0
+ */
+export interface StructureValue {
+    /** What a rule reads, such as `"graphty.degree"`. */
+    readonly path: Path;
+    /** The catalog name: "Degree", "In-degree" or "Out-degree". */
+    readonly plainName: string;
+    /** The name a technical reader knows it by: "degree", "inDegree" or "outDegree". */
+    readonly technicalName: string;
+}
+
+/**
+ * A rule leaf that can test a {@link ReadableValue}, by the `kind` it has in a {@link RuleTree}:
+ * `range` (between, at least, at most, is), `top` (a `threshold` leaf's top N), `above` (a
+ * `threshold` leaf's strictly above), `categories` (is one of, is not one of) and `text`
+ * (contains, is, starts with, ends with, matches).
+ *
+ * More kinds may be added in a minor release.
+ * @since 3.26.0
+ */
+export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
 
 /**
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
@@ -1408,21 +1784,54 @@ export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefi
 export type SelectionDirection = "in" | "out" | "all";
 
 /**
+ * Which nodes a `range` or `categories` leaf keeps when its attribute lives on edges (such as
+ * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
+ * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
+ * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
+ * `"none"` (since 3.26.0): the leaf holds no nodes at all, and the edges that pass are kept
+ * whatever the rule's edge reading says of their ends, so a rule about edges on a layer that paints
+ * nodes and edges paints just the passing edges.
+ */
+export type AttributeLeafNodes = "all" | "ends" | "none";
+
+/**
+ * How a text test compares: the value contains the text (`substring`), is it (`exact`), starts
+ * or ends with it, or matches it as a regular expression (`regex`).
+ *
+ * OPEN UNION: modes may be added in a minor release; handle unknown modes.
+ */
+export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
+
+/**
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
  * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
- * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
- * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
- * or halves their field lives on; every other leaf speaks nodes. A group with no members
- * constrains nothing.
+ * `repeated-edge` speak edges; `range` and `categories` speak each half whose elements carry the
+ * attribute (one on `data.weight` speaks edges); `member` speaks the referenced set's nodes, and
+ * its edges only when that set is read `listed` or `clipped` (`"visible"` is); `item` and
+ * `threshold` speak the half or halves their field lives on; every other leaf speaks nodes. A
+ * group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
 export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "range";
+          readonly attribute: Path;
+          readonly min?: number;
+          readonly max?: number;
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
+    | {
+          readonly kind: "categories";
+          readonly attribute: Path;
+          readonly values: readonly string[];
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
     | {
           readonly kind: "degree";
           readonly min?: number;
@@ -1467,12 +1876,50 @@ export type RuleTree =
           readonly path: Path;
           /** The top `n`, whole tie groups only (the `TopRanking` tie policy). Exactly one cut. */
           readonly top?: number;
+          /** What `top` does with the tie group its cut falls in: see {@link TopTies}. @since 3.26.0 */
+          readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+      }
+    /**
+     * The elements whose text for one value passes a text test: "name contains bob", "id matches
+     * `[13579]$`". The same matcher a selection's text search runs. A number or a yes-or-no value
+     * is read as its text; an element without a value fails. Reading `"id"` speaks nodes; a value
+     * path speaks each half whose elements carry it, as a `range` leaf does.
+     */
+    | {
+          readonly kind: "text";
+          /** What it reads: `"id"` for the node's id, or a value path such as `data.name`. */
+          readonly reads: Path;
+          /** How the text is compared. */
+          readonly mode: TextMatchMode;
+          /** The text, or the regular expression for `regex`. */
+          readonly text: string;
+          /**
+           * Whether case counts. Default false: both sides are folded the way find folds them
+           * (case, accents and runs of spaces), and a `regex` ignores case.
+           */
+          readonly caseSensitive?: boolean;
+          /** Which nodes the leaf keeps when its value lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
       }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * One step of a stepped visibility filter: a rule that can be switched off without being lost.
+ * The steps that are on combine with AND, in order, so each one narrows what the step before it
+ * left.
+ */
+export interface FilterStep {
+    /** The step's id, unique among the steps. */
+    readonly id: string;
+    /** Whether the step applies. A step that is off keeps its rule and hides nothing. */
+    readonly on: boolean;
+    /** What the step keeps. */
+    readonly rule: RuleTree;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist
@@ -1494,10 +1941,13 @@ export type RuleTree =
  * - `clipped`: the node half, plus the edge half clipped to edges whose endpoints are both in the
  *   node half. Rules only: exactly what the visibility filter shows. A fixed set given `clipped`
  *   is stored `listed`, which holds the same members.
+ * - `incident`: the node half, plus the edge half (every edge when silent) clipped to edges with
+ *   AT LEAST ONE endpoint in the node half: the edges "touching" the nodes, where `induced` and
+ *   `clipped` are the edges "between" them. Rules only; a fixed set is refused it.
  *
  * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
-export type EdgeReading = "induced" | "listed" | "clipped";
+export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 
 /**
  * An edge member, by its stable identity: the endpoints plus exactly one discriminator, `id`,
@@ -1721,7 +2171,11 @@ export interface CatalogApi {
      * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
      * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
      * with `values`: one choice per node in the scope, its value and label the node id as a
-     * string. Every other field is the static descriptor's.
+     * string. A "partition" option on nodes comes back with `values` too: one choice per column
+     * that can group the nodes -- a categorical node attribute (value: its name) or a finished
+     * run's categorical node field (value: its `results.` path, label: the run's label) --
+     * leaving out the key and label columns and any column with a value per node. Every other
+     * field is the static descriptor's.
      * @param key - An algorithm key, looked for first, or a layout id.
      * @param scope - What to measure; the session's default run scope when absent.
      * @returns The options, in declaration order.

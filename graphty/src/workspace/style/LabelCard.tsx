@@ -1,126 +1,20 @@
-import { ComboInput, FieldRow, MenuCheckItem } from "@graphty/compact-mantine";
+import { FieldRow, MenuCheckItem, Popout } from "@graphty/compact-mantine";
 import {
     type Channel,
-    type LabelStyle,
     labelTemplateLine,
     type LabelTemplateRow,
     labelTemplateRow,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Menu, Popover, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { Ellipsis, Plus } from "lucide-react";
+import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
-import { FromDataList } from "./FromDataList";
 import { type DataChoice, propose, sourceName, type Target } from "./row";
-import { ColorValue } from "./SetLine";
+import { ValuePicker } from "./ValuePicker";
 
-/** Props for CardOptions. */
-interface CardOptionsProps {
-    /** The label's style. */
-    style: LabelStyle;
-    /** Merges a change into the label's style. */
-    onChange: (change: LabelStyle) => void;
-}
-
-/** The card's switches, by the label style key they write. */
-const SWITCHES = [
-    { key: "panelShadow", name: "Shadow" },
-    { key: "closeButton", name: "Close button" },
-    { key: "keepInView", name: "Keep in view" },
-] as const;
-
-/** The card's colors, by the label style key they write. */
-const COLORS = [
-    { key: "background", name: "Background" },
-    { key: "color", name: "Text color" },
-    { key: "borderColor", name: "Border" },
-] as const;
-
-/**
- * The card's options: shadow, close button, keep in view, text sized on screen, corners and colors.
- * @param props - Component props
- * @param props.style - the label's style
- * @param props.onChange - merges a change into it
- * @returns The options
- */
-export function CardOptions({ style, onChange }: Readonly<CardOptionsProps>): React.JSX.Element {
-    const onScreen = style.sizeMode === "screen";
-    return (
-        <Stack gap={2} role="group" aria-label="Card options">
-            {SWITCHES.map(({ key, name }) => (
-                <FieldRow key={key}>
-                    <Checkbox
-                        size="xs"
-                        label={name}
-                        checked={style[key] === true}
-                        onChange={(event) => {
-                            onChange({ [key]: event.currentTarget.checked });
-                        }}
-                    />
-                </FieldRow>
-            ))}
-            <FieldRow>
-                <Checkbox
-                    size="xs"
-                    label="Screen size"
-                    checked={onScreen}
-                    onChange={(event) => {
-                        onChange({ sizeMode: event.currentTarget.checked ? "screen" : "world" });
-                    }}
-                />
-                {onScreen ? (
-                    <ComboInput
-                        label="Text size"
-                        width="100%"
-                        numeric
-                        options={[]}
-                        value={style.sizePx}
-                        min={6}
-                        max={72}
-                        onChange={(next) => {
-                            if (typeof next === "number") {
-                                onChange({ sizePx: next });
-                            }
-                        }}
-                    />
-                ) : null}
-            </FieldRow>
-            <FieldRow>
-                <Text size="xs">Corners</Text>
-                <ComboInput
-                    label="Corners"
-                    width="100%"
-                    numeric
-                    options={[]}
-                    value={style.cornerRadius}
-                    min={0}
-                    max={64}
-                    onChange={(next) => {
-                        if (typeof next === "number") {
-                            onChange({ cornerRadius: next });
-                        }
-                    }}
-                />
-            </FieldRow>
-            {COLORS.map(({ key, name }) => (
-                <FieldRow key={key}>
-                    <Text size="xs">{name}</Text>
-                    <ColorValue
-                        name={name}
-                        value={style[key]}
-                        documentColors={[]}
-                        write={({ value }) => {
-                            if (typeof value === "string") {
-                                onChange({ [key]: value });
-                            }
-                        }}
-                    />
-                </FieldRow>
-            ))}
-        </Stack>
-    );
-}
+/** The width of a value list, as the label entry's own lists. */
+const LIST_WIDTH = 248;
+import { GLYPHS } from "../glyphs";
 
 /** Props for CardContents. */
 interface CardContentsProps {
@@ -189,25 +83,22 @@ export function CardContents({
                 <Text size="xs" fw={600} pl={4}>
                     Card contents
                 </Text>
-                {/* Lists and menus here open in the Card settings popover's own tree, so a click in
-                    one is not a click outside that closes it (Mantine's rule for nested popovers). */}
-                <Popover opened={adding} onChange={setAdding} position="left-start" trapFocus withinPortal={false}>
-                    <Popover.Target>
+                <Popout opened={adding} onOpenChange={setAdding}>
+                    <Popout.Trigger>
                         <Tooltip label="Add card row">
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                aria-label="Add card row"
-                                onClick={() => {
-                                    setAdding(!adding);
-                                }}
-                            >
-                                <Plus size={14} aria-hidden />
+                            <ActionIcon variant="subtle" size="sm" aria-label="Add card row">
+                                <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
                         </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown p={0}>
-                        <FromDataList
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={LIST_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: "Add card row" }}
+                    >
+                        <ValuePicker
+                            title="Add card row"
                             target={target}
                             channel={channel}
                             onPick={(choice) => {
@@ -221,8 +112,8 @@ export function CardContents({
                                 setAdding(false);
                             }}
                         />
-                    </Popover.Dropdown>
-                </Popover>
+                    </Popout.Panel>
+                </Popout>
             </Group>
             {lines.map((line, at) => (
                 <CardRow
@@ -270,7 +161,7 @@ interface CardRowProps {
 }
 
 /**
- * One card row: its words, the value it reads (opening the From data list), and a menu to make it
+ * One card row: its words, the value it reads (opening the value list), and a menu to make it
  * bold, move it or remove it. A line that is not a row shows its text as written instead.
  * @param props - Component props
  * @param props.session - the element's session
@@ -307,7 +198,7 @@ function CardRow({
             <Menu.Target>
                 <Tooltip label={`${place} actions`}>
                     <ActionIcon variant="subtle" size="sm" aria-label={`${place} actions`}>
-                        <Ellipsis size={14} aria-hidden />
+                        <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             </Menu.Target>
@@ -344,8 +235,8 @@ function CardRow({
     );
 
     const picker = (
-        <Popover opened={picking} onChange={setPicking} position="left-start" trapFocus withinPortal={false}>
-            <Popover.Target>
+        <Popout opened={picking} onOpenChange={setPicking}>
+            <Popout.Trigger>
                 <Button
                     size="compact-xs"
                     variant="subtle"
@@ -355,15 +246,18 @@ function CardRow({
                     justify="flex-start"
                     title={row === null ? undefined : value}
                     aria-label={row === null ? `${place}: replace with a value` : `${place} value: ${value}`}
-                    onClick={() => {
-                        setPicking(!picking);
-                    }}
                 >
                     {row === null ? "Replace with a value" : value}
                 </Button>
-            </Popover.Target>
-            <Popover.Dropdown p={0}>
-                <FromDataList
+            </Popout.Trigger>
+            <Popout.Panel
+                width={LIST_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: place }}
+            >
+                <ValuePicker
+                    title={place}
                     target={target}
                     channel={channel}
                     inUse={row === null ? [] : [row.path]}
@@ -378,8 +272,8 @@ function CardRow({
                         setPicking(false);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </Popout.Panel>
+        </Popout>
     );
 
     if (row === null) {

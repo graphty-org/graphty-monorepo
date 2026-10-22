@@ -43,6 +43,7 @@ import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/
 import { runIdOfRef } from "../../catalog/sets/canonical";
 import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
+    AttributeLeafNodes,
     EdgeId,
     NodeId,
     Path,
@@ -65,6 +66,7 @@ import {
     followsGroup,
     visibilityCycle,
 } from "../sets/dependencies";
+import { normalizeText, textMatcher } from "../text";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -123,6 +125,13 @@ export interface FilterValueSource {
      * @returns The value, or undefined when the edge carries none.
      */
     edgeValue(index: number, path: Path): unknown;
+    /**
+     * Which halves carry a value for a path, when the source knows without reading every element.
+     * Absent, a `range` or `categories` leaf scans until it finds an element that carries one.
+     * @param path - The attribute path.
+     * @returns Whether any node, and any edge, carries one.
+     */
+    halvesOf?(path: Path): { readonly node: boolean; readonly edge: boolean };
 }
 
 /**
@@ -273,6 +282,7 @@ const FILTER_KINDS = [
     "member",
     "item",
     "threshold",
+    "text",
     "all",
     "any",
     "not",
@@ -329,6 +339,17 @@ function readsItself(through: readonly ChainStep[]): GraphtyError {
             "filter computes, so it would depend on itself. Create a set from the current members instead.",
         { reason: "cycle", through },
     );
+}
+
+/**
+ * Check an attribute leaf's choice of which nodes it keeps.
+ * @param nodes - The choice the leaf carried.
+ * @param kind - The filter kind, for the message.
+ */
+function assertNodesChoice(nodes: unknown, kind: string): void {
+    if (nodes !== undefined && nodes !== "all" && nodes !== "ends" && nodes !== "none") {
+        throw malformed(`A "${kind}" filter's nodes are "all", "ends" or "none".`, { kind, nodes });
+    }
 }
 
 /**
@@ -390,6 +411,51 @@ function assertQuery(where: unknown, kind: string): void {
 }
 
 /**
+ * Check a "degree" filter's bounds and direction.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertDegreeFilter(filter: Extract<RuleTree, { kind: "degree" }>): void {
+    assertBounds(filter.min, filter.max, filter.kind);
+
+    if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
+        throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
+            direction: filter.direction,
+        });
+    }
+}
+
+/**
+ * Check a "component" filter names a component number.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when it does not.
+ */
+function assertComponentFilter(filter: Extract<RuleTree, { kind: "component" }>): void {
+    if (!Number.isInteger(filter.id) || filter.id < 0) {
+        throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
+            id: filter.id,
+        });
+    }
+}
+
+/**
+ * Check a "neighborhood" filter's seeds and depth.
+ * @param filter - The filter.
+ * @throws A `GraphtyError` when either is not one.
+ */
+function assertNeighborhoodFilter(filter: Extract<RuleTree, { kind: "neighborhood" }>): void {
+    if (!Array.isArray(filter.seeds)) {
+        throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
+    }
+
+    if (!Number.isInteger(filter.depth) || filter.depth < 0) {
+        throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
+            depth: filter.depth,
+        });
+    }
+}
+
+/**
  * Check one filter is a filter, all the way down, without touching the graph.
  *
  * Separate from compiling it so that a malformed filter is refused at the call that offered it
@@ -416,10 +482,12 @@ function assertFilter(filter: RuleTree): void {
         case "range":
             assertPath(filter.attribute, filter.kind);
             assertBounds(filter.min, filter.max, filter.kind);
+            assertNodesChoice(filter.nodes, filter.kind);
 
             return;
         case "categories":
             assertPath(filter.attribute, filter.kind);
+            assertNodesChoice(filter.nodes, filter.kind);
 
             if (!Array.isArray(filter.values)) {
                 throw malformed('A "categories" filter needs a list of values.', { values: filter.values });
@@ -427,33 +495,15 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "degree":
-            assertBounds(filter.min, filter.max, filter.kind);
-
-            if (filter.direction !== undefined && !["in", "out", "all"].includes(filter.direction)) {
-                throw malformed('A "degree" filter\'s direction is "in", "out" or "all".', {
-                    direction: filter.direction,
-                });
-            }
+            assertDegreeFilter(filter);
 
             return;
         case "component":
-            if (!Number.isInteger(filter.id) || filter.id < 0) {
-                throw outOfRange('A "component" filter\'s id is a component number, counting from 0.', {
-                    id: filter.id,
-                });
-            }
+            assertComponentFilter(filter);
 
             return;
         case "neighborhood":
-            if (!Array.isArray(filter.seeds)) {
-                throw malformed('A "neighborhood" filter needs a list of seed node ids.', { seeds: filter.seeds });
-            }
-
-            if (!Number.isInteger(filter.depth) || filter.depth < 0) {
-                throw outOfRange('A "neighborhood" filter\'s depth is a whole number of hops, from 0.', {
-                    depth: filter.depth,
-                });
-            }
+            assertNeighborhoodFilter(filter);
 
             return;
         case "isolated":
@@ -472,6 +522,7 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "item":
         case "threshold":
+        case "text":
             assertRuleTree(filter);
 
             return;
@@ -632,7 +683,8 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 return;
             case "range":
             case "categories":
-                if (sources.values === undefined) {
+            case "text":
+                if (sources.values === undefined && !(each.kind === "text" && each.reads === "id")) {
                     throw unsupported(each.kind, "a source of attribute values");
                 }
 
@@ -830,60 +882,147 @@ function edgeQueryTest(context: CompileContext, where: Query): ElementTest {
 }
 
 /**
- * A test over a numeric attribute.
- * @param context - The compile context.
- * @param attribute - The attribute path.
- * @param min - The lower bound, inclusive; unbounded when absent.
- * @param max - The upper bound, inclusive; unbounded when absent.
- * @returns The test, which rejects a node carrying no number for the attribute.
+ * Whether a value passes a numeric bound, both ends inclusive; anything but a finite number fails.
+ * @param min - The lower bound; unbounded when absent.
+ * @param max - The upper bound; unbounded when absent.
+ * @returns The check.
  */
-function rangeTest(
-    context: CompileContext,
-    attribute: Path,
-    min: number | undefined,
-    max: number | undefined,
-): ElementTest {
-    const values = valuesOf(context, "range");
-    const mark = markFor(context, attribute);
+function inRange(min: number | undefined, max: number | undefined): (value: unknown) => boolean {
     const low = min ?? Number.NEGATIVE_INFINITY;
     const high = max ?? Number.POSITIVE_INFINITY;
 
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
-
-        return typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
-    };
+    return (value) => typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
 }
 
 /**
- * A test over a categorical attribute.
+ * Whether a value is one of the wanted categories.
  *
  * The comparison is on the value's TEXT, so a chip list that hands back "3" still matches a record
  * whose type code arrived as the number 3. That is the opposite of the rule for node ids, where 1
  * and "1" are two different nodes on purpose: an id is an identity, and a category is a label.
- * @param context - The compile context.
- * @param attribute - The attribute path.
  * @param wanted - The categories to keep.
- * @returns The test, which rejects a node carrying no value for the attribute.
+ * @returns The check.
  */
-function categoriesTest(context: CompileContext, attribute: Path, wanted: readonly string[]): ElementTest {
-    const values = valuesOf(context, "categories");
-    const mark = markFor(context, attribute);
+function inCategories(wanted: readonly string[]): (value: unknown) => boolean {
     const allowed = new Set(wanted);
 
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
+    return (value) =>
+        typeof value === "string"
+            ? allowed.has(value)
+            : (typeof value === "number" || typeof value === "boolean") && allowed.has(String(value));
+}
 
-        if (typeof value === "string") {
-            return allowed.has(value);
+/**
+ * Whether any element of a half carries a value for a path; stops at the first one.
+ * @param count - The elements in the half.
+ * @param read - Reads one element's value.
+ * @returns True when one does.
+ */
+function carries(count: number, read: (index: number) => unknown): boolean {
+    for (let index = 0; index < count; index++) {
+        const value = read(index);
+        if (value !== undefined && value !== null) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * A `range` or `categories` leaf. Each half whose elements carry the attribute speaks, so a leaf
+ * on an edge attribute such as `data.weight` narrows the edges and is silent about the nodes,
+ * unless it asks for `nodes: "ends"`: then a node is kept only when it is an end of an edge the
+ * leaf keeps. A path neither half carries speaks nodes and holds none of them, and the pass reports
+ * it unresolved.
+ *
+ * The tests read one element each, so a set question about one element reads that element alone;
+ * only `"ends"` reads every edge, once, at compile time.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileAttribute(
+    context: CompileContext,
+    filter: Extract<RuleTree, { kind: "range" | "categories" }>,
+): CompiledHalves {
+    const accept = filter.kind === "range" ? inRange(filter.min, filter.max) : inCategories(filter.values);
+
+    return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept);
+}
+
+/**
+ * A `text` leaf: the shared text matcher (`textMatcher`, what a selection's text search runs)
+ * over one value, folded the way find folds text unless case counts. On `"id"` it reads the
+ * node's id and speaks nodes; on a value path it speaks as a `range` leaf does.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileText(context: CompileContext, filter: Extract<RuleTree, { kind: "text" }>): CompiledHalves {
+    const matches = textMatcher(filter.text, filter.mode, filter.caseSensitive === true ? null : normalizeText);
+    const accept = (value: unknown): boolean =>
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean") &&
+        matches(String(value));
+
+    if (filter.reads === "id") {
+        const { ids } = context.graph;
+        return { node: (index) => accept(ids.idOf(index)), edge: null };
+    }
+
+    return compileValueLeaf(context, "text", filter.reads, filter.nodes, accept);
+}
+
+/**
+ * A leaf that tests one value per element, on each half that carries it.
+ * @param context - The compile context.
+ * @param kind - The leaf kind, for a refusal.
+ * @param attribute - The value path.
+ * @param nodes - Which nodes the leaf keeps when the value lives on edges.
+ * @param accept - The test of one value.
+ * @returns The halves.
+ */
+function compileValueLeaf(
+    context: CompileContext,
+    kind: string,
+    attribute: Path,
+    nodes: AttributeLeafNodes | undefined,
+    accept: (value: unknown) => boolean,
+): CompiledHalves {
+    const { graph } = context;
+    const values = valuesOf(context, kind);
+    const mark = markFor(context, attribute);
+    const readNode = (index: number): unknown => values.nodeValue(index, attribute);
+    const readEdge = (index: number): unknown => values.edgeValue(index, attribute);
+    const known = values.halvesOf?.(attribute);
+    const onNodes = known?.node ?? carries(graph.nodeCount, readNode);
+    const onEdges = known?.edge ?? carries(graph.edgeCount, readEdge);
+    const test =
+        (read: (index: number) => unknown): ElementTest =>
+        (index) =>
+            accept(readValue(read, index, attribute, mark));
+
+    let node = onNodes || !onEdges ? test(readNode) : null;
+    const edge = onEdges ? test(readEdge) : null;
+
+    if (nodes === "ends" && edge !== null) {
+        const list = graph.edgeList();
+        const ends = new Uint8Array(graph.nodeCount);
+
+        for (let index = 0; index < graph.edgeCount; index++) {
+            if (edge(index)) {
+                ends[list.src[index]] = 1;
+                ends[list.dst[index]] = 1;
+            }
         }
 
-        if (typeof value === "number" || typeof value === "boolean") {
-            return allowed.has(String(value));
-        }
+        const own = node;
+        node = (index) => ends[index] === 1 && (own === null || own(index));
+    } else if (nodes === "none") {
+        node = () => false;
+    }
 
-        return false;
-    };
+    return { node, edge };
 }
 
 /**
@@ -1171,7 +1310,7 @@ function thresholdHalf(
     mark.seen = true;
     const hit = new Uint8Array(count);
     if (filter.top !== undefined) {
-        for (const entry of topOfRanking(rankEntries(population), filter.top).entries) {
+        for (const entry of topOfRanking(rankEntries(population), filter.top, filter.ties).entries) {
             hit[entry.id as number] = 1;
         }
     } else {
@@ -1287,9 +1426,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "expression":
             return { node: expressionTest(context, filter.where), edge: null };
         case "range":
-            return { node: rangeTest(context, filter.attribute, filter.min, filter.max), edge: null };
         case "categories":
-            return { node: categoriesTest(context, filter.attribute, filter.values), edge: null };
+            return compileAttribute(context, filter);
         case "degree":
             return { node: degreeTest(context, filter.min, filter.max, filter.direction), edge: null };
         case "component":
@@ -1321,6 +1459,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return compileItem(context, filter.item);
         case "threshold":
             return compileThreshold(context, filter);
+        case "text":
+            return compileText(context, filter);
         case "all":
         case "any": {
             const members = filter.of.map((member) => compileOne(member, context));

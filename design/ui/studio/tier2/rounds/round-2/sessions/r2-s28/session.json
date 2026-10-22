@@ -1,0 +1,29 @@
+{
+ "commit": "8f0d5a6f77911a0093a614457ac3c9db5fde3235",
+ "toolCommit": "d9922100b30fb128cb18653b71eeb7286a65072d",
+ "uncommittedChanges": false,
+ "buildStamp": "8f0d5a6f7791 graphty@0.8.61",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-10T03:16:29.950Z",
+ "setup": [
+  "--click No thanks",
+  "--click Open the Florentine families sample",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run",
+  "--click PageRank",
+  "--click role=tab:Style",
+  "--click Add to Shape",
+  "--click role=menuitem:Size",
+  "--click role=option:PageRank",
+  "--key Escape"
+ ],
+ "task": "T18B",
+ "followUp": "given 2026-10-10T03:18:59.229Z"
+}

@@ -14,6 +14,7 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { toColorValue } from "../session/styles/channels";
 import { FrameRoster } from "./FrameRoster";
 import {
@@ -40,14 +41,24 @@ const minScreenSizeFrames = new FrameRoster();
 /** What a label hangs beside before it has been placed. */
 const NO_BOUNDS: PlacementBounds = { min: Vector3.Zero(), max: Vector3.Zero(), z: 0 };
 
-/** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
-const ON_TOP_RENDERING_GROUP = 1;
+/**
+ * The Babylon rendering group every label is drawn in: after the graph (group 0) and the glow
+ * drawn at its end (`NodeEffects`), with group 0's depth kept, so a label still sorts by depth
+ * with the nodes and edges in front of it but no glow is drawn over its words.
+ */
+const LABEL_RENDERING_GROUP = 1;
+
+/** The Babylon rendering group a label drawn on top uses: after every other, depth cleared. */
+export const ON_TOP_RENDERING_GROUP = 2;
 
 /** The line height a label is drawn at when its style names none. */
 const DEFAULT_LINE_HEIGHT = 1.2;
 
 /** The most texture pixels a label gives one em of its font (see `_createTexture`). */
 const LABEL_MAX_FONT_PX = 64;
+
+/** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale}. */
+const sceneLabels = new WeakMap<Scene, Set<RichTextLabel>>();
 
 export type BadgeType =
     | "notification"
@@ -105,6 +116,21 @@ interface PointerInfo {
     height: number;
     offset: number;
     curve: boolean;
+}
+
+/**
+ * The pointer options the speech-bubble paths take, from a label's pointer.
+ * @param info - The label's pointer.
+ * @returns The options.
+ */
+function pointerOptionsOf(info: PointerInfo): Parameters<PointerRenderer["createSpeechBubblePath"]>[3] {
+    return {
+        width: info.width,
+        height: info.height,
+        offset: info.offset,
+        direction: info.direction as PointerDirection,
+        curved: info.curve,
+    };
 }
 
 interface Border {
@@ -169,6 +195,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "progress"
     | "attachTo"
     | "onTop"
+    | "pickable"
     | "plainText"
     | "centerAtOrigin"
     | "size"
@@ -401,6 +428,8 @@ export class RichTextLabel {
     private _progressValue = 0;
     private readonly id: string;
     private originalPosition: Vector3 | null = null;
+    /** A ring drawn around the target, as a multiple of its largest half-extent; null for none. */
+    private ring: number | null = null;
 
     private readonly parser: RichTextParser;
     private readonly renderer: RichTextRenderer;
@@ -424,6 +453,25 @@ export class RichTextLabel {
 
     /** Set while {@link RichTextLabel.measureWords} builds a label that is only measured, never drawn. */
     private static measuring = false;
+
+    /** How many times its usual texture pixels the label is drawn with, for a capture larger than the canvas. */
+    private captureScale = 1;
+
+    /**
+     * Draw every label of a scene with as many texture pixels as a capture of `scale` output pixels per
+     * canvas pixel shows it at, so its words stay as sharp as on screen; 1 puts every label back.
+     *
+     * Only a label the capture would magnify is redrawn, and only up to the pixels it covers in the
+     * capture, so the extra texture memory is about the capture's own size, and only for its duration.
+     * @param scene - The scene.
+     * @param scale - Output pixels per canvas pixel.
+     */
+    static setCaptureScale(scene: Scene, scale: number): void {
+        const camera = scene.activeCamera;
+        for (const label of sceneLabels.get(scene) ?? []) {
+            label.useCaptureScale(scale === 1 || camera === null ? 1 : label.captureScaleFor(camera, scale));
+        }
+    }
 
     /**
      * How big a label's words would be drawn, without drawing them: as wide as its widest line and
@@ -486,7 +534,7 @@ export class RichTextLabel {
             lineHeight: DEFAULT_LINE_HEIGHT,
             backgroundColor: "transparent",
             backgroundGradient: false,
-            backgroundGradientColors: ["rgba(0, 0, 0, 0.8)", "rgba(50, 50, 50, 0.8)"],
+            backgroundGradientColors: [...DEFAULT_LABEL_GRADIENT_COLORS],
             backgroundGradientType: "linear",
             backgroundGradientDirection: "vertical",
             backgroundPadding: 0,
@@ -542,12 +590,24 @@ export class RichTextLabel {
             _progressBar: undefined,
         };
 
-        let finalOptions: ResolvedRichTextLabelOptions = { ...defaultOptions, ...userOptions };
+        let finalOptions: ResolvedRichTextLabelOptions = {
+            ...defaultOptions,
+            ...userOptions,
+            // A painted label passes the key with no colors; a gradient switched on then runs
+            // through the default colors rather than none (which threw in the render loop).
+            backgroundGradientColors: userOptions.backgroundGradientColors ?? defaultOptions.backgroundGradientColors,
+        };
 
         if (finalOptions.badge) {
             const badgeDefaults = BadgeStyleManager.getBadgeStyle(finalOptions.badge);
             if (badgeDefaults) {
-                finalOptions = { ...finalOptions, ...badgeDefaults, ...userOptions };
+                finalOptions = {
+                    ...finalOptions,
+                    ...badgeDefaults,
+                    ...userOptions,
+                    backgroundGradientColors:
+                        userOptions.backgroundGradientColors ?? finalOptions.backgroundGradientColors,
+                };
             }
         }
 
@@ -645,6 +705,13 @@ export class RichTextLabel {
         this._createTexture();
         this._createMaterial();
         this._createMesh();
+        let labels = sceneLabels.get(this.scene);
+        if (labels === undefined) {
+            labels = new Set();
+            sceneLabels.set(this.scene, labels);
+        }
+
+        labels.add(this);
 
         if (this.options.attachTo) {
             this._attachToTarget();
@@ -815,10 +882,12 @@ export class RichTextLabel {
             return 1;
         }
 
+        // Measured without the outline: an outline is drawn around the letters, so it grows the
+        // label instead of shrinking the letters to make room for itself.
         const { lineBox } = measureLine(ctx, firstLine, {
             lineHeight: DEFAULT_LINE_HEIGHT,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
+            textOutline: false,
+            textOutlineWidth: 0,
             runAlign: this.options.runAlign,
         });
         const oneLine = this.actualDimensions.height - totalHeight + lineBox;
@@ -842,6 +911,45 @@ export class RichTextLabel {
         };
     }
 
+    /**
+     * Texture pixels per pixel of the label's own canvas, before any capture scale.
+     * @param screenDensity - Texture pixels per canvas pixel a screen-sized label needs.
+     * @returns The density.
+     */
+    private texelsPerFontPx(screenDensity: number): number {
+        return screenDensity * Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
+    }
+
+    /**
+     * How many times its usual texture pixels this label needs in a capture of `scale` output pixels
+     * per canvas pixel: enough for one texture pixel per output pixel, never more than `scale`.
+     * @param camera - The camera the capture is drawn from.
+     * @param scale - Output pixels per canvas pixel.
+     * @returns The scale, 1 when the capture does not magnify the label.
+     */
+    private captureScaleFor(camera: Camera, scale: number): number {
+        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
+        const texelsPerEm = this.options.fontSize * this.texelsPerFontPx(screenDensity);
+        const wanted = (this.screenFontPx(camera) * scale) / texelsPerEm;
+        return wanted > 1 ? Math.min(scale, wanted) : 1;
+    }
+
+    /**
+     * Redraw the label's texture at a capture scale, when it is not already drawn at it.
+     * @param scale - How many times its usual texture pixels to draw it with.
+     */
+    private useCaptureScale(scale: number): void {
+        if (scale === this.captureScale || this.material === null) {
+            return;
+        }
+
+        this.captureScale = scale;
+        const old = this.texture;
+        this._createTexture();
+        this.material.diffuseTexture = this.texture;
+        old?.dispose();
+    }
+
     private _createTexture(): void {
         const MAX_TEXTURE_SIZE = 4096;
         // A label sized for the screen draws one canvas unit per CSS pixel, so its texture needs
@@ -853,8 +961,7 @@ export class RichTextLabel {
         // labels are many times its nodes) needs no more pixels than one drawn at that cap: without
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
-        const fontCap = Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
-        const density = screenDensity * fontCap;
+        const density = this.texelsPerFontPx(screenDensity) * this.captureScale;
         let textureWidth = this.options.autoSize
             ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
             : this.options.resolution;
@@ -952,67 +1059,26 @@ export class RichTextLabel {
         const height = this.actualDimensions.height - m * 2;
         const radius = this.options.cornerRadius;
 
-        if (this.options.borders.length > 0) {
-            let currentOffset = 0;
-
-            for (let i = 0; i < this.options.borders.length; i++) {
-                const border = this.options.borders[i];
-
-                if (i > 0 && this.options.borders[i - 1].spacing > 0) {
-                    currentOffset += this.options.borders[i - 1].spacing;
-                }
-
-                ctx.save();
-                ctx.fillStyle = border.color ?? "rgba(255, 255, 255, 0.8)";
-
-                const x = m + currentOffset;
-                const y = m + currentOffset;
-                const w = width - currentOffset * 2;
-                const h = height - currentOffset * 2;
-                const r = Math.max(0, radius - currentOffset);
-
-                ctx.beginPath();
-                this._createRoundedRectPath(ctx, x, y, w, h, r);
-
-                const innerOffset = currentOffset + border.width;
-                // the last ring is left solid only where the background covers its middle; a background
-                // that lets the middle show (none, or a translucent one) gets a hollow ring, as a stroked box is
-                if (
-                    i < this.options.borders.length - 1 ||
-                    innerOffset < this.totalBorderWidth ||
-                    this._backgroundShowsThrough()
-                ) {
-                    let innerRadius: number;
-                    if (radius > 0) {
-                        const minRadius = Math.max(2, radius * 0.2);
-                        innerRadius = Math.max(minRadius, radius - innerOffset);
-
-                        if (i === this.options.borders.length - 1) {
-                            const bgRadius = Math.max(minRadius, radius - this.totalBorderWidth);
-                            if (innerRadius < bgRadius + 5) {
-                                innerRadius = bgRadius;
-                            }
-                        }
-                    } else {
-                        innerRadius = 0;
-                    }
-
-                    this._createRoundedRectPath(
-                        ctx,
-                        m + innerOffset,
-                        m + innerOffset,
-                        width - innerOffset * 2,
-                        height - innerOffset * 2,
-                        innerRadius,
-                    );
-                }
-
-                ctx.fill("evenodd");
-                ctx.restore();
-
-                currentOffset = innerOffset;
+        this._drawBorderRings(ctx, (offset, innerOffset, innerRadius) => {
+            this._createRoundedRectPath(
+                ctx,
+                m + offset,
+                m + offset,
+                width - offset * 2,
+                height - offset * 2,
+                Math.max(0, radius - offset),
+            );
+            if (innerRadius !== undefined) {
+                this._createRoundedRectPath(
+                    ctx,
+                    m + innerOffset,
+                    m + innerOffset,
+                    width - innerOffset * 2,
+                    height - innerOffset * 2,
+                    innerRadius,
+                );
             }
-        }
+        });
 
         ctx.beginPath();
         this._createRoundedRectPath(
@@ -1036,95 +1102,27 @@ export class RichTextLabel {
         this._drawPanelShadow(ctx);
 
         const radius = this.options.cornerRadius;
+        const pointer = this.pointerInfo === null ? null : pointerOptionsOf(this.pointerInfo);
 
-        if (this.options.borders.length > 0 && this.pointerInfo) {
-            let currentOffset = 0;
-
-            for (let i = 0; i < this.options.borders.length; i++) {
-                const border = this.options.borders[i];
-
-                if (i > 0 && this.options.borders[i - 1].spacing > 0) {
-                    currentOffset += this.options.borders[i - 1].spacing;
+        if (pointer !== null) {
+            this._drawBorderRings(ctx, (offset, innerOffset, innerRadius) => {
+                this.pointerRenderer.createSpeechBubblePath(
+                    ctx,
+                    this._pointerRingArea(offset),
+                    Math.max(0, radius - offset),
+                    pointer,
+                );
+                if (innerRadius !== undefined) {
+                    const innerArea = this._pointerRingArea(innerOffset);
+                    ctx.moveTo(innerArea.x + innerRadius, innerArea.y);
+                    this.pointerRenderer.createSpeechBubblePathCCW(ctx, innerArea, innerRadius, pointer);
                 }
-
-                ctx.save();
-                ctx.fillStyle = border.color ?? "rgba(255, 255, 255, 0.8)";
-                ctx.beginPath();
-
-                const pointerArea: PointerContentArea = {
-                    x: this.contentArea.x - this.totalBorderWidth + currentOffset,
-                    y: this.contentArea.y - this.totalBorderWidth + currentOffset,
-                    width: this.contentArea.width + (this.totalBorderWidth - currentOffset) * 2,
-                    height: this.contentArea.height + (this.totalBorderWidth - currentOffset) * 2,
-                };
-
-                this.pointerRenderer.createSpeechBubblePath(ctx, pointerArea, Math.max(0, radius - currentOffset), {
-                    width: this.pointerInfo.width,
-                    height: this.pointerInfo.height,
-                    offset: this.pointerInfo.offset,
-                    direction: this.pointerInfo.direction as "top" | "bottom" | "left" | "right" | "auto",
-                    curved: this.pointerInfo.curve,
-                });
-
-                const innerOffset = currentOffset + border.width;
-                // the last ring is left solid only where the background covers its middle; a background
-                // that lets the middle show (none, or a translucent one) gets a hollow ring, as a stroked box is
-                if (
-                    i < this.options.borders.length - 1 ||
-                    innerOffset < this.totalBorderWidth ||
-                    this._backgroundShowsThrough()
-                ) {
-                    let innerRadius: number;
-                    if (radius > 0) {
-                        const minRadius = Math.max(2, radius * 0.2);
-                        innerRadius = Math.max(minRadius, radius - innerOffset);
-
-                        if (i === this.options.borders.length - 1) {
-                            const bgRadius = Math.max(minRadius, radius - this.totalBorderWidth);
-                            if (innerRadius < bgRadius + 5) {
-                                innerRadius = bgRadius;
-                            }
-                        }
-                    } else {
-                        innerRadius = 0;
-                    }
-
-                    const innerX = this.contentArea.x - this.totalBorderWidth + innerOffset;
-                    const innerY = this.contentArea.y - this.totalBorderWidth + innerOffset;
-                    ctx.moveTo(innerX + innerRadius, innerY);
-
-                    const innerPointerArea: PointerContentArea = {
-                        x: innerX,
-                        y: innerY,
-                        width: this.contentArea.width + (this.totalBorderWidth - innerOffset) * 2,
-                        height: this.contentArea.height + (this.totalBorderWidth - innerOffset) * 2,
-                    };
-
-                    this.pointerRenderer.createSpeechBubblePathCCW(ctx, innerPointerArea, innerRadius, {
-                        width: this.pointerInfo.width,
-                        height: this.pointerInfo.height,
-                        offset: this.pointerInfo.offset,
-                        direction: this.pointerInfo.direction as "top" | "bottom" | "left" | "right" | "auto",
-                        curved: this.pointerInfo.curve,
-                    });
-                }
-
-                ctx.fill("evenodd");
-                ctx.restore();
-
-                currentOffset = innerOffset;
-            }
+            });
         }
 
         ctx.beginPath();
-        if (this.pointerInfo) {
-            this.pointerRenderer.createSpeechBubblePath(ctx, this.contentArea, radius, {
-                width: this.pointerInfo.width,
-                height: this.pointerInfo.height,
-                offset: this.pointerInfo.offset,
-                direction: this.pointerInfo.direction as PointerDirection,
-                curved: this.pointerInfo.curve,
-            });
+        if (pointer !== null) {
+            this.pointerRenderer.createSpeechBubblePath(ctx, this.contentArea, radius, pointer);
         }
 
         ctx.closePath();
@@ -1134,6 +1132,92 @@ export class RichTextLabel {
         if (this.options._progressBar) {
             this._drawProgressBar(ctx);
         }
+    }
+
+    /**
+     * The area a pointer panel's border ring traces at an offset in from its outer edge.
+     * @param offset - How far in from the outer edge.
+     * @returns The area.
+     */
+    private _pointerRingArea(offset: number): PointerContentArea {
+        return {
+            x: this.contentArea.x - this.totalBorderWidth + offset,
+            y: this.contentArea.y - this.totalBorderWidth + offset,
+            width: this.contentArea.width + (this.totalBorderWidth - offset) * 2,
+            height: this.contentArea.height + (this.totalBorderWidth - offset) * 2,
+        };
+    }
+
+    /**
+     * Fill each border ring, outermost first. The callback traces the ring's outer path and, when
+     * the ring is hollow, its inner one; the ring is filled even-odd.
+     * @param ctx - The canvas.
+     * @param traceRing - Traces one ring: its outer offset, inner offset and, for a hollow ring, the
+     * inner corner radius.
+     */
+    private _drawBorderRings(
+        ctx: CanvasRenderingContext2D,
+        traceRing: (offset: number, innerOffset: number, innerRadius: number | undefined) => void,
+    ): void {
+        const { borders } = this.options;
+        let currentOffset = 0;
+        for (let i = 0; i < borders.length; i++) {
+            const border = borders[i];
+            if (i > 0 && borders[i - 1].spacing > 0) {
+                currentOffset += borders[i - 1].spacing;
+            }
+
+            ctx.save();
+            ctx.fillStyle = border.color ?? "rgba(255, 255, 255, 0.8)";
+            ctx.beginPath();
+
+            const innerOffset = currentOffset + border.width;
+            traceRing(currentOffset, innerOffset, this._innerRingRadius(i, innerOffset));
+
+            ctx.fill("evenodd");
+            ctx.restore();
+
+            currentOffset = innerOffset;
+        }
+    }
+
+    /**
+     * The inner corner radius of a hollow border ring, or undefined for a solid one. The last ring
+     * is left solid only where the background covers its middle; a background that lets the middle
+     * show (none, or a translucent one) gets a hollow ring, as a stroked box is.
+     * @param i - The ring's index, outermost first.
+     * @param innerOffset - How far in from the outer edge the ring ends.
+     * @returns The inner radius, or undefined when the ring is solid.
+     */
+    private _innerRingRadius(i: number, innerOffset: number): number | undefined {
+        const last = i === this.options.borders.length - 1;
+        if (last && innerOffset >= this.totalBorderWidth && !this._backgroundShowsThrough()) {
+            return undefined;
+        }
+
+        const radius = this.options.cornerRadius;
+        return radius > 0 ? this._roundedInnerRadius(radius, innerOffset, last) : 0;
+    }
+
+    /**
+     * The inner corner radius of a hollow ring on a panel with rounded corners. The last ring's
+     * meets the background's radius when the two would be close.
+     * @param radius - The panel's corner radius, above 0.
+     * @param innerOffset - How far in from the outer edge the ring ends.
+     * @param last - Whether this is the innermost ring.
+     * @returns The inner radius.
+     */
+    private _roundedInnerRadius(radius: number, innerOffset: number, last: boolean): number {
+        const minRadius = Math.max(2, radius * 0.2);
+        const innerRadius = Math.max(minRadius, radius - innerOffset);
+        if (last) {
+            const bgRadius = Math.max(minRadius, radius - this.totalBorderWidth);
+            if (innerRadius < bgRadius + 5) {
+                return bgRadius;
+            }
+        }
+
+        return innerRadius;
     }
 
     /**
@@ -1461,10 +1545,11 @@ export class RichTextLabel {
             return;
         }
 
+        // Without the outline, as `measureHeightInLines` measures one line.
         const { lineBox } = measureLine(ctx, first, {
             lineHeight: DEFAULT_LINE_HEIGHT,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
+            textOutline: false,
+            textOutlineWidth: 0,
             runAlign: this.options.runAlign,
         });
         // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its
@@ -1525,12 +1610,13 @@ export class RichTextLabel {
         this.mesh.billboardMode = this.options.billboardMode;
         // Turned in its own plane, which faces the camera: clockwise on screen is a negative turn about z.
         this.mesh.rotation.z = (-(this.options.rotation ?? 0) * Math.PI) / 180;
-        // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
-        // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
-        // in the graph can cover what the reader pointed at.
-        if (this.options.onTop === true) {
-            this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
-        }
+        // A label sorts by depth with the nodes and edges it belongs to unless its style sets
+        // `onTop` (a tooltip always does). Either way it is drawn after the graph's glows; on top,
+        // also with the depth buffer cleared, so nothing in the graph can cover it.
+        // ponytail: group 0's translucent nodes are drawn before every label now, so one in front
+        // of a label hides it rather than tinting it; stop translucent nodes writing depth if that shows.
+        this.scene.setRenderingAutoClearDepthStencil(LABEL_RENDERING_GROUP, false);
+        this.mesh.renderingGroupId = this.options.onTop === true ? ON_TOP_RENDERING_GROUP : LABEL_RENDERING_GROUP;
     }
 
     /**
@@ -1598,7 +1684,7 @@ export class RichTextLabel {
         }
         if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
             const { boundingBox } = target.getBoundingInfo();
-            return { min: boundingBox.minimum, max: boundingBox.maximum };
+            return this.ringBounds({ min: boundingBox.minimum, max: boundingBox.maximum });
         }
         return null;
     }
@@ -1690,6 +1776,54 @@ export class RichTextLabel {
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    /**
+     * Keep the label clear of a ring drawn around what it is attached to -- a node's halo -- the
+     * way it keeps clear of the target itself, and put it back beside the target when the ring
+     * goes. The ring is a sphere around the target's centre whose radius is `scale` times the
+     * target's largest half-extent.
+     * @param scale - The ring's radius over the target's largest half-extent, or null for no ring.
+     * @returns True when the label moved.
+     */
+    public setRing(scale: number | null): boolean {
+        const next = scale !== null && scale > 1 ? scale : null;
+        if (next === this.ring) {
+            return false;
+        }
+
+        this.ring = next;
+        this._attachToTarget();
+        return true;
+    }
+
+    /**
+     * How far a ring set by {@link RichTextLabel.setRing} reaches, over the target's largest
+     * half-extent: 1 when there is no ring, so a radius times this is the reach either way.
+     * @returns The ring's scale, or 1.
+     */
+    public get ringScale(): number {
+        return this.ring ?? 1;
+    }
+
+    /**
+     * The box a label is placed beside: the target's own, or the ring's around it when that is
+     * larger.
+     * @param bounds - The target's bounds.
+     * @param bounds.min - Its lowest corner.
+     * @param bounds.max - Its highest corner.
+     * @returns The bounds to place beside.
+     */
+    private ringBounds(bounds: { min: Vector3; max: Vector3 }): { min: Vector3; max: Vector3 } {
+        if (this.ring === null) {
+            return bounds;
+        }
+
+        const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
+        const half = bounds.max.subtract(bounds.min).scaleInPlace(0.5);
+        const radius = Math.max(half.x, half.y, half.z) * this.ring;
+        const reach = new Vector3(Math.max(half.x, radius), Math.max(half.y, radius), Math.max(half.z, radius));
+        return { min: centre.subtract(reach), max: centre.add(reach) };
     }
 
     private _pointBounds(point: Vector3): PlacementBounds {
@@ -1943,6 +2077,7 @@ export class RichTextLabel {
         this.stopScreenFit?.();
         this.stopScreenFit = null;
         this.unmarkClose?.();
+        sceneLabels.get(this.scene)?.delete(this);
 
         if (this.animator) {
             this.animator.dispose();

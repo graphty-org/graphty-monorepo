@@ -286,6 +286,29 @@ describe("buildHistogram", () => {
         ]);
     });
 
+    it("bands a continuous measure whose every element has its own value, even when they fit", () => {
+        // PageRank over 12 nodes: 12 values, one per node. One bar of height 1 each shows no shape.
+        const values = [0.021, 0.034, 0.036, 0.05, 0.052, 0.061, 0.07, 0.083, 0.09, 0.12, 0.15, 0.229];
+        const histogram = buildHistogram(arrayColumn(values), { bins: 20 });
+
+        assert.strictEqual(histogram.binning, "banded");
+        assert.strictEqual(binned(histogram.bins), 12);
+        assert.isTrue(
+            histogram.bins.some((bin) => bin.count > 1),
+            "some band holds more than one node",
+        );
+    });
+
+    it("keeps one bar per value for a count field, and for a decimal field whose values repeat", () => {
+        const degrees = buildHistogram(arrayColumn([1, 2, 3, 4, 5, 6, 7, 8]), { bins: 20, integerValued: true });
+        assert.strictEqual(degrees.binning, "per-value");
+        assert.strictEqual(degrees.bins.length, 8);
+
+        const repeated = buildHistogram(arrayColumn([0.5, 0.5, 0.25, 0.25, 0.75, 0.75]), { bins: 20 });
+        assert.strictEqual(repeated.binning, "per-value");
+        assert.strictEqual(repeated.bins.length, 3);
+    });
+
     it("bands once there are more distinct values than bins, and accounts for every element", () => {
         const values = Array.from({ length: 500 }, (_unused, index) => index);
         const { bins } = buildHistogram(arrayColumn(values), { bins: 10, integerValued: true });
@@ -306,6 +329,21 @@ describe("buildHistogram", () => {
         for (let index = 1; index < bins.length; index++) {
             assert.strictEqual(bins[index].from, bins[index - 1].to + 1, "no count is named by two bands");
         }
+    });
+
+    it("bands a number field that holds only whole numbers on whole numbers, as it would a count", () => {
+        // Degrees 1 to 17 published as plain numbers: more distinct values than bins.
+        const values = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 9, 10, 12, 16, 17];
+        const { bins } = buildHistogram(arrayColumn(values), { bins: 10 });
+
+        assert.isAbove(bins.length, 1);
+        for (const bin of bins) {
+            assert.isTrue(
+                Number.isInteger(bin.from) && Number.isInteger(bin.to),
+                `${String(bin.from)} to ${String(bin.to)}`,
+            );
+        }
+        assert.strictEqual(binned(bins), values.length);
     });
 
     it("cuts a continuous field into the number of bands asked for, covering the whole range", () => {

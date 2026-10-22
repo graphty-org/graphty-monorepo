@@ -1,0 +1,57 @@
+{
+ "key": [
+  {
+   "title": "Shape: Louvain",
+   "text": "Shape: Louvain Box",
+   "rows": [
+    {
+     "text": "Box",
+     "color": null
+    }
+   ]
+  },
+  {
+   "title": "Color: Louvain",
+   "text": "Color: Louvain Group 1 Group 2 Group 3 Group 4 Group 5 Group 6",
+   "rows": [
+    {
+     "text": "Group 1",
+     "color": "#e69f00"
+    },
+    {
+     "text": "Group 2",
+     "color": "#56b4e9"
+    },
+    {
+     "text": "Group 3",
+     "color": "#009e73"
+    },
+    {
+     "text": "Group 4",
+     "color": "#0072b2"
+    },
+    {
+     "text": "Group 5",
+     "color": "#d55e00"
+    },
+    {
+     "text": "Group 6",
+     "color": "#cc79a7"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#cc79a7": 8,
+   "#e69f00": 20,
+   "#d55e00": 10,
+   "#009e73": 11,
+   "#0072b2": 11,
+   "#56b4e9": 17
+  },
+  "edges": {
+   "#a9a9a9": 254
+  }
+ }
+}

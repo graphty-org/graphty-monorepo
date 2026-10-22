@@ -1167,47 +1167,10 @@ class DotParser {
      */
     private closeScope(scope: Scope, parent: Scope): void {
         const { container } = scope;
-        if (container !== INVALID_INDEX) {
-            const own = this.ownAttributes.get(container) ?? new Set<string>();
-            this.ownAttributes.set(container, own);
-            for (const attribute of scope.attributes.values()) {
-                if (attribute.name !== CLUSTER_ATTRIBUTE) {
-                    own.add(attribute.name);
-                    this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
-                }
-            }
-            for (const nested of scope.containers) {
-                if (nested !== container && !this.parentOf.has(nested)) {
-                    this.setParent(nested, container);
-                }
-            }
-            for (const member of scope.members) {
-                if (member === container) {
-                    continue;
-                }
-                const existing = this.parentOf.get(member);
-                if (existing === undefined) {
-                    this.setParent(member, container);
-                } else if (existing !== container && !this.isAncestor(container, existing)) {
-                    this.clusterConflict(member, existing, container, scope.line);
-                }
-            }
-            parent.containers.push(container);
+        if (container === INVALID_INDEX) {
+            this.closePlainSubgraph(scope, parent);
         } else {
-            const ranked = this.recordRank(scope);
-            const dropped = [...scope.attributes.keys()].filter((name) => !(ranked && name === RANK_ATTRIBUTE));
-            if (dropped.length > 0) {
-                const names = dropped.join(", ");
-                this.report.warning(
-                    "unsupported",
-                    DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
-                    `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
-                    { line: scope.line, element: scope.name },
-                );
-            }
-            for (const nested of scope.containers) {
-                parent.containers.push(nested);
-            }
+            this.closeCluster(scope, parent, container);
         }
         if (!parent.root) {
             for (const member of scope.members) {
@@ -1216,6 +1179,73 @@ class DotParser {
                     parent.members.push(member);
                 }
             }
+        }
+    }
+
+    /**
+     * Finish a cluster: apply its attributes to its container node, assign parents to its nested
+     * containers and its members, and hand the container to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     * @param container - the cluster's container node
+     */
+    private closeCluster(scope: Scope, parent: Scope, container: number): void {
+        const own = this.ownAttributes.get(container) ?? new Set<string>();
+        this.ownAttributes.set(container, own);
+        for (const attribute of scope.attributes.values()) {
+            if (attribute.name !== CLUSTER_ATTRIBUTE) {
+                own.add(attribute.name);
+                this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
+            }
+        }
+        for (const nested of scope.containers) {
+            if (nested !== container && !this.parentOf.has(nested)) {
+                this.setParent(nested, container);
+            }
+        }
+        for (const member of scope.members) {
+            if (member !== container) {
+                this.adoptMember(member, container, scope.line);
+            }
+        }
+        parent.containers.push(container);
+    }
+
+    /**
+     * Put a cluster's member in it, unless it is already in another cluster this one is not inside.
+     * @param member - the member node
+     * @param container - the cluster's container node
+     * @param line - the cluster's line
+     */
+    private adoptMember(member: number, container: number, line: number): void {
+        const existing = this.parentOf.get(member);
+        if (existing === undefined) {
+            this.setParent(member, container);
+        } else if (existing !== container && !this.isAncestor(container, existing)) {
+            this.clusterConflict(member, existing, container, line);
+        }
+    }
+
+    /**
+     * Finish a subgraph that is not a cluster: keep its rank, report its other attributes dropped, and hand its nested
+     * containers to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     */
+    private closePlainSubgraph(scope: Scope, parent: Scope): void {
+        const ranked = this.recordRank(scope);
+        const dropped = [...scope.attributes.keys()].filter((name) => !(ranked && name === RANK_ATTRIBUTE));
+        if (dropped.length > 0) {
+            const names = dropped.join(", ");
+            this.report.warning(
+                "unsupported",
+                DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
+                `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
+                { line: scope.line, element: scope.name },
+            );
+        }
+        for (const nested of scope.containers) {
+            parent.containers.push(nested);
         }
     }
 

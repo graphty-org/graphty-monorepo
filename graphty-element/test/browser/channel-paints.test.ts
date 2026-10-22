@@ -191,8 +191,9 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":
-            // A bundle fans unless told not to: the probe is the switch turned off.
-            return descriptor.channel !== "edge.fanned";
+            // The other state from the default: a switch that is on by default (`node.visible`)
+            // changes the picture only when it is turned off, and a bundle fans unless told not to.
+            return descriptor.default !== true && descriptor.channel !== "edge.fanned";
         case "enum": {
             const values = descriptor.values ?? [];
 
@@ -307,6 +308,8 @@ describe("every channel the table says is renderable", () => {
                     target: "node",
                     selector: { match: "everything" },
                     // A border to recolour and restyle: its colour and style draw nothing alone.
+                    // No halo: any halo channel switches the halo on alone, so one drawn here
+                    // would leave node.halo nothing to change.
                     set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
@@ -329,6 +332,8 @@ describe("every channel the table says is renderable", () => {
                         // still has something to move.
                         "edge.arrowHeadText": "HEAD",
                         "edge.arrowTailText": "TAIL",
+                        // A band's width and opacity, likewise, need a color that draws one.
+                        "edge.bandColor": "#0077BB",
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();

@@ -1,4 +1,4 @@
-import { INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -8,7 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
-import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
+import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -478,7 +478,7 @@ function engineForLayout(type: string): string {
         return type;
     }
 
-    return layoutDescriptor(type)?.engine ?? type;
+    return layoutAlias(type)?.engine ?? layoutDescriptor(type)?.engine ?? type;
 }
 
 /**
@@ -542,6 +542,13 @@ interface LayoutScopeSource {
      * @returns True when it is detached.
      */
     detached(scope: Scope): boolean;
+    /**
+     * The node values at a `data.<key>` or `results.<run>.<field>` path, by row of a snapshot.
+     * @param graph - The snapshot whose rows the values are laid out over.
+     * @param path - The path.
+     * @returns The values, or null when nothing carries the path.
+     */
+    nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
 }
 
 /**
@@ -682,7 +689,7 @@ export class LayoutManager implements Manager {
     replacing: () => boolean = () => false;
 
     /**
-     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * Whether another command that writes the graph is dispatched and not started. While one is,
      * data arriving does not start a seeded layout over: the last write of the run does, once, so
      * `addEdge` in a loop rebuilds the layout once rather than once per add.
      * @returns True while one is.
@@ -1412,6 +1419,7 @@ export class LayoutManager implements Manager {
 
                 this.reportLayoutFailure(type, error, "stepped");
             },
+            column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

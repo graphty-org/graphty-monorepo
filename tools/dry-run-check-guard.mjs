@@ -84,11 +84,15 @@ function identifiers(node, out = new Set()) {
     if (ts.isPropertyAccessExpression(node)) return identifiers(node.expression, out);
     if (ts.isPropertyAssignment(node) || ts.isMethodDeclaration(node)) {
         if (ts.isComputedPropertyName(node.name)) identifiers(node.name, out);
-        node.forEachChild((k) => void (k === node.name || identifiers(k, out)));
+        node.forEachChild((k) => {
+            if (k !== node.name) identifiers(k, out);
+        });
         return out;
     }
     // forEachChild stops at the first callback that returns something truthy, so return nothing.
-    ts.forEachChild(node, (k) => void identifiers(k, out));
+    ts.forEachChild(node, (k) => {
+        identifiers(k, out);
+    });
     return out;
 }
 
@@ -117,7 +121,7 @@ function unitOf(s, sf, label) {
     if (names.length) return [`${label}: ${names.join(", ")}`, text];
     const short =
         text.length > 80
-            ? `${text.slice(0, 80)}... (${createHash("sha1").update(text).digest("hex").slice(0, 8)})`
+            ? `${text.slice(0, 80)}... (${createHash("sha256").update(text).digest("hex").slice(0, 8)})`
             : text;
     return [`${label}: "${short}"`, text];
 }
@@ -147,6 +151,20 @@ function routesArray(s) {
 const propName = (n) => (ts.isIdentifier(n) || ts.isStringLiteral(n) || ts.isNumericLiteral(n) ? n.text : n.getText());
 
 /**
+ * One route's checks, as units named "<route id>: <check name>".
+ * @param checks the object literal of its checks
+ * @param id the route's id
+ * @param sf the source file
+ * @param out the units and protected roots to add to
+ */
+function checkUnits(checks, id, sf, out) {
+    for (const c of checks.properties) {
+        out.units.set(`check "${id}: ${c.name ? propName(c.name) : code(c, sf)}"`, code(c, sf));
+        out.roots.push(c);
+    }
+}
+
+/**
  * The units of one route, and the parts of it that are free (its walk).
  * @param el the route's object literal
  * @param i its index, the name of a route without an id
@@ -166,10 +184,7 @@ function routeUnits(el, i, sf, out) {
         if (key === "walk") {
             out.free.push(p);
         } else if (key === "checks" && ts.isPropertyAssignment(p) && ts.isObjectLiteralExpression(p.initializer)) {
-            for (const c of p.initializer.properties) {
-                out.units.set(`check "${id}: ${c.name ? propName(c.name) : code(c, sf)}"`, code(c, sf));
-                out.roots.push(c);
-            }
+            checkUnits(p.initializer, id, sf, out);
         } else {
             out.units.set(`routes.mjs route "${id}" ${key}`, code(p, sf));
             out.roots.push(p);
@@ -392,7 +407,8 @@ async function main(argv) {
     if (after.writes.length) {
         console.error(
             `REFUSED: a walk or a step of the dry run writes to something the checks rely on:\n` +
-                `${after.writes.map((w) => `  ${w}`).join("\n")}\n` +
+                after.writes.map((w) => "  " + w).join("\n") +
+                "\n" +
                 `Steps may only drive the page through the user's hands (graphty/dry-run/README.md).`,
         );
         return 1;

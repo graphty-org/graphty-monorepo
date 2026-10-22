@@ -54,7 +54,7 @@ const outDir = path.join(root, "graph-samples/thumbnails");
 const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
 /** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
 const appSamplesDir = path.join(root, "graphty/public/samples");
-const APP_SAMPLES = ["office-email", "paper-citations"];
+const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;

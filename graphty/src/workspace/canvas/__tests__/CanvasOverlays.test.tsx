@@ -228,7 +228,9 @@ describe("the canvas's state cards", () => {
                 "Zachary's karate club34 members",
                 "College football115 teams",
                 "Florentine families15 families",
-                "Office email48 nodes, 2,102 edges",
+                "Campus contacts615 nodes, 8,142 edges",
+                "Graph researchers549 nodes, 2,084 edges",
+                "Marvel films210 nodes, 582 edges",
                 "Paper citations159 nodes, 453 edges",
             ],
         );

@@ -239,8 +239,9 @@ export interface StartSample {
 }
 
 /**
- * The tier 1 samples, Les Miserables first, then the two timed ones (synthetic, written by
- * scripts/write-timeline-samples.ts). Each opens by URL through graphty-element's
+ * The tier 1 samples, Les Miserables first, then the timed ones: three real networks written by
+ * scripts/fetch-timeline-samples.ts and one synthetic, written by scripts/write-timeline-samples.ts
+ * (public/samples/SOURCES.md has their sources and licenses). Each opens by URL through graphty-element's
  * ordinary import, with nothing run.
  *
  * TEMPORARY WORKAROUND: the list of samples belongs in graphty-element, so every consumer can
@@ -283,13 +284,31 @@ export const START_SAMPLES: readonly StartSample[] = [
         url: `${import.meta.env.BASE_URL}samples/florentine.gml`,
     },
     {
-        id: "office-email",
-        name: "Office email",
+        id: "campus-contacts",
+        name: "Campus contacts",
         sentence:
-            "Emails between 48 people in four teams over six months, each with the time it was sent. Good for watching activity rise and fall over time.",
-        size: "48 nodes, 2,102 edges",
-        url: `${import.meta.env.BASE_URL}samples/office-email.json`,
-        picture: `${import.meta.env.BASE_URL}samples/office-email.webp`,
+            "Which of 615 university students were near each other, hour by hour for one week. Good for watching groups gather by day and scatter at night.",
+        size: "615 nodes, 8,142 edges",
+        url: `${import.meta.env.BASE_URL}samples/campus-contacts.json`,
+        picture: `${import.meta.env.BASE_URL}samples/campus-contacts.webp`,
+    },
+    {
+        id: "graph-research",
+        name: "Graph researchers",
+        sentence:
+            "Who wrote papers together in the Journal of Graph Algorithms and Applications from 1997 on. Good for watching a research community grow.",
+        size: "549 nodes, 2,084 edges",
+        url: `${import.meta.env.BASE_URL}samples/graph-research.json`,
+        picture: `${import.meta.env.BASE_URL}samples/graph-research.webp`,
+    },
+    {
+        id: "marvel-films",
+        name: "Marvel films",
+        sentence:
+            "The Marvel Cinematic Universe films from 2008 on and the actors cast in two or more of them. Good for watching a franchise build up film by film.",
+        size: "210 nodes, 582 edges",
+        url: `${import.meta.env.BASE_URL}samples/marvel-films.json`,
+        picture: `${import.meta.env.BASE_URL}samples/marvel-films.webp`,
     },
     {
         id: "paper-citations",

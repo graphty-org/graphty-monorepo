@@ -16,7 +16,7 @@ vec4 shade(NodeInput n) {
         return vec4(0.0);
     }
 
-    float k = s / 1.5;
+    float k = flashTime / 1.5;
     float f = (1.0 - k) * (1.0 - k) * exp(-s * 1.5);
     vec2 uv = n.uv;
     float r = length(uv);

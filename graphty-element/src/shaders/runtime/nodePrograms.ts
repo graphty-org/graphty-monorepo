@@ -19,7 +19,16 @@
 import type { ShaderDescriptor, ShaderParamDescriptor } from "../../catalog/shaders";
 import { PARAM_TEXTURE, STATE_NODES_PER_ROW, STATE_TEXELS, STATE_TEXTURE, varyingSlots } from "./nodeLayout";
 import { TIME_PERIOD } from "./sceneUniforms";
-import { fragmentPrelude, mainPrelude, paramGlobals, prefixBody, SCENE_BLOCK, WRAPPER_LINE } from "./wrap";
+import {
+    clockAssignments,
+    fragmentPrelude,
+    mainPrelude,
+    NODE_CLOCK_FIELDS,
+    paramGlobals,
+    prefixBody,
+    SCENE_BLOCK,
+    WRAPPER_LINE,
+} from "./wrap";
 
 /** The batch's instanced attributes, each a `vec4`. */
 export const BATCH_ATTRIBUTES = [
@@ -422,6 +431,7 @@ ${surfaceInput(role)}
     graphty_in.size = vRadius;
     graphty_in.pixelSize = vPixelSize;
 ${stateInput("vMeta", square ? "vDeco0.xy" : null, "graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x")}
+${clockAssignments(params, NODE_CLOCK_FIELDS)}
 ${role === "replace" ? CARD_TILT : ""}
     vec4 graphty_out = graphty_u_shade(graphty_in);
 ${surfaceFinish(role)}
@@ -513,6 +523,7 @@ ${mainPrelude(params)}
     graphty_in.size = graphty_vRadius;
     graphty_in.pixelSize = graphty_vPixelSize;
 ${stateInput("graphty_vB", null)}
+${clockAssignments(params, NODE_CLOCK_FIELDS)}
     vec4 graphty_out = graphty_u_shade(graphty_in);
     color = graphty_bad(graphty_out) ? graphty_in.color : graphty_out;
 }

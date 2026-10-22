@@ -15,6 +15,13 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "flashColor", plainName: "Color", type: "color", default: "#e8f4ff", primary: true },
         { name: "glint", plainName: "Glint", type: "number", default: 1, min: 0, max: 3 },
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        {
+            name: "flashTime",
+            plainName: "Flash time",
+            type: "number",
+            default: Object.freeze({ by: "since.changed", domain: [0, 1.5], range: [0, 1.5] }),
+        },
     ]),
     reads: Object.freeze<ShaderInput[]>(["color", "times"]),
     motion: Object.freeze({}),

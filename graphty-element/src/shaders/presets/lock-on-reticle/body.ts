@@ -34,8 +34,8 @@ vec4 shade(NodeInput n) {
     vec2 uv = n.uv;
     float r = length(uv);
     float ang = atan(uv.y, uv.x);
-    float t = clamp(n.sinceEntered / 0.55, 0.0, 1.0);
-    float leave = n.sinceExited < 0.0 ? 0.0 : clamp(n.sinceExited / 0.3, 0.0, 1.0);
+    float t = lockTime / 0.55;
+    float leave = leaveTime / 0.3;
     float R = mix(2.0, 1.45, easeOutBack(t)) + 0.6 * leave;
     float turn = n.time * spin;
     // four L brackets, turning, swung in by the entrance
@@ -56,7 +56,7 @@ vec4 shade(NodeInput n) {
     float fade = mix(0.4, 1.0, t) * (1.0 - leave);
     float lines = max(max(brackets, pips), max(ring, max(major, inner))) * fade;
     // the lock: a flash and a pulse ring that runs out, both over before the entrance ends
-    float lockAge = n.sinceEntered - 0.385;
+    float lockAge = lockTime - 0.385;
     float lockOn = lockAge < 0.0 ? 0.0 : 1.0 - smoothstep(0.0, 0.165, lockAge);
     float pulse = strokeAA(r - (R + max(lockAge, 0.0) * 6.0), lw * 1.5) * lockOn * (1.0 - smoothstep(2.4, 2.9, r));
     // a faint scan inside the brackets once locked

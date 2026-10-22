@@ -11,7 +11,12 @@ import { afterAll, assert, describe, it } from "vitest";
 
 import { checkShaderBody } from "../../../src/catalog/shaderGlsl";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
-import { drawingOf, type ShaderDescriptor, type ShaderMotion } from "../../../src/catalog/shaders";
+import {
+    drawingOf,
+    type ShaderClockBinding,
+    type ShaderDescriptor,
+    type ShaderMotion,
+} from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { createGraphSession } from "../../../src/session";
 import { PATTERN_SPRITE_PRESETS, patternPresetId } from "../../../stories/shaders/patternSpritePresets";
@@ -22,7 +27,7 @@ afterAll(clearRegisteredShadersForTesting);
 type Row = readonly [
     name: string,
     type: string,
-    def: number | string | boolean,
+    def: number | string | boolean | ShaderClockBinding,
     min?: number,
     max?: number,
     varies?: boolean,
@@ -74,6 +79,8 @@ const TABLE: Readonly<
             ["flicker", "number", 0.6, 0, 1],
             ["glitch", "number", 0.04, 0, 0.3],
             ["gridLines", "integer", 8, 2, 16],
+            ["printTime", "number", { by: "since.matched", domain: [0, 0.9], range: [0, 0.9] }],
+            ["fadeTime", "number", { by: "since.unmatched", domain: [0, 0.6], range: [0, 0.6] }],
         ],
     },
     frost: {
@@ -86,6 +93,8 @@ const TABLE: Readonly<
             ["frostColor", "color", "#d8f2ff", undefined, undefined, undefined, true],
             ["crystalScale", "number", 5, 3, 24],
             ["sparkle", "number", 0.8, 0, 1],
+            ["growTime", "number", { by: "since.matched", domain: [0, 2], range: [0, 2] }],
+            ["thawTime", "number", { by: "since.unmatched", domain: [0, 1], range: [0, 1] }],
         ],
     },
     "icon-sticker": {

@@ -18,7 +18,16 @@ import { EDGE_JOIN_FRAGMENT_SHADER, EDGE_STATE_BITS } from "../../meshes/edgeJoi
 import { PARAM_TEXTURE } from "./nodeLayout";
 import { paramLocals } from "./nodePrograms";
 import { TIME_PERIOD } from "./sceneUniforms";
-import { fragmentPrelude, mainPrelude, paramGlobals, prefixBody, SCENE_BLOCK, WRAPPER_LINE } from "./wrap";
+import {
+    clockAssignments,
+    EDGE_CLOCK_FIELDS,
+    fragmentPrelude,
+    mainPrelude,
+    paramGlobals,
+    prefixBody,
+    SCENE_BLOCK,
+    WRAPPER_LINE,
+} from "./wrap";
 
 /** The plain uniforms an edge shader program declares beside the line's own. */
 export const EDGE_SHADER_UNIFORMS = ["graphty_freeze"] as const;
@@ -88,6 +97,7 @@ ${mainPrelude(params)}
     graphty_in.sinceExited = graphty_edgeSince(vEdgeTimes.y, -1.0);
     graphty_in.sinceChanged = graphty_edgeSince(vEdgeTimes.z, -1.0);
     graphty_in.time = graphty_freeze >= 0.0 ? graphty_freeze : graphty_scene_time.x;
+${clockAssignments(params, EDGE_CLOCK_FIELDS)}
     vec4 graphty_out = graphty_u_shade(graphty_in);
 ${finish}
 }

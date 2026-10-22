@@ -9,7 +9,13 @@
  * Plain values; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderParamDescriptor } from "../../catalog/shaders";
+import { isClockBinding, type ShaderParamDescriptor } from "../../catalog/shaders";
+
+/**
+ * The value a clock-bound parameter's uniform or data texel holds while no use has set it: the
+ * program then reads the clock instead (wrap.ts). Far below any range a parameter declares.
+ */
+const CLOCK_UNSET = -1e30;
 
 /** The parameter-set texture's sampler. */
 export const PARAM_TEXTURE = "graphty_paramTex";
@@ -54,6 +60,11 @@ export function varyingSlots(params: readonly ShaderParamDescriptor[]): Readonly
  */
 export function uniformValueOf(param: ShaderParamDescriptor, value: unknown): number[] {
     const given = value ?? param.default;
+    // A clock-bound default no use has replaced: the program reads the clock (wrap.ts).
+    if (isClockBinding(given) && isClockBinding(param.default)) {
+        return param.type === "color" ? [CLOCK_UNSET, CLOCK_UNSET, CLOCK_UNSET] : [CLOCK_UNSET];
+    }
+
     switch (param.type) {
         case "color": {
             const hex = typeof given === "string" && /^#[\da-fA-F]{6}$/.test(given) ? given : "#ffffff";

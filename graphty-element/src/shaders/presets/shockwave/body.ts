@@ -22,8 +22,8 @@ float ringAt(float r, float age) {
 }
 
 vec4 shade(NodeInput n) {
-    float age = n.sinceEntered;
-    if (age > 0.7) {
+    float age = ringAge;
+    if (age >= 0.7) {
         return vec4(0.0);
     }
 

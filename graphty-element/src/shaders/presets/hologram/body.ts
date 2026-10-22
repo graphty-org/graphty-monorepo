@@ -17,8 +17,8 @@
 export const BODY = `// Hologram: a translucent wireframe globe with scanlines, a rim, flicker and glitch.
 vec4 shade(NodeInput n) {
     // Printed in from the bottom while the entrance plays, faded while the exit plays.
-    float printed = clamp(n.sinceEntered / 0.9, 0.0, 1.0);
-    float fade = n.sinceExited < 0.0 ? 1.0 : clamp(1.0 - n.sinceExited / 0.6, 0.0, 1.0);
+    float printed = printTime / 0.9;
+    float fade = 1.0 - fadeTime / 0.6;
     float y01 = n.uv.y * 0.5 + 0.5;
     float shown = printed >= 1.0 ? 1.0 : step(y01, printed);
     if (shown * fade <= 0.0) {

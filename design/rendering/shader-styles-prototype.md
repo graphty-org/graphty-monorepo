@@ -69,8 +69,9 @@ The Storybook at http://dev.ato.ms:9253 still shows the first prototype's branch
    and On change chips are gone. When a shader draws is the layer's condition (Hovered, Selected,
    a data rule). How it animates is a parameter bound to a clock, the seconds since a moment such
    as "this layer started applying", which the shader's author sets as the parameter's default.
-   So Reticle on the Hovered layer plays in and out with nothing set by you. The rest of this
-   point is not built yet: see "Not done".
+   So Reticle on the Hovered layer plays in and out with nothing set by you, and the built-in
+   shaders that animate on a moment (Reticle, Shockwave, Frost, Hologram, Change flash, Edge
+   change) all do it this way. The rest of this point is not built yet: see "Not done".
 
 Also from the second redesign: presets named after style options were renamed (Edge glow is now
 Neon line, Lantern glow is Lantern, Toon outline is Cel shade); shader rows reorder by drag, by
@@ -200,7 +201,7 @@ additions.
   condition picker, "Keep shaders for N seconds after" on a layer, rebinding a parameter to a
   clock from its settings, and refusing a clock the element cannot bound. None of it is built.
   Today a clock can only be a shader author's parameter default, which the settings show but do
-  not let you change. Shockwave and Change flash still read their clock directly in their code.
+  not let you change; a layer that rebinds a parameter to another clock is not drawn that way.
 - **The clock fields keep their old names** inside shader code (`sinceEntered`, `sinceExited`),
   while parameter bindings use the new spellings (`since.matched`, `since.unmatched`). The rename
   and the new fields (`sinceAdded`, `sinceDeselected`, `sinceUnhovered`, `sinceUnpinned`) are

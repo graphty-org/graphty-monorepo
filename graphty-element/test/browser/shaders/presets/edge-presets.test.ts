@@ -18,6 +18,7 @@ import type { Graphty } from "../../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../../src/catalog/shaderRegistry";
 import {
     drawingOf,
+    isClockBinding,
     type ShaderDescriptor,
     type ShaderParamDescriptor,
     type ShaderParams,
@@ -191,6 +192,11 @@ function differing(pixels: Uint8Array, rgb: readonly number[]): number {
  * @returns The values.
  */
 function endsOf(param: ShaderParamDescriptor): readonly (number | string | boolean)[] {
+    // A parameter bound to a clock: each end of what the clock maps onto.
+    if (isClockBinding(param.default)) {
+        return [...(param.default.range ?? [0, 1])];
+    }
+
     if (param.type === "color") {
         return ["#000000", "#ffffff"];
     }

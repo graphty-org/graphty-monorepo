@@ -13,7 +13,15 @@
  */
 
 import type { ShaderDescriptor } from "../../catalog/shaders";
-import { fragmentPrelude, mainPrelude, paramDeclarations, prefixBody, SCENE_BLOCK, WRAPPER_LINE } from "./wrap";
+import {
+    clockAssignments,
+    fragmentPrelude,
+    mainPrelude,
+    paramDeclarations,
+    prefixBody,
+    SCENE_BLOCK,
+    WRAPPER_LINE,
+} from "./wrap";
 
 /** A program the element compiles into a ShaderMaterial. */
 export interface SceneProgram {
@@ -99,6 +107,8 @@ ${prefixBody(body, params)}
 #line ${String(WRAPPER_LINE)}
 void main() {
 ${mainPrelude(params)}
+// A background or a group outline has no clocks: a clock-bound parameter reads as at rest.
+${clockAssignments(params, new Set<string>())}
     graphty_BackgroundInput graphty_in;
     vec2 graphty_ndc = vUV * 2.0 - 1.0;
     // From the camera to the far plane through the pixel: it varies across the canvas for an
@@ -280,6 +290,8 @@ ${prefixBody(body, params)}
 #line ${String(WRAPPER_LINE)}
 void main() {
 ${mainPrelude(params)}
+// A background or a group outline has no clocks: a clock-bound parameter reads as at rest.
+${clockAssignments(params, new Set<string>())}
     graphty_GroupInput graphty_in;
     vec2 graphty_suv = gl_FragCoord.xy / graphty_resolution.xy;
     graphty_in.uv = graphty_suv;

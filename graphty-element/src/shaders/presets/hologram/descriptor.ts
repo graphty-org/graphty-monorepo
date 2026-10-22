@@ -10,7 +10,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ShaderDescriptor } from "../../../catalog/shaders";
+import type { ShaderDescriptor, ShaderParamDescriptor } from "../../../catalog/shaders";
 
 /** The catalog entry. */
 export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
@@ -31,6 +31,20 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "flicker", plainName: "Flicker", type: "number", default: 0.6, min: 0, max: 1 }),
         Object.freeze({ name: "glitch", plainName: "Glitch", type: "number", default: 0.04, min: 0, max: 0.3 }),
         Object.freeze({ name: "gridLines", plainName: "Grid lines", type: "integer", default: 8, min: 2, max: 16 }),
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        Object.freeze<ShaderParamDescriptor>({
+            name: "printTime",
+            plainName: "Print time",
+            type: "number",
+            default: Object.freeze({ by: "since.matched", domain: [0, 0.9], range: [0, 0.9] }),
+        }),
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        Object.freeze<ShaderParamDescriptor>({
+            name: "fadeTime",
+            plainName: "Fade time",
+            type: "number",
+            default: Object.freeze({ by: "since.unmatched", domain: [0, 0.6], range: [0, 0.6] }),
+        }),
     ]),
     reads: Object.freeze(["color", "times"] as const),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "flicker" }) }),

@@ -20,6 +20,27 @@ export const EDGE_CHANGE: ShaderDescriptor = Object.freeze({
     categories: Object.freeze(["Change"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "flashColor", plainName: "Color", type: "color", default: "#e8f4ff", primary: true },
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        {
+            name: "arriveTime",
+            plainName: "Arrive time",
+            type: "number",
+            default: Object.freeze({ by: "since.matched", domain: [0, 0.5], range: [0, 0.5] }),
+        },
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        {
+            name: "changeTime",
+            plainName: "Change time",
+            type: "number",
+            default: Object.freeze({ by: "since.changed", domain: [0, 0.5], range: [0, 0.5] }),
+        },
+        // Seconds on the layer's clock, so the element plays it for exactly that long.
+        {
+            name: "leaveTime",
+            plainName: "Leave time",
+            type: "number",
+            default: Object.freeze({ by: "since.unmatched", domain: [0, 0.5], range: [0, 0.5] }),
+        },
     ]),
     reads: Object.freeze<ShaderInput[]>(["color", "opacity", "times"]),
     motion: Object.freeze({}),

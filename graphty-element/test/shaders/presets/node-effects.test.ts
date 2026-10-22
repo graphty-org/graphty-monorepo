@@ -14,7 +14,7 @@ import { afterAll, assert, describe, it } from "vitest";
 
 import { checkShaderBody, inferShaderReads } from "../../../src/catalog/shaderGlsl";
 import { clearRegisteredShadersForTesting, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
-import { drawingOf, timingOf } from "../../../src/catalog/shaders";
+import { drawingOf, type ShaderClockBinding, timingOf } from "../../../src/catalog/shaders";
 import { readShaderDescriptor } from "../../../src/catalog/shaderText";
 import { NODE_EFFECT_PRESETS, presetId } from "../../../stories/shaders/nodeEffectPresets";
 
@@ -24,7 +24,7 @@ afterAll(clearRegisteredShadersForTesting);
 type Row = readonly [
     name: string,
     type: string,
-    def: number | string,
+    def: number | string | ShaderClockBinding,
     min?: number,
     max?: number,
     marks?: { primary?: boolean; varies?: boolean },
@@ -65,6 +65,8 @@ const TABLE: Readonly<Record<string, Expected>> = {
             ["spin", "number", 0.6, -3, 3],
             ["ticks", "integer", 48, 8, 120],
             ["lineWidth", "number", 1.8, 0.5, 5],
+            ["lockTime", "number", { by: "since.matched", domain: [0, 0.55], range: [0, 0.55] }],
+            ["leaveTime", "number", { by: "since.unmatched", domain: [0, 0.3], range: [0, 0.3] }],
         ],
     },
     "orbiting-satellites": {
@@ -89,6 +91,7 @@ const TABLE: Readonly<Record<string, Expected>> = {
             ["ringColor", "color", "#9fd8ff", undefined, undefined, P],
             ["ringGlow", "number", 0.9, 0, 1.5],
             ["chroma", "number", 1, 0, 4],
+            ["ringAge", "number", { by: "since.matched", domain: [0, 0.7], range: [0, 0.7] }],
         ],
     },
     "change-flash": {
@@ -98,6 +101,7 @@ const TABLE: Readonly<Record<string, Expected>> = {
         params: [
             ["flashColor", "color", "#e8f4ff", undefined, undefined, P],
             ["glint", "number", 1, 0, 3],
+            ["flashTime", "number", { by: "since.changed", domain: [0, 1.5], range: [0, 1.5] }],
         ],
     },
 };
@@ -128,7 +132,7 @@ describe.each(NODE_EFFECT_PRESETS.map((preset) => [preset.descriptor.id, preset]
                 const param = descriptor.params.find((each) => each.name === name);
                 assert.isDefined(param);
                 assert.strictEqual(param.type, type, `${name} type`);
-                assert.strictEqual(param.default, def, `${name} default`);
+                assert.deepEqual(param.default, def, `${name} default`);
                 assert.strictEqual(param.min, min, `${name} min`);
                 assert.strictEqual(param.max, max, `${name} max`);
                 assert.strictEqual(param.primary === true, marks?.primary === true, `${name} primary`);

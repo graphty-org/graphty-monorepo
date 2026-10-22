@@ -18,7 +18,7 @@ vec4 shade(EdgeInput e) {
     float s = abs(e.side);
     vec3 base = e.color.rgb;
     if (e.sinceExited >= 0.0) {
-        float k = e.sinceExited / 0.5;
+        float k = leaveTime / 0.5;
         if (k >= 1.0 || abs(e.t - 0.5) > 0.5 * (1.0 - k)) {
             return vec4(0.0);
         }
@@ -27,7 +27,7 @@ vec4 shade(EdgeInput e) {
         return vec4(mix(base, vec3(0.6, 0.1, 0.1), k), a);
     }
 
-    float since = min(e.sinceEntered, e.sinceChanged < 0.0 ? 10000.0 : e.sinceChanged);
+    float since = min(arriveTime, e.sinceChanged < 0.0 ? 0.5 : changeTime);
     if (since < 0.0 || since >= 0.5) {
         return vec4(0.0);
     }

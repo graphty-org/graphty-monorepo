@@ -14,7 +14,9 @@ import { assert, describe, it } from "vitest";
 import type { ShaderParamDescriptor } from "../../src/catalog/shaders";
 import { parseShaderText } from "../../src/catalog/shaderText";
 import {
+    clockAssignments,
     compileProblem,
+    EDGE_CLOCK_FIELDS,
     prefixBody,
     renameIdentifiers,
     sampleProgram,
@@ -139,5 +141,37 @@ describe("the shader wrapper", () => {
                 assert.include(program.fragment, "graphty_u_shade(graphty_in)", file);
             }
         }
+    });
+});
+
+describe("a parameter bound to a clock", () => {
+    const fade: ShaderParamDescriptor = {
+        name: "fade",
+        plainName: "Fade",
+        type: "number",
+        default: { by: "since.matched", domain: [0, 0.3] },
+    };
+    const leave: ShaderParamDescriptor = {
+        name: "leave",
+        plainName: "Leave",
+        type: "number",
+        default: { by: "since.deselected", domain: [0, 0.5], range: [1, 0] },
+    };
+
+    it("holds the unset mark until a use gives a value of its own", () => {
+        assert.isBelow(uniformValueOf(fade, undefined)[0], -1e29);
+        assert.deepEqual(uniformValueOf(fade, 0.4), [0.4]);
+    });
+
+    it("reads its clock from the input, mapped from the domain onto the range and clamped", () => {
+        const glsl = clockAssignments([fade], EDGE_CLOCK_FIELDS);
+        assert.include(glsl, "if (graphty_p_fade < -1e29)");
+        assert.include(glsl, "graphty_u_fade = mix(0.0, 1.0, clamp((graphty_in.sinceEntered - 0.0) / 0.3, 0.0, 1.0));");
+    });
+
+    it("reads a clock the input does not carry as at rest", () => {
+        const glsl = clockAssignments([leave], EDGE_CLOCK_FIELDS);
+        assert.include(glsl, "mix(1.0, 0.0, clamp((-1.0 - 0.0) / 0.5, 0.0, 1.0))");
+        assert.strictEqual(clockAssignments([{ ...fade, default: 0.5 }], EDGE_CLOCK_FIELDS), "");
     });
 });

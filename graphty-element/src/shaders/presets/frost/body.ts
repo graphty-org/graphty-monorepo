@@ -25,8 +25,8 @@ float specular(vec3 normal, vec3 viewDir, float power) {
 
 // How far the frost has grown: 0 none, 1.6 the whole node.
 float frostAmount(NodeInput n) {
-    float grown = 1.6 * clamp(n.sinceEntered / 2.0, 0.0, 1.0);
-    float left = n.sinceExited < 0.0 ? 1.6 : 1.6 * (1.0 - clamp(n.sinceExited / 1.0, 0.0, 1.0));
+    float grown = 1.6 * growTime / 2.0;
+    float left = 1.6 * (1.0 - thawTime);
     return min(grown, left);
 }
 

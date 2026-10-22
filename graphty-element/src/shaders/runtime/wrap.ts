@@ -25,6 +25,8 @@
 import { tokenize } from "../../catalog/shaderGlsl";
 import {
     drawingOf,
+    isClockBinding,
+    type ShaderClock,
     type ShaderDescriptor,
     type ShaderDrawing,
     type ShaderParamDescriptor,
@@ -358,6 +360,82 @@ function paramAssignment(param: ShaderParamDescriptor): string {
     }
 }
 
+/** The input field each clock is, where an input struct has it. */
+const CLOCK_FIELDS: Readonly<Partial<Record<ShaderClock, string>>> = {
+    "since.selected": "sinceSelected",
+    "since.hovered": "sinceHovered",
+    "since.pinned": "sincePinned",
+    "since.matched": "sinceEntered",
+    "since.unmatched": "sinceExited",
+    "since.changed": "sinceChanged",
+};
+
+/** The input fields a node's input carries. */
+export const NODE_CLOCK_FIELDS: ReadonlySet<string> = new Set(Object.values(CLOCK_FIELDS));
+
+/** The input fields an edge's input carries. */
+export const EDGE_CLOCK_FIELDS: ReadonlySet<string> = new Set(["sinceEntered", "sinceExited", "sinceChanged"]);
+
+/**
+ * The clock fields a drawing's input carries.
+ * @param kind - The drawing.
+ * @returns The fields.
+ */
+function clockFieldsOf(kind: ShaderDrawing): ReadonlySet<string> {
+    if (kind.startsWith("node")) {
+        return NODE_CLOCK_FIELDS;
+    }
+
+    return kind.startsWith("edge") ? EDGE_CLOCK_FIELDS : new Set<string>();
+}
+
+/**
+ * A GLSL `vec3` of a `#rrggbb` color.
+ * @param hex - The color.
+ * @returns The literal.
+ */
+function colorLiteral(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => floatLiteral(Number.parseInt(hex.slice(at, at + 2), 16) / 255));
+    return `vec3(${r}, ${g}, ${b})`;
+}
+
+/**
+ * The statements that set each parameter whose default is bound to a clock from that clock, mapped
+ * linearly from the binding's domain onto its range and clamped, unless a use set a value of its
+ * own. A clock the input does not carry reads as at rest: -1 for a moment that ends something
+ * (`since.unmatched`, `since.deselected`), long ago for the others.
+ * @param params - The parameters.
+ * @param fields - The clock fields the program's `graphty_in` carries, filled before these run.
+ * @returns The GLSL statements.
+ */
+export function clockAssignments(params: readonly ShaderParamDescriptor[], fields: ReadonlySet<string>): string {
+    return params
+        .flatMap((param) => {
+            const binding = param.default;
+            if (!isClockBinding(binding)) {
+                return [];
+            }
+
+            const field = CLOCK_FIELDS[binding.by];
+            const unmade = /^since\.un|^since\.de/.test(binding.by) ? "-1.0" : "10000.0";
+            const clock = field !== undefined && fields.has(field) ? `graphty_in.${field}` : unmade;
+            const [d0, d1] = binding.domain;
+            const k = `clamp((${clock} - ${floatLiteral(d0)}) / ${floatLiteral(Math.max(d1 - d0, 1e-6))}, 0.0, 1.0)`;
+            const raw = `graphty_p_${param.name}`;
+            const global = BODY_PREFIX + param.name;
+            if (param.type === "color") {
+                const [from, to] = (binding.range ?? ["#000000", "#ffffff"]).map(String);
+                return [
+                    `    if (${raw}.x < -1e29) { ${global} = mix(${colorLiteral(from)}, ${colorLiteral(to)}, ${k}); }`,
+                ];
+            }
+
+            const [from, to] = (binding.range ?? [0, 1]).map(Number);
+            return [`    if (${raw} < -1e29) { ${global} = mix(${floatLiteral(from)}, ${floatLiteral(to)}, ${k}); }`];
+        })
+        .join("\n");
+}
+
 /** What the sample program draws for a pixel whose result is not a number: the color beneath. */
 const SAMPLE_FALLBACK: Readonly<Record<ShaderDrawing, string>> = {
     "node-paint": "graphty_in.color",
@@ -627,6 +705,7 @@ ${prefixBody(body, params)}
 void main() {
 ${mainPrelude(params)}
 ${sampleInput(kind)}
+${clockAssignments(params, clockFieldsOf(kind))}
     vec4 graphty_out = ${BODY_PREFIX}shade(graphty_in);
     if (graphty_bad(graphty_out)) {
         graphty_out = ${SAMPLE_FALLBACK[kind]};

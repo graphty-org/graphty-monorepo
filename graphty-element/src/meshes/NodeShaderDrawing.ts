@@ -729,8 +729,9 @@ export class NodeShaderDrawing {
                 count(entry.meshShader);
             }
 
-            for (const id of entry.effects.keys()) {
-                count(id);
+            // The effects map is keyed by use (place, shader, position); the report is by shader.
+            for (const slot of entry.effects.values()) {
+                count(slot.id);
             }
         }
 

@@ -16,8 +16,16 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         { name: "ringColor", plainName: "Color", type: "color", default: "#9fd8ff", primary: true },
         { name: "ringGlow", plainName: "Glow", type: "number", default: 0.9, min: 0, max: 1.5 },
         { name: "chroma", plainName: "Color split", type: "number", default: 1, min: 0, max: 4 },
+        // The ring's age in seconds, bound to the layer's own clock: it runs once as a node starts
+        // carrying the shader, and the element stops drawing frames for it after 0.7 s.
+        {
+            name: "ringAge",
+            plainName: "Ring age",
+            type: "number",
+            default: Object.freeze({ by: "since.matched", domain: [0, 0.7], range: [0, 0.7] }),
+        },
     ]),
-    reads: Object.freeze<ShaderInput[]>(["times"]),
+    reads: Object.freeze<ShaderInput[]>([]),
     motion: Object.freeze({}),
     cost: "medium",
     origin: "element",

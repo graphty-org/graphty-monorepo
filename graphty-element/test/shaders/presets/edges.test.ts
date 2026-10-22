@@ -10,7 +10,13 @@ import { readFileSync } from "node:fs";
 import { assert, describe, it } from "vitest";
 
 import { checkShaderBody, costClassOf, inferShaderReads } from "../../../src/catalog/shaderGlsl";
-import { drawingOf, type ShaderDescriptor, type ShaderMotion, timingOf } from "../../../src/catalog/shaders";
+import {
+    drawingOf,
+    type ShaderClockBinding,
+    type ShaderDescriptor,
+    type ShaderMotion,
+    timingOf,
+} from "../../../src/catalog/shaders";
 import { BODY as COMET_TRACERS_BODY } from "../../../src/shaders/presets/comet-tracers/body";
 import { COMET_TRACERS } from "../../../src/shaders/presets/comet-tracers/descriptor";
 import { BODY as EDGE_CHANGE_BODY } from "../../../src/shaders/presets/edge-change/body";
@@ -23,7 +29,15 @@ import { BODY as NEON_LINE_BODY } from "../../../src/shaders/presets/neon-line/b
 import { NEON_LINE } from "../../../src/shaders/presets/neon-line/descriptor";
 
 /** One row of the design's parameter table: name, type, default, min, max, primary, varies. */
-type Row = readonly [string, string, number | string | boolean, number?, number?, boolean?, boolean?];
+type Row = readonly [
+    string,
+    string,
+    number | string | boolean | ShaderClockBinding,
+    number?,
+    number?,
+    boolean?,
+    boolean?,
+];
 
 /** Section 7.4, transcribed. */
 const TABLE: readonly {
@@ -114,7 +128,12 @@ const TABLE: readonly {
         motion: {},
         cost: "light",
         bloom: false,
-        params: [["flashColor", "color", "#e8f4ff", undefined, undefined, true]],
+        params: [
+            ["flashColor", "color", "#e8f4ff", undefined, undefined, true],
+            ["arriveTime", "number", { by: "since.matched", domain: [0, 0.5], range: [0, 0.5] }],
+            ["changeTime", "number", { by: "since.changed", domain: [0, 0.5], range: [0, 0.5] }],
+            ["leaveTime", "number", { by: "since.unmatched", domain: [0, 0.5], range: [0, 0.5] }],
+        ],
     },
 ];
 
@@ -182,6 +201,6 @@ describe("the edge presets", () => {
             ],
         };
         assert.strictEqual(timingOf(fading).exit, 0.5);
-        assert.isUndefined(timingOf(EDGE_CHANGE).exit, "motion no longer times a play");
+        assert.strictEqual(timingOf(EDGE_CHANGE).exit, 0.5, "edge change times its exit by its leaveTime binding");
     });
 });

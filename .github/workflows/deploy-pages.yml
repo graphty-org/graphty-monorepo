@@ -1,9 +1,16 @@
-name: Deploy to GitHub Pages
+name: Deploy to beta.graphty.app
 
-# graphty.app (the app, the docs, the Storybooks and the hosted data: one Pages site) deploys after every green
-# CI run on master, not with a release: the app is private, so its cadence affects no consumer
-# (design/ci/ci-cd-plan.md, section 10). The site is assembled from exactly that run's artifacts. To redeploy,
-# re-run this workflow's run for that commit.
+# Every green CI run of a push to master (the build) publishes the whole site -- the app, the docs, the
+# Storybooks and the hosted data, assembled from exactly that run's artifacts -- as a beta build: a release of
+# graphty-org/graphty-beta tagged build-<commit>, deployed to beta.graphty.app (tools/pages-builds.sh). The
+# newest 30 builds are kept. graphty.app changes only when the owner promotes a beta build
+# (promote-pages.yml), with one exception: the hosted datasets under /data/graph-samples/v1/ are append-only,
+# so when this build's differ from graphty.app's, graphty.app is republished with the build it already serves
+# and the new datasets (design/ci/fast-pipeline.md, section 4.6). To redeploy, re-run this workflow's run for
+# that commit.
+#
+# Writing to graphty-beta takes the secret GRAPHTY_BETA_TOKEN: a fine-grained token for that repository
+# alone with "Contents: read and write".
 on:
     workflow_run:
         workflows: ["CI"]
@@ -27,28 +34,28 @@ permissions:
     actions: read # Required to download artifacts from other workflow runs
 
 jobs:
-    # Only a green CI run of a push to master deploys. The live page's build stamp says which commit it
-    # serves; when it is this one (a re-run), or a newer one (CI runs finish out of order), there is
-    # nothing to do.
+    # Only a green CI run of a push to master deploys. When the newest beta build is of a newer commit (CI
+    # runs finish out of order), there is nothing to do.
     check:
-        name: Is this commit live already
+        name: Is a newer build out already
         if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
         runs-on: ubuntu-24.04
         outputs:
-            deploy: ${{ steps.live.outputs.deploy }}
+            deploy: ${{ steps.newest.outputs.deploy }}
         steps:
-            - id: live
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: tools
+            - id: newest
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
-                  live=$(curl -fsSL --max-time 30 https://graphty.app/ | grep -o 'name="graphty-build" content="[^"]*"' || true)
-                  echo "live stamp: ${live:-none}"
-                  live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
-                  case "$live" in
-                      *"commit=${SHA} "*) echo "::notice::${SHA} is live already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
-                  esac
-                  if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
-                      echo "::notice::the live ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  newest=$(tools/pages-builds.sh resolve newest 2>/dev/null || true)
+                  newest_sha=${newest#build-}
+                  echo "newest beta build: ${newest:-none}"
+                  if [ -n "$newest" ] && [ "$newest_sha" != "$SHA" ] && \
+                      [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${newest_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
+                      echo "::notice::the newest beta build, ${newest_sha}, is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
 
@@ -57,6 +64,8 @@ jobs:
         needs: check
         if: ${{ needs.check.outputs.deploy == 'true' }}
         runs-on: ubuntu-24.04
+        outputs:
+            data-changed: ${{ steps.data.outputs.changed }}
         steps:
             # The deployed commit, with history and tags, so the stamp below can name the app's release.
             - uses: actions/checkout@v4
@@ -220,22 +229,40 @@ jobs:
                   echo "Site structure:"
                   find ./public -maxdepth 3 -name "index.html" | sort
 
-            - name: Setup Pages
-              uses: actions/configure-pages@v4
+            - name: Publish the beta build
+              env:
+                  GH_TOKEN: ${{ secrets.GRAPHTY_BETA_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                      echo "::error::the secret GRAPHTY_BETA_TOKEN is not set, so nothing can be written to graphty-org/graphty-beta (see the top of deploy-pages.yml)"
+                      exit 1
+                  fi
+                  tools/pages-builds.sh pack ./public "$RUNNER_TEMP/build"
+                  {
+                      echo "graphty-monorepo commit ${SHA} (https://github.com/${GITHUB_REPOSITORY}/commit/${SHA}), built by https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}."
+                      echo ""
+                      echo "Stamp: \`$(grep -o 'name="graphty-build" content="[^"]*"' public/index.html | sed 's/.*content="//; s/"$//')\`"
+                      echo ""
+                      echo "To put this build on graphty.app, run \"Promote a beta build to graphty.app\" (https://github.com/${GITHUB_REPOSITORY}/actions/workflows/promote-pages.yml) with ${SHA:0:12}."
+                  } > "$RUNNER_TEMP/notes.md"
+                  tools/pages-builds.sh publish "$SHA" "$RUNNER_TEMP/build" "$RUNNER_TEMP/notes.md"
 
-            - name: Upload Pages artifact
-              uses: actions/upload-pages-artifact@v3
-              with:
-                  path: ./public
+            # The datasets graph-samples and cytoscape-extensions download live on graphty.app, and a new npm
+            # release may name one this build added: compare this build's index with the one graphty.app serves.
+            - name: Did the hosted datasets change
+              id: data
+              run: |
+                  if curl -fsSL --max-time 60 https://graphty.app/data/graph-samples/v1/index.json | cmp -s - public/data/graph-samples/v1/index.json; then
+                      echo "graphty.app serves these datasets already"; echo "changed=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "::notice::the hosted datasets changed; graphty.app gets them with the build it serves"; echo "changed=true" >> "$GITHUB_OUTPUT"
+                  fi
 
-    deploy:
-        name: Deploy
+    # graphty.app: the build it serves already, with the newest datasets laid over its own.
+    data:
+        name: Hosted data to graphty.app
         needs: build
-        runs-on: ubuntu-24.04
-        environment:
-            name: github-pages
-            url: ${{ steps.deployment.outputs.page_url }}
-        steps:
-            - name: Deploy to GitHub Pages
-              id: deployment
-              uses: actions/deploy-pages@v4
+        if: ${{ needs.build.outputs.data-changed == 'true' }}
+        uses: ./.github/workflows/promote-pages.yml
+        with:
+            build: live

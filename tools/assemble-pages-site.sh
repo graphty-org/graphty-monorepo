@@ -1,10 +1,11 @@
 #!/bin/bash
 # Assembles the graphty.app GitHub Pages site from the build outputs into one directory.
 #
-# Used by .github/workflows/deploy-pages.yml to build what it publishes, and by the link check in
+# Used by .github/workflows/deploy-pages.yml to build each beta build (served at beta.graphty.app,
+# and on graphty.app once promoted: tools/pages-builds.sh), and by the link check in
 # .github/workflows/ci.yml (tools/check-links.sh --site) to check links to graphty.app against
-# exactly what the next deploy would publish -- so a pull request that adds a page and links to it
-# passes, and one that links to a page the deploy never publishes fails.
+# exactly that site -- so a pull request that adds a page and links to it passes, and one that
+# links to a page the build never publishes fails.
 #
 # Usage: tools/assemble-pages-site.sh <out-dir>
 #
@@ -24,8 +25,8 @@
 #
 # GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
 # index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
-# The deploy sets it, so the live page says which commit and which release it serves; the deploy
-# also reads it back to skip publishing a commit that is already live.
+# The deploy sets it, so the live page says which commit and which release it serves;
+# tools/pages-builds.sh reads it back from graphty.app to find the build that is promoted there.
 #
 # A missing input is reported and skipped, as the deploy always did; the link check then fails on
 # every link into it.

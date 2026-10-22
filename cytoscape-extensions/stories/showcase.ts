@@ -652,6 +652,11 @@ export async function showDataset(cy: Core, name: string, seed: number): Promise
             spread(cy, geographic);
             note = "airports at their latitude and longitude";
             break;
+        case "venice-transit":
+            spread(cy, geographic);
+            colorBy(cy, "mode");
+            note = "stops at their latitude and longitude (color: bus, tram or waterbus)";
+            break;
         case "knuth-miles": {
             spread(cy, geographic);
             const tree = cy.elements().graphtyKruskalMST({ weight: "weight" });
@@ -740,6 +745,8 @@ export const DATASET_ABOUT: Partial<Record<string, string>> = {
     "contiguous-usa":
         "Each state is drawn at its center of population, sized by its population, and joined to the states it borders.",
     openflights: "Each airport is drawn at its latitude and longitude; the routes between them form a faint haze.",
+    "venice-transit":
+        "Each bus, tram and waterbus stop of Venice is drawn at its latitude and longitude, colored by what serves it; the waterbus lines cross the lagoon between the islands.",
     "knuth-miles":
         "Each city is drawn at its latitude and longitude. The dataset joins every pair of cities by its highway mileage; the picture keeps only the minimum spanning tree of that mileage (graphtyKruskalMST).",
     "wikipathways-senescence-autophagy":

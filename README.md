@@ -45,6 +45,11 @@ optional WebGPU acceleration built in. [View package](./graphty-element)
 Every graphty layout and algorithm, plus graph generators, sample datasets and file import and export, as
 [Cytoscape.js](https://js.cytoscape.org/) extensions registered with one call. [View package](./cytoscape-extensions)
 
+#### babylonjs-map
+
+Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: map projections, and a Babylon-free parser for
+latitude and longitude. Early: tiles, a globe and map sources are on the way. [View package](./babylonjs-map)
+
 ### Graph computation
 
 #### @graphty/algorithms

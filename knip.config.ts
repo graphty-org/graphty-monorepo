@@ -139,6 +139,12 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
+        // babylonjs-map package: the root and the Babylon-free "./location" subpath are entries
+        "babylonjs-map": {
+            entry: ["src/index.ts!", "src/location/index.ts!", "test/**/*.test.ts"],
+            project: ["src/**/*.ts!", "test/**/*.ts"],
+        },
+
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
         // setup files and the layout driver are standalone entries. @vitest/browser and
         // playwright are resolved by knip's vitest plugin from vitest.config.ts.

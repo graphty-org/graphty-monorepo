@@ -138,6 +138,13 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // babylonjs-map - single shard (Node.js, no browser)
+    {
+        shard: "babylonjs-map",
+        package: "babylonjs-map",
+        "test-command": "pnpm exec nx run babylonjs-map:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
@@ -302,6 +309,7 @@ export const GROUPS = {
         "graph-format",
         "graph-io",
         "graph-samples",
+        "babylonjs-map",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
         "layout",

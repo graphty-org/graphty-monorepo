@@ -670,6 +670,35 @@ describe("copies", () => {
         assert.equal(pushes, 1);
         assert.ok(existsSync(join(golden, "cpok.txt")) && !existsSync(join(golden, "cp.txt")));
     });
+
+    it("--allow-copies refuses an unlisted copy and a listed sha that is not a copy, golden untouched", async () => {
+        const wt = branch("copy/allow", { "cpa.txt": "own\n" }, "feat: own allowed work");
+        git(wt, "cherry-pick", git(repo, "rev-parse", "multi/c"));
+        const copy = git(wt, "rev-parse", "HEAD");
+        const own = git(wt, "rev-parse", "HEAD~1");
+        const before = head();
+        let r = await run("land", "copy/allow", "--allow-copies", own.slice(0, 7));
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /not copies of golden commits on copy\/allow: [0-9a-f]{7}/);
+        r = await run("land", "copy/allow", "--allow-copies", "abc");
+        assert.equal(r.code, 1, r.out);
+        r = await run("land", "copy/allow");
+        assert.match(r.out, /--allow-copies/);
+        assert.match(r.out, new RegExp(copy.slice(0, 10)));
+        assert.equal(head(), before);
+        assert.equal(pushes, 0);
+    });
+
+    it("--allow-copies lands the listed copy and names it in the land commit", async () => {
+        const copy = git(repo, "rev-parse", "copy/allow");
+        gh.open = true;
+        const r = await run("land", `--allow-copies=${copy.slice(0, 7)}`, "copy/allow");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(pushes, 1);
+        const msg = git(golden, "log", "-1", "--format=%B", "--first-parent", "HEAD");
+        assert.match(msg, /^land: copy\/allow\n/);
+        assert.match(msg, new RegExp(`--allow-copies\\):\\n${copy.slice(0, 10)} feat: mc$`, "m"));
+    });
 });
 
 describe("cuts", () => {

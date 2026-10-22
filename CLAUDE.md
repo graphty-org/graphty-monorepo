@@ -1246,6 +1246,8 @@ Rules:
 - **Never copy, always merge.** Never cherry-pick or rebase: a copy gets new commit ids, so the same
   change exists twice and lands twice. The hooks refuse both (`tools/no-copy.sh`), and `land` refuses a
   branch that holds copies of commits golden already has, naming them. `--no-verify` is the last resort only.
+  A copy made on purpose lands with `land <branch> --allow-copies <sha>[,<sha>...]`, which accepts only
+  the listed copies and names them in the land commit's message.
 - Every branch is on GitHub and belongs to an issue (see step 1). Merged branches stay, on GitHub and here,
   as history: nothing deletes them automatically. `node tools/land.mjs prune-branches` only lists the
   branches golden holds; deleting them from GitHub takes `--yes`, run by hand, and logs each name and tip

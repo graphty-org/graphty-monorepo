@@ -543,8 +543,12 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
         expect(found).not.toBeNull();
         return found as GraphtyElement;
     }, storyWaitOptions(1000));
+    // The open is finished when the workspace has started the graph's history (Workspace.tsx clears
+    // it once the sample is read): before that, the clear would cancel the switch to 2D below.
     await waitFor(() => {
+        const { history } = element.session;
         expect(element.session.data.statistics().nodeCount).toBe(115);
+        expect(history.pending.length + history.steps.length).toBe(0);
     }, storyWaitOptions(10_000));
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");

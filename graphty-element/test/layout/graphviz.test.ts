@@ -14,6 +14,7 @@ import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphv
 import { clusterMargins, edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
+import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
 import { graphvizAttributes, graphvizError } from "../../src/layout/GraphvizLayoutEngine";
 import { recommendLayout } from "../../src/session";
@@ -80,9 +81,9 @@ describe("the DOT the element hands Graphviz", () => {
         assert.match(dot, /^digraph G \{/);
         assert.include(dot, 'graph [rankdir="LR"];', "a plain attribute is written quoted; an unsafe name is dropped");
         assert.notInclude(dot, "bad");
-        assert.include(dot, "n0 [width=2];", "the element's node size, in inches");
-        assert.include(dot, "n1 [width=1];", "an unknown size takes the default");
-        assert.include(dot, "n2 [width=1];", "a zero size takes the default");
+        assert.include(dot, "n0 [width=2, height=2];", "the element's node size, in inches");
+        assert.include(dot, "n1 [width=1, height=1];", "an unknown size takes the default");
+        assert.include(dot, "n2 [width=1, height=1];", "a zero size takes the default");
         assert.strictEqual(dot.match(/n0 -> n1 \[id="e\d+"\];/g)?.length, 2, "the parallel edge is kept");
         assert.match(dot, /n2 -> n0 \[id="e\d+"\];/, "each edge named by its place in the list");
     });
@@ -91,9 +92,61 @@ describe("the DOT the element hands Graphviz", () => {
         const dot = toDot(graph(true, TRIANGLE), {}, [3, 1, 1], [3, 1.5, 1, 1, 4, 2], new Map([[2, []]]));
 
         assert.include(dot, "n0 [shape=box, width=3, height=1.5];", "a wide node is a box its own size");
-        assert.include(dot, "n1 [width=1];", "a node as tall as it is wide stays a circle");
+        assert.include(dot, "n1 [width=1, height=1];", "a node as tall as it is wide stays a circle");
         assert.notMatch(dot, /\bn2\b/, "a group's row and its edges are not handed over as a node");
         assert.strictEqual(dot.match(/n0 -> n1 \[id="e\d+"\];/g)?.length, 2);
+    });
+
+    it("pins each node at its place and hands over its outline, for a run that routes only the edges", () => {
+        const dot = toDot(graph(true, [["a", "b"]]), {}, [1, 1], undefined, new Map(), {
+            positions: [10, 20, Number.NaN, 5],
+            nodeAttributes: new Map([[0, { shape: "record", label: "{<p1> a|<p2> b}" }]]),
+        });
+
+        assert.include(dot, 'n0 [width=1, height=1, shape="record", label="{<p1> a|<p2> b}", pos="10,20!"];');
+        assert.include(dot, "n1 [width=1, height=1];", "a row with no place is left free");
+    });
+
+    it("hands Graphviz the ports, arrows and outlines an edge's route follows", () => {
+        const structure = graphvizStructure(
+            (id) => ["s", "t"].indexOf(String(id)),
+            [{ srcId: "s", dstId: "t", data: { headport: "p2:w", dir: "none", color: "red" } }],
+            new Map(),
+            [],
+            new Map([
+                [0, { shape: "plain", label: "words", color: "red" }],
+                [1, { shape: "record", label: "{<p1> a|<p2> b}" }],
+            ]),
+        );
+
+        assert.deepEqual(structure.edges?.[0].attributes, { headport: "p2:w", dir: "none" });
+        // a `plain` node is as big as its label, which Graphviz is not handed the room of
+        assert.deepEqual(structure.nodeAttributes?.get(0), { shape: "plaintext", label: "words" });
+        assert.deepEqual(structure.nodeAttributes?.get(1), { shape: "record", label: "{<p1> a|<p2> b}" });
+    });
+
+    it("routes the edges between pinned nodes round the node in their way, and moves no node (neato -n2)", async () => {
+        const snapshot = graph(true, [
+            ["a", "c"],
+            ["b", "b"],
+        ]);
+        const [a, b, c] = ["a", "b", "c"].map((id) => snapshot.ids.requireIndex(id));
+        const positions = new Float32Array(6);
+        positions.set([0, 0], 2 * a);
+        positions.set([100, 0], 2 * b);
+        positions.set([200, 0], 2 * c);
+        const sizes = new Float32Array(3).fill(0.2);
+        sizes[b] = 1;
+        const dot = toDot(snapshot, { splines: "true" }, sizes, undefined, new Map(), { positions });
+
+        const reply = await layout(dot, "neato", true);
+        assert.isTrue(reply.ok, JSON.stringify(reply));
+        const json = reply.ok ? reply.json : "{}";
+        const placed = fromJson(json, snapshot.nodeCount);
+        assert.closeTo(placed[2 * c] - placed[2 * a], 200 / 72, 1e-3, "the nodes stay where they were pinned");
+        assert.closeTo(placed[2 * b] - placed[2 * a], 100 / 72, 1e-3);
+        const bends = edgeBends(json, [{ src: a, dst: c }], graphvizPosBends);
+        assert.isTrue(bends.has(0), "the edge goes round b, not through it");
     });
 
     it("writes each group as a cluster of its members, a group inside a group nested in it", () => {
@@ -565,10 +618,30 @@ describe("the recommendation for a Graphviz file", () => {
         assert.strictEqual(advice?.fact.code, "recommend.force");
     });
 
-    it("keeps the coordinates a file arrived with", () => {
-        const advice = recommendLayout(connected, { file: dotFile, graphvizAvailable: true, placedNodes: 30 });
+    it("keeps the coordinates a file arrived with, and has Graphviz route its edges round them", () => {
+        const advice = recommendLayout(connected, {
+            file: { format: "dot", attributes: { splines: "curved", rankdir: "LR" } },
+            graphvizAvailable: true,
+            placedNodes: 30,
+        });
 
         assert.strictEqual(advice?.layout.id, "fixed");
+        assert.strictEqual(advice?.fact.code, "recommend.fixed");
+        assert.deepEqual(advice?.options, { edgeRoutes: "graphviz", graphvizAttributes: { splines: "curved" } });
+    });
+
+    it("keeps a placed file's coordinates with no routes when the package is missing, or the file is not DOT", () => {
+        const missing = recommendLayout(connected, { file: dotFile, placedNodes: 30 });
+        const gml = recommendLayout(connected, {
+            file: { format: "gml", attributes: { layout: "neato" } },
+            graphvizAvailable: true,
+            placedNodes: 30,
+        });
+
+        assert.strictEqual(missing?.layout.id, "fixed");
+        assert.isUndefined(missing?.options);
+        assert.strictEqual(gml?.layout.id, "fixed");
+        assert.isUndefined(gml?.options);
     });
 
     it("ignores files that are not Graphviz files, and never recommends a Graphviz layout on its own", () => {

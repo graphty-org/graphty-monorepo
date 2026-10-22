@@ -31,6 +31,13 @@ export interface DotStructure {
     readonly groupAttributes?: ReadonlyMap<number, Readonly<Record<string, string>>>;
     /** Node rows dot puts on one rank (`same`) or on the first or last (`min`, `max`, `source`, `sink`). */
     readonly ranks?: readonly { readonly rank: string; readonly rows: readonly number[] }[];
+    /** The attributes each node carries besides its size (its `shape`, which its ports and outline follow), by row. */
+    readonly nodeAttributes?: ReadonlyMap<number, Readonly<Record<string, string>>>;
+    /**
+     * Where each node already is, two numbers per row in points (y up): each is pinned there (`pos="x,y!"`), for a
+     * run that routes the edges between placed nodes and moves none of them (`neato -n2`). NaN for a row left free.
+     */
+    readonly positions?: ArrayLike<number>;
 }
 
 /**
@@ -90,12 +97,28 @@ function nodeLine(
     const height = extents?.[2 * row + 1];
     if (isLength(width) && isLength(height) && width !== height) {
         const boxArea = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * width * height}` : "";
-        return `n${row} [shape=box, width=${width}, height=${height}${boxArea}];`;
+        return `n${row} [shape=box, width=${width}, height=${height}${boxArea}`;
     }
     const size = sizes?.[row];
     const inches = isLength(size) ? size : DEFAULT_NODE_SIZE;
     const area = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * inches * inches}` : "";
-    return `n${row} [width=${inches}${area}];`;
+    // a node of a given shape keeps its drawn width and height: a circle is as tall as it is wide
+    return `n${row} [width=${inches}, height=${inches}${area}`;
+}
+
+/**
+ * A node's attributes besides its size: its own (its shape), and its pinned place when it has one.
+ * @param row - the node's row
+ * @param structure - the node attributes and positions
+ * @returns the attributes, each `, name="value"`
+ */
+function nodeExtras(row: number, structure: DotStructure): string {
+    const own = Object.entries(structure.nodeAttributes?.get(row) ?? {}).filter(([name]) => isPlainName(name));
+    const x = structure.positions?.[2 * row];
+    const y = structure.positions?.[2 * row + 1];
+    const pinned = x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y);
+    const all = pinned ? [...own, ["pos", `${x},${y}!`]] : own;
+    return all.map(([name, value]) => `, ${name}=${quote(value)}`).join("");
 }
 
 /**
@@ -136,7 +159,7 @@ export function toDot(
     lines.push('node [shape=circle, fixedsize=true, label=""];');
     for (let row = 0; row < stored.nodeCount; row++) {
         if (!skip(row)) {
-            lines.push(nodeLine(row, sizes, extents, cellAreas));
+            lines.push(`${nodeLine(row, sizes, extents, cellAreas)}${nodeExtras(row, structure)}];`);
         }
     }
 

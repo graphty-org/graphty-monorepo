@@ -27,9 +27,13 @@ export type GraphvizFailureCode =
     | "graphviz.timeout"
     | "graphviz.too-large";
 
-/** A request to the Worker: check the package loads, or lay one graph out. */
+/**
+ * A request to the Worker: check the package loads, or lay one graph out. A `pinned` layout keeps every node at the
+ * `pos` the DOT gives it and only routes the edges (Graphviz's `neato -n2`).
+ */
 export type GraphvizRequest =
-    { readonly kind: "probe" } | { readonly kind: "layout"; readonly dot: string; readonly engine: GraphvizEngine };
+    | { readonly kind: "probe" }
+    | { readonly kind: "layout"; readonly dot: string; readonly engine: GraphvizEngine; readonly pinned?: boolean };
 
 /** The Worker's answer. */
 export type GraphvizReply =

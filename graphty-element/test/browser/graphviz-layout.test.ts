@@ -374,6 +374,61 @@ describe("Graphviz layouts in the element", () => {
         });
     });
 
+    /**
+     * How far an edge's drawn route strays from the line between its two nodes, over that line's length.
+     * @param src - the source node
+     * @param dst - the target node
+     * @returns the largest distance off the line, as a fraction of its length; 0 for an edge drawn straight
+     */
+    function bow(src: string, dst: string): number {
+        const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === src && e.dstId === dst);
+        const [a, c] = [at(src), at(dst)];
+        const length = Math.hypot(c.x - a.x, c.y - a.y);
+        const off = (edge?.drawnCurve ?? []).map(
+            (p) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
+        );
+        return Math.max(0, ...off) / length;
+    }
+
+    /** A DOT file whose nodes carry their place, as `neato -n2` draws it; its edges store no route. */
+    const PLACED =
+        'digraph { graph [bb="0,0,400,250", splines=true]; node [shape=circle, width=0.3, fixedsize=true, label=""]; ' +
+        'a [pos="20,180!"]; c [pos="380,180!"]; block [shape=box, width=1, height=1, pos="200,180!"]; ' +
+        's [pos="20,20!"]; t [pos="380,20!"]; wall [shape=box, width=1, height=1, pos="200,20!"]; ' +
+        "a -> c; s -> t [headport=w] }";
+
+    it("has Graphviz route a placed DOT file's edges round its nodes, and keeps every node where the file put it", async () => {
+        // Graphviz draws a file whose nodes carry `pos` and whose edges do not with `neato -n2`: the
+        // nodes stay, and each edge is routed round the nodes in its way.
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: PLACED } },
+            { styles: "file", layout: "recommended", styleOptions: { lengths: "file" } },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.id, "fixed");
+        assert.strictEqual(session.layout.options.edgeRoutes, "graphviz");
+        assert.closeTo(at("c").x - at("a").x, 360, 1e-3, "the nodes where the file put them");
+        assert.closeTo(at("a").y - at("s").y, 160, 1e-3);
+        assert.isAbove(bow("a", "c"), 0.1, "the edge goes round the block between its nodes");
+        // a line drawn straight into the port would run from the first point drawn to the last
+        const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "s");
+        const drawn = edge?.drawnCurve ?? [];
+        const [p, q] = [drawn[0], drawn.at(-1)];
+        const chord = p && q ? Math.hypot(q.x - p.x, q.y - p.y) : 0;
+        const sag = Math.max(
+            0,
+            ...drawn.map((r) => (p && q ? Math.abs((r.x - p.x) * (q.y - p.y) - (r.y - p.y) * (q.x - p.x)) / chord : 0)),
+        );
+        assert.isAbove(
+            sag / chord,
+            0.1,
+            "an edge into a port goes round the wall on its way to it, as Graphviz routes it",
+        );
+    });
+
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {
         // The file's lengths are kept as points, so Graphviz's half-inch ranksep is 36 scene units:
         // the boxes' centres are one box height (as drawn) plus 36 apart.

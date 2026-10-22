@@ -12,8 +12,42 @@ import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
 import type { DotEdge, DotStructure } from "./toDot";
 
-/** The edge attributes that move dot's nodes: how hard an edge pulls, how many ranks it spans, whether it ranks its ends, and the label it makes room for. */
-const EDGE_ATTRIBUTES = ["weight", "minlen", "constraint", "label", "fontsize", "fontname"] as const;
+/**
+ * The edge attributes that move dot's nodes -- how hard an edge pulls, how many ranks it spans, whether it ranks its
+ * ends, and the label it makes room for -- and those that shape its route: the ports it leaves and meets its nodes
+ * at, and the arrowheads its spline stops short for.
+ */
+const EDGE_ATTRIBUTES = [
+    "weight",
+    "minlen",
+    "constraint",
+    "label",
+    "fontsize",
+    "fontname",
+    "tailport",
+    "headport",
+    "dir",
+    "arrowhead",
+    "arrowtail",
+    "arrowsize",
+    "headclip",
+    "tailclip",
+] as const;
+
+/**
+ * The node attributes an edge's route follows besides the node's size: its outline, and where its ports are (a
+ * record's fields, `{<p1> a|<p2> b}`, are laid out from its label in its font).
+ */
+const NODE_ATTRIBUTES = [
+    "shape",
+    "sides",
+    "orientation",
+    "distortion",
+    "skew",
+    "label",
+    "fontsize",
+    "fontname",
+] as const;
 
 /** The cluster attributes that take room: its label, the label's font, and its margin. */
 const CLUSTER_ATTRIBUTES = ["label", "fontsize", "fontname", "margin"] as const;
@@ -40,11 +74,26 @@ function attributesOf(data: Readonly<Record<string, unknown>>, names: readonly s
         const value = data[name];
         // an empty value (`weight = ""`) sets the attribute back to Graphviz's default
         if (value !== "" && (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) {
-            out[name] = name === "label" ? labelText(String(value)) : String(value);
+            out[name] = attributeText(name, String(value));
         }
     }
 
     return out;
+}
+
+/**
+ * An attribute's value as Graphviz is handed it.
+ * @param name - the attribute
+ * @param value - its value as the file gave it
+ * @returns the value
+ */
+function attributeText(name: string, value: string): string {
+    if (name === "label") {
+        return labelText(value);
+    }
+    // `plain` is as big as its label, and Graphviz is handed no label: `plaintext` keeps the size
+    // the element draws it (a node of no size leaves `splines=ortho` routing nothing at all)
+    return name === "shape" && value === "plain" ? "plaintext" : value;
 }
 
 /**
@@ -62,6 +111,8 @@ function labelText(label: string): string {
  * @param edges - the edges, in the order they arrived
  * @param groups - each group's row with its data
  * @param ranks - the rank subgraphs
+ * @param nodes - each node's data by row, when its outline is handed over too (its `shape`): for a run that only
+ *     routes the edges between nodes already placed, whose ends follow the outline Graphviz draws
  * @returns the structure, and the edge each of its edges is (`edgeOf`, by place in the list)
  */
 export function graphvizStructure<E extends EdgeLike>(
@@ -69,6 +120,7 @@ export function graphvizStructure<E extends EdgeLike>(
     edges: readonly E[],
     groups: ReadonlyMap<number, Readonly<Record<string, unknown>>>,
     ranks: readonly RankSet[],
+    nodes?: ReadonlyMap<number, Readonly<Record<string, unknown>>>,
 ): DotStructure & { readonly edgeOf: readonly E[] } {
     const dotEdges: DotEdge[] = [];
     const edgeOf: E[] = [];
@@ -86,5 +138,8 @@ export function graphvizStructure<E extends EdgeLike>(
         edgeOf,
         groupAttributes: new Map([...groups].map(([row, data]) => [row, attributesOf(data, CLUSTER_ATTRIBUTES)])),
         ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter((row) => row >= 0) })),
+        ...(nodes === undefined
+            ? {}
+            : { nodeAttributes: new Map([...nodes].map(([row, data]) => [row, attributesOf(data, NODE_ATTRIBUTES)])) }),
     };
 }

@@ -9,13 +9,14 @@ import {
     ResetButton,
     SegmentedControl,
 } from "@graphty/compact-mantine";
-import type {
-    DraftRow,
-    DraftTable,
-    GraphSession,
-    LoadDraft,
-    LoadReport,
-    TableMapping,
+import {
+    type DraftRow,
+    type DraftTable,
+    type GraphSession,
+    isGraphtyError,
+    type LoadDraft,
+    type LoadReport,
+    type TableMapping,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -175,12 +176,16 @@ function graphBefore(
 
 /**
  * The one file chosen or dropped on the page when the element says it is a saved project (or
- * another graphty document), not data to load.
+ * another graphty document), not data to load: it refuses to read it as data
+ * (`E_PROJECT_FILE_AS_DATA`), or its draft names what it is.
  * @param page - the page's load draft.
  * @returns the file, or undefined.
  */
 function documentFileOf(page: LoadDraftState): File | undefined {
-    return page.draft?.graphtyDocument !== undefined && page.source?.kind === "files" && page.source.files.length === 1
+    const isDocument =
+        page.draft?.graphtyDocument !== undefined ||
+        (isGraphtyError(page.readError) && page.readError.code === "E_PROJECT_FILE_AS_DATA");
+    return isDocument && page.source?.kind === "files" && page.source.files.length === 1
         ? page.source.files[0]
         : undefined;
 }

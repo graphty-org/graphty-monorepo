@@ -79,7 +79,7 @@ describe("update from master", () => {
             approvals: "visual-review-approvals",
             keys: [makeKey().entry],
         });
-        expect(check[0]).toMatch(/approves it/);
+        expect(check[0]).toMatch(/no signature of the owner approves this content/);
         // CI captures the story again against master's baseline: the pull request's image differs,
         // so it is `changed`, and the gate blocks until the owner reviews it.
         const item = classify({

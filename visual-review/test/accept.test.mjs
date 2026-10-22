@@ -737,7 +737,7 @@ describe("finish and the gate's tree check", () => {
         git(clone, "add", "-A");
         git(clone, "-c", "user.name=A", "-c", "user.email=a@example.com", "commit", "-q", "-m", "forge");
         git(clone, "push", "-q", "origin", "feature");
-        expect(gate(s)[0]).toMatch(/approves it/);
+        expect(gate(s)[0]).toMatch(/no signature of the owner approves this content/);
     });
 
     it("signs nothing when it leaves images undecided or rejects any", async () => {
@@ -745,7 +745,7 @@ describe("finish and the gate's tree check", () => {
         await s.run([accept("button--primary.dark.png")], undefined, 1);
         const files = git(s.remote, "show", "--name-only", "--format=", "feature");
         expect(files).not.toContain("visual-review-approvals/");
-        expect(gate(s)[0]).toMatch(/approves it/);
+        expect(gate(s)[0]).toMatch(/no signature of the owner approves this content/);
     });
 });
 
@@ -778,7 +778,7 @@ describe("finish when master has newer baselines", () => {
         );
     };
 
-    it("needs a new approval once master's newer baselines are merged in: the merged tree is another tree", async () => {
+    it("keeps its approval once master's newer baselines are merged in: another tree, of files the owner approved", async () => {
         const s = setup();
         await s.run([accept("button--primary.dark.png")], undefined, 0, { sign: true });
         const check = (base, head) =>
@@ -794,7 +794,9 @@ describe("finish when master has newer baselines", () => {
         const master = pushCommit(s.remote, "master", "visual-baselines/compact-mantine/card--legacy.png");
         const merged = queueMerge(s);
         expect(merged).not.toBeNull();
-        expect(check(master, merged)[0]).toMatch(/approves it/);
+        expect(treeAt(merged, CONFIG.baselines, s.remote)).not.toBe(treeAt("feature", CONFIG.baselines, s.remote));
+        // The merge differs from master only in what the owner signed on the branch: still approved.
+        expect(check(master, merged)).toEqual([]);
     });
 
     describe("an accept of a story master also changed", () => {
@@ -1078,9 +1080,11 @@ describe("finish with a signed tree approval", () => {
             "visual-baselines/compact-mantine/tooltip--hover.json",
             "visual-baselines/graphty-element/graph--basic.png",
         ]);
-        // The rejects are posted as before; the tree is not approved, so the gate still holds it.
+        // The rejects are posted as before. The signed record approves its accepts and itself, so
+        // the baselines need no tree signature; the rejected image is no baseline, so CI's capture
+        // still shows it changed and the capture check holds the pull request.
         expect(s.calls.some((c) => c.args[1].includes("/comments"))).toBe(true);
-        expect(gate(s).length).toBeGreaterThan(0);
+        expect(gate(s)).toEqual([]);
     });
 
     it("signs the record an earlier Finish pushed unsigned, once, with no decision added or posted again", async () => {

@@ -776,11 +776,12 @@ describe("signed tree approvals", () => {
             commit(t, { [`${BASELINES}/reviews/r.json`]: altered, [PATH]: "image b" });
             expect(check(t)[0]).toContain(`${PATH}: ${UNAPPROVED}`);
             expect(check(t).join("\n")).toContain("the challenge does not match");
-            // Unsigned counts only before the base holds a key.
+            // An unsigned record approves nothing, before a key is registered too: then only tree
+            // statements approve.
             const u = repoWith(passkeysJson(KEY));
             commit(u, { [`${BASELINES}/reviews/r.json`]: record, [PATH]: "image a" });
             expect(check(u)[0]).toContain(`${PATH}: ${UNAPPROVED}`);
-            expect(check(u, { keys: null })).toEqual([]);
+            expect(check(u, { keys: null })[0]).toContain(`${PATH}: ${UNAPPROVED}`);
         });
 
         it("revokes an approval with a newer signed reject of the same image, and a newer approval restores it", () => {

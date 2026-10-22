@@ -4908,8 +4908,9 @@ function sheet(t, f, prepared, notice) {
 // How many of the branch's baseline changes earlier signatures already approve, as the gate counts.
 function coveredLine({ covered, changed, branch }) {
     const all = covered === changed;
+    const share = all ? "all" : `${covered} of`;
     return (
-        `Already approved by your earlier signatures: ${all ? "all" : `${covered} of`} ${plural(changed, "baseline file")} ` +
+        `Already approved by your earlier signatures: ${share} ${plural(changed, "baseline file")} ` +
         `this branch changes from ${branch}. The gate accepts ${all ? "them" : "those"} as they are, without a new signature.`
     );
 }

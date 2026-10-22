@@ -456,9 +456,9 @@ export function treeApprovalProblem(statement, { head, tree, baselines, keys, cw
 }
 
 /**
- * Why a review record does not count as the owner's decisions, or null when it does: once
- * approvals are enforced, a version 2 record carrying a valid passkey approval by one of the base
- * branch's keys; before that, any record.
+ * Why a review record does not count as the owner's decisions, or null when it does: a version 2
+ * record carrying a valid passkey approval by one of the base branch's keys. Before a key is
+ * registered no record counts, as none is signed then; only tree statements approve.
  * @param {any} record the parsed record (untrusted)
  * @param {object[] | null} keys the base branch's keys, null while approvals are not enforced
  * @returns {string | null} why not, or null
@@ -472,7 +472,7 @@ export function recordProblem(record, keys) {
     ) {
         return "not a review record";
     }
-    return keys ? verifyRecord(record, keys, { pr: record.pr ?? null }) : null;
+    return keys ? verifyRecord(record, keys, { pr: record.pr ?? null }) : "no passkey is registered to verify it";
 }
 
 /**
@@ -484,15 +484,11 @@ export function recordProblem(record, keys) {
 function rawEntries(out) {
     const parts = out.toString("utf8").split("\0");
     const blob = (s) => (/^0+$/.test(s) ? null : s);
-    const entries = [];
-    for (let i = 0; i < parts.length - 1; i++) {
-        const meta = /:\d+ \d+ ([0-9a-f]+) ([0-9a-f]+) [A-Z]\d*$/.exec(parts[i]);
-        if (meta) {
-            i++;
-            entries.push({ path: parts[i], oldBlob: blob(meta[1]), blob: blob(meta[2]) });
-        }
-    }
-    return entries;
+    // Each entry is its metadata, then its path: the token after a metadata token is a path.
+    return parts.flatMap((part, i) => {
+        const meta = i + 1 < parts.length ? /:\d+ \d+ ([0-9a-f]+) ([0-9a-f]+) [A-Z]\d*$/.exec(part) : null;
+        return meta ? [{ path: parts[i + 1], oldBlob: blob(meta[1]), blob: blob(meta[2]) }] : [];
+    });
 }
 
 /**
@@ -507,11 +503,11 @@ function readBlobs(cwd, oids) {
     if (unique.length === 0) {
         return out;
     }
-    const buf = execFileSync("git", ["cat-file", "--batch"], {
-        cwd,
-        input: `${unique.join("\n")}\n`,
-        maxBuffer: 1 << 28,
-    });
+    const buf = execFileSync(
+        "git", // NOSONAR(S4036): the gate runs the runner's own git, as gitOut does
+        ["cat-file", "--batch"],
+        { cwd, input: `${unique.join("\n")}\n`, maxBuffer: 1 << 28 },
+    );
     let at = 0;
     for (const oid of unique) {
         const nl = buf.indexOf(10, at);
@@ -525,6 +521,9 @@ function readBlobs(cwd, oids) {
     }
     return out;
 }
+
+// The newest of several approvals (the largest `time`), or null.
+const newestOf = (list) => list.reduce((a, b) => (a === null || b.time > a.time ? b : a), null);
 
 const timeOf = (s) => {
     const t = Date.parse(String(s));
@@ -578,8 +577,9 @@ function signedDecisions(input) {
         .filter((s) => valid(s, treeApprovalProblem(s.doc, { head, baselines, keys, cwd })))
         .map((s) => ({ ...s, time: timeOf(s.doc.approvedAt) }))
         .filter((s) => valid(s, s.time === null ? "its approvedAt is not a time" : null));
+    // Before a key is registered no record counts (recordProblem), and none is named as refused.
     const records = parsed
-        .filter((r) => r.where.startsWith(reviews) && valid(r, recordProblem(r.doc, keys)))
+        .filter((r) => keys && r.where.startsWith(reviews) && valid(r, recordProblem(r.doc, keys)))
         .map((r) => ({ ...r, time: timeOf(r.doc.reviewedAt) }));
     const approvalTimes = [...statements, ...records].map((x) => x.time).filter((t) => t !== null);
     const since = approvalTimes.length > 0 ? Math.min(...approvalTimes) : null;
@@ -700,7 +700,7 @@ export function baselineCoverage(input) {
     // The newest statement whose tree approves the file.
     const firstPass = changed.map((c) => ({
         c,
-        tree: statements.filter((s) => covers(s, c)).sort((a, b) => b.time - a.time)[0] ?? null,
+        tree: newestOf(statements.filter((s) => covers(s, c))),
     }));
     const rejectedPaths = new Set([...rejected.keys()].map((k) => k.slice(0, k.lastIndexOf(" "))));
     // Content hashes only where a record or a reject could decide: no blob is read for a file a
@@ -744,7 +744,7 @@ function decide(c, ctx) {
     if (own) {
         return { path: c.path, removed, covered: true, by: c.path };
     }
-    const newest = approvals.sort((a, b) => b.time - a.time)[0];
+    const newest = newestOf(approvals);
     if (!newest) {
         return { path: c.path, removed, covered: false };
     }

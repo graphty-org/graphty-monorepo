@@ -9,6 +9,8 @@ export interface TileSource {
     tiles: string;
     /** The credit the provider requires, shown whenever its tiles are. */
     attribution: string;
+    /** Where the credit links to (the provider's copyright or license page), when it has one. */
+    attributionUrl?: string;
     /** Default `web-mercator`. */
     projection?: ProjectionId;
     /** Tile width in pixels. Default 256. */
@@ -33,6 +35,10 @@ export interface ImageSource {
     /** The projection the picture is drawn in. Default `equirectangular`. */
     projection?: ProjectionId;
     attribution?: string;
+    /** Where the credit links to, when it has a page. */
+    attributionUrl?: string;
+    /** `gray` draws the picture as a light gray backdrop (desaturated and lightened). Default `color`. */
+    tone?: "color" | "gray";
 }
 
 /** Something a map can show. */
@@ -48,6 +54,7 @@ export interface TileId {
 /** The ids of the named sources in {@link mapSources}. */
 export type MapSourceId =
     | "natural-earth"
+    | "natural-earth-gray"
     | "openstreetmap"
     | "opentopomap"
     | "nasa-gibs-blue-marble"
@@ -56,32 +63,46 @@ export type MapSourceId =
     | "eox-s2cloudless-2016";
 
 const OSM = "(c) OpenStreetMap contributors";
+const OSM_URL = "https://www.openstreetmap.org/copyright";
+const NATURAL_EARTH = new URL("../assets/natural-earth.jpg", import.meta.url).href;
 
 /**
  * Free map sources usable from a static page with no key. `natural-earth` is a 2048 x 1024
- * public-domain world image shipped in this package, so it contacts no third party. The network
+ * public-domain world image shipped in this package, so it contacts no third party;
+ * `natural-earth-gray` is the same picture drawn as a plain light gray backdrop. The network
  * sources ask for light use: this package only loads the tiles in view and never prefetches.
  */
 export const mapSources: Readonly<Record<MapSourceId, MapSource>> = {
     "natural-earth": {
-        image: new URL("../assets/natural-earth.jpg", import.meta.url).href,
+        image: NATURAL_EARTH,
         projection: "equirectangular",
         attribution: "Natural Earth",
+        attributionUrl: "https://www.naturalearthdata.com/",
+    },
+    "natural-earth-gray": {
+        image: NATURAL_EARTH,
+        projection: "equirectangular",
+        attribution: "Natural Earth",
+        attributionUrl: "https://www.naturalearthdata.com/",
+        tone: "gray",
     },
     openstreetmap: {
         tiles: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         attribution: OSM,
+        attributionUrl: OSM_URL,
         maxZoom: 19,
     },
     opentopomap: {
         tiles: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
         subdomains: ["a", "b", "c"],
         attribution: `Map data: ${OSM}, SRTM; map style: (c) OpenTopoMap (CC-BY-SA)`,
+        attributionUrl: "https://opentopomap.org/about",
         maxZoom: 17,
     },
     "nasa-gibs-blue-marble": {
         tiles: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_NextGeneration/default/2004-08-01/500m/{z}/{y}/{x}.jpeg",
         attribution: "NASA EOSDIS GIBS",
+        attributionUrl: "https://earthdata.nasa.gov/gibs",
         projection: "equirectangular",
         tileSize: 512,
         tileExtent: 0.8,
@@ -90,17 +111,20 @@ export const mapSources: Readonly<Record<MapSourceId, MapSource>> = {
     "usgs-topo": {
         tiles: "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
         attribution: "USGS The National Map",
+        attributionUrl: "https://www.usgs.gov/programs/national-geospatial-program/national-map",
         maxZoom: 16,
     },
     "usgs-imagery": {
         tiles: "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}",
         attribution: "USGS The National Map",
+        attributionUrl: "https://www.usgs.gov/programs/national-geospatial-program/national-map",
         maxZoom: 16,
     },
     "eox-s2cloudless-2016": {
         tiles: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
         attribution:
             "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)",
+        attributionUrl: "https://s2maps.eu",
         maxZoom: 15,
     },
 };
@@ -121,6 +145,10 @@ export interface ResolvedSource {
     readonly minZoom: number;
     readonly maxZoom: number;
     readonly attribution: string;
+    /** Where the credit links to, or "" when it has no page. */
+    readonly attributionUrl: string;
+    /** How the picture is drawn: as it is, or as a light gray backdrop. */
+    readonly tone: "color" | "gray";
     /** The tiles at the source's `minZoom` that cover its map. */
     roots(): TileId[];
     /** The four tiles one level down, less any wholly outside the map. */
@@ -151,6 +179,8 @@ export function resolveSource(source: MapSource): ResolvedSource {
             minZoom: 0,
             maxZoom: 0,
             attribution: source.attribution ?? "",
+            attributionUrl: source.attributionUrl ?? "",
+            tone: source.tone ?? "color",
             roots: () => [{ z: 0, x: 0, y: 0 }],
             children: () => [],
             rect: () => rect,
@@ -176,6 +206,8 @@ export function resolveSource(source: MapSource): ResolvedSource {
         minZoom,
         maxZoom: source.maxZoom ?? 19,
         attribution: source.attribution,
+        attributionUrl: source.attributionUrl ?? "",
+        tone: "color",
         roots() {
             const side = extent / 2 ** minZoom;
             const tiles: TileId[] = [];
@@ -201,14 +233,16 @@ export function resolveSource(source: MapSource): ResolvedSource {
         },
         square,
         url(t) {
+            const columns = Math.ceil(1 / (extent / 2 ** t.z) - 1e-9);
+            const x = ((t.x % columns) + columns) % columns;
             const rows = Math.ceil(projection.height / (extent / 2 ** t.z) - 1e-9);
             const subdomains = source.subdomains ?? [];
             const values: Record<string, string | number> = {
                 z: t.z,
-                x: t.x,
+                x,
                 y: t.y,
                 "-y": rows - 1 - t.y,
-                s: subdomains.length > 0 ? subdomains[(t.x + t.y) % subdomains.length] : "",
+                s: subdomains.length > 0 ? subdomains[(x + t.y) % subdomains.length] : "",
                 r: "",
             };
             return source.tiles.replace(/\{(z|x|y|-y|s|r)\}/g, (_, key: string) => String(values[key]));

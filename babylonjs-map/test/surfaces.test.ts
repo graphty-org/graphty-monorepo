@@ -63,7 +63,7 @@ describe("FlatMap", () => {
     it("draws the bundled world by default, reprojected onto Web Mercator", async () => {
         const tiles = loader(scene);
         const map = new FlatMap(scene, { loadTexture: tiles.load });
-        expect(map.attribution).toEqual(["Natural Earth"]);
+        expect(map.attribution, "nothing drawn, nothing credited").toEqual([]);
         map.update();
         expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
         await tiles.answerAll();
@@ -74,7 +74,9 @@ describe("FlatMap", () => {
         const box = mesh.getBoundingInfo().boundingBox;
         expect(box.minimum.x).toBeCloseTo(-50);
         expect(box.maximum.y).toBeCloseTo(50);
-        expect(map.status).toEqual({ loading: 0, ready: 1, failed: 0 });
+        expect(map.status).toMatchObject({ loading: 0, ready: 1, failed: 0 });
+        expect(map.attribution).toEqual(["Natural Earth"]);
+        expect(map.credits).toEqual([{ text: "Natural Earth", url: "https://www.naturalearthdata.com/" }]);
     });
 
     it("loads finer tiles as the camera comes closer", async () => {
@@ -90,14 +92,14 @@ describe("FlatMap", () => {
         expect(Math.min(...zooms)).toBeGreaterThanOrEqual(3);
         expect(zooms.length).toBeLessThanOrEqual(6); // the concurrent-load cap
         // the zoom-0 tile stays up until its descendants arrive, so there is never a hole
-        expect(shownMeshes(scene).map((m) => m.name)).toEqual([expect.stringMatching(/0:0\/0\/0$/)]);
+        expect(shownMeshes(scene).map((m) => m.name)).toEqual([expect.stringMatching(/\|0\|0\/0\/0$/)]);
         while (tiles.requests.length > 0) {
             await tiles.answerAll();
             map.update();
         }
         const names = shownMeshes(scene).map((m) => m.name);
         expect(names.length).toBeGreaterThan(1);
-        expect(names.every((n) => !n.endsWith("0:0/0/0"))).toBe(true);
+        expect(names.every((n) => !n.endsWith("|0|0/0/0"))).toBe(true);
     });
 
     it("never requests a tile outside the view or the frame's box", async () => {
@@ -176,7 +178,7 @@ describe("FlatMap", () => {
         map.update();
         tiles.requests[0].reject();
         await settle();
-        expect(map.status).toEqual({ loading: 0, ready: 0, failed: 1 });
+        expect(map.status).toMatchObject({ loading: 0, ready: 0, failed: 1, layers: [{ failed: 1 }] });
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
@@ -211,6 +213,19 @@ describe("FlatMap", () => {
         expect(tiles.requests).toHaveLength(0);
     });
 
+    it("tells the host to render when an update shows a new tile or changes the credits", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { loadTexture: tiles.load });
+        map.update();
+        await tiles.answerAll();
+        const changed = vi.fn();
+        map.onChangedObservable.add(changed);
+        map.update(); // the loaded picture becomes a mesh, and its credit is drawn
+        expect(changed).toHaveBeenCalledTimes(1);
+        map.update(); // nothing new
+        expect(changed).toHaveBeenCalledTimes(1);
+    });
+
     it("rebuilds tiles for a new frame and keeps their textures", async () => {
         const tiles = loader(scene);
         const map = new FlatMap(scene, { loadTexture: tiles.load });
@@ -237,11 +252,11 @@ describe("FlatMap", () => {
             ],
             loadTexture: tiles.load,
         });
-        expect(map.attribution).toEqual(["Natural Earth", "(c) OpenStreetMap contributors"]);
         expect(map.sources).toHaveLength(3);
         map.update();
         await tiles.answerAll();
         map.update();
+        expect(map.attribution).toEqual(["Natural Earth", "(c) OpenStreetMap contributors"]);
         const offsets = shownMeshes(scene).map((m) => m.material?.zOffsetUnits ?? 0);
         expect(offsets).toEqual([...offsets].sort((a, b) => b - a));
         expect(new Set(offsets).size).toBe(3);
@@ -261,6 +276,165 @@ describe("FlatMap", () => {
         const disposed = vi.spyOn(BaseTexture.prototype, "dispose");
         await tiles.answerAll();
         expect(disposed).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("FlatMap tile recovery and edges", () => {
+    let scene: Scene;
+    let camera: ArcRotateCamera;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+        camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 200, Vector3.Zero(), scene);
+        camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        scene.getEngine().dispose();
+    });
+
+    /** Shows `half` scene units above and below the center, twice that left and right. */
+    function view(half: number): void {
+        camera.orthoTop = half;
+        camera.orthoBottom = -half;
+        camera.orthoLeft = -2 * half;
+        camera.orthoRight = 2 * half;
+    }
+
+    it("draws a failed tile's parent over its loaded siblings, then the tile once a retry loads it", async () => {
+        vi.useFakeTimers();
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 100 });
+        view(50);
+        map.update();
+        await tiles.answerAll();
+        view(25); // a zoom-1 tile is now 256 pixels: four of them
+        map.update();
+        expect(tiles.requests.map((r) => zoomOf(r.url))).toEqual([1, 1, 1, 1]);
+        const [failing, ...rest] = tiles.requests.splice(0);
+        failing.reject();
+        for (const r of rest) {
+            r.resolve();
+        }
+        await settle();
+        map.update();
+        expect(shownMeshes(scene).map((m) => m.name)).toEqual([expect.stringMatching(/\|0\|0\/0\/0$/)]);
+        expect(map.status.failed).toBe(1);
+
+        // Asked for again only once the backoff is over.
+        map.update();
+        expect(tiles.requests).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(1000);
+        map.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual([failing.url]);
+        await tiles.answerAll();
+        map.update();
+        expect(shownMeshes(scene).map((m) => zoomOf(`${m.name.replace(/.*\|/, "/")}.png`))).toEqual([1, 1, 1, 1]);
+    });
+
+    it("asks for failed tiles again at once when the browser comes back online", async () => {
+        const target = new EventTarget();
+        vi.stubGlobal("addEventListener", target.addEventListener.bind(target));
+        vi.stubGlobal("removeEventListener", target.removeEventListener.bind(target));
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load });
+        const changed = vi.fn();
+        map.onChangedObservable.add(changed);
+        view(50);
+        map.update();
+        tiles.requests.splice(0)[0].reject();
+        await settle();
+        map.update();
+        expect(tiles.requests).toHaveLength(0);
+        target.dispatchEvent(new Event("online"));
+        expect(changed).toHaveBeenCalledTimes(2);
+        map.update();
+        expect(tiles.requests).toHaveLength(1);
+        map.dispose();
+    });
+
+    it("keeps the base picture when the tile service over it changes", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [mapSources["natural-earth"], OSM], loadTexture: tiles.load });
+        view(50);
+        map.update();
+        await tiles.answerAll();
+        map.setSources([mapSources["natural-earth"], mapSources.opentopomap]);
+        map.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/opentopomap/)]);
+        expect(shownMeshes(scene).some((m) => m.name.includes("natural-earth"))).toBe(true);
+    });
+
+    it("draws on past the data's box with beyond: continue, a world to each side", async () => {
+        const tiles = loader(scene);
+        const box = {
+            bounds: [
+                [-75, 40],
+                [-73, 41],
+            ] as const,
+        };
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, frame: box, beyond: "continue" });
+        expect(map.beyond).toBe("continue");
+        view(1e6);
+        map.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual(Array(3).fill("https://tile.openstreetmap.org/0/0/0.png"));
+        await tiles.answerAll();
+        map.update();
+        const xs = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.center.x);
+        // The data's box is 100 units across: a whole world is about 18,000 units.
+        expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(10_000);
+        map.beyond = "clip";
+        map.update();
+        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(50);
+    });
+
+    it("draws a box across the antimeridian from the world's two copies", async () => {
+        const tiles = loader(scene);
+        const box = {
+            bounds: [
+                [170, -30],
+                [190, -10],
+            ] as const,
+        };
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            loadTexture: tiles.load,
+            frame: box,
+            maxConcurrentLoads: 100,
+        });
+        view(60);
+        const urls: string[] = [];
+        for (let round = 0, asked = 1; round < 30 && asked > 0; round++) {
+            map.update();
+            asked = tiles.requests.length;
+            urls.push(...tiles.requests.map((r) => r.url));
+            await tiles.answerAll();
+        }
+        map.update();
+        expect(urls.length).toBeGreaterThan(1);
+        for (const url of urls) {
+            const [, z, x] = /\/(\d+)\/(\d+)\/\d+\.png$/.exec(url) ?? [];
+            expect(Number(x), url).toBeLessThan(2 ** Number(z));
+        }
+        // Both sides of 180 degrees are drawn, edge to edge of the box.
+        const half = map.frame.width / 2;
+        const boxes = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox);
+        expect(Math.min(...boxes.map((b) => b.minimum.x))).toBeCloseTo(-half, 3);
+        expect(Math.max(...boxes.map((b) => b.maximum.x))).toBeCloseTo(half, 3);
+        expect(boxes.some((b) => b.minimum.x < -1) && boxes.some((b) => b.maximum.x > 1)).toBe(true);
+    });
+
+    it("loads a gray source's picture through the same loader", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [mapSources["natural-earth-gray"]], loadTexture: tiles.load });
+        view(50);
+        map.update();
+        await settle();
+        // Without a DOM canvas the picture is loaded as it is.
+        expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
     });
 });
 
@@ -313,6 +487,23 @@ describe("Globe", () => {
         globe.radius = 10;
         globe.update();
         expect(shownMeshes(scene)[0].getBoundingInfo().boundingBox.maximum.y).toBeCloseTo(10);
+        scene.getEngine().dispose();
+    });
+
+    it("fills the poles past Web Mercator's edge from the source's coarsest tile", async () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load });
+        globe.update();
+        await tiles.answerAll();
+        globe.update();
+        const caps = scene.meshes.filter((m) => m.name.includes("-cap-") && m.isEnabled());
+        expect(caps).toHaveLength(2);
+        const ys = caps.map((m) => m.getBoundingInfo().boundingBox);
+        expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
+        expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
+        expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
         scene.getEngine().dispose();
     });
 });

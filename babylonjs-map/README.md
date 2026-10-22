@@ -51,11 +51,17 @@ The map lies in the x-y plane at z = 0, north up, the box centered on the origin
 units across its longer side, so a city map uses the same small numbers as a world map. It looks the
 same under a perspective camera and an orthographic 2D one. Leave `frame` out for the whole world.
 
+The picture ends at the box (`beyond: "clip"`, the default). With `beyond: "continue"` every source
+is drawn whole, a world to the east and west too, so panning or zooming out past the box still
+shows map. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
+gives) is drawn from both sides of the line.
+
 ## Map sources
 
 | Source                        | What it shows                                       | Deepest zoom |
 | ----------------------------- | --------------------------------------------------- | ------------ |
 | `natural-earth` (the default) | A 2048 x 1024 world picture shipped in the package  | one picture  |
+| `natural-earth-gray`          | The same picture as a plain light gray backdrop     | one picture  |
 | `openstreetmap`               | Streets                                             | 19           |
 | `opentopomap`                 | Topographic                                         | 17           |
 | `nasa-gibs-blue-marble`       | Satellite mosaic of the whole earth, poles included | 7            |
@@ -69,7 +75,8 @@ use, and this package only ever requests the tiles in view. Sources are layered 
 new Globe(scene, { sources: [mapSources["natural-earth"], mapSources.openstreetmap] });
 ```
 
-Street tiles stop at 85 degrees north and south, so the picture underneath covers the poles.
+Street tiles stop at 85 degrees north and south; on a globe the poles past that are filled from the
+source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`.
 
 Your own tile server or picture:
 
@@ -94,7 +101,8 @@ for tiles and `equirectangular` for pictures. A picture in the other projection 
 ## Credits
 
 Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
-the credits of the sources drawn; show them over the canvas.
+the credits of the sources that drew a tile; `map.credits` gives each with the page it links to
+(`attributionUrl` on a source of your own). Show them over the canvas.
 
 ```ts
 creditElement.textContent = map.attribution.join(" | ");
@@ -103,7 +111,11 @@ creditElement.textContent = map.attribution.join(" | ");
 ## Loading and level of detail
 
 - `map.status` counts tiles `loading`, `ready` and `failed` (a failed tile is a CORS, 403, 404 or
-  429 answer).
+  429 answer), in all and per source (`status.layers`).
+- The level is chosen from the size of a texel on screen. A failed tile is asked for again after 1 s,
+  doubling to a minute, and at once when the browser comes back online; meanwhile its parent is drawn
+  in place of it and its siblings, so an area is never drawn from two levels once loading settles.
+- `setSources` keeps the pictures of a source that stays (the base under a changed tile service).
 - `map.onChangedObservable` fires when a tile arrives or fails. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
@@ -123,7 +135,12 @@ const box = boundsOf(points, { margin: 0.1 }); // the box around some points, or
 const frame = createMapFrame({ projection: "web-mercator", bounds: box, size: 100 });
 frame.toScene({ lat: 40.64, lon: -73.78 }); // { x, y } in scene units
 latLonToSphere({ lat: 40.64, lon: -73.78 }, 100, "left"); // { x, y, z } on a globe
+raySphere(ray.origin, ray.direction, 100); // the point of a globe a ray meets first, or null
 ```
+
+`boundsOf` takes the narrowest longitude range: for data across the date line its east edge passes
+180, and `longitudeIn(lon, box)` shifts a longitude by 360 into it. A single point gets a box 1
+degree across.
 
 `webMercator` (tiles z/x/y cover x in [x, x + 1] / 2^z) and `equirectangular` (a 2:1 map).
 
@@ -172,7 +189,14 @@ const { format, share, alternatives } = detectLocationFormat(column);
 const points = column.map((value) => parseLocation(value, format ?? "decimal"));
 ```
 
-`latLonFromColumns(lat, lon)` reads separate latitude and longitude values.
+A column mixing spellings reads every value with `parseColumnValue(value, format)`: in the column's
+format, else in the formats that cannot be mistaken (a decimal pair, DMS, WKT, GeoJSON, ISO 6709),
+never as a geohash. `detectLocationFormat` scores geohashes only for a column of one length of at
+least five characters with letters in it (so ZIP codes and words are not), and lists `lon-lat` as
+an alternative when a decimal pair reads as well longitude first.
+
+`latLonFromColumns(lat, lon)` reads separate latitude and longitude values: numbers, or text with a
+hemisphere letter (`"51.5074 N"`) or a decimal comma (`"48,8566"`).
 
 ## License
 

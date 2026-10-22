@@ -16,8 +16,8 @@ export interface GlobeOptions extends MapSurfaceOptions {
  * A globe centered on the origin: north pole on +y, longitude 0 facing a camera on the scene's
  * default side (-z left-handed, +z right-handed; read from `scene.useRightHandedSystem`). Each
  * tile is a patch of the sphere; patches behind the horizon or outside the view are not drawn or
- * requested. Web Mercator sources stop at +/-85.05 degrees, so put an equirectangular source
- * (the default Natural Earth image) under them to cover the poles.
+ * requested. Web Mercator sources stop at +/-85.05 degrees; the poles past that are filled from the
+ * source's own coarsest tile, its top and bottom rows stretched to the pole.
  */
 export class Globe extends MapSurface {
     /** The scene's handedness when the globe was made. */
@@ -33,6 +33,8 @@ export class Globe extends MapSurface {
         super(options.name ?? "globe", scene, options);
         this.handedness = scene.useRightHandedSystem ? "right" : "left";
         this.currentRadius = options.radius ?? 100;
+        // A patch's nine sample points miss most of a level-0 or level-1 tile's curve.
+        this.cullFromZoom = 2;
     }
 
     /**
@@ -86,6 +88,10 @@ export class Globe extends MapSurface {
 
     protected override surfaceProjection(): null {
         return null;
+    }
+
+    protected override fillsPoles(): boolean {
+        return true;
     }
 
     /**

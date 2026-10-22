@@ -24,44 +24,87 @@ export function worldBounds(projection: Projection | ProjectionId): GeoBounds {
 export interface BoundsOfOptions {
     /** Space added on every side, as a share of the points' span. Default 0.1. */
     margin?: number;
-    /** The smallest span, in degrees, so a single point still gets a box. Default 0.01 (about 1 km). */
+    /** The smallest span, in degrees, so a single point still gets a box. Default 1. */
     minSpan?: number;
 }
 
 /**
- * The box around some points, with a margin, clamped to the world.
+ * The west and east edges of the narrowest longitude range holding every longitude: the range
+ * left when the largest gap between neighbors (around the circle) is cut out. The east edge passes
+ * 180 when the range crosses the antimeridian, so `east - west` is always the span.
+ * @param lons - The longitudes, -180 to 180.
+ * @returns West and east, west in -180..180 and east >= west.
+ */
+function longitudeRange(lons: number[]): [number, number] {
+    const sorted = [...lons].sort((a, b) => a - b);
+    // The gap across the antimeridian, from the last longitude round to the first.
+    let gap = sorted[0] + 360 - sorted[sorted.length - 1];
+    let west = sorted[0];
+    let east = sorted[sorted.length - 1];
+    for (let i = 1; i < sorted.length; i++) {
+        const between = sorted[i] - sorted[i - 1];
+        if (between > gap) {
+            gap = between;
+            west = sorted[i];
+            east = sorted[i - 1] + 360;
+        }
+    }
+    return [west, east];
+}
+
+/**
+ * The box around some points, with a margin. Latitudes are clamped to the poles; longitudes are
+ * not clamped, because the box takes the narrowest longitude range, which crosses the
+ * antimeridian for data around it (Fiji, the Aleutians): then the east edge is past 180 (a box
+ * from 170 to 190 is 170 E to 170 W). The west edge is never before -180. Shift a point's
+ * longitude by 360 to place it in such a box ({@link longitudeIn}).
  * @param points - The points in degrees; non-finite ones are skipped.
  * @param options - Margin and minimum span.
  * @returns The box, or null when no point is finite.
  */
 export function boundsOf(points: Iterable<LatLon>, options: BoundsOfOptions = {}): GeoBounds | null {
-    const { margin = 0.1, minSpan = 0.01 } = options;
-    let west = Infinity;
+    const { margin = 0.1, minSpan = 1 } = options;
+    const lons: number[] = [];
     let south = Infinity;
-    let east = -Infinity;
     let north = -Infinity;
     for (const { lat, lon } of points) {
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
             continue;
         }
-        west = Math.min(west, lon);
-        east = Math.max(east, lon);
+        lons.push(lon);
         south = Math.min(south, lat);
         north = Math.max(north, lat);
     }
-    if (west === Infinity) {
+    if (lons.length === 0) {
         return null;
     }
-    // ponytail: no antimeridian handling; data spanning 180 degrees (Fiji, the Aleutians) gets a
-    // world-wide box. Add the largest-longitude-gap test when wrapped bounds are drawn.
-    const halfLon = (Math.max(east - west, minSpan) / 2) * (1 + 2 * margin);
+    const [west, east] = longitudeRange(lons);
+    const halfLon = Math.min(180, (Math.max(east - west, minSpan) / 2) * (1 + 2 * margin));
     const halfLat = (Math.max(north - south, minSpan) / 2) * (1 + 2 * margin);
     const lon = (west + east) / 2;
+    // The west edge in -180..180, so a box across the antimeridian runs east past 180.
+    const turn = lon - halfLon < -180 ? 360 : 0;
     const lat = (south + north) / 2;
     return [
-        [Math.max(-180, lon - halfLon), Math.max(-90, lat - halfLat)],
-        [Math.min(180, lon + halfLon), Math.min(90, lat + halfLat)],
+        [lon - halfLon + turn, Math.max(-90, lat - halfLat)],
+        [lon + halfLon + turn, Math.min(90, lat + halfLat)],
     ];
+}
+
+/**
+ * A longitude moved by whole turns into a box's west-to-east range, when one lands in it.
+ * @param lon - The longitude, -180 to 180.
+ * @param bounds - The box; its east edge may pass 180 and its west edge may be before -180.
+ * @returns The longitude, plus or minus 360 when that puts it inside the box.
+ */
+export function longitudeIn(lon: number, bounds: GeoBounds): number {
+    const [[west], [east]] = bounds;
+    for (const shifted of [lon, lon + 360, lon - 360]) {
+        if (shifted >= west && shifted <= east) {
+            return shifted;
+        }
+    }
+    return lon;
 }
 
 /** A flat map placed in a scene: a projection, the box it shows and its size in scene units. */

@@ -2,8 +2,11 @@ import {
     boundsOf,
     createMapFrame,
     equirectangular,
+    type GeoBounds,
     latLonToSphere,
+    longitudeIn,
     projections,
+    raySphere,
     sphereToLatLon,
     WEB_MERCATOR_MAX_LATITUDE,
     webMercator,
@@ -95,9 +98,59 @@ describe("boundsOf", () => {
         ]);
     });
 
-    it("clamps to the world and returns null for no points", () => {
-        expect(boundsOf([{ lat: 89, lon: 179 }], { minSpan: 10 })?.[1]).toEqual([180, 90]);
+    it("clamps latitudes to the poles, lets longitudes pass 180, and returns null for no points", () => {
+        expect(boundsOf([{ lat: 89, lon: 179 }], { minSpan: 10 })?.[1]).toEqual([185, 90]);
         expect(boundsOf([])).toBeNull();
+    });
+
+    it("gives every node at one point a box 1 degree across by default", () => {
+        const b = boundsOf([{ lat: 48.8566, lon: 2.3522 }], { margin: 0 }) as GeoBounds;
+        expect(b[1][0] - b[0][0]).toBeCloseTo(1);
+        expect(b[1][1] - b[0][1]).toBeCloseTo(1);
+    });
+
+    it("keeps data across the antimeridian together", () => {
+        // The red team's Pacific: Fiji, Samoa, Tonga, New Zealand, Hawaii, the Aleutians, Kamchatka.
+        const pacific = [
+            { lat: -18.14, lon: 178.44 },
+            { lat: -13.83, lon: -171.76 },
+            { lat: -21.14, lon: -175.2 },
+            { lat: -36.85, lon: 174.76 },
+            { lat: 21.31, lon: -157.86 },
+            { lat: 51.88, lon: -176.66 },
+            { lat: 53.02, lon: 158.65 },
+            { lat: 64.73, lon: 177.51 },
+            { lat: 64.5, lon: -165.4 },
+        ];
+        const b = boundsOf(pacific, { margin: 0 }) as GeoBounds;
+        expect(b[1][0] - b[0][0]).toBeLessThan(60);
+        expect(b[0][0]).toBeCloseTo(158.65);
+        expect(b[1][0]).toBeCloseTo(-157.86 + 360);
+        // Suva and Apia, shifted into the box, are 10 degrees apart, not 350.
+        expect(longitudeIn(-171.76, b) - longitudeIn(178.44, b)).toBeCloseTo(9.8);
+        // Data that does not cross keeps its plain box.
+        expect(
+            boundsOf(
+                [
+                    { lat: 0, lon: -10 },
+                    { lat: 0, lon: 10 },
+                ],
+                { margin: 0 },
+            ),
+        ).toEqual([
+            [-10, -0.5],
+            [10, 0.5],
+        ]);
+    });
+});
+
+describe("raySphere", () => {
+    it("finds the near side of a sphere, and null for a miss", () => {
+        expect(raySphere({ x: 0, y: 0, z: -300 }, { x: 0, y: 0, z: 1 }, 100)).toEqual({ x: 0, y: 0, z: -100 });
+        expect(raySphere({ x: 0, y: 200, z: -300 }, { x: 0, y: 0, z: 1 }, 100)).toBeNull();
+        expect(raySphere({ x: 0, y: 0, z: -300 }, { x: 0, y: 0, z: -1 }, 100)).toBeNull();
+        // From inside, the far wall.
+        expect(raySphere({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 100)).toEqual({ x: 100, y: 0, z: 0 });
     });
 });
 

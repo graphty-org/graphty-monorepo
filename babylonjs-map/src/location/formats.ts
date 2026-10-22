@@ -218,8 +218,44 @@ export function parseLocation(value: unknown, format: LocationFormat | "auto" = 
     return best;
 }
 
+/** A number with an optional hemisphere letter before or after it, and a decimal point or comma. */
+const HEMISPHERE_NUMBER = /^\s*([NSEW])?\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?\s*$/i;
+
 /**
- * Reads separate latitude and longitude values (numbers or decimal strings).
+ * Reads one angle of a latitude or longitude column: a number, or text holding a number with an
+ * optional hemisphere letter before or after it ("51.5074 N", "W 0.1278"; S and W are negative)
+ * and a decimal point or a decimal comma ("48,8566").
+ * @param value - The value.
+ * @param axis - Which angle: a latitude takes N or S, a longitude E or W.
+ * @returns The angle in degrees, or NaN.
+ */
+function angleOf(value: unknown, axis: "lat" | "lon"): number {
+    if (typeof value === "number") {
+        return value;
+    }
+    const match = typeof value === "string" ? HEMISPHERE_NUMBER.exec(value) : null;
+    if (match === null) {
+        return Number.NaN;
+    }
+    // A group that did not take part is undefined at run time, whatever the regex typing says.
+    const [, before, digits, after] = match as (string | undefined)[];
+    if (before !== undefined && after !== undefined) {
+        return Number.NaN;
+    }
+    const letter = (before ?? after)?.toUpperCase();
+    const number = Number((digits ?? "").replace(",", "."));
+    if (letter === undefined) {
+        return number;
+    }
+    if (!(axis === "lat" ? "NS" : "EW").includes(letter)) {
+        return Number.NaN;
+    }
+    return letter === "S" || letter === "W" ? -Math.abs(number) : Math.abs(number);
+}
+
+/**
+ * Reads separate latitude and longitude values: numbers, or text holding a number with an
+ * optional hemisphere letter ("51.5074 N", "0.1278 W") and a decimal point or comma ("48,8566").
  * @param lat - The latitude.
  * @param lon - The longitude.
  * @returns The point, or an error whose `value` is `[lat, lon]`.
@@ -229,7 +265,73 @@ export function latLonFromColumns(lat: unknown, lon: unknown): LatLon | Location
     if (isEmpty(lat) || isEmpty(lon)) {
         return locationError("empty", value);
     }
-    return checked(toNumber(lat), toNumber(lon), value);
+    return checked(angleOf(lat, "lat"), angleOf(lon, "lon"), value);
+}
+
+/**
+ * Reads one angle of a separate latitude or longitude column, as {@link latLonFromColumns} does.
+ * @param value - The value.
+ * @param axis - `lat` or `lon`.
+ * @returns The angle, or NaN when the value is empty or not an angle of that axis in range.
+ */
+export function angleFromColumn(value: unknown, axis: "lat" | "lon"): number {
+    const angle = isEmpty(value) ? Number.NaN : angleOf(value, axis);
+    return Math.abs(angle) <= (axis === "lat" ? 90 : 180) ? angle : Number.NaN;
+}
+
+/**
+ * The formats a single value can be retried in when its column's format does not read it: their
+ * spelling cannot be mistaken for another format's. Geohash is never among them, since words and
+ * ids read as geohashes one value at a time.
+ */
+const UNAMBIGUOUS: readonly LocationFormat[] = ["decimal", "dms", "wkt", "geojson", "iso6709"];
+
+/**
+ * Reads one value of a column whose format was picked for the whole column (by
+ * {@link detectLocationFormat}): in that format, and when that fails for its syntax, in the
+ * formats whose spelling cannot be mistaken (a decimal pair, degrees-minutes-seconds, WKT, GeoJSON
+ * and ISO 6709), so a column mixing spellings loses no row. Geohash is never tried per value, and
+ * a longitude-first column never retries a pair latitude first.
+ * @param value - The value.
+ * @param format - The column's format.
+ * @returns The point, or the error: a range error from any reading wins over a syntax one.
+ */
+export function parseColumnValue(value: unknown, format: LocationFormat): LatLon | LocationError {
+    const first = parseLocation(value, format);
+    if (!isLocationError(first) || first.code !== "syntax") {
+        return first;
+    }
+    let best = first;
+    for (const retry of UNAMBIGUOUS) {
+        if (retry === format || (retry === "decimal" && format === "lon-lat")) {
+            continue;
+        }
+        const result = PARSERS[retry](value);
+        if (!isLocationError(result)) {
+            return result;
+        }
+        if (result.code !== "syntax") {
+            best = result;
+        }
+    }
+    return best;
+}
+
+/**
+ * Whether a column can be geohashes: every value is text of one length, at least five
+ * characters, in the geohash alphabet, with a letter in it. ZIP codes (digits only) and words
+ * (lengths vary) are not.
+ * @param sample - The column's non-empty values.
+ * @returns True when the column may be read as geohashes.
+ */
+function geohashColumn(sample: readonly unknown[]): boolean {
+    const length = typeof sample[0] === "string" ? sample[0].trim().length : 0;
+    return (
+        length >= 5 &&
+        sample.every(
+            (v) => typeof v === "string" && v.trim().length === length && GEOHASH.test(v.trim()) && /[a-z]/i.test(v),
+        )
+    );
 }
 
 /** What {@link detectLocationFormat} found. */
@@ -248,7 +350,9 @@ export interface FormatDetection {
  * Picks one format for a column of values, so a column is read the same way throughout. It
  * samples up to `limit` non-empty values and scores each format by the share it reads in range.
  * Ties go to the earlier format in {@link LOCATION_FORMATS}, so a decimal pair reads latitude
- * first unless only longitude first fits (then the result is `lon-lat`).
+ * first unless only longitude first fits (then the result is `lon-lat`); when longitude first
+ * reads as many values, `lon-lat` is listed among the alternatives. Geohash is scored only for a
+ * column whose values all share one length of at least five characters and contain letters.
  * @param values - The column's values.
  * @param limit - The most values sampled. Default 200.
  * @returns The format, its share and close alternatives.
@@ -263,26 +367,29 @@ export function detectLocationFormat(values: Iterable<unknown>, limit = 200): Fo
             }
         }
     }
+    const geohash = geohashColumn(sample);
     const scores = LOCATION_FORMATS.map((format) => ({
         format,
-        hits: sample.filter((v) => !isLocationError(PARSERS[format](v))).length,
+        hits: format === "geohash" && !geohash ? 0 : sample.filter((v) => !isLocationError(PARSERS[format](v))).length,
     })).sort((a, b) => b.hits - a.hits); // stable: ties keep LOCATION_FORMATS order
     const [top] = scores;
     if (sample.length === 0 || top.hits === 0) {
         return { format: null, share: 0, sampled: sample.length, alternatives: [] };
     }
     const close = (s: { hits: number }): boolean => s.hits > 0 && top.hits - s.hits <= sample.length * 0.05;
-    // The DMS reader is lenient (it takes decimals and ISO 6709 too) and a decimal pair also reads
-    // the other way round: those are expected ties, not ambiguities.
+    // The DMS reader is lenient (it takes decimals and ISO 6709 too): an expected tie, not an
+    // ambiguity. A decimal pair that reads as well longitude first is one: European capitals
+    // written longitude first read as places in Africa.
     const pair = top.format === "decimal" || top.format === "lon-lat";
-    const expected = (f: LocationFormat): boolean => f === "dms" || (pair && (f === "decimal" || f === "lon-lat"));
+    const expected = (s: { format: LocationFormat; hits: number }): boolean =>
+        s.format === "dms" || (pair && s.format === "decimal") || (pair && s.format === "lon-lat" && s.hits < top.hits);
     return {
         format: top.format,
         share: top.hits / sample.length,
         sampled: sample.length,
         alternatives: scores
             .slice(1)
-            .filter((s) => close(s) && !expected(s.format))
+            .filter((s) => close(s) && !expected(s))
             .map((s) => s.format),
     };
 }

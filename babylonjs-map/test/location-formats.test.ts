@@ -1,8 +1,10 @@
 import {
+    angleFromColumn,
     detectLocationFormat,
     isLocationError,
     latLonFromColumns,
     type LocationFormat,
+    parseColumnValue,
     parseLocation,
 } from "../src/location/index.js";
 
@@ -149,7 +151,7 @@ describe("latLonFromColumns", () => {
 
 describe("detectLocationFormat", () => {
     it("reads a decimal column latitude first", () => {
-        expect(detectLocationFormat(["40.6, -73.7", "51.4, -0.4", "", null])).toEqual({
+        expect(detectLocationFormat(["40.6, -122.4", "51.4, -0.4", "", null])).toEqual({
             format: "decimal",
             share: 1,
             sampled: 2,
@@ -162,17 +164,17 @@ describe("detectLocationFormat", () => {
     });
 
     it("finds geohashes, which auto never reads one at a time", () => {
-        expect(detectLocationFormat(["dr5x1n7", "gcpsvq", "u09tvw"]).format).toBe("geohash");
+        expect(detectLocationFormat(["dr5x1n7", "gcpsvqb", "u09tvw2"]).format).toBe("geohash");
     });
 
     it("names formats that read the column as well", () => {
         const result = detectLocationFormat(["+40.6398-073.7789/", "+51.47-000.45/"]);
         expect(result.format).toBe("iso6709");
         expect(result.alternatives).toEqual([]);
-        const mixed = detectLocationFormat(["bed", "dr5x1n7", "40.6, -73.7", "51.4, -0.4"]);
+        const mixed = detectLocationFormat(["bed", "dr5x1n7", "40.6, -122.4", "51.4, -0.4"]);
         expect(mixed.format).toBe("decimal");
         expect(mixed.share).toBe(0.5);
-        expect(mixed.alternatives).toEqual(["geohash"]);
+        expect(mixed.alternatives).toEqual([]);
     });
 
     it("says when nothing reads and stops at the sample limit", () => {
@@ -183,5 +185,109 @@ describe("detectLocationFormat", () => {
             alternatives: [],
         });
         expect(detectLocationFormat(["1, 2", "3, 4", "5, 6"], 2).sampled).toBe(2);
+    });
+});
+
+describe("geohash detection", () => {
+    it("reads a column of one-length geohashes with letters in them", () => {
+        expect(detectLocationFormat(["dr5x1n7", "gcpsvqb", "u09tvw2", "sr2yk3m"]).format).toBe("geohash");
+    });
+
+    it("never reads ZIP codes as geohashes", () => {
+        expect(detectLocationFormat(["10001", "94105", "60614", "02139"]).format).toBeNull();
+    });
+
+    it("never reads short words or words of mixed lengths as geohashes", () => {
+        expect(detectLocationFormat(["bed", "cup", "pen"]).format).toBeNull();
+        expect(detectLocationFormat(["berry", "rhythm", "nymph", "crypt"]).format).toBeNull();
+    });
+});
+
+describe("longitude-first pairs", () => {
+    it("lists lon-lat as an alternative when it reads as many values as latitude first", () => {
+        // European capitals written longitude first: both orders are in range.
+        const europe = detectLocationFormat([
+            "2.3522, 48.8566",
+            "13.405, 52.52",
+            "-3.7038, 40.4168",
+            "12.4964, 41.9028",
+            "21.0122, 52.2297",
+            "-9.1393, 38.7223",
+        ]);
+        expect(europe.format).toBe("decimal");
+        expect(europe.alternatives).toEqual(["lon-lat"]);
+        const paris = parseLocation("2.3522, 48.8566", "lon-lat");
+        expect(paris).toEqual({ lat: 48.8566, lon: 2.3522 });
+    });
+});
+
+describe("parseColumnValue", () => {
+    // The red team's mixed column: decimal pairs with a DMS, a WKT, a geohash, a blank, words and a
+    // pair out of range among them.
+    const MIXED = [
+        "40.7128, -74.0060",
+        "51.5074, -0.1278",
+        "35.6762, 139.6503",
+        "-33.8688, 151.2093",
+        "30.0444, 31.2357",
+        "-22.9068, -43.1729",
+        "48 51 24 N, 2 21 8 E",
+        "POINT(13.405 52.52)",
+        "sr2yk3",
+        "",
+        "not a place",
+        "Oslo",
+        "95, 200",
+        "-12.0464; -77.0428",
+    ];
+
+    it("reads the values in the column's format and retries the rest in the unambiguous formats", () => {
+        const { format } = detectLocationFormat(MIXED);
+        expect(format).not.toBeNull();
+        const results = MIXED.map((v) => parseColumnValue(v, format as LocationFormat));
+        const placed = results.filter((r) => !isLocationError(r));
+        // Paris (DMS), Berlin (WKT) and Lima (a semicolon) are read; the geohash, the words, the blank
+        // and the pair out of range are not.
+        expect(placed).toHaveLength(9);
+        const paris = results[6] as { lat: number; lon: number };
+        expect(paris.lat).toBeCloseTo(48.856, 2);
+        expect(paris.lon).toBeCloseTo(2.352, 2);
+        expect(results[7]).toEqual({ lat: 52.52, lon: 13.405 });
+        expect(isLocationError(results[8]) && results[8].code).toBe("syntax");
+        expect(isLocationError(results[9]) && results[9].code).toBe("empty");
+        expect(isLocationError(results[12]) && results[12].code).toBe("range");
+    });
+
+    it("never retries a longitude-first column latitude first", () => {
+        expect(isLocationError(parseColumnValue("13, 95", "lon-lat"))).toBe(true);
+    });
+});
+
+describe("latLonFromColumns with text", () => {
+    it.each([
+        ["40.7128", "-74.0060", 40.7128, -74.006],
+        ["51.5074 N", "0.1278 W", 51.5074, -0.1278],
+        ["S 33.87", "E 151.21", -33.87, 151.21],
+        ["48,8566", "2,3522", 48.8566, 2.3522],
+        ["35.68\u00b0 N", "139.65", 35.68, 139.65],
+    ])("reads %s, %s", (lat, lon, eLat, eLon) => {
+        const result = latLonFromColumns(lat, lon);
+        expect(result).toEqual({ lat: eLat, lon: eLon });
+    });
+
+    it.each([
+        ["51.5 E", "0"],
+        ["N 51.5 N", "0"],
+        ["1,234,5", "0"],
+        ["", "12.5"],
+    ])("refuses %s, %s", (lat, lon) => {
+        expect(isLocationError(latLonFromColumns(lat, lon))).toBe(true);
+    });
+
+    it("reads one angle of a column, in range for its axis", () => {
+        expect(angleFromColumn("51.5 N", "lat")).toBe(51.5);
+        expect(angleFromColumn("120", "lat")).toBeNaN();
+        expect(angleFromColumn("120", "lon")).toBe(120);
+        expect(angleFromColumn("", "lon")).toBeNaN();
     });
 });

@@ -1733,6 +1733,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
+     *
+     * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node
+     * thumbnail, drawn by its own camera into a render target -- is not in it and comes out as
+     * nothing. The next quiet frame freezes the list again (see `settleActiveMeshFreeze`).
+     */
+    thawActiveMeshes(): void {
+        // Withdraws a freeze Babylon has not run yet; see `settleActiveMeshFreeze`.
+        this.freezeRequest++;
+
+        if (this.activeMeshesFrozen) {
+            this.graphContext.getScene().unfreezeActiveMeshes();
+            this.activeMeshesFrozen = false;
+        }
+    }
+
+    /**
      * Make the next frame visit every edge, whatever the nodes say.
      *
      * Called when something other than a position has changed what an edge should draw: a style
@@ -1782,14 +1799,7 @@ export class UpdateManager implements Manager {
         this.sceneChanged = false;
 
         if (changed) {
-            // Withdraws a freeze Babylon has not run yet; see below.
-            this.freezeRequest++;
-
-            if (this.activeMeshesFrozen) {
-                scene.unfreezeActiveMeshes();
-                this.activeMeshesFrozen = false;
-            }
-
+            this.thawActiveMeshes();
             return;
         }
 

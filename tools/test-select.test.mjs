@@ -18,6 +18,9 @@ import {
     globToRe,
     loadRules,
     measuredOf,
+    outsideOf,
+    rootImportGraph,
+    sameOutside,
     planRuns,
     projectSelected,
     reportAdvisory,
@@ -33,7 +36,7 @@ import {
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { selectedShards, selectionOn } from "./prepush-tests.mjs";
-import { changedSince, describePlan } from "./test-changed.mjs";
+import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import { judge, mutant, seededPick } from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -596,8 +599,14 @@ describe("running a selection", () => {
         assert.match(notes.join("\n"), /\[NONE\] layout/u);
     });
 
-    it("selects only with PREPUSH_SELECT=1 and a base, and never under PREPUSH_ALL=1", () => {
-        assert.equal(selectionOn({}, "origin/golden"), false, "off by default");
+    it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for the cut", () => {
+        assert.equal(selectionOn({}, "origin/golden"), true, "on by default for landing checks");
+        assert.equal(
+            selectionOn({ PREPUSH_SELECT_BASE: "origin/golden-cut" }, "origin/master"),
+            false,
+            "never on the cut",
+        );
+        assert.equal(selectionOn({ PREPUSH_SELECT_BASE: "origin/golden" }, "origin/master"), true);
         assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/golden"), true);
         assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
         assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
@@ -616,6 +625,8 @@ describe("running a selection", () => {
             rmSync(main, { recursive: true, force: true });
         }
         assert.deepEqual(laneEnv({ PREPUSH_SELECT: "1", PATH: "/bin" }), [["PREPUSH_SELECT", "1"]]);
+        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden-cut" }), [["PREPUSH_SELECT_BASE", "cut"]]);
+        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden" }), []);
     });
 
     it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {
@@ -676,5 +687,135 @@ describe("mutation testing of the selection", () => {
             judge(null, ["t/x"], () => false),
             { misses: [], flaky: [], over: 0 },
         );
+    });
+});
+
+// Each case below is a miss the adversarial mutation run of 2026-10-22 found (issue #3276): a change that
+// broke a test the selection did not run.
+describe("misses found by mutation testing", () => {
+    const real = loadRules(ROOT);
+    const empty = (dir) => [{ package: dir, config: null, projects: {}, imports: {}, opaque: [] }];
+    const pkgs = (...dirs) => new Map(dirs.map((d) => [d, d]));
+    const run = (changed, dirs, extra = {}) =>
+        selectPackages({
+            changed,
+            packages: pkgs(...dirs),
+            deps: new Map(dirs.map((d) => [d, new Set()])),
+            refs: new Map(),
+            graphs: new Map(dirs.map((d) => [d, empty(d)])),
+            rules: real,
+            ...extra,
+        });
+
+    it("a root file imported by an everything file runs everything (tools/wait-log.mjs via test-slots.mjs)", () => {
+        const g = rootImportGraph(ROOT, ["graph-format", "graph-io", "graphty-element", "graphty", "visual-review"]);
+        assert.ok(g.get("tools/wait-log.mjs")?.includes("tools/test-slots.mjs"), "the root import graph has the edge");
+        const sel = run(["tools/wait-log.mjs"], ["graph-format"], { rootImporters: g });
+        assert.match(sel.everything, /tools\/wait-log\.mjs \(through tools\/test-slots\.mjs\)/u);
+    });
+
+    it("the root .prettierrc runs the packages whose reference pages are formatted with it", () => {
+        const sel = run([".prettierrc"], ["graph-io", "cytoscape-extensions", "layout"]).packages;
+        assert.equal(sel.get("graph-io").mode, "all");
+        assert.equal(sel.get("cytoscape-extensions").mode, "all");
+        assert.equal(sel.get("layout").mode, "none");
+    });
+
+    it("counts a test that runs a program through promisify(execFile), runs ESLint or fetches as one that reads files", () => {
+        for (const text of [
+            "await promisify(execFile)(process.execPath, [script])",
+            'import { execFile } from "node:child_process";',
+            "const eslint = new ESLint({ cwd });",
+            "await fetch(`${BASE_URL}samples/karate.gml`)",
+        ]) {
+            assert.ok(real.opaque.test(text), text);
+        }
+    });
+
+    it("a deleted or renamed file runs its whole package, whatever its kind", () => {
+        const sel = run(["graph-format/test/wire/sample-count.json"], ["graph-format"], {
+            deleted: new Set(["graph-format/test/wire/sample-count.json"]),
+        }).packages.get("graph-format");
+        assert.equal(sel.mode, "all");
+        assert.match(sel.reasons[0], /deleted or renamed/u);
+    });
+
+    it("a design/ file a test imports runs that test, although design/ is a noTests path", () => {
+        const g = {
+            package: "graphty",
+            config: null,
+            projects: { app: { specs: ["graphty/src/a.test.tsx", "graphty/src/b.test.tsx"], setup: [] } },
+            imports: {
+                "graphty/src/a.test.tsx": ["design/ui/studio/tool/files/friends.csv"],
+                "graphty/src/b.test.tsx": [],
+                "design/ui/studio/tool/files/friends.csv": [],
+            },
+            opaque: [],
+        };
+        const sel = run(["design/ui/studio/tool/files/friends.csv"], ["graphty"], {
+            graphs: new Map([["graphty", [g]]]),
+        }).packages.get("graphty");
+        assert.deepEqual([...sel.specs.keys()], ["graphty/src/a.test.tsx"]);
+    });
+
+    it("a design/ file a test names in a string runs its package whole (graph-io's style defaults record)", () => {
+        const g = {
+            ...empty("graph-io")[0],
+            projects: { unit: { specs: ["graph-io/test/styles/core.test.ts"], setup: [] } },
+            imports: { "graph-io/test/styles/core.test.ts": [] },
+        };
+        const sel = run(["design/graph-io/style-tool-defaults.md"], ["graph-io"], {
+            graphs: new Map([["graph-io", [g]]]),
+        }).packages.get("graph-io");
+        assert.equal(sel.mode, "all");
+        assert.ok(
+            [...run(["design/graph-io/other-notes.md"], ["graph-io"]).packages.values()].every(
+                (p) => p.mode === "none",
+            ),
+        );
+    });
+
+    it("a rule ESLint loads at run time runs the package whose eslint.config imports it", () => {
+        const sel = run(["tools/eslint-rules/story-wait-options.mjs"], ["graphty", "layout"]).packages;
+        assert.equal(sel.get("graphty").mode, "all");
+        assert.equal(sel.get("layout").mode, "none");
+    });
+
+    it("a root file no rule, import or test accounts for runs everything; unread tools code runs nothing", () => {
+        assert.match(run(["brand-new.config.json"], ["layout"]).everything, /brand-new\.config\.json/u);
+        const tool = run(["tools/nobody-reads-this-xyz.mjs"], ["layout"]);
+        assert.equal(tool.everything, null);
+        assert.deepEqual(tool.unexplainedRoot, ["tools/nobody-reads-this-xyz.mjs"]);
+    });
+
+    it("a file Vite serves from public/ runs its whole package", () => {
+        assert.ok(wholePackageRule("public/samples/karate.gml", real));
+    });
+
+    it("does not reuse a cached graph once a file outside the package that it reaches changed", () => {
+        const dir = mkdtempSync(join(ROOT, "tmp", "outside-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            writeFileSync(join(dir, "tools/helper.mjs"), "export const MARKER = 1;\n");
+            const g = { imports: { "pkg/test/a.test.ts": ["tools/helper.mjs"], "tools/helper.mjs": [] } };
+            const outside = outsideOf(dir, "pkg", g);
+            assert.deepEqual(Object.keys(outside), ["tools/helper.mjs"]);
+            assert.ok(sameOutside(dir, outside));
+            writeFileSync(join(dir, "tools/helper.mjs"), "export const MARKER = 2;\n");
+            assert.ok(!sameOutside(dir, outside));
+            assert.ok(!sameOutside(dir, undefined), "a graph from before the check is walked again");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("test:changed asks about graphty-element's browser shards, which the gate's path policy used to drop", () => {
+        const names = candidateShards().map((s) => s.shard);
+        assert.ok(names.includes("graphty-element-browser-1") && names.includes("graphty-element-storybook-5"));
+        assert.ok(!names.includes("graphty-element-lifecycle"));
+    });
+
+    it("does not count a benchmark as a build input", () => {
+        assert.ok(!buildInput("benchmarks/harness.ts"));
     });
 });

@@ -162,11 +162,16 @@ export const GATE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
  * @returns sorted `[name, value]` pairs
  */
 export function laneEnv(env = process.env) {
-    return Object.keys(env)
+    const pairs = Object.keys(env)
         .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || k === "PREPUSH_ALL" || k === "PREPUSH_SELECT")
         .filter((k) => !k.startsWith("GRAPHTY_TEST_SLOT"))
         .sort()
         .map((k) => [k, env[k]]);
+    // a push to the cut or master never selects (prepush-tests.mjs selectionOn), so its gate is not one that did
+    if (/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")) {
+        pairs.push(["PREPUSH_SELECT_BASE", "cut"]);
+    }
+    return pairs;
 }
 
 /**
@@ -368,7 +373,7 @@ export function inputKey(shard, files, roots, include, outputs, env = process.en
             shard,
             node: process.version,
             // a whole shard runs the same whichever way the gate chose it; a selected run has its own key
-            env: laneEnv(env).filter(([k]) => k !== "PREPUSH_ALL" && k !== "PREPUSH_SELECT"),
+            env: laneEnv(env).filter(([k]) => !["PREPUSH_ALL", "PREPUSH_SELECT", "PREPUSH_SELECT_BASE"].includes(k)),
             files: sortedEntries(counted),
             outputs: sortedEntries(outputs),
             ...context,

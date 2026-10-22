@@ -50,7 +50,7 @@
  * other gates hold is not a failure of this push.
  */
 
-import { spawn, execFileSync } from "node:child_process";
+import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -211,18 +211,22 @@ export function childTriggers(shards, changed) {
     return (s) => ({ specs: new Set(found[s.shard]?.specs ?? []), config: found[s.shard]?.config ?? [] });
 }
 
-// PREPUSH_SELECT's default: "0" until mutation testing shows the selection is right (design/ci/minimal-tests.md, 6).
-const SELECT_DEFAULT = "0";
+// PREPUSH_SELECT's default: on for landing checks (design/ci/minimal-tests.md, 6). Verification sets
+// PREPUSH_ALL=1, which always runs everything; PREPUSH_SELECT=0 turns selection off for one push.
+const SELECT_DEFAULT = "1";
 
 /**
  * Whether the gate runs only the selected tests: PREPUSH_SELECT=1 (default SELECT_DEFAULT), a base to
- * measure the change from, and never under PREPUSH_ALL=1, which verification sets to run everything.
+ * measure the change from, and never under PREPUSH_ALL=1, which verification sets to run everything, nor
+ * for a push to golden-cut or master.
  * @param env the environment
  * @param base the gate's base, or undefined
  * @returns boolean
  */
 export function selectionOn(env, base) {
-    return Boolean(base) && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
+    // a push to the cut (land.mjs cut and cut-fix measure it from origin/golden-cut) or to master runs whole
+    const cut = /(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "");
+    return Boolean(base) && !cut && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
 }
 
 /**
@@ -282,6 +286,49 @@ function selectRuns(gated, base) {
     }
     console.log("Test selection (PREPUSH_SELECT=1; PREPUSH_SELECT=0 runs every shard whole):");
     return selectedShards(planRuns(ROOT, gated, selection));
+}
+
+/**
+ * Builds the packages the selection runs that nx did not call affected (the gate's Build step built only
+ * those), with what they depend on; nx's cache makes an unchanged one free.
+ * @param planned the shards to run
+ * @param affected nx's affected project names
+ * @returns whether the build passed (true when there was nothing to build)
+ */
+function buildUnaffected(planned, affected) {
+    const have = new Set(affected.map((p) => p.replace(/^@graphty\//, "")));
+    const dirs = [...new Set(planned.map((s) => s.package))].filter((d) => !have.has(d));
+    const withBuild = dirs.filter((d) => {
+        try {
+            const pkg = JSON.parse(readFileSync(join(ROOT, d, "package.json"), "utf8"));
+            return Boolean(pkg.scripts?.build);
+        } catch {
+            return false;
+        }
+    });
+    if (withBuild.length === 0) {
+        return true;
+    }
+    const names = withBuild.map((d) => JSON.parse(readFileSync(join(ROOT, d, "package.json"), "utf8")).name);
+    console.log(`Test selection: building ${names.join(", ")}, which nx did not call affected but whose tests run.`);
+    const r = spawnSync(
+        "pnpm",
+        [
+            "exec",
+            "nx",
+            "run-many",
+            "-t",
+            "build",
+            `--projects=${names.join(",")}`,
+            "--parallel=3",
+            "--outputStyle=static",
+        ],
+        { cwd: ROOT, stdio: "inherit", env: { ...process.env, NX_DAEMON: "false" } },
+    );
+    if (r.status !== 0) {
+        console.log("Test selection: that build failed.");
+    }
+    return r.status === 0;
 }
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
@@ -392,7 +439,12 @@ async function main() {
         console.error("usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]");
         process.exit(2);
     }
-    const all = localShards(JSON.parse(affectedArg));
+    const affected = JSON.parse(affectedArg);
+    const selecting = selectionOn(process.env, base);
+    // Under selection the selector decides which packages run, from every shard: nx's affected list misses
+    // what tests read without importing it (design/ files, root tools), and the "when-paths-change" policy
+    // would drop shards the selector runs whole (design/ci/minimal-tests.md, section 1.2).
+    const all = selecting ? localShards(SHARDS.map((s) => s.package)) : localShards(affected);
     const changed = base
         ? // A branch can change tens of thousands of files (a study's screenshots): past the default
           // 1 MB output buffer, execFileSync kills git and throws ENOBUFS.
@@ -404,8 +456,10 @@ async function main() {
               .split("\n")
               .filter(Boolean)
         : null;
-    const gated = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
-    const skipped = all.filter((s) => !gated.includes(s));
+    const gated = selecting
+        ? all.filter((s) => s.local !== "never")
+        : gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
+    const skipped = all.filter((s) => !gated.includes(s) && (!selecting || s.local !== "never"));
     if (skipped.length > 0) {
         console.log(
             `Left to CI (this push changes none of the files they test): ${skipped.map((s) => s.shard).join(", ")}`,
@@ -414,7 +468,10 @@ async function main() {
     const main = dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim(),
     );
-    const planned = selectionOn(process.env, base) ? selectRuns(gated, base) : gated;
+    const planned = selecting ? selectRuns(gated, base) : gated;
+    if (selecting && !buildUnaffected(planned, affected)) {
+        process.exit(1);
+    }
     const passes = passed(planned, main);
     const shards = passes.run;
     if (shards.length === 0) {

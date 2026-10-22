@@ -7,8 +7,7 @@
  * untracked files git does not ignore. tools/test-select.mjs decides per test shard, with the gate's own
  * rules: "none" runs nothing, "files" runs one `vitest run` of the selected files with the shard's config and
  * --project filters (no coverage, no --shard slice), "all" runs the shard as CI does (tools/run-tests.sh).
- * Shards the gate leaves to CI (a "when-paths-change" shard none of whose files changed, a "never" shard)
- * are left out here too. The packages the runs need are built first; every run takes a test slot.
+ * The "never" shards (graphty-element-lifecycle) are left out, as the gate leaves them out. The packages the runs need are built first; every run takes a test slot.
  *
  * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--base <ref>]
  *   --dry-run  print the selection and why, run nothing
@@ -23,7 +22,6 @@ import { fileURLToPath } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
 import { projectGraph } from "./prepush-inputs.mjs";
-import { childTriggers, gateShards } from "./prepush-tests.mjs";
 import { planRuns, selectChange } from "./test-select.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,7 +36,8 @@ export function changedSince(root, base) {
     const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
     const mb = git(["merge-base", base, "HEAD"]);
     const files = [
-        ...git(["diff", "--name-only", mb]).split("\n"),
+        // --no-renames: a renamed file's old path is a change too (a test may still import it)
+        ...git(["diff", "--name-only", "--no-renames", mb]).split("\n"),
         ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
     ];
     return [...new Set(files.filter(Boolean))].sort();
@@ -73,21 +72,12 @@ export function describePlan(plan) {
 }
 
 /**
- * The shards the gate would consider by its "local" policy (tools/ci-test-matrix.mjs); which packages the
- * change reaches is the selector's question.
- * @param changed repo-relative paths
+ * Every shard but the "never" ones (tools/ci-test-matrix.mjs), as the selecting gate asks: which packages
+ * and files the change reaches is the selector's question, and the "when-paths-change" policy would drop
+ * shards it runs whole (a graphty-element source change runs its browser shards).
  * @returns SHARDS entries
  */
-function candidateShards(changed) {
-    try {
-        return gateShards(SHARDS, changed, childTriggers(SHARDS, changed));
-    } catch (e) {
-        console.log(
-            `(the gate's shard triggers could not be read: ${e.message.split("\n")[0]}; asking about every shard)`,
-        );
-        return SHARDS.filter((s) => s.local !== "never");
-    }
-}
+export const candidateShards = () => SHARDS.filter((s) => s.local !== "never");
 
 function build(plan) {
     const graph = projectGraph(ROOT);
@@ -122,7 +112,7 @@ async function main(argv) {
     if (changed.length === 0) {
         return 0;
     }
-    const shards = candidateShards(changed);
+    const shards = candidateShards();
     let selection;
     try {
         selection = (await selectChange(ROOT, changed, shards)).shards;

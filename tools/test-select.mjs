@@ -35,7 +35,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, posix, relative } from "node:path";
+import { dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { pathRefs, projectGraph } from "./prepush-inputs.mjs";
@@ -44,7 +44,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const RULES = join(HERE, "test-select-rules.json");
 
 /** A path that goes into a package's build: not a test, a story, a doc or a test folder. */
-const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook)\//u;
+const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook|benchmarks?)\//u;
 const TEST_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$|\.test-d\.ts$|\.md$/u;
 export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.test(pkgPath);
 
@@ -242,12 +242,20 @@ function specsReaching(file, graph, allSpecs, rev, add) {
  * @param input.refs Map of package name to the packages its tests read by relative path
  * @param input.graphs Map of package directory to its import graphs (null where one could not be built)
  * @param input.rules loadRules()
+ * @param input.rootImporters Map of root file to the root files that import it (rootImportGraph), optional
+ * @param input.deleted Set of changed paths that no longer exist, optional
  * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs })}`
  */
-export function selectPackages({ changed, packages, deps, refs, graphs, rules }) {
+export function selectPackages({ changed, packages, deps, refs, graphs, rules, rootImporters, deleted }) {
     const dirs = [...packages.values()];
     const pkgOf = (f) => dirs.find((d) => f.startsWith(`${d}/`));
     const out = new Map(dirs.map((d) => [d, { mode: "none", reasons: [], specs: new Map() }]));
+    // a root file stands for every root file that imports it, directly or not (tools/wait-log.mjs is read by
+    // every vitest config through tools/test-slots.mjs)
+    const root = withImporters(
+        changed.filter((f) => !pkgOf(f)),
+        rootImporters,
+    );
     const whole = (dir, why) => {
         const p = out.get(dir);
         if (p && p.mode !== "all") {
@@ -256,15 +264,18 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules })
         }
         p?.reasons.push(why);
     };
-    const trigger = changed.find((f) => !pkgOf(f) && rules.everything.some((re) => re.test(f)));
+    const everything = (f) => {
+        dirs.forEach((d) => whole(d, `${f} changes how every shard runs`));
+        return { everything: f, packages: out, unexplainedRoot: [] };
+    };
+    const trigger = [...root.keys()].find((f) => rules.everything.some((re) => re.test(f)));
     if (trigger) {
-        dirs.forEach((d) => whole(d, `${trigger} changes how every shard runs`));
-        return { everything: trigger, packages: out, unexplainedRoot: [] };
+        return everything(root.get(trigger) === trigger ? trigger : `${root.get(trigger)} (through ${trigger})`);
     }
-    const unexplainedRoot = rootFiles(
-        changed.filter((f) => !pkgOf(f)),
-        { rules, dirs, graphs, out, whole },
-    );
+    const { unexplained: unexplainedRoot, unknown } = rootFiles([...root.keys()], { rules, dirs, graphs, out, whole });
+    if (unknown) {
+        return everything(`${unknown}, a root file no rule, import or test accounts for,`);
+    }
     for (const f of changed) {
         for (const a of rules.alsoRun.filter((e) => e.re.test(f))) {
             a.packages.forEach((d) => whole(d, `${f}: ${a.why}`));
@@ -272,28 +283,53 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules })
     }
     dependents({ changed, packages, deps, refs, pkgOf, whole });
     for (const dir of dirs) {
-        filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole);
+        filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
     }
     return { everything: null, packages: out, unexplainedRoot };
 }
 
 /**
+ * Changed root files with every root file that imports one of them, transitively.
+ * @param files changed root files
+ * @param rootImporters Map(root file -> root files that import it), or undefined
+ * @returns Map(root file -> the changed file it stands for)
+ */
+export function withImporters(files, rootImporters) {
+    const out = new Map(files.map((f) => [f, f]));
+    const todo = [...files];
+    while (todo.length > 0) {
+        const f = todo.pop();
+        for (const by of rootImporters?.get(f) ?? []) {
+            if (!out.has(by)) {
+                out.set(by, out.get(f));
+                todo.push(by);
+            }
+        }
+    }
+    return out;
+}
+
+/**
  * Root files (outside every package). One a test imports selects the tests that reach it; one that a
  * test-side file or a test config of a package names (tests that read it at run time) runs that package
- * whole; a package whose graph is missing is searched in all its files. Anything else no test reads.
- * @param files changed root files
+ * whole; a package whose graph is missing is searched in all its files. Both are asked before the noTests
+ * rule, so a design file a test reads is never thrown away. What is left: a noTests path runs nothing, a
+ * code file under tools/ is listed as unexplained and runs nothing, and anything else is unknown, which
+ * runs everything (the fail safe of design/ci/minimal-tests.md section 2.4).
+ * @param files changed root files (and the root files that import them)
  * @param ctx `{ rules, dirs, graphs, out, whole }`
  * @param ctx.rules loadRules()
  * @param ctx.dirs the package directories
  * @param ctx.graphs Map of package directory to its import graphs
  * @param ctx.out each package's selection
  * @param ctx.whole marks a package to run whole
- * @returns the changed root code files no test imports or names, which run nothing; listed in the output
- *   so a replay can see whether one of them should have run something
+ * @returns `{ unexplained, unknown }`: the tools/ code files no test imports or names, listed so a replay
+ *   can see whether one of them should have run something, and the first unknown file, or null
  */
 function rootFiles(files, { rules, dirs, graphs, out, whole }) {
     const unexplained = [];
-    for (const f of files.filter((x) => !rules.noTests.some((re) => re.test(x)))) {
+    let unknown = null;
+    for (const f of files) {
         let used = false;
         for (const dir of dirs) {
             const gs = graphs.get(dir) ?? [];
@@ -306,45 +342,78 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
                 whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
             }
         }
-        if (!used && CODE.test(f)) {
+        if (used || rules.noTests.some((re) => re.test(f)) || rules.alsoRun.some((e) => e.re.test(f))) {
+            continue;
+        }
+        if (f.startsWith("tools/") && CODE.test(f)) {
             unexplained.push(f);
+        } else {
+            unknown ??= f;
         }
     }
-    return unexplained;
+    return { unexplained, unknown };
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);
 
 let grepRoot = join(HERE, "..");
-const contents = new Map();
+const namesCache = new Map();
+const namesByGraphs = new WeakMap();
 /**
- * Whether a package's tests name a root file (its path, or its file name for files under tools/): in the
- * test-side files of its import graphs and its test configs, or in any of its files when it has no graph.
+ * Whether a package's tests name a root file: a string literal in the test-side files of its import graphs
+ * or its test and lint configs (in any of its files when it has no graph) holds the file's path, a folder
+ * above it, or its file name for files under tools/. Leading `../` and `./` are dropped, so
+ * `"../../design/documents/notes.schema.json"` names `design/documents/notes.schema.json`; a path in a
+ * comment names nothing.
  * @param file a root file
  * @param dir the package
  * @param graphs its graphs, or null
  * @returns boolean
  */
 function namedBy(file, dir, graphs) {
-    const needle = file.startsWith("tools/") ? file.slice(file.lastIndexOf("/") + 1) : file;
+    // keyed by the graphs themselves (a package without them by its directory): each selection has its own
+    const key = graphs ?? dir;
+    const cache = typeof key === "string" ? namesCache : namesByGraphs;
+    if (!cache.has(key)) {
+        cache.set(key, namesIn(dir, graphs));
+    }
+    const { paths, bases } = cache.get(key);
+    if (file.startsWith("tools/") && bases.has(file.slice(file.lastIndexOf("/") + 1))) {
+        return true;
+    }
+    const parts = file.split("/");
+    return parts.some((_, i) => (i === parts.length - 1 || i > 0) && paths.has(parts.slice(0, i + 1).join("/")));
+}
+
+/**
+ * The paths and file names the string literals of a package's test-side files name.
+ * @param dir the package
+ * @param graphs its graphs, or null for every file of the package
+ * @returns `{ paths: Set, bases: Set }`
+ */
+function namesIn(dir, graphs) {
     const candidates = graphs
-        ? [
-              ...new Set([
-                  ...graphs
-                      .flatMap((g) => Object.keys(g.imports))
-                      .filter((f) => f.startsWith(`${dir}/`) && !f.startsWith(`${dir}/src/`)),
-                  ...configFiles(grepRoot, dir),
-              ]),
-          ]
+        ? new Set([
+              ...graphs
+                  .flatMap((g) => Object.keys(g.imports))
+                  .filter((f) => f.startsWith(`${dir}/`) && !f.startsWith(`${dir}/src/`)),
+              ...configFiles(grepRoot, dir),
+          ])
         : execFileSync("git", ["ls-files", "--", dir], { cwd: grepRoot, encoding: "utf8", maxBuffer: 1 << 28 })
               .split("\n")
               .filter(Boolean);
-    return candidates.some((f) => {
-        if (!contents.has(f)) {
-            contents.set(f, safeRead(join(grepRoot, f)));
+    const paths = new Set();
+    const bases = new Set();
+    for (const f of candidates) {
+        for (const literal of safeRead(join(grepRoot, f)).matchAll(/["'`]([^"'`\n]+)["'`]/gu)) {
+            for (const [token] of literal[1].matchAll(/[\w@.+-]+(?:\/[\w@.+-]+)*/gu)) {
+                const path = token.replace(/^(?:\.{1,2}\/)+/u, "");
+                paths.add(path);
+                bases.add(path.slice(path.lastIndexOf("/") + 1));
+            }
         }
-        return contents.get(f).includes(needle);
-    });
+    }
+    return { paths, bases };
 }
 
 /**
@@ -414,11 +483,12 @@ function closure(name, ...edges) {
  * @param rules loadRules()
  * @param result the package's selection, updated in place
  * @param whole marks a package to run whole, with the reason
+ * @param deleted Set of changed paths that no longer exist, or undefined
  */
-function filesInPackage(dir, changed, graphs, rules, result, whole) {
+function filesInPackage(dir, changed, graphs, rules, result, whole, deleted) {
     const mine = changed.filter((f) => f.startsWith(`${dir}/`));
     if (mine.length > 0 && result.mode !== "all") {
-        pickFiles(dir, mine, graphs, rules, result, whole);
+        pickFiles(dir, mine, graphs, rules, result, whole, deleted);
     }
     if (result.mode !== "all") {
         result.mode = result.specs.size > 0 ? "files" : "none";
@@ -441,8 +511,10 @@ function filesInPackage(dir, changed, graphs, rules, result, whole) {
  * @param rules loadRules()
  * @param result the package's selection, updated in place
  * @param whole marks a package to run whole, with the reason
+ * @param deleted Set of changed paths that no longer exist: no graph built now holds an edge to one, so a
+ *   deleted file is never explained and runs its whole package
  */
-function pickFiles(dir, mine, graphs, rules, result, whole) {
+function pickFiles(dir, mine, graphs, rules, result, whole, deleted) {
     const ruled = mine.find((f) => wholePackageRule(f.slice(dir.length + 1), rules));
     if (ruled) {
         whole(dir, `${ruled} matches a whole-package rule`);
@@ -457,6 +529,11 @@ function pickFiles(dir, mine, graphs, rules, result, whole) {
         const sel = selectInGraph(g, mine);
         sel.explained.forEach((f) => explained.add(f));
         sel.specs.forEach((why, spec) => addSpec(result, spec, why));
+    }
+    const gone = mine.find((f) => deleted?.has(f));
+    if (gone) {
+        whole(dir, `${gone} was deleted or renamed, and a test may still import or read it`);
+        return;
     }
     const unexplained = mine.find((f) => !explained.has(f) && !rules.readAtRunTime.test(f));
     if (unexplained) {
@@ -1127,14 +1204,18 @@ function graphCache(root) {
                     .update([GRAPH_VERSION, rulesHash, tree, config].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
-                if (existsSync(file)) {
-                    return JSON.parse(readFileSync(file, "utf8"));
+                const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
+                if (cached && sameOutside(root, cached.outside)) {
+                    return cached;
                 }
             }
         } catch {
             file = null;
         }
         const graph = build();
+        if (graph) {
+            graph.outside = outsideOf(root, dir, graph);
+        }
         if (graph && file) {
             mkdirSync(dirPath, { recursive: true });
             writeFileSync(file, JSON.stringify(graph));
@@ -1144,7 +1225,45 @@ function graphCache(root) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 2;
+const GRAPH_VERSION = 3;
+
+const fileHash = (root, f) => {
+    try {
+        return createHash("sha1")
+            .update(readFileSync(join(root, f)))
+            .digest("hex");
+    } catch {
+        return "missing";
+    }
+};
+
+/**
+ * The files outside a package that its graph reaches (root tools, design files, another package's test
+ * files), each with a hash of its contents. The cache key holds only the package's own tree, so a graph is
+ * reused only while these are unchanged too: a root helper that gained an import must be walked again.
+ * @param root the checkout
+ * @param dir the package
+ * @param graph a --graph result
+ * @returns `{ path: hash }`
+ */
+export function outsideOf(root, dir, graph) {
+    const files = new Set(Object.entries(graph.imports).flatMap(([f, tos]) => [f, ...tos]));
+    return Object.fromEntries(
+        [...files]
+            .filter((f) => !f.startsWith(`${dir}/`))
+            .sort()
+            .map((f) => [f, fileHash(root, f)]),
+    );
+}
+
+/**
+ * Whether the files outside a package that a cached graph reached are as they were when it was built.
+ * @param root the checkout
+ * @param outside the graph's `outside`, or undefined (a graph from before it was kept)
+ * @returns boolean
+ */
+export const sameOutside = (root, outside) =>
+    Boolean(outside) && Object.entries(outside).every(([f, h]) => fileHash(root, f) === h);
 
 /**
  * The packages each package's tests read by relative path (`../graph-io/test/...`): the references in the
@@ -1192,9 +1311,10 @@ function configFiles(root, dir) {
         cwd: root,
         encoding: "utf8",
     });
+    // eslint.config: a test that runs ESLint (graphty's restricted-imports test) loads it and what it imports
     return out
         .split("\n")
-        .filter((f) => f && (/\/(vite|vitest)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
+        .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
 function graphChild(root, dir, config) {
@@ -1234,6 +1354,7 @@ export async function selectChange(root, changed, shards, graphs) {
         throw new Error("nx's project graph could not be read");
     }
     grepRoot = root;
+    namesCache.clear();
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
     const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
     const rules = loadRules(root);
@@ -1244,8 +1365,36 @@ export async function selectChange(root, changed, shards, graphs) {
         refs: testRefs(root, packages, all, pathRefs(root, graph.roots)),
         graphs: all,
         rules,
+        rootImporters: rootImportGraph(root, [...packages.values()]),
+        deleted: new Set(changed.filter((f) => !existsSync(join(root, f)))),
     });
     return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser) };
+}
+
+const LOCAL_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["'](\.{1,2}\/[^"']+)["']/gu;
+
+/**
+ * Which root code files import which (relative imports only), reversed: root file -> its root importers.
+ * @param root the checkout
+ * @param dirs the package directories (everything else is root)
+ * @returns Map(root file -> root files that import it)
+ */
+export function rootImportGraph(root, dirs) {
+    const files = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 })
+        .split("\n")
+        .filter((f) => CODE.test(f) && !dirs.some((d) => f.startsWith(`${d}/`)) && !f.includes("node_modules/"));
+    const tracked = new Set(files);
+    const rev = new Map();
+    for (const f of files) {
+        for (const m of safeRead(join(root, f)).matchAll(LOCAL_IMPORT)) {
+            const target = posix.normalize(posix.join(posix.dirname(f), m[1]));
+            const hit = [target, `${target}.mjs`, `${target}.js`, `${target}.ts`].find((t) => tracked.has(t));
+            if (hit && hit !== f) {
+                rev.set(hit, [...(rev.get(hit) ?? []), f]);
+            }
+        }
+    }
+    return rev;
 }
 
 /**
@@ -1258,7 +1407,8 @@ export async function selectChange(root, changed, shards, graphs) {
 export function changedFiles(root, base, head) {
     const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
     const mb = git(["merge-base", base, head]);
-    return git(["diff", "--name-only", mb, head]).split("\n").filter(Boolean);
+    // --no-renames: a renamed file is its old path deleted and its new one added, and both are changes
+    return git(["diff", "--name-only", "--no-renames", mb, head]).split("\n").filter(Boolean);
 }
 
 /**
@@ -1284,7 +1434,7 @@ async function main(argv) {
         const i = argv.indexOf(name);
         return i === -1 ? undefined : argv[i + 1];
     };
-    const root = arg("--root") ?? join(HERE, "..");
+    const root = resolve(arg("--root") ?? join(HERE, ".."));
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
         const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));

@@ -11,10 +11,11 @@
     background: var(--mantine-color-body);
 }
 
+/* On a narrow dock the readout and counts wrap under the transport rather than being cut off. */
 .tl-bar {
     min-height: 28px;
     min-width: 0;
-    overflow: hidden;
+    row-gap: 0;
     /* Room for "Show all time", drawn at the bar's end but reached after the brush by Tab. */
     padding-inline-end: 32px;
 }

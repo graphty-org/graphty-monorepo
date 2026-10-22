@@ -24,6 +24,29 @@ interface Row {
     readonly index: number;
 }
 
+/**
+ * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a time
+ * field's values as dates, anything else as it is.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @param key - the column's attribute or key.
+ * @param record - the row's record.
+ * @returns the cell's value.
+ */
+function cellValue(
+    session: GraphSession,
+    kind: RecordKind,
+    key: string,
+    record: NodeRecord | EdgeRecord,
+): DataTableValue {
+    const value = record[key];
+    if (kind === "edge" && (key === "source" || key === "target")) {
+        const id = value as NodeId;
+        return session.data.name(id) ?? String(id);
+    }
+    return tableValue(timeValue(session, kind, key, value));
+}
+
 /** Props for RecordTable. */
 interface RecordTableProps {
     session: GraphSession;
@@ -146,15 +169,7 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) =>
-                          tableValue(
-                              timeValue(
-                                  session,
-                                  kind,
-                                  column.attribute ?? column.id,
-                                  row.record[column.attribute ?? column.id],
-                              ),
-                          ),
+                    : (row) => cellValue(session, kind, column.attribute ?? column.id, row.record),
         };
     });
 

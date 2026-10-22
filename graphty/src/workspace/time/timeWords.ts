@@ -74,7 +74,9 @@ export function noticeOf(notice: CodedFact<TimeNoticeCode>): { message: string; 
     const { path, count, suggested } = notice.params as { path: string; count?: number; suggested?: TimeUnit };
     switch (notice.code) {
         case "time.unparsed":
-            return { message: `${countWords(count ?? 0, "value")} in ${path} are not times` };
+            return {
+                message: `${countWords(count ?? 0, "value")} in ${path} ${count === 1 ? "is not a time" : "are not times"}`,
+            };
         case "time.parsed-loosely":
             return { message: `${countWords(count ?? 0, "value")} in ${path} read loosely as dates` };
         default:

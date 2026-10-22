@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { intervalOf, rangeWords, windowWords } from "../timeWords";
+import { intervalOf, noticeOf, rangeWords, windowWords } from "../timeWords";
 
 const DAY = 86_400_000;
 const MAR_10 = Date.UTC(2025, 2, 10);
@@ -17,6 +17,13 @@ describe("the timeline's words", () => {
         assert.equal(rangeWords(1995, 1996, "ordinal"), "1995");
         assert.equal(rangeWords(-508, -300, "ordinal"), "-508 - -301");
         assert.equal(windowWords({ attribute: "data.year", from: 2000, to: 2010, step: 10 }, "ordinal"), "2000 - 2009");
+    });
+
+    it("counts values that are not times in the right number", () => {
+        const one = { code: "time.unparsed", params: { path: "sent", count: 1 } } as const;
+        const two = { code: "time.unparsed", params: { path: "sent", count: 2 } } as const;
+        assert.equal(noticeOf(one).message, "1 value in sent is not a time");
+        assert.equal(noticeOf(two).message, "2 values in sent are not times");
     });
 
     it("plays 1x as one step a second", () => {

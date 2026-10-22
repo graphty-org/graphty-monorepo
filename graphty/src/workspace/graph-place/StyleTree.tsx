@@ -148,6 +148,30 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
+ * The mark a layer row shows while the run it paints is out of date, with why in its tooltip and name.
+ * @param props - Component props
+ * @param props.words - why the run is out of date
+ * @param props.children - the row's count, drawn after the mark
+ * @returns the mark and the count
+ */
+function OutOfDateMark({ words, children }: Readonly<{ words: string; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <span className="ws-row-stale">
+            <Tooltip label={words}>
+                <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                    role="img"
+                    aria-label={words}
+                    className="ws-row-over"
+                >
+                    <GLYPHS.outOfDate size={12} aria-hidden />
+                </span>
+            </Tooltip>
+            {children}
+        </span>
+    );
+}
+
+/**
  * What a grouping run's layer shows on its row: the color it paints (and its word), and how many nodes it
  * matches. Kept whatever conditions the layer is narrowed or widened by since the run made it.
  * Undefined for any other row.
@@ -363,6 +387,13 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             ...(over ? [overWords] : []),
         ];
         const name = rowName(session, row.id);
+        const plainCount = group?.count ?? <RowCount paints={paints} />;
+        const counted =
+            stale === null ? (
+                plainCount
+            ) : (
+                <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
+            );
         return {
             id: row.id,
             name,
@@ -372,7 +403,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
-            count: over ? <PaintedOverMark words={overWords} /> : (group?.count ?? <RowCount paints={paints} />),
+            count: over ? <PaintedOverMark words={overWords} /> : counted,
             swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),

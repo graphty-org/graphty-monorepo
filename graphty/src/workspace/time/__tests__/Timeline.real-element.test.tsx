@@ -364,6 +364,8 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.include(row.textContent, "Out of date: ran on Dec 30, 2024 - Jan 5, 2025");
         });
+        // ...and shows it: a mark beside its count, named with the same words.
+        within(row).getByRole("img", { name: "Out of date: ran on Dec 30, 2024 - Jan 5, 2025" });
         await userEvent.click(row);
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await inspector.findByText(/^Out of date: ran on /);
@@ -379,6 +381,28 @@ describe("the timeline on the real element", () => {
         window.removeEventListener("unhandledrejection", onError);
         assert.deepEqual(errors, [], "no page error");
         assert.equal(session.runs.get("degree")?.status, "succeeded");
+    });
+
+    it("calls nodes by their label in the Edges table and the inspector, and a time column by its dates", async () => {
+        const { session } = await open(OFFICE_EMAIL, "graph");
+        await act(async () => {
+            await session.time.setField({ edges: { start: "sent" } });
+        });
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+        const [edge] = session.data.edgePage({ limit: 1 }).records;
+        const from = session.data.name(edge.source) ?? "";
+        assert.notEqual(from, String(edge.source), "the sample labels its nodes");
+        const grid = screen.getByRole("grid", { name: "Edges" });
+        await waitFor(() => {
+            const first = within(grid).getAllByRole("rowheader")[0];
+            assert.equal(first.textContent, from);
+        });
+        // A row click selects the edge; the inspector names its ends the same way.
+        await userEvent.click(within(grid).getAllByRole("rowheader")[0]);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await inspector.findByText(new RegExp(`^${from} `));
     });
 
     it("leaves the canvas as it is when the selection is drawn over the histogram", async () => {

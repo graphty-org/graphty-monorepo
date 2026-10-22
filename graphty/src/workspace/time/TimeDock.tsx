@@ -8,19 +8,9 @@
 
 import "./time.css";
 
-import { HistogramRow } from "@graphty/compact-mantine";
+import { HistogramRow, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, TimeBin, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Group,
-    NumberInput,
-    Popover,
-    Text,
-    TextInput,
-    Tooltip,
-    UnstyledButton,
-} from "@mantine/core";
+import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useState } from "react";
 
@@ -151,37 +141,48 @@ function ReadoutEntry({
             />
         );
     return (
-        <Popover opened={opened} onChange={setOpened} position="top-start" withArrow trapFocus returnFocus>
-            <Popover.Target>
-                <UnstyledButton
-                    className="tl-readout"
-                    data-testid="time-readout"
-                    aria-label={`Time window ${readout}`}
-                    onClick={() => {
-                        setFrom(instantWords(range[0], unit));
-                        setTo(instantWords(range[1] - grain, unit));
-                        setOpened((open) => !open);
-                    }}
+        <PopoutManager>
+            <Popout opened={opened} onOpenChange={setOpened}>
+                <Popout.Trigger>
+                    <UnstyledButton
+                        className="tl-readout"
+                        data-testid="time-readout"
+                        aria-label={`Time window ${readout}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={opened}
+                        onClick={() => {
+                            setFrom(instantWords(range[0], unit));
+                            // The last included instant, as the readout writes it.
+                            setTo(instantWords(range[1] - 1, unit));
+                        }}
+                    >
+                        {readout}
+                    </UnstyledButton>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={300}
+                    placement="top"
+                    alignment="start"
+                    header={{ variant: "title", title: "Time window" }}
                 >
-                    {readout}
-                </UnstyledButton>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <form
-                    className="tl-range-form"
-                    onSubmit={(event) => {
-                        event.preventDefault();
-                        submit();
-                    }}
-                >
-                    {field("From", from, setFrom)}
-                    {field("To", to, setTo)}
-                    <Button size="compact-xs" type="submit">
-                        Set
-                    </Button>
-                </form>
-            </Popover.Dropdown>
-        </Popover>
+                    <Popout.Content>
+                        <form
+                            className="tl-range-form"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                submit();
+                            }}
+                        >
+                            {field("From", from, setFrom)}
+                            {field("To", to, setTo)}
+                            <Button size="compact-xs" type="submit">
+                                Set
+                            </Button>
+                        </form>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </PopoutManager>
     );
 }
 
@@ -260,7 +261,7 @@ export function TimeDock(): React.JSX.Element | null {
                 }
             }}
         >
-            <Group gap={4} wrap="nowrap" className="tl-bar">
+            <Group gap={4} className="tl-bar">
                 <Tooltip label={`Step back (${formatKey(",")})`}>
                     <ActionIcon
                         variant="subtle"
@@ -314,7 +315,14 @@ export function TimeDock(): React.JSX.Element | null {
                         {`${String(speed)}x`}
                     </Button>
                 </Tooltip>
-                <ReadoutEntry session={session} store={store} unit={unit} range={range} readout={readout} />
+                <ReadoutEntry
+                    session={session}
+                    store={store}
+                    unit={unit}
+                    // The window the readout names, not the brush's range clamped to the bins.
+                    range={window === null ? [extent.from, extent.to] : [Number(window.from), Number(window.to)]}
+                    readout={readout}
+                />
                 <Text size="xs" c="dimmed" className="tl-counts">
                     {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
                 </Text>

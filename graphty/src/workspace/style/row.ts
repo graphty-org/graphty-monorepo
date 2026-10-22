@@ -9,7 +9,7 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
@@ -782,6 +782,11 @@ export interface PaintedOver {
     readonly count: number;
     /** How many elements of the field's kind the row matches. */
     readonly of: number;
+    /**
+     * The shader the row's own layer draws instead of the node, when that is all that covers it:
+     * the field is hidden, not painted over, and comes back when the shader moves.
+     */
+    readonly hiddenBy?: string;
 }
 
 /**
@@ -837,25 +842,39 @@ export function paintedOverOf(
             layerWord(session, id) ??
             "the default";
         const by = [...new Set(covering.map(nameOf))];
+        const own = covering.every((id) => ids.includes(id)) && painted.length === 0;
+        const hiddenBy = own
+            ? covering.map((id) => ownShaderName(session, id, channel)).find((n) => n !== undefined)
+            : undefined;
         return {
             by,
             layers: by.map((name) => covering.find((id) => nameOf(id) === name) ?? covering[0]),
             count: above.reduce((sum, share) => sum + share.count, 0),
             of,
+            ...(hiddenBy === undefined ? {} : { hiddenBy }),
         };
     };
 }
 
 /**
- * The name of the shader a layer draws for the target of a channel, from the catalog.
+ * The name of the shader a layer draws in place of a node's shape (its last `replace` use, which
+ * wins), from the catalog.
  * @param session - the element's session.
  * @param id - the layer.
  * @param channel - a channel of the target.
- * @returns the shader's name, or undefined when the layer draws none.
+ * @returns the shader's name, or undefined when the layer draws none there.
  */
 function ownShaderName(session: GraphSession, id: LayerId, channel: Channel): string | undefined {
-    const shader = session.styles.get(id)?.set?.[channel.startsWith("edge.") ? "edge.shader" : "node.shader"];
-    return session.catalog.shaders().find((descriptor) => descriptor.id === shader)?.plainName;
+    if (!channel.startsWith("node.")) {
+        return undefined;
+    }
+    const uses = session.styles.get(id)?.set?.["node.shaders"];
+    const shaders = session.catalog.shaders();
+    const replacing = (Array.isArray(uses) ? (uses as readonly ShaderUse[]) : []).filter(
+        (use) => use.off !== true && (use.place ?? shaders.find((each) => each.id === use.shader)?.place) === "replace",
+    );
+    const last = replacing.at(-1);
+    return last === undefined ? undefined : shaders.find((each) => each.id === last.shader)?.plainName;
 }
 
 /**

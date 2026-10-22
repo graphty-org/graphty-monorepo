@@ -1,9 +1,10 @@
 import { ComboInput, CompactColorInput, PanelField, useScrub } from "@graphty/compact-mantine";
 import {
+    type ShaderClockBinding,
     type ShaderDescriptor,
     shaderParamChannel,
     type ShaderParamDescriptor,
-    type ShaderParams as Params,
+    type ShaderParamValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ShaderParamAddress } from "@graphty/graphty-element/schema";
 import { ActionIcon, Text, Tooltip } from "@mantine/core";
@@ -13,20 +14,29 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type RowContext, VarySlot } from "./PropertyRow";
 import { type DataBinding, sourceName } from "./row";
-import { colorName, enumWords, failureWords, motionWords, usesWords } from "./words";
+import { clockWords, colorName, enumWords, failureWords, SHADER_FACT_WORDS, usesWords } from "./words";
 
-/** One parameter's value. */
-type Value = Params[string];
+/** One parameter's value: a number, a color or a word, a switch, or a clock binding. */
+type Value = ShaderParamValue;
+
+/**
+ * A value bound to a clock, as a use or a shader's default writes it.
+ * @param value - a parameter's value.
+ * @returns the binding, or undefined for a plain value.
+ */
+function clockOf(value: unknown): ShaderClockBinding | undefined {
+    return typeof value === "object" && value !== null && "by" in value ? (value as ShaderClockBinding) : undefined;
+}
 
 /** Props for ShaderParams. */
 interface ShaderParamsProps {
     /** The row, for the vary glyph; left out (the background), a parameter does not vary. */
     readonly ctx?: RowContext;
     readonly descriptor: ShaderDescriptor;
-    /** The map channel the parameters land in: `<target>.shaderParams` for a surface, `<target>.effects` for an effect. */
+    /** The list channel the use is on (`node.shaders`, `edge.shaders`), whose address a binding to data takes. */
     readonly channel?: Channel;
     /** The values the layer sets; a parameter left out draws its default. */
-    readonly values: Params;
+    readonly values: Readonly<Record<string, Value>>;
     /** The parameters the layer binds to data, by parameter id. */
     readonly bindings?: Readonly<Record<string, DataBinding>>;
     /** Sets one parameter; undefined clears it back to its default. */
@@ -228,8 +238,6 @@ interface ParamRowProps {
     readonly channel: Channel | undefined;
     readonly descriptor: ShaderDescriptor;
     readonly option: ShaderParamDescriptor;
-    /** The name in the label column, when not the parameter's own (the speed parameter is "Motion"). */
-    readonly word?: string;
     readonly value: Value | undefined;
     readonly binding: DataBinding | undefined;
     readonly onChange: (name: string, value: Value | undefined) => void;
@@ -245,7 +253,6 @@ interface ParamRowProps {
  * @param props.channel - the map channel the parameters land in
  * @param props.descriptor - the shader
  * @param props.option - the parameter
- * @param props.word - the label column's name, when not the parameter's own
  * @param props.value - the value the layer sets
  * @param props.binding - the parameter's binding to data
  * @param props.onChange - sets or clears it
@@ -257,14 +264,13 @@ function ParamRow({
     channel,
     descriptor,
     option,
-    word,
     value,
     binding,
     onChange,
     onUnbind,
 }: Readonly<ParamRowProps>): React.JSX.Element {
     const { store } = useWorkspace();
-    const label = word ?? option.plainName;
+    const label = option.plainName;
     const lower = option.plainName.toLowerCase();
     const shown = value ?? (option.default as Value | undefined);
     const set = value !== undefined;
@@ -332,8 +338,21 @@ function ParamRow({
     );
     const numeric = (option.type === "number" || option.type === "integer") && option.choices === undefined;
 
+    const clock = clockOf(shown);
     let body: React.ReactNode;
-    if (binding !== undefined) {
+    if (clock !== undefined && binding === undefined) {
+        // A parameter bound to a clock is an ordinary row whose value shows the binding.
+        body = (
+            <>
+                {name()}
+                <div className="ws-field-control">
+                    <Text size="xs" truncate data-param-clock title={clockWords(clock)}>
+                        {clockWords(clock)}
+                    </Text>
+                </div>
+            </>
+        );
+    } else if (binding !== undefined) {
         body = (
             <>
                 {name()}
@@ -389,7 +408,7 @@ function paramControl(
     ctx: RowContext | undefined,
     option: ShaderParamDescriptor,
     label: string,
-    shown: Value | undefined,
+    shown: unknown,
     write: (next: Value) => void,
 ): React.ReactNode {
     let control: React.ReactNode;
@@ -441,8 +460,7 @@ function paramControl(
 }
 
 /**
- * A read-only line in the parameters' label column layout: Uses, and Motion for a shader whose
- * speed is not a parameter.
+ * A read-only line in the parameters' label column layout: Uses, and Cost.
  * @param props - Component props
  * @param props.label - its name
  * @param props.testId - its test id
@@ -471,16 +489,17 @@ function FactRow({
 }
 
 /**
- * A shader's settings pop-out (shader-styles design, section 6.3), as the panel's property rows:
- * one row per parameter the catalog declares, the name in the label column (it scrubs a number),
- * the field bounded by the parameter's range and step, the vary glyph, and one minus as the only
- * reset. An integer that picks one of a set shows its pictures. Motion is the speed parameter's
- * field when the shader has one, else what the shader does: Still or Moves.
- * Focus starts in the first field.
+ * A shader's settings pop-out (decisions-v2, section 2.1), as the panel's property rows: one row
+ * per parameter the catalog declares, the name in the label column (it scrubs a number), the
+ * field bounded by the parameter's range and step, the vary glyph, and one minus as the only
+ * reset. An integer that picks one of a set shows its pictures; a parameter bound to a clock shows
+ * the binding. Minimum size is a row only when the shader declares it (the catalog lists it as a
+ * parameter then). Under them, what it reads and one cost line, from the same fact the gallery
+ * tile shows. Focus starts in the first field.
  * @param props - Component props
  * @param props.ctx - the row; left out, no parameter varies
  * @param props.descriptor - the shader
- * @param props.channel - the map channel its parameters land in
+ * @param props.channel - the list channel its use is on
  * @param props.values - the values the layer sets
  * @param props.bindings - the parameters bound to data
  * @param props.onChange - sets or clears one parameter
@@ -501,35 +520,27 @@ export function ShaderParams({
     useLayoutEffect(() => {
         box.current?.querySelector<HTMLElement>("input, button")?.setAttribute("data-autofocus", "");
     }, []);
-    const speedName = descriptor.motion.loop?.speedParam;
-    const speed = descriptor.params.find((param) => param.name === speedName);
-    const row = (option: ShaderParamDescriptor, word?: string): React.JSX.Element => (
-        <ParamRow
-            key={option.name}
-            ctx={ctx}
-            channel={channel}
-            descriptor={descriptor}
-            option={option}
-            word={word}
-            value={values[option.name]}
-            binding={bindings[option.name]}
-            onChange={onChange}
-            onUnbind={onUnbind}
-        />
-    );
     return (
         <div ref={box} className="ws-shader-params" data-shader={descriptor.id}>
-            {descriptor.params.filter((param) => param !== speed).map((param) => row(param))}
+            {descriptor.params.map((option) => (
+                <ParamRow
+                    key={option.name}
+                    ctx={ctx}
+                    channel={channel}
+                    descriptor={descriptor}
+                    option={option}
+                    value={values[option.name]}
+                    binding={bindings[option.name]}
+                    onChange={onChange}
+                    onUnbind={onUnbind}
+                />
+            ))}
             <FactRow label="Uses" testId="shader-uses">
                 {usesWords(descriptor.reads)}
             </FactRow>
-            {speed === undefined ? (
-                <FactRow label="Motion" testId="shader-motion">
-                    {motionWords(descriptor)}
-                </FactRow>
-            ) : (
-                <div data-testid="shader-motion">{row(speed, "Motion")}</div>
-            )}
+            <FactRow label="Cost" testId="shader-cost">
+                {SHADER_FACT_WORDS.cost(descriptor.cost)}
+            </FactRow>
         </div>
     );
 }

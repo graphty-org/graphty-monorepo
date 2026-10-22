@@ -108,7 +108,7 @@ async function pickNebula(): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
     const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
-    await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
+    await userEvent.click(within(gallery).getByRole("radio", { name: "Nebula" }));
 }
 
 /**
@@ -125,7 +125,7 @@ async function projectWithPastedShader(): Promise<File> {
         name: "Plates",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shader": "user/plate" },
+        set: { "node.shaders": [{ shader: "user/plate" }] },
     });
     const saved = await session.project.save();
     session.dispose();
@@ -184,9 +184,8 @@ describe("the graph's shader settings", () => {
             assert.strictEqual(background.shader?.id, "nebula");
         });
 
-        // The pick opens its settings, as a style row's pick does. Drift sets how fast it moves,
-        // so it is the Motion row's field.
-        const drift = await screen.findByRole("spinbutton", { name: "Motion" }, { timeout: TIMEOUT_MS });
+        // The pick opens its settings, as a style row's pick does: each parameter by its own name.
+        const drift = await screen.findByRole("spinbutton", { name: "Drift" }, { timeout: TIMEOUT_MS });
         await userEvent.clear(drift);
         await userEvent.type(drift, "0{Enter}");
         await waitFor(() => {
@@ -195,15 +194,34 @@ describe("the graph's shader settings", () => {
         });
     });
 
-    it("the Background shader gallery ends in Paste shader..., whose Add sets the background as one step", async () => {
+    it("Background + then Shader opens the shared gallery listing only background shaders, with no place filter", async () => {
+        const element = await openGraphSettings();
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
+        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        assert.strictEqual(gallery.dataset.tab, "background", "the one gallery, opened for the background");
+        assert.isNull(within(gallery).queryByRole("radiogroup", { name: "Place" }), "the background has no place");
+        const background = element.session.catalog
+            .shaders()
+            .filter((shader) => shader.target === "background")
+            .map((shader) => shader.plainName);
+        const tiles = within(within(gallery).getByRole("radiogroup", { name: "Shaders" })).getAllByRole("radio");
+        assert.isAbove(tiles.length, 0);
+        assert.sameMembers(
+            tiles.map((tile) => tile.getAttribute("aria-label")),
+            background,
+        );
+    });
+
+    it("the Background shader gallery ends in New shader..., whose Add sets the background as one step", async () => {
         const element = await openGraphSettings();
         // A copy whose body differs from the preset's by a comment, so it is added as a new shader.
         const text = `${await element.session.shaders.source("nebula", { duplicate: true })}\n// pasted\n`;
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(gallery).getByRole("button", { name: "Paste shader..." }));
-        const dialog = await screen.findByRole("dialog", { name: "Paste shader" });
+        await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
+        const dialog = await screen.findByRole("dialog", { name: "New shader" });
         const box = within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
         await userEvent.fill(box, text);
         const steps = element.session.history.position;
@@ -340,7 +358,7 @@ describe("the graph's shader settings", () => {
         const row = await screen.findByTestId("held-shaders");
         await userEvent.click(within(row).getByRole("button", { name: "Held shaders, 1" }));
         const list = await screen.findByRole("list", { name: "Held shaders" });
-        assert.include(list.textContent ?? "", "Node sprite, Used by 1");
+        assert.include(list.textContent ?? "", "Instead of the node, Used by 1");
         await userEvent.click(within(list).getByRole("button", { name: "Run Plate" }));
         await waitFor(
             () => {

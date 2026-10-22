@@ -18,7 +18,7 @@ function addable(): ChannelDescriptor[] {
             descriptor.accepts !== "labelStyle" &&
             descriptor.accepts !== "nothing" &&
             // A shader is added from the gallery, never as a line at a starting value.
-            descriptor.shaderSlot === undefined,
+            descriptor.shaderTarget === undefined,
     );
 }
 

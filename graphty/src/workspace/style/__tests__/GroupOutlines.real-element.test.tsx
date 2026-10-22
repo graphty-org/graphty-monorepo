@@ -1,16 +1,18 @@
 /**
- * Group outlines and the Selected and Hovered rows' effects on the REAL graphty-element, driven by
- * real input (shader-styles design, section 6.5): the Shockwave added to Selected plays once when a
+ * Group outlines and the Selected and Hovered rows' shaders on the REAL graphty-element, driven by
+ * real input (decisions-v2, sections 1 and 2): the Shockwave added to Selected plays once when a
  * real click selects a node; Satellites added to Hovered draw on a node only while the pointer is
- * on it; Hull added to the Louvain layer opens Group by at once, and grouped by Louvain draws one
- * outline per community; a click on an outline selects the layer that draws it; and on the Louvain
- * folder, the bulk edit gives every layer its own outline in one undo step. Every assertion reads
- * what the element reports: its layers and what it draws (`element.drawnShaders()`).
+ * on it; the gallery's Around the group chip lists the group outlines, and Hull added to the
+ * Louvain layer and grouped by Louvain draws one outline per community; a click on an outline
+ * selects the layer that draws it; and on the Louvain folder, the bulk edit gives every layer its
+ * own outline in one undo step. Every assertion reads what the element reports: its layers and
+ * what it draws (`element.drawnShaders()`).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import type { ShaderUse } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -103,29 +105,34 @@ function section(id: string): HTMLElement {
 }
 
 /**
- * Picks a tile of the open gallery by its name.
- * @param name - the tile's name.
+ * Opens the open row's Shaders gallery from its "+".
+ * @returns the gallery.
  */
-async function pickTile(name: string): Promise<void> {
-    const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
-    await userEvent.click(within(gallery).getByRole("button", { name: new RegExp(`^${name}`) }));
+async function openGallery(): Promise<HTMLElement> {
+    await userEvent.click(within(section("shaders")).getByRole("button", { name: "Add to node shaders" }));
+    return screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
 }
 
 /**
- * Adds an effect from the open row's Effects "+", then closes the settings it opens.
- * @param name - the effect's name.
+ * Adds a shader from the open row's Shaders "+" by a click on its tile, and waits for its row.
+ * @param name - the shader's name.
  */
-async function addEffect(name: string): Promise<void> {
-    await userEvent.click(within(section("effects")).getByRole("button", { name: "Add to node effects" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Effect..." }));
-    await pickTile(name);
+async function addShader(name: string): Promise<void> {
+    const gallery = await openGallery();
+    await userEvent.click(await within(gallery).findByRole("radio", { name }));
     await waitFor(() => {
-        assert.isNotNull(document.querySelector(".ws-shader-params"), "its settings open");
+        assert.isNull(screen.queryByTestId("shader-gallery"), "the pick closes the gallery");
     });
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => {
-        assert.isNull(document.querySelector(".ws-shader-params"));
-    });
+}
+
+/**
+ * The shader ids a layer's node list holds.
+ * @param layer - the layer.
+ * @returns the ids, in order.
+ */
+function shadersOf(layer: Layer | undefined): string[] {
+    const uses = layer?.set?.["node.shaders"];
+    return Array.isArray(uses) ? (uses as readonly ShaderUse[]).map((use) => use.shader) : [];
 }
 
 /**
@@ -205,17 +212,13 @@ function groupsOf(session: GraphSession, path: string): Set<string> {
     return values;
 }
 
-describe("effects on the Selected and Hovered rows", () => {
+describe("shaders on the Selected and Hovered rows", () => {
     it("the Shockwave on Selected plays once when a real click selects a node", async () => {
         const { session, element } = await openScene();
         await openStyle("Selected");
-        await addEffect("Shockwave");
+        await addShader("Shockwave");
         const selected = session.styles.list().find((layer) => layer.name === "Selected" && layer.target !== "edge");
-        assert.deepInclude(
-            Object.keys((selected?.set?.["node.effects"] as object | undefined) ?? {}),
-            "shockwave",
-            "the Selected row's node layer carries the effect",
-        );
+        assert.include(shadersOf(selected), "shockwave", "the Selected row's node layer carries the shader");
         assert.isUndefined(element.drawnShaders().nodes.get("shockwave"), "nothing is selected, so nothing draws it");
 
         const stop = countEntrances(element, "shockwave");
@@ -252,7 +255,7 @@ describe("effects on the Selected and Hovered rows", () => {
     it("Satellites on Hovered draw on a node only while the pointer is on it", async () => {
         const { session, element } = await openScene();
         await openStyle("Hovered");
-        await addEffect("Satellites");
+        await addShader("Satellites");
         assert.isUndefined(element.drawnShaders().nodes.get("orbiting-satellites"), "nothing is hovered yet");
 
         const at = await nodeAt(element, idOf(session, "Valjean"));
@@ -278,34 +281,45 @@ describe("effects on the Selected and Hovered rows", () => {
     });
 });
 
-describe("the Group outline section", () => {
-    it("Hull on the Louvain layer opens Group by at once, and grouped by Louvain draws one outline per community", async () => {
+describe("group outlines, Around the group in the gallery", () => {
+    it("the Around the group chip lists the outlines; Hull on the Louvain layer grouped by Louvain draws one outline per community", async () => {
         const { session, store, element } = await openScene();
         const { layer, path } = await runLouvain(session);
         store.set({ inspected: { kind: "layer-row", id: layer.row ?? layer.id } });
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await showKind("node");
-        const steps = session.history.position;
 
-        await userEvent.click(within(section("outline")).getByRole("button", { name: "Add to node group outline" }));
-        await pickTile("Hull");
-        // Group by opens at once, and nothing is drawn until it is picked: on a layer of many
-        // nodes, an outline with no grouping would be one blob over the whole graph.
+        const gallery = await openGallery();
+        await userEvent.click(
+            within(within(gallery).getByRole("radiogroup", { name: "Place" })).getByText("Around the group"),
+        );
+        const tiles = within(within(gallery).getByRole("radiogroup", { name: "Shaders" })).getAllByRole("radio");
+        assert.sameMembers(
+            tiles.map((tile) => tile.getAttribute("aria-label")),
+            ["Hull", "Soap bubble"],
+            "only the group outlines",
+        );
+        await userEvent.click(within(gallery).getByRole("radio", { name: "Hull" }));
+        await waitFor(() => {
+            assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [{ shader: "metaball-hull" }]);
+        });
+        const row = section("shaders").querySelector<HTMLElement>("[data-shader-row]");
+        assert.include(row?.textContent, "Around the group", "one allowed place: a static label");
+
+        await userEvent.click(within(section("shaders")).getByRole("button", { name: "Group by None" }));
         const picker = await findValuePicker({ timeout: TIMEOUT_MS });
-        assert.isUndefined(session.styles.get(layer.id)?.boundary, "no outline before a grouping");
-        assert.isNull(within(picker).queryByRole("option", { name: /^None(,|$)/ }), "no None to group by");
-        within(section("outline")).getByRole("button", { name: "Outline: Hull" });
         await userEvent.click(within(picker).getByRole("option", { name: /^Louvain(,|$)/ }));
         await waitFor(() => {
-            assert.deepEqual(session.styles.get(layer.id)?.boundary, { shader: "metaball-hull", groupBy: path });
+            assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [
+                { shader: "metaball-hull", groupBy: path },
+            ]);
         });
-        assert.strictEqual(session.history.position, steps + 1, "the outline and its grouping, one step");
 
         const communities = groupsOf(session, path);
         assert.isAbove(communities.size, 1);
         await waitFor(
             () => {
-                const drawn = element.drawnShaders().boundaries.find((each) => each.layer === layer.id);
+                const drawn = element.drawnShaders().groupOutlines.find((each) => each.layer === layer.id);
                 assert.strictEqual(drawn?.groups.length, communities.size, "one outline per community");
                 assert.sameMembers(
                     drawn?.groups.map(String) ?? [],
@@ -315,41 +329,16 @@ describe("the Group outline section", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-
-        // The section reads what it draws.
-        within(section("outline")).getByRole("button", { name: "Outline: Hull" });
-        within(section("outline")).getByRole("button", { name: "Group by Louvain" });
+        within(section("shaders")).getByRole("button", { name: "Group by Louvain" });
 
         await session.undo();
         await waitFor(() => {
-            assert.isUndefined(session.styles.get(layer.id)?.boundary, "one Undo takes it off");
+            assert.deepEqual(
+                session.styles.get(layer.id)?.set?.["node.shaders"],
+                [{ shader: "metaball-hull" }],
+                "one Undo takes the grouping off",
+            );
         });
-    });
-
-    it("an outline picked and then left with no grouping draws nothing, and the label column keeps its width", async () => {
-        const { session, store } = await openScene();
-        const { layer } = await runLouvain(session);
-        store.set({ inspected: { kind: "layer-row", id: layer.row ?? layer.id } });
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await showKind("node");
-        const column = (): string => getComputedStyle(tab.querySelector(".ws-field") ?? tab).gridTemplateColumns;
-        const before = column();
-        const steps = session.history.position;
-
-        await userEvent.click(within(section("outline")).getByRole("button", { name: "Add to node group outline" }));
-        await pickTile("Hull");
-        await findValuePicker({ timeout: TIMEOUT_MS });
-        await waitFor(() => {
-            within(section("outline")).getByRole("button", { name: "Group by..." });
-        });
-        assert.strictEqual(column(), before, "the Group by line adds no name to the label column");
-
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(within(section("outline")).queryByRole("button", { name: /^Outline: / }));
-        });
-        assert.isUndefined(session.styles.get(layer.id)?.boundary);
-        assert.strictEqual(session.history.position, steps, "nothing written");
     });
 
     it("a click on an outline selects the layer that draws it", async () => {
@@ -359,12 +348,12 @@ describe("the Group outline section", () => {
             target: "node",
             // A node with one edge, at the drawing's edge: room around it that is no node and no edge.
             selector: { match: "ids", nodes: [idOf(session, "Napoleon")] },
-            boundary: { shader: "metaball-hull" },
+            set: { "node.shaders": [{ shader: "metaball-hull" }] },
         });
         store.set({ inspected: { kind: "graph" } });
         await waitFor(
             () => {
-                assert.isDefined(element.drawnShaders().boundaries.find((each) => each.layer === outlined.id));
+                assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
             },
             { timeout: TIMEOUT_MS },
         );
@@ -377,7 +366,7 @@ describe("the Group outline section", () => {
                         const angle = (turn / 32) * 2 * Math.PI;
                         const x = at.x + Math.cos(angle) * at.radius * step;
                         const y = at.y + Math.sin(angle) * at.radius * step;
-                        if (element.boundaryAt({ x, y })?.layer === outlined.id) {
+                        if (element.groupOutlineAt({ x, y })?.layer === outlined.id) {
                             return { x, y };
                         }
                     }
@@ -407,21 +396,16 @@ describe("the Group outline section", () => {
         await openStyle("Louvain");
         const steps = session.history.position;
 
-        await userEvent.click(within(section("outline")).getByRole("button", { name: "Add to node group outline" }));
-        await pickTile("Soap bubble");
+        await addShader("Soap bubble");
         await waitFor(() => {
             for (const id of layers) {
-                assert.strictEqual(session.styles.get(id)?.boundary?.shader, "soap-bubble", `${id} draws its own`);
+                assert.deepEqual(shadersOf(session.styles.get(id)), ["soap-bubble"], `${id} draws its own`);
             }
         });
         assert.strictEqual(session.history.position, steps + 1, "one undo step");
-        assert.isNull(
-            document.querySelector(".cm-quick-actions"),
-            "a folder's layers are its groups: no Group by list",
-        );
         await waitFor(
             () => {
-                const drawn = element.drawnShaders().boundaries.filter((each) => layers.includes(each.layer));
+                const drawn = element.drawnShaders().groupOutlines.filter((each) => layers.includes(each.layer));
                 assert.strictEqual(drawn.length, layers.length, "an outline per layer");
             },
             { timeout: TIMEOUT_MS },
@@ -430,7 +414,7 @@ describe("the Group outline section", () => {
         await session.undo();
         await waitFor(() => {
             for (const id of layers) {
-                assert.isUndefined(session.styles.get(id)?.boundary, "one Undo takes every one off");
+                assert.deepEqual(shadersOf(session.styles.get(id)), [], "one Undo takes every one off");
             }
         });
     });

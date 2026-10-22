@@ -286,11 +286,52 @@
     padding-bottom: 4px;
 }
 
-/* A shader row (shader-styles design, section 6.1): its picture and name open the gallery; an
-   effect's row has no label column (the section names its list) and a third column, its eye,
-   between the settings and the minus. */
-.ws-shader-row .ws-field[data-effect] {
-    grid-template-columns: minmax(0, 1fr) 24px 24px 24px;
+/* A shader row (decisions-v2, section 2.1): a drag handle, the picture and name, the place (a
+   dropdown or a static label), the settings and the minus. */
+.ws-shader-row .ws-field[data-shader-use] {
+    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 116px) 24px 24px;
+    gap: 2px;
+}
+
+.ws-shader-row[data-dragging] {
+    opacity: 0.6;
+}
+
+.ws-drag-handle {
+    cursor: grab;
+    touch-action: none;
+}
+
+.ws-shader-name,
+.ws-place-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ws-place-badge {
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+    font-size: var(--mantine-font-size-xs);
+}
+
+.ws-place-diagram {
+    flex: none;
+}
+
+.ws-shader-place {
+    min-width: 0;
+}
+
+/* A shader's neutral facts on its tile: small icons, each with its words as its text alternative. */
+.ws-shader-facts {
+    display: flex;
+    gap: 4px;
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+}
+
+.ws-shader-facts [data-cost="heavy"] {
+    color: var(--mantine-color-orange-text, var(--mantine-color-orange-6));
 }
 
 .ws-shader-control {
@@ -325,8 +366,6 @@
 .ws-shader-row[data-hidden] .ws-shader-pick {
     opacity: 0.5;
 }
-
-/* The trigger chip gives way before the name does: the name says which shader it is. */
 
 /* The gallery: search, then two columns of tiles, each its still picture and name. */
 .ws-gallery {

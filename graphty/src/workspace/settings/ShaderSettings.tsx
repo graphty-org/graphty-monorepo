@@ -12,12 +12,12 @@ import { ShaderParams } from "../style/ShaderParams";
 import { copyShaderText } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
 import {
+    BACKGROUND_SECTION_WORDS,
+    placeWords,
     renderQualityWords,
-    SHADER_KIND_WORDS,
     SHADER_MOTION_WORDS,
     SHADER_QUALITY_WORDS,
     SHADER_STEP_WORDS,
-    shaderSlotKindOf,
     usedByWords,
 } from "../style/words";
 import { heldShaders, runHeld } from "./heldShaders";
@@ -119,10 +119,9 @@ export function BackgroundShader({
                     <Popout.Content>
                         <ShaderGallery
                             session={session}
-                            kinds={["background"]}
-                            label="Find background"
+                            tab="background"
                             marked={shader === undefined ? [] : [shader]}
-                            onPaste={() => {
+                            onNew={() => {
                                 setPicking(false);
                                 setPaste({});
                             }}
@@ -162,6 +161,10 @@ export function BackgroundShader({
                                 descriptor={descriptor}
                                 values={params}
                                 onChange={(param, value) => {
+                                    // The background's parameters are plain values; it has no clocks.
+                                    if (typeof value === "object") {
+                                        return;
+                                    }
                                     const rest = Object.fromEntries(
                                         Object.entries(params).filter(([key]) => key !== param),
                                     );
@@ -181,7 +184,7 @@ export function BackgroundShader({
             {paste !== null && (
                 <PasteShaderDialog
                     session={session}
-                    kinds={["background"]}
+                    tab="background"
                     put={async (scope, id, values) => {
                         await onWrite(id, values, scope);
                     }}
@@ -250,7 +253,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                                             {shader.plainName}
                                         </Text>
                                         <Text size="xs" c="dimmed" truncate>
-                                            {`${SHADER_KIND_WORDS[shaderSlotKindOf(shader)]}, ${usedByWords(shader.usedBy)}`}
+                                            {`${shader.target === "background" ? BACKGROUND_SECTION_WORDS.title : placeWords(shader.place, shader.target === "edge" ? "edge" : "node")}, ${usedByWords(shader.usedBy)}`}
                                         </Text>
                                     </Stack>
                                     <Button

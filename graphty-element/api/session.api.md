@@ -785,7 +785,7 @@ export interface EngineVersions {
 }
 
 // @public
-export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups";
+export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups" | "layout.needs-location";
 
 // @public
 export interface ExpandBehavior {
@@ -1231,6 +1231,7 @@ export interface GraphSession {
     plan(command: SessionCommand): Promise<Plan>;
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
+    recommendLayout(): LayoutRecommendation | undefined;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
     run(command: AlgorithmRunCommand, options?: RunOptions): Run;
@@ -1950,19 +1951,24 @@ export type GraphtyWarningCode =
 /**
 * The `location-map` layout found no usable location for some nodes, and put them in its tray
 * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
-* values no location format reads, `params.total` every node, and `params.samples` up to eight
-* `{ id, value, code }` (code `syntax` or `short-code`).
+* values no location format reads, `params.outOfRange` values out of range (see
+* `W_LOCATION_OUT_OF_RANGE`), `params.unplaced` all of them together, `params.total` every
+* node, `params.ids` the unplaced nodes' ids (so a count can select them), and
+* `params.samples` up to eight `{ id, value, code }` (code `syntax` or `short-code`).
 */
 | "W_LOCATION_UNPARSED"
 /**
-* The `location-map` layout read locations whose latitude is beyond +/-90 degrees or longitude
-* beyond +/-180. `params.count` and up to eight `params.samples` `{ id, value, code }`.
+* The `location-map` layout read locations it cannot place: latitude beyond +/-90 degrees or
+* longitude beyond +/-180, or on a flat Web Mercator map a latitude past +/-85.05, which that
+* projection cannot show. They go to the tray. `params.count`, `params.unplaced` (every
+* unplaced node, these included), `params.total`, `params.ids` and up to eight
+* `params.samples` `{ id, value, code }`.
 */
 | "W_LOCATION_OUT_OF_RANGE"
 /**
 * The `location-map` layout's `format: "auto"` found more than one format that reads the
-* column about as well, and used the first. `params.formats` (the one used first) and
-* `params.column`.
+* column about as well, and used the first: a decimal pair that reads as well longitude first
+* (`lon-lat`) is the common case. `params.formats` (the one used first) and `params.column`.
 */
 | "W_LOCATION_AMBIGUOUS"
 /**
@@ -2276,7 +2282,7 @@ export interface LayoutRecommendation {
 }
 
 // @public
-export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.location-map" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
 
 // @public
 export interface LayoutRecommendationOptions {
@@ -2286,6 +2292,7 @@ export interface LayoutRecommendationOptions {
     };
     readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
+    readonly locations?: boolean;
     readonly placedNodes?: number;
 }
 
@@ -4337,6 +4344,7 @@ export interface SessionLayout {
     readonly dimension: "2d" | "3d";
     readonly engine: string;
     readonly id: LayoutId;
+    optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
     set(id: LayoutId, options?: {
         readonly engine?: string;

@@ -1,9 +1,12 @@
 import type { MapSourceId } from "babylonjs-map";
+import type { LocationFormat } from "babylonjs-map/location";
+import type { GeoBounds, ProjectionId } from "babylonjs-map/projection";
 import { z } from "zod";
 
 /**
  * A named map source: one of babylonjs-map's keyless sources (`natural-earth`, the bundled
- * public-domain world image and the default, `openstreetmap`, `opentopomap`,
+ * public-domain world image and the default, `natural-earth-gray`, the same picture as a plain
+ * light gray backdrop, `openstreetmap`, `opentopomap`,
  * `nasa-gibs-blue-marble`, `usgs-topo`, `usgs-imagery`, `eox-s2cloudless-2016`), or `none` for the
  * layout with no picture under it.
  * @since 3.31.0
@@ -18,6 +21,17 @@ const bounds = z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), 
  * `basemapStatus.attribution` itself.
  */
 const attributionShown = z.boolean().optional();
+/**
+ * How the map looks past the box the layout fitted to the data: `continue` (the default) draws
+ * the map on past it, so panning or zooming out still shows map; `clip` ends the picture at the
+ * box.
+ */
+const beyond = z.enum(["continue", "clip"]).optional();
+/**
+ * Whether edges get a thin light casing and nodes a light outline while the map is drawn, so they
+ * stand off any picture (default on). False draws them exactly as their styles say.
+ */
+const casing = z.boolean().optional();
 
 /**
  * The map the element draws under a geographic layout (the `location-map` layout): a named source,
@@ -27,7 +41,7 @@ const attributionShown = z.boolean().optional();
  * @since 3.31.0
  */
 export const Basemap = z.union([
-    z.strictObject({ source: z.string() as z.ZodType<BasemapSourceId>, attributionShown }),
+    z.strictObject({ source: z.string() as z.ZodType<BasemapSourceId>, attributionShown, beyond, casing }),
     z.strictObject({
         /** An XYZ URL template: `{z}`, `{x}`, `{y}`, `{-y}`, `{s}` and `{r}`. */
         tiles: z.string().min(1),
@@ -39,6 +53,8 @@ export const Basemap = z.union([
         maxZoom: z.number().int().nonnegative().optional(),
         subdomains: z.array(z.string()).optional(),
         attributionShown,
+        beyond,
+        casing,
     }),
     z.strictObject({
         /** The picture's URL. */
@@ -49,6 +65,8 @@ export const Basemap = z.union([
         projection: projection.optional(),
         attribution: z.string().optional(),
         attributionShown,
+        beyond,
+        casing,
     }),
 ]);
 
@@ -69,3 +87,47 @@ export interface BasemapStatus {
     /** The credits of every source drawn, without repeats. */
     readonly attribution: readonly string[];
 }
+
+/**
+ * Where the location map layout read its locations: the two columns it used (with the half of the
+ * pair it found by name, when only the other was set), or the one column and the format it read
+ * it in. An application names the columns "Automatic" chose from this.
+ * @since 3.31.0
+ */
+export type LocationSourceFact =
+    | {
+          readonly kind: "columns";
+          readonly latitude: string;
+          readonly longitude: string;
+          readonly filled: "latitude" | "longitude" | null;
+      }
+    | { readonly kind: "location"; readonly column: string; readonly format: LocationFormat };
+
+/**
+ * How the active location map layout lays out its map, as plain facts (`element.mapFrame`): the
+ * surface, the box a flat map shows or a globe's radius, where the locations were read, and the
+ * nodes it could not place.
+ * @since 3.31.0
+ */
+export type MapFrameFact = {
+    /** 2 in the 2D view, 3 in the 3D view. */
+    readonly dimensions: 2 | 3;
+    readonly location: LocationSourceFact;
+    /** The ids of the nodes with no place on the map. */
+    readonly unplaced: readonly (string | number)[];
+    /**
+     * The warnings the run reported about reading the locations (`W_LOCATION_*`), each a code and
+     * its parameters, as its `layout-warning` events carried them.
+     */
+    readonly warnings: readonly { readonly code: string; readonly params: Readonly<Record<string, unknown>> }[];
+} & (
+    | {
+          readonly surface: "flat";
+          readonly projection: ProjectionId;
+          /** The box shown, `[[west, south], [east, north]]`; east passes 180 across the date line. */
+          readonly bounds: GeoBounds;
+          /** Scene units across the box's longer side. */
+          readonly size: number;
+      }
+    | { readonly surface: "globe"; readonly radius: number }
+);

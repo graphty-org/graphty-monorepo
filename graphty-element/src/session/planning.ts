@@ -33,6 +33,7 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
+import { isLocationRefusal, resolveLocation } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
@@ -301,6 +302,8 @@ export interface PlanningContext {
     readonly nodeValues?: (path: string) => readonly unknown[] | null;
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
+    /** Every node attribute's name, for a layout that looks for its input among them. */
+    readonly nodeAttributes?: () => readonly string[];
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
@@ -816,6 +819,10 @@ function layoutRefusal(
         return planarRefusal(graph, cache, id);
     }
 
+    if (engine === "location-map") {
+        return locationRefusal(context, id, options);
+    }
+
     if (engine === "bfs") {
         return missingNode(graph, id, "start", options.start);
     }
@@ -831,6 +838,37 @@ function layoutRefusal(
     }
 
     return groupingRefusal(context, id, engine, raw, options);
+}
+
+/**
+ * Whether the location map layout refuses this graph: no column it can read locations from, or
+ * half a latitude and longitude pair it cannot complete. The same answer the layout's own run
+ * reaches, from the same resolver.
+ * @param context - What planning reads.
+ * @param id - The layout's id.
+ * @param options - The layout's options.
+ * @returns The refusal, or undefined.
+ */
+function locationRefusal(
+    context: PlanningContext,
+    id: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
+    const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
+    const columns = (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: read(name) ?? [] }));
+    const option = (name: string): string | null =>
+        typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
+    const answer = resolveLocation(
+        { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
+        columns,
+        read,
+    );
+    return isLocationRefusal(answer)
+        ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {
+              layout: id,
+              ...answer.params,
+          })
+        : undefined;
 }
 
 /**

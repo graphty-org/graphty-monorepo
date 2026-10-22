@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphStartedEvent
     | LayoutChangedEvent
     | LayoutWarningEvent
+    | BasemapStatusEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -455,6 +456,29 @@ export interface LayoutWarningEvent {
     code: GraphtyWarningCode;
     /** The code's parameters, as the code's documentation lists them. */
     params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+ * back to the bundled world image because its tiles failed (`error` then carries
+ * `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the
+ * browser reveals one and null otherwise; an image load never does). The fields are those of
+ * `basemapStatus`. A code and facts, never a sentence.
+ * @since 3.31.0
+ */
+export interface BasemapStatusEvent {
+    type: "basemap-status";
+    /** The source drawn: its id, `tiles`, `image`, or `none`. */
+    source: string;
+    /** `off`, `loading`, `ready` or `fallback`. */
+    state: "off" | "loading" | "ready" | "fallback";
+    /** The credits of the sources drawn. */
+    attribution: readonly string[];
+    /** Why the map fell back, when it did. */
+    error?: {
+        readonly code: "E_BASEMAP_UNREACHABLE";
+        readonly params: { readonly source: string; readonly status: number | null };
+    };
 }
 
 /** Emitted when a queued operation is aborted before it finished. */

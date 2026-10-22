@@ -199,7 +199,7 @@ export const BASEMAP_SOURCE_DESCRIPTORS: readonly BasemapSourceDescriptor[];
 export interface BasemapSourceDescriptor {
     readonly coverage: "world" | "us";
     readonly id: MapSourceId;
-    readonly kind: "plain" | "streets" | "satellite" | "terrain";
+    readonly kind: "plain" | "streets" | "satellite" | "terrain" | "light";
     readonly network: boolean;
     readonly plainName: string;
 }
@@ -1600,8 +1600,20 @@ export interface OptionBound {
 export interface OptionChoice {
     // (undocumented)
     label: string;
+    refusal?: OptionChoiceRefusal;
     // (undocumented)
     value: string;
+}
+
+// @public
+export interface OptionChoiceRefusal {
+    // (undocumented)
+    readonly code: "location.column-unfit";
+    // (undocumented)
+    readonly params: {
+        readonly role: "latitude" | "longitude" | "location";
+        readonly share: number;
+    };
 }
 
 // @public

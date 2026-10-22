@@ -35,6 +35,7 @@ import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
+import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -57,6 +58,7 @@ import { LayoutResult } from '@graphty/layout';
 import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
+import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
@@ -71,6 +73,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
 import { Ray } from '@babylonjs/core';
@@ -2001,6 +2004,7 @@ export interface OptionBound {
 export interface OptionChoice {
     // (undocumented)
     label: string;
+    refusal?: OptionChoiceRefusal;
     // (undocumented)
     value: string;
 }

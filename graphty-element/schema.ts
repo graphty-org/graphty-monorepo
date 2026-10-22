@@ -102,6 +102,8 @@ export type {
     GraphSelectionStyleInput,
     ImageData,
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     ViewMode,

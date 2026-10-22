@@ -639,19 +639,24 @@ export type GraphtyWarningCode =
     /**
      * The `location-map` layout found no usable location for some nodes, and put them in its tray
      * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
-     * values no location format reads, `params.total` every node, and `params.samples` up to eight
-     * `{ id, value, code }` (code `syntax` or `short-code`).
+     * values no location format reads, `params.outOfRange` values out of range (see
+     * `W_LOCATION_OUT_OF_RANGE`), `params.unplaced` all of them together, `params.total` every
+     * node, `params.ids` the unplaced nodes' ids (so a count can select them), and
+     * `params.samples` up to eight `{ id, value, code }` (code `syntax` or `short-code`).
      */
     | "W_LOCATION_UNPARSED"
     /**
-     * The `location-map` layout read locations whose latitude is beyond +/-90 degrees or longitude
-     * beyond +/-180. `params.count` and up to eight `params.samples` `{ id, value, code }`.
+     * The `location-map` layout read locations it cannot place: latitude beyond +/-90 degrees or
+     * longitude beyond +/-180, or on a flat Web Mercator map a latitude past +/-85.05, which that
+     * projection cannot show. They go to the tray. `params.count`, `params.unplaced` (every
+     * unplaced node, these included), `params.total`, `params.ids` and up to eight
+     * `params.samples` `{ id, value, code }`.
      */
     | "W_LOCATION_OUT_OF_RANGE"
     /**
      * The `location-map` layout's `format: "auto"` found more than one format that reads the
-     * column about as well, and used the first. `params.formats` (the one used first) and
-     * `params.column`.
+     * column about as well, and used the first: a decimal pair that reads as well longitude first
+     * (`lon-lat`) is the common case. `params.formats` (the one used first) and `params.column`.
      */
     | "W_LOCATION_AMBIGUOUS"
     /**

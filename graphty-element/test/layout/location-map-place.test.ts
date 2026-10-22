@@ -4,7 +4,7 @@
  * for nodes with no location, and the warnings.
  */
 
-import { createMapFrame, latLonToSphere } from "babylonjs-map/projection";
+import { createMapFrame, latLonToSphere, longitudeIn } from "babylonjs-map/projection";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -62,9 +62,11 @@ describe("placeOnMap on a flat map", () => {
             return;
         }
 
-        const frame = createMapFrame({ projection: "web-mercator", bounds: placed.frame.bounds, size: 100 });
+        const { bounds } = placed.frame;
+        const frame = createMapFrame({ projection: "web-mercator", bounds, size: 100 });
         Object.values(CITIES).forEach(([lat, lon], row) => {
-            const { x, y } = frame.toScene({ lat, lon });
+            // The four cities' narrowest box crosses the date line: a point west of it moves a turn east.
+            const { x, y } = frame.toScene({ lat, lon: longitudeIn(lon, bounds) });
             assert.closeTo(placed.positions[2 * row], x, 1e-3);
             assert.closeTo(placed.positions[2 * row + 1], y, 1e-3);
         });
@@ -123,7 +125,8 @@ describe("placeOnMap on a flat map", () => {
         const placed = placeOnMap(source, nodes(4, 2), OPTIONS);
         assert.deepEqual(placed.unplacedRows, [1, 2]);
         const unparsed = placed.warnings.find((w) => w.code === "W_LOCATION_UNPARSED");
-        assert.deepInclude(unparsed?.params, { missing: 1, unparsed: 1, total: 4 });
+        assert.deepInclude(unparsed?.params, { missing: 1, unparsed: 1, unplaced: 2, total: 4 });
+        assert.deepEqual(unparsed?.params.ids, ["LHR", "NRT"]);
         assert.deepEqual(unparsed?.params.samples, [{ id: "NRT", value: "nowhere", code: "syntax" }]);
         if (placed.frame.surface !== "flat") {
             return;
@@ -187,7 +190,7 @@ describe("placeOnMap on a globe", () => {
                 placed.positions[3 * row + 1],
                 placed.positions[3 * row + 2],
             );
-            assert.closeTo(r, 100.5, 1e-3); // the radius plus half the default node size
+            assert.closeTo(r, placed.frame.radius + 0.5, 1e-3); // the radius plus half the default node size
         }
 
         const { rotation } = placed.frame;
@@ -225,5 +228,132 @@ describe("detectSource", () => {
 
     it("never guesses geohashes from short words", () => {
         assert.isNull(detectSource([{ name: "code", values: ["jfk", "dfw", "sfb"] }]));
+    });
+});
+
+describe("placeOnMap's edges of the world", () => {
+    it("puts points past Web Mercator's reach in the tray and counts them out of range", () => {
+        const polar: LocationSource = {
+            kind: "columns",
+            latitude: "a",
+            longitude: "b",
+            lat: [90, -89.9, 40.7, 51.5],
+            lon: [0, 0, -74, -0.1],
+        };
+        const placed = placeOnMap(polar, nodes(4, 2), OPTIONS);
+        assert.deepEqual(placed.unplacedRows, [0, 1]);
+        const range = placed.warnings.find((w) => w.code === "W_LOCATION_OUT_OF_RANGE");
+        assert.deepInclude(range?.params, { count: 2, unplaced: 2, total: 4 });
+        // On a globe the poles are places like any other.
+        const globe = placeOnMap(polar, nodes(4, 3), { ...OPTIONS, surface: "globe", dimensions: 3 });
+        assert.deepEqual(globe.unplacedRows, []);
+    });
+
+    it("keeps data across the date line together: Suva to Apia is a short line", () => {
+        const pacific: LocationSource = {
+            kind: "columns",
+            latitude: "a",
+            longitude: "b",
+            // The red team's Pacific: Suva, Apia, Nuku'alofa, Auckland, Honolulu, Adak,
+            // Petropavlovsk, Anadyr, Nome.
+            lat: [-18.14, -13.83, -21.14, -36.85, 21.31, 51.88, 53.02, 64.73, 64.5],
+            lon: [178.44, -171.76, -175.2, 174.76, -157.86, -176.66, 158.65, 177.51, -165.4],
+        };
+        const n = 9;
+        const placed = placeOnMap(
+            pacific,
+            { ids: Array.from({ length: n }, (_, i) => i), sizes: null, initial: new Float32Array(2 * n) },
+            OPTIONS,
+        );
+        if (placed.frame.surface !== "flat") {
+            assert.fail("flat");
+            return;
+        }
+
+        const span = placed.frame.bounds[1][0] - placed.frame.bounds[0][0];
+        assert.isBelow(span, 60);
+        // Suva to Apia is 10 of the box's 52 degrees, not the whole map.
+        const dx = placed.positions[2] - placed.positions[0];
+        assert.isBelow(Math.abs(dx), placed.frame.mapFrame.width / 4);
+        assert.isAbove(dx, 0, "Apia is east of Suva");
+    });
+
+    it("gives all nodes at one point a map 1 degree across", () => {
+        const one: LocationSource = {
+            kind: "columns",
+            latitude: "a",
+            longitude: "b",
+            lat: [48.86, 48.86],
+            lon: [2.35, 2.35],
+        };
+        const placed = placeOnMap(one, nodes(2, 2), OPTIONS);
+        if (placed.frame.surface === "flat") {
+            assert.isAbove(placed.frame.bounds[1][0] - placed.frame.bounds[0][0], 1);
+        }
+    });
+
+    it("lines the tray up in one row", () => {
+        const many: LocationSource = {
+            kind: "location",
+            column: "where",
+            values: ["40.64, -73.78", ...Array.from({ length: 30 }, () => "")],
+            named: true,
+        };
+        const n = 31;
+        const placed = placeOnMap(
+            many,
+            { ids: Array.from({ length: n }, (_, i) => i), sizes: null, initial: new Float32Array(2 * n) },
+            OPTIONS,
+        );
+        const ys = new Set(placed.unplacedRows.map((row) => placed.positions[2 * row + 1]));
+        assert.strictEqual(ys.size, 1);
+    });
+
+    it("flags European capitals written longitude first as ambiguous, and reads them as asked", () => {
+        const europe: LocationSource = {
+            kind: "location",
+            column: "coords",
+            values: ["2.3522, 48.8566", "13.405, 52.52", "-3.7038, 40.4168", "12.4964, 41.9028"],
+            named: true,
+        };
+        const auto = placeOnMap(europe, nodes(4, 2), OPTIONS);
+        assert.deepInclude(auto.warnings.find((w) => w.code === "W_LOCATION_AMBIGUOUS")?.params, {
+            formats: ["decimal", "lon-lat"],
+            column: "coords",
+        });
+        const asked = placeOnMap(europe, nodes(4, 2), { ...OPTIONS, format: "lon-lat" });
+        assert.deepEqual(asked.warnings, []);
+        assert.deepInclude(asked.frame.location, { kind: "location", column: "coords", format: "lon-lat" });
+        if (asked.frame.surface === "flat") {
+            // Paris sits in France: west of Berlin, north of Madrid.
+            assert.isBelow(asked.positions[0], asked.positions[2]);
+            assert.isAbove(asked.positions[1], asked.positions[5]);
+        }
+    });
+
+    it("reads hemisphere letters and decimal commas in latitude and longitude columns", () => {
+        const text: LocationSource = {
+            kind: "columns",
+            latitude: "latitude",
+            longitude: "longitude",
+            lat: ["40.7128", "51.5074 N", "48,8566", "-33.87"],
+            lon: ["-74.0060", "0.1278 W", "2,3522", "151.21"],
+        };
+        assert.deepEqual(placeOnMap(text, nodes(4, 2), OPTIONS).unplacedRows, []);
+    });
+
+    it("sizes the globe so the data spans the same scene units as on the flat map", () => {
+        const usa: LocationSource = {
+            kind: "columns",
+            latitude: "a",
+            longitude: "b",
+            lat: [47.6, 25.8, 40.7, 34.1],
+            lon: [-122.3, -80.2, -74.0, -118.2],
+        };
+        const globe = placeOnMap(usa, nodes(4, 3), { ...OPTIONS, surface: "globe", dimensions: 3 });
+        if (globe.frame.surface === "globe") {
+            // About 50 degrees of longitude at 37 N, plus the margin: far bigger than 100 units of radius.
+            assert.isAbove(globe.frame.radius, 100);
+        }
     });
 });

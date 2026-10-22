@@ -1,7 +1,8 @@
-import { Matrix, Quaternion, type Scene } from "@babylonjs/core";
-import type { FlatMap, Globe, MapSource } from "babylonjs-map";
+import { Matrix, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
 import type { BasemapConfig, BasemapStatus } from "../config/Basemap";
+import type { BasemapStatusEvent } from "../events";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 
 type MapModule = typeof import("babylonjs-map");
@@ -9,10 +10,29 @@ type MapModule = typeof import("babylonjs-map");
 /** How far behind the graph's plane the flat map lies, as a share of its size, so lines on z = 0 stay in front. */
 const FLAT_MAP_BEHIND = 0.001;
 
+/** Room the credits leave at the canvas's left before they fold into their button, in CSS pixels. */
+const CREDIT_ROOM = 8;
+
 /**
- * The sources a basemap setting draws, bottom layer first. A network source is drawn over the
- * bundled world image, which then shows wherever a tile has not arrived or failed, and covers the
- * poles a Web Mercator source cannot.
+ * A geographic frame's extent in the scene, as two corners of its box: a flat map's rectangle at
+ * z = 0, or the box around a globe. Framing the whole graph frames these too.
+ * @param frame - The frame.
+ * @returns The corners.
+ */
+export function mapCorners(frame: LocationMapFrame): Vector3[] {
+    if (frame.surface === "globe") {
+        const r = frame.radius;
+        return [new Vector3(-r, -r, -r), new Vector3(r, r, r)];
+    }
+
+    const { width, height } = frame.mapFrame;
+    return [new Vector3(-width / 2, -height / 2, 0), new Vector3(width / 2, height / 2, 0)];
+}
+
+/**
+ * The sources a basemap setting draws, bottom layer first. A tile service is drawn over the
+ * bundled world image, which then shows wherever a tile has not arrived or failed; a picture (the
+ * bundled world, its gray version, a custom image) is drawn alone.
  * @param m - babylonjs-map.
  * @param basemap - The setting; unset is the bundled world image.
  * @returns The sources, the name the status reports, and whether a named source was unknown.
@@ -34,10 +54,10 @@ function sourcesOf(
             return { sources: [world], name: basemap.source, unknown: true };
         }
 
-        return { sources: named === world ? [world] : [world, named], name: basemap.source, unknown: false };
+        return { sources: "image" in named ? [named] : [world, named], name: basemap.source, unknown: false };
     }
 
-    const { attributionShown: _shown, ...source } = basemap;
+    const { attributionShown: _shown, beyond: _beyond, casing: _casing, ...source } = basemap;
     if ("tiles" in source) {
         return { sources: [world, source], name: "tiles", unknown: false };
     }
@@ -48,8 +68,10 @@ function sourcesOf(
 /**
  * Draws the map under a geographic layout: a flat map or a globe from babylonjs-map, loaded the
  * first time one is needed, in the frame the `location-map` layout published, with the sources the
- * `basemap` setting names, and a strip of credits in the canvas's bottom-right corner. Tiles are
- * picked by babylonjs-map before each frame from the camera, so zooming in loads finer ones.
+ * `basemap` setting names, and the credits of the sources drawn in the canvas's bottom-right
+ * corner. Tiles are picked by babylonjs-map before each frame from the camera, so zooming in loads
+ * finer ones. Every change of state (loading, drawn, fallen back to the bundled world) is told to
+ * `emit` once, as a `basemap-status` event.
  */
 export class BasemapManager {
     #module: Promise<MapModule> | null = null;
@@ -61,7 +83,15 @@ export class BasemapManager {
     #unknown = false;
     #shown = true;
     #generation = 0;
+    /** The status last told to `emit`, as JSON, so each change is told once. */
+    #told = "";
+    /** Whether the reader opened the folded credits. */
+    #expanded = false;
     readonly #strip: HTMLDivElement;
+    readonly #credits: HTMLSpanElement;
+    readonly #toggle: HTMLButtonElement;
+    readonly #container: Element;
+    readonly #resize: ResizeObserver | null;
 
     /** The scene the surface was made in; a renderer swap (WebGPU) brings a new one. */
     #scene: Scene | null = null;
@@ -71,26 +101,68 @@ export class BasemapManager {
      * @param getScene - The scene to draw in, read on every sync.
      * @param container - The element the canvas is in; the credits are drawn over its corner.
      * @param requestFrame - Asks for a frame when a picture arrives.
+     * @param emit - Told each change of the map's state.
      */
     constructor(
         private readonly getScene: () => Scene,
         container: Element,
         private readonly requestFrame: () => void,
+        private readonly emit: (event: Omit<BasemapStatusEvent, "type">) => void = () => undefined,
     ) {
+        this.#container = container;
         this.#strip = document.createElement("div");
         this.#strip.dataset.graphtyAttribution = "";
         Object.assign(this.#strip.style, {
             position: "absolute",
             right: "0",
             bottom: "0",
+            maxWidth: `calc(100% - ${String(CREDIT_ROOM)}px)`,
+            boxSizing: "border-box",
             padding: "1px 4px",
             font: "11px sans-serif",
+            lineHeight: "16px",
             color: "#333",
-            background: "rgba(255, 255, 255, 0.75)",
-            pointerEvents: "none",
+            background: "rgba(255, 255, 255, 0.8)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            display: "none",
+            zIndex: "1",
+        });
+        this.#credits = document.createElement("span");
+        this.#toggle = document.createElement("button");
+        this.#toggle.type = "button";
+        this.#toggle.textContent = "(c)";
+        Object.assign(this.#toggle.style, {
+            font: "inherit",
+            color: "inherit",
+            background: "none",
+            border: "none",
+            padding: "0 2px",
+            cursor: "pointer",
             display: "none",
         });
+        this.#toggle.addEventListener("click", () => {
+            this.#expanded = !this.#expanded;
+            this.#layoutCredits();
+        });
+        this.#strip.append(this.#toggle, this.#credits);
         container.appendChild(this.#strip);
+        this.#resize =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(() => {
+                      this.#layoutCredits();
+                  });
+        this.#resize?.observe(container);
+    }
+
+    /**
+     * How far above the canvas's bottom edge the credits sit, in CSS pixels, so they clear a
+     * consumer's own controls there.
+     * @param pixels - The offset; 0 is the corner.
+     */
+    set attributionOffset(pixels: number) {
+        this.#strip.style.bottom = `${String(Math.max(0, pixels))}px`;
     }
 
     /**
@@ -120,6 +192,7 @@ export class BasemapManager {
         if (frame === null || (basemap !== undefined && "source" in basemap && basemap.source === "none")) {
             this.#clear();
             this.#name = basemap !== undefined && "source" in basemap ? basemap.source : "none";
+            this.#tell();
             return;
         }
 
@@ -132,7 +205,8 @@ export class BasemapManager {
     }
 
     /**
-     * What the map is doing.
+     * What the map is doing. `fallback` when a named source is unknown, or when a tile service
+     * drew no tile and some failed: the bundled world image under it is what shows.
      * @returns The status.
      */
     get status(): BasemapStatus {
@@ -141,9 +215,14 @@ export class BasemapManager {
             return { source: this.#name, state: "off", attribution: [] };
         }
 
-        const { loading, failed } = surface.status;
+        const { loading, layers } = surface.status;
+        const { sources } = surface;
+        // A tile service (not a picture) that drew nothing and failed: the base shows instead.
+        const unreachable = layers.some(
+            (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
+        );
         let state: BasemapStatus["state"] = "ready";
-        if (this.#unknown || failed > 0) {
+        if (this.#unknown || unreachable) {
             state = "fallback";
         } else if (loading > 0) {
             state = "loading";
@@ -155,6 +234,7 @@ export class BasemapManager {
     /** Removes the map and the credits. */
     dispose(): void {
         this.#generation++;
+        this.#resize?.disconnect();
         this.#clear();
         this.#strip.remove();
     }
@@ -194,6 +274,7 @@ export class BasemapManager {
             );
         } else if (frame.surface === "flat" && surface instanceof m.FlatMap) {
             surface.frame = frame.mapFrame;
+            surface.beyond = basemap?.beyond ?? "continue";
             surface.root.position.z = frame.size * FLAT_MAP_BEHIND;
         }
 
@@ -211,10 +292,114 @@ export class BasemapManager {
             mesh.isPickable = false;
         }
 
-        const { attribution } = surface;
-        this.#strip.textContent = attribution.join(" | ");
-        this.#strip.style.display = this.#shown && attribution.length > 0 ? "block" : "none";
+        this.#showCredits(surface.credits);
         this.requestFrame();
+        this.#untilReady();
+        this.#tell();
+    }
+
+    /** Whether frames are being asked for until the map's meshes can be drawn. */
+    #waiting = false;
+
+    /**
+     * Asks for frames until every map mesh shown is ready to draw (its shader compiled), then one
+     * more. A tile shown just before the scene draws, or one whose material is still compiling, is
+     * otherwise left out of a scene that freezes its list of drawn meshes or draws only on demand.
+     */
+    #untilReady(): void {
+        if (this.#waiting) {
+            return;
+        }
+
+        this.#waiting = true;
+        const scene = this.getScene();
+        const check = (): void => {
+            const surface = this.#surface;
+            const pending =
+                surface !== null && surface.root.getChildMeshes().some((m) => m.isEnabled() && !m.isReady(true));
+            this.requestFrame();
+            if (pending) {
+                scene.onAfterRenderObservable.addOnce(check);
+            } else {
+                this.#waiting = false;
+            }
+        };
+        scene.onAfterRenderObservable.addOnce(check);
+    }
+
+    /** Tells `emit` the status, when it changed since it was last told. */
+    #tell(): void {
+        const { status } = this;
+        const text = JSON.stringify(status);
+        if (text === this.#told) {
+            return;
+        }
+
+        this.#told = text;
+        this.emit({
+            source: status.source,
+            state: status.state,
+            attribution: status.attribution,
+            ...(status.state === "fallback"
+                ? { error: { code: "E_BASEMAP_UNREACHABLE" as const, params: { source: status.source, status: null } } }
+                : {}),
+        });
+    }
+
+    /**
+     * Writes the credits of the sources drawn, each a link to its provider's page when it has one.
+     * @param credits - The credits.
+     */
+    #showCredits(credits: readonly MapCredit[]): void {
+        const parts: Node[] = [];
+        credits.forEach((credit, i) => {
+            if (i > 0) {
+                parts.push(document.createTextNode(" | "));
+            }
+
+            if (credit.url === "") {
+                parts.push(document.createTextNode(credit.text));
+            } else {
+                const link = document.createElement("a");
+                link.href = credit.url;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.textContent = credit.text;
+                link.style.color = "inherit";
+                parts.push(link);
+            }
+        });
+        this.#credits.replaceChildren(...parts);
+        this.#toggle.title = credits.map((c) => c.text).join(" | ");
+        this.#toggle.setAttribute("aria-label", this.#toggle.title);
+        this.#strip.style.display = this.#shown && credits.length > 0 ? "block" : "none";
+        this.#layoutCredits();
+    }
+
+    /**
+     * Keeps the credits on one line: in full when they fit beside the canvas's left edge, else
+     * folded into their button, which shows them in full, wrapped, until it is pressed again.
+     */
+    #layoutCredits(): void {
+        if (this.#strip.style.display === "none") {
+            return;
+        }
+
+        // Measured unfolded on one line first.
+        Object.assign(this.#strip.style, { whiteSpace: "nowrap" });
+        this.#credits.style.display = "inline";
+        this.#toggle.style.display = "none";
+        const room = this.#container.clientWidth - CREDIT_ROOM;
+        const fits = room <= 0 || this.#strip.scrollWidth <= room;
+        if (fits) {
+            this.#expanded = false;
+            return;
+        }
+
+        this.#toggle.style.display = "inline";
+        this.#toggle.setAttribute("aria-expanded", String(this.#expanded));
+        this.#credits.style.display = this.#expanded ? "inline" : "none";
+        this.#strip.style.whiteSpace = this.#expanded ? "normal" : "nowrap";
     }
 
     /** Disposes the surface and hides the credits. */
@@ -223,7 +408,7 @@ export class BasemapManager {
         this.#surface = null;
         this.#unknown = false;
         this.#strip.style.display = "none";
-        this.#strip.textContent = "";
+        this.#credits.replaceChildren();
         this.requestFrame();
     }
 }

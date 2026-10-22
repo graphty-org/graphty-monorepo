@@ -170,6 +170,14 @@ export interface GraphtyElementJSXProps {
      */
     basemap?: Graphty["basemap"];
     /**
+     * Moves the map's credits up from the corner.
+     */
+    attributionOffset?: Graphty["attributionOffset"];
+    /**
+     * Sets how long camera moves take.
+     */
+    cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    /**
      * Sets the starting camera distance.
      */
     startingCameraDistance?: Graphty["startingCameraDistance"];
@@ -328,6 +336,14 @@ export interface GraphtyElementJSXProps {
      */
     "layout-2d"?: boolean;
     /**
+     * Moves the map's credits up from the corner.
+     */
+    "attribution-offset"?: string;
+    /**
+     * Sets how long camera moves take.
+     */
+    "camera-transition-duration"?: string;
+    /**
      * Sets the starting camera distance.
      */
     "starting-camera-distance"?: string;
@@ -405,6 +421,10 @@ export interface GraphtyElementJSXProps {
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
+    /**
+     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+     */
+    "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**

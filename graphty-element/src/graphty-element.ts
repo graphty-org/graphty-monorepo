@@ -28,7 +28,7 @@ import type {
     GraphSelectionStyleInput,
     ViewMode,
 } from "./config";
-import type { BasemapConfig, BasemapStatus } from "./config/Basemap";
+import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -2824,6 +2824,79 @@ export class Graphty extends LitElement {
      */
     get basemapStatus(): BasemapStatus {
         return this.#graph.basemapStatus;
+    }
+
+    /**
+     * How the active `location-map` layout lays out its map: the surface, the box a flat map
+     * shows or a globe's radius, where it read the locations (the columns it used, the half of a
+     * pair it found itself, or the column and its format), and the ids of the nodes it could not
+     * place. Null while no map layout has drawn.
+     * @since 3.31.0
+     * @returns The facts, or null
+     */
+    get mapFrame(): MapFrameFact | null {
+        return this.#graph.mapFrame;
+    }
+
+    /**
+     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
+     * @remarks
+     * The element draws the credits of the map under the `location-map` layout in the canvas's
+     * bottom-right corner, as every map source's terms require. A page that draws its own controls
+     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
+     * the corner. A preference of this view, not saved with the project.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element attribution-offset="56"></graphty-element>
+     * ```
+     * @returns The offset
+     */
+    @property({ attribute: "attribution-offset", type: Number })
+    get attributionOffset(): number {
+        return this.#attributionOffset;
+    }
+    /**
+     * Moves the map's credits up from the corner.
+     */
+    set attributionOffset(value: number) {
+        const oldValue = this.#attributionOffset;
+        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
+        this.#graph.setAttributionOffset(this.#attributionOffset);
+        this.requestUpdate("attributionOffset", oldValue);
+    }
+
+    /** See {@link attributionOffset}. */
+    #attributionOffset = 0;
+
+    /**
+     * How long every animated camera move takes, in milliseconds.
+     * @remarks
+     * Fitting the graph, a preset view and the glide to a picked node each animate over their own
+     * time. Set, every one takes this long instead; 0 moves the camera at once, which a page sets
+     * when its reader prefers reduced motion (`matchMedia("(prefers-reduced-motion: reduce)")`).
+     * Unset (the default), each move keeps its own. A preference of this view, not saved with the
+     * project.
+     * @since 3.31.0
+     * @example
+     * ```typescript
+     * element.cameraTransitionDuration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : undefined;
+     * ```
+     * @returns The duration, or undefined
+     */
+    @property({ attribute: "camera-transition-duration", type: Number })
+    get cameraTransitionDuration(): number | undefined {
+        return this.#graph.getCameraTransitionDuration();
+    }
+    /**
+     * Sets how long camera moves take.
+     */
+    set cameraTransitionDuration(value: number | undefined) {
+        const oldValue = this.cameraTransitionDuration;
+        this.#graph.setCameraTransitionDuration(
+            value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
+        );
+        this.requestUpdate("cameraTransitionDuration", oldValue);
     }
 
     /**

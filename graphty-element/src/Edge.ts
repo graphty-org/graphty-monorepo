@@ -1880,7 +1880,8 @@ export class Edge {
 
     /**
      * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
-     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe -- else straight.
+     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
+     * the map could not place -- else straight.
      * @returns The route.
      */
     private get route(): "straight" | "arc" | "great-circle" {
@@ -1894,6 +1895,11 @@ export class Edge {
             { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame;
         if (frame === undefined || frame === null || frame.dimensions === 2) {
+            return "straight";
+        }
+
+        // An edge to a node in the tray has no place to arc between: it goes straight.
+        if (frame.unplacedIds.has(this.srcId) || frame.unplacedIds.has(this.dstId)) {
             return "straight";
         }
 

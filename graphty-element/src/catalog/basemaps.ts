@@ -2,7 +2,8 @@
  * @file The named map sources the `basemap` setting accepts (`{ source: id }`), as data, so an
  * application lists them without importing babylonjs-map or copying its ids.
  *
- * `kind` is what the picture shows; `coverage` is where it has pictures. Grouping, order and the
+ * `kind` is what the picture shows; `coverage` is where it has pictures; `network` whether it is
+ * fetched from a third party. Grouping, order and the
  * words a reader sees are the application's.
  */
 
@@ -17,8 +18,11 @@ export interface BasemapSourceDescriptor {
     readonly id: MapSourceId;
     /** The source's own name. */
     readonly plainName: string;
-    /** What the picture shows: land and water, streets, satellite imagery, or terrain. */
-    readonly kind: "plain" | "streets" | "satellite" | "terrain";
+    /**
+     * What the picture shows: land and water, streets, satellite imagery, terrain, or a muted
+     * light backdrop that lets the graph stand out (`light`, since 3.31.0).
+     */
+    readonly kind: "plain" | "streets" | "satellite" | "terrain" | "light";
     /** Where it has pictures: the whole world, or the United States only. */
     readonly coverage: "world" | "us";
     /** Whether it is fetched from a third party (every source but the bundled world image). */
@@ -28,6 +32,7 @@ export interface BasemapSourceDescriptor {
 /** Every source, by id, so a source babylonjs-map adds cannot be left out of the table. */
 const SOURCES: Readonly<Record<MapSourceId, Omit<BasemapSourceDescriptor, "id">>> = {
     "natural-earth": { plainName: "Natural Earth", kind: "plain", coverage: "world", network: false },
+    "natural-earth-gray": { plainName: "Natural Earth gray", kind: "light", coverage: "world", network: false },
     openstreetmap: { plainName: "OpenStreetMap", kind: "streets", coverage: "world", network: true },
     opentopomap: { plainName: "OpenTopoMap", kind: "terrain", coverage: "world", network: true },
     "nasa-gibs-blue-marble": { plainName: "NASA Blue Marble", kind: "satellite", coverage: "world", network: true },

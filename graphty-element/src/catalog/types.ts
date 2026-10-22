@@ -488,10 +488,29 @@ export const OPTION_TYPES = [
 /** The kind of control an option asks for. */
 export type OptionType = (typeof OPTION_TYPES)[number];
 
-/** One choice offered by an option whose type is "enum". */
+/** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
     label: string;
+    /**
+     * Why this choice does not fit the option, when it does not: a column whose values the
+     * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes
+     * the words for the code. Absent for a choice that fits.
+     * @since 3.31.0
+     */
+    refusal?: OptionChoiceRefusal;
+}
+
+/**
+ * Why a column does not fit a location option of the `location-map` layout:
+ * `location.column-unfit`, with `params.role` (`latitude`, `longitude` or `location`) and
+ * `params.share`, the share of its values read in that role (0 to 1; a column fits from 0.5).
+ * New codes may be added in a minor release.
+ * @since 3.31.0
+ */
+export interface OptionChoiceRefusal {
+    readonly code: "location.column-unfit";
+    readonly params: { readonly role: "latitude" | "longitude" | "location"; readonly share: number };
 }
 
 /**

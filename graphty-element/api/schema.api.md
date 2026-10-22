@@ -4,7 +4,10 @@
 
 ```ts
 
+import type { GeoBounds } from 'babylonjs-map/projection';
+import type { LocationFormat } from 'babylonjs-map/location';
 import type { MapSourceId } from 'babylonjs-map';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
@@ -22,6 +25,11 @@ export function areDistinguishableInGrayscale(hex1: string, hex2: string, thresh
 export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     source: z.ZodType<BasemapSourceId>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     tiles: z.ZodString;
     attribution: z.ZodString;
@@ -34,6 +42,11 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     maxZoom: z.ZodOptional<z.ZodNumber>;
     subdomains: z.ZodOptional<z.ZodArray<z.ZodString>>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     image: z.ZodString;
     bounds: z.ZodOptional<z.ZodTuple<[z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>], null>>;
@@ -43,6 +56,11 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     }>>;
     attribution: z.ZodOptional<z.ZodString>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>]>;
 
 // @public
@@ -1399,6 +1417,37 @@ export type Lighting = (typeof LIGHTING_VALUES)[number];
 
 // @public
 export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
+
+// @public
+export type LocationSourceFact = {
+    readonly kind: "columns";
+    readonly latitude: string;
+    readonly longitude: string;
+    readonly filled: "latitude" | "longitude" | null;
+} | {
+    readonly kind: "location";
+    readonly column: string;
+    readonly format: LocationFormat;
+};
+
+// @public
+export type MapFrameFact = {
+    readonly dimensions: 2 | 3;
+    readonly location: LocationSourceFact;
+    readonly unplaced: readonly (string | number)[];
+    readonly warnings: readonly {
+        readonly code: string;
+        readonly params: Readonly<Record<string, unknown>>;
+    }[];
+} & ({
+    readonly surface: "flat";
+    readonly projection: ProjectionId;
+    readonly bounds: GeoBounds;
+    readonly size: number;
+} | {
+    readonly surface: "globe";
+    readonly radius: number;
+});
 
 // @public
 export const MISSING_DATA_COLOR = "#ff00ff";

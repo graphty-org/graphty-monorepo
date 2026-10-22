@@ -14,10 +14,12 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    type InstancedMesh,
     NullEngine,
     Observable,
     PointerEventTypes,
     Quaternion,
+    RenderingGroup,
     Scene,
     Vector3,
     WebGPUEngine,
@@ -30,10 +32,10 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
-import { Basemap, type BasemapConfig, type BasemapStatus } from "./config/Basemap";
+import { Basemap, type BasemapConfig, type BasemapStatus, type MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { GraphtyLogger, type Logger } from "./logging";
-import { BasemapManager } from "./managers/BasemapManager";
+import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -539,6 +541,8 @@ export class Graph implements GraphContext {
      * A consumer's own `zoomToFit()` still lands.
      */
     readonly #readerMovedCamera = (): void => {
+        // A pan or a zoom of the reader's own is kept: the camera stops gliding back to the selection.
+        this.updateManager.holdSelectionFollow();
         if (this.#cameraPlaced) {
             return;
         }
@@ -777,7 +781,13 @@ export class Graph implements GraphContext {
             () => this.scene,
             this.element,
             () => {
+                // The map made or showed meshes, usually just before the scene draws: a frozen list
+                // of what is drawn would leave them out of this frame and the frames after it.
+                this.updateManager.thawActiveMeshes();
                 this.renderManager.requestFrame();
+            },
+            (status) => {
+                this.eventManager.emit("basemap-status", status);
             },
         );
 
@@ -1927,8 +1937,15 @@ export class Graph implements GraphContext {
             });
 
             // The map follows the layout's frame and the basemap setting; nothing happens unless one changed.
-            const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
-            this.basemapManager.sync(engine?.geoFrame ?? null, this.session.config.basemap);
+            const frame = this.#geoFrame();
+            const { basemap } = this.session.config;
+            this.basemapManager.sync(frame, basemap);
+            if (frame !== this.#followedFrame) {
+                this.#followedFrame = frame;
+                this.#followFrame(frame);
+            }
+
+            this.#drawOverMap(frame, basemap);
 
             this.statsManager.measure("Graph.settlementCheck", () => {
                 // Only process settlement events if there are nodes - an empty graph
@@ -2073,6 +2090,16 @@ export class Graph implements GraphContext {
      */
     get basemapStatus(): BasemapStatus {
         return this.basemapManager.status;
+    }
+
+    /**
+     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels, so they clear
+     * controls the page draws over that edge. A view setting, not saved with the project.
+     * @param pixels - The offset; 0 (the default) is the corner.
+     * @since 3.31.0
+     */
+    setAttributionOffset(pixels: number): void {
+        this.basemapManager.attributionOffset = pixels;
     }
 
     /**
@@ -4269,7 +4296,149 @@ export class Graph implements GraphContext {
      */
     setZoomToPointer(on: boolean): void {
         this.#zoomToPointer = on;
-        this.camera.setZoomToPointer(on);
+        // On a map the wheel always zooms toward the pointer, as every map does.
+        this.camera.setZoomToPointer(on || this.#geoFrame() !== null);
+    }
+
+    /**
+     * The geographic frame the active layout published, or null under any other layout.
+     * @returns The frame.
+     */
+    #geoFrame(): LocationMapFrame | null {
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        return engine?.geoFrame ?? null;
+    }
+
+    /** Whether the graph is now drawn over a map: casing on, edges under nodes. */
+    #overMap = false;
+
+    /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
+    readonly #edgeMeshes = new Set<AbstractMesh>();
+
+    /** The meshes the nodes are drawn from (an instance draws through its source), likewise. */
+    readonly #nodeMeshes = new Set<AbstractMesh>();
+
+    /**
+     * While a map is drawn: nodes and edges no layer outlined get a light casing (unless
+     * `basemap.casing` is false), and nodes are drawn after edges with edges writing no depth, so
+     * an arc passing in front of a node never hides it. Undone when the map goes.
+     * @param frame - The active geographic frame, or null.
+     * @param basemap - The basemap setting.
+     */
+    #drawOverMap(frame: LocationMapFrame | null, basemap: BasemapConfig | undefined): void {
+        const mapped = frame !== null;
+        const casing =
+            mapped &&
+            basemap?.casing !== false &&
+            !(basemap !== undefined && "source" in basemap && basemap.source === "none");
+        this.stylePainter.setCasing(casing, this.dataManager.nodes.size, this.dataManager.edges.size);
+        this.#edgeMeshes.clear();
+        this.#nodeMeshes.clear();
+        if (mapped) {
+            for (const node of this.dataManager.nodes.values()) {
+                const { mesh } = node;
+                this.#nodeMeshes.add("sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh);
+            }
+        }
+
+        for (const batch of this.dataManager.meshCache.batchCacheMap.values()) {
+            this.#edgeMeshes.add(batch.mesh);
+            const { material } = batch.mesh;
+            if (material !== null && material.disableDepthWrite !== mapped) {
+                material.disableDepthWrite = mapped;
+            }
+        }
+
+        if (mapped === this.#overMap) {
+            return;
+        }
+
+        this.#overMap = mapped;
+        const rank = (mesh: AbstractMesh): number => {
+            if (mesh.name.startsWith("graphty-flat-map") || mesh.name.startsWith("graphty-globe")) {
+                return 1;
+            }
+
+            if (this.#edgeMeshes.has(mesh)) {
+                return 2;
+            }
+
+            return this.#nodeMeshes.has(mesh) ? 3 : 0;
+        };
+        // Everything else in Babylon's own order (as with no map), then the map, then the edges,
+        // then the nodes over them.
+        this.scene.setRenderingOrder(
+            0,
+            mapped ? (a, b) => rank(a.getMesh()) - rank(b.getMesh()) || RenderingGroup.PainterSortCompare(a, b) : null,
+        );
+        this.renderManager.requestFrame();
+    }
+
+    /** The frame the camera last followed; see {@link #followFrame}. */
+    #followedFrame: LocationMapFrame | null = null;
+
+    /**
+     * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
+     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii).
+     * @param frame - The frame now active, or null.
+     */
+    #followFrame(frame: LocationMapFrame | null): void {
+        this.camera.setZoomToPointer(this.#zoomToPointer || frame !== null);
+        const orbit = this.camera.getActiveController();
+        if (orbit instanceof OrbitCameraController) {
+            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
+            orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
+        }
+    }
+
+    /**
+     * How long the camera takes to move to a view it is sent to, in milliseconds; see
+     * {@link setCameraTransitionDuration}.
+     * @returns The duration, or undefined when each move keeps its own.
+     */
+    getCameraTransitionDuration(): number | undefined {
+        return this.#cameraTransitionMs;
+    }
+
+    /**
+     * How long every animated camera move takes -- a fit, a preset view, a glide to a picked node --
+     * in milliseconds, whatever the move asked for. 0 moves the camera at once, which a page sets
+     * when its reader prefers reduced motion. Undefined (the default) lets each move keep its own.
+     * A preference of the view, not saved in a project file.
+     * @param ms - The duration, or undefined.
+     * @since 3.31.0
+     */
+    setCameraTransitionDuration(ms: number | undefined): void {
+        this.#cameraTransitionMs = ms === undefined ? undefined : Math.max(0, ms);
+        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+    }
+
+    /** See {@link setCameraTransitionDuration}. */
+    #cameraTransitionMs: number | undefined = undefined;
+
+    /**
+     * Where the active map layout read its locations, and how it lays the map, as plain facts:
+     * the surface, the box or the globe's radius, the location columns (with the half of a pair
+     * it found itself) or the location column and its format, and the nodes it could not place.
+     * Null when no map layout has published a frame.
+     * @returns The facts.
+     * @since 3.31.0
+     */
+    get mapFrame(): MapFrameFact | null {
+        const frame = this.#geoFrame();
+        if (frame === null) {
+            return null;
+        }
+
+        const common = {
+            dimensions: frame.dimensions,
+            location: frame.location,
+            unplaced: [...frame.unplacedIds] as readonly (string | number)[],
+            warnings: frame.warnings,
+        };
+        return frame.surface === "globe"
+            ? { ...common, surface: "globe", radius: frame.radius }
+            : { ...common, surface: "flat", projection: frame.projection, bounds: frame.bounds, size: frame.size };
     }
 
     /**
@@ -5724,8 +5893,13 @@ export class Graph implements GraphContext {
             this.#initialCameraStateOwed = false;
         }
 
-        // For immediate (non-animated) updates or skipQueue, apply directly
-        if (!options || !options.animate || options.skipQueue) {
+        // The view's own transition time, when set, wins over the move's.
+        if (options !== undefined && this.#cameraTransitionMs !== undefined) {
+            options = { ...options, duration: this.#cameraTransitionMs };
+        }
+
+        // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly
+        if (!options || !options.animate || options.skipQueue || options.duration === 0) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
             this.eventManager.emit("camera-state-changed", { state: resolvedState });
@@ -6689,7 +6863,14 @@ export class Graph implements GraphContext {
                 ? this.getNodes()
                 : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
 
-        return measureBounds(nodes.map((node) => node.getPosition()));
+        const points = nodes.map((node) => node.getPosition());
+        // The whole graph on a map is the map too: its edges, or the globe.
+        const frame = nodeIds === undefined ? this.#geoFrame() : null;
+        if (frame !== null && points.length > 0) {
+            points.push(...mapCorners(frame));
+        }
+
+        return measureBounds(points);
     }
 
     /**

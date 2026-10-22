@@ -64,7 +64,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, recommendLayout } from "./layout";
+import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -1010,6 +1010,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * Which layout suits the graph this session holds, locations included.
+     * @returns The recommendation.
+     */
+    recommendLayout(): LayoutRecommendation | undefined {
+        return recommendLayout(this.data.statistics(), {
+            placedNodes: this.seededNodeCount,
+            locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
+        });
+    }
+
+    /**
      * What one command would do, what it would cost, and whether it would be allowed.
      *
      * A promise, because the commands that arrive after this one have to walk the graph to
@@ -1293,8 +1304,19 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
         },
+        optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
+            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            return Object.freeze({
+                inEffect: !ignored,
+                code: ignored ? "setting.notIn2d" : "setting.inEffect",
+                params: Object.freeze({ setting: option }),
+            });
+        },
     });
 }
+
+/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
+const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
@@ -3351,6 +3373,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
+        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
@@ -3369,6 +3392,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
             attributes: () => data.attributes(),
             results: () => results,
+            nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
         readProject,
         controller: acceleration.controller,

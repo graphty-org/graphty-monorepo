@@ -86,6 +86,8 @@ export type {
     ImageData,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -273,6 +275,7 @@ export { definePalette } from "./src/simple/definePalette";
 // =============================================================================
 export type {
     AiEventType,
+    BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,

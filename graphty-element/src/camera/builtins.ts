@@ -188,7 +188,8 @@ function fitToGraph(input: CameraViewInput): CameraState {
     const room = Math.min(free.width, free.height);
     const fov = input.fov ?? DEFAULT_FOV;
     const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
-    if (keptAngle !== undefined) {
+    // A kept angle that sees a one-sided drawing (a map) from behind is not kept.
+    if (keptAngle !== undefined && !seenFromBehind(input)) {
         return farther(keptAngle, room);
     }
 
@@ -216,6 +217,64 @@ function fitToGraph(input: CameraViewInput): CameraState {
 }
 
 /**
+ * Whether the camera now sees a one-sided drawing from its back: the camera stands on the other
+ * side of the drawing from the side it faces.
+ * @param input - Where the camera is, and the drawing's facing.
+ * @returns True when it does; false with no facing or no current position.
+ */
+function seenFromBehind(input: CameraViewInput): boolean {
+    const { facing, current, bounds } = input;
+    if (facing === undefined || current.position === undefined) {
+        return false;
+    }
+
+    const { center } = bounds;
+    const toCamera =
+        (current.position.x - center.x) * facing.x +
+        (current.position.y - center.y) * facing.y +
+        (current.position.z - center.z) * facing.z;
+    return toCamera < 0;
+}
+
+/**
+ * The directions the preset views take on a one-sided drawing (a map or a globe), from the
+ * drawing toward the viewer, given the side it faces (`facing`) and north up (+y): Top looks
+ * straight at its face, Side is a low view from the south, Isometric an oblique view from the
+ * front, a little east and south.
+ * @param facing - The side the drawing faces.
+ * @param view - Which view.
+ * @returns The direction.
+ */
+function facedDirection(
+    facing: NonNullable<CameraViewInput["facing"]>,
+    view: "top" | "side" | "isometric",
+): { x: number; y: number; z: number } {
+    const [east, south, out] = { top: [0, 0, 1], side: [0, 0.906, 0.423], isometric: [0.4, 0.55, 0.73] }[view];
+    return { x: facing.x * out + east, y: facing.y * out - south, z: facing.z * out };
+}
+
+/**
+ * A preset view of a one-sided drawing, framing all of it from its direction.
+ * @param input - The box, the facing and the camera.
+ * @param view - Which view.
+ * @returns The state, or undefined in 2D or for a drawing that looks the same from every side.
+ */
+function facedView(input: CameraViewInput, view: "top" | "side" | "isometric"): CameraState | undefined {
+    if (input.mode === "2d" || input.facing === undefined) {
+        return undefined;
+    }
+
+    const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
+    const state = fromDirection(input, input.fov ?? DEFAULT_FOV, facedDirection(input.facing, view));
+    if (state === undefined) {
+        return undefined;
+    }
+
+    const { pivotRotation: _turn, ...straight } = state;
+    return farther(straight, Math.min(free.width, free.height));
+}
+
+/**
  * Move an orbit state back along its line of sight, so the box fits a smaller free area.
  * @param state - A state with a position and a target.
  * @param room - The free share of the viewport, 1 for all of it.
@@ -239,12 +298,17 @@ function farther(state: CameraState, room: number): CameraState {
 }
 
 /**
- * Look straight down at the graph, which is the natural view for a flat arrangement.
+ * Look straight down at the graph, which is the natural view for a flat arrangement. On a map
+ * or a globe in 3D, straight at its face.
  * @param input - The box to frame and the drawing mode.
  * @returns The state that looks down the y axis.
  */
 function topView(input: CameraViewInput): CameraState {
     const { center } = input.bounds;
+    const faced = facedView(input, "top");
+    if (faced !== undefined) {
+        return faced;
+    }
 
     if (input.mode === "2d") {
         // Flat drawing already looks straight down, so the only thing left to decide is where the
@@ -267,12 +331,18 @@ function topView(input: CameraViewInput): CameraState {
 }
 
 /**
- * Look along the x axis, which shows how deep an arrangement is.
+ * Look along the x axis, which shows how deep an arrangement is. On a map or a globe in 3D, a low
+ * view from the south.
  * @param input - The box to frame.
  * @returns The state that looks along the x axis.
  */
 function sideView(input: CameraViewInput): CameraState {
     const { center } = input.bounds;
+    const faced = facedView(input, "side");
+    if (faced !== undefined) {
+        return faced;
+    }
+
     const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;
 
     return {
@@ -301,11 +371,17 @@ function frontView(input: CameraViewInput): CameraState {
 }
 
 /**
- * The classic three-quarter view: 45 degrees around and about 35 degrees up.
+ * The classic three-quarter view: 45 degrees around and about 35 degrees up. On a map or a globe in
+ * 3D, an oblique view from its front.
  * @param input - The box to frame.
  * @returns The state, expressed as orbit angles rather than as a position.
  */
 function isometric(input: CameraViewInput): CameraState {
+    const faced = facedView(input, "isometric");
+    if (faced !== undefined) {
+        return faced;
+    }
+
     return {
         type: "arcRotate",
         alpha: Math.PI / 4,

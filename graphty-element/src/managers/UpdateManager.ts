@@ -5,9 +5,10 @@ import {
     type Mesh,
     type Nullable,
     type Observer,
+    Quaternion,
     type Scene,
     type TransformNode,
-    type Vector3,
+    Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
@@ -16,10 +17,12 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -1040,8 +1043,13 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        // The depth-independent size switched on or off and not yet applied to the meshes.
-        if ((this.depthSizingPivot() !== null) !== this.depthScaled) {
+        // The depth-independent size switched on or off and not yet applied to the meshes, or the
+        // screen size on a map changed with the camera since the meshes were scaled.
+        if ((this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled) {
+            return false;
+        }
+
+        if (this.screenSizingScale() !== this.screenScaled) {
             return false;
         }
 
@@ -1192,6 +1200,19 @@ export class UpdateManager implements Manager {
         }
     }
 
+    /** The selection the reader moved the camera away from, which the camera then stops following. */
+    private heldSelection: string | null = null;
+
+    /**
+     * The reader moved the camera themselves (a pan, a zoom, a turn): stop following the selection
+     * there is now, so the camera stays where they put it, until the selection changes.
+     */
+    holdSelectionFollow(): void {
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
+        this.followingSelection = false;
+    }
+
     /**
      * With `camera.pivotOnSelection` on, hands the camera the plain average of the selected
      * nodes' positions to pivot on, every frame, so it follows them while they move.
@@ -1210,6 +1231,15 @@ export class UpdateManager implements Manager {
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
             return;
         }
+
+        // The reader moved the camera since this selection was made: a pan or a zoom elsewhere is
+        // theirs to keep, until they select something else.
+        const key = selectionKey(nodes);
+        if (key === this.heldSelection) {
+            return;
+        }
+
+        this.heldSelection = null;
 
         if (this.willZoomToFit()) {
             // The glide starts on the pass after the framing ends, so the frame the framing ends
@@ -1652,6 +1682,12 @@ export class UpdateManager implements Manager {
         return true;
     }
 
+    /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
+    private screenScaled: number | null = null;
+
+    /** The map frame the camera last turned to face, so a new map is faced once. */
+    private facedFrame: LocationMapFrame | null = null;
+
     /** Whether a node mesh currently carries a depth-independent scale. */
     private depthScaled = false;
 
@@ -1671,11 +1707,39 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The scale that holds every node at one size on screen while the location map layout runs
+     * with `nodeScale: "screen"`: a node of size 1 is drawn as one scene unit is when the map's
+     * extent fills the view's height, whatever the zoom. Null when the layout does not ask for it.
+     * @returns The scale, or null.
+     */
+    private screenSizingScale(): number | null {
+        const engine = this.layoutManager.layoutEngine as
+            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string } } | undefined;
+        const frame = engine?.geoFrame;
+        const camera = this.graphContext.getScene().activeCamera;
+        if (frame === undefined || frame === null || engine?.config?.nodeScale !== "screen" || camera === null) {
+            return null;
+        }
+
+        const span = frame.surface === "flat" ? frame.size : 2 * frame.radius;
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            const height = (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0);
+            return height > 0 ? height / span : null;
+        }
+
+        const orbit = this.camera.getActiveController();
+        const target = orbit instanceof OrbitCameraController ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
+        const distance = Vector3.Distance(camera.globalPosition, target);
+        return distance > 0 ? (2 * distance * Math.tan(camera.fov / 2)) / span : null;
+    }
+
+    /**
      * Draw every node at the size it would have at the orbit's pivot depth when
      * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
      * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
      * divides by the depth, so the drawn size is world size over the pivot depth for every node.
-     * Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     * On a map with `nodeScale: "screen"` every node is scaled too, so it keeps its size on screen
+     * as the camera zooms. Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
      *
      * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
      * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
@@ -1684,7 +1748,9 @@ export class UpdateManager implements Manager {
     private sizeNodesForDepth(): boolean {
         const camera = this.graphContext.getScene().activeCamera;
         const pivot = this.depthSizingPivot();
-        const on = pivot !== null;
+        const screen = this.screenSizingScale();
+        this.screenScaled = screen;
+        const on = pivot !== null || screen !== null;
 
         if (!on && !this.depthScaled) {
             return false;
@@ -1706,15 +1772,19 @@ export class UpdateManager implements Manager {
         const view = camera?.getViewMatrix().m;
         const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
         this.depthScaled = true;
-        const reference = depthOf(pivot.getAbsolutePosition());
+        const reference = pivot === null ? 1 : depthOf(pivot.getAbsolutePosition());
         if (Number.isNaN(reference) || reference <= 0) {
             return false;
         }
 
         for (const node of this.layoutManager.nodes) {
             const { mesh } = node;
-            const depth = depthOf(mesh.getAbsolutePosition());
-            const scale = depth > 0 ? depth / reference : 1;
+            let scale = screen ?? 1;
+            if (pivot !== null) {
+                const depth = depthOf(mesh.getAbsolutePosition());
+                scale *= depth > 0 ? depth / reference : 1;
+            }
+
             if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
                 mesh.scaling.setAll(scale);
                 changed = true;
@@ -1977,7 +2047,24 @@ export class UpdateManager implements Manager {
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
-        const { min: boundingBoxMin, max: boundingBoxMax } = box;
+        let { min: boundingBoxMin, max: boundingBoxMax } = box;
+        // On a map the map is framed too, and a new map is faced: seen from behind it is a mirror.
+        const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame ?? null;
+        if (frame !== null) {
+            for (const corner of mapCorners(frame)) {
+                boundingBoxMin = Vector3.Minimize(boundingBoxMin, corner);
+                boundingBoxMax = Vector3.Maximize(boundingBoxMax, corner);
+            }
+
+            const orbit = this.camera.getActiveController();
+            if (frame !== this.facedFrame && frame.dimensions === 3 && orbit instanceof OrbitCameraController) {
+                orbit.pivot.rotationQuaternion = Quaternion.Identity();
+            }
+
+            this.facedFrame = frame;
+        }
+
         const size = boundingBoxMax.subtract(boundingBoxMin);
 
         if (size.length() <= this.config.minBoundingBoxSize) {
@@ -2035,4 +2122,13 @@ export class UpdateManager implements Manager {
     updateConfig(config: Partial<UpdateManagerConfig>): void {
         Object.assign(this.config, config);
     }
+}
+
+/**
+ * A selection as text, to tell one selection from another.
+ * @param nodes - The selected nodes.
+ * @returns Their ids, joined.
+ */
+function selectionKey(nodes: readonly Node[]): string {
+    return nodes.map((node) => String(node.id)).join("\u0000");
 }

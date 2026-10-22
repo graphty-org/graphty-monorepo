@@ -35,6 +35,7 @@ import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
+import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -53,6 +54,7 @@ import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LitElement } from 'lit';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
+import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
@@ -66,6 +68,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
@@ -425,6 +428,11 @@ export interface BaseDataSourceConfig {
 export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     source: z.ZodType<BasemapSourceId>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     tiles: z.ZodString;
     attribution: z.ZodString;
@@ -437,6 +445,11 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     maxZoom: z.ZodOptional<z.ZodNumber>;
     subdomains: z.ZodOptional<z.ZodArray<z.ZodString>>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     image: z.ZodString;
     bounds: z.ZodOptional<z.ZodTuple<[z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>], null>>;
@@ -446,6 +459,11 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
     }>>;
     attribution: z.ZodOptional<z.ZodString>;
     attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>]>;
 
 // @public
@@ -459,6 +477,22 @@ export interface BasemapStatus {
     readonly attribution: readonly string[];
     readonly source: string;
     readonly state: "off" | "loading" | "ready" | "fallback";
+}
+
+// @public
+export interface BasemapStatusEvent {
+    attribution: readonly string[];
+    error?: {
+        readonly code: "E_BASEMAP_UNREACHABLE";
+        readonly params: {
+            readonly source: string;
+            readonly status: number | null;
+        };
+    };
+    source: string;
+    state: "off" | "loading" | "ready" | "fallback";
+    // (undocumented)
+    type: "basemap-status";
 }
 
 // @public
@@ -2307,6 +2341,7 @@ export class Graph implements GraphContext {
         builtin: true;
     }>;
     getCameraState(): CameraState;
+    getCameraTransitionDuration(): number | undefined;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     getEdgeCount(): number;
@@ -2382,6 +2417,7 @@ export class Graph implements GraphContext {
     }): Promise<{
         loadId: number;
     }>;
+    get mapFrame(): MapFrameFact | null;
     // @deprecated
     needRays: boolean;
     // @deprecated
@@ -2427,6 +2463,7 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
+    setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setBasemap(basemap: BasemapConfig | undefined): void;
@@ -2448,6 +2485,7 @@ export class Graph implements GraphContext {
         y: number;
         z: number;
     }, options?: CameraAnimationOptions): Promise<void>;
+    setCameraTransitionDuration(ms: number | undefined): void;
     setCameraZoom(zoom: number, options?: CameraAnimationOptions): Promise<void>;
     setData(data: {
         nodes: Record<string, unknown>[];
@@ -2622,7 +2660,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2692,6 +2730,8 @@ export class Graphty extends LitElement {
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
     attributeChangedCallback(name: string, old: string | null, value: string | null): void;
+    get attributionOffset(): number;
+    set attributionOffset(value: number);
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get autoRotate(): number;
@@ -2710,6 +2750,8 @@ export class Graphty extends LitElement {
     get basemapStatus(): BasemapStatus;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
     get cameraPlaced(): boolean;
+    get cameraTransitionDuration(): number | undefined;
+    set cameraTransitionDuration(value: number | undefined);
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
@@ -2850,6 +2892,7 @@ export class Graphty extends LitElement {
     }): Promise<{
         loadId: number;
     }>;
+    get mapFrame(): MapFrameFact | null;
     get nodeData(): Record<string, unknown>[] | undefined;
     set nodeData(value: Record<string, unknown>[] | undefined);
     get nodeIdPath(): string | undefined;
@@ -3700,19 +3743,24 @@ export type GraphtyWarningCode =
 /**
 * The `location-map` layout found no usable location for some nodes, and put them in its tray
 * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
-* values no location format reads, `params.total` every node, and `params.samples` up to eight
-* `{ id, value, code }` (code `syntax` or `short-code`).
+* values no location format reads, `params.outOfRange` values out of range (see
+* `W_LOCATION_OUT_OF_RANGE`), `params.unplaced` all of them together, `params.total` every
+* node, `params.ids` the unplaced nodes' ids (so a count can select them), and
+* `params.samples` up to eight `{ id, value, code }` (code `syntax` or `short-code`).
 */
 | "W_LOCATION_UNPARSED"
 /**
-* The `location-map` layout read locations whose latitude is beyond +/-90 degrees or longitude
-* beyond +/-180. `params.count` and up to eight `params.samples` `{ id, value, code }`.
+* The `location-map` layout read locations it cannot place: latitude beyond +/-90 degrees or
+* longitude beyond +/-180, or on a flat Web Mercator map a latitude past +/-85.05, which that
+* projection cannot show. They go to the tray. `params.count`, `params.unplaced` (every
+* unplaced node, these included), `params.total`, `params.ids` and up to eight
+* `params.samples` `{ id, value, code }`.
 */
 | "W_LOCATION_OUT_OF_RANGE"
 /**
 * The `location-map` layout's `format: "auto"` found more than one format that reads the
-* column about as well, and used the first. `params.formats` (the one used first) and
-* `params.column`.
+* column about as well, and used the first: a decimal pair that reads as well longitude first
+* (`lon-lat`) is the common case. `params.formats` (the one used first) and `params.column`.
 */
 | "W_LOCATION_AMBIGUOUS"
 /**
@@ -4051,6 +4099,18 @@ export { listSources }
 export { LoadFromSourceOptions }
 
 // @public
+export type LocationSourceFact = {
+    readonly kind: "columns";
+    readonly latitude: string;
+    readonly longitude: string;
+    readonly filled: "latitude" | "longitude" | null;
+} | {
+    readonly kind: "location";
+    readonly column: string;
+    readonly format: LocationFormat;
+};
+
+// @public
 export interface Manager {
     dispose(): void;
     init(): Promise<void>;
@@ -4072,6 +4132,25 @@ export interface ManagerContext {
     // (undocumented)
     scene: Scene;
 }
+
+// @public
+export type MapFrameFact = {
+    readonly dimensions: 2 | 3;
+    readonly location: LocationSourceFact;
+    readonly unplaced: readonly (string | number)[];
+    readonly warnings: readonly {
+        readonly code: string;
+        readonly params: Readonly<Record<string, unknown>>;
+    }[];
+} & ({
+    readonly surface: "flat";
+    readonly projection: ProjectionId;
+    readonly bounds: GeoBounds;
+    readonly size: number;
+} | {
+    readonly surface: "globe";
+    readonly radius: number;
+});
 
 // @public
 export interface MarkSuggestion {
@@ -6412,6 +6491,7 @@ export class UpdateManager implements Manager {
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
     getRenderFrameCount(): number;
+    holdSelectionFollow(): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;

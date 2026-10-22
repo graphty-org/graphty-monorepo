@@ -418,11 +418,13 @@ async function main() {
     const passes = passed(planned, main);
     const shards = passes.run;
     if (shards.length === 0) {
-        console.log(
-            gated.length === 0
-                ? "No affected package has a test shard to run here."
-                : "Every shard already passed on these inputs.",
-        );
+        let why = "Every shard already passed on these inputs.";
+        if (gated.length === 0) {
+            why = "No affected package has a test shard to run here.";
+        } else if (planned.length === 0) {
+            why = "The test selection runs no shard: no test reaches this change.";
+        }
+        console.log(why);
         return;
     }
     const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");

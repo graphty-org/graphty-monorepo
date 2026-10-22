@@ -1,0 +1,17 @@
+{
+ "commit": "52cb47a85a258a1d376f157341b7f74fb7ef94e9",
+ "toolCommit": "d8ab81d4e2c49764f26a10008327d0fad7651186",
+ "uncommittedChanges": false,
+ "buildStamp": "52cb47a85a25 graphty@0.8.68",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-19T05:05:36.683Z",
+ "setup": [],
+ "task": null,
+ "followUp": "none"
+}

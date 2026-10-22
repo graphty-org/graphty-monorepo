@@ -9,6 +9,7 @@ export default {
         "Graph.render",
         "Graph.update",
         "Graphty.render",
+        "Graphty.update",
         "LayoutManager.updateStyles",
         "StylesApi.highlight",
         "StylesApi.mark",

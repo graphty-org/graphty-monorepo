@@ -19,6 +19,9 @@
  * was a sentence in a channel caveat. They are gone rather than kept as a promise nothing keeps.
  */
 
+import { DEFAULT_LABEL_GRADIENT_COLORS, defaultRichTextLabelStyle } from "../config/RichTextStyle";
+import type { LabelLookId } from "./label-looks";
+
 /**
  * Where a label sits relative to the node or edge it belongs to: beyond a side or a corner of it, in its middle
  * (`center`), or inside a node against a side or in a corner (`inside-top`, `inside-top-right`, ...), as a group's
@@ -89,6 +92,16 @@ export type LabelSizeMode = "world" | "screen";
 
 /** How a label is drawn. */
 export interface LabelStyle {
+    /**
+     * A named look this label starts from, such as `"card"`: one of `LABEL_LOOKS`.
+     *
+     * The look's fields are painted as if this layer wrote them, and every other field here wins
+     * over the look's. Write the look plus only the fields that differ from it;
+     * `labelLookChanges` lists which those are.
+     * @since 3.26.0
+     */
+    look?: LabelLookId;
+
     /**
      * Whether the label is drawn at all.
      *
@@ -327,6 +340,22 @@ export interface LabelStyle {
     depthFadeNear?: number;
     /** How far away the camera has to be for the label to have faded out entirely. */
     depthFadeFar?: number;
+    /**
+     * Whether the label is drawn over the whole graph rather than sorted by depth with it.
+     *
+     * Off by default: a node or an edge nearer the camera passes in front of the label, as it
+     * passes in front of any other node. On, nothing in the graph covers the label -- a name
+     * behind a nearer sphere, or under a selected edge's band, stays whole.
+     */
+    onTop?: boolean;
+    /**
+     * Whether a click on a node's label counts as a click on that node.
+     *
+     * Off by default: the label takes the click and answers no node, so a click on a name
+     * selects nothing and `elementAt` there returns nothing. On, a click, a hover, a drag and
+     * `elementAt` on the label all answer the node it labels. An edge's label is not affected.
+     */
+    pickable?: boolean;
 
     /** A badge drawn in place of, or beside, the words. */
     badge?: LabelBadge;
@@ -358,13 +387,6 @@ export interface LabelStyle {
      * @since 3.29.0
      */
     closeButton?: boolean;
-
-    /**
-     * Whether the label is drawn over the whole graph, as a tooltip is, instead of sorting by depth
-     * with it. On, no nearer node or edge passes in front of it. Off by default.
-     * @since 3.29.0
-     */
-    onTop?: boolean;
 }
 
 /**
@@ -377,6 +399,7 @@ export interface LabelStyle {
  * fails to compile, and naming one that is not on the interface fails too.
  */
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
+    look: 0,
     enabled: 0,
     font: 0,
     sizePx: 0,
@@ -447,6 +470,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     depthFade: 0,
     depthFadeNear: 0,
     depthFadeFar: 0,
+    pickable: 0,
     badge: 0,
     icon: 0,
     iconPosition: 0,
@@ -456,3 +480,122 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     overflowSuffix: 0,
     closeButton: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];
+
+/**
+ * Which rich-text key each label field is written to, where the only difference is the name.
+ *
+ * A TABLE RATHER THAN A LADDER OF IFS, because the ladder is what rotted. Each `if` had to be
+ * written by hand, so the seven that existed when channels were introduced stayed seven while
+ * `RichTextLabel` went on drawing margins, pointers, badges, shadows and depth fade that no
+ * layer could ask for -- and seventeen stories were deleted rather than migrated because of it.
+ * The fields that are NOT a plain rename are handled beneath this, and every one of them is
+ * covered by a case in `test/session/styles/label-style.test.ts`.
+ * @internal
+ */
+export const RICH_TEXT_KEYS = {
+    enabled: "enabled",
+    font: "font",
+    sizePx: "fontSize",
+    sizeMode: "sizeMode",
+    size: "size",
+    letterSize: "letterSize",
+    wrapWidth: "wrapWidth",
+    wrapTrailingSpace: "wrapTrailingSpace",
+    wrapEllipsis: "wrapEllipsis",
+    wrapAnywhere: "wrapAnywhere",
+    wrapSpaceCount: "wrapSpaceCount",
+    runAlign: "runAlign",
+    rotation: "rotation",
+    color: "textColor",
+    lineHeight: "lineHeight",
+    minScreenSize: "minScreenSize",
+    minNodeScreenSize: "minNodeScreenSize",
+    declutter: "declutter",
+    onTop: "onTop",
+    textAlign: "textAlign",
+    opacity: "textOpacity",
+    background: "backgroundColor",
+    backgroundOpacity: "backgroundOpacity",
+    padding: "backgroundPadding",
+    boxPadding: "boxPadding",
+    cornerRadius: "cornerRadius",
+    borderWidth: "borderWidth",
+    borderColor: "borderColor",
+    borderOpacity: "borderOpacity",
+    gradient: "backgroundGradient",
+    gradientType: "backgroundGradientType",
+    gradientDirection: "backgroundGradientDirection",
+    location: "location",
+    attachOffset: "attachOffset",
+    offsetX: "offsetX",
+    offsetY: "offsetY",
+    shiftX: "shiftX",
+    shiftY: "shiftY",
+    keepInView: "keepInView",
+    marginTop: "marginTop",
+    marginBottom: "marginBottom",
+    marginLeft: "marginLeft",
+    marginRight: "marginRight",
+    pointer: "pointer",
+    pointerDirection: "pointerDirection",
+    pointerWidth: "pointerWidth",
+    pointerHeight: "pointerHeight",
+    pointerOffset: "pointerOffset",
+    pointerCurve: "pointerCurve",
+    outlineWidth: "textOutlineWidth",
+    outlineOpacity: "textOutlineOpacity",
+    shadow: "textShadow",
+    shadowColor: "textShadowColor",
+    shadowBlur: "textShadowBlur",
+    shadowOffsetX: "textShadowOffsetX",
+    shadowOffsetY: "textShadowOffsetY",
+    panelShadow: "panelShadow",
+    panelShadowColor: "panelShadowColor",
+    panelShadowBlur: "panelShadowBlur",
+    panelShadowOffsetX: "panelShadowOffsetX",
+    panelShadowOffsetY: "panelShadowOffsetY",
+    animation: "animation",
+    animationSpeed: "animationSpeed",
+    depthFade: "depthFadeEnabled",
+    depthFadeNear: "depthFadeNear",
+    depthFadeFar: "depthFadeFar",
+    badge: "badge",
+    icon: "icon",
+    iconPosition: "iconPosition",
+    progress: "progress",
+    smartOverflow: "smartOverflow",
+    maxNumber: "maxNumber",
+    overflowSuffix: "overflowSuffix",
+    closeButton: "closeButton",
+    pickable: "pickable",
+} as const satisfies Partial<Record<keyof LabelStyle, string>>;
+
+/**
+ * What a label draws for each field no layer and no look sets: the element's own defaults, in the
+ * label vocabulary. `enabled` is left out (a label with words is drawn whatever its default), and
+ * so are the fields whose absence draws nothing (`background`, `outline`, `badge`, `icon`,
+ * `progress`).
+ *
+ * An application shows these where a field is not set, so the reader sees the value that is
+ * drawn rather than the word "Default".
+ * @since 3.26.0
+ * @example
+ * ```ts
+ * import { LABEL_STYLE_DEFAULTS } from "@graphty/graphty-element/catalog";
+ * LABEL_STYLE_DEFAULTS.font; // "Verdana"
+ * LABEL_STYLE_DEFAULTS.marginTop; // 5
+ * ```
+ */
+export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
+    ...(Object.fromEntries(
+        Object.entries(RICH_TEXT_KEYS).flatMap(([field, key]) => {
+            const value: unknown = (defaultRichTextLabelStyle as Record<string, unknown>)[key];
+            return field === "enabled" || value === undefined ? [] : [[field, value]];
+        }),
+    ) as LabelStyle),
+    weight: defaultRichTextLabelStyle.fontWeight === "bold" ? "bold" : "normal",
+    sizeMode: "world",
+    onTop: defaultRichTextLabelStyle.onTop ?? false,
+    pickable: defaultRichTextLabelStyle.pickable ?? false,
+    gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
+});

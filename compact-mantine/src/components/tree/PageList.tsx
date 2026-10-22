@@ -136,7 +136,7 @@ export interface PageListItem {
      * The row's own control -- usually a "More" button opening a Menu -- drawn after the row in
      * a cell of its own, so a click on it never switches to the page. Name the button after
      * the row ("More for Les Miserables"). ArrowRight on a row moves into it and ArrowLeft
-     * moves back.
+     * moves back; the menu key or Shift+F10 presses it.
      */
     menu?: React.ReactNode;
 }
@@ -164,10 +164,52 @@ export interface PageListProps {
 }
 
 /**
+ * ArrowLeft from inside a row's menu goes back to the row.
+ * @param event - the key press
+ * @param menuCell - the row's menu cell the key was pressed in
+ */
+function leaveRowMenu(event: React.KeyboardEvent, menuCell: Element): void {
+    if (event.key !== "ArrowLeft") {
+        return;
+    }
+    const cell = menuCell.parentElement?.querySelector<HTMLElement>(".cm-page-cell");
+    if (cell) {
+        event.preventDefault();
+        cell.focus();
+    }
+}
+
+/**
+ * Move from a row into its menu: ArrowRight moves focus there; the menu key and Shift+F10 also
+ * open it.
+ * @param event - the key press, ArrowRight, ContextMenu or F10
+ * @param target - the row's cell
+ * @returns whether the key was answered
+ */
+function enterRowMenu(event: React.KeyboardEvent, target: HTMLElement): boolean {
+    if (event.key === "F10" && !event.shiftKey) {
+        return false;
+    }
+    const control = target.parentElement
+        ?.querySelector(".cm-page-menu")
+        ?.querySelector<HTMLElement>("button, a[href], input, select, [tabindex]");
+    if (!control) {
+        return false;
+    }
+    control.focus();
+    // The menu key and Shift+F10 open the row's menu; ArrowRight only moves into it.
+    if (event.key !== "ArrowRight") {
+        control.click();
+    }
+    return true;
+}
+
+/**
  * A page list (design/figma-spec.md 10.2): Figma's own accessible model, a one-column grid with
  * one Tab stop. ArrowUp / ArrowDown / Home / End move focus without switching; Enter, Space or a
  * click switches; F2 or a double-click renames when `onRename` is given. A row can carry a second
- * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu. The
+ * line, a trailing value and a row menu (see PageListItem); ArrowRight moves into the menu, and
+ * the menu key or Shift+F10 opens it. The
  * menu's controls are taken out of the Tab order, so the list stays one Tab stop.
  * @param props - Component props
  * @param props.items - The items or pages
@@ -250,13 +292,7 @@ export function PageList({
         // ArrowLeft from inside a row's menu goes back to the row.
         const menuCell = target.closest(".cm-page-menu");
         if (menuCell !== null) {
-            if (event.key === "ArrowLeft") {
-                const cell = menuCell.parentElement?.querySelector<HTMLElement>(".cm-page-cell");
-                if (cell) {
-                    event.preventDefault();
-                    cell.focus();
-                }
-            }
+            leaveRowMenu(event, menuCell);
             return;
         }
         if (target.getAttribute("role") !== "gridcell" || tabId === null) {
@@ -276,16 +312,13 @@ export function PageList({
             case "End":
                 focus(pages[pages.length - 1]?.id);
                 break;
-            case "ArrowRight": {
-                const control = target.parentElement
-                    ?.querySelector(".cm-page-menu")
-                    ?.querySelector<HTMLElement>("button, a[href], input, select, [tabindex]");
-                if (!control) {
+            case "ArrowRight":
+            case "ContextMenu":
+            case "F10":
+                if (!enterRowMenu(event, target)) {
                     return;
                 }
-                control.focus();
                 break;
-            }
             case "Enter":
             case " ":
                 setValue(tabId, event);

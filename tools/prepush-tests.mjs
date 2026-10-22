@@ -17,15 +17,16 @@
  *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
  *   whose policy is "never" never runs here. CI runs them all either way.
  *
- * A shard that already PASSED on this branch with byte-identical inputs -- its package's files and
- * those of every package it depends on or reads, their build outputs, the root files, the Node
- * version (tools/prepush-inputs.mjs) -- is skipped with a [SKIP] line saying when and on which commit
- * it passed. So a push after a failed gate re-runs the shard that failed and every shard whose inputs
- * changed, and nothing else. Passes are kept per branch in <main checkout>/tmp/prepush-passes/;
+ * A shard that already PASSED with byte-identical inputs, on any branch -- its package's files and
+ * those of every package it depends on or reads, their build outputs, the root files, the installed
+ * lockfile, the gate's version, the Node version (tools/prepush-inputs.mjs) -- is skipped with a
+ * [SKIP] line saying when, on which branch and on which commit it passed. So a push after a failed
+ * gate re-runs the shard that failed and every shard whose inputs changed, and nothing else, and a
+ * landing reuses what its branch passed. Passes are kept in <main checkout>/tmp/prepush-passes/shard/;
  * PREPUSH_RERUN_ALL=1 runs every shard.
  *
- * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
- * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
+ * Shards run side by side: browser shards each take one slot of tools/with-browser.sh (the machine's
+ * shared cap of four browsers), and at most two shards without a
  * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
  * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
  *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
@@ -209,23 +210,24 @@ function childTriggers(shards, changed) {
 }
 
 /**
- * Shards that already passed on this branch with byte-identical inputs (tools/prepush-inputs.mjs)
- * are not run again; every other shard runs, and a pass is recorded when the shard's inputs are the
- * same after it as before it. PREPUSH_RERUN_ALL=1, a detached HEAD or an unreadable package graph
- * skips nothing.
+ * Shards that already passed with byte-identical inputs (tools/prepush-inputs.mjs) are not run again;
+ * every other shard runs, and a pass is recorded when the shard's inputs are the same after it as
+ * before it. PREPUSH_RERUN_ALL=1 or an unreadable package graph skips nothing.
  * @param shards the shards the gate would run
  * @param main the main checkout, which keeps the records in tmp/prepush-passes/
  * @returns `{ run, record(shard) }`; record returns a note for the shard's PASS line
  */
 function passed(shards, main) {
     const none = { run: shards, record: () => "" };
-    let branch = "";
+    let branch = null;
     try {
-        branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+        branch =
+            execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim() ||
+            null;
     } catch {
         // detached
     }
-    if (shards.length === 0 || !branch || process.env.PREPUSH_RERUN_ALL === "1") {
+    if (shards.length === 0 || process.env.PREPUSH_RERUN_ALL === "1") {
         return none;
     }
     const keys = shardKeys(ROOT);
@@ -235,11 +237,12 @@ function passed(shards, main) {
     }
     const keyOf = keys();
     const before = new Map(shards.map((s) => [s.shard, keyOf(s)]));
-    const store = passStore(main, branch);
-    const { run, skipped } = partitionByPasses(shards, before, store.read());
+    const store = passStore(main);
+    const { run, skipped } = partitionByPasses(shards, before, (key) => store.get("shard", key));
     for (const { shard, pass } of skipped) {
+        const on = [pass.branch, pass.sha?.slice(0, 9)].filter(Boolean).join(" at ");
         console.log(
-            `  [SKIP] ${shard.shard}: passed at ${pass.at} on ${pass.sha.slice(0, 9)} with byte-identical inputs (key ${pass.key.slice(0, 12)}; PREPUSH_RERUN_ALL=1 runs it)`,
+            `  [SKIP] ${shard.shard}: passed at ${pass.at} on ${on} with byte-identical inputs (key ${pass.key.slice(0, 12)}; PREPUSH_RERUN_ALL=1 runs it)`,
         );
     }
     const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
@@ -253,7 +256,7 @@ function passed(shards, main) {
             if (!key || keys()(shard) !== key) {
                 return "; not recorded: its inputs changed while it ran";
             }
-            store.record(shard.shard, { key, sha, at: new Date().toISOString() });
+            store.record("shard", key, { shard: shard.shard, branch, sha, at: new Date().toISOString() });
             return "";
         } catch (e) {
             return `; not recorded: ${e.message.split("\n")[0]}`;
@@ -308,7 +311,7 @@ async function main() {
         );
         return;
     }
-    const gate = join(main, "tmp/with-browser.sh");
+    const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
     const logs = join(ROOT, "tmp/prepush-tests");
     mkdirSync(logs, { recursive: true });
     const timeout = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";

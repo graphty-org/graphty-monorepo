@@ -41,7 +41,7 @@
  *  - A run inside a run that holds a slot (a test that runs vitest, a shard's second vitest
  *    command) does not take another: it finds GRAPHTY_TEST_SLOT_HELD in its environment, or, on
  *    Linux, an ancestor process holding a ticket. Only a holder ever waits on nothing else.
- *  - A gate shard that needs a browser takes the browser slot (tmp/with-browser.sh) BEFORE this
+ *  - A gate shard that needs a browser takes the browser slot (tools/with-browser.sh) BEFORE this
  *    one, and nothing holding a test slot ever waits for a browser slot, so the two never wait on
  *    each other. The push queue is outside both.
  *  - The GPU slot holder takes no test slot (HELD), and nothing holding a test slot waits for the
@@ -49,6 +49,11 @@
  *    other either.
  *  - Liveness is a signal-0 check of the pid plus its start time from /proc, never pgrep (whose
  *    pattern matches its own command line).
+ *
+ * The low-priority lane: a run with GRAPHTY_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs)
+ * queues behind every other run. Its ticket name starts with "~", which sorts after every ordinary ticket,
+ * so an ordinary run that arrives later still goes ahead of a waiting low one; a low run that already holds
+ * a slot keeps it (marked `granted` in its ticket) and counts against the limit for everyone.
  *
  * Off on GitHub Actions (GITHUB_ACTIONS=true: one job per runner, nothing to share) and when
  * GRAPHTY_TEST_SLOTS=0. Not keyed on CI: tools/run-tests.sh sets CI=true for every local shard.
@@ -59,6 +64,8 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync
 import { availableParallelism, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { logWait } from "./wait-log.mjs";
 
 /** Set in the environment of everything a slot holder runs, so a nested run takes no second slot. */
 export const HELD = "GRAPHTY_TEST_SLOT_HELD";
@@ -205,6 +212,22 @@ function ancestors(pid) {
     return out;
 }
 
+const LOW = "~";
+
+/**
+ * A ticket's place in line: a low ticket's index among all of them (ordinary ones sort first); an ordinary
+ * ticket's index among the ordinary ones, plus the low tickets that already hold a slot.
+ * @param live the live tickets, sorted
+ * @param name this run's ticket
+ * @returns 0 for the first, -1 when the ticket is gone
+ */
+export function placeInLine(live, name) {
+    const at = live.findIndex((t) => t.name === name);
+    if (at === -1 || name.startsWith(LOW)) return at;
+    const granted = live.filter((t) => t.name.startsWith(LOW) && t.granted).length;
+    return live.filter((t) => !t.name.startsWith(LOW)).findIndex((t) => t.name === name) + granted;
+}
+
 const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`);
 
 /**
@@ -218,6 +241,8 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.poll milliseconds between looks
  * @param options.log where the one waiting line goes
  * @param options.list reads the live tickets (a test replaces it)
+ * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
+ * @param options.waitLog records a wait that happened (a test replaces it)
  * @returns a function that gives the slot back (a no-op when none was taken)
  */
 export async function acquire({
@@ -229,6 +254,8 @@ export async function acquire({
     poll = 2000,
     log = (line) => process.stderr.write(`${line}\n`),
     list = liveTickets,
+    kind = "test",
+    waitLog = logWait,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -258,31 +285,36 @@ export async function acquire({
     if ((await look()).some((t) => mine.has(t.pid))) {
         return none; // this process or one it runs under already holds a slot
     }
-    const name = `${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
+    const low = env.GRAPHTY_SLOT_PRIORITY === "low" ? LOW : "";
+    const name = `${low}${String(Date.now()).padStart(15, "0")}-${String(pid).padStart(8, "0")}`;
     const tmp = join(dir, `.${name}`);
-    writeFileSync(tmp, JSON.stringify({ pid, start: startOf(pid), label, since: Date.now() }));
-    renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    const ticket = { pid, start: startOf(pid), label, since: Date.now() };
+    const writeTicket = (fields) => {
+        writeFileSync(tmp, JSON.stringify(fields));
+        renameSync(tmp, join(dir, name)); // whole or not at all, for readers
+    };
+    writeTicket(ticket);
     const release = () => rmSync(join(dir, name), { force: true });
-    let told = false;
+    const start = Date.now();
+    let holders = null;
     for (;;) {
         const live = await look();
-        const at = live.findIndex((t) => t.name === name);
+        const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
         }
         if (at < slots) {
+            // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
+            writeTicket({ ...ticket, granted: true });
+            if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
             return release;
         }
-        if (!told) {
-            told = true;
-            const holders = live
-                .slice(0, slots)
-                .map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`)
-                .join("; ");
+        if (!holders) {
+            holders = live.slice(0, slots).map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`);
             log(
                 `test-slots: waiting for one of ${slots} machine-wide test slots, ${at - slots} run(s) ahead; ` +
-                    `held by: ${holders}. GRAPHTY_TEST_SLOTS sets the count.`,
+                    `held by: ${holders.join("; ")}. GRAPHTY_TEST_SLOTS sets the count.`,
             );
         }
         await new Promise((r) => setTimeout(r, poll));
@@ -333,7 +365,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
     // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
     const take = gpu
-        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {} })
+        ? () => acquire({ label, dir: slotDir("gpu"), slots: Math.min(1, slotCount()), env: {}, kind: "gpu" })
         : () => acquire({ label });
     const release = off() ? () => {} : await take();
     process.on("exit", release);

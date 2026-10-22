@@ -1,7 +1,7 @@
 /**
  * @file The paths of the values graphty-element keeps per element beside the data: a file's style
  * values (`graphty.style.<namespace>.<kind>.<key>`) and the live degrees (`graphty.degree`,
- * `graphty.indegree`, `graphty.outdegree`).
+ * `graphty.inDegree`, `graphty.outDegree`).
  *
  * Every such path is built and parsed HERE and nowhere else. A proposal to move every per-element
  * value graphty keeps under one namespaced root (issue #2029) would change these helpers and
@@ -24,8 +24,8 @@ export type ComputedValue = "degree" | "indegree" | "outdegree";
 /** The path of each computed value. */
 const COMPUTED_PATHS: Readonly<Record<ComputedValue, Path>> = Object.freeze({
     degree: "graphty.degree",
-    indegree: "graphty.indegree",
-    outdegree: "graphty.outdegree",
+    indegree: "graphty.inDegree",
+    outdegree: "graphty.outDegree",
 });
 
 /** The computed value each path reads. */
@@ -131,7 +131,7 @@ export function fileStyleNamespace(format: string, taken: ReadonlySet<string>): 
 /**
  * The path a layer reads one computed value at.
  * @param value - The value.
- * @returns `graphty.degree`, `graphty.indegree` or `graphty.outdegree`.
+ * @returns `graphty.degree`, `graphty.inDegree` or `graphty.outDegree`.
  */
 export function computedPath(value: ComputedValue): Path {
     return COMPUTED_PATHS[value];

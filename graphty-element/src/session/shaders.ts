@@ -1688,7 +1688,10 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     ? {
                           id,
                           hash: project.hash,
-                          registration: project.registration,
+                          // The described descriptor: the parsed one leaves out the defaults the
+                          // catalog fills in (the places a use may move it to), and the drawing
+                          // refuses a place its shader does not list.
+                          registration: { ...project.registration, descriptor: project.descriptor },
                           bodyLine: project.bodyLine,
                           heavy: project.descriptor.cost === "heavy",
                       }

@@ -468,6 +468,11 @@ export function HeroGraph({
                 setSaid((before) => ({ ...before, communities: communities.summary().groups?.length }));
             }
         })().catch((error: unknown) => {
+            // Unmounted mid-load: the element aborts the import it no longer needs, which is no
+            // failure to report.
+            if (!live) {
+                return;
+            }
             console.error("[start] the start page's graph could not be drawn:", error);
         });
         return () => {

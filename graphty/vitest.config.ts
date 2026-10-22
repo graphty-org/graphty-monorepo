@@ -161,7 +161,7 @@ export default defineConfig({
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
-            // Each half of the graphty shard writes its own (tools/ci-test-matrix.mjs).
+            // Each part of the graphty shard writes its own (tools/ci-test-matrix.mjs).
             reportsDirectory: process.env.COVERAGE_DIR ?? "coverage",
             include: ["src/**/*.ts", "src/**/*.tsx"],
             exclude: [

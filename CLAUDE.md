@@ -707,12 +707,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 31 test shards on a manual dispatch or the release train (a push
+The CI runs 32 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
-graphty-1, graphty-2, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+graphty-1, graphty-2, graphty-3, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -723,7 +723,7 @@ shard. The shards:
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
-- `graphty-1`, `graphty-2` (the app's tests in two halves, each with its own coverage report), `graphty-storybook`
+- `graphty-1`, `graphty-2`, `graphty-3` (the app's tests in three parts, each with its own coverage report), `graphty-storybook`
 - `remote-logger`
 - `visual-review`
 - `githerd`

@@ -179,14 +179,15 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
-    // graphty - every project but the stories (uses Playwright for browser-based vitest), in two
-    // halves: about 1,240 tests took 46 minutes in one, past the gate's 30-minute shard limit. Each
-    // half writes its coverage to its own .coverage-parts/<shard> (COVERAGE_DIR), so the second
-    // does not overwrite the first in the group job; "coverage-file" says where for the upload.
-    ...[1, 2].map((n) => ({
+    // graphty - every project but the stories (uses Playwright for browser-based vitest), in three
+    // parts: about 1,240 tests took 46 minutes in one, past the gate's 30-minute shard limit, and a
+    // half still took 29 minutes in a loaded gate. Each part writes its coverage to its own
+    // .coverage-parts/<shard> (COVERAGE_DIR), so a later part does not overwrite an earlier one in
+    // the group job; "coverage-file" says where for the upload.
+    ...[1, 2, 3].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/2 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/3 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
@@ -314,6 +315,7 @@ export const GROUPS = {
         "compact-mantine",
         "graphty-1",
         "graphty-2",
+        "graphty-3",
         "graphty-storybook",
         "visual-review",
         "webgpu-graph-algorithms-browser",
